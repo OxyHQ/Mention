@@ -1,23 +1,17 @@
+import { getPostMetadata } from "@/features/posts/api/get-post-metadata";
 import { Metadata } from "next";
 
-import { PostHeader } from "@/features/header";
-import { PostDetails, getPostMetadata } from "@/features/posts";
+interface Post {
+  text: string;
+  author: unknown;
+}
 
 export async function generateMetadata({
   params,
 }: {
-  params: {
-    id: string;
-  };
+  params: { id: string };
 }): Promise<Metadata> {
-  const post = await getPostMetadata({
-    post_id: params.id,
-  });
-
-  if (!post)
-    return {
-      title: "Post",
-    };
+  const post = await getPostMetadata({ post_id: params.id });
 
   return {
     title: ` on Mention: "${decodeURIComponent(post?.text as string)}"`,
@@ -25,23 +19,14 @@ export async function generateMetadata({
   };
 }
 
-const PostPage = async ({
-  params,
-}: {
-  params: {
-    id: string;
-  };
-}) => {
-  const initialPost = await getPostMetadata({
-    post_id: params.id,
-  });
+const StatusPage = async ({ params }: { params: { id: string } }) => {
+  const post = await getPostMetadata({ post_id: params.id });
 
   return (
     <div>
-      <PostHeader />
-      <PostDetails initialPost={initialPost as any} />
+      <h1>{decodeURIComponent(post?.text as string)}</h1>
     </div>
   );
 };
 
-export default PostPage;
+export default StatusPage;
