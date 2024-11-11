@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { prisma } from "@/lib/prisma";
-
 export async function POST(request: Request) {
   const { post_id, user_id } = (await request.json()) as {
     post_id: string;
@@ -29,30 +27,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    const repost = await prisma.repost.findFirst({
-      where: {
-        post_id,
-        user_id,
+    const response = await fetch(`https://api.oxy.so/mention/posts/${post_id}/reposts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({ user_id }),
     });
 
-    if (repost) {
-      await prisma.repost.delete({
-        where: {
-          id: repost.id,
-        },
-      });
-      return NextResponse.json({ message: "Post un reposted" });
-    } else {
-      await prisma.repost.create({
-        data: {
-          post_id,
-          user_id,
-        },
-      });
-      return NextResponse.json({ message: "Post reposted" });
-    }
+    const result = await response.json();
+
+    return NextResponse.json(result, { status: 200 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({
+      message: "Something went wrong",
+      error: error.message,
+    });
   }
 }

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { prisma } from "@/lib/prisma";
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const user_id = searchParams.get("user_id") || undefined;
@@ -21,23 +19,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const posts = await prisma.post.findMany({
-      where: {
-        likes: {
-          some: {
-            user_id,
-          },
-        },
-      },
-
-      include: {
-        author: true,
-        media: true,
-        likes: true,
-        reposts: true,
-        comments: true,
-      },
-    });
+    const response = await fetch(`https://api.oxy.so/mention/posts?user_id=${user_id}`);
+    const posts = await response.json();
 
     return NextResponse.json(posts, { status: 200 });
   } catch (error: any) {
@@ -77,64 +60,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    const post = await prisma.post.findUnique({
-      where: {
-        id: post_id,
+    const response = await fetch(`https://api.oxy.so/mention/posts/${post_id}/likes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({ user_id }),
     });
 
-    const like = await prisma.like.findFirst({
-      where: {
-        post_id,
-        user_id,
-      },
-    });
+    const result = await response.json();
 
-    if (like) {
-      await prisma.like.delete({
-        where: {
-          id: like.id,
-        },
-      });
-
-      if (post && post.favorite_count > 0)
-        await prisma.post.update({
-          where: {
-            id: post_id,
-          },
-
-          data: {
-            favorite_count: {
-              decrement: 1,
-            },
-          },
-        });
-
-      return NextResponse.json({ message: "Post unliked" });
-    } else {
-      await prisma.like.create({
-        data: {
-          post_id,
-          user_id,
-        },
-      });
-
-      if (post) {
-        await prisma.post.update({
-          where: {
-            id: post_id,
-          },
-
-          data: {
-            favorite_count: {
-              increment: 1,
-            },
-          },
-        });
-      }
-
-      return NextResponse.json({ message: "Post liked" });
-    }
+    return NextResponse.json(result, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({
       message: "Something went wrong",

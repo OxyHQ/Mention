@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { prisma } from "@/lib/prisma";
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const user_id = searchParams.get("user_id") || undefined;
@@ -15,27 +13,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const user = await prisma.profile
-      .findUnique({
-        where: {
-          id: user_id,
-        },
-      })
-      .pinned_post({
-        include: {
-          author: true,
-          media: true,
-          likes: true,
-          reposts: true,
-          comments: true,
-          quoted_post: {
-            include: {
-              author: true,
-              media: true,
-            },
-          },
-        },
-      });
+    const response = await fetch(`https://api.oxy.so/mention/posts?user_id=${user_id}`);
+    const user = await response.json();
 
     return NextResponse.json(user, { status: 200 });
   } catch (error: any) {
@@ -63,17 +42,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    await prisma.profile.update({
-      where: {
-        id: user_id,
+    const response = await fetch(`https://api.oxy.so/mention/posts/${post_id}/pin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-
-      data: {
-        pinned_post_id: post_id,
-      },
+      body: JSON.stringify({ user_id }),
     });
 
-    return NextResponse.json({ message: "Post pinned" }, { status: 200 });
+    const result = await response.json();
+
+    return NextResponse.json(result, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -91,20 +70,16 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const user = await prisma.profile.update({
-      where: {
-        id,
-      },
-
-      data: {
-        pinned_post_id: null,
+    const response = await fetch(`https://api.oxy.so/mention/posts/${id}/unpin`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
       },
     });
 
-    return NextResponse.json(
-      { message: "Post unpinned", user },
-      { status: 200 },
-    );
+    const result = await response.json();
+
+    return NextResponse.json(result, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

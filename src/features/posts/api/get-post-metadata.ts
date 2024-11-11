@@ -1,7 +1,5 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-
 // Placeholder for your actual API call
 async function getAuthorFromAPI(author_id: string) {
   const response = await fetch(
@@ -13,39 +11,8 @@ async function getAuthorFromAPI(author_id: string) {
 
 export const getPostMetadata = async ({ post_id }: { post_id: string }) => {
   try {
-    const post = await prisma.post.findUnique({
-      where: {
-        id: post_id,
-      },
-
-      select: {
-        id: true,
-        text: true,
-        author_id: true,
-        created_at: true,
-
-        media: true,
-
-        quoted_post: {
-          include: {
-            author: true,
-            media: true,
-          },
-        },
-
-        reposts: {
-          select: {
-            user_id: true,
-          },
-        },
-
-        likes: {
-          select: {
-            user_id: true,
-          },
-        },
-      },
-    });
+    const response = await fetch(`https://api.oxy.so/mention/posts/${post_id}`);
+    const post = await response.json();
 
     if (!post) {
       throw new Error("Post not found");
