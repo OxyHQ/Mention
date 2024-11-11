@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch("https://api.oxy.so/mention/posts/");
-    const data = await response.json();
+    const data = (await response.json()) as { posts: any[] };
 
     const posts = data.posts.map((post: any) => ({
       id: post.id,

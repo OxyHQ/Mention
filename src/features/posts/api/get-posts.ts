@@ -13,7 +13,7 @@ export const getPosts = async ({
 }) => {
   try {
     const { data } = await axios.get(
-      `https://api.oxy.so/mention/posts?cursor=${pageParam}&limit=${limit}${
+      `/api/posts?cursor=${pageParam}&limit=${limit}${
         type ? `&type=${type}` : ""
       }${id ? `&id=${id}` : ""}`,
     );
