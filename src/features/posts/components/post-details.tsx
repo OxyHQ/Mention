@@ -15,6 +15,7 @@ import {
   PostStatistics,
   usePost,
 } from "@/features/posts";
+import getPost from "@/features/posts/api/get-post";
 
 import styles from "./styles/post-details.module.scss";
 
