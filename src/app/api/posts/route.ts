@@ -1,7 +1,4 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-
-import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -15,161 +12,42 @@ export async function GET(request: Request) {
   const skip = cursorQuery ? 1 : 0;
   const cursor = cursorQuery ? { id: cursorQuery } : undefined;
 
-  interface AuthorData {
-    id: string;
-    name: string;
-    username: string;
-    email: string;
-    role: string;
-    avatar: string;
-  }
-
   try {
-    let followingUserIds: string[] = [];
-    if (id) {
-      followingUserIds = await prisma.profile
-        .findUnique({
-          where: { id: id },
-          select: { following: { select: { id: true } } },
-        })
-        .then(
-          (user) =>
-            user?.following.map((followingUser) => followingUser.id) || [],
-        );
-    }
-    if (id) {
-      followingUserIds.push(id);
-    }
+    const response = await fetch("https://api.oxy.so/mention/posts/");
+    const data = await response.json();
 
-    const posts = await prisma.post.findMany({
-      skip,
-      take,
-      cursor,
-
-      where: {
-        ...(type === "comments" && {
-          in_reply_to_status_id: id,
-        }),
-
-        ...(type === "bookmarks" && {
-          bookmarks: {
-            some: {
-              user_id: id,
-            },
-          },
-        }),
-
-        ...(type === "search" && {
-          text: {
-            contains: id,
-            mode: "insensitive",
-          },
-        }),
-
-        ...(type === "user_posts" && {
-          author_id: id,
-        }),
-
-        ...(type === "user_replies" && {
-          author_id: id,
-          NOT: {
-            in_reply_to_status_id: null,
-            in_reply_to_username: null,
-            in_reply_to_user_id: null,
-          },
-        }),
-
-        ...(type === "user_media" && {
-          author_id: id,
-          media: {
-            some: {},
-          },
-        }),
-
-        ...(type === "user_likes" && {
-          likes: {
-            some: {
-              user_id: id,
-            },
-          },
-        }),
-
-        ...(type === "default" && {
-          author_id: {
-            in: followingUserIds,
-          },
-        }),
-      },
-
-      include: {
-        author: {
-          include: {
-            bookmarks: true,
-          },
-        },
-
-        likes: true,
-        media: true,
-        reposts: true,
-
-        quoted_post: {
-          include: {
-            author: true,
-            media: true,
-          },
-        },
-
-        quotes: true,
-        comments: true,
-
-        bookmarks: {
-          include: {
-            user: true,
-          },
-          orderBy: {
-            created_at: "desc",
-          },
-        },
-
-        _count: {
-          select: {
-            comments: true,
-            likes: true,
-            quotes: true,
-            reposts: true,
-          },
-        },
-      },
-
-      orderBy: {
-        created_at: "desc",
-      },
-    });
-
-    const authorIds = posts.map((post) => post.author.id);
-    const authorData: AuthorData[] = await fetch(
-      process.env.NEXT_PUBLIC_OXY_SERVICES_URL +
-        `/api/users?ids=${authorIds.join(",")}`,
-    )
-      .then((response) => response.json() as Promise<AuthorData[]>)
-      .catch((error) => {
-        console.error("Error:", error);
-        return []; // return an empty array in case of error
-      });
-
-    const postsWithAuthorData = posts.map((post) => {
-      const author = authorData.find((author) => author.id === post.author.id);
-      return {
-        ...post,
-        author,
-      };
-    });
-
-    const postsWithAuthorDataResolved = await Promise.all(postsWithAuthorData);
+    const posts = data.posts.map((post: any) => ({
+      id: post.id,
+      text: post.text,
+      author: post.author,
+      source: post.source,
+      in_reply_to_user_id: post.in_reply_to_user_id,
+      in_reply_to_username: post.in_reply_to_username,
+      is_quote_status: post.is_quote_status,
+      quoted_status_id: post.quoted_status_id,
+      quote_count: post.quote_count,
+      reply_count: post.reply_count,
+      repost_count: post.repost_count,
+      favorite_count: post.favorite_count,
+      possibly_sensitive: post.possibly_sensitive,
+      lang: post.lang,
+      created_at: post.created_at,
+      quoted_post_id: post.quoted_post_id,
+      in_reply_to_status_id: post.in_reply_to_status_id,
+      likes: post.likes,
+      media: post.media,
+      reposts: post.reposts,
+      quoted_post: post.quoted_post,
+      quotes: post.quotes,
+      comments: post.comments,
+      bookmarks: post.bookmarks,
+      _count: post._count,
+      view_count: post.view_count,
+    }));
 
     const nextId = posts.length < take ? undefined : posts[posts.length - 1].id;
     return NextResponse.json({
-      posts: postsWithAuthorDataResolved,
+      posts,
       nextId,
     });
   } catch (error) {
