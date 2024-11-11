@@ -1,17 +1,24 @@
-import { getPostMetadata } from "@/features/posts/api/get-post-metadata";
 import { Metadata } from "next";
+import { notFound } from "next/navigation";
 
-interface Post {
-  text: string;
-  author: unknown;
-}
+import { getPost } from "@/features/posts/api/get-post";
+import { Post } from "@/features/posts/types";
+import { PostDetails } from "@/features/posts/components/post-details";
+
+type PageProps = {
+  params: {
+    id: string;
+  };
+};
 
 export async function generateMetadata({
   params,
-}: {
-  params: { id: string };
-}): Promise<Metadata> {
-  const post = await getPostMetadata({ post_id: params.id });
+}: PageProps): Promise<Metadata> {
+  const post = (await getPost(params.id)) as Post;
+
+  if (!post) {
+    return notFound();
+  }
 
   return {
     title: ` on Mention: "${decodeURIComponent(post?.text as string)}"`,
@@ -19,14 +26,12 @@ export async function generateMetadata({
   };
 }
 
-const StatusPage = async ({ params }: { params: { id: string } }) => {
-  const post = await getPostMetadata({ post_id: params.id });
+export default async function Page({ params }: PageProps) {
+  const post = (await getPost(params.id)) as Post;
 
-  return (
-    <div>
-      <h1>{decodeURIComponent(post?.text as string)}</h1>
-    </div>
-  );
-};
+  if (!post) {
+    return notFound();
+  }
 
-export default StatusPage;
+  return <PostDetails post={post} />;
+}
