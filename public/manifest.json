@@ -97,7 +97,7 @@
     ],
     "protocol_handlers": [
         {
-            "protocol": "mention",
+            "protocol": "web+mention",
             "url": "/?type=%s"
         }
     ],
