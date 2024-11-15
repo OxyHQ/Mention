@@ -14,7 +14,7 @@ export const useUsers = ({
   const { session, status } = useOxySession();
 
   return useQuery<IUser[]>({
-    queryKey,
+    queryKey: [...queryKey, status, session?.user?.id, limit],
     queryFn: async () => {
       if (status === "loading") {
         return [];
