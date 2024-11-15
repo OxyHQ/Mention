@@ -40,6 +40,10 @@ export async function GET(request: Request) {
     }
 
     const data = await response.text();
+    if (!data) {
+      return NextResponse.json({ error: "Data is undefined or null" }, { status: 404 });
+    }
+
     const parsedData: User[] = JSON.parse(data) as User[];
 
     if (parsedData.length === 0) {
