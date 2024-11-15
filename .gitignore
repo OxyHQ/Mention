@@ -34,7 +34,6 @@ yarn-error.log*
 
 # MISC
 .idea
-.turbo/
 .cache/
 .next/
 .nuxt/
@@ -48,11 +47,9 @@ temp/
 .DS_Store
 Thumbs.db
 
-.turbo
 .vercel
 
 # typescript
-*.tsbuildinfo
 next-env.d.ts
 
 # Auto Generated PWA files

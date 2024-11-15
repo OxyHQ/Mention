@@ -1,6 +1,6 @@
 {
   "name": "mention",
-  "description": "Mention is a social media app built with Next.js, Prisma, and Supabase",
+  "description": "Mention is a social media app built with Next.js, Prisma, and Supabase.",
   "version": "1.11.0",
   "private": true,
   "scripts": {

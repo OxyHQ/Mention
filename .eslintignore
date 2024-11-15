@@ -34,7 +34,6 @@ yarn-error.log*
 
 # MISC
 .idea
-.turbo/
 .cache/
 .next/
 .nuxt/
@@ -48,7 +47,5 @@ temp/
 .DS_Store
 Thumbs.db
 
-.turbo
 .vercel
-*.css
 *.scss

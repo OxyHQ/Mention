@@ -33,7 +33,7 @@ export const FeedbackClientPage = () => {
       // Handle any errors
       console.error("Error submitting feedback:", error);
       // Show an error message
-      toast("Failed to submit feedback");
+      toast("Failed to submit feedback.");
     }
   };
 

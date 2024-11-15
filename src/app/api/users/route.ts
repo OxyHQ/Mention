@@ -15,11 +15,17 @@ export async function GET(request: Request) {
   const id = searchParams.get("id") || undefined;
   const limit = searchParams.get("limit") || undefined;
   const idSchema = z.string().cuid().optional();
+  const limitSchema = z.string().regex(/^\d+$/).optional();
 
-  const zod = idSchema.safeParse(id);
+  const zodId = idSchema.safeParse(id);
+  const zodLimit = limitSchema.safeParse(limit);
 
-  if (!zod.success) {
-    return NextResponse.json(zod.error, { status: 400 });
+  if (!zodId.success) {
+    return NextResponse.json(zodId.error, { status: 400 });
+  }
+
+  if (!zodLimit.success) {
+    return NextResponse.json(zodLimit.error, { status: 400 });
   }
 
   try {
@@ -28,8 +34,17 @@ export async function GET(request: Request) {
       process.env.NEXT_PUBLIC_OXY_SERVICES_URL +
         `/api/users${id ? `?id=${id}` : ""}${limit ? `&limit=${limit}` : ""}`,
     );
+
+    if (!response.ok) {
+      return NextResponse.json({ error: "Failed to fetch data from external API" }, { status: response.status });
+    }
+
     const data = await response.text();
     const parsedData: User[] = JSON.parse(data) as User[];
+
+    if (parsedData.length === 0) {
+      return NextResponse.json({ error: "No data found" }, { status: 404 });
+    }
 
     const usersWithAdditionalData = await prisma.profile.findMany({
       where: {
@@ -57,6 +72,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json(mergedData, { status: 200 });
   } catch (error: any) {
-    return NextResponse.json(error.message, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
