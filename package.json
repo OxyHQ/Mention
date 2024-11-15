@@ -1,6 +1,6 @@
 {
   "name": "mention",
-  "description": "Mention is a social media app built with Next.js, Prisma, and Supabase.",
+  "description": "Mention is a social network built with Next.js, Prisma, and Supabase.",
   "version": "1.11.0",
   "private": true,
   "scripts": {
@@ -28,7 +28,7 @@
     "@hookform/resolvers": "^3.3.4",
     "@mui/icons-material": "^5.15.7",
     "@next-auth/prisma-adapter": "^1.0.7",
-    "@oxyhq/services": "0.0.61",
+    "@oxyhq/services": "0.0.62",
     "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/client": "^5.10.2",
     "@radix-ui/react-accordion": "^1.1.2",
