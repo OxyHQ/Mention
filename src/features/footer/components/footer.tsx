@@ -6,8 +6,14 @@ import styles from "./styles/footer.module.scss";
 export const Footer = () => {
   return (
     <nav aria-label="Footer" className={styles.container}>
-      <FooterLink title="Terms of Service" url="https://mention.earth/terms" />
-      <FooterLink title="Privacy Policy" url="https://mention.earth/privacy" />
+      <FooterLink
+        title="Terms of Service"
+        url="https://oxy.so/company/transparency/policies/terms"
+      />
+      <FooterLink
+        title="Privacy Policy"
+        url="https://oxy.so/company/transparency/policies/privacy"
+      />
       <FooterLink title="Contribute" url="https://mention.earth/contribute" />
       <FooterLink
         title="Accessibility"
