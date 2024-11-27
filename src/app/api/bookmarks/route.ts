@@ -3,12 +3,16 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 
+const validateId = (id: string) => {
+  const idSchema = z.string().cuid();
+  return idSchema.safeParse(id);
+};
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const user_id = searchParams.get("user_id") as string;
 
-  const idSchema = z.string().cuid();
-  const zod = idSchema.safeParse(user_id);
+  const zod = validateId(user_id);
 
   if (!zod.success) {
     return NextResponse.json(

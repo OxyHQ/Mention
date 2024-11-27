@@ -1,5 +1,5 @@
 import { Explore } from "@/features/explore";
-import { ExploreHeader, Header } from "@/features/header";
+import { ExploreHeader } from "@/features/header";
 
 const ExplorePage = () => {
   return (

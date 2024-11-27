@@ -50,10 +50,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No data found" }, { status: 404 });
     }
 
+    const userIds = parsedData.map((user) => user.id);
+
     const usersWithAdditionalData = await prisma.profile.findMany({
       where: {
         id: {
-          in: parsedData.map((user) => user.id),
+          in: userIds,
         },
       },
       select: {
