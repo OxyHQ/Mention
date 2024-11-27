@@ -40,7 +40,7 @@ export const ContributeClientPage = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container">
       <Header>
         <HamburgerButton />
         <h1 className="mt-4 text-3xl font-bold">

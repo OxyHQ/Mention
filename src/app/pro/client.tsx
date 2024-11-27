@@ -90,7 +90,7 @@ export const ProClientPage = () => {
         </div>
         <div className="cta-button px-4 text-center">
           <button
-            className="btn-primary rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            className="disabled-button grid w-full cursor-pointer place-items-center rounded-full bg-primary-100 fill-secondary-100 p-[0.9em] text-white transition-colors duration-200 ease-in-out hover:bg-primary-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-secondary-100 active:bg-primary-300 [&>svg]:w-h2"
             onClick={handleSubscribe}
           >
             Subscribe Now
