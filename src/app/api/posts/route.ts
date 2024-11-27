@@ -154,7 +154,7 @@ export async function GET(request: Request) {
       .then((response) => response.json() as Promise<AuthorData[]>)
       .catch((error) => {
         console.error("Error:", error);
-        return []; // return an empty array in case of error
+        return [];
       });
 
     const postsWithAuthorData = posts.map((post) => {
