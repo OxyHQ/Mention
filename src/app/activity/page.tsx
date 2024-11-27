@@ -2,29 +2,50 @@ import { Button } from "@/components/ui/button";
 import { Header, ActivityHeader } from "@/features/header";
 import { HamburgerButton } from "@/components/elements/hamburger-button";
 import { Avatar } from "@/features/profile";
+import { useEffect, useState } from "react";
 
-const activityArray = [
-  {
-    title: "Your call has been confirmed.",
-    description: "1 hour ago",
-    avatar:
-      "https://grtqfohpifovervglcrg.supabase.co/storage/v1/object/public/avatars/414876655_3680318035531765_3288461531498532784_n.jpg", // Add avatar property
-  },
-  {
-    title: "You have a new message!",
-    description: "1 hour ago",
-    avatar:
-      "https://grtqfohpifovervglcrg.supabase.co/storage/v1/object/public/avatars/414876655_3680318035531765_3288461531498532784_n.jpg", // Add avatar property
-  },
-  {
-    title: "Your subscription is expiring soon!",
-    description: "2 hours ago",
-    avatar:
-      "https://grtqfohpifovervglcrg.supabase.co/storage/v1/object/public/avatars/414876655_3680318035531765_3288461531498532784_n.jpg", // Add avatar property
-  },
-];
+const fetchAvatarUrls = async () => {
+  // Replace this with your actual API call or configuration file fetching logic
+  return [
+    "https://grtqfohpifovervglcrg.supabase.co/storage/v1/object/public/avatars/414876655_3680318035531765_3288461531498532784_n.jpg",
+    "https://grtqfohpifovervglcrg.supabase.co/storage/v1/object/public/avatars/414876655_3680318035531765_3288461531498532784_n.jpg",
+    "https://grtqfohpifovervglcrg.supabase.co/storage/v1/object/public/avatars/414876655_3680318035531765_3288461531498532784_n.jpg",
+  ];
+};
 
 const Activity = () => {
+  const [activityArray, setActivityArray] = useState([
+    {
+      title: "Your call has been confirmed.",
+      description: "1 hour ago",
+      avatar: "", // Add avatar property
+    },
+    {
+      title: "You have a new message!",
+      description: "1 hour ago",
+      avatar: "", // Add avatar property
+    },
+    {
+      title: "Your subscription is expiring soon!",
+      description: "2 hours ago",
+      avatar: "", // Add avatar property
+    },
+  ]);
+
+  useEffect(() => {
+    const fetchAvatars = async () => {
+      const avatars = await fetchAvatarUrls();
+      setActivityArray((prevArray) =>
+        prevArray.map((item, index) => ({
+          ...item,
+          avatar: avatars[index],
+        }))
+      );
+    };
+
+    fetchAvatars();
+  }, []);
+
   const unreadCount = activityArray.length;
 
   return (

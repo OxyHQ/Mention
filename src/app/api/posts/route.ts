@@ -3,6 +3,172 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
 
+interface AuthorData {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  role: string;
+  avatar: string;
+}
+
+const fetchFollowingUserIds = async (id: string) => {
+  const followingUserIds = await prisma.profile
+    .findUnique({
+      where: { id: id },
+      select: { following: { select: { id: true } } },
+    })
+    .then(
+      (user) => user?.following.map((followingUser) => followingUser.id) || [],
+    );
+
+  return followingUserIds;
+};
+
+const fetchPosts = async (
+  type: string | undefined,
+  id: string | undefined,
+  followingUserIds: string[],
+  skip: number,
+  take: number,
+  cursor: { id: string } | undefined,
+) => {
+  const posts = await prisma.post.findMany({
+    skip,
+    take,
+    cursor,
+
+    where: {
+      ...(type === "comments" && {
+        in_reply_to_status_id: id,
+      }),
+
+      ...(type === "bookmarks" && {
+        bookmarks: {
+          some: {
+            user_id: id,
+          },
+        },
+      }),
+
+      ...(type === "search" && {
+        text: {
+          contains: id,
+          mode: "insensitive",
+        },
+      }),
+
+      ...(type === "user_posts" && {
+        author_id: id,
+      }),
+
+      ...(type === "user_replies" && {
+        author_id: id,
+        NOT: {
+          in_reply_to_status_id: null,
+          in_reply_to_username: null,
+          in_reply_to_user_id: null,
+        },
+      }),
+
+      ...(type === "user_media" && {
+        author_id: id,
+        media: {
+          some: {},
+        },
+      }),
+
+      ...(type === "user_likes" && {
+        likes: {
+          some: {
+            user_id: id,
+          },
+        },
+      }),
+
+      ...(type === "default" && {
+        author_id: {
+          in: followingUserIds,
+        },
+      }),
+    },
+
+    include: {
+      author: {
+        include: {
+          bookmarks: true,
+        },
+      },
+
+      likes: true,
+      media: true,
+      reposts: true,
+
+      quoted_post: {
+        include: {
+          author: true,
+          media: true,
+        },
+      },
+
+      quotes: true,
+      comments: true,
+
+      bookmarks: {
+        include: {
+          user: true,
+        },
+        orderBy: {
+          created_at: "desc",
+        },
+      },
+
+      _count: {
+        select: {
+          comments: true,
+          likes: true,
+          quotes: true,
+          reposts: true,
+        },
+      },
+    },
+
+    orderBy: {
+      created_at: "desc",
+    },
+  });
+
+  return posts;
+};
+
+const fetchAuthorData = async (authorIds: string[]) => {
+  const authorData: AuthorData[] = await fetch(
+    process.env.NEXT_PUBLIC_OXY_SERVICES_URL +
+      `/api/users?ids=${authorIds.join(",")}`,
+  )
+    .then((response) => response.json() as Promise<AuthorData[]>)
+    .catch((error) => {
+      console.error("Error:", error);
+      return []; // return an empty array in case of error
+    });
+
+  return authorData;
+};
+
+const mergePostsWithAuthorData = async (posts: any[], authorData: AuthorData[]) => {
+  const postsWithAuthorData = posts.map((post) => {
+    const author = authorData.find((author) => author.id === post.author.id);
+    return {
+      ...post,
+      author,
+    };
+  });
+
+  const postsWithAuthorDataResolved = await Promise.all(postsWithAuthorData);
+
+  return postsWithAuthorDataResolved;
+};
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
@@ -15,157 +181,21 @@ export async function GET(request: Request) {
   const skip = cursorQuery ? 1 : 0;
   const cursor = cursorQuery ? { id: cursorQuery } : undefined;
 
-  interface AuthorData {
-    id: string;
-    name: string;
-    username: string;
-    email: string;
-    role: string;
-    avatar: string;
-  }
-
   try {
     let followingUserIds: string[] = [];
     if (id) {
-      followingUserIds = await prisma.profile
-        .findUnique({
-          where: { id: id },
-          select: { following: { select: { id: true } } },
-        })
-        .then(
-          (user) =>
-            user?.following.map((followingUser) => followingUser.id) || [],
-        );
+      followingUserIds = await fetchFollowingUserIds(id);
     }
     if (id) {
       followingUserIds.push(id);
     }
 
-    const posts = await prisma.post.findMany({
-      skip,
-      take,
-      cursor,
-
-      where: {
-        ...(type === "comments" && {
-          in_reply_to_status_id: id,
-        }),
-
-        ...(type === "bookmarks" && {
-          bookmarks: {
-            some: {
-              user_id: id,
-            },
-          },
-        }),
-
-        ...(type === "search" && {
-          text: {
-            contains: id,
-            mode: "insensitive",
-          },
-        }),
-
-        ...(type === "user_posts" && {
-          author_id: id,
-        }),
-
-        ...(type === "user_replies" && {
-          author_id: id,
-          NOT: {
-            in_reply_to_status_id: null,
-            in_reply_to_username: null,
-            in_reply_to_user_id: null,
-          },
-        }),
-
-        ...(type === "user_media" && {
-          author_id: id,
-          media: {
-            some: {},
-          },
-        }),
-
-        ...(type === "user_likes" && {
-          likes: {
-            some: {
-              user_id: id,
-            },
-          },
-        }),
-
-        ...(type === "default" && {
-          author_id: {
-            in: followingUserIds,
-          },
-        }),
-      },
-
-      include: {
-        author: {
-          include: {
-            bookmarks: true,
-          },
-        },
-
-        likes: true,
-        media: true,
-        reposts: true,
-
-        quoted_post: {
-          include: {
-            author: true,
-            media: true,
-          },
-        },
-
-        quotes: true,
-        comments: true,
-
-        bookmarks: {
-          include: {
-            user: true,
-          },
-          orderBy: {
-            created_at: "desc",
-          },
-        },
-
-        _count: {
-          select: {
-            comments: true,
-            likes: true,
-            quotes: true,
-            reposts: true,
-          },
-        },
-      },
-
-      orderBy: {
-        created_at: "desc",
-      },
-    });
+    const posts = await fetchPosts(type, id, followingUserIds, skip, take, cursor);
 
     const authorIds = posts.map((post) => post.author.id);
-    const authorData: AuthorData[] = await fetch(
-      process.env.NEXT_PUBLIC_OXY_SERVICES_URL +
-        `/api/users?ids=${authorIds.join(",")}`,
-    )
-      .then((response) => response.json() as Promise<AuthorData[]>)
-      .catch((error) => {
-        console.error("Error:", error);
-        return []; // return an empty array in case of error
-      });
+    const authorData = await fetchAuthorData(authorIds);
 
-    const postsWithAuthorData = posts.map((post) => {
-      const author = authorData.find((author) => author.id === post.author.id);
-      return {
-        ...post,
-        author,
-      };
-    });
-
-    const postsWithAuthorDataResolved = await Promise.all(postsWithAuthorData);
+    const postsWithAuthorDataResolved = await mergePostsWithAuthorData(posts, authorData);
 
     const nextId = posts.length < take ? undefined : posts[posts.length - 1].id;
     return NextResponse.json({

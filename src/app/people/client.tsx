@@ -13,6 +13,7 @@ export const ConnectClientPage = () => {
     data: people = [],
     isLoading,
     isError,
+    error,
   } = useUsers({
     queryKey: ["people"],
     limit: 20,
@@ -32,6 +33,7 @@ export const ConnectClientPage = () => {
       <>
         <ConnectHeader />
         <TryAgain />
+        <p>{error.message}</p>
       </>
     );
   }
