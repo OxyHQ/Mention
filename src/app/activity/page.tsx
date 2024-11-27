@@ -1,20 +1,24 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Header, ActivityHeader } from "@/features/header";
 import { HamburgerButton } from "@/components/elements/hamburger-button";
 import { Avatar } from "@/features/profile";
 
-const Activity = () => {
-  const [activityArray, setActivityArray] = useState([]);
+const ActivityPage = () => {
+  interface Notification {
+    avatar: string;
+    title: string;
+    description: string;
+  }
+
+  const [activityArray, setActivityArray] = useState<Notification[]>([]);
   const unreadCount = activityArray.length;
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch("/api/activity");
-        const data = await response.json();
+        const data = (await response.json()) as Notification[];
         setActivityArray(data);
       } catch (error) {
         console.error("Error fetching activity data:", error);
@@ -55,4 +59,9 @@ const Activity = () => {
   );
 };
 
-export default Activity;
+export default ActivityPage;
+
+export const metadata = {
+  title: "Activity",
+  description: "The latest stories on Mention - as told by Posts.",
+};
