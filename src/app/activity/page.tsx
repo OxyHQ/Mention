@@ -1,31 +1,27 @@
+import { useEffect, useState } from "react";
+import fetch from "node-fetch";
 import { Button } from "@/components/ui/button";
 import { Header, ActivityHeader } from "@/features/header";
 import { HamburgerButton } from "@/components/elements/hamburger-button";
 import { Avatar } from "@/features/profile";
 
-const activityArray = [
-  {
-    title: "Your call has been confirmed.",
-    description: "1 hour ago",
-    avatar:
-      "https://grtqfohpifovervglcrg.supabase.co/storage/v1/object/public/avatars/414876655_3680318035531765_3288461531498532784_n.jpg", // Add avatar property
-  },
-  {
-    title: "You have a new message!",
-    description: "1 hour ago",
-    avatar:
-      "https://grtqfohpifovervglcrg.supabase.co/storage/v1/object/public/avatars/414876655_3680318035531765_3288461531498532784_n.jpg", // Add avatar property
-  },
-  {
-    title: "Your subscription is expiring soon!",
-    description: "2 hours ago",
-    avatar:
-      "https://grtqfohpifovervglcrg.supabase.co/storage/v1/object/public/avatars/414876655_3680318035531765_3288461531498532784_n.jpg", // Add avatar property
-  },
-];
-
 const Activity = () => {
+  const [activityArray, setActivityArray] = useState([]);
   const unreadCount = activityArray.length;
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("/api/activity");
+        const data = await response.json();
+        setActivityArray(data);
+      } catch (error) {
+        console.error("Error fetching activity data:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   return (
     <div>
