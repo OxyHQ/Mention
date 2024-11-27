@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Header, ActivityHeader } from "@/features/header";
-import { HamburgerButton } from "@/components/elements/hamburger-button";
 import { Avatar } from "@/features/profile";
 
 const ActivityPage = () => {
