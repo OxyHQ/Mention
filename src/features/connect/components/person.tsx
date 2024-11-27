@@ -7,8 +7,6 @@ import {
   Avatar,
   following,
   IUser,
-  LinkToProfile,
-  UserModalWrapper,
   UserName,
   UserUsername,
 } from "@/features/profile";
@@ -36,38 +34,19 @@ export const Person = ({ person }: { person: IUser }) => {
         onClick={() => router.push(`/${person?.username}`)}
       >
         <div className={styles.avatar}>
-          <UserModalWrapper userId={person?.id} delay={500}>
-            <Avatar userImage={person?.avatar} />
-          </UserModalWrapper>
+          <Avatar userImage={person.avatar} />
         </div>
-
-        <div className={styles.info}>
-          <UserModalWrapper userId={person?.id} delay={500}>
-            <LinkToProfile username={person?.username}>
-              <EllipsisWrapper>
-                <UserName
-                  name={person?.name}
-                  isVerified={person?.verified}
-                  hover={true}
-                />
-              </EllipsisWrapper>
-            </LinkToProfile>
-          </UserModalWrapper>
-
-          <UserModalWrapper userId={person?.id} delay={500}>
-            <EllipsisWrapper>
-              <UserUsername username={person?.username} />
-            </EllipsisWrapper>
-          </UserModalWrapper>
+        <div className={styles.details}>
+          <UserName name={person.name} />
+          <UserUsername username={person.username} />
         </div>
       </button>
-
-      <div className={styles.follow}>
+      <div className={styles.actions}>
         <FollowButton
-          user_id={person?.id}
-          session_owner_id={session?.user?.id as string}
           isFollowing={isFollowing}
-          username={person?.username}
+          user_id={person.id}
+          username={person.username}
+          session_owner_id={session?.user?.id as string}
         />
       </div>
     </div>

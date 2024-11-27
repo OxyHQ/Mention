@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Header, ActivityHeader } from "@/features/header";
 import { Avatar } from "@/features/profile";
+import { useOxySession } from "@oxyhq/services";
 
 export const Activity = () => {
+  const { session } = useOxySession();
   const [activityArray, setActivityArray] = useState<
     { avatar: string; title: string; description: string }[]
   >([]);
@@ -21,7 +22,13 @@ export const Activity = () => {
           description: string;
         }[];
         if (Array.isArray(data)) {
-          setActivityArray(data);
+          setActivityArray(
+            data.map((item) => ({
+              avatar: item.avatar,
+              title: item.title,
+              description: item.description,
+            })),
+          );
         } else {
           console.error("Fetched data is not an array:", data);
         }
@@ -31,11 +38,10 @@ export const Activity = () => {
     };
 
     fetchData();
-  }, []);
+  }, [session]);
 
   return (
     <div>
-      <ActivityHeader />
       <p className="p-4 text-center">You have {unreadCount} unread messages.</p>
       <div className="mx-2 w-full border-0 p-1">
         <div className="grid gap-4">
