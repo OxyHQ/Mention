@@ -42,7 +42,9 @@ export const Activity = () => {
 
   return (
     <div>
-      <p className="p-4 text-center">You have {unreadCount} unread messages.</p>
+      <p className="p-4 text-center">
+        You have {unreadCount} unread notifications.
+      </p>
       <div className="mx-2 w-full border-0 p-1">
         <div className="grid gap-4">
           {activityArray.map((notification, index) => (
@@ -61,9 +63,6 @@ export const Activity = () => {
               </div>
             </div>
           ))}
-        </div>
-        <div className="mt-4">
-          <Button className="w-full">Mark all as read</Button>
         </div>
       </div>
     </div>
