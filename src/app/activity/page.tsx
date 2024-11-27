@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import fetch from "node-fetch";
 import { Button } from "@/components/ui/button";
 import { Header, ActivityHeader } from "@/features/header";
 import { HamburgerButton } from "@/components/elements/hamburger-button";
@@ -57,7 +56,3 @@ const Activity = () => {
 };
 
 export default Activity;
-
-export const metadata = {
-  title: "Activity",
-};

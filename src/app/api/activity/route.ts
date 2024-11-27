@@ -25,7 +25,19 @@ export async function GET() {
       },
     });
 
-    const activities = [...followers, ...taggedPosts];
+    const activities = [
+      ...followers.map((follower) => ({
+        title: "New Follower",
+        description: `${follower.name} started following you.`,
+        avatar: follower.avatar,
+      })),
+      ...taggedPosts.map((post) => ({
+        title: "Tagged in a Post",
+        description: `${post.author.name} tagged you in a post.`,
+        avatar: post.author.avatar,
+      })),
+    ];
+
     return NextResponse.json(activities, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
