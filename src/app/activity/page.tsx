@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import fetch from "node-fetch";
 import { Button } from "@/components/ui/button";
