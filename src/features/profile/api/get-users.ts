@@ -9,7 +9,7 @@ export const getUsers = async ({
 }) => {
   try {
     const { data } = await axios.get(
-      `/api/users${id ? `?id=${id}` : ""}&${limit ? `&limit=${limit}` : ""}}`,
+      `/api/users${id ? `?id=${id}` : ""}${limit ? `${id ? "&" : "?"}limit=${limit}` : ""}`,
     );
 
     return data;

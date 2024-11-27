@@ -30,18 +30,22 @@ export async function GET(request: Request) {
 
   try {
     // Fetch additional data for each user
-    const response = await fetch(
-      process.env.NEXT_PUBLIC_OXY_SERVICES_URL +
-        `/api/users${id ? `?id=${id}` : ""}${limit ? `&limit=${limit}` : ""}`,
-    );
+    const url = `${process.env.NEXT_PUBLIC_OXY_SERVICES_URL}/api/users${id ? `?id=${id}` : ""}${limit ? `&limit=${limit}` : ""}`;
+    const response = await fetch(url);
 
     if (!response.ok) {
-      return NextResponse.json({ error: "Failed to fetch data from external API" }, { status: response.status });
+      return NextResponse.json(
+        { error: "Failed to fetch data from external API" },
+        { status: response.status },
+      );
     }
 
     const data = await response.text();
     if (!data) {
-      return NextResponse.json({ error: "Data is undefined or null" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Data is undefined or null" },
+        { status: 404 },
+      );
     }
 
     const parsedData: User[] = JSON.parse(data) as User[];
