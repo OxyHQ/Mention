@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { Header, ActivityHeader } from "@/features/header";
 import { HamburgerButton } from "@/components/elements/hamburger-button";
