@@ -12,6 +12,10 @@ export default async function LikesPage({
     type: "likes",
   });
 
+  if (!user) {
+    return <div>User not found</div>;
+  }
+
   const likes = await getUserLikes(params.user);
 
   return (
