@@ -1,4 +1,5 @@
 import { ConfirmationModal } from "@/components/elements/modal";
+import { useLocale } from "@/app/LocaleContext";
 
 import { deleteMedia } from "../api/delete-media";
 import { useDeletePost } from "../hooks/use-delete-post";
@@ -13,13 +14,14 @@ export const DeletePostModal = ({
   setIsDeleteModalOpen: (value: boolean) => void;
   setIsMenuOpen: (value: boolean) => void;
 }) => {
+  const { t } = useLocale();
   const mutation = useDeletePost();
 
   return (
     <ConfirmationModal
-      heading="Delete Post?"
-      paragraph="This can’t be undone and it will be removed from your profile, the timeline of any accounts that follow you, and from Mention search results."
-      confirmButtonText="Delete"
+      heading={t("modals.deletePost.heading")}
+      paragraph={t("modals.deletePost.paragraph")}
+      confirmButtonText={t("modals.deletePost.confirmButtonText")}
       confirmButtonClick={() => {
         mutation.mutate({
           postId: post?.id,
@@ -29,7 +31,7 @@ export const DeletePostModal = ({
           deleteMedia(post?.media?.map((m) => m.media_path));
       }}
       confirmButtonStyle="delete"
-      cancelButtonText="Cancel"
+      cancelButtonText={t("modals.deletePost.cancelButtonText")}
       cancelButtonClick={() => {
         setIsDeleteModalOpen(false);
         setIsMenuOpen(true);

@@ -73,5 +73,13 @@
         "title": "A quién seguir"
       }
     }
+  },
+  "modals": {
+    "deletePost": {
+      "heading": "¿Eliminar publicación?",
+      "paragraph": "Esto no se puede deshacer y se eliminará de tu perfil, de la línea de tiempo de cualquier cuenta que te siga y de los resultados de búsqueda de Mention.",
+      "confirmButtonText": "Eliminar",
+      "cancelButtonText": "Cancelar"
+    }
   }
 }
