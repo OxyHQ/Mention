@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { deleteHashtags } from "@/features/explore/api/delete-hashtags";
+import { retrieveHashtagsFromPost } from "@/features/explore/api/retrieve-hashtags-from-post";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -263,13 +265,32 @@ export async function DELETE(request: Request) {
   }
 
   try {
+    const post = await prisma.post.findUnique({
+      where: { id },
+    });
+
+    if (!post) {
+      return NextResponse.json(
+        {
+          message: "Post not found",
+        },
+        { status: 404 },
+      );
+    }
+
+    const hashtags = post.text ? retrieveHashtagsFromPost(post.text) : [];
+    if (hashtags) {
+      await deleteHashtags(hashtags);
+    }
+
     await prisma.post.delete({
       where: {
         id,
       },
     });
+
     return NextResponse.json({
-      message: "Post deleted successfully",
+      message: "Post and associated hashtags deleted successfully",
     });
   } catch (error: any) {
     return NextResponse.json(
