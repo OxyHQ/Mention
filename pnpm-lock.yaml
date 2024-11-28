@@ -24,8 +24,8 @@ importers:
         specifier: ^1.0.7
         version: 1.0.7(@prisma/client@5.10.2(prisma@5.10.2))(next-auth@4.24.7(next@14.1.3(@babel/core@7.23.5)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(sass@1.69.5))(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
       '@oxyhq/services':
-        specifier: 0.0.76
-        version: 0.0.76(@babel/core@7.23.5)(@emotion/is-prop-valid@1.2.1)(@types/react@18.2.64)(babel-plugin-macros@3.1.0)(sass@1.69.5)
+        specifier: 0.0.77
+        version: 0.0.77(@babel/core@7.23.5)(@emotion/is-prop-valid@1.2.1)(@types/react@18.2.64)(babel-plugin-macros@3.1.0)(sass@1.69.5)
       '@paralleldrive/cuid2':
         specifier: ^2.2.2
         version: 2.2.2
@@ -2380,8 +2380,8 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@oxyhq/services@0.0.76':
-    resolution: {integrity: sha512-x6r0m3/p7BWm6V40jJm2VvMaT5Ikq0bytYR9/y/A1czWNNY0asMR7/hd7NpQe+/YvcD3Hoq5uqCp8Wtfuck9Zg==}
+  '@oxyhq/services@0.0.77':
+    resolution: {integrity: sha512-p/n1OxFD9h9LevRUF8yFRTeaBw0tFlWGYQ2r9q3+8j38TvkHeqZacs0tShbYOKgDIZug2c2brIQydwzZ29gaKA==}
 
   '@panva/hkdf@1.1.1':
     resolution: {integrity: sha512-dhPeilub1NuIG0X5Kvhh9lH4iW3ZsHlnzwgwbOlgwQ2wG1IqFzsgHqmKPk3WzsdWAeaxKJxgM0+W433RmN45GA==}
@@ -10894,7 +10894,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.15.0
 
-  '@oxyhq/services@0.0.76(@babel/core@7.23.5)(@emotion/is-prop-valid@1.2.1)(@types/react@18.2.64)(babel-plugin-macros@3.1.0)(sass@1.69.5)':
+  '@oxyhq/services@0.0.77(@babel/core@7.23.5)(@emotion/is-prop-valid@1.2.1)(@types/react@18.2.64)(babel-plugin-macros@3.1.0)(sass@1.69.5)':
     dependencies:
       '@tanstack/react-query': 5.51.15(react@18.3.1)
       axios: 1.6.8
