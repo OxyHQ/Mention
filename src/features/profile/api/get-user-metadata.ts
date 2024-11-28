@@ -68,6 +68,7 @@ export const getUserMetadata = async ({
       description,
       color,
       ...user,
+      privacySettings: user?.privacySettings, // P7ee2
     };
   } catch (error) {
     console.error(error);

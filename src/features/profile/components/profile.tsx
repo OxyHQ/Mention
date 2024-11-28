@@ -25,13 +25,20 @@ export const Profile = ({ initialUser }: { initialUser: IUser }) => {
     return <TryAgain />;
   }
 
+  const shouldHideFollowers = user?.privacySettings?.hideFollowers;
+  const shouldHidePosts = user?.privacySettings?.hidePosts;
+
   return (
     <>
       <ProfileInfo user={user} id={id} />
       <ProfileStats user={user} pathname={pathname} />
-      {/* 
-      <ProfileNavigation id={id} pathname={pathname} />
-      */}
+      {!shouldHideFollowers && !shouldHidePosts && (
+        <>
+          {/* 
+          <ProfileNavigation id={id} pathname={pathname} />
+          */}
+        </>
+      )}
     </>
   );
 };

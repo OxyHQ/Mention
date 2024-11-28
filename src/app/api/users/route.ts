@@ -7,6 +7,10 @@ interface User {
   name: string;
   username: string;
   email: string;
+  privacySettings?: {
+    hideFollowers?: boolean;
+    hidePosts?: boolean;
+  };
   [key: string]: any; // for any other properties that might be present
 }
 
@@ -64,6 +68,7 @@ export async function GET(request: Request) {
         id: true,
         following: true,
         followers: true,
+        privacySettings: true,
       },
       take: limit ? parseInt(limit) : undefined,
     });
@@ -81,5 +86,60 @@ export async function GET(request: Request) {
     return NextResponse.json(mergedData, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  const { user_id, privacySettings } = (await request.json()) as {
+    user_id: string;
+    privacySettings: {
+      hideFollowers?: boolean;
+      hidePosts?: boolean;
+    };
+  };
+
+  const userSchema = z
+    .object({
+      user_id: z.string().cuid(),
+      privacySettings: z
+        .object({
+          hideFollowers: z.boolean().optional(),
+          hidePosts: z.boolean().optional(),
+        })
+        .optional(),
+    })
+    .strict();
+
+  const zod = userSchema.safeParse({ user_id, privacySettings });
+
+  if (!zod.success) {
+    return NextResponse.json(
+      {
+        message: "Invalid request body",
+        error: zod.error.formErrors,
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const updatedUser = await prisma.profile.update({
+      where: {
+        id: user_id,
+      },
+      data: {
+        privacySettings,
+      },
+    });
+
+    return NextResponse.json(updatedUser, { status: 200 });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        message: "Something went wrong",
+        error: error.message,
+      },
+      { status: error.errorCode || 500 },
+    );
   }
 }
