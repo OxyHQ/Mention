@@ -1,80 +1,27 @@
-import { Metadata } from "next";
-import { profileParamsProcess } from "@/features/profile/utils/profile-params-process";
+import { getUserMetadata } from "@/features/profile/api/get-user-metadata";
+import { getUserLikes } from "@/features/profile/api/get-user-likes";
+import { Profile } from "@/features/profile";
 
-import { ProfileHeader } from "@/features/header";
-import {
-  getUsernameToId,
-  Profile,
-  ProfileLikes,
-  getUserMetadata,
-} from "@/features/profile";
-
-export async function generateMetadata({
+export default async function LikesPage({
   params,
 }: {
-  params: {
-    user: string;
-  };
-}): Promise<Metadata> {
-  const userId = await getUsernameToId({
-    username: params.user,
-  });
-  if (!userId)
-    return {
-      title: "User not found",
-    };
-
+  params: { user: string };
+}) {
   const user = await getUserMetadata({
-    user_id: userId,
+    user_id: params.user,
     type: "likes",
   });
 
-  if (!user)
-    return {
-      title: "User not found",
-    };
-
-  return {
-    title: `Posts liked by ${user?.name?.split(" ")[0]} (@${user?.username})`,
-    description: user?.description,
-  };
-}
-
-const ProfileLikesPage = async ({
-  params,
-}: {
-  params: {
-    user: string;
-  };
-}) => {
-  const paramUsername = await profileParamsProcess({
-    params: params.user,
-    currentFolder: "likes",
-  });
-  const userId = await getUsernameToId({ username: paramUsername });
-  if (!userId)
-    return (
-      <>
-        <ProfileHeader heading="Profile" stats="" />
-      </>
-    );
-  const user = await getUserMetadata({
-    user_id: userId,
-    type: "likes",
-  });
+  const likes = await getUserLikes(params.user);
 
   return (
     <div>
-      <ProfileHeader
-        userId={user?.id}
-        stats={`${user?._count?.likes} ${
-          user?._count?.likes === 1 ? "like" : "likes"
-        }`}
-      />
-      <Profile initialUser={user as any} />
-      {user?.id && <ProfileLikes id={user.id} />}
+      <Profile initialUser={user} />
+      <div>
+        {likes.map((like: any) => (
+          <div key={like.id}>{like.text}</div>
+        ))}
+      </div>
     </div>
   );
-};
-
-export default ProfileLikesPage;
+}
