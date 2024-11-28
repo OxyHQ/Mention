@@ -164,6 +164,9 @@ enum UserRole {
 }
 
 model PrivacySettings {
+  id            String   @id @default(cuid())
   hideFollowers Boolean? @default(false)
   hidePosts     Boolean? @default(false)
+  profileId     String
+  profile       Profile  @relation(fields: [profileId], references: [id])
 }
