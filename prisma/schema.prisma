@@ -33,7 +33,7 @@ model Profile {
   followers          Profile[]      @relation("Followers")
   following          Profile[]      @relation("Followers")
   feedbacks          Feedback[]
-  privacySettings    PrivacySettings
+  privacySettings    PrivacySettings?
 }
 
 model Post {
