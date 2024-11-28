@@ -10,8 +10,12 @@ async function fetchUserData(ids: string[]) {
     `${process.env.NEXT_PUBLIC_OXY_SERVICES_URL}/api/users?ids=${ids.join(",")}`,
   );
   return response.json() as Promise<
-    { id: string; name: string; avatar: string }[]
+    { id: string; name: string; avatar: string; activityScore: number }[]
   >;
+}
+
+function rankActivities(activities: any[]) {
+  return activities.sort((a, b) => b.activityScore - a.activityScore);
 }
 
 export async function GET(request: Request) {
@@ -55,6 +59,7 @@ export async function GET(request: Request) {
               title: "New Follower",
               description: `${user.name} started following you.`,
               avatar: user.avatar,
+              activityScore: user.activityScore,
             }
           : null;
       }),
@@ -66,11 +71,12 @@ export async function GET(request: Request) {
           title: "Tagged in a Post",
           description: `${author?.name} tagged you in a post.`,
           avatar: author?.avatar,
+          activityScore: author?.activityScore,
         };
       }),
     ];
 
-    const feed = activities.filter((activity) => activity !== null);
+    const feed = rankActivities(activities.filter((activity) => activity !== null));
 
     return NextResponse.json(feed, { status: 200 });
   } catch (error: any) {

@@ -18,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { hashtags } = (await request.json()) as { hashtags: string[] };
+  const { hashtags, postDeleted } = (await request.json()) as { hashtags: string[], postDeleted: boolean };
 
   const hashtagsSchema = z.array(z.string());
 
@@ -26,6 +26,15 @@ export async function POST(request: Request) {
 
   if (!zod.success) {
     return NextResponse.json({ error: zod.error }, { status: 400 });
+  }
+
+  if (postDeleted) {
+    return NextResponse.json(
+      {
+        message: "Post deleted, no hashtags created",
+      },
+      { status: 200 },
+    );
   }
 
   try {
@@ -74,7 +83,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const { hashtags } = (await request.json()) as { hashtags: string[] };
+  const { hashtags, postDeleted } = (await request.json()) as { hashtags: string[], postDeleted: boolean };
 
   const hashtagsSchema = z.array(z.string());
 
@@ -82,6 +91,15 @@ export async function DELETE(request: Request) {
 
   if (!zod.success) {
     return NextResponse.json({ error: zod.error }, { status: 400 });
+  }
+
+  if (!postDeleted) {
+    return NextResponse.json(
+      {
+        message: "Hashtags not deleted as post is not deleted",
+      },
+      { status: 200 },
+    );
   }
 
   try {
