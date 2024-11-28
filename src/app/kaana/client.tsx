@@ -5,10 +5,11 @@ import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-van
 export const KaanaClientPage = () => {
   const placeholders = [
     "What's the first rule of Fight Club?",
-    "Who is Tyler Durden?",
-    "Where is Andrew Laeddis Hiding?",
+    "Who is Adam Mosseri?",
+    "Where is Enric Duran Hiding?",
     "Write a Javascript method to reverse a string",
     "How to assemble your own PC?",
+    "How is Nate Isern?",
   ];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
