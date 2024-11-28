@@ -21,6 +21,7 @@ import { Command } from "./command";
 import { Hamburger } from "./hamburger";
 import { JoinMention } from "./join-mention";
 import "./styles/layout.scss";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -84,6 +85,7 @@ export default async function RootLayout({
                 <AuthModalTrigger />
                 <JoinMention />
                 <Hamburger />
+                <LanguageSwitcher />
               </div>
             </ReactQueryProvider>
           </AuthProvider>

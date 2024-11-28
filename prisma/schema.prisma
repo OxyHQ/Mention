@@ -36,33 +36,35 @@ model Profile {
 }
 
 model Post {
-  id                    String     @id @default(cuid())
+  id                    String         @id @default(cuid())
   text                  String?
-  source                String     @default("web")
+  source                String         @default("web")
   in_reply_to_user_id   String?
   in_reply_to_username  String?
-  is_quote_status       Boolean    @default(false)
+  is_quote_status       Boolean        @default(false)
   quoted_status_id      String?
-  quote_count           Int        @default(0)
-  reply_count           Int        @default(0)
-  repost_count          Int        @default(0)
-  favorite_count        Int        @default(0)
-  possibly_sensitive    Boolean    @default(false)
-  lang                  String     @default("en")
-  created_at            DateTime   @default(now())
+  quote_count           Int            @default(0)
+  reply_count           Int            @default(0)
+  repost_count          Int            @default(0)
+  favorite_count        Int            @default(0)
+  possibly_sensitive    Boolean        @default(false)
+  lang                  String         @default("en")
+  created_at            DateTime       @default(now())
   quoted_post_id        String?
   in_reply_to_status_id String?
   author_id             String
+  language              String
   bookmarks             Bookmark[]
   likes                 Like[]
   media                 Media[]
   reposts               Repost[]
-  author                Profile    @relation(fields: [author_id], references: [id], onDelete: Cascade)
-  post_comment          Post?      @relation("post-comment", fields: [in_reply_to_status_id], references: [id])
-  comments              Post[]     @relation("post-comment")
-  quoted_post           Post?      @relation("quoted_post", fields: [quoted_post_id], references: [id])
-  quotes                Post[]     @relation("quoted_post")
-  pinned_by_users       Profile[]  @relation("pinned_post")
+  author                Profile        @relation(fields: [author_id], references: [id], onDelete: Cascade)
+  post_comment          Post?          @relation("post-comment", fields: [in_reply_to_status_id], references: [id])
+  comments              Post[]         @relation("post-comment")
+  quoted_post           Post?          @relation("quoted_post", fields: [quoted_post_id], references: [id])
+  quotes                Post[]         @relation("quoted_post")
+  translations          Translation[]  @relation("PostTranslations")
+  pinned_by_users       Profile[]      @relation("pinned_post")
 }
 
 model Media {
@@ -154,6 +156,14 @@ model Feed {
 model User {
   id    Int    @id @default(autoincrement())
   feeds Feed[] @relation("UserFeeds")
+}
+
+model Translation {
+  id              String   @id @default(cuid())
+  postId          String
+  language        String
+  translatedText  String
+  post            Post     @relation("PostTranslations", fields: [postId], references: [id], onDelete: Cascade)
 }
 
 enum UserRole {

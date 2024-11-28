@@ -8,6 +8,7 @@ export async function GET(request: Request) {
 
   const type = searchParams.get("type") || undefined;
   const id = searchParams.get("id") || undefined;
+  const language = searchParams.get("language") || undefined;
 
   const cursorQuery = searchParams.get("cursor") || undefined;
   const take = Number(searchParams.get("limit")) || 20;
@@ -131,6 +132,12 @@ export async function GET(request: Request) {
           },
         },
 
+        translations: {
+          where: {
+            language: language,
+          },
+        },
+
         _count: {
           select: {
             comments: true,
@@ -178,13 +185,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { post } = (await request.json()) as {
+  const { post, translation } = (await request.json()) as {
     post: {
       text: string;
       author_id: string;
       in_reply_to_username?: string;
       in_reply_to_status_id?: string;
       quoted_post_id?: string;
+    };
+    translation?: {
+      language: string;
+      translatedText: string;
     };
   };
 
@@ -200,13 +211,32 @@ export async function POST(request: Request) {
     })
     .strict();
 
-  const zod = postSchema.safeParse(post);
+  const translationSchema = z
+    .object({
+      language: z.string(),
+      translatedText: z.string(),
+    })
+    .strict()
+    .optional();
 
-  if (!zod.success) {
+  const zodPost = postSchema.safeParse(post);
+  const zodTranslation = translationSchema.safeParse(translation);
+
+  if (!zodPost.success) {
     return NextResponse.json(
       {
         message: "Invalid request body",
-        error: zod.error.formErrors,
+        error: zodPost.error.formErrors,
+      },
+      { status: 400 },
+    );
+  }
+
+  if (translation && !zodTranslation.success) {
+    return NextResponse.json(
+      {
+        message: "Invalid translation body",
+        error: zodTranslation.error.formErrors,
       },
       { status: 400 },
     );
@@ -218,6 +248,16 @@ export async function POST(request: Request) {
         ...post,
       },
     });
+
+    if (translation) {
+      await prisma.translation.create({
+        data: {
+          postId: created_post.id,
+          language: translation.language,
+          translatedText: translation.translatedText,
+        },
+      });
+    }
 
     if (post.quoted_post_id) {
       await prisma.post.update({
@@ -234,6 +274,79 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(created_post, { status: 200 });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        message: "Something went wrong",
+        error: error.message,
+      },
+      { status: error.errorCode || 500 },
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  const { translation } = (await request.json()) as {
+    translation: {
+      postId: string;
+      language: string;
+      translatedText: string;
+    };
+  };
+
+  const translationSchema = z
+    .object({
+      postId: z.string().cuid(),
+      language: z.string(),
+      translatedText: z.string(),
+    })
+    .strict();
+
+  const zodTranslation = translationSchema.safeParse(translation);
+
+  if (!zodTranslation.success) {
+    return NextResponse.json(
+      {
+        message: "Invalid translation body",
+        error: zodTranslation.error.formErrors,
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const existingTranslation = await prisma.translation.findFirst({
+      where: {
+        postId: translation.postId,
+        language: translation.language,
+      },
+    });
+
+    if (existingTranslation) {
+      await prisma.translation.update({
+        where: {
+          id: existingTranslation.id,
+        },
+        data: {
+          translatedText: translation.translatedText,
+        },
+      });
+    } else {
+      await prisma.translation.create({
+        data: {
+          postId: translation.postId,
+          language: translation.language,
+          translatedText: translation.translatedText,
+        },
+      });
+    }
+
+    return NextResponse.json(
+      {
+        message: "Translation updated successfully",
+      },
+      { status: 200 },
+    );
   } catch (error: any) {
     return NextResponse.json(
       {
