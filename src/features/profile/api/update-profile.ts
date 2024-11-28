@@ -33,6 +33,7 @@ export const updateProfile = async (profile: IProfile, userId: string) => {
       location: profile?.location,
       url: profile?.website,
       profile_banner_url: bannerUrl ? bannerUrl : profile?.banner?.url,
+      privacySettings: profile?.privacySettings, // P1858
     });
 
     return { ...dataOxy, ...data };

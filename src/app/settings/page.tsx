@@ -58,6 +58,30 @@ const Settings = () => {
         <ColorPicker />
         <ThemePicker />
         <LanguageSwitcher />
+
+        <div className={styles.advancedPrivacySettings}>
+          <h2>Advanced Privacy Settings</h2>
+          <div className={styles.customAudienceSettings}>
+            <h3>Custom Audience Settings for Posts</h3>
+            <p>Set custom audience for each post.</p>
+            <label>
+              <input type="checkbox" />
+              Enable custom audience settings
+            </label>
+          </div>
+          <div className={styles.hideProfileSections}>
+            <h3>Hide Specific Profile Sections</h3>
+            <p>Choose which profile sections to hide.</p>
+            <label>
+              <input type="checkbox" />
+              Hide followers
+            </label>
+            <label>
+              <input type="checkbox" />
+              Hide posts
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   );

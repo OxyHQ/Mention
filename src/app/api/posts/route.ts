@@ -185,6 +185,7 @@ export async function POST(request: Request) {
       in_reply_to_username?: string;
       in_reply_to_status_id?: string;
       quoted_post_id?: string;
+      audience?: string; // P50c1
     };
   };
 
@@ -197,6 +198,7 @@ export async function POST(request: Request) {
       in_reply_to_username: z.string().optional(),
       in_reply_to_status_id: z.string().cuid().optional(),
       quoted_post_id: z.string().cuid().optional(),
+      audience: z.string().optional(), // P50c1
     })
     .strict();
 

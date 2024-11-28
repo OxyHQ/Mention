@@ -29,6 +29,7 @@ export const getUserMetadata = async ({
               posts: true,
               followers: true,
               following: true,
+              privacySettings: true,
             },
           },
         }),
@@ -39,6 +40,7 @@ export const getUserMetadata = async ({
               likes: true,
               followers: true,
               following: true,
+              privacySettings: true,
             },
           },
         }),
@@ -53,6 +55,7 @@ export const getUserMetadata = async ({
                   },
                 },
               },
+              privacySettings: true,
             },
           },
         }),
@@ -68,6 +71,7 @@ export const getUserMetadata = async ({
       description,
       color,
       ...user,
+      privacySettings: user?.privacySettings,
     };
   } catch (error) {
     console.error(error);

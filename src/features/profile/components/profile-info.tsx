@@ -37,6 +37,9 @@ export const ProfileInfo = ({ user }: { user: IUser; id: string }) => {
     session_owner_id: session?.user?.id as string,
   });
 
+  const shouldHideFollowers = user?.privacySettings?.hideFollowers;
+  const shouldHidePosts = user?.privacySettings?.hidePosts;
+
   return (
     <div className={styles.container}>
       <div className={styles.banner}>

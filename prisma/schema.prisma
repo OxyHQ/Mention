@@ -33,6 +33,7 @@ model Profile {
   followers          Profile[]      @relation("Followers")
   following          Profile[]      @relation("Followers")
   feedbacks          Feedback[]
+  privacySettings    PrivacySettings?
 }
 
 model Post {
@@ -63,6 +64,7 @@ model Post {
   quoted_post           Post?      @relation("quoted_post", fields: [quoted_post_id], references: [id])
   quotes                Post[]     @relation("quoted_post")
   pinned_by_users       Profile[]  @relation("pinned_post")
+  audience              String?
 }
 
 model Media {
@@ -159,4 +161,12 @@ model User {
 enum UserRole {
   ADMIN
   USER
+}
+
+model PrivacySettings {
+  id            String   @id @default(cuid())
+  hideFollowers Boolean? @default(false)
+  hidePosts     Boolean? @default(false)
+  profileId     String   @unique
+  profile       Profile  @relation(fields: [profileId], references: [id])
 }
