@@ -72,3 +72,39 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  const { hashtags } = (await request.json()) as { hashtags: string[] };
+
+  const hashtagsSchema = z.array(z.string());
+
+  const zod = hashtagsSchema.safeParse(hashtags);
+
+  if (!zod.success) {
+    return NextResponse.json({ error: zod.error }, { status: 400 });
+  }
+
+  try {
+    for (const hashtag of hashtags) {
+      await prisma.hashtag.delete({
+        where: {
+          hashtag: hashtag.toLowerCase(),
+        },
+      });
+    }
+
+    return NextResponse.json(
+      {
+        message: "Hashtag(s) deleted",
+      },
+      { status: 200 },
+    );
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        error: error.message,
+      },
+      { status: 500 },
+    );
+  }
+}

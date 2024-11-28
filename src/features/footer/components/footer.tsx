@@ -14,7 +14,7 @@ export const Footer = () => {
         title="Privacy Policy"
         url="https://oxy.so/company/transparency/policies/privacy"
       />
-      <FooterLink title="Contribute" url="https://mention.earth/contribute" />
+      <FooterLink title="Contribute" url="/contribute" target="_self" />
       <FooterLink
         title="Accessibility"
         url="https://mention.earth/accessibility"

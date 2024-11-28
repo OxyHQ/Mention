@@ -10,7 +10,7 @@ import { usePosts } from "../hooks/use-posts";
 
 import { InfinitePosts } from "./infinite-posts";
 
-export const Posts = () => {
+export const Posts = ({ sortOption }: { sortOption: string }) => {
   const { session } = useOxySession();
   const {
     data: posts,
@@ -21,8 +21,8 @@ export const Posts = () => {
     fetchNextPage,
     hasNextPage,
   } = usePosts({
-    queryKey: ["posts", session?.user?.id as string],
-    type: "default",
+    queryKey: ["posts", session?.user?.id as string, sortOption],
+    type: sortOption,
     id: session?.user?.id,
   });
 

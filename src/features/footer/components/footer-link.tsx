@@ -4,12 +4,16 @@ import { ILinkProps } from "../types/index";
 
 import styles from "./styles/link.module.scss";
 
-export const FooterLink = ({ title = "loading", url = "#" }: ILinkProps) => {
+export const FooterLink = ({
+  title = "loading",
+  url = "#",
+  target = "_blank",
+}: ILinkProps) => {
   return (
     <Link
       href={url}
       rel="noopener noreferrer nofollow"
-      target="_blank"
+      target={target}
       className={styles.container}
     >
       {title}
