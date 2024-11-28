@@ -274,7 +274,7 @@ export async function DELETE(request: Request) {
       },
     });
 
-    if (post) {
+    if (post && post.text) {
       const hashtags = retrieveHashtagsFromPost(post.text);
       if (hashtags) {
         await deleteHashtags(hashtags);
