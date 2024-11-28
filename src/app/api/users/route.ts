@@ -128,7 +128,12 @@ export async function PUT(request: Request) {
         id: user_id,
       },
       data: {
-        privacySettings,
+        privacySettings: {
+          update: {
+            hideFollowers: privacySettings?.hideFollowers,
+            hidePosts: privacySettings?.hidePosts,
+          },
+        },
       },
     });
 
