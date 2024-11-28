@@ -1,0 +1,13 @@
+{
+  "common": {},
+  "navbar": {},
+  "pages": {},
+  "modals": {
+    "deletePost": {
+      "heading": "Supprimer le post?",
+      "paragraph": "Cela ne peut pas être annulé et il sera supprimé de votre profil, de la timeline de tous les comptes qui vous suivent et des résultats de recherche de Mention.",
+      "confirmButtonText": "Supprimer",
+      "cancelButtonText": "Annuler"
+    }
+  }
+}

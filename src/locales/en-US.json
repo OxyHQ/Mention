@@ -104,5 +104,13 @@
         }
       }
     }
+  },
+  "modals": {
+    "deletePost": {
+      "heading": "Delete Post?",
+      "paragraph": "This can’t be undone and it will be removed from your profile, the timeline of any accounts that follow you, and from Mention search results.",
+      "confirmButtonText": "Delete",
+      "cancelButtonText": "Cancel"
+    }
   }
 }

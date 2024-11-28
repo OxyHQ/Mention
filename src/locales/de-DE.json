@@ -1,0 +1,13 @@
+{
+  "common": {},
+  "navbar": {},
+  "pages": {},
+  "modals": {
+    "deletePost": {
+      "heading": "Beitrag löschen?",
+      "paragraph": "Dies kann nicht rückgängig gemacht werden und wird von Ihrem Profil, der Timeline aller Konten, die Ihnen folgen, und aus den Suchergebnissen von Mention entfernt.",
+      "confirmButtonText": "Löschen",
+      "cancelButtonText": "Abbrechen"
+    }
+  }
+}
