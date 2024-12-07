@@ -1,79 +1,52 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity } from "react-native";
-import { Link } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { ThemedText } from "./ThemedText";
+import { View, StyleSheet } from "react-native";
+import { Logo } from "./logo";
+import { Navbar } from "./Navbar";
+import { PostButton } from "./PostButton";
 
 export function Sidebar() {
+  const session = true;
   return (
     <View style={styles.container}>
-      <NavItem icon="home-outline" label="Home" href="/" />
-      <NavItem icon="search-outline" label="Explore" href="/search" />
-      <NavItem
-        icon="notifications-outline"
-        label="Notifications"
-        href="/notifications"
-      />
-      <NavItem icon="mail-outline" label="Messages" href="/messages" />
-      <NavItem icon="person-outline" label="Profile" href="/@johndoe" />
-
-      {/* Add compose button */}
-      <Link href="/compose" asChild>
-        <TouchableOpacity style={styles.composeButton}>
-          <Ionicons name="create-outline" size={24} color="#FFFFFF" />
-          <ThemedText style={styles.composeLabel}>Compose</ThemedText>
-        </TouchableOpacity>
-      </Link>
+      <View style={styles.logo}>
+        <Logo />
+      </View>
+      <Navbar />
+      {session && (
+        <View style={styles.postButton}>
+          <PostButton />
+        </View>
+      )}
     </View>
-  );
-}
-
-function NavItem({
-  icon,
-  label,
-  href,
-}: {
-  icon: string;
-  label: string;
-  href: string;
-}) {
-  return (
-    <Link href={href as any} asChild>
-      <TouchableOpacity style={styles.navItem}>
-        <Ionicons name={icon as any} size={24} color="#000" />
-        <ThemedText style={styles.navLabel}>{label}</ThemedText>
-      </TouchableOpacity>
-    </Link>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    position: "absolute", // 'sticky' is not supported in React Native
+    top: 0,
+    height: "100%",
     padding: 16,
   },
-  navItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    borderRadius: 9999,
-    marginVertical: 4,
+  logo: {
+    justifyContent: "center",
   },
-  navLabel: {
-    marginLeft: 16,
-    fontSize: 20,
+  postButton: {
+    justifyContent: "center",
   },
-  composeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1DA1F2",
-    padding: 12,
-    borderRadius: 9999,
-    marginVertical: 12,
+  user: {
+    justifyContent: "center",
+    marginTop: "auto",
   },
-  composeLabel: {
-    marginLeft: 16,
-    fontSize: 20,
-    color: "#FFFFFF",
-    fontWeight: "bold",
+  // Add media query styles here
+  small: {
+    // Media queries need to be handled with Dimensions API or similar
+    padding: 4,
+  },
+  medium: {
+    padding: 8,
+  },
+  xxLarge: {
+    // Nested styles are not supported in React Native
   },
 });
