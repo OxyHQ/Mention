@@ -16,6 +16,14 @@ export function Sidebar() {
       />
       <NavItem icon="mail-outline" label="Messages" href="/messages" />
       <NavItem icon="person-outline" label="Profile" href="/@johndoe" />
+
+      {/* Add compose button */}
+      <Link href="/compose" asChild>
+        <TouchableOpacity style={styles.composeButton}>
+          <Ionicons name="create-outline" size={24} color="#FFFFFF" />
+          <ThemedText style={styles.composeLabel}>Compose</ThemedText>
+        </TouchableOpacity>
+      </Link>
     </View>
   );
 }
@@ -53,5 +61,19 @@ const styles = StyleSheet.create({
   navLabel: {
     marginLeft: 16,
     fontSize: 20,
+  },
+  composeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1DA1F2",
+    padding: 12,
+    borderRadius: 9999,
+    marginVertical: 12,
+  },
+  composeLabel: {
+    marginLeft: 16,
+    fontSize: 20,
+    color: "#FFFFFF",
+    fontWeight: "bold",
   },
 });
