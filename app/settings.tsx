@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Picker, Button } from "react-native";
+import { View, Text, StyleSheet, Button } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
+import Tweet from "@/components/Tweet";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/Colors";
 
@@ -19,37 +20,34 @@ export default function SettingsScreen() {
     console.log("Selected Color:", selectedColor);
   };
 
+  const tweet = {
+    id: "16",
+    avatar: "/assets/images/favicon.png",
+    name: "Mention",
+    username: "@mention",
+    content:
+      "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
+    time: "16m",
+    likes: 7,
+    retweets: 3,
+    replies: 2,
+    isReply: false,
+    hasMedia: false,
+    isLiked: true,
+  };
+
   return (
     <ThemedView style={styles.container}>
-      <ThemedText style={styles.header}>Settings</ThemedText>
       <View style={styles.setting}>
+        <h1>Customize your view</h1>
+        <h2>These settings affect all the Mention accounts on this device.</h2>
+        <ThemedView style={styles.container}>
+          {tweet && <Tweet {...tweet} showActions={false} />}
+        </ThemedView>
         <ThemedText style={styles.label}>Language</ThemedText>
-        <Picker
-          selectedValue={selectedLanguage}
-          style={styles.picker}
-          onValueChange={(itemValue) => setSelectedLanguage(itemValue)}
-        >
-          {languages.map((language) => (
-            <Picker.Item key={language} label={language} value={language} />
-          ))}
-        </Picker>
       </View>
       <View style={styles.setting}>
         <ThemedText style={styles.label}>Primary Color</ThemedText>
-        <Picker
-          selectedValue={selectedColor}
-          style={styles.picker}
-          onValueChange={(itemValue) => setSelectedColor(itemValue)}
-        >
-          {colors.map((color) => (
-            <Picker.Item
-              key={color}
-              label={color}
-              value={color}
-              color={color}
-            />
-          ))}
-        </Picker>
       </View>
       <Button title="Apply Settings" onPress={applySettings} />
     </ThemedView>
