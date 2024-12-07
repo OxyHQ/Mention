@@ -10,15 +10,19 @@ import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { createNotification } from "@/utils/notifications";
 
 export default function ComposeScreen() {
   const [content, setContent] = useState("");
   const maxLength = 280;
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (content.trim().length > 0) {
       // Here you would typically call an API to create the post
-      console.log("Creating post:", content);
+      await createNotification(
+        "Post Created",
+        `Your post: "${content}" has been successfully created.`
+      );
       router.back();
     }
   };
@@ -31,6 +35,14 @@ export default function ComposeScreen() {
       <Stack.Screen
         options={{
           title: "New Post",
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
+          ),
           headerRight: () => (
             <TouchableOpacity
               onPress={handlePost}
@@ -64,9 +76,20 @@ export default function ComposeScreen() {
           />
         </View>
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.mediaButton}>
-            <Ionicons name="image-outline" size={24} color="#1DA1F2" />
-          </TouchableOpacity>
+          <View style={styles.toolbar}>
+            <TouchableOpacity style={styles.mediaButton}>
+              <Ionicons name="image-outline" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mediaButton}>
+              <Ionicons name="camera-outline" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mediaButton}>
+              <Ionicons name="videocam-outline" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mediaButton}>
+              <Ionicons name="location-outline" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
+          </View>
           <View style={styles.characterCount}>
             <ThemedText
               style={[
@@ -87,10 +110,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    backgroundColor: "#FFFFFF",
   },
   content: {
     flexDirection: "row",
     alignItems: "flex-start",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E1E8ED",
+    paddingBottom: 12,
   },
   avatar: {
     width: 40,
@@ -100,9 +127,10 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 18,
     lineHeight: 24,
     minHeight: 100,
+    color: "#14171A",
   },
   footer: {
     flexDirection: "row",
@@ -113,8 +141,13 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     marginTop: 12,
   },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   mediaButton: {
     padding: 8,
+    marginRight: 8,
   },
   characterCount: {
     padding: 8,
@@ -139,5 +172,8 @@ const styles = StyleSheet.create({
   postButtonText: {
     color: "#FFFFFF",
     fontWeight: "bold",
+  },
+  backButton: {
+    paddingHorizontal: 16,
   },
 });

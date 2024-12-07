@@ -8,6 +8,19 @@ interface PostComponentProps extends PostType {
   showActions?: boolean;
 }
 
+const detectHashtags = (text: string) => {
+  const parts = text.split(/(#[a-zA-Z0-9_]+)/g);
+  return parts.map((part, index) =>
+    part.startsWith("#") ? (
+      <Link key={index} href={`/hashtag/${part.slice(1)}`}>
+        <Text style={styles.hashtag}>{part}</Text>
+      </Link>
+    ) : (
+      part
+    )
+  );
+};
+
 export default function Post({
   id,
   avatar,
@@ -29,7 +42,7 @@ export default function Post({
   };
 
   return (
-    <Link href={`/post/${id}` as any} asChild>
+    <Link href={`/post/${id}`} asChild>
       <TouchableOpacity>
         <View style={styles.container}>
           <Image source={{ uri: avatar }} style={styles.avatar} />
@@ -39,7 +52,7 @@ export default function Post({
               <Text style={styles.username}>{username}</Text>
               <Text style={styles.time}>· {time}</Text>
             </View>
-            <Text style={styles.content}>{content}</Text>
+            <Text style={styles.content}>{detectHashtags(content)}</Text>
             <View style={styles.actions}>
               <View style={styles.actionItem}>
                 <Ionicons name="chatbubble-outline" size={20} color="#536471" />
@@ -119,5 +132,8 @@ const styles = StyleSheet.create({
   },
   likedText: {
     color: "#F91880",
+  },
+  hashtag: {
+    color: "#1DA1F2",
   },
 });

@@ -23,6 +23,24 @@ export async function scheduleDemoNotification() {
   });
 }
 
+export async function createNotification(
+  title: string,
+  body: string,
+  data: object = {}
+) {
+  if (Platform.OS === "web") {
+    return;
+  }
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      data,
+    },
+    trigger: null, // Shows notification immediately
+  });
+}
+
 export async function setupNotifications() {
   if (Platform.OS === "web") {
     return;
