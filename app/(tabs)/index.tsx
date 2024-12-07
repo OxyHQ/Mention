@@ -7,10 +7,12 @@ import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { sampleTweets } from "@/constants/sampleData";
+import { useTranslation } from "react-i18next";
 
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
+  const { t } = useTranslation();
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -19,10 +21,10 @@ export default function HomeScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Home" }} />
+      <Stack.Screen options={{ title: t("Home") }} />
       <ThemedView style={styles.container}>
         <ThemedView style={styles.header}>
-          <ThemedText style={styles.headerTitle}>Home</ThemedText>
+          <ThemedText style={styles.headerTitle}>{t("Home")}</ThemedText>
           <TouchableOpacity
             style={styles.composeButton}
             onPress={() => router.push("/compose")}

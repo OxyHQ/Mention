@@ -2,6 +2,7 @@ import React from "react";
 import { View, TextInput, StyleSheet, FlatList, Image } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
+import { useTranslation } from "react-i18next";
 
 const searchResults = [
   {
@@ -47,12 +48,14 @@ const SearchResultItem = ({ result }: { result: SearchResult }) => (
 );
 
 export default function SearchScreen() {
+  const { t } = useTranslation();
+
   return (
     <ThemedView style={styles.container}>
       <ThemedView style={styles.header}>
-        <ThemedText style={styles.headerTitle}>Search</ThemedText>
+        <ThemedText style={styles.headerTitle}>{t("Search")}</ThemedText>
       </ThemedView>
-      <TextInput placeholder="Search" style={styles.searchInput} />
+      <TextInput placeholder={t("Search")} style={styles.searchInput} />
       <FlatList
         data={searchResults}
         renderItem={({ item }) => <SearchResultItem result={item} />}

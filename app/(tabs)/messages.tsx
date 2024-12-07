@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, FlatList, Image } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
+import { useTranslation } from "react-i18next";
 
 const messages = [
   {
@@ -47,10 +48,12 @@ const MessageItem = ({ message }: { message: Message }) => (
 );
 
 export default function MessagesScreen() {
+  const { t } = useTranslation();
+
   return (
     <ThemedView style={styles.container}>
       <ThemedView style={styles.header}>
-        <ThemedText style={styles.headerTitle}>Messages</ThemedText>
+        <ThemedText style={styles.headerTitle}>{t("Messages")}</ThemedText>
       </ThemedView>
       <FlatList
         data={messages}

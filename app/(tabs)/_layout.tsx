@@ -5,11 +5,13 @@ import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { HapticTab } from "@/components/HapticTab";
+import { useTranslation } from "react-i18next";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { width } = useWindowDimensions();
   const isMobileLayout = width < 768;
+  const { t } = useTranslation();
 
   return (
     <Tabs
@@ -24,7 +26,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t("Home"),
           tabBarIcon: ({ color }) => (
             <Ionicons size={28} name="home-outline" color={color} />
           ),
@@ -33,7 +35,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="search"
         options={{
-          title: "Search",
+          title: t("Search"),
           tabBarIcon: ({ color }) => (
             <Ionicons size={28} name="search-outline" color={color} />
           ),
@@ -42,7 +44,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          title: "Notifications",
+          title: t("Notifications"),
           tabBarIcon: ({ color }) => (
             <Ionicons size={28} name="notifications-outline" color={color} />
           ),
@@ -51,7 +53,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="messages"
         options={{
-          title: "Messages",
+          title: t("Messages"),
           tabBarIcon: ({ color }) => (
             <Ionicons size={28} name="mail-outline" color={color} />
           ),
