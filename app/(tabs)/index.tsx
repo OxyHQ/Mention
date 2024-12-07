@@ -1,4 +1,4 @@
-import { FlatList, RefreshControl, StyleSheet, TouchableOpacity } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, TouchableOpacity, useWindowDimensions } from "react-native";
 import React, { useState } from "react";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +11,8 @@ import { sampleTweets } from "@/constants/sampleData";
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
+  const { width } = useWindowDimensions();
+  const isMobileLayout = width < 768;
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -37,6 +39,7 @@ export default function HomeScreen() {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          contentContainerStyle={isMobileLayout ? styles.mobileContent : styles.desktopContent}
         />
         <TouchableOpacity
           style={styles.fab}
@@ -78,5 +81,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 9999,
     elevation: 4,
+  },
+  mobileContent: {
+    paddingBottom: 80,
+  },
+  desktopContent: {
+    paddingBottom: 16,
   },
 });

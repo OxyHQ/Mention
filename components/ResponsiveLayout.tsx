@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, StyleSheet, useWindowDimensions, Platform } from "react-native";
 import { ThemedView } from "./ThemedView";
 import { ScrollView } from "react-native-gesture-handler";
@@ -14,10 +14,20 @@ export function ResponsiveLayout({
   sidebarContent,
   widgetsContent,
 }: ResponsiveLayoutProps) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
   const showSidebar = isWeb && width >= 768;
   const showWidgets = isWeb && width >= 1024;
+  const isLandscape = width > height;
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [widgetsCollapsed, setWidgetsCollapsed] = useState(false);
+
+  const handleSidebarToggle = () => setSidebarCollapsed(!sidebarCollapsed);
+  const handleWidgetsToggle = () => setWidgetsCollapsed(!widgetsCollapsed);
+
+  const sidebarWidth = isLandscape ? 300 : 275;
+  const widgetsWidth = isLandscape ? 320 : 290;
 
   if (!showSidebar) {
     return <ThemedView style={styles.container}>{mainContent}</ThemedView>;
@@ -26,7 +36,7 @@ export function ResponsiveLayout({
   return (
     <ThemedView style={styles.container}>
       {showSidebar && (
-        <View style={styles.sidebar}>
+        <View style={[styles.sidebar, { width: sidebarCollapsed ? 0 : sidebarWidth }]}>
           <ScrollView>{sidebarContent}</ScrollView>
         </View>
       )}
@@ -34,7 +44,7 @@ export function ResponsiveLayout({
         <View style={styles.mainContent}>{mainContent}</View>
       </View>
       {showWidgets && (
-        <View style={styles.widgets}>
+        <View style={[styles.widgets, { width: widgetsCollapsed ? 0 : widgetsWidth }]}>
           <ScrollView>{widgetsContent}</ScrollView>
         </View>
       )}
@@ -48,7 +58,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   sidebar: {
-    width: 275,
     borderRightWidth: 1,
     borderRightColor: "#EFF3F4",
   },
@@ -62,7 +71,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   widgets: {
-    width: 290,
     borderLeftWidth: 1,
     borderLeftColor: "#EFF3F4",
   },
