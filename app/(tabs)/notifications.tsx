@@ -1,6 +1,8 @@
 import React from "react";
 import { View, Text, FlatList, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ThemedView } from "@/components/ThemedView";
+import { ThemedText } from "@/components/ThemedText";
 
 const notifications = [
   {
@@ -41,11 +43,11 @@ const NotificationItem = ({ notification }: { notification: Notification }) => (
   <View style={styles.notificationContainer}>
     <Image source={{ uri: notification.user.avatar }} style={styles.avatar} />
     <View style={styles.notificationContent}>
-      <Text style={styles.notificationText}>
-        <Text style={styles.userName}>{notification.user.name}</Text>{" "}
+      <ThemedText style={styles.notificationText}>
+        <ThemedText style={styles.userName}>{notification.user.name}</ThemedText>{" "}
         {notification.content}
-      </Text>
-      <Text style={styles.timestamp}>{notification.timestamp}</Text>
+      </ThemedText>
+      <ThemedText style={styles.timestamp}>{notification.timestamp}</ThemedText>
     </View>
     {notification.type === "like" && (
       <Ionicons name="heart" size={20} color="#E0245E" style={styles.icon} />
@@ -58,20 +60,31 @@ const NotificationItem = ({ notification }: { notification: Notification }) => (
 
 export default function NotificationsScreen() {
   return (
-    <View style={styles.container}>
+    <ThemedView style={styles.container}>
+      <ThemedView style={styles.header}>
+        <ThemedText style={styles.headerTitle}>Notifications</ThemedText>
+      </ThemedView>
       <FlatList
         data={notifications}
         renderItem={({ item }) => <NotificationItem notification={item} />}
         keyExtractor={(item) => item.id}
       />
-    </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+  },
+  header: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e1e8ed",
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
   },
   notificationContainer: {
     flexDirection: "row",
