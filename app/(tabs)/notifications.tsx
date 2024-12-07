@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, FlatList, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedView } from "@/components/ThemedView";
@@ -15,6 +15,7 @@ const notifications = [
     },
     content: "liked your Post",
     timestamp: "2h ago",
+    read: false,
   },
   {
     id: "2",
@@ -25,6 +26,7 @@ const notifications = [
     },
     content: "reposted your Post",
     timestamp: "4h ago",
+    read: true,
   },
   // Add more notifications
 ];
@@ -38,10 +40,11 @@ type Notification = {
   };
   content: string;
   timestamp: string;
+  read: boolean;
 };
 
 const NotificationItem = ({ notification }: { notification: Notification }) => (
-  <View style={styles.notificationContainer}>
+  <View style={[styles.notificationContainer, !notification.read && styles.unreadNotification]}>
     <Image source={{ uri: notification.user.avatar }} style={styles.avatar} />
     <View style={styles.notificationContent}>
       <ThemedText style={styles.notificationText}>
@@ -63,11 +66,16 @@ const NotificationItem = ({ notification }: { notification: Notification }) => (
 
 export default function NotificationsScreen() {
   const { t } = useTranslation();
+  const [unreadCount, setUnreadCount] = useState(
+    notifications.filter((notification) => !notification.read).length
+  );
 
   return (
     <ThemedView style={styles.container}>
       <ThemedView style={styles.header}>
-        <ThemedText style={styles.headerTitle}>{t("Notifications")}</ThemedText>
+        <ThemedText style={styles.headerTitle}>
+          {t("Notifications")} ({unreadCount})
+        </ThemedText>
       </ThemedView>
       <FlatList
         data={notifications}
@@ -96,6 +104,9 @@ const styles = StyleSheet.create({
     padding: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#e1e8ed",
+  },
+  unreadNotification: {
+    backgroundColor: "#f0f8ff",
   },
   avatar: {
     width: 50,

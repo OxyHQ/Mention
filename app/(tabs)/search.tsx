@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   TextInput,
@@ -68,14 +68,19 @@ const SearchResultItem = ({ result }: { result: SearchResult }) => (
 );
 
 const TrendItem = ({ trend }: { trend: Trend }) => (
-  <View style={styles.trendContainer}>
+  <TouchableOpacity style={styles.trendContainer}>
     <ThemedText style={styles.trendTopic}>{trend.topic}</ThemedText>
     <ThemedText style={styles.trendTweets}>{trend.tweets}</ThemedText>
-  </View>
+  </TouchableOpacity>
 );
 
 export default function SearchScreen() {
   const { t } = useTranslation();
+  const [selectedHashtag, setSelectedHashtag] = useState<string | null>(null);
+
+  const handleHashtagPress = (hashtag: string) => {
+    setSelectedHashtag(hashtag);
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -93,7 +98,9 @@ export default function SearchScreen() {
       </View>
       <FlatList
         data={trends}
-        renderItem={({ item }) => <TrendItem trend={item} />}
+        renderItem={({ item }) => (
+          <TrendItem trend={item} onPress={() => handleHashtagPress(item.topic)} />
+        )}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <ThemedText style={styles.trendsHeader}>
