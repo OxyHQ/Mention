@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
+import { useTranslation } from "react-i18next";
 
 const notifications = [
   {
@@ -59,10 +60,12 @@ const NotificationItem = ({ notification }: { notification: Notification }) => (
 );
 
 export default function NotificationsScreen() {
+  const { t } = useTranslation();
+
   return (
     <ThemedView style={styles.container}>
       <ThemedView style={styles.header}>
-        <ThemedText style={styles.headerTitle}>Notifications</ThemedText>
+        <ThemedText style={styles.headerTitle}>{t("Notifications")}</ThemedText>
       </ThemedView>
       <FlatList
         data={notifications}

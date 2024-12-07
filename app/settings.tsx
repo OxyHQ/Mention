@@ -1,21 +1,24 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Button } from "react-native";
+import { View, Text, StyleSheet, Button, Picker } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import Tweet from "@/components/Tweet";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/Colors";
+import { useTranslation } from "react-i18next";
+import i18n from "i18next";
 
-const languages = ["English", "Spanish", "French", "German"];
+const languages = ["en", "es", "it"];
 const colors = ["#1DA1F2", "#FF5733", "#33FF57", "#3357FF"];
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
+  const { t } = useTranslation();
   const [selectedLanguage, setSelectedLanguage] = useState(languages[0]);
   const [selectedColor, setSelectedColor] = useState(colors[0]);
 
   const applySettings = () => {
-    // Apply the selected language and color throughout the app
+    i18n.changeLanguage(selectedLanguage);
     console.log("Selected Language:", selectedLanguage);
     console.log("Selected Color:", selectedColor);
   };
@@ -39,17 +42,35 @@ export default function SettingsScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.setting}>
-        <h1>Customize your view</h1>
-        <h2>These settings affect all the Mention accounts on this device.</h2>
+        <h1>{t("Customize your view")}</h1>
+        <h2>{t("These settings affect all the Mention accounts on this device.")}</h2>
         <ThemedView style={styles.container}>
           {tweet && <Tweet {...tweet} showActions={false} />}
         </ThemedView>
-        <ThemedText style={styles.label}>Language</ThemedText>
+        <ThemedText style={styles.label}>{t("Language")}</ThemedText>
+        <Picker
+          selectedValue={selectedLanguage}
+          style={styles.picker}
+          onValueChange={(itemValue) => setSelectedLanguage(itemValue)}
+        >
+          {languages.map((lang) => (
+            <Picker.Item key={lang} label={t(lang)} value={lang} />
+          ))}
+        </Picker>
       </View>
       <View style={styles.setting}>
-        <ThemedText style={styles.label}>Primary Color</ThemedText>
+        <ThemedText style={styles.label}>{t("Primary Color")}</ThemedText>
+        <Picker
+          selectedValue={selectedColor}
+          style={styles.picker}
+          onValueChange={(itemValue) => setSelectedColor(itemValue)}
+        >
+          {colors.map((color) => (
+            <Picker.Item key={color} label={color} value={color} />
+          ))}
+        </Picker>
       </View>
-      <Button title="Apply Settings" onPress={applySettings} />
+      <Button title={t("Apply Settings")} onPress={applySettings} />
     </ThemedView>
   );
 }
