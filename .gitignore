@@ -8,6 +8,7 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+.expo-shared/
 
 # Native
 *.orig.*
@@ -36,3 +37,15 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# Android Studio
+android/.idea/
+android/.gradle/
+android/build/
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/

@@ -1,0 +1,28 @@
+{
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "extends": "production",
+      "distribution": "internal",
+      "env": {
+        "API_URL": "https://mention.earth/api"
+      }
+    },
+    "production": {
+      "node": "20.0.0",
+      "env": {
+        "API_URL": "https://mention.earth/api"
+      }
+    },
+    "staging": {
+      "extends": "production",
+      "distribution": "internal",
+      "env": {
+        "API_URL": "https://staging.mention.earth/api"
+      }
+    }
+  }
+}
