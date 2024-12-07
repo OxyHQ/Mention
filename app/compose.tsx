@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  FlatList,
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,28 +14,43 @@ import { ThemedView } from "@/components/ThemedView";
 import { createNotification } from "@/utils/notifications";
 
 export default function ComposeScreen() {
-  const [content, setContent] = useState("");
+  const [posts, setPosts] = useState([{ id: 1, content: "" }]);
   const maxLength = 280;
 
   const handlePost = async () => {
-    if (content.trim().length > 0) {
-      // Here you would typically call an API to create the post
-      await createNotification(
-        "Post Created",
-        `Your post: "${content}" has been successfully created.`
-      );
+    const validPosts = posts.filter((post) => post.content.trim().length > 0);
+    if (validPosts.length > 0) {
+      // Here you would typically call an API to create the posts
+      for (const post of validPosts) {
+        await createNotification(
+          "Post Created",
+          `Your post: "${post.content}" has been successfully created.`
+        );
+      }
       router.back();
     }
   };
 
-  const characterCount = content.length;
-  const isOverLimit = characterCount > maxLength;
+  interface Post {
+    id: number;
+    content: string;
+  }
+
+  const handleContentChange = (id: number, content: string) => {
+    setPosts(
+      posts.map((post: Post) => (post.id === id ? { ...post, content } : post))
+    );
+  };
+
+  const addNewPost = () => {
+    setPosts([...posts, { id: posts.length + 1, content: "" }]);
+  };
 
   return (
     <>
       <Stack.Screen
         options={{
-          title: "New Post",
+          title: "New Posts",
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => router.back()}
@@ -46,10 +62,14 @@ export default function ComposeScreen() {
           headerRight: () => (
             <TouchableOpacity
               onPress={handlePost}
-              disabled={content.trim().length === 0 || isOverLimit}
+              disabled={
+                posts.every((post) => post.content.trim().length === 0) ||
+                posts.some((post) => post.content.length > maxLength)
+              }
               style={[
                 styles.postButton,
-                (content.trim().length === 0 || isOverLimit) &&
+                (posts.every((post) => post.content.trim().length === 0) ||
+                  posts.some((post) => post.content.length > maxLength)) &&
                   styles.postButtonDisabled,
               ]}
             >
@@ -59,48 +79,79 @@ export default function ComposeScreen() {
         }}
       />
       <ThemedView style={styles.container}>
-        <View style={styles.content}>
-          <Image
-            source={{ uri: "https://via.placeholder.com/40" }}
-            style={styles.avatar}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="What's happening?"
-            placeholderTextColor="#657786"
-            multiline
-            maxLength={maxLength}
-            value={content}
-            onChangeText={setContent}
-            autoFocus
-          />
-        </View>
-        <View style={styles.footer}>
-          <View style={styles.toolbar}>
-            <TouchableOpacity style={styles.mediaButton}>
-              <Ionicons name="image-outline" size={24} color="#1DA1F2" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mediaButton}>
-              <Ionicons name="camera-outline" size={24} color="#1DA1F2" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mediaButton}>
-              <Ionicons name="videocam-outline" size={24} color="#1DA1F2" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mediaButton}>
-              <Ionicons name="location-outline" size={24} color="#1DA1F2" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.characterCount}>
-            <ThemedText
-              style={[
-                styles.characterCountText,
-                isOverLimit && styles.characterCountOverLimit,
-              ]}
-            >
-              {characterCount}/{maxLength}
-            </ThemedText>
-          </View>
-        </View>
+        <FlatList
+          data={posts}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => {
+            const characterCount = item.content.length;
+            const isOverLimit = characterCount > maxLength;
+            return (
+              <View style={styles.postContainer}>
+                <View style={styles.content}>
+                  <Image
+                    source={{ uri: "https://via.placeholder.com/40" }}
+                    style={styles.avatar}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="What's happening?"
+                    placeholderTextColor="#657786"
+                    multiline
+                    maxLength={maxLength}
+                    value={item.content}
+                    onChangeText={(text) => handleContentChange(item.id, text)}
+                    autoFocus
+                  />
+                </View>
+                <View style={styles.footer}>
+                  <View style={styles.toolbar}>
+                    <TouchableOpacity style={styles.mediaButton}>
+                      <Ionicons
+                        name="image-outline"
+                        size={24}
+                        color="#1DA1F2"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.mediaButton}>
+                      <Ionicons
+                        name="camera-outline"
+                        size={24}
+                        color="#1DA1F2"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.mediaButton}>
+                      <Ionicons
+                        name="videocam-outline"
+                        size={24}
+                        color="#1DA1F2"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.mediaButton}>
+                      <Ionicons
+                        name="location-outline"
+                        size={24}
+                        color="#1DA1F2"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.characterCount}>
+                    <ThemedText
+                      style={[
+                        styles.characterCountText,
+                        isOverLimit && styles.characterCountOverLimit,
+                      ]}
+                    >
+                      {characterCount}/{maxLength}
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+            );
+          }}
+        />
+        <TouchableOpacity onPress={addNewPost} style={styles.addButton}>
+          <ThemedText style={styles.addButtonText}>Add New Post</ThemedText>
+        </TouchableOpacity>
       </ThemedView>
     </>
   );
@@ -175,5 +226,19 @@ const styles = StyleSheet.create({
   },
   backButton: {
     paddingHorizontal: 16,
+  },
+  postContainer: {
+    marginBottom: 16,
+  },
+  addButton: {
+    backgroundColor: "#1DA1F2",
+    padding: 16,
+    borderRadius: 20,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  addButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
   },
 });
