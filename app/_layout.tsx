@@ -23,6 +23,7 @@ import { initReactI18next, I18nextProvider } from "react-i18next";
 import en from "../locales/en.json";
 import es from "../locales/es.json";
 import it from "../locales/it.json";
+import { View } from "react-native";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -77,10 +78,12 @@ export default function RootLayout() {
           sidebarContent={<Sidebar />}
           widgetsContent={<Widgets />}
           mainContent={
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="+not-found" />
-            </Stack>
+            <View style={{ flex: 1, width: "100%", height: "100%" }}>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="+not-found" />
+              </Stack>
+            </View>
           }
         />
         <StatusBar style="auto" />

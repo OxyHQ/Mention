@@ -1,4 +1,4 @@
-export interface Tweet {
+export interface Post {
   id: string;
   avatar: string;
   name: string;
@@ -6,14 +6,14 @@ export interface Tweet {
   content: string;
   time: string;
   likes: number;
-  retweets: number;
+  reposts: number;
   replies: number;
   isReply?: boolean;
   hasMedia?: boolean;
   isLiked?: boolean;
 }
 
-export const sampleTweets: Tweet[] = [
+export const samplePosts: Post[] = [
   {
     id: "1",
     avatar: "https://picsum.photos/seed/user1/200",
@@ -22,7 +22,7 @@ export const sampleTweets: Tweet[] = [
     content: "Just setting up my Twitter clone! 🚀 #coding #reactnative",
     time: "2m",
     likes: 5,
-    retweets: 2,
+    reposts: 2,
     replies: 1,
     isReply: false,
     hasMedia: false,
@@ -37,7 +37,7 @@ export const sampleTweets: Tweet[] = [
       "Working on some amazing new features for our app. Stay tuned! 💻✨ #development",
     time: "15m",
     likes: 12,
-    retweets: 4,
+    reposts: 4,
     replies: 3,
     isReply: false,
     hasMedia: false,
@@ -52,7 +52,7 @@ export const sampleTweets: Tweet[] = [
       "The future of mobile development is cross-platform! React Native is amazing for building beautiful apps quickly. What are your thoughts? 🤔",
     time: "1h",
     likes: 45,
-    retweets: 15,
+    reposts: 15,
     replies: 8,
     isReply: false,
     hasMedia: false,
@@ -66,7 +66,7 @@ export const sampleTweets: Tweet[] = [
     content: "Beautiful sunset today! 🌅\nNature never fails to amaze me.",
     time: "2h",
     likes: 89,
-    retweets: 23,
+    reposts: 23,
     replies: 5,
     isReply: false,
     hasMedia: false,
@@ -81,7 +81,7 @@ export const sampleTweets: Tweet[] = [
       "🔥 Pro tip: Always write clean, maintainable code. Your future self will thank you! #codingbestpractices #cleancode",
     time: "3h",
     likes: 234,
-    retweets: 78,
+    reposts: 78,
     replies: 12,
     isReply: false,
     hasMedia: false,

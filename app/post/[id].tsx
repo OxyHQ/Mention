@@ -1,19 +1,19 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import React from "react";
 import { View, StyleSheet } from "react-native";
-import Tweet from "@/components/Tweet";
+import Post from "@/components/Post";
 import { ThemedView } from "@/components/ThemedView";
-import { sampleTweets } from "@/constants/sampleData";
+import { samplePosts } from "@/constants/sampleData";
 
-export default function TweetDetailScreen() {
+export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const tweet = sampleTweets.find((t) => t.id === id);
+  const post = samplePosts.find((t) => t.id === id);
 
   return (
     <>
-      <Stack.Screen options={{ title: "Tweet" }} />
+      <Stack.Screen options={{ title: "Post" }} />
       <ThemedView style={styles.container}>
-        {tweet && <Tweet {...tweet} showActions={false} />}
+        {post && <Post {...post} showActions={false} />}
       </ThemedView>
     </>
   );

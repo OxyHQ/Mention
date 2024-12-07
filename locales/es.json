@@ -16,10 +16,10 @@
   "Go to home screen!": "¡Ir a la pantalla de inicio!",
   "Hey, how are you?": "Hola, ¿cómo estás?",
   "Let's catch up soon!": "¡Pongámonos al día pronto!",
-  "liked your Tweet": "le gustó tu Tweet",
-  "retweeted your Tweet": "retuiteó tu Tweet",
-  "This is a sample tweet": "Este es un tweet de muestra",
-  "Another example tweet": "Otro tweet de ejemplo",
+  "liked your Post": "le gustó tu Post",
+  "reposted your Post": "retuiteó tu Post",
+  "This is a sample post": "Este es un post de muestra",
+  "Another example post": "Otro post de ejemplo",
   "Customize your view": "Personaliza tu vista",
   "These settings affect all the Mention accounts on this device.": "Estas configuraciones afectan todas las cuentas de Mention en este dispositivo."
 }

@@ -11,7 +11,7 @@ const searchResults = [
       name: "Jane Smith",
       avatar: "https://via.placeholder.com/50",
     },
-    content: "This is a sample tweet",
+    content: "This is a sample post",
     timestamp: "2h ago",
   },
   {
@@ -20,7 +20,7 @@ const searchResults = [
       name: "Bob Johnson",
       avatar: "https://via.placeholder.com/50",
     },
-    content: "Another example tweet",
+    content: "Another example post",
     timestamp: "4h ago",
   },
   // Add more search results

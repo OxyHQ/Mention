@@ -13,17 +13,17 @@ const notifications = [
       name: "Jane Smith",
       avatar: "https://via.placeholder.com/50",
     },
-    content: "liked your Tweet",
+    content: "liked your Post",
     timestamp: "2h ago",
   },
   {
     id: "2",
-    type: "retweet",
+    type: "repost",
     user: {
       name: "Bob Johnson",
       avatar: "https://via.placeholder.com/50",
     },
-    content: "retweeted your Tweet",
+    content: "reposted your Post",
     timestamp: "4h ago",
   },
   // Add more notifications
@@ -45,7 +45,9 @@ const NotificationItem = ({ notification }: { notification: Notification }) => (
     <Image source={{ uri: notification.user.avatar }} style={styles.avatar} />
     <View style={styles.notificationContent}>
       <ThemedText style={styles.notificationText}>
-        <ThemedText style={styles.userName}>{notification.user.name}</ThemedText>{" "}
+        <ThemedText style={styles.userName}>
+          {notification.user.name}
+        </ThemedText>{" "}
         {notification.content}
       </ThemedText>
       <ThemedText style={styles.timestamp}>{notification.timestamp}</ThemedText>
@@ -53,7 +55,7 @@ const NotificationItem = ({ notification }: { notification: Notification }) => (
     {notification.type === "like" && (
       <Ionicons name="heart" size={20} color="#E0245E" style={styles.icon} />
     )}
-    {notification.type === "retweet" && (
+    {notification.type === "repost" && (
       <Ionicons name="repeat" size={20} color="#17BF63" style={styles.icon} />
     )}
   </View>

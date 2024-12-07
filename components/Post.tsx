@@ -2,13 +2,13 @@ import React, { useState } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Tweet as TweetType } from "@/constants/sampleData";
+import { Post as PostType } from "@/constants/sampleData";
 
-interface TweetComponentProps extends TweetType {
+interface PostComponentProps extends PostType {
   showActions?: boolean;
 }
 
-export default function Tweet({
+export default function Post({
   id,
   avatar,
   name,
@@ -16,9 +16,9 @@ export default function Tweet({
   content,
   time,
   likes = 0,
-  retweets = 0,
+  reposts = 0,
   replies = 0,
-}: TweetComponentProps) {
+}: PostComponentProps) {
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(likes);
 
@@ -47,7 +47,7 @@ export default function Tweet({
               </View>
               <View style={styles.actionItem}>
                 <Ionicons name="repeat-outline" size={20} color="#536471" />
-                <Text style={styles.actionText}>{retweets}</Text>
+                <Text style={styles.actionText}>{reposts}</Text>
               </View>
               <TouchableOpacity style={styles.actionItem} onPress={handleLike}>
                 <Ionicons

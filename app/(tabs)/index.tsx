@@ -1,12 +1,17 @@
-import { FlatList, RefreshControl, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  TouchableOpacity,
+} from "react-native";
 import React, { useState } from "react";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Tweet from "@/components/Tweet";
+import Post from "@/components/Post";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { sampleTweets } from "@/constants/sampleData";
+import { samplePosts } from "@/constants/sampleData";
 import { useTranslation } from "react-i18next";
 
 export default function HomeScreen() {
@@ -33,8 +38,8 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </ThemedView>
         <FlatList
-          data={sampleTweets}
-          renderItem={({ item }) => <Tweet {...item} />}
+          data={samplePosts}
+          renderItem={({ item }) => <Post {...item} />}
           keyExtractor={(item) => item.id}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />

@@ -9,12 +9,12 @@ import {
   FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { sampleTweets } from "@/constants/sampleData";
-import Tweet from "@/components/Tweet";
+import { samplePosts } from "@/constants/sampleData";
+import Post from "@/components/Post";
 
 export default function ProfileScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
-  const [activeTab, setActiveTab] = useState("Tweets");
+  const [activeTab, setActiveTab] = useState("Posts");
 
   const user = {
     name: "John Doe",
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
         </View>
       </View>
       <View style={styles.tabContainer}>
-        {["Tweets", "Tweets & replies", "Media", "Likes"].map((tab) => (
+        {["Posts", "Posts & replies", "Media", "Likes"].map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tab, activeTab === tab && styles.activeTab]}
@@ -93,8 +93,8 @@ export default function ProfileScreen() {
       <Stack.Screen options={{ title: username as string }} />
       <FlatList
         style={styles.container}
-        data={sampleTweets}
-        renderItem={({ item }) => <Tweet {...item} />}
+        data={samplePosts}
+        renderItem={({ item }) => <Post {...item} />}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
       />

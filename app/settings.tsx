@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, Button, Picker } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
-import Tweet from "@/components/Tweet";
+import Post from "@/components/Post";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/Colors";
 import { useTranslation } from "react-i18next";
@@ -23,7 +23,7 @@ export default function SettingsScreen() {
     console.log("Selected Color:", selectedColor);
   };
 
-  const tweet = {
+  const post = {
     id: "16",
     avatar: "/assets/images/favicon.png",
     name: "Mention",
@@ -32,7 +32,7 @@ export default function SettingsScreen() {
       "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
     time: "16m",
     likes: 7,
-    retweets: 3,
+    reposts: 3,
     replies: 2,
     isReply: false,
     hasMedia: false,
@@ -43,9 +43,11 @@ export default function SettingsScreen() {
     <ThemedView style={styles.container}>
       <View style={styles.setting}>
         <h1>{t("Customize your view")}</h1>
-        <h2>{t("These settings affect all the Mention accounts on this device.")}</h2>
+        <h2>
+          {t("These settings affect all the Mention accounts on this device.")}
+        </h2>
         <ThemedView style={styles.container}>
-          {tweet && <Tweet {...tweet} showActions={false} />}
+          {post && <Post {...post} showActions={false} />}
         </ThemedView>
         <ThemedText style={styles.label}>{t("Language")}</ThemedText>
         <Picker

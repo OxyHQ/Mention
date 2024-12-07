@@ -30,9 +30,7 @@ export function ResponsiveLayout({
           <ScrollView>{sidebarContent}</ScrollView>
         </View>
       )}
-      <View style={styles.mainContentWrapper}>
-        <View style={styles.mainContent}>{mainContent}</View>
-      </View>
+      <View style={styles.mainContentWrapper}>{mainContent}</View>
       {showWidgets && (
         <View style={styles.widgets}>
           <ScrollView>{widgetsContent}</ScrollView>
@@ -55,11 +53,8 @@ const styles = StyleSheet.create({
   mainContentWrapper: {
     flex: 1,
     alignItems: "center",
-  },
-  mainContent: {
     width: "100%",
     maxWidth: 600,
-    flex: 1,
   },
   widgets: {
     width: 290,

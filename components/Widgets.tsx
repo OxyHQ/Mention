@@ -4,9 +4,9 @@ import { ThemedText } from "./ThemedText";
 import { ThemedView } from "./ThemedView";
 
 const trendingTopics = [
-  { id: "1", topic: "#ReactNative", tweets: "120K" },
-  { id: "2", topic: "#JavaScript", tweets: "80K" },
-  { id: "3", topic: "#MobileDevelopment", tweets: "50K" },
+  { id: "1", topic: "#ReactNative", posts: "120K" },
+  { id: "2", topic: "#JavaScript", posts: "80K" },
+  { id: "3", topic: "#MobileDevelopment", posts: "50K" },
   // Add more trending topics here
 ];
 
@@ -23,8 +23,8 @@ export function Widgets() {
         {trendingTopics.map((topic) => (
           <View key={topic.id} style={styles.trendingItem}>
             <ThemedText style={styles.trendingTopic}>{topic.topic}</ThemedText>
-            <ThemedText style={styles.trendingTweets}>
-              {topic.tweets} Tweets
+            <ThemedText style={styles.trendingPosts}>
+              {topic.posts} Posts
             </ThemedText>
           </View>
         ))}
@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   trendingTopic: {
     fontWeight: "bold",
   },
-  trendingTweets: {
+  trendingPosts: {
     color: "gray",
   },
 });

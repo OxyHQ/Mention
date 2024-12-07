@@ -10,8 +10,8 @@ import {
   Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { sampleTweets } from "@/constants/sampleData";
-import Tweet from "@/components/Tweet";
+import { samplePosts } from "@/constants/sampleData";
+import Post from "@/components/Post";
 import Animated, {
   useAnimatedStyle,
   withTiming,
@@ -32,18 +32,18 @@ export default function ProfileScreen() {
     following: 100,
     followers: 200,
   };
-  const [activeTab, setActiveTab] = useState("tweets");
+  const [activeTab, setActiveTab] = useState("posts");
 
-  const filteredTweets = useCallback(() => {
+  const filteredPosts = useCallback(() => {
     switch (activeTab) {
       case "replies":
-        return sampleTweets.filter((tweet) => tweet.isReply);
+        return samplePosts.filter((post) => post.isReply);
       case "media":
-        return sampleTweets.filter((tweet) => tweet.hasMedia);
+        return samplePosts.filter((post) => post.hasMedia);
       case "likes":
-        return sampleTweets.filter((tweet) => tweet.isLiked);
+        return samplePosts.filter((post) => post.isLiked);
       default:
-        return sampleTweets.filter((tweet) => !tweet.isReply);
+        return samplePosts.filter((post) => !post.isReply);
     }
   }, [activeTab]);
 
@@ -126,9 +126,9 @@ export default function ProfileScreen() {
       </View>
       <View style={styles.tabContainer}>
         <TabButton
-          label="Tweets"
-          isActive={activeTab === "tweets"}
-          onPress={() => handleTabPress("tweets")}
+          label="Posts"
+          isActive={activeTab === "posts"}
+          onPress={() => handleTabPress("posts")}
         />
         <TabButton
           label="Replies"
@@ -155,8 +155,8 @@ export default function ProfileScreen() {
       <Tabs.Screen options={{ headerShown: false }} />
       <FlatList
         style={styles.container}
-        data={filteredTweets()}
-        renderItem={({ item }) => <Tweet {...item} />}
+        data={filteredPosts()}
+        renderItem={({ item }) => <Post {...item} />}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
       />
