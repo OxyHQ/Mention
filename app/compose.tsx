@@ -6,21 +6,26 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
+  ScrollView,
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { createNotification } from "@/utils/notifications";
+import * as ImagePicker from "expo-image-picker";
+import DraggableFlatList from "react-native-draggable-flatlist";
+import * as Location from "expo-location";
 
 export default function ComposeScreen() {
-  const [posts, setPosts] = useState([{ id: 1, content: "" }]);
+  const [posts, setPosts] = useState<Post[]>([
+    { id: 1, content: "", images: [], location: "" },
+  ]);
   const maxLength = 280;
 
   const handlePost = async () => {
     const validPosts = posts.filter((post) => post.content.trim().length > 0);
     if (validPosts.length > 0) {
-      // Here you would typically call an API to create the posts
       for (const post of validPosts) {
         await createNotification(
           "Post Created",
@@ -34,6 +39,8 @@ export default function ComposeScreen() {
   interface Post {
     id: number;
     content: string;
+    images: string[];
+    location: string;
   }
 
   const handleContentChange = (id: number, content: string) => {
@@ -43,7 +50,123 @@ export default function ComposeScreen() {
   };
 
   const addNewPost = () => {
-    setPosts([...posts, { id: posts.length + 1, content: "" }]);
+    setPosts([
+      ...posts,
+      { id: posts.length + 1, content: "", images: [], location: "" },
+    ]);
+  };
+
+  const pickImages = async (id: number) => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setPosts(
+        posts.map((post: Post) =>
+          post.id === id
+            ? { ...post, images: result.assets.map((asset) => asset.uri) }
+            : post
+        )
+      );
+    }
+  };
+
+  const pickLocation = async (id: number) => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      alert("Permission to access location was denied");
+      return;
+    }
+
+    let location = await Location.getCurrentPositionAsync({});
+    const locationString = `${location.coords.latitude}, ${location.coords.longitude}`;
+    setPosts(
+      posts.map((post: Post) =>
+        post.id === id ? { ...post, location: locationString } : post
+      )
+    );
+  };
+
+  const renderPost = ({
+    item,
+    drag,
+    isActive,
+  }: {
+    item: Post;
+    drag: () => void;
+    isActive: boolean;
+  }) => {
+    const characterCount = item.content.length;
+    const isOverLimit = characterCount > maxLength;
+    return (
+      <View style={styles.postContainer}>
+        <View style={styles.content}>
+          <Image
+            source={{ uri: "https://via.placeholder.com/40" }}
+            style={styles.avatar}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="What's happening?"
+            placeholderTextColor="#657786"
+            multiline
+            maxLength={maxLength}
+            value={item.content}
+            onChangeText={(text) => handleContentChange(item.id, text)}
+            autoFocus
+          />
+        </View>
+        <ScrollView horizontal>
+          {item.images.map((imageUri, index) => (
+            <Image
+              key={index}
+              source={{ uri: imageUri }}
+              style={styles.previewImage}
+            />
+          ))}
+        </ScrollView>
+        {item.location ? (
+          <ThemedText style={styles.locationText}>
+            Location: {item.location}
+          </ThemedText>
+        ) : null}
+        <View style={styles.footer}>
+          <View style={styles.toolbar}>
+            <TouchableOpacity
+              style={styles.mediaButton}
+              onPress={() => pickImages(item.id)}
+            >
+              <Ionicons name="image-outline" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mediaButton}>
+              <Ionicons name="camera-outline" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mediaButton}>
+              <Ionicons name="videocam-outline" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.mediaButton}
+              onPress={() => pickLocation(item.id)}
+            >
+              <Ionicons name="location-outline" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.characterCount}>
+            <ThemedText
+              style={[
+                styles.characterCountText,
+                isOverLimit && styles.characterCountOverLimit,
+              ]}
+            >
+              {characterCount}/{maxLength}
+            </ThemedText>
+          </View>
+        </View>
+      </View>
+    );
   };
 
   return (
@@ -79,75 +202,11 @@ export default function ComposeScreen() {
         }}
       />
       <ThemedView style={styles.container}>
-        <FlatList
+        <DraggableFlatList
           data={posts}
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => {
-            const characterCount = item.content.length;
-            const isOverLimit = characterCount > maxLength;
-            return (
-              <View style={styles.postContainer}>
-                <View style={styles.content}>
-                  <Image
-                    source={{ uri: "https://via.placeholder.com/40" }}
-                    style={styles.avatar}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="What's happening?"
-                    placeholderTextColor="#657786"
-                    multiline
-                    maxLength={maxLength}
-                    value={item.content}
-                    onChangeText={(text) => handleContentChange(item.id, text)}
-                    autoFocus
-                  />
-                </View>
-                <View style={styles.footer}>
-                  <View style={styles.toolbar}>
-                    <TouchableOpacity style={styles.mediaButton}>
-                      <Ionicons
-                        name="image-outline"
-                        size={24}
-                        color="#1DA1F2"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.mediaButton}>
-                      <Ionicons
-                        name="camera-outline"
-                        size={24}
-                        color="#1DA1F2"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.mediaButton}>
-                      <Ionicons
-                        name="videocam-outline"
-                        size={24}
-                        color="#1DA1F2"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.mediaButton}>
-                      <Ionicons
-                        name="location-outline"
-                        size={24}
-                        color="#1DA1F2"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.characterCount}>
-                    <ThemedText
-                      style={[
-                        styles.characterCountText,
-                        isOverLimit && styles.characterCountOverLimit,
-                      ]}
-                    >
-                      {characterCount}/{maxLength}
-                    </ThemedText>
-                  </View>
-                </View>
-              </View>
-            );
-          }}
+          renderItem={renderPost}
+          onDragEnd={({ data }) => setPosts(data)}
         />
         <TouchableOpacity onPress={addNewPost} style={styles.addButton}>
           <ThemedText style={styles.addButtonText}>Add New Post</ThemedText>
@@ -240,5 +299,16 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: "#FFFFFF",
     fontWeight: "bold",
+  },
+  previewImage: {
+    width: 100,
+    height: 100,
+    marginRight: 5,
+    borderRadius: 35,
+  },
+  locationText: {
+    fontSize: 14,
+    color: "#657786",
+    marginTop: 8,
   },
 });

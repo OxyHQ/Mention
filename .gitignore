@@ -39,9 +39,9 @@ yarn-error.*
 app-example
 
 # Android Studio
-android/.idea/
-android/.gradle/
-android/build/
+android/
+#iOS
+ios/
 
 # Logs
 *.log
