@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
+  Modal,
   ScrollView,
 } from "react-native";
 import { Stack, router } from "expo-router";
@@ -16,11 +17,15 @@ import { createNotification } from "@/utils/notifications";
 import * as ImagePicker from "expo-image-picker";
 import DraggableFlatList from "react-native-draggable-flatlist";
 import * as Location from "expo-location";
+import EmojiPicker from "emoji-picker-react";
 
 export default function ComposeScreen() {
   const [posts, setPosts] = useState<Post[]>([
     { id: 1, content: "", images: [], location: "" },
   ]);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isEmojiPickerVisible, setIsEmojiPickerVisible] = useState(false);
   const maxLength = 280;
 
   const handlePost = async () => {
@@ -90,6 +95,32 @@ export default function ComposeScreen() {
     );
   };
 
+  const handleImageReorder = (id: number, images: string[]) => {
+    setPosts(
+      posts.map((post: Post) => (post.id === id ? { ...post, images } : post))
+    );
+  };
+
+  const handleImagePress = (imageUri: string) => {
+    setSelectedImage(imageUri);
+    setIsModalVisible(true);
+  };
+
+  interface EmojiObject {
+    emoji: string;
+  }
+
+  const handleEmojiClick = (emojiObject: EmojiObject) => {
+    const newPosts = posts.map((post: Post) => {
+      if (post.id === posts.length) {
+        return { ...post, content: post.content + emojiObject.emoji };
+      }
+      return post;
+    });
+    setPosts(newPosts);
+    setIsEmojiPickerVisible(false);
+  };
+
   const renderPost = ({
     item,
     drag,
@@ -102,7 +133,9 @@ export default function ComposeScreen() {
     const characterCount = item.content.length;
     const isOverLimit = characterCount > maxLength;
     return (
-      <View style={styles.postContainer}>
+      <View
+        style={[styles.postContainer, isActive && styles.activePostContainer]}
+      >
         <View style={styles.content}>
           <Image
             source={{ uri: "https://via.placeholder.com/40" }}
@@ -119,15 +152,17 @@ export default function ComposeScreen() {
             autoFocus
           />
         </View>
-        <ScrollView horizontal>
-          {item.images.map((imageUri, index) => (
-            <Image
-              key={index}
-              source={{ uri: imageUri }}
-              style={styles.previewImage}
-            />
-          ))}
-        </ScrollView>
+        <FlatList
+          data={item.images}
+          numColumns={3}
+          keyExtractor={(imageUri, index) => imageUri + index}
+          renderItem={({ item: imageUri }) => (
+            <TouchableOpacity onPress={() => handleImagePress(imageUri)}>
+              <Image source={{ uri: imageUri }} style={styles.gridImage} />
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={styles.imageGridContainer}
+        />
         {item.location ? (
           <ThemedText style={styles.locationText}>
             Location: {item.location}
@@ -153,6 +188,12 @@ export default function ComposeScreen() {
             >
               <Ionicons name="location-outline" size={24} color="#1DA1F2" />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.mediaButton}
+              onPress={() => setIsEmojiPickerVisible(true)}
+            >
+              <Ionicons name="happy-outline" size={24} color="#1DA1F2" />
+            </TouchableOpacity>
           </View>
           <View style={styles.characterCount}>
             <ThemedText
@@ -165,6 +206,12 @@ export default function ComposeScreen() {
             </ThemedText>
           </View>
         </View>
+        {posts.length > 1 && (
+          <TouchableOpacity style={styles.reorderIcon} onPressIn={drag}>
+            <Ionicons name="reorder-three-outline" size={24} color="#657786" />
+          </TouchableOpacity>
+        )}
+        <View style={styles.separator} />
       </View>
     );
   };
@@ -207,11 +254,36 @@ export default function ComposeScreen() {
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderPost}
           onDragEnd={({ data }) => setPosts(data)}
+          activationDistance={10} // Add this line to ensure drag is activated
         />
         <TouchableOpacity onPress={addNewPost} style={styles.addButton}>
           <ThemedText style={styles.addButtonText}>Add New Post</ThemedText>
         </TouchableOpacity>
       </ThemedView>
+      <Modal visible={isModalVisible} transparent={true}>
+        <View style={styles.modalContainer}>
+          <TouchableOpacity
+            style={styles.modalCloseButton}
+            onPress={() => setIsModalVisible(false)}
+          >
+            <Ionicons name="close" size={30} color="#FFFFFF" />
+          </TouchableOpacity>
+          {selectedImage && (
+            <Image source={{ uri: selectedImage }} style={styles.modalImage} />
+          )}
+        </View>
+      </Modal>
+      {isEmojiPickerVisible && (
+        <View style={styles.emojiPickerContainer}>
+          <EmojiPicker onEmojiClick={handleEmojiClick} />
+          <TouchableOpacity
+            style={styles.emojiPickerCloseButton}
+            onPress={() => setIsEmojiPickerVisible(false)}
+          >
+            <Ionicons name="close" size={30} color="#657786" />
+          </TouchableOpacity>
+        </View>
+      )}
     </>
   );
 }
@@ -288,6 +360,9 @@ const styles = StyleSheet.create({
   },
   postContainer: {
     marginBottom: 16,
+    backgroundColor: "#F5F8FA",
+    borderRadius: 10,
+    padding: 12,
   },
   addButton: {
     backgroundColor: "#1DA1F2",
@@ -295,6 +370,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     marginTop: 16,
+    marginHorizontal: 16,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: "#E1E8ED",
+    marginVertical: 12,
   },
   addButtonText: {
     color: "#FFFFFF",
@@ -310,5 +391,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#657786",
     marginTop: 8,
+  },
+  activePostContainer: {
+    backgroundColor: "#E1E8ED",
+  },
+  reorderIcon: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+  },
+  imageListContainer: {
+    paddingVertical: 8,
+  },
+  imageGridContainer: {
+    paddingVertical: 8,
+  },
+  gridImage: {
+    width: 100,
+    height: 100,
+    margin: 5,
+    borderRadius: 10,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCloseButton: {
+    position: "absolute",
+    top: 40,
+    right: 20,
+  },
+  modalImage: {
+    width: "90%",
+    height: "70%",
+    borderRadius: 10,
+  },
+  emojiPickerContainer: {
+    position: "absolute",
+    bottom: 0,
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+  },
+  emojiPickerCloseButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
   },
 });
