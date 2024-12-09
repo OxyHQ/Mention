@@ -133,81 +133,77 @@ export default function SearchScreen() {
     <>
       <Stack.Screen options={{ title: "Search" }} />
       <ThemedView style={styles.container}>
-        <FlatList
-          ListHeaderComponent={
+        <View style={styles.searchContainer}>
+          <Ionicons
+            name="search"
+            size={20}
+            color="#ccc"
+            style={styles.searchIcon}
+          />
+          <TextInput placeholder={t("Explore")} style={styles.searchInput} />
+        </View>
+        <View style={styles.filtersContainer}>
+          <ThemedText>{t("Filters")}</ThemedText>
+          <View style={styles.filterItem}>
+            <ThemedText>{t("Show Images")}</ThemedText>
+            <Switch
+              value={filters.showImages}
+              onValueChange={(value) => handleFilterChange("showImages", value)}
+            />
+          </View>
+          <View style={styles.filterItem}>
+            <ThemedText>{t("Show Videos")}</ThemedText>
+            <Switch
+              value={filters.showVideos}
+              onValueChange={(value) => handleFilterChange("showVideos", value)}
+            />
+          </View>
+          <View style={styles.filterItem}>
+            <ThemedText>{t("Show Text")}</ThemedText>
+            <Switch
+              value={filters.showText}
+              onValueChange={(value) => handleFilterChange("showText", value)}
+            />
+          </View>
+          {isPremium && (
             <>
-              <View style={styles.searchContainer}>
-                <Ionicons
-                  name="search"
-                  size={20}
-                  color="#ccc"
-                  style={styles.searchIcon}
+              <ThemedText>{t("Advanced Filters")}</ThemedText>
+              <View style={styles.filterItem}>
+                <ThemedText>{t("Sort by Date")}</ThemedText>
+                <Switch
+                  value={advancedFilters.sortByDate}
+                  onValueChange={(value) =>
+                    handleAdvancedFilterChange("sortByDate", value)
+                  }
                 />
-                <TextInput placeholder={t("Explore")} style={styles.searchInput} />
               </View>
-              <View style={styles.filtersContainer}>
-                <ThemedText>{t("Filters")}</ThemedText>
-                <View style={styles.filterItem}>
-                  <ThemedText>{t("Show Images")}</ThemedText>
-                  <Switch
-                    value={filters.showImages}
-                    onValueChange={(value) => handleFilterChange("showImages", value)}
-                  />
-                </View>
-                <View style={styles.filterItem}>
-                  <ThemedText>{t("Show Videos")}</ThemedText>
-                  <Switch
-                    value={filters.showVideos}
-                    onValueChange={(value) => handleFilterChange("showVideos", value)}
-                  />
-                </View>
-                <View style={styles.filterItem}>
-                  <ThemedText>{t("Show Text")}</ThemedText>
-                  <Switch
-                    value={filters.showText}
-                    onValueChange={(value) => handleFilterChange("showText", value)}
-                  />
-                </View>
-                {isPremium && (
-                  <>
-                    <ThemedText>{t("Advanced Filters")}</ThemedText>
-                    <View style={styles.filterItem}>
-                      <ThemedText>{t("Sort by Date")}</ThemedText>
-                      <Switch
-                        value={advancedFilters.sortByDate}
-                        onValueChange={(value) =>
-                          handleAdvancedFilterChange("sortByDate", value)
-                        }
-                      />
-                    </View>
-                    <View style={styles.filterItem}>
-                      <ThemedText>{t("Sort by Relevance")}</ThemedText>
-                      <Switch
-                        value={advancedFilters.sortByRelevance}
-                        onValueChange={(value) =>
-                          handleAdvancedFilterChange("sortByRelevance", value)
-                        }
-                      />
-                    </View>
-                  </>
-                )}
+              <View style={styles.filterItem}>
+                <ThemedText>{t("Sort by Relevance")}</ThemedText>
+                <Switch
+                  value={advancedFilters.sortByRelevance}
+                  onValueChange={(value) =>
+                    handleAdvancedFilterChange("sortByRelevance", value)
+                  }
+                />
               </View>
-              <FlatList
-                data={trends}
-                renderItem={({ item }) => (
-                  <TrendItem
-                    trend={item}
-                    onPress={() => handleHashtagPress(item.topic)}
-                  />
-                )}
-                keyExtractor={(item) => item.id}
-                ListHeaderComponent={<ThemedText style={styles.trendsHeader}>
-                  {t("Trends for you")}
-                </ThemedText>}
-                style={styles.trendsList}
-              />
             </>
-          }
+          )}
+        </View>
+        <FlatList
+          data={trends}
+          renderItem={({ item }) => (
+            <TrendItem
+              trend={item}
+              onPress={() => handleHashtagPress(item.topic)}
+            />
+          )}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={<ThemedText style={styles.trendsHeader}>
+            {t("Trends for you")}
+          </ThemedText>}
+          style={styles.trendsList}
+        />
+        <FlatList
           data={filteredResults}
           renderItem={({ item }) => (
             <Post
