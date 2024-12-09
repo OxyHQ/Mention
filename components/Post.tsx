@@ -12,7 +12,7 @@ const detectHashtags = (text: string) => {
   const parts = text.split(/(#[a-zA-Z0-9_]+)/g);
   return parts.map((part, index) =>
     part.startsWith("#") ? (
-      <Link key={index} href={`/hashtag/${part.slice(1)}`}>
+      <Link key={index} href={`/hashtag/${part.slice(1)}` as unknown as any}>
         <Text style={styles.hashtag}>{part}</Text>
       </Link>
     ) : (
@@ -62,7 +62,13 @@ export default function Post({
                 <Ionicons name="repeat-outline" size={20} color="#536471" />
                 <Text style={styles.actionText}>{reposts}</Text>
               </View>
-              <TouchableOpacity style={styles.actionItem} onPress={handleLike}>
+              <TouchableOpacity
+                style={styles.actionItem}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  handleLike(event);
+                }}
+              >
                 <Ionicons
                   name={isLiked ? "heart" : "heart-outline"}
                   size={20}
