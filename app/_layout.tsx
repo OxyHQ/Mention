@@ -19,7 +19,7 @@ import {
   scheduleDemoNotification,
 } from "@/utils/notifications";
 import i18n from "i18next";
-import { initReactI18next, I18nextProvider } from "react-i18next";
+import { initReactI18next, I18nextProvider, useTranslation } from "react-i18next";
 import en from "../locales/en.json";
 import es from "../locales/es.json";
 import it from "../locales/it.json";
@@ -39,10 +39,13 @@ i18n.use(initReactI18next).init({
   interpolation: {
     escapeValue: false,
   },
+}).catch(error => {
+  console.error("Failed to initialize i18n:", error);
 });
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const { i18n } = useTranslation();
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -80,8 +83,8 @@ export default function RootLayout() {
           mainContent={
             <View style={{ flex: 1, width: "100%", height: "100%" }}>
               <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="+not-found" />
+                <Stack.Screen name="index" options={{ headerShown: true, headerBackVisible: false }} />
+                <Stack.Screen name="+not-found" options={{ headerShown: true, headerBackVisible: false }} />
               </Stack>
             </View>
           }

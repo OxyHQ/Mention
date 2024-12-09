@@ -26,17 +26,8 @@ export default function HomeScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: t("Home") }} />
+      <Stack.Screen options={{ title: t("Home"), headerBackVisible: false }} />
       <ThemedView style={styles.container}>
-        <ThemedView style={styles.header}>
-          <ThemedText style={styles.headerTitle}>{t("Home")}</ThemedText>
-          <TouchableOpacity
-            style={styles.composeButton}
-            onPress={() => router.push("/compose")}
-          >
-            <Ionicons name="create-outline" size={24} color="#1DA1F2" />
-          </TouchableOpacity>
-        </ThemedView>
         <FlatList
           data={samplePosts}
           renderItem={({ item }) => <Post {...item} />}

@@ -7,11 +7,13 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
+  Switch,
 } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
+import Post from "@/components/Post";
 
 const searchResults = [
   {
@@ -90,13 +92,42 @@ const TrendItem = ({
   </TouchableOpacity>
 );
 
+const renderPost = ({ item }: { item: SearchResult }) => (
+  <SearchResultItem result={item} />
+);
+
 export default function SearchScreen() {
   const { t } = useTranslation();
   const [selectedHashtag, setSelectedHashtag] = useState<string | null>(null);
+  const [isPremium, setIsPremium] = useState(false); // Assume a way to determine if user is premium
+  const [filters, setFilters] = useState({
+    showImages: true,
+    showVideos: true,
+    showText: true,
+  });
+  const [advancedFilters, setAdvancedFilters] = useState({
+    sortByDate: false,
+    sortByRelevance: false,
+  });
 
   const handleHashtagPress = (hashtag: string) => {
     setSelectedHashtag(hashtag);
   };
+
+  const handleFilterChange = (filter: string, value: boolean) => {
+    setFilters((prevFilters) => ({ ...prevFilters, [filter]: value }));
+  };
+
+  const handleAdvancedFilterChange = (filter: string, value: boolean) => {
+    setAdvancedFilters((prevFilters) => ({ ...prevFilters, [filter]: value }));
+  };
+
+  const filteredResults = searchResults.filter((result) => {
+    if (!filters.showImages && result.content.includes("image")) return false;
+    if (!filters.showVideos && result.content.includes("video")) return false;
+    if (!filters.showText && result.content.includes("text")) return false;
+    return true;
+  });
 
   return (
     <>
@@ -111,6 +142,53 @@ export default function SearchScreen() {
           />
           <TextInput placeholder={t("Explore")} style={styles.searchInput} />
         </View>
+        <View style={styles.filtersContainer}>
+          <ThemedText>{t("Filters")}</ThemedText>
+          <View style={styles.filterItem}>
+            <ThemedText>{t("Show Images")}</ThemedText>
+            <Switch
+              value={filters.showImages}
+              onValueChange={(value) => handleFilterChange("showImages", value)}
+            />
+          </View>
+          <View style={styles.filterItem}>
+            <ThemedText>{t("Show Videos")}</ThemedText>
+            <Switch
+              value={filters.showVideos}
+              onValueChange={(value) => handleFilterChange("showVideos", value)}
+            />
+          </View>
+          <View style={styles.filterItem}>
+            <ThemedText>{t("Show Text")}</ThemedText>
+            <Switch
+              value={filters.showText}
+              onValueChange={(value) => handleFilterChange("showText", value)}
+            />
+          </View>
+          {isPremium && (
+            <>
+              <ThemedText>{t("Advanced Filters")}</ThemedText>
+              <View style={styles.filterItem}>
+                <ThemedText>{t("Sort by Date")}</ThemedText>
+                <Switch
+                  value={advancedFilters.sortByDate}
+                  onValueChange={(value) =>
+                    handleAdvancedFilterChange("sortByDate", value)
+                  }
+                />
+              </View>
+              <View style={styles.filterItem}>
+                <ThemedText>{t("Sort by Relevance")}</ThemedText>
+                <Switch
+                  value={advancedFilters.sortByRelevance}
+                  onValueChange={(value) =>
+                    handleAdvancedFilterChange("sortByRelevance", value)
+                  }
+                />
+              </View>
+            </>
+          )}
+        </View>
         <FlatList
           data={trends}
           renderItem={({ item }) => (
@@ -120,16 +198,26 @@ export default function SearchScreen() {
             />
           )}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={
-            <ThemedText style={styles.trendsHeader}>
-              {t("Trends for you")}
-            </ThemedText>
-          }
+          ListHeaderComponent={<ThemedText style={styles.trendsHeader}>
+            {t("Trends for you")}
+          </ThemedText>}
           style={styles.trendsList}
         />
         <FlatList
-          data={searchResults}
-          renderItem={({ item }) => <SearchResultItem result={item} />}
+          data={filteredResults}
+          renderItem={({ item }) => (
+            <Post
+              id={item.id}
+              avatar={item.user.avatar}
+              name={item.user.name}
+              username={item.user.name} // Assuming username is the same as name
+              time={item.timestamp}
+              content={item.content}
+              likes={0} // Assuming default value
+              reposts={0} // Assuming default value
+              replies={0} // Assuming default value
+            />
+          )}
           keyExtractor={(item) => item.id}
         />
       </ThemedView>
@@ -203,5 +291,14 @@ const styles = StyleSheet.create({
   timestamp: {
     color: "gray",
     marginTop: 5,
+  },
+  filtersContainer: {
+    marginVertical: 16,
+  },
+  filterItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginVertical: 8,
   },
 });
