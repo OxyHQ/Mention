@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, FlatList, Image } from "react-native";
+import { Stack, useLocalSearchParams, router } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
@@ -51,31 +52,21 @@ export default function MessagesScreen() {
   const { t } = useTranslation();
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText style={styles.headerTitle}>{t("Messages")}</ThemedText>
+    <>
+      <Stack.Screen options={{ title: `${t("Messages")}` }} />
+      <ThemedView style={styles.container}>
+        <FlatList
+          data={messages}
+          renderItem={({ item }) => <MessageItem message={item} />}
+          keyExtractor={(item) => item.id}
+        />
       </ThemedView>
-      <FlatList
-        data={messages}
-        renderItem={({ item }) => <MessageItem message={item} />}
-        keyExtractor={(item) => item.id}
-      />
-    </ThemedView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-  },
-  header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
   },
   messageContainer: {
     flexDirection: "row",

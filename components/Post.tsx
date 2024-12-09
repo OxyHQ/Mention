@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Sharing from 'expo-sharing';
 import { Post as PostType } from "@/constants/sampleData";
 
 interface PostComponentProps extends PostType {
@@ -41,48 +42,71 @@ export default function Post({
     setLikesCount((prev) => (isLiked ? prev - 1 : prev + 1));
   };
 
+  const handleShare = async (event: any) => {
+    event.stopPropagation();
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(`https://mention.earth/post/${id}`, {
+        dialogTitle: 'Share Post',
+        mimeType: 'text/plain',
+      });
+    } else {
+      alert("Sharing is not available on this device");
+    }
+  };
+
   return (
-    <Link href={`/post/${id}`} asChild>
-      <TouchableOpacity>
-        <View style={styles.container}>
-          <Image source={{ uri: avatar }} style={styles.avatar} />
-          <View style={styles.contentContainer}>
-            <View style={styles.header}>
-              <Text style={styles.name}>{name}</Text>
-              <Text style={styles.username}>{username}</Text>
-              <Text style={styles.time}>· {time}</Text>
-            </View>
-            <Text style={styles.content}>{detectHashtags(content)}</Text>
-            <View style={styles.actions}>
-              <View style={styles.actionItem}>
-                <Ionicons name="chatbubble-outline" size={20} color="#536471" />
-                <Text style={styles.actionText}>{replies}</Text>
+    <>
+      <Link href={`/post/${id}`} asChild>
+        <TouchableOpacity>
+          <View style={styles.container}>
+            <Image source={{ uri: avatar }} style={styles.avatar} />
+            <View style={styles.contentContainer}>
+              <View style={styles.header}>
+                <Text style={styles.name}>{name}</Text>
+                <Text style={styles.username}>{username}</Text>
+                <Text style={styles.time}>· {time}</Text>
               </View>
-              <View style={styles.actionItem}>
-                <Ionicons name="repeat-outline" size={20} color="#536471" />
-                <Text style={styles.actionText}>{reposts}</Text>
+              <Text style={styles.content}>{detectHashtags(content)}</Text>
+              <View style={styles.actions}>
+                <View style={styles.actionItem}>
+                  <Ionicons name="chatbubble-outline" size={20} color="#536471" />
+                  <Text style={styles.actionText}>{replies}</Text>
+                </View>
+                <View style={styles.actionItem}>
+                  <Ionicons name="repeat-outline" size={20} color="#536471" />
+                  <Text style={styles.actionText}>{reposts}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.actionItem}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    handleLike(event);
+                  }}
+                >
+                  <Ionicons
+                    name={isLiked ? "heart" : "heart-outline"}
+                    size={20}
+                    color={isLiked ? "#F91880" : "#536471"}
+                  />
+                  <Text style={[styles.actionText, isLiked && styles.likedText]}>
+                    {likesCount}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionItem}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    handleShare(event);
+                  }}
+                >
+                  <Ionicons name="share-outline" size={20} color="#536471" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.actionItem}
-                onPress={(event) => {
-                  event.stopPropagation();
-                  handleLike(event);
-                }}
-              >
-                <Ionicons
-                  name={isLiked ? "heart" : "heart-outline"}
-                  size={20}
-                  color={isLiked ? "#F91880" : "#536471"}
-                />
-                <Text style={[styles.actionText, isLiked && styles.likedText]}>
-                  {likesCount}
-                </Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </TouchableOpacity>
-    </Link>
+        </TouchableOpacity>
+      </Link>
+    </>
   );
 }
 
