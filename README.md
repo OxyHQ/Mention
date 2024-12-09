@@ -7,7 +7,7 @@
 
 <div align="center">
   <h1>Mention</h1>
-  <h3>Mention client<br />built with React,<br /> Prisma, PostgreSQL, and Supabase.</h3>
+  <h3>Mention client built with React,<br /> Prisma, PostgreSQL, and Supabase.</h3>
   
   <br />
   <figure>
