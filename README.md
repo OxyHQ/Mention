@@ -1,5 +1,3 @@
-# Welcome to Mention 👋
-
 <a href="https://mention.earth/" target="_blank" rel="noopener">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="" />
@@ -73,4 +71,3 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-# MentionReact
