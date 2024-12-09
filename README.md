@@ -1,6 +1,31 @@
-# Welcome to your Expo app 👋
+# Welcome to Mention 👋
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+<a href="https://mention.earth/" target="_blank" rel="noopener">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="" />
+    <img alt="Mention" src="" />
+  </picture>
+</a>
+
+<div align="center">
+  <h1>Mention</h1>
+  <h3>Mention client<br />built with Next.js, React Query,<br /> Prisma, PostgreSQL, and Supabase.</h3>
+  
+  <br />
+  <figure>
+    <img src="https://raw.githubusercontent.com/OxyHQ/Mention/main/public/MentionBanner.png" alt="Mention" />
+  </figure>
+</div>
+
+<div align="center">
+  <img src="https://img.shields.io/github/stars/OxyHQ/MentionReact?style=flat" height="20">
+  <img src="https://img.shields.io/github/commit-activity/m/OxyHQ/MentionReact" height="20">
+  <img src="https://img.shields.io/github/deployments/OxyHQ/MentionReact/Production?label=vercel&logo=vercel&logoColor=white" height="20">
+  <a href="https://twitter.com/OxyHQ?ref_src=twsrc%5Etfw" target="_blank"><img src="https://img.shields.io/twitter/follow/OxyHQ?style=social" height="20"></a>
+</div>
+
+<br />
+
 
 ## Get started
 
