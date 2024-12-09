@@ -1,7 +1,7 @@
 import React from "react";
 import { View, StyleSheet, useWindowDimensions, Platform } from "react-native";
 import { ThemedView } from "./ThemedView";
-import { ScrollView } from "react-native-gesture-handler";
+import { FlatList } from "react-native";
 
 interface ResponsiveLayoutProps {
   mainContent: React.ReactNode;
@@ -27,13 +27,19 @@ export function ResponsiveLayout({
     <ThemedView style={styles.container}>
       {showSidebar && (
         <View style={styles.sidebar}>
-          <ScrollView>{sidebarContent}</ScrollView>
+          <FlatList
+            data={[{ key: 'sidebarContent' }]}
+            renderItem={() => <>{sidebarContent}</>}
+          />
         </View>
       )}
       <View style={styles.mainContentWrapper}>{mainContent}</View>
       {showWidgets && (
         <View style={styles.widgets}>
-          <ScrollView>{widgetsContent}</ScrollView>
+          <FlatList
+            data={[{ key: 'widgetsContent' }]}
+            renderItem={() => <>{widgetsContent}</>}
+          />
         </View>
       )}
     </ThemedView>

@@ -7,7 +7,6 @@ import {
   Image,
   FlatList,
   Modal,
-  ScrollView,
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -240,7 +239,7 @@ export default function ComposeScreen() {
                 styles.postButton,
                 (posts.every((post) => post.content.trim().length === 0) ||
                   posts.some((post) => post.content.length > maxLength)) &&
-                  styles.postButtonDisabled,
+                styles.postButtonDisabled,
               ]}
             >
               <ThemedText style={styles.postButtonText}>Post</ThemedText>

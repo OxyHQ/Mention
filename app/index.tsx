@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
   },
   fab: {
-    position: "absolute",
+    position: "fixed",
     bottom: 65,
     right: 16,
     backgroundColor: "#1DA1F2",

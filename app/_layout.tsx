@@ -23,7 +23,7 @@ import { initReactI18next, I18nextProvider, useTranslation } from "react-i18next
 import en from "../locales/en.json";
 import es from "../locales/es.json";
 import it from "../locales/it.json";
-import { View, ScrollView } from "react-native";
+import { View, FlatList } from "react-native";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -81,12 +81,16 @@ export default function RootLayout() {
           sidebarContent={<Sidebar />}
           widgetsContent={<Widgets />}
           mainContent={
-            <ScrollView style={{ flex: 1, width: "100%", height: "100%" }}>
-              <Stack>
-                <Stack.Screen name="index" options={{ headerShown: true, headerBackVisible: false }} />
-                <Stack.Screen name="+not-found" options={{ headerShown: true, headerBackVisible: false }} />
-              </Stack>
-            </ScrollView>
+            <FlatList
+              data={[{ key: 'mainContent' }]}
+              renderItem={() => (
+                <Stack>
+                  <Stack.Screen name="index" options={{ headerShown: true, headerBackVisible: false }} />
+                  <Stack.Screen name="+not-found" options={{ headerShown: true, headerBackVisible: false }} />
+                </Stack>
+              )}
+              style={{ flex: 1, width: "100%", height: "100%" }}
+            />
           }
         />
         <StatusBar style="auto" />
