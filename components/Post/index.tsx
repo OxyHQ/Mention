@@ -28,6 +28,7 @@ export default function Post({
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
     const handleLike = (event: any) => {
+        event.preventDefault();
         event.stopPropagation();
         setIsLiked(!isLiked);
         setLikesCount((prev) => (isLiked ? prev - 1 : prev + 1));
