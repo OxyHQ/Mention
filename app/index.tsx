@@ -49,6 +49,9 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    alignItems: "center",
+    backgroundColor: colorScheme === "dark" ? "#000" : "#1d9bf01a",
   },
   header: {
     flexDirection: "row",

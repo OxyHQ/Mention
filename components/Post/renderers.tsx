@@ -23,6 +23,7 @@ export const renderImages = (images: string[]) => {
                                 imageCount === 4 && styles.fourImages,
                                 imageCount > 4 && styles.moreThanFourImages,
                             ]}
+                            onError={(error) => console.error("Error loading image:", error)}
                         />
                     </TouchableOpacity>
                 ))}
