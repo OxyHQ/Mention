@@ -4,18 +4,20 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Post from "@/components/Post";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { samplePosts } from "@/constants/sampleData";
+import { fetchData } from "@/utils/api";
+import { storeData, getData } from "@/utils/storage";
 import { useTranslation } from "react-i18next";
 
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
+  const [posts, setPosts] = useState([]);
   const colorScheme = useColorScheme();
   const { t } = useTranslation();
 
@@ -24,12 +26,35 @@ export default function HomeScreen() {
     setTimeout(() => setRefreshing(false), 2000);
   }, []);
 
+  const retrievePostsFromAPI = async () => {
+    try {
+      const data = await fetchData("posts");
+      await storeData("posts", data);
+      setPosts(data);
+    } catch (error) {
+      console.error("Error retrieving posts from API:", error);
+    }
+  };
+
+  useEffect(() => {
+    const fetchPosts = async () => {
+      const storedPosts = await getData("posts");
+      if (storedPosts) {
+        setPosts(storedPosts);
+      } else {
+        retrievePostsFromAPI();
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
   return (
     <>
       <Stack.Screen options={{ title: t("Home"), headerBackVisible: false }} />
       <ThemedView style={styles.container}>
         <FlatList
-          data={samplePosts}
+          data={posts}
           renderItem={({ item }) => <Post {...item} />}
           keyExtractor={(item) => item.id}
           refreshControl={
