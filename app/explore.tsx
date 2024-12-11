@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Post from "@/components/Post";
 import { fetchData } from "@/utils/api";
 import { storeData, getData } from "@/utils/storage";
+import { sampleTrends } from "@/constants/sampleData";
 
 const searchResults = [
   {
@@ -91,10 +92,40 @@ const renderPost = ({ item }: { item: SearchResult }) => (
   <SearchResultItem result={item} />
 );
 
+type PostAPIResponse = {
+  id: string;
+  text: string;
+  created_at: string;
+  author: {
+    name: string;
+    image: string;
+  };
+};
+
+const fetchPosts = async () => {
+  try {
+    const response = await fetchData("posts");
+    const posts = response.posts.map((post: PostAPIResponse) => ({
+      id: post.id,
+      user: {
+        name: post.author?.name || "Unknown",
+        avatar: post.author?.image || "https://via.placeholder.com/50",
+      },
+      content: decodeURIComponent(post.text),
+      timestamp: new Date(post.created_at).toLocaleTimeString(),
+    }));
+    console.log("Fetched posts:", posts);
+    return posts;
+  } catch (error) {
+    console.error("Error fetching posts:", error);
+    return [];
+  }
+};
+
 export default function SearchScreen() {
   const { t } = useTranslation();
   const [selectedHashtag, setSelectedHashtag] = useState<string | null>(null);
-  const [isPremium, setIsPremium] = useState(false); // Assume a way to determine if user is premium
+  const [isPremium, setIsPremium] = useState(false);
   const [filters, setFilters] = useState({
     showImages: true,
     showVideos: true,
@@ -105,6 +136,7 @@ export default function SearchScreen() {
     sortByRelevance: false,
   });
   const [trends, setTrends] = useState<Trend[]>([]);
+  const [posts, setPosts] = useState<SearchResult[]>([]);
 
   const handleHashtagPress = (hashtag: string) => {
     setSelectedHashtag(hashtag);
@@ -118,7 +150,7 @@ export default function SearchScreen() {
     setAdvancedFilters((prevFilters) => ({ ...prevFilters, [filter]: value }));
   };
 
-  const filteredResults = searchResults.filter((result) => {
+  const filteredResults = posts.filter((result) => {
     if (!filters.showImages && result.content.includes("image")) return false;
     if (!filters.showVideos && result.content.includes("video")) return false;
     if (!filters.showText && result.content.includes("text")) return false;
@@ -128,8 +160,12 @@ export default function SearchScreen() {
   const retrieveTrendsFromAPI = async () => {
     try {
       const data = await fetchData("trends");
-      await storeData("trends", data);
-      setTrends(data);
+      if (data) {
+        await storeData("trends", data);
+        setTrends(data);
+      } else {
+        console.warn("No trends data returned from API");
+      }
     } catch (error) {
       console.error("Error retrieving trends from API:", error);
     }
@@ -146,6 +182,15 @@ export default function SearchScreen() {
     };
 
     fetchTrends();
+  }, []);
+
+  useEffect(() => {
+    const fetchAndSetPosts = async () => {
+      const fetchedPosts = await fetchPosts();
+      setPosts(fetchedPosts);
+    };
+
+    fetchAndSetPosts();
   }, []);
 
   return (

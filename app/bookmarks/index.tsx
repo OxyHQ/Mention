@@ -12,8 +12,23 @@ export default function BookmarksScreen() {
             <ThemedView style={styles.container}>
                 <FlatList
                     data={samplePosts} // Replace with actual bookmarked posts data
-                    renderItem={({ item }) => <Post {...item} />}
-                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                        <Post
+                            id={item.id}
+                            avatar={item.avatar}
+                            name={item.name}
+                            username={item.username}
+                            content={item.content}
+                            time={item.time}
+                            likes={item.likes}
+                            reposts={item.reposts}
+                            replies={item.replies}
+                            images={item.images}
+                            poll={item.poll}
+                            location={item.location}
+                        />
+                    )}
+                    keyExtractor={(item) => item.id.toString()}
                 />
             </ThemedView>
         </>

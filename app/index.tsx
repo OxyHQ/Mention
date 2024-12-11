@@ -14,10 +14,11 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 import { fetchData } from "@/utils/api";
 import { storeData, getData } from "@/utils/storage";
 import { useTranslation } from "react-i18next";
+import { Post as PostType } from "@/constants/sampleData";
 
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
-  const [posts, setPosts] = useState([]);
+  const [posts, setPosts] = useState<PostType[]>([]);
   const colorScheme = useColorScheme();
   const { t } = useTranslation();
 
@@ -26,11 +27,30 @@ export default function HomeScreen() {
     setTimeout(() => setRefreshing(false), 2000);
   }, []);
 
+  type PostAPIResponse = {
+    id: string;
+    text: string;
+    created_at: string;
+    author: {
+      name: string;
+      image: string;
+    };
+  };
+
   const retrievePostsFromAPI = async () => {
     try {
-      const data = await fetchData("posts");
-      await storeData("posts", data);
-      setPosts(data);
+      const response = await fetchData("posts");
+      const posts = response.posts.map((post: PostAPIResponse) => ({
+        id: post.id,
+        user: {
+          name: post.author?.name || "Unknown",
+          avatar: post.author?.image || "https://via.placeholder.com/50",
+        },
+        content: decodeURIComponent(post.text),
+        timestamp: new Date(post.created_at).toLocaleTimeString(),
+      }));
+      await storeData("posts", posts);
+      setPosts(posts);
     } catch (error) {
       console.error("Error retrieving posts from API:", error);
     }
@@ -55,8 +75,23 @@ export default function HomeScreen() {
       <ThemedView style={styles.container}>
         <FlatList
           data={posts}
-          renderItem={({ item }) => <Post {...item} />}
-          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <Post
+              id={item.id}
+              avatar={item.avatar}
+              name={item.name}
+              username={item.username}
+              content={item.content}
+              time={item.time}
+              likes={item.likes}
+              reposts={item.reposts}
+              replies={item.replies}
+              images={item.images}
+              poll={item.poll}
+              location={item.location}
+            />
+          )}
+          keyExtractor={(item) => item.id.toString()}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
