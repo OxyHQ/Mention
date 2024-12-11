@@ -104,7 +104,7 @@ export default function RootLayout() {
   });
 
   if (!loaded) {
-    return null;
+return null;
   }
 
   return (
@@ -122,6 +122,12 @@ export default function RootLayout() {
                 }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="@[username]/index" />
+                <Stack.Screen name="bookmarks/index" />
+                <Stack.Screen name="compose" />
+                <Stack.Screen name="messages" />
+                <Stack.Screen name="search" />
+                <Stack.Screen name="settings/display" />
+                <Stack.Screen name="settings/index" />
               </Stack>
             </View>
             {isDesktop && <Widgets />}
