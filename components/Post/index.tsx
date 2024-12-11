@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useState, useRef } from "react";
+import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from 'expo-sharing';
@@ -7,6 +7,7 @@ import { Post as PostType } from "@/constants/sampleData";
 import { Image as RNImage } from "react-native";
 import { detectHashtags } from "./utils";
 import { renderImages, renderPoll, renderLocation } from "./renderers";
+import AnimatedNumbers from 'react-native-animated-numbers';
 
 export default function Post({
     id,
@@ -26,15 +27,70 @@ export default function Post({
     const [likesCount, setLikesCount] = useState(likes);
     const [isBookmarked, setIsBookmarked] = useState(false);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
+    const [isReposted, setIsReposted] = useState(false);
+    const [repostsCount, setRepostsCount] = useState(reposts);
+    const [bookmarksCount, setBookmarksCount] = useState(0);
+    const [repliesCount, setRepliesCount] = useState(replies);
+
+    const animatedScale = useRef(new Animated.Value(1)).current;
+    const animatedOpacity = useRef(new Animated.Value(1)).current;
+    const animatedLikesCount = useRef(new Animated.Value(likes)).current;
+    const animatedRepostsCount = useRef(new Animated.Value(reposts)).current;
+    const animatedBookmarksCount = useRef(new Animated.Value(0)).current;
+    const animatedRepliesCount = useRef(new Animated.Value(replies)).current;
+
+    const scaleAnimation = () => {
+        Animated.sequence([
+            Animated.timing(animatedScale, {
+                toValue: 1.2,
+                duration: 150,
+                easing: Easing.ease,
+                useNativeDriver: true,
+            }),
+            Animated.timing(animatedScale, {
+                toValue: 1,
+                duration: 150,
+                easing: Easing.ease,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
+
+    const fadeAnimation = () => {
+        Animated.sequence([
+            Animated.timing(animatedOpacity, {
+                toValue: 0,
+                duration: 150,
+                easing: Easing.ease,
+                useNativeDriver: true,
+            }),
+            Animated.timing(animatedOpacity, {
+                toValue: 1,
+                duration: 150,
+                easing: Easing.ease,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
 
     const handleLike = (event: any) => {
         event.preventDefault();
         event.stopPropagation();
         setIsLiked(!isLiked);
-        setLikesCount((prev) => (isLiked ? prev - 1 : prev + 1));
+        const newLikesCount = isLiked ? likesCount - 1 : likesCount + 1;
+        setLikesCount(newLikesCount);
+        Animated.timing(animatedLikesCount, {
+            toValue: newLikesCount,
+            duration: 300,
+            easing: Easing.linear,
+            useNativeDriver: false,
+        }).start();
+        scaleAnimation();
+        fadeAnimation();
     };
 
     const handleShare = async (event: any) => {
+        event.preventDefault();
         event.stopPropagation();
         if (await Sharing.isAvailableAsync()) {
             await Sharing.shareAsync(`https://mention.earth/post/${id}`, {
@@ -47,8 +103,44 @@ export default function Post({
     };
 
     const handleBookmark = (event: any) => {
+        event.preventDefault();
         event.stopPropagation();
         setIsBookmarked(!isBookmarked);
+        const newBookmarksCount = isBookmarked ? bookmarksCount - 1 : bookmarksCount + 1;
+        setBookmarksCount(newBookmarksCount);
+        Animated.timing(animatedBookmarksCount, {
+            toValue: newBookmarksCount,
+            duration: 300,
+            easing: Easing.linear,
+            useNativeDriver: false,
+        }).start();
+    };
+
+    const handleRepost = (event: any) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsReposted(!isReposted);
+        const newRepostsCount = isReposted ? repostsCount - 1 : repostsCount + 1;
+        setRepostsCount(newRepostsCount);
+        Animated.timing(animatedRepostsCount, {
+            toValue: newRepostsCount,
+            duration: 300,
+            easing: Easing.linear,
+            useNativeDriver: false,
+        }).start();
+    };
+
+    const handleReply = (event: any) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const newRepliesCount = repliesCount + 1; // Assuming a reply is added
+        setRepliesCount(newRepliesCount);
+        Animated.timing(animatedRepliesCount, {
+            toValue: newRepliesCount,
+            duration: 300,
+            easing: Easing.linear,
+            useNativeDriver: false,
+        }).start();
     };
 
     const handlePollOptionPress = (index: number) => {
@@ -72,14 +164,40 @@ export default function Post({
                             {renderPoll(poll, selectedOption, handlePollOptionPress)}
                             {renderLocation(location)}
                             <View style={styles.actions}>
-                                <View style={styles.actionItem}>
+                                <TouchableOpacity
+                                    style={styles.actionItem}
+                                    onPress={(event) => {
+                                        event.stopPropagation();
+                                        handleReply(event);
+                                    }}
+                                >
                                     <Ionicons name="chatbubble-outline" size={20} color="#536471" />
-                                    <Text style={styles.actionText}>{replies}</Text>
-                                </View>
-                                <View style={styles.actionItem}>
-                                    <Ionicons name="repeat-outline" size={20} color="#536471" />
-                                    <Text style={styles.actionText}>{reposts}</Text>
-                                </View>
+                                    <AnimatedNumbers
+                                        includeComma
+                                        animateToNumber={repliesCount}
+                                        animationDuration={300}
+                                        fontStyle={{ color: "#536471" }}
+                                    />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.actionItem}
+                                    onPress={(event) => {
+                                        event.stopPropagation();
+                                        handleRepost(event);
+                                    }}
+                                >
+                                    <Ionicons
+                                        name={isReposted ? "repeat" : "repeat-outline"}
+                                        size={20}
+                                        color={isReposted ? "#1DA1F2" : "#536471"}
+                                    />
+                                    <AnimatedNumbers
+                                        includeComma
+                                        animateToNumber={repostsCount}
+                                        animationDuration={300}
+                                        fontStyle={{ color: isReposted ? "#1DA1F2" : "#536471" }}
+                                    />
+                                </TouchableOpacity>
                                 <TouchableOpacity
                                     style={styles.actionItem}
                                     onPress={(event) => {
@@ -87,14 +205,19 @@ export default function Post({
                                         handleLike(event);
                                     }}
                                 >
-                                    <Ionicons
-                                        name={isLiked ? "heart" : "heart-outline"}
-                                        size={20}
-                                        color={isLiked ? "#F91880" : "#536471"}
+                                    <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
+                                        <Ionicons
+                                            name={isLiked ? "heart" : "heart-outline"}
+                                            size={20}
+                                            color={isLiked ? "#F91880" : "#536471"}
+                                        />
+                                    </Animated.View>
+                                    <AnimatedNumbers
+                                        includeComma
+                                        animateToNumber={likesCount}
+                                        animationDuration={300}
+                                        fontStyle={{ color: isLiked ? "#F91880" : "#536471" }}
                                     />
-                                    <Text style={[styles.actionText, isLiked && styles.likedText]}>
-                                        {likesCount}
-                                    </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={styles.actionItem}
@@ -116,6 +239,12 @@ export default function Post({
                                         name={isBookmarked ? "bookmark" : "bookmark-outline"}
                                         size={20}
                                         color={isBookmarked ? "#1DA1F2" : "#536471"}
+                                    />
+                                    <AnimatedNumbers
+                                        includeComma
+                                        animateToNumber={bookmarksCount}
+                                        animationDuration={300}
+                                        fontStyle={{ color: isBookmarked ? "#1DA1F2" : "#536471" }}
                                     />
                                 </TouchableOpacity>
                             </View>

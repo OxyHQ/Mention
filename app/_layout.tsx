@@ -55,13 +55,13 @@ export default function RootLayout() {
     async function initializeApp() {
       try {
         if (loaded) {
-          await SplashScreen.hideAsync();
           await setupNotifications();
           const hasPermission = await requestNotificationPermissions();
 
           if (hasPermission) {
             await scheduleDemoNotification();
           }
+          await SplashScreen.hideAsync();
         }
       } catch (error) {
         console.warn("Failed to set up notifications:", error);
