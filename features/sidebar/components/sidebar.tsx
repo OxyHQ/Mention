@@ -1,62 +1,100 @@
-import React from "react";
-import { View, StyleSheet } from "react-native";
-import { useOxySession } from "@oxyhq/services";
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import MenuItem from './MenuItem';
+import AccountSwitcher from './AccountSwitcher';
 
-import { SessionOwnerButton } from "@oxyhq/services";
-import { PostButton } from "@/features/create-post";
-import { Navbar } from "@/features/navbar";
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-import { Logo } from "./logo";
+const Sidebar = () => {
+    const [isWide, setIsWide] = useState(SCREEN_WIDTH > 900);
 
-export const Sidebar = () => {
-    const { session } = useOxySession();
+    useEffect(() => {
+        const updateLayout = () => {
+            setIsWide(Dimensions.get('window').width > 900);
+        };
+
+        Dimensions.addEventListener('change', updateLayout);
+        return () => {
+            // Remove event listener on cleanup
+            Dimensions.removeEventListener('change', updateLayout);
+        };
+    }, []);
+
+    const menuItems: { icon: React.ComponentProps<typeof Ionicons>['name'], label: string }[] = [
+        { icon: 'home', label: 'Home' },
+        { icon: 'search', label: 'Explore' },
+        { icon: 'notifications', label: 'Notifications' },
+        { icon: 'mail', label: 'Messages' },
+        { icon: 'bookmark', label: 'Bookmarks' },
+        { icon: 'list', label: 'Lists' },
+        { icon: 'person', label: 'Profile' },
+        { icon: 'ellipsis-horizontal', label: 'More' },
+    ];
 
     return (
-        <View style={styles.container}>
-            <View style={styles.logo}>
-                <Logo />
-            </View>
-            <View style={styles.navbar}>
-                <Navbar />
-            </View>
-            {session && (
-                <View style={styles.postButton}>
-                    <PostButton />
-                </View>
-            )}
-            {session && (
-                <View style={styles.user}>
-                    <SessionOwnerButton />
-                </View>
-            )}
+        <View style={[styles.container, isWide && styles.wideContainer]}>
+            <ScrollView style={styles.scrollView}>
+                <Image
+                    source={{ uri: 'https://abs.twimg.com/responsive-web/client-web/icon-ios.b1fc727a.png' }}
+                    style={styles.logo}
+                />
+                {menuItems.map((item, index) => (
+                    <MenuItem key={index} icon={item.icon} label={item.label} expanded={isWide} />
+                ))}
+                <TouchableOpacity style={[styles.tweetButton, isWide && styles.wideTweetButton]}>
+                    <Ionicons name="create" size={24} color="white" />
+                    {isWide && <Text style={styles.tweetButtonText}>Tweet</Text>}
+                </TouchableOpacity>
+            </ScrollView>
+            <AccountSwitcher expanded={isWide} />
         </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        position: "absolute",
-        top: 0,
-        height: "100%",
-        overflow: "scroll",
-        display: "none",
+        width: 88,
+        height: '100%',
+        backgroundColor: '#ffffff',
+        borderRightWidth: 1,
+        borderRightColor: '#e1e8ed',
+        paddingTop: 10,
+        paddingHorizontal: 12,
+    },
+    wideContainer: {
+        width: 275,
+    },
+    scrollView: {
+        flex: 1,
     },
     logo: {
-        display: "flex",
-        justifyContent: "center",
+        width: 30,
+        height: 30,
+        marginBottom: 20,
+        marginLeft: 10,
     },
-    navbar: {
-        display: "flex",
-        justifyContent: "center",
+    tweetButton: {
+        backgroundColor: '#1da1f2',
+        borderRadius: 50,
+        width: 50,
+        height: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 15,
+        marginBottom: 15,
+        alignSelf: 'center',
     },
-    postButton: {
-        display: "flex",
-        justifyContent: "center",
+    wideTweetButton: {
+        width: '100%',
+        flexDirection: 'row',
     },
-    user: {
-        display: "flex",
-        justifyContent: "center",
-        marginTop: "auto",
+    tweetButtonText: {
+        color: 'white',
+        marginLeft: 10,
+        fontWeight: 'bold',
     },
-    // Add media query equivalent logic if needed using `react-native-responsive`
 });
+
+export default Sidebar;
+

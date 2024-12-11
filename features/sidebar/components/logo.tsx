@@ -14,7 +14,7 @@ export const Logo = () => {
                 accessibilityRole="button"
             >
                 <View style={styles.logo}>
-                    <MentionLogo />
+                    <MentionLogo style={styles.logoSvg} color="black" />
                 </View>
             </TouchableOpacity>
         </Link>
