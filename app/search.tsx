@@ -227,8 +227,7 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    padding: 16,
+
   },
   searchContainer: {
     flexDirection: "row",
@@ -254,7 +253,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   trendContainer: {
-    paddingVertical: 10,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#e1e8ed",
   },

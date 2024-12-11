@@ -50,6 +50,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    alignItems: "center",
+    backgroundColor: colorScheme === "dark" ? "#000" : "#1d9bf01a",
   },
   header: {
     flexDirection: "row",
@@ -69,7 +71,7 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
   },
   fab: {
-    position: "absolute",
+    position: "fixed",
     bottom: 65,
     right: 16,
     backgroundColor: "#1DA1F2",

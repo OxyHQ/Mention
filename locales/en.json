@@ -21,5 +21,17 @@
     "This is a sample post": "Este es un post de muestra",
     "Another example post": "Otro post de ejemplo",
     "Customize your view": "Personaliza tu vista",
-    "These settings affect all the Mention accounts on this device.": "Estas configuraciones afectan todas las cuentas de Mention en este dispositivo."
+    "These settings affect all the Mention accounts on this device.": "Estas configuraciones afectan todas las cuentas de Mention en este dispositivo.",
+    "Account": "Account",
+    "Manage your account settings": "Manage your account settings",
+    "Notification preferences": "Notification preferences",
+    "Privacy and security settings": "Privacy and security settings",
+    "Appearance": "Appearance",
+    "Theme, font size, colors": "Theme, font size, colors",
+    "Help & Support": "Help & Support",
+    "Get help and support": "Get help and support",
+    "About": "About",
+    "About this app": "About this app",
+    "Battery": "Battery",
+    "Loading...": "Loading..."
 }

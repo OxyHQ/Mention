@@ -7,7 +7,6 @@ import {
   Image,
   FlatList,
   Modal,
-  ScrollView,
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,10 +31,14 @@ export default function ComposeScreen() {
     const validPosts = posts.filter((post) => post.content.trim().length > 0);
     if (validPosts.length > 0) {
       for (const post of validPosts) {
-        await createNotification(
-          "Post Created",
-          `Your post: "${post.content}" has been successfully created.`
-        );
+        try {
+          await createNotification(
+            "Post Created",
+            `Your post: "${post.content}" has been successfully created.`
+          );
+        } catch (error) {
+          console.error("Error creating notification:", error);
+        }
       }
       router.back();
     }
@@ -240,7 +243,7 @@ export default function ComposeScreen() {
                 styles.postButton,
                 (posts.every((post) => post.content.trim().length === 0) ||
                   posts.some((post) => post.content.length > maxLength)) &&
-                  styles.postButtonDisabled,
+                styles.postButtonDisabled,
               ]}
             >
               <ThemedText style={styles.postButtonText}>Post</ThemedText>

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Stack, router } from "expo-router";
 import { View, Text, FlatList, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedView } from "@/components/ThemedView";
@@ -71,33 +72,21 @@ export default function NotificationsScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText style={styles.headerTitle}>
-          {t("Notifications")} ({unreadCount})
-        </ThemedText>
+    <>
+      <Stack.Screen options={{ title: `${t("Notifications")} (${unreadCount})` }} />
+      <ThemedView style={styles.container}>
+        <FlatList
+          data={notifications}
+          renderItem={({ item }) => <NotificationItem notification={item} />}
+          keyExtractor={(item) => item.id}
+        />
       </ThemedView>
-      <FlatList
-        data={notifications}
-        renderItem={({ item }) => <NotificationItem notification={item} />}
-        keyExtractor={(item) => item.id}
-      />
-    </ThemedView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-  },
-  header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
   },
   notificationContainer: {
     flexDirection: "row",
