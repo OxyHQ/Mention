@@ -16,7 +16,7 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, label, expanded, route, onPre
         <>
             {route ? (
                 <Link href={route as any}>
-                    <TouchableOpacity style={[styles.menuItem, { marginHorizontal: expanded ? 0 : 'auto' }]} onPress={onPress}>
+                    <TouchableOpacity style={[styles.menuItem, { marginHorizontal: expanded ? 0 : 'auto' }]}>
                         <Ionicons name={icon} size={26} color="#1da1f2" />
                         {expanded && <Text style={styles.menuText}>{label}</Text>}
                     </TouchableOpacity>
@@ -24,7 +24,7 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, label, expanded, route, onPre
             ) : (
                 <TouchableOpacity style={[styles.menuItem, { marginHorizontal: expanded ? 0 : 'auto' }]} onPress={onPress}>
                     <Ionicons name={icon} size={26} color="#1da1f2" />
-                    {expanded && <Text style={styles.menuText}>{label}</Text>}
+                    {expanded && <Text style={styles.menuText}>{label}aaa</Text>}
                 </TouchableOpacity>
             )}
         </>
