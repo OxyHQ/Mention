@@ -31,10 +31,14 @@ export default function ComposeScreen() {
     const validPosts = posts.filter((post) => post.content.trim().length > 0);
     if (validPosts.length > 0) {
       for (const post of validPosts) {
-        await createNotification(
-          "Post Created",
-          `Your post: "${post.content}" has been successfully created.`
-        );
+        try {
+          await createNotification(
+            "Post Created",
+            `Your post: "${post.content}" has been successfully created.`
+          );
+        } catch (error) {
+          console.error("Error creating notification:", error);
+        }
       }
       router.back();
     }
