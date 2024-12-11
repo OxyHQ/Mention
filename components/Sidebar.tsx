@@ -23,10 +23,12 @@ export function Sidebar() {
 
 const styles = StyleSheet.create({
   container: {
-    position: "absolute", // 'sticky' is not supported in React Native
-    top: 0,
+    position: "relative",
     height: "100%",
     padding: 16,
+    maxWidth: 275,
+    borderRightWidth: 1,
+    borderRightColor: "#EFF3F4",
   },
   logo: {
     justifyContent: "center",

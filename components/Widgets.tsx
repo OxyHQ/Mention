@@ -37,6 +37,11 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     gap: 16,
+
+    width: "100%",
+    maxWidth: 290,
+    borderLeftWidth: 1,
+    borderLeftColor: "#EFF3F4",
   },
   widget: {
     padding: 16,
