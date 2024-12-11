@@ -17,6 +17,8 @@ import * as ImagePicker from "expo-image-picker";
 import DraggableFlatList from "react-native-draggable-flatlist";
 import * as Location from "expo-location";
 import EmojiPicker from "emoji-picker-react";
+import { fetchData } from "@/utils/api";
+import { storeData } from "@/utils/storage";
 
 export default function ComposeScreen() {
   const [posts, setPosts] = useState<Post[]>([
@@ -36,11 +38,21 @@ export default function ComposeScreen() {
             "Post Created",
             `Your post: "${post.content}" has been successfully created.`
           );
+          await storeData(`post_${post.id}`, post);
         } catch (error) {
-          console.error("Error creating notification:", error);
+          console.error("Error creating notification or storing data:", error);
         }
       }
       router.back();
+    }
+  };
+
+  const retrievePostsFromAPI = async () => {
+    try {
+      const data = await fetchData("posts");
+      await storeData("posts", data);
+    } catch (error) {
+      console.error("Error retrieving posts from API:", error);
     }
   };
 

@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   TextInput,
@@ -14,7 +14,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import Post from "@/components/Post";
-import { sampleTrends } from "@/constants/sampleData"; // Import sampleTrends
+import { fetchData } from "@/utils/api";
+import { storeData, getData } from "@/utils/storage";
 
 const searchResults = [
   {
@@ -103,6 +104,7 @@ export default function SearchScreen() {
     sortByDate: false,
     sortByRelevance: false,
   });
+  const [trends, setTrends] = useState<Trend[]>([]);
 
   const handleHashtagPress = (hashtag: string) => {
     setSelectedHashtag(hashtag);
@@ -122,6 +124,29 @@ export default function SearchScreen() {
     if (!filters.showText && result.content.includes("text")) return false;
     return true;
   });
+
+  const retrieveTrendsFromAPI = async () => {
+    try {
+      const data = await fetchData("trends");
+      await storeData("trends", data);
+      setTrends(data);
+    } catch (error) {
+      console.error("Error retrieving trends from API:", error);
+    }
+  };
+
+  useEffect(() => {
+    const fetchTrends = async () => {
+      const storedTrends = await getData("trends");
+      if (storedTrends) {
+        setTrends(storedTrends);
+      } else {
+        retrieveTrendsFromAPI();
+      }
+    };
+
+    fetchTrends();
+  }, []);
 
   return (
     <>
