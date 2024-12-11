@@ -124,7 +124,7 @@ export default function RootLayout() {
                 <Stack.Screen name="bookmarks/index" />
                 <Stack.Screen name="compose" />
                 <Stack.Screen name="messages" />
-                <Stack.Screen name="search" />
+                <Stack.Screen name="explore" />
                 <Stack.Screen name="settings/display" />
                 <Stack.Screen name="settings/index" />
               </Stack>
