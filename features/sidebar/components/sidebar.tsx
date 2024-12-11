@@ -3,44 +3,50 @@ import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions, ScrollView
 import { Ionicons } from "@expo/vector-icons";
 import MenuItem from './MenuItem';
 import AccountSwitcher from './AccountSwitcher';
+import { Logo } from '@/components/Logo';
+import { useRouter } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const Sidebar = () => {
     const [isWide, setIsWide] = useState(SCREEN_WIDTH > 900);
+    const router = useRouter();
 
     useEffect(() => {
         const updateLayout = () => {
             setIsWide(Dimensions.get('window').width > 900);
         };
 
-        Dimensions.addEventListener('change', updateLayout);
+        const subscription = Dimensions.addEventListener('change', updateLayout);
         return () => {
-            // Remove event listener on cleanup
-            Dimensions.removeEventListener('change', updateLayout);
+            subscription?.remove();
         };
     }, []);
 
-    const menuItems: { icon: React.ComponentProps<typeof Ionicons>['name'], label: string }[] = [
-        { icon: 'home', label: 'Home' },
-        { icon: 'search', label: 'Explore' },
-        { icon: 'notifications', label: 'Notifications' },
-        { icon: 'mail', label: 'Messages' },
-        { icon: 'bookmark', label: 'Bookmarks' },
-        { icon: 'list', label: 'Lists' },
-        { icon: 'person', label: 'Profile' },
-        { icon: 'ellipsis-horizontal', label: 'More' },
+    const menuItems: { icon: React.ComponentProps<typeof Ionicons>['name'], label: string, route: "/" | "/explore" | "/notifications" | "/messages" | "/bookmarks" | "/lists" | "/profile" | "/more" | "/settings" }[] = [
+        { icon: 'home', label: 'Home', route: '/' },
+        { icon: 'search', label: 'Explore', route: '/explore' },
+        { icon: 'notifications', label: 'Notifications', route: '/notifications' },
+        { icon: 'mail', label: 'Messages', route: '/messages' },
+        { icon: 'bookmark', label: 'Bookmarks', route: '/bookmarks' },
+        { icon: 'list', label: 'Lists', route: '/lists' },
+        { icon: 'person', label: 'Profile', route: '/profile' },
+        { icon: 'ellipsis-horizontal', label: 'More', route: '/more' },
+        { icon: 'settings', label: 'Settings', route: '/settings' },
     ];
 
     return (
         <View style={[styles.container, isWide && styles.wideContainer]}>
             <ScrollView style={styles.scrollView}>
-                <Image
-                    source={{ uri: 'https://abs.twimg.com/responsive-web/client-web/icon-ios.b1fc727a.png' }}
-                    style={styles.logo}
-                />
+                <Logo />
                 {menuItems.map((item, index) => (
-                    <MenuItem key={index} icon={item.icon} label={item.label} expanded={isWide} />
+                    <MenuItem
+                        key={index}
+                        icon={item.icon}
+                        label={item.label}
+                        expanded={isWide}
+                        route={item.route}
+                    />
                 ))}
                 <TouchableOpacity style={[styles.tweetButton, isWide && styles.wideTweetButton]}>
                     <Ionicons name="create" size={24} color="white" />
@@ -54,25 +60,15 @@ const Sidebar = () => {
 
 const styles = StyleSheet.create({
     container: {
-        width: 88,
-        height: '100%',
-        backgroundColor: '#ffffff',
-        borderRightWidth: 1,
-        borderRightColor: '#e1e8ed',
         paddingTop: 10,
         paddingHorizontal: 12,
     },
     wideContainer: {
-        width: 275,
+        width: "100%",
+        maxWidth: 275,
     },
     scrollView: {
         flex: 1,
-    },
-    logo: {
-        width: 30,
-        height: 30,
-        marginBottom: 20,
-        marginLeft: 10,
     },
     tweetButton: {
         backgroundColor: '#1da1f2',

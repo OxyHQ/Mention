@@ -76,23 +76,24 @@ export default function RootLayout() {
     container: {
       flex: 1,
       alignItems: "center",
+      backgroundColor: colorScheme === "dark" ? "#000" : "#1d9bf01a",
     },
     content: {
       flex: 1,
       flexDirection: 'row',
       width: "100%",
-      margin: "auto",
-
+      marginVertical: 0,
+      marginHorizontal: "auto",
       maxWidth: 1265,
-      gridTemplateColumns: '275px 600px 1fr',
     },
     mainContentWrapper: {
-      flex: 1,
       width: "100%",
+      margin: isTablet || isDesktop ? 16 : 0,
+      borderRadius: isTablet || isDesktop ? 35 : 0,
+      maxWidth: 600,
     },
     mainContent: {
       flex: 1,
-      backgroundColor: '#f7f9fa',
       minHeight: windowHeight - 32,
     },
     flatList: {
@@ -115,10 +116,6 @@ export default function RootLayout() {
             <View style={styles.mainContentWrapper}>
               <Stack
                 screenOptions={{
-                  headerStyle: {
-                    backgroundColor: '#f4511e',
-                  },
-                  headerTintColor: '#fff',
                   headerTitleStyle: {
                     fontWeight: 'bold',
                   },

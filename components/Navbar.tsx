@@ -15,7 +15,7 @@ export function Navbar() {
         href="/notifications"
       />
       <NavItem icon="mail-outline" label="Messages" href="/messages" />
-      <NavItem icon="person-outline" label="Profile" href="/@johndoe" />
+      <NavItem icon="person-outline" label="Profileeeee" href="/@johndoe" />
     </View>
   );
 }

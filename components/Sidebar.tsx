@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
-import { Logo } from "./logo";
+import { Logo } from "./Logo";
 import { Navbar } from "./Navbar";
 import { PostButton } from "./PostButton";
 

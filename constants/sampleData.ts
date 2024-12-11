@@ -11,6 +11,10 @@ export interface Post {
   isReply?: boolean;
   hasMedia?: boolean;
   isLiked?: boolean;
+  showActions?: boolean;
+  images?: string[];
+  poll?: { question: string; options: string[] };
+  location?: string;
 }
 
 export const samplePosts: Post[] = [
@@ -27,6 +31,10 @@ export const samplePosts: Post[] = [
     isReply: false,
     hasMedia: false,
     isLiked: true,
+    poll: {
+      question: "What's your favorite mobile development framework?",
+      options: ["React Native", "Flutter", "Xamarin", "NativeScript"],
+    },
   },
   {
     id: "2",
@@ -42,6 +50,10 @@ export const samplePosts: Post[] = [
     isReply: false,
     hasMedia: false,
     isLiked: true,
+    images: Array.from(
+      { length: 3 },
+      (_, i) => `https://picsum.photos/seed/user2/${200 + i}`
+    ),
   },
   {
     id: "3",
