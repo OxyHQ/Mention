@@ -18,7 +18,7 @@ import { initReactI18next, I18nextProvider, useTranslation } from "react-i18next
 import en from "../locales/en.json";
 import es from "../locales/es.json";
 import it from "../locales/it.json";
-import { View, FlatList, StyleSheet, useWindowDimensions, Dimensions } from "react-native";
+import { View, StyleSheet, useWindowDimensions, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BottomBar } from "@/components/BottomBar";
 
@@ -46,7 +46,6 @@ export default function RootLayout() {
   const isTablet = width >= 768;
   const isDesktop = width >= 1024;
   const windowHeight = Dimensions.get('window').height;
-  const fontSize = "16px";
 
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
@@ -104,7 +103,7 @@ export default function RootLayout() {
   });
 
   if (!loaded) {
-return null;
+    return null;
   }
 
   return (
