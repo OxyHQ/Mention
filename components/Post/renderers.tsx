@@ -12,7 +12,7 @@ export const renderImages = (images: string[]) => {
         <>
             <View style={styles.imageGrid}>
                 {images.map((image, index) => (
-                    <TouchableOpacity key={index} onPress={() => setSelectedImage(image)}>
+                    <TouchableOpacity key={index} onPress={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedImage(image); }}>
                         <RNImage
                             source={{ uri: image }}
                             style={[
@@ -31,7 +31,7 @@ export const renderImages = (images: string[]) => {
             {selectedImage && (
                 <Modal visible={true} transparent={true} onRequestClose={() => setSelectedImage(null)}>
                     <View style={styles.modalContainer}>
-                        <TouchableOpacity style={styles.modalCloseButton} onPress={() => setSelectedImage(null)}>
+                        <TouchableOpacity style={styles.modalCloseButton} onPress={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedImage(null); }}>
                             <Ionicons name="close" size={30} color="#FFFFFF" />
                         </TouchableOpacity>
                         <RNImage source={{ uri: selectedImage }} style={styles.modalImage} />
@@ -57,7 +57,7 @@ export const renderPoll = (poll: any, selectedOption: number | null, handlePollO
                             styles.pollOption,
                             selectedOption === index && styles.selectedPollOption,
                         ]}
-                        onPress={() => handlePollOptionPress(index)}
+                        onPress={(event) => { event.preventDefault(); event.stopPropagation(); handlePollOptionPress(index); }}
                     >
                         <Text style={styles.pollOptionText}>{option.text}</Text>
                         <Text style={styles.pollOptionStats}>{`${option.votes} votes (${percentage.toFixed(1)}%)`}</Text>

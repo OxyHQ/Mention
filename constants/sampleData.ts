@@ -174,3 +174,21 @@ export const samplePosts: Post[] = [
     isLiked: true,
   },
 ];
+
+export interface Trend {
+  hashtag: string;
+  count: number;
+}
+
+export const sampleTrends: Trend[] = [
+  { hashtag: "#coding", count: 1200 },
+  { hashtag: "#reactnative", count: 950 },
+  { hashtag: "#development", count: 800 },
+  { hashtag: "#tech", count: 700 },
+  { hashtag: "#fitness", count: 650 },
+  { hashtag: "#healthyliving", count: 600 },
+  { hashtag: "#UIDesign", count: 550 },
+  { hashtag: "#cleancode", count: 500 },
+  { hashtag: "#softwarearchitecture", count: 450 },
+  { hashtag: "#techreads", count: 400 },
+];

@@ -14,6 +14,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import Post from "@/components/Post";
+import { sampleTrends } from "@/constants/sampleData"; // Import sampleTrends
 
 const searchResults = [
   {
@@ -37,18 +38,11 @@ const searchResults = [
   // Add more search results
 ];
 
-const trends = [
-  { id: "1", topic: "#ReactNative", countTotal: "120K" },
-  { id: "2", topic: "#JavaScript", countTotal: "80K" },
-  { id: "3", topic: "#TypeScript", countTotal: "50K" },
-  { id: "4", topic: "#GraphQL", countTotal: "30K" },
-  { id: "5", topic: "#ApolloClient", countTotal: "20K" },
-  { id: "6", topic: "#Hasura", countTotal: "10K" },
-  { id: "7", topic: "#Expo", countTotal: "5K" },
-  { id: "8", topic: "#ReactNavigation", countTotal: "2K" },
-  { id: "9", topic: "#ReactQuery", countTotal: "1K" },
-  { id: "10", topic: "#ReactHooks", countTotal: "500" },
-];
+const trends = sampleTrends.map((trend, index) => ({
+  id: (index + 1).toString(),
+  topic: trend.hashtag,
+  countTotal: trend.count.toString(),
+}));
 
 type SearchResult = {
   id: string;

@@ -2,13 +2,13 @@ import React from "react";
 import { View, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { ThemedText } from "./ThemedText";
 import { ThemedView } from "./ThemedView";
+import { sampleTrends } from "@/constants/sampleData"; // Import sampleTrends
 
-const trendingTopics = [
-  { id: "1", topic: "#ReactNative", posts: "120K" },
-  { id: "2", topic: "#JavaScript", posts: "80K" },
-  { id: "3", topic: "#MobileDevelopment", posts: "50K" },
-  // Add more trending topics here
-];
+const trendingTopics = sampleTrends.map((trend, index) => ({
+  id: (index + 1).toString(),
+  topic: trend.hashtag,
+  posts: trend.count.toString(),
+}));
 
 const suggestedUsers = [
   { id: "1", name: "John Doe", handle: "@johndoe", avatar: "path/to/avatar1.png" },
