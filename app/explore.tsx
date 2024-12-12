@@ -40,12 +40,6 @@ const searchResults = [
   // Add more search results
 ];
 
-const trends = sampleTrends.map((trend, index) => ({
-  id: (index + 1).toString(),
-  topic: trend.hashtag,
-  countTotal: trend.count.toString(),
-}));
-
 type SearchResult = {
   id: string;
   user: {
@@ -159,10 +153,17 @@ export default function SearchScreen() {
 
   const retrieveTrendsFromAPI = async () => {
     try {
-      const data = await fetchData("trends");
+      const data = await fetchData("hashtags");
+      console.log("Fetched trends:", data);
       if (data) {
-        await storeData("trends", data);
-        setTrends(data);
+        const trends = data.map((trend: any) => ({
+          id: trend.id,
+          topic: trend.hashtag,
+          countTotal: trend.score.toString(),
+        }));
+        console.log("Trends:", trends);
+        await storeData("trends", trends);
+        setTrends(trends);
       } else {
         console.warn("No trends data returned from API");
       }
@@ -173,12 +174,7 @@ export default function SearchScreen() {
 
   useEffect(() => {
     const fetchTrends = async () => {
-      const storedTrends = await getData("trends");
-      if (storedTrends) {
-        setTrends(storedTrends);
-      } else {
-        retrieveTrendsFromAPI();
-      }
+      await retrieveTrendsFromAPI();
     };
 
     fetchTrends();
@@ -188,6 +184,7 @@ export default function SearchScreen() {
     const fetchAndSetPosts = async () => {
       const fetchedPosts = await fetchPosts();
       setPosts(fetchedPosts);
+      await storeData("posts", fetchedPosts);
     };
 
     fetchAndSetPosts();
