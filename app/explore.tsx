@@ -1,5 +1,5 @@
-import { Stack, useLocalSearchParams } from "expo-router";
-import React, { useState, useEffect } from "react";
+import { Link, Stack } from "expo-router";
+import React, { useState } from "react";
 import {
   View,
   TextInput,
@@ -14,49 +14,11 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import Post from "@/components/Post";
-import { fetchData } from "@/utils/api";
-import { storeData, getData } from "@/utils/storage";
-import { sampleTrends } from "@/constants/sampleData";
+import { useFetchPosts } from "@/hooks/useFetchPosts";
+import { Trends } from "@/features/trends/Trends";
+import { Post as PostInterface } from "@/interfaces/Post";
 
-const searchResults = [
-  {
-    id: "1",
-    user: {
-      name: "Jane Smith",
-      avatar: "https://via.placeholder.com/50",
-    },
-    content: "This is a sample post",
-    timestamp: "2h ago",
-  },
-  {
-    id: "2",
-    user: {
-      name: "Bob Johnson",
-      avatar: "https://via.placeholder.com/50",
-    },
-    content: "Another example post",
-    timestamp: "4h ago",
-  },
-  // Add more search results
-];
-
-type SearchResult = {
-  id: string;
-  user: {
-    name: string;
-    avatar: string;
-  };
-  content: string;
-  timestamp: string;
-};
-
-type Trend = {
-  id: string;
-  topic: string;
-  countTotal: string;
-};
-
-const SearchResultItem = ({ result }: { result: SearchResult }) => (
+const SearchResultItem = ({ result }: { result: PostInterface }) => (
   <View style={styles.resultContainer}>
     <Image source={{ uri: result.user.avatar }} style={styles.avatar} />
     <View style={styles.resultContent}>
@@ -67,58 +29,8 @@ const SearchResultItem = ({ result }: { result: SearchResult }) => (
   </View>
 );
 
-const TrendItem = ({
-  trend,
-  onPress,
-}: {
-  trend: Trend;
-  onPress: () => void;
-}) => (
-  <TouchableOpacity style={styles.trendContainer} onPress={onPress}>
-    <ThemedText style={styles.trendTopic}>{trend.topic}</ThemedText>
-    <ThemedText style={styles.trendcountTotal}>
-      {trend.countTotal} Posts
-    </ThemedText>
-  </TouchableOpacity>
-);
-
-const renderPost = ({ item }: { item: SearchResult }) => (
-  <SearchResultItem result={item} />
-);
-
-type PostAPIResponse = {
-  id: string;
-  text: string;
-  created_at: string;
-  author: {
-    name: string;
-    image: string;
-  };
-};
-
-const fetchPosts = async () => {
-  try {
-    const response = await fetchData("posts");
-    const posts = response.posts.map((post: PostAPIResponse) => ({
-      id: post.id,
-      user: {
-        name: post.author?.name || "Unknown",
-        avatar: post.author?.image || "https://via.placeholder.com/50",
-      },
-      content: decodeURIComponent(post.text),
-      timestamp: new Date(post.created_at).toLocaleTimeString(),
-    }));
-    console.log("Fetched posts:", posts);
-    return posts;
-  } catch (error) {
-    console.error("Error fetching posts:", error);
-    return [];
-  }
-};
-
 export default function SearchScreen() {
   const { t } = useTranslation();
-  const [selectedHashtag, setSelectedHashtag] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [filters, setFilters] = useState({
     showImages: true,
@@ -129,18 +41,29 @@ export default function SearchScreen() {
     sortByDate: false,
     sortByRelevance: false,
   });
-  const [trends, setTrends] = useState<Trend[]>([]);
-  const [posts, setPosts] = useState<SearchResult[]>([]);
+  const posts: PostInterface[] = useFetchPosts();
 
-  const handleHashtagPress = (hashtag: string) => {
-    setSelectedHashtag(hashtag);
-  };
+  interface Filters {
+    showImages: boolean;
+    showVideos: boolean;
+    showText: boolean;
+  }
 
-  const handleFilterChange = (filter: string, value: boolean) => {
+  interface AdvancedFilters {
+    sortByDate: boolean;
+    sortByRelevance: boolean;
+  }
+
+  const handleFilterChange = (filter: keyof Filters, value: boolean) => {
     setFilters((prevFilters) => ({ ...prevFilters, [filter]: value }));
   };
 
-  const handleAdvancedFilterChange = (filter: string, value: boolean) => {
+  interface AdvancedFilterChange {
+    filter: keyof AdvancedFilters;
+    value: boolean;
+  }
+
+  const handleAdvancedFilterChange = ({ filter, value }: AdvancedFilterChange) => {
     setAdvancedFilters((prevFilters) => ({ ...prevFilters, [filter]: value }));
   };
 
@@ -150,45 +73,6 @@ export default function SearchScreen() {
     if (!filters.showText && result.content.includes("text")) return false;
     return true;
   });
-
-  const retrieveTrendsFromAPI = async () => {
-    try {
-      const data = await fetchData("hashtags");
-      console.log("Fetched trends:", data);
-      if (data) {
-        const trends = data.map((trend: any) => ({
-          id: trend.id,
-          topic: trend.hashtag,
-          countTotal: trend.score.toString(),
-        }));
-        console.log("Trends:", trends);
-        await storeData("trends", trends);
-        setTrends(trends);
-      } else {
-        console.warn("No trends data returned from API");
-      }
-    } catch (error) {
-      console.error("Error retrieving trends from API:", error);
-    }
-  };
-
-  useEffect(() => {
-    const fetchTrends = async () => {
-      await retrieveTrendsFromAPI();
-    };
-
-    fetchTrends();
-  }, []);
-
-  useEffect(() => {
-    const fetchAndSetPosts = async () => {
-      const fetchedPosts = await fetchPosts();
-      setPosts(fetchedPosts);
-      await storeData("posts", fetchedPosts);
-    };
-
-    fetchAndSetPosts();
-  }, []);
 
   return (
     <>
@@ -234,7 +118,7 @@ export default function SearchScreen() {
                 <Switch
                   value={advancedFilters.sortByDate}
                   onValueChange={(value) =>
-                    handleAdvancedFilterChange("sortByDate", value)
+                    handleAdvancedFilterChange({ filter: "sortByDate", value })
                   }
                 />
               </View>
@@ -243,27 +127,14 @@ export default function SearchScreen() {
                 <Switch
                   value={advancedFilters.sortByRelevance}
                   onValueChange={(value) =>
-                    handleAdvancedFilterChange("sortByRelevance", value)
+                    handleAdvancedFilterChange({ filter: "sortByRelevance", value })
                   }
                 />
               </View>
             </>
           )}
         </View>
-        <FlatList
-          data={trends}
-          renderItem={({ item }) => (
-            <TrendItem
-              trend={item}
-              onPress={() => handleHashtagPress(item.topic)}
-            />
-          )}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={<ThemedText style={styles.trendsHeader}>
-            {t("Trends for you")}
-          </ThemedText>}
-          style={styles.trendsList}
-        />
+        <Trends />
         <FlatList
           data={filteredResults}
           renderItem={({ item }) => (
@@ -288,77 +159,45 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   container: {
-
+    // ...existing code...
   },
   searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderColor: "#ccc",
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 8,
-    marginVertical: 16,
+    // ...existing code...
   },
   searchIcon: {
-    marginRight: 8,
+    // ...existing code...
   },
   searchInput: {
-    flex: 1,
+    // ...existing code...
   },
   trendsHeader: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginVertical: 8,
+    // ...existing code...
   },
   trendsList: {
-    marginBottom: 16,
-  },
-  trendContainer: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-  },
-  trendTopic: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  trendcountTotal: {
-    color: "gray",
+    // ...existing code...
   },
   resultContainer: {
-    flexDirection: "row",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-    alignItems: "center",
+    // ...existing code...
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 10,
+    // ...existing code...
   },
   resultContent: {
-    width: "100%",
+    // ...existing code...
   },
   userName: {
-    fontWeight: "bold",
+    // ...existing code...
   },
   resultText: {
-    fontSize: 16,
-    marginTop: 4,
+    // ...existing code...
   },
   timestamp: {
-    color: "gray",
-    marginTop: 5,
+    // ...existing code...
   },
   filtersContainer: {
-    marginVertical: 16,
+    // ...existing code...
   },
   filterItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginVertical: 8,
+    // ...existing code...
   },
 });

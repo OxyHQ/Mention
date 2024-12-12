@@ -2,19 +2,13 @@ import React from "react";
 import { View, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { ThemedText } from "./ThemedText";
 import { ThemedView } from "./ThemedView";
-import { sampleTrends } from "@/constants/sampleData"; // Import sampleTrends
-
-const trendingTopics = sampleTrends.map((trend, index) => ({
-  id: (index + 1).toString(),
-  topic: trend.hashtag,
-  posts: trend.count.toString(),
-}));
+import { Trends } from "@/features/trends/Trends";
+import { FollowButton } from "@/components/FollowButton";
 
 const suggestedUsers = [
-  { id: "1", name: "John Doe", handle: "@johndoe", avatar: "path/to/avatar1.png" },
-  { id: "2", name: "Jane Smith", handle: "@janesmith", avatar: "path/to/avatar2.png" },
-  { id: "3", name: "Bob Johnson", handle: "@bobjohnson", avatar: "path/to/avatar3.png" },
-  // Add more suggested users here
+  { id: "1", name: "John Doe", handle: "@johndoe", avatar: "" },
+  { id: "2", name: "Jane Smith", handle: "@janesmith", avatar: "" },
+  { id: "3", name: "Bob Johnson", handle: "@bobjohnson", avatar: "" },
 ];
 
 export function Widgets() {
@@ -29,23 +23,14 @@ export function Widgets() {
               <ThemedText style={styles.userName}>{user.name}</ThemedText>
               <ThemedText style={styles.userHandle}>{user.handle}</ThemedText>
             </View>
-            <TouchableOpacity style={styles.followButton}>
-              <ThemedText style={styles.followButtonText}>Follow</ThemedText>
-            </TouchableOpacity>
+            <FollowButton />
           </TouchableOpacity>
         ))}
       </ThemedView>
 
       <ThemedView style={styles.widget}>
         <ThemedText type="title" style={styles.widgetTitle}>Trending</ThemedText>
-        {trendingTopics.map((topic) => (
-          <View key={topic.id} style={styles.trendingItem}>
-            <ThemedText style={styles.trendingTopic}>{topic.topic}</ThemedText>
-            <ThemedText style={styles.trendingPosts}>
-              {topic.posts} Posts
-            </ThemedText>
-          </View>
-        ))}
+        <Trends />
       </ThemedView>
     </View>
   );

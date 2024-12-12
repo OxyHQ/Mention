@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -53,6 +53,17 @@ export default function AppearanceScreen() {
                 </View>
             </ScrollView>
         </>
+    );
+}
+
+export function DisplaySettings() {
+    const { t } = useTranslation();
+
+    return (
+        <SafeAreaView style={styles.container}>
+            <Text style={styles.title}>{t("Display Settings")}</Text>
+            {/* Add display settings components here */}
+        </SafeAreaView>
     );
 }
 
@@ -118,5 +129,10 @@ const styles = StyleSheet.create({
     selectedColorOption: {
         borderWidth: 2,
         borderColor: "#000",
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 16,
     },
 });
