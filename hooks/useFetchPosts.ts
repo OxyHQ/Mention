@@ -10,6 +10,7 @@ interface PostAPIResponse {
   author: {
     name: string;
     image: string;
+    username: string;
   };
 }
 
@@ -24,6 +25,7 @@ export const useFetchPosts = () => {
         user: {
           name: post.author?.name || "Unknown",
           avatar: post.author?.image || "https://via.placeholder.com/50",
+          username: post.author?.username || "unknown",
         },
         content: decodeURIComponent(post.text),
         timestamp: new Date(post.created_at).toLocaleTimeString(),

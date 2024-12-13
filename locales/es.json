@@ -6,6 +6,7 @@
   "New Post": "Nueva Publicación",
   "What's happening?": "¿Qué está pasando?",
   "Post": "Publicar",
+  "Save": "Guardar",
   "Settings": "Configuraciones",
   "Language": "Idioma",
   "Primary Color": "Color Primario",
@@ -33,5 +34,10 @@
   "About": "Acerca de",
   "About this app": "Acerca de esta aplicación",
   "Battery": "Batería",
-  "Loading...": "Cargando..."
+  "Loading...": "Cargando...",
+  "Customize the look and feel of the app": "Personaliza el aspecto y la sensación de la aplicación",
+  "Light": "Claro",
+  "Dark": "Oscuro",
+  "Accent Color": "Color de Acento",
+  "Display Settings": "Configuración de Pantalla"
 }

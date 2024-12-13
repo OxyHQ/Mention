@@ -34,6 +34,7 @@ export default function HomeScreen() {
     author: {
       name: string;
       image: string;
+      username: string;
     };
   };
 
@@ -45,6 +46,7 @@ export default function HomeScreen() {
         user: {
           name: post.author?.name || "Unknown",
           avatar: post.author?.image || "https://via.placeholder.com/50",
+          username: post.author?.username || "unknown",
         },
         content: decodeURIComponent(post.text),
         timestamp: new Date(post.created_at).toLocaleTimeString(),
@@ -109,23 +111,8 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: {
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  composeButton: {
-    backgroundColor: "#1DA1F2",
-    padding: 8,
-    borderRadius: 9999,
+    flex: 1,
+    backgroundColor: "#fff",
   },
   fab: {
     position: "fixed",
