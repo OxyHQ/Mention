@@ -1,22 +1,23 @@
 import React from "react";
-import { View, StyleSheet, FlatList } from "react-native";
+import { View, StyleSheet, FlatList, TouchableOpacity } from "react-native";
 import { Link } from "expo-router";
 import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
 import { useFetchTrends } from "@/hooks/useFetchTrends";
 import { Trend } from "@/interfaces/Trend";
+import { Ionicons } from "@expo/vector-icons";
 
 const TrendItem = ({ trend, href, index }: { trend: Trend; href: string; index: number }) => (
     <Link href={href as any} style={styles.trendContainer}>
-        <View style={styles.trendRankContainer}>
-            <ThemedText style={styles.trendRank}>{index + 1}</ThemedText>
-        </View>
         <View style={styles.trendContent}>
-            <ThemedText style={styles.trendTopic}>{trend.topic}</ThemedText>
-            <ThemedText style={styles.trendcountTotal}>
+            <ThemedText style={styles.trendTopic}>#{trend.topic}</ThemedText>
+            <ThemedText style={styles.trendCountTotal}>
                 {trend.countTotal.toLocaleString()} Posts
             </ThemedText>
         </View>
+        <TouchableOpacity style={styles.menuIcon}>
+            <Ionicons name="ellipsis-horizontal" size={20} color="black" />
+        </TouchableOpacity>
     </Link>
 );
 
@@ -35,52 +36,38 @@ export function Trends() {
                 />
             )}
             keyExtractor={(item) => item.id}
-            ListHeaderComponent={<ThemedText style={styles.trendsHeader}>
-                {t("Trends for you")}
-            </ThemedText>}
             style={styles.trendsList}
         />
     );
 }
 
 const styles = StyleSheet.create({
-    trendsHeader: {
-        fontSize: 24,
-        fontWeight: "bold",
-        backgroundColor: "#f5f8fa",
-        borderBottomWidth: 1,
-        borderBottomColor: "#e1e8ed",
-    },
     trendsList: {
-        backgroundColor: "#ffffff",
     },
     trendContainer: {
         flexDirection: "row",
-        padding: 10,
+        padding: 8,
         borderBottomWidth: 1,
         borderBottomColor: "#e1e8ed",
-    },
-    trendRankContainer: {
-        justifyContent: "center",
         alignItems: "center",
-        width: 40,
-    },
-    trendRank: {
-        fontWeight: "bold",
-        color: "#1DA1F2",
-        fontSize: 18,
     },
     trendContent: {
         flex: 1,
-        paddingLeft: 10,
+        paddingLeft: 5,
     },
     trendTopic: {
         fontWeight: "bold",
-        fontSize: 18,
+        fontSize: 16,
         color: "#14171a",
     },
-    trendcountTotal: {
+    trendCountTotal: {
         color: "#657786",
-        fontSize: 14,
+        fontSize: 12,
+    },
+    menuIcon: {
+        position: "absolute",
+        right: 10,
+        justifyContent: "center",
+        alignItems: "center",
     },
 });

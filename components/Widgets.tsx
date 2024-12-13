@@ -46,14 +46,13 @@ const styles = StyleSheet.create({
     borderLeftColor: "#EFF3F4",
   },
   widget: {
-    padding: 16,
     borderRadius: 16,
     backgroundColor: "#f7f9f9",
   },
   widgetTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 8,
+    padding: 10,
   },
   userItem: {
     flexDirection: "row",
