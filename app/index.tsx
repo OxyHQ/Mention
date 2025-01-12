@@ -9,7 +9,7 @@ import { colors } from '../styles/colors'
 export default function HomeScreen() {
   const posts = useStore((state) => state.posts)
 
-  const renderItem = React.useCallback(({ item }) => <Post {...item} />, [])
+  const renderItem = React.useCallback(({ item }: { item: IPost }) => <Post id={''} avatar={''} username={''} time={''} likes={0} reposts={0} replies={0} {...item} />, [])
   return (
     <View style={styles.container}>
       <Header options={{ title: "Home" }} />

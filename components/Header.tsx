@@ -6,7 +6,7 @@ import {
     ViewStyle,
     Platform,
 } from 'react-native'
-import { Pressable } from 'react-native-web-hover'
+import { Pressable } from 'react-native'
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from '@/styles/colors'
 import { useRouter } from 'expo-router'
