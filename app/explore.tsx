@@ -78,82 +78,80 @@ export default function SearchScreen() {
   return (
     <>
       <Header options={{ title: "Explore" }} />
-      <ThemedView style={styles.container}>
-        <View style={styles.searchContainer}>
-          <Ionicons
-            name="search"
-            size={20}
-            color="#ccc"
-            style={styles.searchIcon}
-          />
-          <TextInput placeholder={t("Explore")} style={styles.searchInput} />
-        </View>
-        <View style={styles.filtersContainer}>
-          <ThemedText>{t("Filters")}</ThemedText>
-          <View style={styles.filterItem}>
-            <ThemedText>{t("Show Images")}</ThemedText>
-            <Switch
-              value={filters.showImages}
-              onValueChange={(value) => handleFilterChange("showImages", value)}
-            />
-          </View>
-          <View style={styles.filterItem}>
-            <ThemedText>{t("Show Videos")}</ThemedText>
-            <Switch
-              value={filters.showVideos}
-              onValueChange={(value) => handleFilterChange("showVideos", value)}
-            />
-          </View>
-          <View style={styles.filterItem}>
-            <ThemedText>{t("Show Text")}</ThemedText>
-            <Switch
-              value={filters.showText}
-              onValueChange={(value) => handleFilterChange("showText", value)}
-            />
-          </View>
-          {isPremium && (
-            <>
-              <ThemedText>{t("Advanced Filters")}</ThemedText>
-              <View style={styles.filterItem}>
-                <ThemedText>{t("Sort by Date")}</ThemedText>
-                <Switch
-                  value={advancedFilters.sortByDate}
-                  onValueChange={(value) =>
-                    handleAdvancedFilterChange({ filter: "sortByDate", value })
-                  }
-                />
-              </View>
-              <View style={styles.filterItem}>
-                <ThemedText>{t("Sort by Relevance")}</ThemedText>
-                <Switch
-                  value={advancedFilters.sortByRelevance}
-                  onValueChange={(value) =>
-                    handleAdvancedFilterChange({ filter: "sortByRelevance", value })
-                  }
-                />
-              </View>
-            </>
-          )}
-        </View>
-        <Trends />
-        <FlatList
-          data={filteredResults}
-          renderItem={({ item }) => (
-            <Post
-              id={item.id}
-              avatar={item.user.avatar}
-              name={item.user.name}
-              username={item.user.name} // Assuming username is the same as name
-              time={item.timestamp}
-              content={item.content}
-              likes={0} // Assuming default value
-              reposts={0} // Assuming default value
-              replies={0} // Assuming default value
-            />
-          )}
-          keyExtractor={(item) => item.id}
+      <View style={styles.searchContainer}>
+        <Ionicons
+          name="search"
+          size={20}
+          color="#ccc"
+          style={styles.searchIcon}
         />
-      </ThemedView>
+        <TextInput placeholder={t("Explore")} style={styles.searchInput} />
+      </View>
+      <View style={styles.filtersContainer}>
+        <ThemedText>{t("Filters")}</ThemedText>
+        <View style={styles.filterItem}>
+          <ThemedText>{t("Show Images")}</ThemedText>
+          <Switch
+            value={filters.showImages}
+            onValueChange={(value) => handleFilterChange("showImages", value)}
+          />
+        </View>
+        <View style={styles.filterItem}>
+          <ThemedText>{t("Show Videos")}</ThemedText>
+          <Switch
+            value={filters.showVideos}
+            onValueChange={(value) => handleFilterChange("showVideos", value)}
+          />
+        </View>
+        <View style={styles.filterItem}>
+          <ThemedText>{t("Show Text")}</ThemedText>
+          <Switch
+            value={filters.showText}
+            onValueChange={(value) => handleFilterChange("showText", value)}
+          />
+        </View>
+        {isPremium && (
+          <>
+            <ThemedText>{t("Advanced Filters")}</ThemedText>
+            <View style={styles.filterItem}>
+              <ThemedText>{t("Sort by Date")}</ThemedText>
+              <Switch
+                value={advancedFilters.sortByDate}
+                onValueChange={(value) =>
+                  handleAdvancedFilterChange({ filter: "sortByDate", value })
+                }
+              />
+            </View>
+            <View style={styles.filterItem}>
+              <ThemedText>{t("Sort by Relevance")}</ThemedText>
+              <Switch
+                value={advancedFilters.sortByRelevance}
+                onValueChange={(value) =>
+                  handleAdvancedFilterChange({ filter: "sortByRelevance", value })
+                }
+              />
+            </View>
+          </>
+        )}
+      </View>
+      <Trends />
+      <FlatList
+        data={filteredResults}
+        renderItem={({ item }) => (
+          <Post
+            id={item.id}
+            avatar={item.user.avatar}
+            name={item.user.name}
+            username={item.user.name} // Assuming username is the same as name
+            time={item.timestamp}
+            content={item.content}
+            likes={0} // Assuming default value
+            reposts={0} // Assuming default value
+            replies={0} // Assuming default value
+          />
+        )}
+        keyExtractor={(item) => item.id}
+      />
     </>
   );
 }

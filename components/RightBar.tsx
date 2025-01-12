@@ -9,7 +9,7 @@ import { SearchBar } from './SearchBar'
 import { Pressable, ScrollView } from 'react-native-web-hover'
 import { FollowButton } from '@/components/FollowButton'
 
-import { useFetchTrends } from "@/hooks/useFetchTrends"
+import { Trends } from "@/features/trends/Trends"
 
 export function RightBar() {
     const isRightBarVisible = useMediaQuery({ minWidth: 990 })
@@ -31,70 +31,6 @@ export function RightBar() {
             }>
                 <Trends />
                 <SuggestedFriends />
-            </View>
-        </View>
-    )
-}
-
-function Trends() {
-    const { t } = useTranslation();
-    const trends = useFetchTrends();
-    return (
-        <View
-            style={{
-                backgroundColor: colors.primaryLight,
-                borderRadius: 15,
-                marginVertical: 10,
-                overflow: 'hidden',
-            }}>
-            <View
-                style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    paddingHorizontal: 15,
-                    paddingVertical: 15,
-                    borderBottomWidth: 0.01,
-                    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-                }}>
-                <Text style={{ fontSize: 20, fontWeight: 'bold' }}>Trends for you</Text>
-                <Ionicons style={{ fontSize: 20 }} name="settings" />
-            </View>
-            <View>
-                <FlatList
-                    data={trends}
-                    renderItem={({ item, index }) => (
-                        <TrendComponent
-                            topHeader="Politics · Trending"
-                            mainTitle={`#${item.topic}`}
-                            numberOfPosts="40.8K posts"
-                        />
-                    )}
-                    keyExtractor={(item) => item.id}
-                />
-            </View>
-            <View>
-                <Pressable
-                    style={({ hovered }) => [
-                        hovered
-                            ? {
-                                backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-                            }
-                            : {},
-                        {
-                            paddingVertical: 20,
-                            paddingHorizontal: 14,
-                            ...Platform.select({
-                                web: {
-                                    cursor: 'pointer',
-                                },
-                            }),
-                        },
-                    ]}>
-                    <Text style={{ fontSize: 15, color: colors.primaryColor }}>
-                        Show more
-                    </Text>
-                </Pressable>
             </View>
         </View>
     )

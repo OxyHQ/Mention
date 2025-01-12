@@ -1,73 +1,100 @@
 import React from "react";
-import { View, StyleSheet, FlatList, TouchableOpacity } from "react-native";
+import { View, StyleSheet, FlatList, TouchableOpacity, Text, Platform } from "react-native";
 import { Link } from "expo-router";
-import { ThemedText } from "@/components/ThemedText";
+import { Pressable } from 'react-native-web-hover'
 import { useTranslation } from "react-i18next";
 import { useFetchTrends } from "@/hooks/useFetchTrends";
-import { Trend } from "@/interfaces/Trend";
 import { Ionicons } from "@expo/vector-icons";
+import { colors } from "@/styles/colors";
+import { TrendItem } from "@/features/trends/TrendItem";
 
-const TrendItem = ({ trend, href, index }: { trend: Trend; href: string; index: number }) => (
-    <Link href={href as any} style={styles.trendContainer}>
-        <View style={styles.trendContent}>
-            <ThemedText style={styles.trendTopic}>#{trend.topic}</ThemedText>
-            <ThemedText style={styles.trendCountTotal}>
-                {trend.countTotal.toLocaleString()} Posts
-            </ThemedText>
-        </View>
-        <TouchableOpacity style={styles.menuIcon}>
-            <Ionicons name="ellipsis-horizontal" size={20} color="black" />
-        </TouchableOpacity>
-    </Link>
-);
-
-export function Trends() {
+export const Trends = ({
+}: {
+    }) => {
     const { t } = useTranslation();
-    const trends = useFetchTrends();
+    const trendsData = useFetchTrends();
 
     return (
-        <FlatList
-            data={trends}
-            renderItem={({ item, index }) => (
-                <TrendItem
-                    trend={item}
-                    href={`/explore?q=${item.topic}`}
-                    index={index}
+        <View
+            style={{
+                backgroundColor: colors.primaryLight,
+                borderRadius: 15,
+                marginVertical: 10,
+                overflow: 'hidden',
+            }}>
+            <View
+                style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingHorizontal: 15,
+                    paddingVertical: 15,
+                    borderBottomWidth: 0.01,
+                    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+                }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold' }}>Trends for you</Text>
+                <Ionicons style={{ fontSize: 20 }} name="settings" />
+            </View>
+            <View>
+                <FlatList
+                    data={trendsData}
+                    renderItem={({ item, index }) => (
+                        <TrendItem
+                            topHeader="Politics · Trending"
+                            mainTitle={`#${item.topic}`}
+                            numberOfPosts="40.8K posts"
+                        />
+                    )}
+                    keyExtractor={(item) => item.id}
                 />
-            )}
-            keyExtractor={(item) => item.id}
-            style={styles.trendsList}
-        />
-    );
+            </View>
+            <View>
+                <Pressable
+                    style={({ hovered }) => [
+                        hovered
+                            ? {
+                                backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+                            }
+                            : {},
+                        {
+                            paddingVertical: 20,
+                            paddingHorizontal: 14,
+                            ...Platform.select({
+                                web: {
+                                    cursor: 'pointer',
+                                },
+                            }),
+                        },
+                    ]}>
+                    <Text style={{ fontSize: 15, color: colors.primaryColor }}>
+                        Show more
+                    </Text>
+                </Pressable>
+            </View>
+        </View>
+    )
 }
 
 const styles = StyleSheet.create({
-    trendsList: {
+    container: {
+        width: 350,
+        alignItems: 'flex-start',
+        // marginTop: 30,
+        paddingStart: 20,
     },
-    trendContainer: {
-        flexDirection: "row",
-        padding: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: "#e1e8ed",
-        alignItems: "center",
-    },
-    trendContent: {
+    trendItem: {
+        display: 'flex',
         flex: 1,
-        paddingLeft: 5,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 12,
+        borderBottomWidth: 0.01,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        ...Platform.select({
+            web: {
+                cursor: 'pointer',
+            },
+        }),
     },
-    trendTopic: {
-        fontWeight: "bold",
-        fontSize: 16,
-        color: "#14171a",
-    },
-    trendCountTotal: {
-        color: "#657786",
-        fontSize: 12,
-    },
-    menuIcon: {
-        position: "absolute",
-        right: 10,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-});
+})
