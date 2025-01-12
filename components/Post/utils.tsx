@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, StyleSheet } from "react-native";
 import { Link } from "expo-router";
+import { colors } from "@/styles/colors";
 
 export const detectHashtags = (text: string) => {
   const parts = text.split(/(#[a-zA-Z0-9_]+)/g);
@@ -17,7 +18,7 @@ export const detectHashtags = (text: string) => {
 
 const styles = StyleSheet.create({
   hashtag: {
-    color: 'blue',
+    color: colors.primaryColor,
     fontWeight: 'bold',
   },
 });
