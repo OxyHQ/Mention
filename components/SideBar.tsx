@@ -10,43 +10,60 @@ import { Ionicons } from "@expo/vector-icons";
 import { Pressable } from 'react-native-web-hover'
 import { Logo } from './Logo'
 import { Home, HomeActive } from '@/assets/icons/home-icon'
+import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
+import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
+import { Bell, BellActive } from '@/assets/icons/bell-icon';
+import { Gear, GearActive } from '@/assets/icons/gear-icon';
 const WindowHeight = Dimensions.get('window').height
 
-const sideBarData: { title: string; iconName: React.ComponentProps<typeof Ionicons>['name'], route: string }[] = [
+const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.ReactNode, route: string }[] = [
     {
         title: 'Home',
-        iconName: 'home',
+        icon: <Home color={colors.COLOR_BLACK} />,
+        iconActive: <HomeActive />,
         route: '/',
     },
     {
         title: 'Explore',
-        iconName: 'search',
+        icon: <Hashtag color={colors.COLOR_BLACK} />,
+        iconActive: <HashtagActive />,
         route: '/explore',
     },
     {
         title: 'Notifications',
-        iconName: 'notifications',
+        icon: <Bell color={colors.COLOR_BLACK} />,
+        iconActive: <BellActive />,
         route: '/notifications',
     },
     {
         title: 'Messages',
-        iconName: 'chatbubbles',
+        icon: <Home color={colors.COLOR_BLACK} />,
+        iconActive: <HomeActive />,
         route: '/messages',
     },
     {
         title: 'Bookmarks',
-        iconName: 'bookmark',
+        icon: <Bookmark color={colors.COLOR_BLACK} />,
+        iconActive: <BookmarkActive />,
         route: '/bookmarks',
     },
     {
         title: 'Lists',
-        iconName: 'list',
+        icon: <Home color={colors.COLOR_BLACK} />,
+        iconActive: <HomeActive />,
         route: '/lists',
     },
     {
         title: 'More',
-        iconName: 'ellipsis-horizontal',
+        icon: <Home color={colors.COLOR_BLACK} />,
+        iconActive: <HomeActive />,
         route: '/more',
+    },
+    {
+        title: 'Settings',
+        icon: <Gear color={colors.COLOR_BLACK} />,
+        iconActive: <GearActive />,
+        route: '/settings',
     },
 ]
 
@@ -106,9 +123,9 @@ export function SideBar() {
                         ]}>
                         <Logo />
                     </Pressable>
-                    {sideBarData.map(({ title, iconName, route }) => {
+                    {sideBarData.map(({ title, icon, iconActive, route }) => {
                         return <SideBarItem href={route} key={title}
-                            icon={pathname === route ? <HomeActive /> : <Home color={colors.COLOR_BLACK} />}
+                            icon={pathname === route ? iconActive : icon}
                             text={title}
                             isActive={pathname === route} />
                     })}
