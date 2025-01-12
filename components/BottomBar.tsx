@@ -20,19 +20,15 @@ export const BottomBar = () => {
         <View style={styles.bottomBar}>
             <Pressable onPress={() => handlePress('/')} style={[styles.tab, activeRoute === '/' && styles.active]}>
                 <Ionicons name="home" size={28} color={activeRoute === '/' ? '#6200ee' : '#757575'} />
-                <Text style={[styles.label, activeRoute === '/' && styles.activeLabel]}>Home</Text>
             </Pressable>
             <Pressable onPress={() => handlePress('/explore')} style={[styles.tab, activeRoute === '/explore' && styles.active]}>
                 <Ionicons name="search" size={28} color={activeRoute === '/explore' ? '#6200ee' : '#757575'} />
-                <Text style={[styles.label, activeRoute === '/explore' && styles.activeLabel]}>Explore</Text>
             </Pressable>
             <Pressable onPress={() => handlePress('/notifications')} style={[styles.tab, activeRoute === '/notifications' && styles.active]}>
                 <Ionicons name="notifications" size={28} color={activeRoute === '/notifications' ? '#6200ee' : '#757575'} />
-                <Text style={[styles.label, activeRoute === '/notifications' && styles.activeLabel]}>Notifications</Text>
             </Pressable>
             <Pressable onPress={() => handlePress('/messages')} style={[styles.tab, activeRoute === '/messages' && styles.active]}>
                 <Ionicons name="mail" size={28} color={activeRoute === '/messages' ? '#6200ee' : '#757575'} />
-                <Text style={[styles.label, activeRoute === '/messages' && styles.activeLabel]}>Messages</Text>
             </Pressable>
         </View>
     );
@@ -56,14 +52,6 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     active: {
-        backgroundColor: '#f2f2f2',
         borderRadius: 30,
-    },
-    label: {
-        fontSize: 12,
-        color: '#757575',
-    },
-    activeLabel: {
-        color: '#6200ee',
     },
 });

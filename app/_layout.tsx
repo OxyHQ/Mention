@@ -1,51 +1,27 @@
 import { useEffect } from "react";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Stack } from 'expo-router';
+import { Slot } from 'expo-router';
 import * as SplashScreen from "expo-splash-screen";
+import { useMediaQuery } from 'react-responsive'
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
-import { Sidebar } from "@/features/sidebar";
-import { Widgets } from "@/components/Widgets";
+import { SideBar } from '@/components/SideBar';
+import { RightBar } from '@/components/RightBar';
+import { colors } from '@/styles/colors';
 import { useColorScheme } from "@/hooks/useColorScheme";
 import {
   setupNotifications,
   requestNotificationPermissions,
   scheduleDemoNotification,
 } from "@/utils/notifications";
-import i18n from "i18next";
-import { initReactI18next, I18nextProvider, useTranslation } from "react-i18next";
-import en from "../locales/en.json";
-import es from "../locales/es.json";
-import it from "../locales/it.json";
-import { View, StyleSheet, useWindowDimensions, Dimensions } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { BottomBar } from "@/components/BottomBar";
+import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
-i18n.use(initReactI18next).init({
-  resources: {
-    en: { translation: en },
-    es: { translation: es },
-    it: { translation: it },
-  },
-  lng: "en",
-  fallbackLng: "en",
-  interpolation: {
-    escapeValue: false,
-  },
-}).catch(error => {
-  console.error("Failed to initialize i18n:", error);
-});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const { i18n } = useTranslation();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  const isDesktop = width >= 1024;
-  const windowHeight = Dimensions.get('window').height;
 
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
@@ -69,36 +45,34 @@ export default function RootLayout() {
     }
 
     initializeApp();
+
+    // Change overflow style to visible only on web
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'visible';
+      document.body.style.backgroundColor = colors.COLOR_BACKGROUND;
+    }
   }, [loaded]);
+
+  const isScreenRoundedEnabled = useMediaQuery({ minWidth: 500 })
 
   const styles = StyleSheet.create({
     container: {
-      flex: 1,
-      alignItems: "center",
-      backgroundColor: colorScheme === "dark" ? "#000" : "#1d9bf01a",
-    },
-    content: {
-      flex: 1,
+      maxWidth: 1600,
+      width: '100%',
+      marginHorizontal: 'auto',
+      justifyContent: 'space-between',
       flexDirection: 'row',
-      width: "100%",
-      marginVertical: 0,
-      marginHorizontal: "auto",
-      maxWidth: 1265,
+      ...Platform.select({
+        android: {
+          flex: 1,
+        },
+      }),
     },
     mainContentWrapper: {
-      width: "100%",
-      margin: isTablet || isDesktop ? 16 : 0,
-      borderRadius: isTablet || isDesktop ? 35 : 0,
-      maxWidth: 600,
-    },
-    mainContent: {
-      flex: 1,
-      minHeight: windowHeight - 32,
-    },
-    flatList: {
-      flex: 1,
-      width: "100%",
-      height: "100%",
+      marginVertical: isScreenRoundedEnabled ? 20 : 0,
+      flex: 2.2,
+      backgroundColor: colors.primaryLight,
+      borderRadius: isScreenRoundedEnabled ? 35 : 0,
     },
   });
 
@@ -107,34 +81,13 @@ export default function RootLayout() {
   }
 
   return (
-    <I18nextProvider i18n={i18n}>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <SafeAreaView style={styles.container}>
-          <View style={styles.content}>
-            {(isTablet || isDesktop) && <Sidebar />}
-            <View style={styles.mainContentWrapper}>
-              <Stack
-                screenOptions={{
-                  headerTitleStyle: {
-                    fontWeight: 'bold',
-                  },
-                }}>
-                <Stack.Screen name="index" />
-                <Stack.Screen name="@[username]/index" />
-                <Stack.Screen name="bookmarks/index" />
-                <Stack.Screen name="compose" />
-                <Stack.Screen name="messages" />
-                <Stack.Screen name="explore" />
-                <Stack.Screen name="settings/display" />
-                <Stack.Screen name="settings/index" />
-              </Stack>
-            </View>
-            {isDesktop && <Widgets />}
-          </View>
-          {!isTablet && !isDesktop && <BottomBar />}
-          <StatusBar style="auto" />
-        </SafeAreaView>
-      </ThemeProvider>
-    </I18nextProvider>
+    <View style={styles.container}>
+      <SideBar />
+      <View style={styles.mainContentWrapper}>
+        <Slot />
+      </View>
+      <RightBar />
+      <StatusBar style="auto" />
+    </View>
   );
 }

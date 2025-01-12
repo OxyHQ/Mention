@@ -1,126 +1,39 @@
-import {
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  TouchableOpacity,
-} from "react-native";
-import React, { useState, useEffect } from "react";
-import { Stack, useLocalSearchParams, router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import Post from "@/components/Post";
-import { ThemedView } from "@/components/ThemedView";
-import { ThemedText } from "@/components/ThemedText";
-import { useColorScheme } from "@/hooks/useColorScheme";
-import { fetchData } from "@/utils/api";
-import { storeData, getData } from "@/utils/storage";
-import { useTranslation } from "react-i18next";
-import { Post as PostType } from "@/constants/sampleData";
+import React from 'react'
+import { View, Text, StyleSheet, FlatList } from 'react-native'
+import { CreatePost } from '../components/CreatePost'
+import { Header } from '../components/Header'
+import Post from '../components/Post'
+import { IPost, useStore } from '../store/store'
+import { colors } from '../styles/colors'
 
 export default function HomeScreen() {
-  const [refreshing, setRefreshing] = useState(false);
-  const [posts, setPosts] = useState<PostType[]>([]);
-  const colorScheme = useColorScheme();
-  const { t } = useTranslation();
+  const posts = useStore((state) => state.posts)
 
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 2000);
-  }, []);
-
-  type PostAPIResponse = {
-    id: string;
-    text: string;
-    created_at: string;
-    author: {
-      name: string;
-      image: string;
-      username: string;
-    };
-  };
-
-  const retrievePostsFromAPI = async () => {
-    try {
-      const response = await fetchData("posts");
-      const posts = response.posts.map((post: PostAPIResponse) => ({
-        id: post.id,
-        user: {
-          name: post.author?.name || "Unknown",
-          avatar: post.author?.image || "https://via.placeholder.com/50",
-          username: post.author?.username || "unknown",
-        },
-        content: decodeURIComponent(post.text),
-        timestamp: new Date(post.created_at).toLocaleTimeString(),
-      }));
-      await storeData("posts", posts);
-      setPosts(posts);
-    } catch (error) {
-      console.error("Error retrieving posts from API:", error);
-    }
-  };
-
-  useEffect(() => {
-    const fetchPosts = async () => {
-      const storedPosts = await getData("posts");
-      if (storedPosts) {
-        setPosts(storedPosts);
-      } else {
-        retrievePostsFromAPI();
-      }
-    };
-
-    fetchPosts();
-  }, []);
-
+  const renderItem = React.useCallback(({ item }) => <Post {...item} />, [])
   return (
-    <>
-      <Stack.Screen options={{ title: t("Home"), headerBackVisible: false }} />
-      <ThemedView style={styles.container}>
-        <FlatList
-          data={posts}
-          renderItem={({ item }) => (
-            <Post
-              id={item.id}
-              avatar={item.avatar}
-              name={item.name}
-              username={item.username}
-              content={item.content}
-              time={item.time}
-              likes={item.likes}
-              reposts={item.reposts}
-              replies={item.replies}
-              images={item.images}
-              poll={item.poll}
-              location={item.location}
-            />
-          )}
-          keyExtractor={(item) => item.id.toString()}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => router.push("/compose")}
-        >
-          <Ionicons name="create-outline" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </ThemedView>
-    </>
-  );
+    <View style={styles.container}>
+      <Header />
+      <CreatePost style={styles.createPost} />
+      <FlatList<IPost>
+        data={posts}
+        renderItem={renderItem}
+        style={styles.flatListStyle}
+      />
+    </View>
+  )
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: "#fff",
   },
-  fab: {
-    position: "fixed",
-    bottom: 65,
-    right: 16,
-    backgroundColor: "#1DA1F2",
-    padding: 16,
-    borderRadius: 9999,
-    elevation: 4,
+  createPost: {
+    marginBottom: 15,
+    borderBottomWidth: 0.01,
+    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
   },
-});
+  flatListStyle: {
+    borderBottomWidth: 0.01,
+    borderTopWidth: 0.01,
+    borderColor: colors.COLOR_BLACK_LIGHT_6,
+  },
+})

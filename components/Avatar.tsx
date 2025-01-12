@@ -1,5 +1,6 @@
 import React from "react";
 import { Image, StyleSheet } from "react-native";
+import { colors } from "../styles/colors";
 
 interface AvatarProps {
   userImage: string;
@@ -14,6 +15,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: colors.primaryColor,
   },
 });
 

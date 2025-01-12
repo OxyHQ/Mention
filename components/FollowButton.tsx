@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { TouchableOpacity, StyleSheet } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from "react-native-reanimated";
 import { ThemedText } from "./ThemedText";
+import { colors } from '../styles/colors'
 
 export function FollowButton() {
     const [isFollowing, setIsFollowing] = useState(false);
@@ -55,7 +56,8 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         paddingHorizontal: 12,
         borderRadius: 16,
-        backgroundColor: "#1DA1F2",
+        backgroundColor: colors.primaryColor,
+        overflow: "hidden",
     },
     followButtonText: {
         color: "white",

@@ -21,7 +21,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#1DA1F2",
     padding: 12,
-    borderRadius: 9999,
+    borderRadius: 999,
     marginVertical: 12,
   },
   composeLabel: {

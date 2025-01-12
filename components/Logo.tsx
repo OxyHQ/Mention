@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet, AccessibilityInfo } from "react-nat
 import { Stack, Link } from "expo-router";
 
 import { MentionLogo } from "@/assets/mention-logo";
+import { colors } from '@/styles/colors'
 
 export const Logo = () => {
 
@@ -14,7 +15,8 @@ export const Logo = () => {
         accessibilityRole="button"
       >
         <View style={styles.logo}>
-          <MentionLogo style={styles.logoSvg} color="black" />
+          <MentionLogo style={styles.logoSvg} size={27}
+            color={colors.primaryColor} />
         </View>
       </TouchableOpacity>
     </Link>
@@ -29,11 +31,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logo: {
-    padding: 12, // Equivalent to `0.75em`
   },
   logoSvg: {
-    height: 48, // Replace with the appropriate `var(--logo-size)`
-    width: 48, // Replace with the appropriate `var(--logo-size)`
+    padding: 10,
   },
   // Add hover, active, and focus-visible styles using custom touch logic
 });
