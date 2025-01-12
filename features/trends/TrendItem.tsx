@@ -15,7 +15,7 @@ export const TrendItem = ({
     numberOfPosts: string
 }) => {
     return (
-        <Link href={mainTitle as any} style={styles.trendItem}>
+        <Link href={`/h/${mainTitle}`} style={styles.trendItem}>
             <View
                 style={{
                     flex: 1,
@@ -25,7 +25,7 @@ export const TrendItem = ({
                     {topHeader}
                 </Text>
                 <Text style={{ fontSize: 15, fontWeight: 'bold', paddingVertical: 3 }}>
-                    {mainTitle}
+                    {`#${mainTitle}`}
                 </Text>
                 <Text style={{ fontSize: 14, color: colors.COLOR_BLACK_LIGHT_4 }}>
                     {numberOfPosts}
