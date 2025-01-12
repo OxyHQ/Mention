@@ -179,7 +179,7 @@ const followRecData = [
         userName: '@kzzzf',
     },
 ]
-const FollowRowComponent = ({ name, userName, photo }) => {
+const FollowRowComponent = ({ name, userName, photo }: { name: string; userName: string; photo: string }) => {
     return (
         <Pressable
             style={({ hovered }) => [
