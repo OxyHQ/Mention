@@ -1,42 +1,61 @@
 import React from 'react'
 import {
     StyleSheet,
-    Image,
     View,
     Text,
     ViewStyle,
-    TextInput,
     Platform,
 } from 'react-native'
 import { Pressable } from 'react-native-web-hover'
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from '@/styles/colors'
-import { useState } from 'react'
+import { useRouter } from 'expo-router'
+import { ReactNode } from 'react'
 
 interface Props {
     style?: ViewStyle
+    options?: {
+        title?: string
+        titlePosition?: 'left' | 'center' // Add titlePosition option
+        showBackButton?: boolean
+        leftComponents?: ReactNode[]
+        rightComponents?: ReactNode[]
+    }
 }
 
-export const Header: React.FC<Props> = ({ }) => {
+export const Header: React.FC<Props> = ({ options }) => {
+    const router = useRouter();
+
+    const titlePosition = options?.titlePosition || 'left'; // Default title position to left
+
     return (
         <View style={styles.topRow}>
-            <Text style={styles.topRowText}>Home</Text>
-
-            <Pressable
-                style={({ hovered }) => [
-                    styles.startContainer,
-                    hovered
-                        ? {
-                            backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-                        }
-                        : {},
-                ]}>
-                <Ionicons name="star" size={18} />
-            </Pressable>
+            <View style={styles.leftContainer}>
+                {options?.showBackButton && (
+                    <Pressable onPress={() => router.back()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK} />
+                    </Pressable>
+                )}
+                {options?.leftComponents?.map((component, index) => (
+                    <React.Fragment key={index}>{component}</React.Fragment>
+                ))}
+                {options?.title && titlePosition === 'left' && (
+                    <Text style={styles.topRowText}>{options.title}</Text>
+                )}
+            </View>
+            {options?.title && titlePosition === 'center' && (
+                <View style={styles.centerContainer}>
+                    <Text style={styles.topRowText}>{options.title}</Text>
+                </View>
+            )}
+            <View style={styles.rightContainer}>
+                {options?.rightComponents?.map((component, index) => (
+                    <React.Fragment key={index}>{component}</React.Fragment>
+                ))}
+            </View>
         </View>
     )
 }
-
 
 const styles = StyleSheet.create({
     container: {
@@ -44,6 +63,7 @@ const styles = StyleSheet.create({
         paddingBottom: 10,
     },
     topRow: {
+        minHeight: 60,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -71,5 +91,23 @@ const styles = StyleSheet.create({
     startContainer: {
         borderRadius: 100,
         padding: 10,
+    },
+    backButton: {
+        marginRight: 10,
+    },
+    leftContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    centerContainer: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    rightContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        justifyContent: 'flex-end',
     },
 })

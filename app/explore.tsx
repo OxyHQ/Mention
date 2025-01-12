@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Switch,
 } from "react-native";
+import { Header } from '../components/Header'
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
@@ -76,7 +77,7 @@ export default function SearchScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Search" }} />
+      <Header options={{ title: "Explore" }} />
       <ThemedView style={styles.container}>
         <View style={styles.searchContainer}>
           <Ionicons

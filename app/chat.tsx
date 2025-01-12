@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, TextInput, S
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
+import { Header } from '../components/Header'
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -76,18 +77,6 @@ const StoryItem = ({ story }: { story: { id: string; user: { name: string; avata
   </View>
 );
 
-const Header = () => (
-  <View style={styles.header}>
-    <TouchableOpacity onPress={() => router.back()}>
-      <Ionicons name="arrow-back" size={30} color="black" />
-    </TouchableOpacity>
-    <ThemedText style={styles.headerTitle}>Chats</ThemedText>
-    <TouchableOpacity onPress={() => { /* Add new chat functionality */ }}>
-      <Ionicons name="create-outline" size={30} color="black" />
-    </TouchableOpacity>
-  </View>
-);
-
 export default function MessagesScreen() {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
@@ -100,45 +89,40 @@ export default function MessagesScreen() {
   return (
     <>
       <Stack.Screen options={{ title: `${t("Messages")}` }} />
-      <ThemedView style={styles.container}>
-        <Header />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.storiesContainer}>
-          {stories.map((story) => (
-            <StoryItem key={story.id} story={story} />
-          ))}
-        </ScrollView>
-        <TextInput
-          style={styles.searchBar}
-          placeholder={t("Search")}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        <FlatList
-          data={filteredMessages}
-          renderItem={({ item }) => <MessageItem message={item} />}
-          keyExtractor={(item) => item.id}
-        />
-      </ThemedView>
+      <Header options={{
+        title: "Chat",
+        titlePosition: "center",
+        leftComponents: [
+          <TouchableOpacity key="new-chat" onPress={() => { /* Add new chat functionality */ }}>
+            <Ionicons name="create-outline" size={26} color="black" />
+          </TouchableOpacity>],
+        rightComponents: [
+          <TouchableOpacity key="settings" onPress={() => { /* Add settings functionality */ }}>
+            <Ionicons name="settings-outline" size={26} color="black" />
+          </TouchableOpacity>
+        ]
+      }} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.storiesContainer}>
+        {stories.map((story) => (
+          <StoryItem key={story.id} story={story} />
+        ))}
+      </ScrollView>
+      <TextInput
+        style={styles.searchBar}
+        placeholder={t("Search")}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <FlatList
+        data={filteredMessages}
+        renderItem={({ item }) => <MessageItem message={item} />}
+        keyExtractor={(item) => item.id}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: "#fff",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
   searchBar: {
     height: 40,
     borderColor: "#e1e8ed",

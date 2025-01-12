@@ -1,5 +1,6 @@
 import { Link } from "expo-router";
 import { StyleSheet, Text, View } from 'react-native';
+import { colors } from "@/styles/colors";
 
 export default function NotFound() {
   return (
@@ -24,7 +25,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
-    backgroundColor: '#f5f8fa',
   },
   title: {
     fontSize: 24,
@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   buttonContainer: {
-    backgroundColor: '#1d9bf0',
+    backgroundColor: colors.primaryColor,
     borderRadius: 9999,
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -50,19 +50,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonText: {
-    color: '#ffffff',
+    color: colors.primaryLight,
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
   },
   buttonHover: {
-    backgroundColor: '#1a8cd8',
+    backgroundColor: colors.primaryColor,
   },
   buttonActive: {
-    backgroundColor: '#155b8d',
+    backgroundColor: colors.primaryColor,
   },
   buttonFocusVisible: {
-    borderColor: '#0f1419',
+    borderColor: colors.primaryColor,
     borderWidth: 2,
   },
 });

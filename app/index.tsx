@@ -12,7 +12,7 @@ export default function HomeScreen() {
   const renderItem = React.useCallback(({ item }) => <Post {...item} />, [])
   return (
     <View style={styles.container}>
-      <Header />
+      <Header options={{ title: "Home" }} />
       <CreatePost style={styles.createPost} />
       <FlatList<IPost>
         data={posts}

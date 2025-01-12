@@ -14,6 +14,7 @@ import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Gear, GearActive } from '@/assets/icons/gear-icon';
+import { Plus } from '@/assets/icons/plus-icon';
 const WindowHeight = Dimensions.get('window').height
 
 const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.ReactNode, route: string }[] = [
@@ -36,10 +37,10 @@ const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.Rea
         route: '/notifications',
     },
     {
-        title: 'Messages',
+        title: 'Chat',
         icon: <Home color={colors.COLOR_BLACK} />,
         iconActive: <HomeActive />,
-        route: '/messages',
+        route: '/chat',
     },
     {
         title: 'Bookmarks',
@@ -55,8 +56,8 @@ const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.Rea
     },
     {
         title: 'More',
-        icon: <Home color={colors.COLOR_BLACK} />,
-        iconActive: <HomeActive />,
+        icon: <Plus color={colors.COLOR_BLACK} />,
+        iconActive: <Plus />,
         route: '/more',
     },
     {
