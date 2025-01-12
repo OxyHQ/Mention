@@ -18,12 +18,12 @@ export default function ProfileScreen() {
 
   const user = {
     name: "John Doe",
-    username: username || "@johndoe",
+    username: username || "@nate",
     avatar: "https://via.placeholder.com/100",
     bio: "React Native Developer | Coffee Enthusiast",
-    location: "San Francisco, CA",
-    website: "https://johndoe.dev",
-    joinDate: "Joined September 2010",
+    location: "Barcelona, ES",
+    website: "https://nateisern.com",
+    joinDate: "Joined December 2012",
     following: 250,
     followers: 1000,
   };

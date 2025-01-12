@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchData } from "@/utils/api";
 import { storeData } from "@/utils/storage";
 import { Post } from "@/interfaces/Post";
+import { useStore } from "@/store/store";
 
 interface PostAPIResponse {
   id: string;
@@ -16,6 +17,7 @@ interface PostAPIResponse {
 
 export const useFetchPosts = () => {
   const [posts, setPosts] = useState<Post[]>([]);
+  const { getPosts, addPost } = useStore();
 
   const fetchPosts = async () => {
     try {
@@ -32,8 +34,11 @@ export const useFetchPosts = () => {
       }));
       setPosts(posts);
       await storeData("posts", posts);
+      posts.forEach(addPost);
     } catch (error) {
       console.error("Error fetching posts:", error);
+      const offlinePosts = getPosts();
+      setPosts(offlinePosts);
     }
   };
 

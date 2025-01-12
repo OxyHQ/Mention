@@ -5,6 +5,7 @@ import Post from "@/components/Post";
 import { ThemedView } from "@/components/ThemedView";
 import { fetchData } from "@/utils/api";
 import { Post as PostType } from "@/interfaces/Post";
+import { Header } from "@/components/Header";
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -40,23 +41,21 @@ export default function PostDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Post" }} />
-      <ThemedView style={styles.container}>
-        {post && (
-          <Post
-            id={post.id}
-            avatar={post.user.avatar}
-            name={post.user.name}
-            username={post.user.username}
-            content={post.content}
-            time={post.timestamp}
-            likes={post.likes}
-            reposts={post.reposts}
-            replies={post.replies}
-            showActions={false}
-          />
-        )}
-      </ThemedView>
+      <Header options={{ title: `Post by ${post?.user.username || "user"}` }} />
+      {post && (
+        <Post
+          id={post.id}
+          avatar={post.user.avatar}
+          name={post.user.name}
+          username={post.user.username}
+          content={post.content}
+          time={post.timestamp}
+          likes={post.likes}
+          reposts={post.reposts}
+          replies={post.replies}
+          showActions={false}
+        />
+      )}
     </>
   );
 }

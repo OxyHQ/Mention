@@ -15,6 +15,7 @@ import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Gear, GearActive } from '@/assets/icons/gear-icon';
 import { Plus } from '@/assets/icons/plus-icon';
+import { Chat } from '@/assets/icons/chat-icon';
 const WindowHeight = Dimensions.get('window').height
 
 const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.ReactNode, route: string }[] = [
@@ -38,8 +39,8 @@ const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.Rea
     },
     {
         title: 'Chat',
-        icon: <Home color={colors.COLOR_BLACK} />,
-        iconActive: <HomeActive />,
+        icon: <Chat color={colors.COLOR_BLACK} />,
+        iconActive: <Chat />,
         route: '/chat',
     },
     {

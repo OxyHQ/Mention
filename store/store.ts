@@ -123,8 +123,10 @@ const initialPosts = [
 interface IStore {
   posts: IPost[]
   addPost: (post: IPost) => unknown
+  getPosts: () => IPost[]
 }
-export const useStore = create<IStore>((set) => ({
+export const useStore = create<IStore>((set, get) => ({
   posts: initialPosts,
   addPost: (post) => set((state) => ({posts: [...state.posts, post]})),
+  getPosts: () => get().posts,
 }))

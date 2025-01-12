@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing } from "react-native";
+import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing, Share } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from 'expo-sharing';
@@ -92,13 +92,17 @@ export default function Post({
     const handleShare = async (event: any) => {
         event.preventDefault();
         event.stopPropagation();
-        if (await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(`https://mention.earth/post/${id}`, {
-                dialogTitle: 'Share Post',
-                mimeType: 'text/plain',
+        try {
+            await Share.share({
+                message: `Check out this post: https://mention.earth/post/${id}`,
+                title: 'Share Post',
             });
-        } else {
-            alert("Sharing is not available on this device");
+        } catch (error) {
+            if (error instanceof Error) {
+                alert("Error sharing post: " + error.message);
+            } else {
+                alert("Error sharing post");
+            }
         }
     };
 
