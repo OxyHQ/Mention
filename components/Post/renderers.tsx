@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, Image as RNImage, StyleSheet, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Post from ".";
+import { usePostsStore } from "@/store/stores/postStore";
 
 export const renderImages = (images: string[]) => {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -75,6 +77,26 @@ export const renderLocation = (location: string | undefined) => {
             <Ionicons name="location-outline" size={16} color="#1DA1F2" />
             <Text style={styles.locationText}>{location}</Text>
         </View>
+    );
+};
+
+export const renderQuotedPost = (id: string | undefined) => {
+    if (!id) return null;
+    return (
+        <Post
+            id="1"
+            avatar="https://example.com/avatar.jpg"
+            name="John Doe"
+            username="@johndoe"
+            content="Just setting up my Twitter clone! 🚀 #coding #reactnative"
+            time="2023-10-01T12:00:00Z"
+            likes={5}
+            reposts={2}
+            replies={5}
+            showActions={false}
+            style={{ borderWidth: 1, borderColor: "#e1e8ed", borderRadius: 16, marginTop: 10 }}
+            quotedPost={true}
+        />
     );
 };
 
