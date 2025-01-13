@@ -9,11 +9,15 @@ import { colors } from "@/styles/colors";
 import { TrendItem } from "@/features/trends/TrendItem";
 
 export const Trends = ({
+    hideTrends
 }: {
-    }) => {
+    hideTrends?: boolean
+}) => {
     const router = useRouter();
     const { t } = useTranslation();
     const trendsData = useFetchTrends();
+
+    if (hideTrends) return null;
 
     return (
         <View

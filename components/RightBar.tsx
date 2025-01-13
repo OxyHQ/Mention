@@ -8,11 +8,15 @@ import { Ionicons } from '@expo/vector-icons'
 import { SearchBar } from './SearchBar'
 import { Pressable, ScrollView } from 'react-native-web-hover'
 import { FollowButton } from '@/components/FollowButton'
+import { useRouter, usePathname } from "expo-router";
 
 import { Trends } from "@/features/trends/Trends"
 
 export function RightBar() {
     const isRightBarVisible = useMediaQuery({ minWidth: 990 })
+    const router = useRouter();
+    const pathname = usePathname();
+    const isExplorePage = pathname === '/explore';
     if (!isRightBarVisible) return null
     return (
         <View style={styles.container}>
@@ -29,7 +33,7 @@ export function RightBar() {
                     }),
                 } as ViewStyle
             }>
-                <Trends />
+                <Trends hideTrends={isExplorePage} />
                 <SuggestedFriends />
             </View>
         </View>
