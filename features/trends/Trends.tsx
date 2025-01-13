@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet, FlatList, TouchableOpacity, Text, Platform } from "react-native";
-import { Link } from "expo-router";
+import { useRouter } from "expo-router";
 import { Pressable } from 'react-native-web-hover'
 import { useTranslation } from "react-i18next";
 import { useFetchTrends } from "@/hooks/useFetchTrends";
@@ -11,6 +11,7 @@ import { TrendItem } from "@/features/trends/TrendItem";
 export const Trends = ({
 }: {
     }) => {
+    const router = useRouter();
     const { t } = useTranslation();
     const trendsData = useFetchTrends();
 
@@ -50,6 +51,7 @@ export const Trends = ({
             </View>
             <View>
                 <Pressable
+                    onPress={() => { router.push('/trends') }}
                     style={({ hovered }) => [
                         hovered
                             ? {

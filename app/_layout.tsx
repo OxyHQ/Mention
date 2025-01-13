@@ -78,7 +78,7 @@ export default function RootLayout() {
 
   const styles = StyleSheet.create({
     container: {
-      maxWidth: 1600,
+      maxWidth: 1300,
       width: '100%',
       marginHorizontal: 'auto',
       justifyContent: 'space-between',
