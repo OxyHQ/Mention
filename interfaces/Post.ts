@@ -5,9 +5,21 @@ export interface Post {
     avatar: string;
     username: string;
   };
-  content: string;
   timestamp: string;
+  avatar: string;
+  name: string;
+  username: string;
+  content: string;
+  time: string;
   likes: number;
   reposts: number;
   replies: number;
+  isReply?: boolean;
+  hasMedia?: boolean;
+  isLiked?: boolean;
+  showActions?: boolean;
+  images?: string[];
+  poll?: { question: string; options: string[] };
+  location?: string;
+  quotedPost?: boolean;
 }

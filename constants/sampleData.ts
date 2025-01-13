@@ -15,6 +15,7 @@ export interface Post {
   images?: string[];
   poll?: { question: string; options: string[] };
   location?: string;
+  quotedPost?: boolean;
 }
 
 export const samplePosts: Post[] = [

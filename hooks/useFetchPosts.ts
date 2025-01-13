@@ -17,7 +17,7 @@ interface PostAPIResponse {
 
 export const useFetchPosts = () => {
   const [posts, setPosts] = useState<Post[]>([]);
-  const { getPosts, addPost } = usePostsStore(); // Updated usage
+  const { getPosts, addPost } = usePostsStore();
 
   const fetchPosts = async () => {
     try {
@@ -31,15 +31,20 @@ export const useFetchPosts = () => {
         },
         content: decodeURIComponent(post.text),
         timestamp: new Date(post.created_at).toLocaleTimeString(),
-        time: post.created_at, // Add this line
+        time: post.created_at,
       }));
       setPosts(posts);
       await storeData("posts", posts);
       posts.forEach(addPost);
     } catch (error) {
       console.error("Error fetching posts:", error);
-      const offlinePosts = getPosts();
-      setPosts(offlinePosts);
+      const offlinePosts = await getData("posts");
+      if (offlinePosts) {
+        setPosts(offlinePosts);
+      } else {
+        const storedPosts = getPosts();
+        setPosts(storedPosts);
+      }
     }
   };
 

@@ -94,7 +94,6 @@ export const renderQuotedPost = (id: string | undefined) => {
             reposts={2}
             replies={5}
             showActions={false}
-            style={{ borderWidth: 1, borderColor: "#e1e8ed", borderRadius: 16, marginTop: 10 }}
             quotedPost={true}
         />
     );

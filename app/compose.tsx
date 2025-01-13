@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   TextInput,
@@ -55,6 +55,10 @@ export default function ComposeScreen() {
       console.error("Error retrieving posts from API:", error);
     }
   };
+
+  useEffect(() => {
+    retrievePostsFromAPI();
+  }, []);
 
   interface Post {
     id: number;

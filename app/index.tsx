@@ -1,38 +1,47 @@
-import React from 'react'
-import { View, StyleSheet, FlatList } from 'react-native'
-import { CreatePost } from '@/components/CreatePost'
-import { Header } from '@/components/Header'
-import Post from '@/components/Post'
-import { IPost, usePostsStore } from '@/store/stores/postStore'
-import { colors } from '@/styles/colors'
-
-const useSortedPosts = () => {
-  const posts = usePostsStore((state) => state.posts);
-  return React.useMemo(() => {
-    return [...posts].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-  }, [posts]);
-};
-
-const PostList = () => {
-  const sortedPosts = useSortedPosts();
-  const renderItem = React.useCallback(({ item }: { item: IPost }) => <Post {...item} />, []);
-  return <FlatList<IPost> data={sortedPosts} renderItem={renderItem} style={styles.flatListStyle} />;
-};
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { CreatePost } from '../components/CreatePost';
+import { Header } from '../components/Header';
+import Post from '../components/Post';
+import { IPost, useStore } from '@/store/stores/postStore';
+import { colors } from '../styles/colors';
+import { useFetchPosts } from '@/hooks/useFetchPosts';
 
 export default function HomeScreen() {
+  const posts = useFetchPosts();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (posts.length > 0) {
+      setLoading(false);
+    }
+  }, [posts]);
+
+  const sortedPosts = React.useMemo(() => {
+    return [...posts].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+  }, [posts]);
+
+  const renderItem = React.useCallback(({ item }: { item: IPost }) => <Post id={''} avatar={''} username={''} time={''} likes={0} reposts={0} replies={0} {...item} />, []);
+
   return (
     <View style={styles.container}>
       <Header options={{ title: "Home" }} />
       <CreatePost style={styles.createPost} />
-      <PostList />
+      {loading ? (
+        <ActivityIndicator size="large" color="#1DA1F2" />
+      ) : (
+        <FlatList<IPost>
+          data={sortedPosts}
+          renderItem={renderItem}
+          style={styles.flatListStyle}
+        />
+      )}
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: {},
   createPost: {
     marginBottom: 15,
     borderBottomWidth: 0.01,
