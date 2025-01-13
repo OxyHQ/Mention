@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchData } from "@/utils/api";
 import { storeData } from "@/utils/storage";
 import { Post } from "@/interfaces/Post";
-import { useStore } from "@/store/store";
+import { usePostsStore } from "@/store/stores/postStore";
 
 interface PostAPIResponse {
   id: string;
@@ -17,7 +17,7 @@ interface PostAPIResponse {
 
 export const useFetchPosts = () => {
   const [posts, setPosts] = useState<Post[]>([]);
-  const { getPosts, addPost } = useStore();
+  const { getPosts, addPost } = usePostsStore(); // Updated usage
 
   const fetchPosts = async () => {
     try {
