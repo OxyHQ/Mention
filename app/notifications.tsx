@@ -1,37 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Stack, router } from "expo-router";
-import { View, Text, FlatList, StyleSheet, Image } from "react-native";
+import { View, Text, FlatList, StyleSheet, Image, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
 import { Header } from "@/components/Header";
-
-const notifications = [
-  {
-    id: "1",
-    type: "like",
-    user: {
-      name: "Jane Smith",
-      avatar: "https://via.placeholder.com/50",
-    },
-    content: "liked your Post",
-    timestamp: "2h ago",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "repost",
-    user: {
-      name: "Bob Johnson",
-      avatar: "https://via.placeholder.com/50",
-    },
-    content: "reposted your Post",
-    timestamp: "4h ago",
-    read: true,
-  },
-  // Add more notifications
-];
+import { fetchData } from "@/utils/api";
 
 type Notification = {
   id: string;
@@ -68,20 +43,40 @@ const NotificationItem = ({ notification }: { notification: Notification }) => (
 
 export default function NotificationsScreen() {
   const { t } = useTranslation();
-  const [unreadCount, setUnreadCount] = useState(
-    notifications.filter((notification) => !notification.read).length
-  );
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const response = await fetchData("notifications");
+        setNotifications(response.notifications);
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, []);
+
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
 
   return (
     <>
       <Header options={{ title: `${t("Notifications")} (${unreadCount})` }} />
-      <ThemedView style={styles.container}>
-        <FlatList
-          data={notifications}
-          renderItem={({ item }) => <NotificationItem notification={item} />}
-          keyExtractor={(item) => item.id}
-        />
-      </ThemedView>
+      <View style={styles.container}>
+        {loading ? (
+          <ActivityIndicator size="large" color="#1DA1F2" />
+        ) : (
+          <FlatList
+            data={notifications}
+            renderItem={({ item }) => <NotificationItem notification={item} />}
+            keyExtractor={(item) => item.id}
+          />
+        )}
+      </View>
     </>
   );
 }

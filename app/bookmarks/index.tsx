@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { View, FlatList, StyleSheet, ActivityIndicator } from "react-native";
-import { Stack } from "expo-router";
-import { samplePosts } from "@/constants/sampleData";
 import Post from "@/components/Post";
 import { Header } from "@/components/Header";
 import { useFetchPosts } from "@/hooks/useFetchPosts";

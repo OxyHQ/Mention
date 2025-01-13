@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useLocalSearchParams, Stack } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import {
   View,
   Text,
@@ -9,14 +9,15 @@ import {
   FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { samplePosts } from "@/constants/sampleData";
 import Post from "@/components/Post";
 import { Header } from "@/components/Header";
 import { colors } from "@/styles/colors";
+import { useFetchPosts } from "@/hooks/useFetchPosts";
 
 export default function ProfileScreen({ username }: { username?: string }) {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
   const [activeTab, setActiveTab] = useState("Posts");
+  const posts = useFetchPosts();
 
   const user = {
     name: "John Doe",
@@ -102,7 +103,7 @@ export default function ProfileScreen({ username }: { username?: string }) {
       }} />
       <FlatList
         style={styles.container}
-        data={samplePosts}
+        data={posts}
         renderItem={({ item }) => <Post {...item} />}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}

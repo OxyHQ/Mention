@@ -3,7 +3,7 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing, Shar
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from 'expo-sharing';
-import { Post as PostType } from "@/constants/sampleData";
+import { Post as PostType } from "@/interfaces/Post";
 import { Image as RNImage } from "react-native";
 import { detectHashtags } from "./utils";
 import { renderImages, renderPoll, renderLocation, renderQuotedPost } from "./renderers";
