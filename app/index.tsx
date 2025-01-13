@@ -9,13 +9,17 @@ import { colors } from '../styles/colors'
 export default function HomeScreen() {
   const posts = useStore((state) => state.posts)
 
+  const sortedPosts = React.useMemo(() => {
+    return [...posts].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+  }, [posts]);
+
   const renderItem = React.useCallback(({ item }: { item: IPost }) => <Post id={''} avatar={''} username={''} time={''} likes={0} reposts={0} replies={0} {...item} />, [])
   return (
     <View style={styles.container}>
       <Header options={{ title: "Home" }} />
       <CreatePost style={styles.createPost} />
       <FlatList<IPost>
-        data={posts}
+        data={sortedPosts}
         renderItem={renderItem}
         style={styles.flatListStyle}
       />

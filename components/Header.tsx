@@ -71,6 +71,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 15,
         borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
         paddingVertical: 5,
+        position: 'relative',
         ...Platform.select({
             web: {
                 position: 'sticky',

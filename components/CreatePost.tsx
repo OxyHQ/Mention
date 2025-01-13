@@ -51,6 +51,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                 profileUrl:
                     'https://pbs.twimg.com/profile_images/1389235685345959942/B1yoUQGj_400x400.jpg',
                 content: data,
+                time: new Date().toISOString(), // Add this line
             })
         }
     }

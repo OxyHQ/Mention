@@ -4,6 +4,7 @@ export interface IPost {
   userNameAndDate: string
   profileUrl: string
   content: string
+  time: string
 }
 
 const initialPosts = [
@@ -14,6 +15,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -22,6 +24,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -30,6 +33,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -38,6 +42,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -46,6 +51,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -54,6 +60,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -62,6 +69,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
    },{
      name: 'Ehsan Sarshar',
      username: 'nate',
@@ -69,6 +77,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -77,6 +86,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -85,6 +95,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -93,6 +104,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -101,6 +113,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -109,6 +122,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
   },
   {
      name: 'Ehsan Sarshar',
@@ -117,6 +131,7 @@ const initialPosts = [
        'https://pbs.twimg.com/profile_images/1868456361954033664/9tEObRof_400x400.jpg',
      content:
        'Javascript is every where here is a post about it https://stackoverflow.com/questions/36631762/returning-html-with-fetch',
+     time: new Date().toISOString(),
    },
 ]
 

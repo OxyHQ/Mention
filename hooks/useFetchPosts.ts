@@ -31,6 +31,7 @@ export const useFetchPosts = () => {
         },
         content: decodeURIComponent(post.text),
         timestamp: new Date(post.created_at).toLocaleTimeString(),
+        time: post.created_at, // Add this line
       }));
       setPosts(posts);
       await storeData("posts", posts);
