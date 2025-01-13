@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
+import { Header } from "@/components/Header";
 
 const notifications = [
   {
@@ -73,7 +74,7 @@ export default function NotificationsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: `${t("Notifications")} (${unreadCount})` }} />
+      <Header options={{ title: `${t("Notifications")} (${unreadCount})` }} />
       <ThemedView style={styles.container}>
         <FlatList
           data={notifications}

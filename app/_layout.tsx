@@ -15,12 +15,32 @@ import {
   requestNotificationPermissions,
   scheduleDemoNotification,
 } from "@/utils/notifications";
+import i18n from "i18next";
+import { initReactI18next, I18nextProvider, useTranslation } from "react-i18next";
+import en from "../locales/en.json";
+import es from "../locales/es.json";
+import it from "../locales/it.json";
 import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
+i18n.use(initReactI18next).init({
+  resources: {
+    en: { translation: en },
+    es: { translation: es },
+    it: { translation: it },
+  },
+  lng: "en",
+  fallbackLng: "en",
+  interpolation: {
+    escapeValue: false,
+  },
+}).catch(error => {
+  console.error("Failed to initialize i18n:", error);
+});
 
 export default function RootLayout() {
+  const { i18n } = useTranslation();
   const colorScheme = useColorScheme();
 
   const [loaded] = useFonts({
@@ -81,13 +101,15 @@ export default function RootLayout() {
   }
 
   return (
-    <View style={styles.container}>
-      <SideBar />
-      <View style={styles.mainContentWrapper}>
-        <Slot />
+    <I18nextProvider i18n={i18n}>
+      <View style={styles.container}>
+        <SideBar />
+        <View style={styles.mainContentWrapper}>
+          <Slot />
+        </View>
+        <RightBar />
+        <StatusBar style="auto" />
       </View>
-      <RightBar />
-      <StatusBar style="auto" />
-    </View>
+    </I18nextProvider >
   );
 }

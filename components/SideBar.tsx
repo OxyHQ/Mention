@@ -3,6 +3,7 @@ import { Dimensions, Platform, Text, View, ViewStyle } from 'react-native'
 import { usePathname } from 'expo-router';
 import { useMediaQuery } from 'react-responsive'
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen'
+import { useTranslation } from "react-i18next";
 import { SideBarItem } from './SideBarItem'
 import { colors } from '@/styles/colors'
 import { Button } from './Button'
@@ -18,58 +19,63 @@ import { Plus } from '@/assets/icons/plus-icon';
 import { Chat } from '@/assets/icons/chat-icon';
 const WindowHeight = Dimensions.get('window').height
 
-const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.ReactNode, route: string }[] = [
-    {
-        title: 'Home',
-        icon: <Home color={colors.COLOR_BLACK} />,
-        iconActive: <HomeActive />,
-        route: '/',
-    },
-    {
-        title: 'Explore',
-        icon: <Hashtag color={colors.COLOR_BLACK} />,
-        iconActive: <HashtagActive />,
-        route: '/explore',
-    },
-    {
-        title: 'Notifications',
-        icon: <Bell color={colors.COLOR_BLACK} />,
-        iconActive: <BellActive />,
-        route: '/notifications',
-    },
-    {
-        title: 'Chat',
-        icon: <Chat color={colors.COLOR_BLACK} />,
-        iconActive: <Chat />,
-        route: '/chat',
-    },
-    {
-        title: 'Bookmarks',
-        icon: <Bookmark color={colors.COLOR_BLACK} />,
-        iconActive: <BookmarkActive />,
-        route: '/bookmarks',
-    },
-    {
-        title: 'Lists',
-        icon: <Home color={colors.COLOR_BLACK} />,
-        iconActive: <HomeActive />,
-        route: '/lists',
-    },
-    {
-        title: 'More',
-        icon: <Plus color={colors.COLOR_BLACK} />,
-        iconActive: <Plus />,
-        route: '/more',
-    },
-    {
-        title: 'Settings',
-        icon: <Gear color={colors.COLOR_BLACK} />,
-        iconActive: <GearActive />,
-        route: '/settings',
-    },
-]
+
 
 export function SideBar() {
+
+    const { t } = useTranslation();
+
+    const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.ReactNode, route: string }[] = [
+        {
+            title: 'Home',
+            icon: <Home color={colors.COLOR_BLACK} />,
+            iconActive: <HomeActive />,
+            route: '/',
+        },
+        {
+            title: t("Explore"),
+            icon: <Hashtag color={colors.COLOR_BLACK} />,
+            iconActive: <HashtagActive />,
+            route: '/explore',
+        },
+        {
+            title: t("Notifications"),
+            icon: <Bell color={colors.COLOR_BLACK} />,
+            iconActive: <BellActive />,
+            route: '/notifications',
+        },
+        {
+            title: 'Chat',
+            icon: <Chat color={colors.COLOR_BLACK} />,
+            iconActive: <Chat />,
+            route: '/chat',
+        },
+        {
+            title: t("Bookmarks"),
+            icon: <Bookmark color={colors.COLOR_BLACK} />,
+            iconActive: <BookmarkActive />,
+            route: '/bookmarks',
+        },
+        {
+            title: t("Lists"),
+            icon: <Home color={colors.COLOR_BLACK} />,
+            iconActive: <HomeActive />,
+            route: '/lists',
+        },
+        {
+            title: t("More"),
+            icon: <Plus color={colors.COLOR_BLACK} />,
+            iconActive: <Plus />,
+            route: '/more',
+        },
+        {
+            title: t("Settings"),
+            icon: <Gear color={colors.COLOR_BLACK} />,
+            iconActive: <GearActive />,
+            route: '/settings',
+        },
+    ]
+
     const pathname = usePathname()
     const isSideBarVisible = useMediaQuery({ minWidth: 500 })
     const isFullSideBar = useMediaQuery({ minWidth: 1266 })
@@ -89,8 +95,6 @@ export function SideBar() {
                         flex: isFullSideBar ? 1.4 : isRightBarVisible ? 0.45 : 0.35,
                         // alignItems: isFullSideBar ? 'flex-end' : 'center',
                         alignItems: 'flex-end',
-                        borderColor: colors.COLOR_BLACK_LIGHT_6,
-                        borderRightWidth: 0.1,
                         paddingEnd: !isFullSideBar ? 10 : 0,
                         ...Platform.select({
                             web: {
