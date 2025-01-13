@@ -8,12 +8,8 @@ const UsernamePage = () => {
     const router = useRouter();
     const { username } = useLocalSearchParams<{ username: string }>();
 
-    const fakeHandles = ['@john', '@jane', '@doe'];
-
     if (typeof username === 'string' && username.startsWith('@')) {
-        if (fakeHandles.includes(username)) {
-            return <ProfileScreen />;
-        }
+        return <ProfileScreen />;
     }
 
     return <NotFoundScreen />;
