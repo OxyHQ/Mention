@@ -1,4 +1,4 @@
-import { StyleSheet, View, Pressable, Text } from 'react-native';
+import { StyleSheet, View, Pressable, Text, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
@@ -36,6 +36,7 @@ export const BottomBar = () => {
 
 const styles = StyleSheet.create({
     bottomBar: {
+        width: '100%',
         height: 60,
         backgroundColor: '#ffffff',
         flexDirection: 'row',
@@ -44,7 +45,7 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#eeeeee',
         elevation: 8,
-    },
+    } as ViewStyle,
     tab: {
         flex: 1,
         justifyContent: 'center',

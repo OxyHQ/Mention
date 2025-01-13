@@ -21,6 +21,7 @@ import en from "../locales/en.json";
 import es from "../locales/es.json";
 import it from "../locales/it.json";
 import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
+import { BottomBar } from "@/components/BottomBar";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -90,7 +91,7 @@ export default function RootLayout() {
     },
     mainContentWrapper: {
       marginVertical: isScreenRoundedEnabled ? 20 : 0,
-      flex: 2.2,
+      flex: isScreenRoundedEnabled ? 2.2 : 1,
       backgroundColor: colors.primaryLight,
       borderRadius: isScreenRoundedEnabled ? 35 : 0,
     },

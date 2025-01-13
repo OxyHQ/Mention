@@ -44,6 +44,48 @@ const stories = [
       avatar: "https://via.placeholder.com/50",
     },
   },
+  {
+    id: "1",
+    user: {
+      name: "Alice",
+      avatar: "https://via.placeholder.com/50",
+    },
+  },
+  {
+    id: "2",
+    user: {
+      name: "Bob",
+      avatar: "https://via.placeholder.com/50",
+    },
+  },
+  {
+    id: "1",
+    user: {
+      name: "Alice",
+      avatar: "https://via.placeholder.com/50",
+    },
+  },
+  {
+    id: "2",
+    user: {
+      name: "Bob",
+      avatar: "https://via.placeholder.com/50",
+    },
+  },
+  {
+    id: "1",
+    user: {
+      name: "Alice",
+      avatar: "https://via.placeholder.com/50",
+    },
+  },
+  {
+    id: "2",
+    user: {
+      name: "Bob",
+      avatar: "https://via.placeholder.com/50",
+    },
+  },
   // Add more stories
 ];
 
@@ -88,7 +130,6 @@ export default function MessagesScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: `${t("Messages")}` }} />
       <Header options={{
         title: "Chat",
         titlePosition: "center",
@@ -102,11 +143,11 @@ export default function MessagesScreen() {
           </TouchableOpacity>
         ]
       }} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.storiesContainer}>
+      <View horizontal showsHorizontalScrollIndicator={false} style={styles.storiesContainer}>
         {stories.map((story) => (
           <StoryItem key={story.id} story={story} />
         ))}
-      </ScrollView>
+      </View>
       <TextInput
         style={styles.searchBar}
         placeholder={t("Search")}
@@ -132,6 +173,8 @@ const styles = StyleSheet.create({
     margin: 10,
   },
   storiesContainer: {
+    display: "flex",
+    flexDirection: "row",
     paddingVertical: 10,
     paddingHorizontal: 5,
     borderBottomWidth: 1,

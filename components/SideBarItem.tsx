@@ -1,7 +1,7 @@
 import React from 'react'
-import { View, Text, Platform } from 'react-native'
-import { Pressable } from 'react-native-web-hover'
+import { View, Text, Platform, Pressable } from 'react-native'
 import { useMediaQuery } from 'react-responsive'
+import { useRouter } from 'expo-router';
 import { colors } from '@/styles/colors'
 
 import { Ionicons } from "@expo/vector-icons";
@@ -18,15 +18,18 @@ export function SideBarItem({
     text: string;
     href: string;
 }) {
+    const router = useRouter();
     const isFullSideBar = useMediaQuery({ minWidth: 1266 })
     return (
         <Pressable
+            onPress={() => router.push(href)}
             style={({ pressed, hovered }) => [
-                hovered ? { backgroundColor: `${colors.primaryColor}33`, } : {},
+                pressed ? { backgroundColor: `${colors.primaryColor}33`, } : {},
+                hovered ? { backgroundColor: `${colors.primaryColor}22`, } : {},
                 {
                     flexDirection: 'row',
                     alignItems: 'center',
-                    width: 'fit-content',
+                    width: 'auto',
                     marginBottom: 10,
                     marginEnd: isFullSideBar ? 70 : 0,
                     borderRadius: 100,
@@ -37,19 +40,16 @@ export function SideBarItem({
                             cursor: 'pointer',
                         },
                     }),
-                    // borderWidth: 0.2,
                 },
             ]}>
-            <Link href={href as any} asChild>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {icon}
-                    {isFullSideBar ? (
-                        <Text style={{ marginStart: 20, fontSize: 20, color: isActive ? colors.primaryColor : colors.COLOR_BLACK }}>
-                            {text}
-                        </Text>
-                    ) : null}
-                </View>
-            </Link>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {icon}
+                {isFullSideBar ? (
+                    <Text style={{ marginStart: 20, fontSize: 20, color: isActive ? colors.primaryColor : colors.COLOR_BLACK }}>
+                        {text}
+                    </Text>
+                ) : null}
+            </View>
         </Pressable>
     )
 }
