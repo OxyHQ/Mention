@@ -12,7 +12,7 @@ import { Pressable } from 'react-native'
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from '@/styles/colors'
 import { useState } from 'react'
-import { useStore } from '../store/store'
+import { usePostsStore } from '../store/stores/postStore'
 
 interface Props {
     style?: ViewStyle
@@ -39,7 +39,7 @@ export const CreatePostTopRow: React.FC<Props> = ({ }) => {
 }
 export const CreatePost: React.FC<Props> = ({ style }) => {
     const [data, setData] = useState('')
-    const storePost = useStore((state) => state.addPost)
+    const storePost = usePostsStore((state) => state.addPost)
     const onChange = (text: string) => {
         setData(text)
     }
