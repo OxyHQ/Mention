@@ -6,7 +6,7 @@ import * as Sharing from 'expo-sharing';
 import { Post as PostType } from "@/constants/sampleData";
 import { Image as RNImage } from "react-native";
 import { detectHashtags } from "./utils";
-import { renderImages, renderPoll, renderLocation } from "./renderers";
+import { renderImages, renderPoll, renderLocation, renderQuotedPost } from "./renderers";
 import AnimatedNumbers from 'react-native-animated-numbers';
 
 export default function Post({
@@ -22,6 +22,7 @@ export default function Post({
     images = [],
     poll,
     location,
+    style,
 }: PostType) {
     const [isLiked, setIsLiked] = useState(false);
     const [likesCount, setLikesCount] = useState(likes);
@@ -155,7 +156,7 @@ export default function Post({
         <>
             <Link href={`/post/${id}`} asChild>
                 <TouchableOpacity>
-                    <View style={styles.container}>
+                    <View style={[styles.container, style]}>
                         <Image source={{ uri: avatar }} style={styles.avatar} />
                         <View style={styles.contentContainer}>
                             <View style={styles.header}>
@@ -167,6 +168,7 @@ export default function Post({
                             {renderImages(images)}
                             {renderPoll(poll, selectedOption, handlePollOptionPress)}
                             {renderLocation(location)}
+                            {renderQuotedPost(id)}
                             <View style={styles.actions}>
                                 <TouchableOpacity
                                     style={styles.actionItem}
