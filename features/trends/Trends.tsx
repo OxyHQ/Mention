@@ -51,7 +51,7 @@ export const Trends = ({
             </View>
             <View>
                 <Pressable
-                    onPress={() => { router.push('/trends') }}
+                    onPress={() => { router.push('/explore') }}
                     style={({ hovered }) => [
                         hovered
                             ? {
