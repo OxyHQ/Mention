@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react';
 import {
     StyleSheet,
     View,
@@ -16,7 +16,8 @@ interface Props {
     style?: ViewStyle
     options?: {
         title?: string
-        titlePosition?: 'left' | 'center' // Add titlePosition option
+        titlePosition?: 'left' | 'center'
+        subtitle?: string
         showBackButton?: boolean
         leftComponents?: ReactNode[]
         rightComponents?: ReactNode[]
@@ -25,11 +26,29 @@ interface Props {
 
 export const Header: React.FC<Props> = ({ options }) => {
     const router = useRouter();
+    const [isSticky, setIsSticky] = useState(false);
 
-    const titlePosition = options?.titlePosition || 'left'; // Default title position to left
+    const titlePosition = options?.titlePosition || 'left';
+
+    useEffect(() => {
+        if (Platform.OS === 'web') {
+            const handleScroll = () => {
+                if (window.scrollY > 20) {
+                    setIsSticky(true);
+                } else {
+                    setIsSticky(false);
+                }
+            };
+
+            window.addEventListener('scroll', handleScroll);
+            return () => {
+                window.removeEventListener('scroll', handleScroll);
+            };
+        }
+    }, []);
 
     return (
-        <View style={styles.topRow}>
+        <View style={[styles.topRow, isSticky && styles.stickyHeader]}>
             <View style={styles.leftContainer}>
                 {options?.showBackButton && (
                     <Pressable onPress={() => router.back()} style={styles.backButton}>
@@ -39,13 +58,26 @@ export const Header: React.FC<Props> = ({ options }) => {
                 {options?.leftComponents?.map((component, index) => (
                     <React.Fragment key={index}>{component}</React.Fragment>
                 ))}
-                {options?.title && titlePosition === 'left' && (
-                    <Text style={styles.topRowText}>{options.title}</Text>
+                {titlePosition === 'left' && (
+                    <View>
+                        {options?.title && (
+                            <Text style={[styles.topRowText, options?.subtitle && { fontSize: 14 }]}>
+                                {options.title}
+                            </Text>
+                        )}
+                        {options?.subtitle && <Text>{options.subtitle}</Text>}
+                    </View>
                 )}
+
             </View>
-            {options?.title && titlePosition === 'center' && (
+            {titlePosition === 'center' && (
                 <View style={styles.centerContainer}>
-                    <Text style={styles.topRowText}>{options.title}</Text>
+                    {options?.title && (
+                        <Text style={[styles.topRowText, options?.subtitle && { fontSize: 14 }]}>
+                            {options.title}
+                        </Text>
+                    )}
+                    {options?.subtitle && <Text>{options.subtitle}</Text>}
                 </View>
             )}
             <View style={styles.rightContainer}>
@@ -110,5 +142,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flex: 1,
         justifyContent: 'flex-end',
+    },
+    stickyHeader: {
+        borderTopEndRadius: 0,
+        borderTopStartRadius: 0,
     },
 })

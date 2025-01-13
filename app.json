@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Mention",
-    "slug": "Mention",
+    "slug": "mention",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -56,9 +56,12 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "0082c9b1-2bad-460f-9414-19ee95acc57f"
+        "projectId": "0ca1d394-efea-4bf7-91b6-ed94a021bcf3"
+      },
+      "router": {
+        "origin": false
       }
     },
-    "owner": "oxyhq"
+    "owner": "nateisern"
   }
 }

@@ -11,15 +11,17 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { samplePosts } from "@/constants/sampleData";
 import Post from "@/components/Post";
+import { Header } from "@/components/Header";
+import { colors } from "@/styles/colors";
 
-export default function ProfileScreen() {
-  const { username } = useLocalSearchParams<{ username: string }>();
+export default function ProfileScreen({ username }: { username?: string }) {
+  const { username: localUsername } = useLocalSearchParams<{ username: string }>();
   const [activeTab, setActiveTab] = useState("Posts");
 
   const user = {
     name: "John Doe",
-    username: username || "@nate",
-    avatar: "https://via.placeholder.com/100",
+    username: username || localUsername || "@nate",
+    avatar: "https://mention.earth/_next/image?url=%2Fuser_placeholder.png&w=3840&q=75",
     bio: "React Native Developer | Coffee Enthusiast",
     location: "Barcelona, ES",
     website: "https://nateisern.com",
@@ -30,41 +32,43 @@ export default function ProfileScreen() {
 
   const renderHeader = () => (
     <View>
-      <Image
-        source={{ uri: "https://via.placeholder.com/500x150" }}
-        style={styles.coverPhoto}
-      />
-      <View style={styles.profileInfo}>
-        <Image source={{ uri: user.avatar }} style={styles.avatar} />
-        <TouchableOpacity style={styles.editProfileButton}>
-          <Text style={styles.editProfileButtonText}>Edit profile</Text>
-        </TouchableOpacity>
-        <Text style={styles.name}>{user.name}</Text>
-        <Text style={styles.username}>{user.username}</Text>
-        <Text style={styles.bio}>{user.bio}</Text>
-        <View style={styles.userDetails}>
-          <View style={styles.userDetailItem}>
-            <Ionicons name="location-outline" size={16} color="gray" />
-            <Text style={styles.userDetailText}>{user.location}</Text>
+      <View style={{ padding: 15 }}>
+        <Image
+          source={{ uri: "https://cdn.bsky.app/img/banner/plain/did:plc:yvakileeq46vkx5vgodqgjef/bafkreicamq3qu4ibbadbkiuvh4qkw277he3wnky56zki3rrilryd6bkoaq@jpeg" }}
+          style={styles.coverPhoto}
+        />
+        <View style={styles.profileInfo}>
+          <Image source={{ uri: user.avatar }} style={styles.avatar} />
+          <TouchableOpacity style={styles.editProfileButton}>
+            <Text style={styles.editProfileButtonText}>Edit profile</Text>
+          </TouchableOpacity>
+          <Text style={styles.name}>{user.name}</Text>
+          <Text style={styles.username}>{user.username}</Text>
+          <Text style={styles.bio}>{user.bio}</Text>
+          <View style={styles.userDetails}>
+            <View style={styles.userDetailItem}>
+              <Ionicons name="location-outline" size={16} color="gray" />
+              <Text style={styles.userDetailText}>{user.location}</Text>
+            </View>
+            <View style={styles.userDetailItem}>
+              <Ionicons name="link-outline" size={16} color="gray" />
+              <Text style={[styles.userDetailText, styles.link]}>
+                {user.website}
+              </Text>
+            </View>
+            <View style={styles.userDetailItem}>
+              <Ionicons name="calendar-outline" size={16} color="gray" />
+              <Text style={styles.userDetailText}>{user.joinDate}</Text>
+            </View>
           </View>
-          <View style={styles.userDetailItem}>
-            <Ionicons name="link-outline" size={16} color="gray" />
-            <Text style={[styles.userDetailText, styles.link]}>
-              {user.website}
+          <View style={styles.followContainer}>
+            <Text style={styles.followText}>
+              <Text style={styles.followCount}>{user.following}</Text> Following
+            </Text>
+            <Text style={styles.followText}>
+              <Text style={styles.followCount}>{user.followers}</Text> Followers
             </Text>
           </View>
-          <View style={styles.userDetailItem}>
-            <Ionicons name="calendar-outline" size={16} color="gray" />
-            <Text style={styles.userDetailText}>{user.joinDate}</Text>
-          </View>
-        </View>
-        <View style={styles.followContainer}>
-          <Text style={styles.followText}>
-            <Text style={styles.followCount}>{user.following}</Text> Following
-          </Text>
-          <Text style={styles.followText}>
-            <Text style={styles.followCount}>{user.followers}</Text> Followers
-          </Text>
         </View>
       </View>
       <View style={styles.tabContainer}>
@@ -90,7 +94,12 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: username as string }} />
+      <Header options={{
+        title: user.name as string,
+        subtitle: user.username,
+        titlePosition: "center",
+        leftComponents: [<Image source={{ uri: user.avatar }} style={styles.avatarHeader} />],
+      }} />
       <FlatList
         style={styles.container}
         data={samplePosts}
@@ -105,14 +114,13 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
   },
   coverPhoto: {
     width: "100%",
     height: 150,
+    borderRadius: 35,
   },
   profileInfo: {
-    padding: 15,
   },
   avatar: {
     width: 75,
@@ -120,7 +128,16 @@ const styles = StyleSheet.create({
     borderRadius: 37.5,
     borderWidth: 4,
     borderColor: "#fff",
+    backgroundColor: "#ccc",
     marginTop: -40,
+  },
+  avatarHeader: {
+    width: 40,
+    height: 40,
+    borderRadius: 37.5,
+    borderWidth: 1,
+    borderColor: colors.primaryLight,
+    backgroundColor: "#ccc",
   },
   editProfileButton: {
     position: "absolute",
