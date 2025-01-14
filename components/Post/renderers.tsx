@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, Image as RNImage, StyleSheet, Modal } from "react-native";
+import { useSelector, useDispatch } from "react-redux";
+import { fetchPosts } from "@/store/reducers/postsReducer";
 import { Ionicons } from "@expo/vector-icons";
 import Post from ".";
 import { colors } from "@/styles/colors";
@@ -102,13 +104,28 @@ export const renderLocation = (location: string | undefined) => {
 
 export const renderQuotedPost = (id: string | undefined) => {
     if (!id) return null;
+    const dispatch = useDispatch();
+    const posts = useSelector((state) => state.posts.posts);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        dispatch(fetchPosts());
+    }, [dispatch]);
+
+    useEffect(() => {
+        if (posts.length > 0) {
+            setLoading(false);
+        }
+    }, [posts]);
+
+    const post = posts.find((post) => post.id === id);
+
     return (
-        //<Post
-        //    postData={usePostsStore(state => state.getPostById(id)) || {} as Post}
-        //    quotedPost={true}
-        //    style={{ borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 16, marginTop: 8 }}
-        ///>
-        <Text>Quoted Post</Text>
+        <Post
+            postData={post}
+            quotedPost={true}
+            style={{ borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 16, marginTop: 8 }}
+        />
     );
 };
 

@@ -19,6 +19,8 @@ import * as Location from "expo-location";
 import EmojiPicker from "emoji-picker-react";
 import { fetchData } from "@/utils/api";
 import { storeData } from "@/utils/storage";
+import { useSelector, useDispatch } from "react-redux";
+import { fetchPosts } from "@/store/reducers/postsReducer";
 
 export default function ComposeScreen() {
   const [posts, setPosts] = useState<Post[]>([
@@ -28,6 +30,13 @@ export default function ComposeScreen() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEmojiPickerVisible, setIsEmojiPickerVisible] = useState(false);
   const maxLength = 280;
+
+  const dispatch = useDispatch();
+  const reduxPosts = useSelector((state) => state.posts.posts);
+
+  useEffect(() => {
+    dispatch(fetchPosts());
+  }, [dispatch]);
 
   const handlePost = async () => {
     const validPosts = posts.filter((post) => post.content.trim().length > 0);
