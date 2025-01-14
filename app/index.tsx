@@ -6,7 +6,7 @@ import Post from '../components/Post';
 import { Post as IPost } from "@/interfaces/Post";
 import { colors } from '../styles/colors';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchPosts } from '../store/reducers/postsReducer';
+import { fetchPosts } from '@/store/reducers/postsReducer';
 import { Hashtag } from '@/assets/icons/hashtag-icon';
 
 export default function HomeScreen() {
