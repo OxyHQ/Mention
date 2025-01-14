@@ -156,7 +156,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                                 }
                                 : {},
                         ]}>
-                        <HandleIcon size={20} />
+                        <HandleIcon size={18} />
                     </Pressable>
                 </View>
             </View>
