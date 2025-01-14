@@ -26,7 +26,7 @@ export const useFetchPosts = () => {
         favorite_count: post.favorite_count,
         possibly_sensitive: post.possibly_sensitive,
         lang: post.lang,
-        created_at: new Date(post.created_at).toLocaleTimeString(),
+        created_at: new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         quoted_post_id: post.quoted_post_id,
         in_reply_to_status_id: post.in_reply_to_status_id,
         author_id: post.author_id,

@@ -81,7 +81,7 @@ export default function Post({ postData, style, quotedPost }: { postData: PostTy
         event.stopPropagation();
         try {
             await Share.share({
-                message: `Check out this post: https://mention.earth/post/${id}`,
+                message: `Check out this post: https://mention.earth/post/${postData.id}`,
                 title: 'Share Post',
             });
         } catch (error) {
