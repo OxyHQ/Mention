@@ -1,14 +1,28 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet, SafeAreaView } from "react-native";
 import { useTranslation } from "react-i18next";
+import { useSelector, useDispatch } from "react-redux";
+import { fetchProfile } from "@/store/reducers/profileReducer";
 
 export default function AccountSettings() {
     const { t } = useTranslation();
+    const dispatch = useDispatch();
+    const profile = useSelector((state) => state.profile.profile);
+
+    useEffect(() => {
+        dispatch(fetchProfile());
+    }, [dispatch]);
 
     return (
         <SafeAreaView style={styles.container}>
             <Text style={styles.title}>{t("Account Settings")}</Text>
-            {/* Add account settings components here */}
+            {profile && (
+                <View>
+                    <Text>{t("Name")}: {profile.name}</Text>
+                    <Text>{t("Username")}: {profile.username}</Text>
+                    <Text>{t("Avatar")}: {profile.avatar}</Text>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
