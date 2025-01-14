@@ -26,18 +26,9 @@ export default function BookmarksScreen() {
                     data={posts} // Replace with actual bookmarked posts data
                     renderItem={({ item }) => (
                         <Post
-                            id={item.id}
-                            avatar={item.user.avatar}
-                            name={item.user.name}
-                            username={item.user.username}
-                            content={item.content}
-                            time={item.timestamp}
-                            likes={item.likes}
-                            reposts={item.reposts}
-                            replies={item.replies}
-                            images={item.images}
-                            poll={item.poll}
-                            location={item.location}
+                            postData={item}
+                        // Add a prop to indicate that the post is bookmarked
+                        //isBookmarked={true}
                         />
                     )}
                     keyExtractor={(item) => item.id.toString()}

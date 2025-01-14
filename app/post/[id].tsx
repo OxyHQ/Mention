@@ -1,60 +1,19 @@
 import { Stack, useLocalSearchParams } from "expo-router";
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { View, StyleSheet } from "react-native";
 import Post from "@/components/Post";
-import { ThemedView } from "@/components/ThemedView";
-import { fetchData } from "@/utils/api";
-import { Post as PostType } from "@/interfaces/Post";
 import { Header } from "@/components/Header";
+import { useFetchPost } from '@/hooks/useFetchPost';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [post, setPost] = useState<PostType | null>(null);
-
-  useEffect(() => {
-    const fetchPost = async () => {
-      try {
-        const response = await fetchData(`posts/${id}`);
-        const post = {
-          id: response.id,
-          user: {
-            name: response.author?.name || "Unknown",
-            avatar: response.author?.image || "https://via.placeholder.com/50",
-            username: response.author?.username || "unknown",
-          },
-          content: decodeURIComponent(response.text),
-          timestamp: new Date(response.created_at).toLocaleTimeString(),
-          likes: 0, // Assuming default value
-          reposts: 0, // Assuming default value
-          replies: 0, // Assuming default value
-        };
-        setPost(post);
-      } catch (error) {
-        console.error("Error fetching post:", error);
-      }
-    };
-
-    if (id) {
-      fetchPost();
-    }
-  }, [id]);
+  const post = useFetchPost(id);
 
   return (
     <>
-      <Header options={{ title: `Post by ${post?.user.username || "user"}` }} />
+      <Header options={{ title: `Post by ${post?.author.username || "user"}` }} />
       {post && (
-        <Post
-          id={post.id}
-          avatar={post.user.avatar}
-          name={post.user.name}
-          username={post.user.username}
-          content={post.content}
-          time={post.timestamp}
-          likes={post.likes}
-          reposts={post.reposts}
-          replies={post.replies}
-          showActions={false}
-        />
+        <Post postData={post} />
       )}
     </>
   );

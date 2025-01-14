@@ -4,6 +4,7 @@ import { Link } from "expo-router";
 import { colors } from "@/styles/colors";
 
 export const detectHashtags = (text: string) => {
+  if (!text) return null;
   const parts = text.split(/(#[a-zA-Z0-9_]+)/g);
   return parts.map((part, index) =>
     part.startsWith("#") ? (

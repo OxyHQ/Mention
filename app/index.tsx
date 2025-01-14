@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-nativ
 import { CreatePost } from '../components/CreatePost';
 import { Header } from '../components/Header';
 import Post from '../components/Post';
-import { IPost, useStore } from '@/store/stores/postStore';
+import { Post as IPost } from "@/interfaces/Post";
 import { colors } from '../styles/colors';
 import { useFetchPosts } from '@/hooks/useFetchPosts';
 
@@ -21,7 +21,7 @@ export default function HomeScreen() {
     return [...posts].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
   }, [posts]);
 
-  const renderItem = React.useCallback(({ item }: { item: IPost }) => <Post id={''} avatar={''} username={''} time={''} likes={0} reposts={0} replies={0} {...item} />, []);
+  const renderItem = React.useCallback(({ item }: { item: IPost }) => <Post postData={item} />, []);
 
   return (
     <View style={styles.container}>
@@ -43,13 +43,9 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {},
   createPost: {
-    marginBottom: 15,
-    borderBottomWidth: 0.01,
-    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
   },
   flatListStyle: {
-    borderBottomWidth: 0.01,
-    borderTopWidth: 0.01,
+    borderTopWidth: 1,
     borderColor: colors.COLOR_BLACK_LIGHT_6,
   },
 });

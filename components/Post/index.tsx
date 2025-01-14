@@ -1,43 +1,30 @@
 import React, { useState, useRef } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing, Share } from "react-native";
+import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing, Share, ViewStyle } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from 'expo-sharing';
 import { Post as PostType } from "@/interfaces/Post";
 import { Image as RNImage } from "react-native";
 import { detectHashtags } from "./utils";
-import { renderImages, renderPoll, renderLocation, renderQuotedPost } from "./renderers";
+import { renderMedia, renderPoll, renderLocation, renderQuotedPost } from "./renderers";
 import AnimatedNumbers from 'react-native-animated-numbers';
 
-export default function Post({
-    id,
-    avatar,
-    name,
-    username,
-    content,
-    time,
-    likes = 0,
-    reposts = 0,
-    replies = 0,
-    images = [],
-    poll,
-    location,
-}: PostType) {
+export default function Post({ postData, style, quotedPost }: { postData: PostType, style?: ViewStyle, quotedPost?: boolean }) {
     const [isLiked, setIsLiked] = useState(false);
-    const [likesCount, setLikesCount] = useState(likes);
+    const [likesCount, setLikesCount] = useState(postData._count.likes);
     const [isBookmarked, setIsBookmarked] = useState(false);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [isReposted, setIsReposted] = useState(false);
-    const [repostsCount, setRepostsCount] = useState(reposts);
-    const [bookmarksCount, setBookmarksCount] = useState(0);
-    const [repliesCount, setRepliesCount] = useState(replies);
+    const [repostsCount, setRepostsCount] = useState(postData._count.reposts);
+    const [bookmarksCount, setBookmarksCount] = useState(postData._count.bookmarks);
+    const [repliesCount, setRepliesCount] = useState(postData._count.replies);
 
     const animatedScale = useRef(new Animated.Value(1)).current;
     const animatedOpacity = useRef(new Animated.Value(1)).current;
-    const animatedLikesCount = useRef(new Animated.Value(likes)).current;
-    const animatedRepostsCount = useRef(new Animated.Value(reposts)).current;
-    const animatedBookmarksCount = useRef(new Animated.Value(0)).current;
-    const animatedRepliesCount = useRef(new Animated.Value(replies)).current;
+    const animatedLikesCount = useRef(new Animated.Value(postData._count.likes)).current;
+    const animatedRepostsCount = useRef(new Animated.Value(postData._count.reposts)).current;
+    const animatedBookmarksCount = useRef(new Animated.Value(postData._count.bookmarks)).current;
+    const animatedRepliesCount = useRef(new Animated.Value(postData._count.replies)).current;
 
     const scaleAnimation = () => {
         Animated.sequence([
@@ -153,20 +140,21 @@ export default function Post({
 
     return (
         <>
-            <Link href={`/post/${id}`} asChild>
+            <Link href={`/post/${postData.id}`} asChild>
                 <TouchableOpacity>
-                    <View style={[styles.container]}>
-                        <Image source={{ uri: avatar }} style={styles.avatar} />
+                    <View style={[styles.container, style]}>
+                        <Image source={{ uri: postData.author?.image }} style={styles.avatar} />
                         <View style={styles.contentContainer}>
                             <View style={styles.header}>
-                                <Text style={styles.name}>{name}</Text>
-                                <Text style={styles.username}>{username}</Text>
-                                <Text style={styles.time}>· {time}</Text>
+                                <Text style={styles.name}>{postData.author?.name}</Text>
+                                <Text style={styles.username}>{postData.author?.username}</Text>
+                                <Text style={styles.time}>· {postData.created_at}</Text>
                             </View>
-                            <Text style={styles.content}>{detectHashtags(content)}</Text>
-                            {renderImages(images)}
-                            {renderPoll(poll, selectedOption, handlePollOptionPress)}
-                            {renderLocation(location)}
+                            <Text style={styles.content}>{detectHashtags(postData.text)}</Text>
+                            {renderMedia(postData.media)}
+                            {renderPoll(undefined, selectedOption, handlePollOptionPress)}
+                            {renderLocation(undefined)}
+                            {!quotedPost && renderQuotedPost(postData.quoted_post_id ?? undefined)}
                             <View style={styles.actions}>
                                 <TouchableOpacity
                                     style={styles.actionItem}

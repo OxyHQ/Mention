@@ -3,37 +3,57 @@ import { View, Text, TouchableOpacity, Image as RNImage, StyleSheet, Modal } fro
 import { Ionicons } from "@expo/vector-icons";
 import Post from ".";
 import { usePostsStore } from "@/store/stores/postStore";
+import { colors } from "@/styles/colors";
 
-export const renderImages = (images: string[]) => {
+export const renderMedia = (media: { media_url: string; media_type: string }[]) => {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+    const images = media
+        .filter(item => item.media_type === "image" && item.media_url)
+        .map(item => item.media_url);
+
     if (images.length === 0) return null;
-    const imageCount = images.length;
+
+    const handleImagePress = (event: any, image: string) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setSelectedImage(image);
+    };
+
+    const handleModalClose = () => {
+        setSelectedImage(null);
+    };
 
     return (
         <>
             <View style={styles.imageGrid}>
                 {images.map((image, index) => (
-                    <TouchableOpacity key={index} onPress={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedImage(image); }}>
+                    <TouchableOpacity
+                        key={index}
+                        onPress={(event) => handleImagePress(event, image)}
+                        accessibilityLabel={`Image ${index + 1}`}
+                    >
                         <RNImage
                             source={{ uri: image }}
-                            style={[
-                                styles.image,
-                                imageCount === 1 && styles.singleImage,
-                                imageCount === 2 && styles.twoImages,
-                                imageCount === 3 && styles.threeImages,
-                                imageCount === 4 && styles.fourImages,
-                                imageCount > 4 && styles.moreThanFourImages,
-                            ]}
+                            style={[styles.image]}
                             onError={(error) => console.error("Error loading image:", error)}
+
                         />
                     </TouchableOpacity>
                 ))}
             </View>
             {selectedImage && (
-                <Modal visible={true} transparent={true} onRequestClose={() => setSelectedImage(null)}>
+                <Modal
+                    visible={true}
+                    transparent={true}
+                    onRequestClose={handleModalClose}
+                >
                     <View style={styles.modalContainer}>
-                        <TouchableOpacity style={styles.modalCloseButton} onPress={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedImage(null); }}>
+                        <TouchableOpacity
+                            style={styles.modalCloseButton}
+                            onPress={handleModalClose}
+                            accessibilityLabel="Close image modal"
+                        >
                             <Ionicons name="close" size={30} color="#FFFFFF" />
                         </TouchableOpacity>
                         <RNImage source={{ uri: selectedImage }} style={styles.modalImage} />
@@ -43,6 +63,7 @@ export const renderImages = (images: string[]) => {
         </>
     );
 };
+
 
 export const renderPoll = (poll: any, selectedOption: number | null, handlePollOptionPress: (index: number) => void) => {
     if (!poll) return null;
@@ -84,17 +105,9 @@ export const renderQuotedPost = (id: string | undefined) => {
     if (!id) return null;
     return (
         <Post
-            id="1"
-            avatar="https://example.com/avatar.jpg"
-            name="John Doe"
-            username="@johndoe"
-            content="Just setting up my Twitter clone! 🚀 #coding #reactnative"
-            time="2023-10-01T12:00:00Z"
-            likes={5}
-            reposts={2}
-            replies={5}
-            showActions={false}
+            postData={usePostsStore(state => state.getPostById(id)) || {} as Post}
             quotedPost={true}
+            style={{ borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 16, marginTop: 8 }}
         />
     );
 };
@@ -103,37 +116,31 @@ const styles = StyleSheet.create({
     imageGrid: {
         flexDirection: "row",
         flexWrap: "wrap",
-        marginTop: 8,
         justifyContent: "space-between",
     },
     image: {
-        borderRadius: 8,
-        margin: 2,
+        flex: 1,
+        width: 250,
+        height: 250,
+        margin: 5,
+        borderRadius: 35,
     },
-    singleImage: {
-        width: "100%",
-        height: 200,
-        borderRadius: 15,
+    modalContainer: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        justifyContent: "center",
+        alignItems: "center",
     },
-    twoImages: {
-        width: "48%",
-        height: 200,
-        borderRadius: 15,
+    modalImage: {
+        width: "90%",
+        height: "70%",
+        resizeMode: "contain",
     },
-    threeImages: {
-        width: "32%",
-        height: 150,
-        borderRadius: 15,
-    },
-    fourImages: {
-        width: "48%",
-        height: 150,
-        borderRadius: 15,
-    },
-    moreThanFourImages: {
-        width: "32%",
-        height: 100,
-        borderRadius: 15,
+    modalCloseButton: {
+        position: "absolute",
+        top: 40,
+        right: 20,
+        zIndex: 1,
     },
     pollContainer: {
         marginTop: 8,
