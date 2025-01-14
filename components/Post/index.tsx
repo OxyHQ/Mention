@@ -147,7 +147,7 @@ export default function Post({ postData, style, quotedPost }: { postData: PostTy
                         <View style={styles.contentContainer}>
                             <View style={styles.header}>
                                 <Text style={styles.name}>{postData.author?.name}</Text>
-                                <Text style={styles.username}>{postData.author?.username}</Text>
+                                <Text style={styles.username}>@{postData.author?.username}</Text>
                                 <Text style={styles.time}>· {postData.created_at}</Text>
                             </View>
                             <Text style={styles.content}>{detectHashtags(postData.text)}</Text>

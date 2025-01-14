@@ -21,7 +21,10 @@ export default function HomeScreen() {
     return [...posts].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
   }, [posts]);
 
-  const renderItem = React.useCallback(({ item }: { item: IPost }) => <Post postData={item} />, []);
+  const renderItem = React.useCallback(({ item, index }: { item: IPost, index: number }) => {
+    const isLastItem = index === sortedPosts.length - 1;
+    return <Post postData={item} style={isLastItem ? styles.lastItem : undefined} />;
+  }, [sortedPosts.length]);
 
   return (
     <View style={styles.container}>
@@ -46,6 +49,10 @@ const styles = StyleSheet.create({
   },
   flatListStyle: {
     borderTopWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
+    borderColor: colors.COLOR_BACKGROUND,
+  },
+  lastItem: {
+    borderBottomRightRadius: 35,
+    borderBottomLeftRadius: 35,
   },
 });
