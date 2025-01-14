@@ -4,12 +4,12 @@ import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from 'expo-sharing';
 import { Post as PostType } from "@/interfaces/Post";
-import { Image as RNImage } from "react-native";
+import Avatar from "@/components/Avatar";
 import { detectHashtags } from "./utils";
 import { renderMedia, renderPoll, renderLocation, renderQuotedPost } from "./renderers";
 import AnimatedNumbers from 'react-native-animated-numbers';
 
-export default function Post({ postData, style, quotedPost }: { postData: PostType, style?: ViewStyle, quotedPost?: boolean }) {
+export default function Post({ postData, style, quotedPost, showActions }: { postData: PostType, style?: ViewStyle, quotedPost?: boolean, showActions?: boolean }) {
     const [isLiked, setIsLiked] = useState(false);
     const [likesCount, setLikesCount] = useState(postData._count.likes);
     const [isBookmarked, setIsBookmarked] = useState(false);
@@ -143,7 +143,7 @@ export default function Post({ postData, style, quotedPost }: { postData: PostTy
             <Link href={`/post/${postData.id}`} asChild>
                 <TouchableOpacity>
                     <View style={[styles.container, style]}>
-                        <Image source={{ uri: postData.author?.image }} style={styles.avatar} />
+                        <Avatar source={postData.author?.image} size={40} />
                         <View style={styles.contentContainer}>
                             <View style={styles.header}>
                                 <Text style={styles.name}>{postData.author?.name}</Text>
@@ -254,11 +254,6 @@ const styles = StyleSheet.create({
         padding: 12,
         borderBottomColor: "#e1e8ed",
         borderBottomWidth: 1,
-    },
-    avatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
     },
     contentContainer: {
         flex: 1,
