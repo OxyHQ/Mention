@@ -46,8 +46,8 @@ export const Trends = ({
                     renderItem={({ item, index }) => (
                         <TrendItem
                             topHeader="Politics · Trending"
-                            mainTitle={item.topic}
-                            numberOfPosts="40.8K posts"
+                            mainTitle={item.text}
+                            numberOfPosts={item.score}
                         />
                     )}
                     keyExtractor={(item) => item.id}
