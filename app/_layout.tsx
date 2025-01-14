@@ -26,6 +26,34 @@ import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimen
 import { BottomBar } from "@/components/BottomBar";
 
 
+SetDefaultFontFamily = () => {
+  let components = [Text, TextInput]
+
+  const customProps = {
+    style: {
+      fontFamily: "Rubik"
+    }
+  }
+
+  for (let i = 0; i < components.length; i++) {
+    const TextRender = components[i].prototype.render;
+    const initialDefaultProps = components[i].prototype.constructor.defaultProps;
+    components[i].prototype.constructor.defaultProps = {
+      ...initialDefaultProps,
+      ...customProps,
+    }
+    components[i].prototype.render = function render() {
+      let oldProps = this.props;
+      this.props = { ...this.props, style: [customProps.style, this.props.style] };
+      try {
+        return TextRender.apply(this, arguments);
+      } finally {
+        this.props = oldProps;
+      }
+    };
+  }
+}
+
 SplashScreen.preventAutoHideAsync();
 
 i18n.use(initReactI18next).init({
@@ -48,7 +76,15 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   const [loaded] = useFonts({
-    SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
+    "Inter-Black": require("@/assets/fonts/inter/Inter-Black.otf"),
+    "Inter-Bold": require("@/assets/fonts/inter/Inter-Bold.otf"),
+    "Inter-ExtraBold": require("@/assets/fonts/inter/Inter-ExtraBold.otf"),
+    "Inter-ExtraLight": require("@/assets/fonts/inter/Inter-ExtraLight.otf"),
+    "Inter-Light": require("@/assets/fonts/inter/Inter-Light.otf"),
+    "Inter-Medium": require("@/assets/fonts/inter/Inter-Medium.otf"),
+    "Inter-Regular": require("@/assets/fonts/inter/Inter-Regular.otf"),
+    "Inter-SemiBold": require("@/assets/fonts/inter/Inter-SemiBold.otf"),
+    "Inter-Thin": require("@/assets/fonts/inter/Inter-Thin.otf"),
   });
 
   useEffect(() => {
@@ -81,6 +117,7 @@ export default function RootLayout() {
 
   const styles = StyleSheet.create({
     container: {
+      fontFamily: "Inter-Regular",
       maxWidth: 1300,
       width: '100%',
       paddingHorizontal: isScreenNotMobile ? 10 : 0,
