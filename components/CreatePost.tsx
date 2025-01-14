@@ -13,31 +13,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from '@/styles/colors'
 import { useState } from 'react'
 import { usePostsStore } from '../store/stores/postStore'
-import { v4 as uuidv4 } from 'uuid'; // Add this import for generating unique IDs
+import { v4 as uuidv4 } from 'uuid';
+import { EmojiIcon } from '@/assets/icons/emoji-icon';
+import { MediaIcon } from '@/assets/icons/media-icon';
 
 interface Props {
     style?: ViewStyle
 }
 
-export const CreatePostTopRow: React.FC<Props> = ({ }) => {
-    return (
-        <View style={styles.topRow}>
-            <Text style={styles.topRowText}>Home</Text>
-
-            <Pressable
-                style={({ hovered }) => [
-                    styles.startContainer,
-                    hovered
-                        ? {
-                            backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-                        }
-                        : {},
-                ]}>
-                <Ionicons name="star" size={18} />
-            </Pressable>
-        </View>
-    )
-}
 export const CreatePost: React.FC<Props> = ({ style }) => {
     const [data, setData] = useState('')
     const storePost = usePostsStore((state) => state.addPost)
@@ -54,12 +37,13 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                     id: '1',
                     name: 'Nate Moore',
                     username: 'TheNateMoore',
-                    image: 'https://mention.earth/_next/image?url=%2Fuser_placeholder.png&w=3840&q=75',
+                    image: 'https://scontent-bcn1-1.xx.fbcdn.net/v/t39.30808-6/463417298_3945442859019280_8807009322776007473_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=zXRqATKNOw0Q7kNvgHnyfUU&_nc_oc=AdgYVSd5vfuRV96_nxCmCnemTuCfkgS2YQ_Diu1puFc_h76AbObPG9_eD5rFA5TcRxYnE2mW_ZfJKWuXYtX-Z8ue&_nc_zt=23&_nc_ht=scontent-bcn1-1.xx&_nc_gid=AqvR1nQbgt2nJudR3eAKaLM&oh=00_AYBD3grUDwAE84jgvGS3UmB93xn3odRDqePjARpVj6L2vQ&oe=678C0857',
                     email: '',
                     description: '',
                     color: '#1DA1F2',
                 },
                 created_at: new Date().toLocaleString(),
+                updated_at: new Date().toLocaleString(),
                 likes: 0,
                 reposts: 0,
                 replies: 0,
@@ -95,11 +79,23 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
     }
     return (
         <View style={[styles.container, style]}>
+            <View style={styles.topRow}>
+                <Pressable
+                    onPress={post}
+                    style={data ? styles.button : styles.buttonDisabled}>
+                    <Text style={styles.buttonText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                    onPress={post}
+                    style={data ? styles.button : styles.buttonDisabled}>
+                    <Text style={styles.buttonText}>Post</Text>
+                </Pressable>
+            </View>
             <View style={styles.middleRow}>
                 <Image
                     style={styles.profileImage}
                     source={{
-                        uri: 'https://pbs.twimg.com/profile_images/1389235685345959942/B1yoUQGj_400x400.jpg',
+                        uri: 'https://scontent-bcn1-1.xx.fbcdn.net/v/t39.30808-6/463417298_3945442859019280_8807009322776007473_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=zXRqATKNOw0Q7kNvgHnyfUU&_nc_oc=AdgYVSd5vfuRV96_nxCmCnemTuCfkgS2YQ_Diu1puFc_h76AbObPG9_eD5rFA5TcRxYnE2mW_ZfJKWuXYtX-Z8ue&_nc_zt=23&_nc_ht=scontent-bcn1-1.xx&_nc_gid=AqvR1nQbgt2nJudR3eAKaLM&oh=00_AYBD3grUDwAE84jgvGS3UmB93xn3odRDqePjARpVj6L2vQ&oe=678C0857',
                     }}
                 />
                 <TextInput
@@ -121,10 +117,8 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                                 }
                                 : {},
                         ]}>
-                        <Ionicons
-                            name="image-outline"
-                            fill={colors.primaryColor}
-                            size={18}
+                        <MediaIcon
+                            size={20}
                         />
                     </Pressable>
                     <Pressable
@@ -136,9 +130,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                                 }
                                 : {},
                         ]}>
-                        <Ionicons
-                            name="gift"
-                            fill={colors.primaryColor} size={18} />
+                        <EmojiIcon size={20} />
                     </Pressable>
                     <Pressable
                         style={({ hovered }) => [
@@ -152,7 +144,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                         <Ionicons
                             name="bar-chart"
                             fill={colors.primaryColor}
-                            size={18}
+                            size={20}
                         />
                     </Pressable>
                     <Pressable
@@ -165,7 +157,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                                 : {},
                         ]}>
                         <Ionicons
-                            name="add-circle" fill={colors.primaryColor} size={18} />
+                            name="add-circle" fill={colors.primaryColor} size={20} />
                     </Pressable>
                     <Pressable
                         style={({ hovered }) => [
@@ -183,11 +175,6 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                         />
                     </Pressable>
                 </View>
-                <Pressable
-                    onPress={post}
-                    style={data ? styles.button : styles.buttonDisabled}>
-                    <Text style={styles.buttonText}>Post</Text>
-                </Pressable>
             </View>
         </View>
     )
@@ -202,16 +189,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        borderBottomWidth: 0.01,
         paddingHorizontal: 15,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-        paddingVertical: 5,
-        ...Platform.select({
-            web: {
-                position: 'sticky',
-            },
-        }),
-        top: 0,
+        paddingTop: 10,
         backgroundColor: '#fff',
         zIndex: 100,
         borderRadius: 35,
@@ -264,6 +243,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         paddingStart: 65,
         justifyContent: 'space-around',
+        gap: 5,
     },
     bottomRow: {
         flexDirection: 'row',
@@ -274,8 +254,8 @@ const styles = StyleSheet.create({
     button: {
         borderRadius: 100,
         backgroundColor: colors.primaryColor,
-        paddingVertical: 12,
-        paddingHorizontal: 15,
+        paddingVertical: 9,
+        paddingHorizontal: 12,
         marginEnd: 15,
         ...Platform.select({
             web: {
@@ -287,9 +267,8 @@ const styles = StyleSheet.create({
         borderRadius: 100,
         backgroundColor: colors.primaryColor,
         opacity: 0.5,
-        paddingVertical: 12,
-        paddingHorizontal: 15,
-        marginEnd: 15,
+        paddingVertical: 9,
+        paddingHorizontal: 12,
     },
     buttonText: {
         fontSize: 15,
@@ -300,8 +279,8 @@ const styles = StyleSheet.create({
         borderRadius: 100,
         justifyContent: 'center',
         alignItems: 'center',
-        width: 40,
-        height: 40,
+        width: 30,
+        height: 30,
     },
     startContainer: {
         borderRadius: 100,
