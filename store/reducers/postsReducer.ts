@@ -32,7 +32,7 @@ export const fetchPosts = createAsyncThunk('posts/', async () => {
           ...post.author,
           image: "https://scontent-bcn1-1.xx.fbcdn.net/v/t39.30808-6/463417298_3945442859019280_8807009322776007473_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=zXRqATKNOw0Q7kNvgHnyfUU&_nc_oc=AdgYVSd5vfuRV96_nxCmCnemTuCfkgS2YQ_Diu1puFc_h76AbObPG9_eD5rFA5TcRxYnE2mW_ZfJKWuXYtX-Z8ue&_nc_zt=23&_nc_ht=scontent-bcn1-1.xx&_nc_gid=AqvR1nQbgt2nJudR3eAKaLM&oh=00_AYBD3grUDwAE84jgvGS3UmB93xn3odRDqePjARpVj6L2vQ&oe=678C0857",
         },
-        likes: post.likes,
+        likes: post._count.likes,
         media: post.media,
         quoted_post: post.quoted_post,
         quotes: post.quotes,
@@ -40,7 +40,7 @@ export const fetchPosts = createAsyncThunk('posts/', async () => {
         bookmarks: 0,
         _count: {
           comments: 0,
-          likes: 0,
+          likes: post._count.likes,
           quotes: 0,
           reposts: 0,
           bookmarks: 0,
@@ -76,7 +76,7 @@ export const fetchPostById = createAsyncThunk(
           ...post.author,
           image: "https://scontent-bcn1-1.xx.fbcdn.net/v/t39.30808-6/463417298_3945442859019280_8807009322776007473_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=zXRqATKNOw0Q7kNvgHnyfUU&_nc_oc=AdgYVSd5vfuRV96_nxCmCnemTuCfkgS2YQ_Diu1puFc_h76AbObPG9_eD5rFA5TcRxYnE2mW_ZfJKWuXYtX-Z8ue&_nc_zt=23&_nc_ht=scontent-bcn1-1.xx&_nc_gid=AqvR1nQbgt2nJudR3eAKaLM&oh=00_AYBD3grUDwAE84jgvGS3UmB93xn3odRDqePjARpVj6L2vQ&oe=678C0857",
         },
-        likes: post.likes,
+        likes: post._count.likes,
         media: post.media,
         quoted_post: post.quoted_post,
         quotes: post.quotes,
@@ -84,7 +84,7 @@ export const fetchPostById = createAsyncThunk(
         bookmarks: 0,
         _count: {
           comments: 0,
-          likes: 0,
+          likes: post._count.likes,
           quotes: 0,
           reposts: 0,
           bookmarks: 0,
@@ -109,7 +109,7 @@ const postsSlice = createSlice({
       const postId = action.payload;
       const post = state.posts.find(post => post.id === postId);
       if (post) {
-        post.likes += 1;
+        post._count.likes += 1;
       }
     },
   },

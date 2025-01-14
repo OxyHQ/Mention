@@ -168,6 +168,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
             </View>
             {showEmojiPicker && (
                 <EmojiPicker
+                    style={{ width: '100%', border: 'none' }}
                     onEmojiClick={(event, emojiObject) => onEmojiClick(event, emojiObject)}
                 />
             )}

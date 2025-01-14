@@ -13,7 +13,7 @@ import { updateLikes } from '@/store/reducers/postsReducer';
 
 export default function Post({ postData, style, quotedPost, showActions }: { postData: PostType, style?: ViewStyle, quotedPost?: boolean, showActions?: boolean }) {
     const dispatch = useDispatch();
-    const likesCount = useSelector((state) => state.posts.posts.find(post => post.id === postData.id)?.likes || 0);
+    const likesCount = useSelector((state) => state.posts.posts.find(post => post.id === postData.id)?._count?.likes || 0);
     const isLiked = useSelector((state) => state.posts.posts.find(post => post.id === postData.id)?.isLiked || false);
     const [isBookmarked, setIsBookmarked] = useState(false);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
