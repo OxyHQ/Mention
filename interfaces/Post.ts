@@ -23,6 +23,7 @@ export interface Post {
   possibly_sensitive: boolean;
   lang: string;
   created_at: string;
+  updated_at: string;
   quoted_post_id: string | null;
   in_reply_to_status_id: string | null;
   author_id: string;
