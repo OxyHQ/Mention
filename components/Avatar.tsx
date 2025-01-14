@@ -1,21 +1,20 @@
 import React from "react";
-import { Image, StyleSheet } from "react-native";
+import { Image, StyleSheet, ImageStyle } from "react-native";
 import { colors } from "../styles/colors";
 
 interface AvatarProps {
-  userImage: string;
+  source: string;
+  size?: number; // Add size prop
+  style?: ImageStyle; // Add style prop
 }
 
-const Avatar: React.FC<AvatarProps> = ({ userImage }) => {
-  return <Image source={{ uri: userImage }} style={styles.avatar} />;
+const Avatar: React.FC<AvatarProps> = ({ source, size = 40, style }) => {
+  return <Image source={{ uri: source }} style={[styles.avatar, { width: size, height: size, borderRadius: size }, style]} />;
 };
 
 const styles = StyleSheet.create({
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primaryColor,
+    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
   },
 });
 
