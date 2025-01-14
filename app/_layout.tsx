@@ -1,7 +1,9 @@
 import { useEffect } from "react";
+import { Provider } from 'react-redux';
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Slot } from 'expo-router';
+import store from '@/store/store';
 import * as SplashScreen from "expo-splash-screen";
 import { useMediaQuery } from 'react-responsive'
 import { StatusBar } from "expo-status-bar";
@@ -22,6 +24,7 @@ import es from "../locales/es.json";
 import it from "../locales/it.json";
 import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
 import { BottomBar } from "@/components/BottomBar";
+
 
 SplashScreen.preventAutoHideAsync();
 
@@ -103,15 +106,17 @@ export default function RootLayout() {
   }
 
   return (
-    <I18nextProvider i18n={i18n}>
-      <View style={styles.container}>
-        <SideBar />
-        <View style={styles.mainContentWrapper}>
-          <Slot />
+    <Provider store={store}>
+      <I18nextProvider i18n={i18n}>
+        <View style={styles.container}>
+          <SideBar />
+          <View style={styles.mainContentWrapper}>
+            <Slot />
+          </View>
+          <RightBar />
+          <StatusBar style="auto" />
         </View>
-        <RightBar />
-        <StatusBar style="auto" />
-      </View>
-    </I18nextProvider >
+      </I18nextProvider >
+    </Provider>
   );
 }

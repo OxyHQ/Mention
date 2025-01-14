@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { View, Text, TouchableOpacity, Image as RNImage, StyleSheet, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Post from ".";
-import { usePostsStore } from "@/store/stores/postStore";
 import { colors } from "@/styles/colors";
 
 export const renderMedia = (media: { media_url: string; media_type: string }[]) => {
@@ -104,11 +103,12 @@ export const renderLocation = (location: string | undefined) => {
 export const renderQuotedPost = (id: string | undefined) => {
     if (!id) return null;
     return (
-        <Post
-            postData={usePostsStore(state => state.getPostById(id)) || {} as Post}
-            quotedPost={true}
-            style={{ borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 16, marginTop: 8 }}
-        />
+        //<Post
+        //    postData={usePostsStore(state => state.getPostById(id)) || {} as Post}
+        //    quotedPost={true}
+        //    style={{ borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 16, marginTop: 8 }}
+        ///>
+        <Text>Quoted Post</Text>
     );
 };
 

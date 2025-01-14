@@ -1,18 +1,16 @@
-import { useState, useEffect } from "react";
-import { fetchData } from "@/utils/api";
-import { storeData, getData } from "@/utils/storage";
-import { Post } from "@/interfaces/Post";
-import { usePostsStore } from "@/store/stores/postStore";
-import { Post as PostAPIResponse } from "@/interfaces/Post";
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { Post } from '@/interfaces/Post';
+import { fetchData } from '@/utils/api';
 
-export const useFetchPosts = () => {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const { getPosts, addPost } = usePostsStore();
+const initialState: { posts: Post[], loading: boolean, error: string | null } = {
+  posts: [],
+  loading: false,
+  error: null,
+};
 
-  const fetchPosts = async () => {
-    try {
-      const response = await fetchData("posts");
-      const posts = response.posts.map((post: PostAPIResponse) => ({
+export const fetchPosts = createAsyncThunk('posts/', async () => {
+  const response = await fetchData("posts");
+  const posts = response.posts.map((post: Post) => ({
         id: post.id,
         text: decodeURIComponent(post.text),
         source: post.source,
@@ -49,24 +47,36 @@ export const useFetchPosts = () => {
           replies: 0,
         },
       }));
-      setPosts(posts);
-      await storeData("posts", posts);
-      posts.forEach(addPost);
-    } catch (error) {
-      console.error("Error fetching posts:", error);
-      const offlinePosts = await getData("posts");
-      if (offlinePosts) {
-        setPosts(offlinePosts);
-      } else {
-        const storedPosts = getPosts();
-        setPosts(storedPosts);
-      }
-    }
-  };
-
-  useEffect(() => {
-    fetchPosts();
-  }, []);
-
   return posts;
-};
+});
+
+const postsSlice = createSlice({
+  name: 'posts',
+  initialState,
+  reducers: {
+    setPosts: (state, action) => {
+      state.posts = action.payload;
+    },
+    addPost: (state, action: { payload: Post }) => {
+      state.posts.push(action.payload);
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchPosts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPosts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.posts = action.payload;
+      })
+      .addCase(fetchPosts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch posts';
+      });
+  },
+});
+
+export const { setPosts, addPost } = postsSlice.actions;
+export default postsSlice.reducer;

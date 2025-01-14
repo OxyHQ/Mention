@@ -5,24 +5,28 @@ import { Header } from '../components/Header';
 import Post from '../components/Post';
 import { Post as IPost } from "@/interfaces/Post";
 import { colors } from '../styles/colors';
-import { useFetchPosts } from '@/hooks/useFetchPosts';
-import { usePostsStore } from '../store/stores/postStore';
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchPosts } from '../store/reducers/postsReducer';
 import { Hashtag } from '@/assets/icons/hashtag-icon';
 
 export default function HomeScreen() {
-  const posts = useFetchPosts();
+  const posts = useSelector((state) => state.posts.posts);
+  const dispatch = useDispatch();
   const [loading, setLoading] = useState(true);
-  const storePosts = usePostsStore((state) => state.posts);
 
   useEffect(() => {
-    if (storePosts.length > 0) {
+    dispatch(fetchPosts());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (Array.isArray(posts) && posts.length > 0) {
       setLoading(false);
     }
-  }, [storePosts]);
+  }, [posts]);
 
   const sortedPosts = React.useMemo(() => {
-    return [...storePosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [storePosts]);
+    return Array.isArray(posts) ? [...posts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) : [];
+  }, [posts]);
 
   const renderItem = React.useCallback(({ item, index }: { item: IPost, index: number }) => {
     const isLastItem = index === sortedPosts.length - 1;

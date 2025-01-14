@@ -12,7 +12,6 @@ import { Pressable } from 'react-native'
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from '@/styles/colors'
 import { useState } from 'react'
-import { usePostsStore } from '../../store/stores/postStore'
 import { v4 as uuidv4 } from 'uuid';
 import { EmojiIcon } from '@/assets/icons/emoji-icon';
 import { MediaIcon } from '@/assets/icons/media-icon';
@@ -30,59 +29,11 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
     const [data, setData] = useState('')
     const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video' }[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const storePost = usePostsStore((state) => state.addPost)
     const onChange = (text: string) => {
         setData(text)
     }
     const post = () => {
         if (data) {
-            storePost({
-                id: uuidv4(),
-                text: data,
-                author_id: '1',
-                author: {
-                    id: '1',
-                    name: 'Nate Moore',
-                    username: 'TheNateMoore',
-                    image: 'https://scontent-bcn1-1.xx.fbcdn.net/v/t39.30808-6/463417298_3945442859019280_8807009322776007473_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=zXRqATKNOw0Q7kNvgHnyfUU&_nc_oc=AdgYVSd5vfuRV96_nxCmCnemTuCfkgS2YQ_Diu1puFc_h76AbObPG9_eD5rFA5TcRxYnE2mW_ZfJKWuXYtX-Z8ue&_nc_zt=23&_nc_ht=scontent-bcn1-1.xx&_nc_gid=AqvR1nQbgt2nJudR3eAKaLM&oh=00_AYBD3grUDwAE84jgvGS3UmB93xn3odRDqePjARpVj6L2vQ&oe=678C0857',
-                    email: '',
-                    description: '',
-                    color: '#1DA1F2',
-                },
-                created_at: new Date().toLocaleString(),
-                updated_at: new Date().toLocaleString(),
-                likes: 0,
-                reposts: 0,
-                replies: 0,
-                bookmarks: 0,
-                media: selectedMedia,
-                quoted_post: null,
-                quotes: 0,
-                comments: 0,
-                source: '',
-                in_reply_to_user_id: null,
-                in_reply_to_username: null,
-                is_quote_status: false,
-                quoted_status_id: null,
-                quote_count: 0,
-                reply_count: 0,
-                repost_count: 0,
-                favorite_count: 0,
-                possibly_sensitive: false,
-                lang: 'en',
-                quoted_post_id: null,
-                in_reply_to_status_id: null,
-                _count: {
-                    comments: 0,
-                    likes: 0,
-                    quotes: 0,
-                    reposts: 0,
-                    bookmarks: 0,
-                    replies: 0,
-                },
-            });
-            setData('');
-            setSelectedMedia([]);
         }
     }
 

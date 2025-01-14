@@ -1,5 +1,5 @@
 import { Link, Stack } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   TextInput,
@@ -15,7 +15,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import Post from "@/components/Post";
-import { useFetchPosts } from "@/hooks/useFetchPosts";
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchPosts } from '@/store/reducers/postsReducer';
 import { Trends } from "@/features/trends/Trends";
 import { Post as PostInterface } from "@/interfaces/Post";
 
@@ -31,7 +32,12 @@ export default function SearchScreen() {
     sortByDate: false,
     sortByRelevance: false,
   });
-  const posts: PostInterface[] = useFetchPosts();
+  const posts: PostInterface[] = useSelector((state) => state.posts.posts);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(fetchPosts());
+  }, [dispatch]);
 
   interface Filters {
     showImages: boolean;

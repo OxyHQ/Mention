@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   View,
@@ -12,14 +12,20 @@ import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Post from "@/components/Post";
 import { colors } from "@/styles/colors";
-import { useFetchPosts } from "@/hooks/useFetchPosts";
 import Avatar from "@/components/Avatar";
 import { HandleIcon } from '@/assets/icons/handle-icon';
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchPosts } from '@/store/reducers/postsReducer';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
   const [activeTab, setActiveTab] = useState("Posts");
-  const posts = useFetchPosts();
+  const posts = useSelector((state) => state.posts.posts);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(fetchPosts());
+  }, [dispatch]);
 
   const user = {
     name: "Nate Isern",
