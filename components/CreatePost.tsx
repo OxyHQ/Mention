@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from '@/styles/colors'
 import { useState } from 'react'
 import { usePostsStore } from '../store/stores/postStore'
+import { v4 as uuidv4 } from 'uuid'; // Add this import for generating unique IDs
 
 interface Props {
     style?: ViewStyle
@@ -46,13 +47,50 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
     const post = () => {
         if (data) {
             storePost({
-                fullName: 'Ehsan Sarshar',
-                userNameAndDate: '@TheEhsanSarshar . 10m',
-                profileUrl:
-                    'https://pbs.twimg.com/profile_images/1389235685345959942/B1yoUQGj_400x400.jpg',
-                content: data,
-                time: new Date().toISOString(), // Add this line
-            })
+                id: uuidv4(), // Generate a unique ID for the post
+                text: data,
+                author_id: '1', // Ensure this is correctly set
+                author: {
+                    id: '1',
+                    name: 'Nate Moore',
+                    username: 'TheNateMoore',
+                    image: 'https://mention.earth/_next/image?url=%2Fuser_placeholder.png&w=3840&q=75',
+                    email: '',
+                    description: '',
+                    color: '#1DA1F2',
+                },
+                created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                likes: 0,
+                reposts: 0,
+                replies: 0,
+                bookmarks: 0,
+                media: [],
+                quoted_post: null,
+                quotes: 0,
+                comments: 0,
+                source: '',
+                in_reply_to_user_id: null,
+                in_reply_to_username: null,
+                is_quote_status: false,
+                quoted_status_id: null,
+                quote_count: 0,
+                reply_count: 0,
+                repost_count: 0,
+                favorite_count: 0,
+                possibly_sensitive: false,
+                lang: 'en',
+                quoted_post_id: null,
+                in_reply_to_status_id: null,
+                _count: {
+                    comments: 0,
+                    likes: 0,
+                    quotes: 0,
+                    reposts: 0,
+                    bookmarks: 0,
+                    replies: 0,
+                },
+            });
+            setData(''); // Clear the input field after posting
         }
     }
     return (

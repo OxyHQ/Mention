@@ -6,20 +6,22 @@ import Post from '../components/Post';
 import { Post as IPost } from "@/interfaces/Post";
 import { colors } from '../styles/colors';
 import { useFetchPosts } from '@/hooks/useFetchPosts';
+import { usePostsStore } from '../store/stores/postStore'; // Add this import
 
 export default function HomeScreen() {
   const posts = useFetchPosts();
   const [loading, setLoading] = useState(true);
+  const storePosts = usePostsStore((state) => state.posts); // Fetch posts from the store
 
   useEffect(() => {
-    if (posts.length > 0) {
+    if (storePosts.length > 0) {
       setLoading(false);
     }
-  }, [posts]);
+  }, [storePosts]);
 
   const sortedPosts = React.useMemo(() => {
-    return [...posts].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-  }, [posts]);
+    return [...storePosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [storePosts]);
 
   const renderItem = React.useCallback(({ item, index }: { item: IPost, index: number }) => {
     const isLastItem = index === sortedPosts.length - 1;
