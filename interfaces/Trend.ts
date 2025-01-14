@@ -1,6 +1,8 @@
 
 export interface Trend {
   id: string;
-  topic: string;
-  countTotal: string;
+  text: string;
+  hashtag: string;
+  score: number;
+  created_at: string;
 }
