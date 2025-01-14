@@ -12,12 +12,15 @@ import { Pressable } from 'react-native'
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from '@/styles/colors'
 import { useState } from 'react'
-import { usePostsStore } from '../store/stores/postStore'
+import { usePostsStore } from '../../store/stores/postStore'
 import { v4 as uuidv4 } from 'uuid';
 import { EmojiIcon } from '@/assets/icons/emoji-icon';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
 import { HandleIcon } from '@/assets/icons/handle-icon';
+import * as ImagePicker from 'expo-image-picker';
+import { Video, ResizeMode } from 'expo-av';
+import EmojiPicker from 'emoji-picker-react';
 
 interface Props {
     style?: ViewStyle
@@ -25,6 +28,8 @@ interface Props {
 
 export const CreatePost: React.FC<Props> = ({ style }) => {
     const [data, setData] = useState('')
+    const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video' }[]>([]);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const storePost = usePostsStore((state) => state.addPost)
     const onChange = (text: string) => {
         setData(text)
@@ -32,9 +37,9 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
     const post = () => {
         if (data) {
             storePost({
-                id: uuidv4(), // Generate a unique ID for the post
+                id: uuidv4(),
                 text: data,
-                author_id: '1', // Ensure this is correctly set
+                author_id: '1',
                 author: {
                     id: '1',
                     name: 'Nate Moore',
@@ -50,7 +55,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                 reposts: 0,
                 replies: 0,
                 bookmarks: 0,
-                media: [],
+                media: selectedMedia,
                 quoted_post: null,
                 quotes: 0,
                 comments: 0,
@@ -76,9 +81,29 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                     replies: 0,
                 },
             });
-            setData(''); // Clear the input field after posting
+            setData('');
+            setSelectedMedia([]);
         }
     }
+
+    const pickMedia = async () => {
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images', 'videos'],
+            allowsEditing: true,
+            allowsMultipleSelection: true,
+            quality: 1,
+        });
+
+        if (!result.canceled) {
+            setSelectedMedia(result.assets.map((asset) => ({ uri: asset.uri, type: asset.type })));
+        }
+    };
+
+    const onEmojiClick = (event, emojiObject) => {
+        setData(data + emojiObject.emoji);
+        setShowEmojiPicker(false);
+    };
+
     return (
         <View style={[styles.container, style]}>
             <View style={styles.topRow}>
@@ -111,6 +136,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
             <View style={styles.bottomRow}>
                 <View style={styles.iconsContainer}>
                     <Pressable
+                        onPress={pickMedia}
                         style={({ hovered }) => [
                             styles.svgWrapper,
                             hovered
@@ -119,11 +145,10 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                                 }
                                 : {},
                         ]}>
-                        <MediaIcon
-                            size={20}
-                        />
+                        <MediaIcon size={20} />
                     </Pressable>
                     <Pressable
+                        onPress={() => setShowEmojiPicker(!showEmojiPicker)}
                         style={({ hovered }) => [
                             styles.svgWrapper,
                             hovered
@@ -159,6 +184,29 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                         <HandleIcon size={18} />
                     </Pressable>
                 </View>
+            </View>
+            {showEmojiPicker && (
+                <EmojiPicker
+                    onEmojiClick={(event, emojiObject) => onEmojiClick(event, emojiObject)}
+                />
+            )}
+            <View style={styles.mediaPreviewContainer}>
+                {selectedMedia.map((asset, index) => (
+                    asset.type === "image" ? (
+                        <Image key={index} source={{ uri: asset.uri }} style={styles.mediaPreview} />
+                    ) : (
+                        <Video
+                            key={index}
+                            source={{ uri: asset.uri }}
+                            style={styles.mediaPreview}
+                            useNativeControls
+                            resizeMode={ResizeMode.CONTAIN}
+                            shouldPlay
+                            isLooping
+                            isMuted
+                        />
+                    )
+                ))}
             </View>
         </View>
     )
@@ -265,5 +313,17 @@ const styles = StyleSheet.create({
     startContainer: {
         borderRadius: 100,
         padding: 10,
+    },
+    mediaPreviewContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginVertical: 10,
+        paddingHorizontal: 10,
+        gap: 5,
+    },
+    mediaPreview: {
+        width: 100,
+        height: 100,
+        borderRadius: 35,
     },
 })
