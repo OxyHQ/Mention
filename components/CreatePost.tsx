@@ -59,7 +59,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                     description: '',
                     color: '#1DA1F2',
                 },
-                created_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                created_at: new Date().toLocaleString(),
                 likes: 0,
                 reposts: 0,
                 replies: 0,
