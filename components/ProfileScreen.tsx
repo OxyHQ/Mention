@@ -14,15 +14,16 @@ import Post from "@/components/Post";
 import { colors } from "@/styles/colors";
 import { useFetchPosts } from "@/hooks/useFetchPosts";
 import Avatar from "@/components/Avatar";
+import { HandleIcon } from '@/assets/icons/handle-icon';
 
-export default function ProfileScreen({ username }: { username?: string }) {
+export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
   const [activeTab, setActiveTab] = useState("Posts");
   const posts = useFetchPosts();
 
   const user = {
     name: "Nate Isern",
-    username: username,
+    username: localUsername.slice(1),
     avatar: "https://scontent-bcn1-1.xx.fbcdn.net/v/t39.30808-6/463417298_3945442859019280_8807009322776007473_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=zXRqATKNOw0Q7kNvgHnyfUU&_nc_oc=AdgYVSd5vfuRV96_nxCmCnemTuCfkgS2YQ_Diu1puFc_h76AbObPG9_eD5rFA5TcRxYnE2mW_ZfJKWuXYtX-Z8ue&_nc_zt=23&_nc_ht=scontent-bcn1-1.xx&_nc_gid=AqvR1nQbgt2nJudR3eAKaLM&oh=00_AYBD3grUDwAE84jgvGS3UmB93xn3odRDqePjARpVj6L2vQ&oe=678C0857",
     bio: "React Native Developer | Coffee Enthusiast",
     location: "Barcelona, ES",
@@ -61,7 +62,7 @@ export default function ProfileScreen({ username }: { username?: string }) {
             </TouchableOpacity>
           </View>
           <Text style={styles.name}>{user.name}</Text>
-          <Text style={styles.username}>{user.username}</Text>
+          <Text style={styles.username}>@{user.username}</Text>
           <Text style={styles.bio}>{user.bio}</Text>
           <View style={styles.userDetails}>
             <View style={styles.userDetailItem}>
