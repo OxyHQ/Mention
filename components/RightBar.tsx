@@ -9,6 +9,7 @@ import { SearchBar } from './SearchBar'
 import { Pressable, ScrollView } from 'react-native-web-hover'
 import { FollowButton } from '@/components/FollowButton'
 import { useRouter, usePathname } from "expo-router";
+import Avatar from '@/components/Avatar'
 
 import { Trends } from "@/features/trends/Trends"
 
@@ -142,16 +143,8 @@ const FollowRowComponent = ({ name, userName, photo }: { name: string; userName:
                     }),
                 },
             ]}>
-            <Image
-                style={{
-                    width: 50,
-                    height: 50,
-                    borderRadius: 100,
-                    backgroundColor: 'gray',
-                }}
-                source={{
-                    uri: photo,
-                }}
+            <Avatar
+                source={photo}
             />
             <View
                 style={{
