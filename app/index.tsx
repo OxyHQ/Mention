@@ -6,12 +6,13 @@ import Post from '../components/Post';
 import { Post as IPost } from "@/interfaces/Post";
 import { colors } from '../styles/colors';
 import { useFetchPosts } from '@/hooks/useFetchPosts';
-import { usePostsStore } from '../store/stores/postStore'; // Add this import
+import { usePostsStore } from '../store/stores/postStore';
+import { Hashtag } from '@/assets/icons/hashtag-icon';
 
 export default function HomeScreen() {
   const posts = useFetchPosts();
   const [loading, setLoading] = useState(true);
-  const storePosts = usePostsStore((state) => state.posts); // Fetch posts from the store
+  const storePosts = usePostsStore((state) => state.posts);
 
   useEffect(() => {
     if (storePosts.length > 0) {
@@ -30,7 +31,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Header options={{ title: "Home" }} />
+      <Header options={{ title: "Home", rightComponents: [<Hashtag />] }} />
       <CreatePost style={styles.createPost} />
       {loading ? (
         <ActivityIndicator size="large" color="#1DA1F2" />
