@@ -34,7 +34,7 @@ export default function PostScreen() {
   if (!post) {
     return (
       <>
-        <Header options={{ title: `Post by Aloha` }} />
+        <Header options={{ title: "Post not found" }} />
         <View style={styles.container}>
           <Text style={styles.notFoundText}>Post not found</Text>
         </View>
@@ -45,7 +45,9 @@ export default function PostScreen() {
   return (
     <>
       <View style={styles.container}>
-        <Header options={{ title: "Post" }} />
+        <Header options={{
+          title: `Post by ${post?.author?.username}`
+        }} />
         <Post postData={post} />
         <CreatePost style={styles.createPost} />
       </View>
