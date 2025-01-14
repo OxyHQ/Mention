@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   View,
   Text,
@@ -8,11 +8,12 @@ import {
   TouchableOpacity,
   FlatList,
 } from "react-native";
+import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Post from "@/components/Post";
-import { Header } from "@/components/Header";
 import { colors } from "@/styles/colors";
 import { useFetchPosts } from "@/hooks/useFetchPosts";
+import Avatar from "@/components/Avatar";
 
 export default function ProfileScreen({ username }: { username?: string }) {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
@@ -20,29 +21,45 @@ export default function ProfileScreen({ username }: { username?: string }) {
   const posts = useFetchPosts();
 
   const user = {
-    name: "John Doe",
-    username: username || localUsername || "@nate",
-    avatar: "https://mention.earth/_next/image?url=%2Fuser_placeholder.png&w=3840&q=75",
+    name: "Nate Isern",
+    username: username,
+    avatar: "https://scontent-bcn1-1.xx.fbcdn.net/v/t39.30808-6/463417298_3945442859019280_8807009322776007473_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=zXRqATKNOw0Q7kNvgHnyfUU&_nc_oc=AdgYVSd5vfuRV96_nxCmCnemTuCfkgS2YQ_Diu1puFc_h76AbObPG9_eD5rFA5TcRxYnE2mW_ZfJKWuXYtX-Z8ue&_nc_zt=23&_nc_ht=scontent-bcn1-1.xx&_nc_gid=AqvR1nQbgt2nJudR3eAKaLM&oh=00_AYBD3grUDwAE84jgvGS3UmB93xn3odRDqePjARpVj6L2vQ&oe=678C0857",
     bio: "React Native Developer | Coffee Enthusiast",
     location: "Barcelona, ES",
     website: "https://nateisern.com",
     joinDate: "Joined December 2012",
-    following: 250,
-    followers: 1000,
+    _count: {
+      following: 250,
+      followers: 1000,
+      posts: 100,
+      karma: 500,
+    },
   };
 
   const renderHeader = () => (
     <View>
       <View style={{ padding: 15 }}>
+        {router.canGoBack() && (
+          <View style={styles.ProfileButtonBack}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={20} color={colors.primaryColor} />
+            </TouchableOpacity>
+          </View>
+        )}
         <Image
           source={{ uri: "https://cdn.bsky.app/img/banner/plain/did:plc:yvakileeq46vkx5vgodqgjef/bafkreicamq3qu4ibbadbkiuvh4qkw277he3wnky56zki3rrilryd6bkoaq@jpeg" }}
           style={styles.coverPhoto}
         />
         <View style={styles.profileInfo}>
-          <Image source={{ uri: user.avatar }} style={styles.avatar} />
-          <TouchableOpacity style={styles.editProfileButton}>
-            <Text style={styles.editProfileButtonText}>Edit profile</Text>
-          </TouchableOpacity>
+          <Avatar source={user.avatar} style={styles.avatar} />
+          <View style={styles.profileButtons}>
+            <TouchableOpacity style={styles.ProfileButton}>
+              <Text style={styles.ProfileButtonText}>Edit profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.ProfileButton}>
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.primaryColor} />
+            </TouchableOpacity>
+          </View>
           <Text style={styles.name}>{user.name}</Text>
           <Text style={styles.username}>{user.username}</Text>
           <Text style={styles.bio}>{user.bio}</Text>
@@ -62,12 +79,18 @@ export default function ProfileScreen({ username }: { username?: string }) {
               <Text style={styles.userDetailText}>{user.joinDate}</Text>
             </View>
           </View>
-          <View style={styles.followContainer}>
-            <Text style={styles.followText}>
-              <Text style={styles.followCount}>{user.following}</Text> Following
+          <View style={styles.statsContainer}>
+            <Link href="/following" style={styles.statText}>
+              <Text style={styles.statCount}>{user._count.following}</Text> Following
+            </Link>
+            <Link href="/followers" style={styles.statText}>
+              <Text style={styles.statCount}>{user._count.followers}</Text> Followers
+            </Link>
+            <Text style={styles.statText}>
+              <Text style={styles.statCount}>{user._count.posts}</Text> Posts
             </Text>
-            <Text style={styles.followText}>
-              <Text style={styles.followCount}>{user.followers}</Text> Followers
+            <Text style={styles.statText}>
+              <Text style={styles.statCount}>{user._count.karma}</Text> Karma
             </Text>
           </View>
         </View>
@@ -95,16 +118,10 @@ export default function ProfileScreen({ username }: { username?: string }) {
 
   return (
     <>
-      <Header options={{
-        title: user.name as string,
-        subtitle: user.username,
-        titlePosition: "center",
-        leftComponents: [<Image source={{ uri: user.avatar }} style={styles.avatarHeader} />],
-      }} />
       <FlatList
         style={styles.container}
         data={posts}
-        renderItem={({ item }) => <Post {...item} />}
+        renderItem={({ item }) => <Post postData={item} />}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
       />
@@ -126,41 +143,47 @@ const styles = StyleSheet.create({
   avatar: {
     width: 75,
     height: 75,
-    borderRadius: 37.5,
     borderWidth: 4,
-    borderColor: "#fff",
-    backgroundColor: "#ccc",
     marginTop: -40,
-  },
-  avatarHeader: {
-    width: 40,
-    height: 40,
-    borderRadius: 37.5,
-    borderWidth: 1,
     borderColor: colors.primaryLight,
-    backgroundColor: "#ccc",
   },
-  editProfileButton: {
+  profileButtons: {
     position: "absolute",
     right: 15,
     top: 15,
-    borderWidth: 1,
-    borderColor: "#1DA1F2",
-    borderRadius: 20,
-    paddingVertical: 5,
-    paddingHorizontal: 15,
+    flexDirection: "row",
+    gap: 10,
   },
-  editProfileButtonText: {
-    color: "#1DA1F2",
+  ProfileButton: {
+    borderRadius: 20,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    backgroundColor: colors.COLOR_BACKGROUND,
+  },
+  ProfileButtonText: {
+    color: colors.primaryColor,
     fontWeight: "bold",
   },
+  ProfileButtonBack: {
+    borderRadius: 35,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    backgroundColor: colors.COLOR_BACKGROUND,
+    position: "absolute",
+    left: 0,
+    top: 0,
+    zIndex: 1,
+    borderWidth: 4,
+    borderColor: colors.primaryLight,
+  },
   name: {
-    fontSize: 20,
+    fontSize: 30,
     fontWeight: "bold",
     marginTop: 10,
   },
   username: {
-    color: "gray",
+    fontSize: 16,
+    color: colors.COLOR_BLACK_LIGHT_3,
     marginBottom: 10,
   },
   bio: {
@@ -175,19 +198,26 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   userDetailText: {
-    color: "gray",
+    color: colors.COLOR_BLACK_LIGHT_3,
     marginLeft: 5,
   },
   link: {
-    color: "#1DA1F2",
+    color: colors.primaryColor,
+    fontWeight: "bold",
   },
-  followContainer: {
+  statsContainer: {
     flexDirection: "row",
+    gap: 10,
   },
-  followText: {
-    marginRight: 20,
+  statText: {
+    color: colors.COLOR_BLACK_LIGHT_3,
   },
-  followCount: {
+  statTextHover: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primaryColor,
+  },
+  statCount: {
+    color: colors.COLOR_BLACK,
     fontWeight: "bold",
   },
   tabContainer: {
@@ -205,7 +235,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1DA1F2",
   },
   tabText: {
-    color: "gray",
+    color: colors.COLOR_BLACK_LIGHT_3,
   },
   activeTabText: {
     color: "#1DA1F2",
