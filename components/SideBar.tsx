@@ -16,7 +16,8 @@ import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Gear, GearActive } from '@/assets/icons/gear-icon';
 import { Plus } from '@/assets/icons/plus-icon';
-import { Chat } from '@/assets/icons/chat-icon';
+import { Chat, ChatActive } from '@/assets/icons/chat-icon';
+import { List, ListActive } from '@/assets/icons/list-icon';
 const WindowHeight = Dimensions.get('window').height
 
 
@@ -47,7 +48,7 @@ export function SideBar() {
         {
             title: 'Chat',
             icon: <Chat color={colors.COLOR_BLACK} />,
-            iconActive: <Chat />,
+            iconActive: <ChatActive />,
             route: '/chat',
         },
         {
@@ -58,8 +59,8 @@ export function SideBar() {
         },
         {
             title: t("Lists"),
-            icon: <Home color={colors.COLOR_BLACK} />,
-            iconActive: <HomeActive />,
+            icon: <List color={colors.COLOR_BLACK} />,
+            iconActive: <ListActive />,
             route: '/lists',
         },
         {
