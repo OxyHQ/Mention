@@ -16,6 +16,7 @@ import Avatar from "@/components/Avatar";
 import { HandleIcon } from '@/assets/icons/handle-icon';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
+import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
@@ -60,6 +61,9 @@ export default function ProfileScreen() {
         <View style={styles.profileInfo}>
           <Avatar source={user.avatar} style={styles.avatar} />
           <View style={styles.profileButtons}>
+            <TouchableOpacity style={styles.ProfileButton}>
+              <ChatIcon size={20} color={colors.primaryColor} />
+            </TouchableOpacity>
             <TouchableOpacity style={styles.ProfileButton}>
               <Text style={styles.ProfileButtonText}>Edit profile</Text>
             </TouchableOpacity>
