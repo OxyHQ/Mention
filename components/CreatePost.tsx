@@ -16,6 +16,8 @@ import { usePostsStore } from '../store/stores/postStore'
 import { v4 as uuidv4 } from 'uuid';
 import { EmojiIcon } from '@/assets/icons/emoji-icon';
 import { MediaIcon } from '@/assets/icons/media-icon';
+import { LocationIcon } from '@/assets/icons/location-icon';
+import { HandleIcon } from '@/assets/icons/handle-icon';
 
 interface Props {
     style?: ViewStyle
@@ -141,9 +143,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                                 }
                                 : {},
                         ]}>
-                        <Ionicons
-                            name="bar-chart"
-                            fill={colors.primaryColor}
+                        <LocationIcon
                             size={20}
                         />
                     </Pressable>
@@ -156,23 +156,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                                 }
                                 : {},
                         ]}>
-                        <Ionicons
-                            name="add-circle" fill={colors.primaryColor} size={20} />
-                    </Pressable>
-                    <Pressable
-                        style={({ hovered }) => [
-                            styles.svgWrapper,
-                            hovered
-                                ? {
-                                    backgroundColor: colors.primaryLight_1,
-                                }
-                                : {},
-                        ]}>
-                        <Ionicons
-                            name="calendar"
-                            fill={colors.primaryColor}
-                            size={18}
-                        />
+                        <HandleIcon size={20} />
                     </Pressable>
                 </View>
             </View>
@@ -189,7 +173,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 15,
+        paddingHorizontal: 10,
         paddingTop: 10,
         backgroundColor: '#fff',
         zIndex: 100,
@@ -205,8 +189,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingTop: 10,
-        paddingBottom: 20,
-        paddingHorizontal: 15,
+        paddingBottom: 15,
+        paddingHorizontal: 10,
     },
     middleRowText: {
         fontSize: 20,
@@ -229,10 +213,6 @@ const styles = StyleSheet.create({
         //   },
         // }),
     },
-    // bottomRow: {
-    //   flexDirection: 'row',
-    //   paddingHorizontal: 15,
-    // },
     profileImage: {
         width: 50,
         height: 50,
@@ -249,7 +229,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         width: '100%',
-        paddingHorizontal: 6,
+        paddingHorizontal: 5,
     },
     button: {
         borderRadius: 100,
