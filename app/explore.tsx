@@ -19,17 +19,6 @@ import { useFetchPosts } from "@/hooks/useFetchPosts";
 import { Trends } from "@/features/trends/Trends";
 import { Post as PostInterface } from "@/interfaces/Post";
 
-const SearchResultItem = ({ result }: { result: PostInterface }) => (
-  <View style={styles.resultContainer}>
-    <Image source={{ uri: result.user.avatar }} style={styles.avatar} />
-    <View style={styles.resultContent}>
-      <ThemedText style={styles.userName}>{result.user.name}</ThemedText>
-      <ThemedText style={styles.resultText}>{result.content}</ThemedText>
-      <ThemedText style={styles.timestamp}>{result.timestamp}</ThemedText>
-    </View>
-  </View>
-);
-
 export default function SearchScreen() {
   const { t } = useTranslation();
   const [isPremium, setIsPremium] = useState(false);
@@ -139,15 +128,7 @@ export default function SearchScreen() {
         data={filteredResults}
         renderItem={({ item }) => (
           <Post
-            id={item.id}
-            avatar={item.user.avatar}
-            name={item.user.name}
-            username={item.user.name} // Assuming username is the same as name
-            time={item.timestamp}
-            content={item.content}
-            likes={0} // Assuming default value
-            reposts={0} // Assuming default value
-            replies={0} // Assuming default value
+            postData={item}
           />
         )}
         keyExtractor={(item) => item.id}
@@ -167,36 +148,6 @@ const styles = StyleSheet.create({
     // ...existing code...
   },
   searchInput: {
-    // ...existing code...
-  },
-  trendsHeader: {
-    // ...existing code...
-  },
-  trendsList: {
-    // ...existing code...
-  },
-  resultContainer: {
-    // ...existing code...
-  },
-  avatar: {
-    // ...existing code...
-  },
-  resultContent: {
-    // ...existing code...
-  },
-  userName: {
-    // ...existing code...
-  },
-  resultText: {
-    // ...existing code...
-  },
-  timestamp: {
-    // ...existing code...
-  },
-  filtersContainer: {
-    // ...existing code...
-  },
-  filterItem: {
     // ...existing code...
   },
 });
