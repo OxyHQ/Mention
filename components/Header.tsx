@@ -132,6 +132,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
+        gap: 10,
     },
     centerContainer: {
         flex: 1,
@@ -142,6 +143,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flex: 1,
         justifyContent: 'flex-end',
+        gap: 10,
     },
     stickyHeader: {
         borderTopEndRadius: 0,
