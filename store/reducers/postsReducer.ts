@@ -105,6 +105,13 @@ const postsSlice = createSlice({
     addPost: (state, action: { payload: Post }) => {
       state.posts.push(action.payload);
     },
+    updateLikes: (state, action) => {
+      const postId = action.payload;
+      const post = state.posts.find(post => post.id === postId);
+      if (post) {
+        post.likes += 1;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -132,5 +139,5 @@ const postsSlice = createSlice({
   },
 });
 
-export const { setPosts, addPost } = postsSlice.actions;
+export const { setPosts, addPost, updateLikes } = postsSlice.actions;
 export default postsSlice.reducer;

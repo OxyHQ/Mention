@@ -29,12 +29,10 @@ export default function BookmarksScreen() {
                 <ActivityIndicator size="large" color="#1DA1F2" />
             ) : (
                 <FlatList
-                    data={posts} // Replace with actual bookmarked posts data
+                    data={posts}
                     renderItem={({ item }) => (
                         <Post
                             postData={item}
-                        // Add a prop to indicate that the post is bookmarked
-                        //isBookmarked={true}
                         />
                     )}
                     keyExtractor={(item) => item.id.toString()}

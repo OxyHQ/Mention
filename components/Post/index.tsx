@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useRef, useState } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing, Share, ViewStyle } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,10 +8,13 @@ import Avatar from "@/components/Avatar";
 import { detectHashtags } from "./utils";
 import { renderMedia, renderPoll, renderLocation, renderQuotedPost } from "./renderers";
 import AnimatedNumbers from 'react-native-animated-numbers';
+import { useDispatch, useSelector } from 'react-redux';
+import { updateLikes } from '@/store/reducers/postsReducer';
 
 export default function Post({ postData, style, quotedPost, showActions }: { postData: PostType, style?: ViewStyle, quotedPost?: boolean, showActions?: boolean }) {
-    const [isLiked, setIsLiked] = useState(false);
-    const [likesCount, setLikesCount] = useState(postData._count.likes);
+    const dispatch = useDispatch();
+    const likesCount = useSelector((state) => state.posts.posts.find(post => post.id === postData.id)?.likes || 0);
+    const isLiked = useSelector((state) => state.posts.posts.find(post => post.id === postData.id)?.isLiked || false);
     const [isBookmarked, setIsBookmarked] = useState(false);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [isReposted, setIsReposted] = useState(false);
@@ -21,7 +24,6 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
 
     const animatedScale = useRef(new Animated.Value(1)).current;
     const animatedOpacity = useRef(new Animated.Value(1)).current;
-    const animatedLikesCount = useRef(new Animated.Value(postData._count.likes)).current;
     const animatedRepostsCount = useRef(new Animated.Value(postData._count.reposts)).current;
     const animatedBookmarksCount = useRef(new Animated.Value(postData._count.bookmarks)).current;
     const animatedRepliesCount = useRef(new Animated.Value(postData._count.replies)).current;
@@ -63,15 +65,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
     const handleLike = (event: any) => {
         event.preventDefault();
         event.stopPropagation();
-        setIsLiked(!isLiked);
-        const newLikesCount = isLiked ? likesCount - 1 : likesCount + 1;
-        setLikesCount(newLikesCount);
-        Animated.timing(animatedLikesCount, {
-            toValue: newLikesCount,
-            duration: 300,
-            easing: Easing.linear,
-            useNativeDriver: false,
-        }).start();
+        dispatch(updateLikes(postData.id));
         scaleAnimation();
         fadeAnimation();
     };
@@ -124,7 +118,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
     const handleReply = (event: any) => {
         event.preventDefault();
         event.stopPropagation();
-        const newRepliesCount = repliesCount + 1; // Assuming a reply is added
+        const newRepliesCount = repliesCount + 1;
         setRepliesCount(newRepliesCount);
         Animated.timing(animatedRepliesCount, {
             toValue: newRepliesCount,
