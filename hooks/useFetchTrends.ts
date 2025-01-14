@@ -11,8 +11,10 @@ export const useFetchTrends = () => {
       const data = await fetchData("hashtags");
       const trends = data.map((trend: any) => ({
         id: trend.id,
-        topic: trend.hashtag,
-        countTotal: trend.score.toString(),
+        text: trend.text,
+        hashtag: trend.hashtag,
+        score: trend.score,
+        created_at: trend.created_at,
       }));
       setTrends(trends);
       await storeData("trends", trends);
