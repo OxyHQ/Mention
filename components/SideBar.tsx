@@ -93,7 +93,6 @@ export function SideBar() {
                         height: WindowHeight,
                         // width: '30%',
                         // paddingHorizontal: 5,
-                        flex: isFullSideBar ? 1.4 : isRightBarVisible ? 0.45 : 0.35,
                         // alignItems: isFullSideBar ? 'flex-end' : 'center',
                         alignItems: 'flex-end',
                         paddingEnd: !isFullSideBar ? 10 : 0,
