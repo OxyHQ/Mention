@@ -74,12 +74,13 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  const isScreenRoundedEnabled = useMediaQuery({ minWidth: 500 })
+  const isScreenNotMobile = useMediaQuery({ minWidth: 500 })
 
   const styles = StyleSheet.create({
     container: {
       maxWidth: 1300,
       width: '100%',
+      paddingHorizontal: isScreenNotMobile ? 10 : 0,
       marginHorizontal: 'auto',
       justifyContent: 'space-between',
       flexDirection: 'row',
@@ -90,10 +91,10 @@ export default function RootLayout() {
       }),
     },
     mainContentWrapper: {
-      marginVertical: isScreenRoundedEnabled ? 20 : 0,
-      flex: isScreenRoundedEnabled ? 2.2 : 1,
+      marginVertical: isScreenNotMobile ? 20 : 0,
+      flex: isScreenNotMobile ? 2.2 : 1,
       backgroundColor: colors.primaryLight,
-      borderRadius: isScreenRoundedEnabled ? 35 : 0,
+      borderRadius: isScreenNotMobile ? 35 : 0,
     },
   });
 
