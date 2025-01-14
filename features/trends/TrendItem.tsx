@@ -12,7 +12,7 @@ export const TrendItem = ({
 }: {
     topHeader: string
     mainTitle: string
-    numberOfPosts: string
+    numberOfPosts: number
 }) => {
     return (
         <Link href={`/search/${mainTitle}`} style={styles.trendItem}>
@@ -28,7 +28,7 @@ export const TrendItem = ({
                     {`#${mainTitle}`}
                 </Text>
                 <Text style={{ fontSize: 14, color: colors.COLOR_BLACK_LIGHT_4 }}>
-                    {numberOfPosts}
+                    {numberOfPosts} posts
                 </Text>
             </View>
             <Pressable
