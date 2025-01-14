@@ -1,12 +1,13 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, StyleSheet, FlatList, TouchableOpacity, Text, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { Pressable } from 'react-native-web-hover'
 import { useTranslation } from "react-i18next";
-import { useFetchTrends } from "@/hooks/useFetchTrends";
+import { useSelector, useDispatch } from 'react-redux';
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/styles/colors";
 import { TrendItem } from "@/features/trends/TrendItem";
+import { fetchTrends } from '@/store/reducers/trendsReducer';
 
 export const Trends = ({
     hideTrends
@@ -15,7 +16,13 @@ export const Trends = ({
 }) => {
     const router = useRouter();
     const { t } = useTranslation();
-    const trendsData = useFetchTrends();
+    const trendsData = useSelector((state) => state.trends.trends);
+
+    const dispatch = useDispatch();
+
+    useEffect(() => {
+        dispatch(fetchTrends());
+    }, [dispatch]);
 
     if (hideTrends) return null;
 

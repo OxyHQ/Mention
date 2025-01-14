@@ -1,10 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
 import postsReducer from './reducers/postsReducer';
-import { Post } from '@/interfaces/Post';
+import trendsReducer from './reducers/trendsReducer';
 
 const store = configureStore({
   reducer: {
     posts: postsReducer,
+    trends: trendsReducer,
   },
 });
 
