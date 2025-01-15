@@ -38,7 +38,8 @@ export function RightBar() {
                     ...Platform.select({
                         web: {
                             position: 'sticky',
-                            bottom: 0,
+                            top: 50,
+                            bottom: 20,
                         },
                     }),
                 } as ViewStyle
