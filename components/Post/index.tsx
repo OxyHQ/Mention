@@ -14,6 +14,7 @@ import { Chat } from "@/assets/icons/chat-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { RepostIcon } from "@/assets/icons/repost-icon";
 import { HeartIcon, HeartIconActive } from "@/assets/icons/heart-icon";
+import { CommentIcon, CommentIconActive } from "@/assets/icons/comment-icon";
 
 export default function Post({ postData, style, quotedPost, showActions }: { postData: PostType, style?: ViewStyle, quotedPost?: boolean, showActions?: boolean }) {
     const dispatch = useDispatch();
@@ -178,7 +179,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
                                         handleReply(event);
                                     }}
                                 >
-                                    <Ionicons name="chatbubble-outline" size={20} color="#536471" />
+                                    {false ? <CommentIconActive size={20} color="#F91880" /> : <CommentIcon size={20} color="#536471" />}
                                     <AnimatedNumbers
                                         includeComma
                                         animateToNumber={repliesCount}
