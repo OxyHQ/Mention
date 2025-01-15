@@ -10,6 +10,10 @@ import { renderMedia, renderPoll, renderLocation, renderQuotedPost } from "./ren
 import AnimatedNumbers from 'react-native-animated-numbers';
 import { useDispatch, useSelector } from 'react-redux';
 import { updateLikes } from '@/store/reducers/postsReducer';
+import { Chat } from "@/assets/icons/chat-icon";
+import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
+import { RepostIcon } from "@/assets/icons/repost-icon";
+import { HeartIcon, HeartIconActive } from "@/assets/icons/heart-icon";
 
 export default function Post({ postData, style, quotedPost, showActions }: { postData: PostType, style?: ViewStyle, quotedPost?: boolean, showActions?: boolean }) {
     const dispatch = useDispatch();
@@ -154,6 +158,23 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
                                     style={styles.actionItem}
                                     onPress={(event) => {
                                         event.stopPropagation();
+                                        handleLike(event);
+                                    }}
+                                >
+                                    <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
+                                        {isLiked ? <HeartIconActive size={20} color="#F91880" /> : <HeartIcon size={20} color="#536471" />}
+                                    </Animated.View>
+                                    <AnimatedNumbers
+                                        includeComma
+                                        animateToNumber={likesCount}
+                                        animationDuration={300}
+                                        fontStyle={{ color: isLiked ? "#F91880" : "#536471" }}
+                                    />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.actionItem}
+                                    onPress={(event) => {
+                                        event.stopPropagation();
                                         handleReply(event);
                                     }}
                                 >
@@ -172,37 +193,12 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
                                         handleRepost(event);
                                     }}
                                 >
-                                    <Ionicons
-                                        name={isReposted ? "repeat" : "repeat-outline"}
-                                        size={20}
-                                        color={isReposted ? "#1DA1F2" : "#536471"}
-                                    />
+                                    {isReposted ? <RepostIcon size={20} color="#1DA1F2" /> : <RepostIcon size={20} color="#536471" />}
                                     <AnimatedNumbers
                                         includeComma
                                         animateToNumber={repostsCount}
                                         animationDuration={300}
                                         fontStyle={{ color: isReposted ? "#1DA1F2" : "#536471" }}
-                                    />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.actionItem}
-                                    onPress={(event) => {
-                                        event.stopPropagation();
-                                        handleLike(event);
-                                    }}
-                                >
-                                    <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
-                                        <Ionicons
-                                            name={isLiked ? "heart" : "heart-outline"}
-                                            size={20}
-                                            color={isLiked ? "#F91880" : "#536471"}
-                                        />
-                                    </Animated.View>
-                                    <AnimatedNumbers
-                                        includeComma
-                                        animateToNumber={likesCount}
-                                        animationDuration={300}
-                                        fontStyle={{ color: isLiked ? "#F91880" : "#536471" }}
                                     />
                                 </TouchableOpacity>
                                 <TouchableOpacity
@@ -221,16 +217,20 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
                                         handleBookmark(event);
                                     }}
                                 >
-                                    <Ionicons
-                                        name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                                        size={20}
-                                        color={isBookmarked ? "#1DA1F2" : "#536471"}
-                                    />
+                                    {isBookmarked ? <BookmarkActive size={20} strokeWidth={2} color="#1DA1F2" /> : <Bookmark size={20} strokeWidth={1} color="#536471" />}
                                     <AnimatedNumbers
                                         includeComma
                                         animateToNumber={bookmarksCount}
                                         animationDuration={300}
                                         fontStyle={{ color: isBookmarked ? "#1DA1F2" : "#536471" }}
+                                    />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.actionItem}
+                                >
+                                    <Chat
+                                        size={20}
+                                        color="#536471"
                                     />
                                 </TouchableOpacity>
                             </View>
@@ -281,7 +281,8 @@ const styles = StyleSheet.create({
     actionItem: {
         flexDirection: "row",
         alignItems: "center",
-        marginRight: 16, // Add margin to separate action items
+        marginRight: 16,
+        gap: 4,
     },
     actionText: {
         color: "#536471",

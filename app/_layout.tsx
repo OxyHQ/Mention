@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Provider } from 'react-redux';
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Slot } from 'expo-router';
@@ -12,6 +13,7 @@ import { SideBar } from '@/components/SideBar';
 import { RightBar } from '@/components/RightBar';
 import { colors } from '@/styles/colors';
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { Toaster } from '@/lib/sonner';
 import {
   setupNotifications,
   requestNotificationPermissions,
@@ -24,6 +26,7 @@ import es from "../locales/es.json";
 import it from "../locales/it.json";
 import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
 import { BottomBar } from "@/components/BottomBar";
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 
 SetDefaultFontFamily = () => {
@@ -143,17 +146,24 @@ export default function RootLayout() {
   }
 
   return (
-    <Provider store={store}>
-      <I18nextProvider i18n={i18n}>
-        <View style={styles.container}>
-          <SideBar />
-          <View style={styles.mainContentWrapper}>
-            <Slot />
-          </View>
-          <RightBar />
-          <StatusBar style="auto" />
-        </View>
-      </I18nextProvider >
-    </Provider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <GestureHandlerRootView>
+          <Provider store={store}>
+            <I18nextProvider i18n={i18n}>
+              <View style={styles.container}>
+                <SideBar />
+                <View style={styles.mainContentWrapper}>
+                  <Slot />
+                </View>
+                <RightBar />
+                <StatusBar style="auto" />
+                <Toaster position="bottom-center" swipeToDismissDirection="left" offset={20} />
+              </View>
+            </I18nextProvider>
+          </Provider>
+        </GestureHandlerRootView>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }

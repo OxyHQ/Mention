@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, Link } from "expo-router";
 import { colors } from "@/styles/colors";
 import { Header } from "@/components/Header";
+import { toast } from '@/lib/sonner';
 
 
 const languages = ["en", "es", "it"];
@@ -54,7 +55,7 @@ interface SettingItemProps {
 
 const SettingItem: React.FC<SettingItemProps> = ({ icon, title, subtitle, link, onPress }) => (
   <Link href={link as any} asChild>
-    <TouchableOpacity style={styles.settingItem} onPress={onPress}>
+    <TouchableOpacity style={styles.settingItem}>
       <View style={styles.iconContainer}>
         <Ionicons name={icon as any} size={24} color="#333" />
       </View>
@@ -158,6 +159,7 @@ export default function SettingsScreen() {
           leftComponents: [<Ionicons name="settings" size={24} color={colors.COLOR_BLACK} />],
           title: t("Customize your view"),
           subtitle: t("These settings affect all the Mention accounts on this device."),
+          rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
         }} />
         <ThemedView style={styles.container}>
           {post && <Post postData={post} showActions={false} />}

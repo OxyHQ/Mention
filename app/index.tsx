@@ -8,6 +8,7 @@ import { colors } from '../styles/colors';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
 import { Hashtag } from '@/assets/icons/hashtag-icon';
+import { Link } from 'expo-router';
 
 export default function HomeScreen() {
   const posts = useSelector((state) => state.posts.posts);
@@ -34,7 +35,7 @@ export default function HomeScreen() {
   }, [sortedPosts.length]);
 
   return (
-    <View style={styles.container}>
+    <>
       <Header options={{ title: "Home", rightComponents: [<Hashtag />] }} />
       <CreatePost style={styles.createPost} />
       {loading ? (
@@ -46,7 +47,7 @@ export default function HomeScreen() {
           style={styles.flatListStyle}
         />
       )}
-    </View>
+    </>
   );
 }
 
