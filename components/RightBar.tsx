@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { View, StyleSheet, Text, FlatList, Image, Platform, ViewStyle } from "react-native";
 import { Link } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -10,6 +10,8 @@ import { Pressable, ScrollView } from 'react-native-web-hover'
 import { FollowButton } from '@/components/FollowButton'
 import { useRouter, usePathname } from "expo-router";
 import Avatar from '@/components/Avatar'
+import { useSelector, useDispatch } from 'react-redux'
+import { fetchFollowRecommendations } from '@/store/reducers/followReducer'
 
 import { Trends } from "@/features/trends/Trends"
 
@@ -18,6 +20,13 @@ export function RightBar() {
     const router = useRouter();
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
+    const dispatch = useDispatch();
+    const followRecData = useSelector((state) => state.follow.users);
+
+    useEffect(() => {
+        dispatch(fetchFollowRecommendations());
+    }, [dispatch]);
+
     if (!isRightBarVisible) return null
     return (
         <View style={styles.container}>
@@ -35,13 +44,14 @@ export function RightBar() {
                 } as ViewStyle
             }>
                 <Trends hideTrends={isExplorePage} />
-                <SuggestedFriends />
+                <SuggestedFriends followRecData={followRecData} />
             </View>
         </View>
     )
 }
 
-function SuggestedFriends() {
+function SuggestedFriends({ followRecData }) {
+    const router = useRouter();
     return (
         <View
             style={{
@@ -64,11 +74,12 @@ function SuggestedFriends() {
             </View>
             <View>
                 {followRecData.map((data) => {
-                    return <FollowRowComponent {...data} />
+                    return <FollowRowComponent profileData={data} />
                 })}
             </View>
             <View>
                 <Pressable
+                    onPress={() => { router.push('/explore') }}
                     style={({ hovered }) => [
                         hovered
                             ? {
@@ -94,70 +105,48 @@ function SuggestedFriends() {
     )
 }
 
-const followRecData = [
-    {
-        photo:
-            'https://pbs.twimg.com/profile_images/1360004712439767041/phm-6601_400x400.jpg',
-        name: 'Nicolas',
-        userName: '@necolas',
-    },
-    {
-        name: 'Evan Bacon',
-        photo:
-            'https://pbs.twimg.com/profile_images/1308332115919020032/jlqFOD33_400x400.jpg',
-        userName: '@Baconbrix',
-    },
-    {
-        name: 'Dan',
-        photo:
-            'https://pbs.twimg.com/profile_images/1336281436685541376/fRSl8uJP_400x400.jpg',
-        userName: '@dan_abramov',
-    },
-    {
-        name: 'Krzysztof Magiera',
-        photo:
-            'https://pbs.twimg.com/profile_images/1064786289311010816/zD2FlyxR_400x400.jpg',
-        userName: '@kzzzf',
-    },
-]
-const FollowRowComponent = ({ name, userName, photo }: { name: string; userName: string; photo: string }) => {
+const FollowRowComponent = ({ profileData }) => {
+    const router = useRouter();
     return (
-        <Pressable
-            style={({ hovered }) => [
-                hovered
-                    ? {
-                        backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-                    }
-                    : {},
-                {
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    borderBottomWidth: 0.01,
-                    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-                    padding: 12,
-                    ...Platform.select({
-                        web: {
-                            cursor: 'pointer',
-                        },
-                    }),
-                },
-            ]}>
-            <Avatar
-                source={photo}
-            />
-            <View
-                style={{
-                    marginRight: 'auto',
-                    marginLeft: 13,
-                }}>
-                <Text style={{ fontWeight: 'bold', fontSize: 15 }}>{name}</Text>
-                <Text style={{ color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 }}>
-                    {userName}
-                </Text>
-            </View>
-            <FollowButton />
-        </Pressable>
+        <Link href={`/@${profileData?.username}`} style={{ display: 'flex' }}>
+            <Pressable
+                style={({ hovered }) => [
+                    hovered
+                        ? {
+                            backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+                        }
+                        : {},
+                    {
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        borderBottomWidth: 0.01,
+                        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+                        padding: 12,
+                        flex: 1,
+                        ...Platform.select({
+                            web: {
+                                cursor: 'pointer',
+                            },
+                        }),
+                    },
+                ]}>
+                <Avatar
+                    source={profileData?.image}
+                />
+                <View
+                    style={{
+                        marginRight: 'auto',
+                        marginLeft: 13,
+                    }}>
+                    <Text style={{ fontWeight: 'bold', fontSize: 15 }}>{profileData?.name}</Text>
+                    <Text style={{ color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 }}>
+                        @{profileData?.username}
+                    </Text>
+                </View>
+                <FollowButton />
+            </Pressable>
+        </Link>
     )
 }
 const TrendComponent = ({

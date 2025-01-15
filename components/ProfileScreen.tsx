@@ -30,7 +30,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     dispatch(fetchPosts());
-    dispatch(fetchProfile());
+    dispatch(fetchProfile({ username: localUsername.slice(1) }));
   }, [dispatch]);
 
   const user = profile || {

@@ -2,6 +2,7 @@ import React from "react";
 import { Image, StyleSheet, ImageStyle } from "react-native";
 import { colors } from "../styles/colors";
 
+
 interface AvatarProps {
   source: string;
   size?: number; // Add size prop
