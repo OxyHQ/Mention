@@ -21,7 +21,7 @@ export function RightBar() {
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
     const dispatch = useDispatch();
-    const followRecData = useSelector((state) => state.follow.users);
+    const followRecData = useSelector((state: { follow: { users: any[] } }) => state.follow.users);
 
     useEffect(() => {
         dispatch(fetchFollowRecommendations());
@@ -51,7 +51,7 @@ export function RightBar() {
     )
 }
 
-function SuggestedFriends({ followRecData }) {
+function SuggestedFriends({ followRecData }: { followRecData: any[] }) {
     const router = useRouter();
     return (
         <View
