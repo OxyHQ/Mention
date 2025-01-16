@@ -19,7 +19,7 @@ export const fetchDataOxy = async (endpoint: string) => {
     const response = await axios.get(`${API_URL_OXY}/${endpoint}`);
     return response.data;
   } catch (error) {
-    console.error("Error fetching data:", error);
+    console.error("Error fetching data from Oxy API:", error);
     throw error;
   }
 };

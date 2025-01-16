@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Provider } from 'react-redux';
-import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Slot } from 'expo-router';
@@ -27,35 +27,7 @@ import it from "../locales/it.json";
 import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
 import { BottomBar } from "@/components/BottomBar";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-
-
-SetDefaultFontFamily = () => {
-  let components = [Text, TextInput]
-
-  const customProps = {
-    style: {
-      fontFamily: "Rubik"
-    }
-  }
-
-  for (let i = 0; i < components.length; i++) {
-    const TextRender = components[i].prototype.render;
-    const initialDefaultProps = components[i].prototype.constructor.defaultProps;
-    components[i].prototype.constructor.defaultProps = {
-      ...initialDefaultProps,
-      ...customProps,
-    }
-    components[i].prototype.render = function render() {
-      let oldProps = this.props;
-      this.props = { ...this.props, style: [customProps.style, this.props.style] };
-      try {
-        return TextRender.apply(this, arguments);
-      } finally {
-        this.props = oldProps;
-      }
-    };
-  }
-}
+import { initialWindowMetrics } from 'react-native-safe-area-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -146,24 +118,22 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <GestureHandlerRootView>
-          <Provider store={store}>
-            <I18nextProvider i18n={i18n}>
-              <View style={styles.container}>
-                <SideBar />
-                <View style={styles.mainContentWrapper}>
-                  <Slot />
-                </View>
-                <RightBar />
-                <StatusBar style="auto" />
-                <Toaster position="bottom-center" swipeToDismissDirection="left" offset={20} />
+    <SafeAreaProvider>
+      <GestureHandlerRootView initialMetrics={initialWindowMetrics}>
+        <Provider store={store}>
+          <I18nextProvider i18n={i18n}>
+            <View style={styles.container}>
+              <SideBar />
+              <View style={styles.mainContentWrapper}>
+                <Slot />
               </View>
-            </I18nextProvider>
-          </Provider>
-        </GestureHandlerRootView>
-      </SafeAreaView>
+              <RightBar />
+              <StatusBar style="auto" />
+              <Toaster position="bottom-center" swipeToDismissDirection="left" offset={20} />
+            </View>
+          </I18nextProvider>
+        </Provider>
+      </GestureHandlerRootView>
     </SafeAreaProvider>
   );
 }
