@@ -118,8 +118,8 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <GestureHandlerRootView initialMetrics={initialWindowMetrics}>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <GestureHandlerRootView>
         <Provider store={store}>
           <I18nextProvider i18n={i18n}>
             <View style={styles.container}>
