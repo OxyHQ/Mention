@@ -7,7 +7,7 @@ import { fetchProfile } from "@/store/reducers/profileReducer";
 export default function AccountSettings() {
     const { t } = useTranslation();
     const dispatch = useDispatch();
-    const profile = useSelector((state) => state.profile.profile);
+    const profile = useSelector((state: { profile: { profile: any } }) => state.profile.profile);
 
     useEffect(() => {
         dispatch(fetchProfile());

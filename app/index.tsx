@@ -39,7 +39,7 @@ export default function HomeScreen() {
       <Header options={{ title: "Home", rightComponents: [<Hashtag />] }} />
       <CreatePost style={styles.createPost} />
       {loading ? (
-        <ActivityIndicator size="large" color="#1DA1F2" />
+        <ActivityIndicator size="large" color={colors.primaryColor} />
       ) : (
         <FlatList<IPost>
           data={sortedPosts}

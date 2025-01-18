@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import {
+  BottomSheetModalProvider,
+} from '@gorhom/bottom-sheet';
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Slot } from 'expo-router';
@@ -120,19 +123,21 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView>
-        <Provider store={store}>
-          <I18nextProvider i18n={i18n}>
-            <View style={styles.container}>
-              <SideBar />
-              <View style={styles.mainContentWrapper}>
-                <Slot />
+        <BottomSheetModalProvider>
+          <Provider store={store}>
+            <I18nextProvider i18n={i18n}>
+              <View style={styles.container}>
+                <SideBar />
+                <View style={styles.mainContentWrapper}>
+                  <Slot />
+                </View>
+                <RightBar />
+                <StatusBar style="auto" />
+                <Toaster position="bottom-center" swipeToDismissDirection="left" offset={20} />
               </View>
-              <RightBar />
-              <StatusBar style="auto" />
-              <Toaster position="bottom-center" swipeToDismissDirection="left" offset={20} />
-            </View>
-          </I18nextProvider>
-        </Provider>
+            </I18nextProvider>
+          </Provider>
+        </BottomSheetModalProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

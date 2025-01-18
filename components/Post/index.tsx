@@ -23,15 +23,15 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
     const [isBookmarked, setIsBookmarked] = useState(false);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [isReposted, setIsReposted] = useState(false);
-    const [repostsCount, setRepostsCount] = useState(postData._count.reposts);
-    const [bookmarksCount, setBookmarksCount] = useState(postData._count.bookmarks);
-    const [repliesCount, setRepliesCount] = useState(postData._count.replies);
+    const [repostsCount, setRepostsCount] = useState(postData?._count?.reposts);
+    const [bookmarksCount, setBookmarksCount] = useState(postData?._count?.bookmarks);
+    const [repliesCount, setRepliesCount] = useState(postData?._count?.replies);
 
     const animatedScale = useRef(new Animated.Value(1)).current;
     const animatedOpacity = useRef(new Animated.Value(1)).current;
-    const animatedRepostsCount = useRef(new Animated.Value(postData._count.reposts)).current;
-    const animatedBookmarksCount = useRef(new Animated.Value(postData._count.bookmarks)).current;
-    const animatedRepliesCount = useRef(new Animated.Value(postData._count.replies)).current;
+    const animatedRepostsCount = useRef(new Animated.Value(postData?._count?.reposts)).current;
+    const animatedBookmarksCount = useRef(new Animated.Value(postData?._count?.bookmarks)).current;
+    const animatedRepliesCount = useRef(new Animated.Value(postData?._count?.replies)).current;
 
     const scaleAnimation = () => {
         Animated.sequence([
@@ -150,7 +150,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
                                 <Text style={styles.time}>· {new Date(postData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                             </View>
                             <Text style={styles.content}>{detectHashtags(postData.text)}</Text>
-                            {renderMedia(postData.media)}
+                            {postData?.media && renderMedia(postData.media)}
                             {renderPoll(undefined, selectedOption, handlePollOptionPress)}
                             {renderLocation(undefined)}
                             {!quotedPost && renderQuotedPost(postData.quoted_post_id ?? undefined)}
