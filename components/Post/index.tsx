@@ -142,7 +142,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
             <Link href={`/post/${postData.id}`} asChild>
                 <TouchableOpacity>
                     <View style={[styles.container, style]}>
-                        <Avatar source={`http://localhost:3000/api/files/${postData.author?.avatar || require('@/assets/images/default-avatar.jpg')}`} size={40} />
+                        <Avatar source={postData.author?.avatar ? { uri: `http://localhost:3000/api/files/${postData.author.avatar}` } : require('@/assets/images/default-avatar.jpg')} size={40} />
                         <View style={styles.contentContainer}>
                             <View style={styles.header}>
                                 <Text style={styles.name}>{postData.author?.name?.first} {postData.author?.name?.last}</Text>
