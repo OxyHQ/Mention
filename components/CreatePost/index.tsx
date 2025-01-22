@@ -43,15 +43,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
     const post = () => {
         if (data) {
             const newPost = {
-                id: uuidv4(),
-                text: data, // Ensure text is set from the state
-                media: selectedMedia,
-                created_at: new Date().toISOString(), // Ensure created_at is set
-                author: {
-                    name: "Current User",
-                    username: "currentuser",
-                    image: "https://scontent-bcn1-1.xx.fbcdn.net/v/t39.30808-6/463417298_3945442859019280_8807009322776007473_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=zXRqATKNOw0Q7kNvgHnyfUU&_nc_oc=AdgYVSd5vfuRV96_nxCmCnemTuCfkgS2YQ_Diu1puFc_h76AbObPG9_eD5rFA5TcRxYnE2mW_ZfJKWuXYtX-Z8ue&_nc_zt=23&_nc_ht=scontent-bcn1-1.xx&_nc_gid=AqvR1nQbgt2nJudR3eAKaLM&oh=00_AYBD3grUDwAE84jgvGS3UmB93xn3odRDqePjARpVj6L2vQ&oe=678C0857",
-                },
+                text: data,
             };
             dispatch(createPost(newPost));
             setData('');
