@@ -21,7 +21,7 @@ export function RightBar() {
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
     const dispatch = useDispatch();
-    const followRecData = useSelector((state: { follow: { users: any[] } }) => state.follow.users);
+    const followRecData = useSelector((state: { follow: { profiles: any[] } }) => state.follow.profiles);
 
     useEffect(() => {
         dispatch(fetchFollowRecommendations());
@@ -132,15 +132,13 @@ const FollowRowComponent = ({ profileData }) => {
                         }),
                     },
                 ]}>
-                <Avatar
-                    source={profileData?.image}
-                />
+                <Avatar id={profileData?.avatar} />
                 <View
                     style={{
                         marginRight: 'auto',
                         marginLeft: 13,
                     }}>
-                    <Text style={{ fontWeight: 'bold', fontSize: 15 }}>{profileData?.name}</Text>
+                    <Text style={{ fontWeight: 'bold', fontSize: 15 }}>{profileData?.name?.first} {profileData?.name?.last}</Text>
                     <Text style={{ color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 }}>
                         @{profileData?.username}
                     </Text>

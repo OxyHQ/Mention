@@ -1,14 +1,14 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { fetchData } from '@/utils/api';
 
-const initialState: { users: any[], loading: boolean, error: string | null } = {
-  users: [],
+const initialState: { profiles: any[], loading: boolean, error: string | null } = {
+  profiles: [],
   loading: false,
   error: null,
 };
 
 export const fetchFollowRecommendations = createAsyncThunk('follow/fetchFollowRecommendations', async () => {
-    const response = await fetchData('users');
+    const response = await fetchData('profiles');
     response.username = response.username ? response.username : response.id;
   return response;
 });
@@ -25,7 +25,7 @@ const followSlice = createSlice({
       })
       .addCase(fetchFollowRecommendations.fulfilled, (state, action) => {
         state.loading = false;
-        state.users = action.payload;
+        state.profiles = action.payload;
       })
       .addCase(fetchFollowRecommendations.rejected, (state, action) => {
         state.loading = false;

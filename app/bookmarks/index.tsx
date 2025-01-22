@@ -3,7 +3,7 @@ import { View, FlatList, StyleSheet, ActivityIndicator } from "react-native";
 import Post from "@/components/Post";
 import { Header } from "@/components/Header";
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchPosts } from '@/store/reducers/postsReducer';
+import { fetchBookmarkedPosts } from '@/store/reducers/postsReducer';
 
 export default function BookmarksScreen() {
     const posts = useSelector((state) => state.posts.posts);
@@ -11,7 +11,7 @@ export default function BookmarksScreen() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        dispatch(fetchPosts());
+        dispatch(fetchBookmarkedPosts());
     }, [dispatch]);
 
     useEffect(() => {

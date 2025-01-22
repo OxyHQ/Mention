@@ -1,45 +1,48 @@
 import axios from "axios";
 
-const API_URL = "https://mention.earth/api";
+const API_URL = "http://localhost:3000/api";
 const API_URL_OXY = "http://localhost:3000/api";
 
-export const fetchData = async (endpoint: string) => {
+const getApiUrl = (useOxy: boolean) => (useOxy ? API_URL_OXY : API_URL);
+
+export const fetchData = async (endpoint: string, data?: any, useOxy: boolean = false) => {
   try {
-    const response = await axios.get(`${API_URL}/${endpoint}`);
+    const response = await axios.get(`${getApiUrl(useOxy)}/${endpoint}`, data);
     return response.data;
   } catch (error) {
-    console.error("Error fetching data:", error);
+    console.error(`Error fetching data from ${endpoint}:`, error);
     throw error;
   }
 };
 
-export const sendData = async (endpoint: string, data: any) => {
+export const deleteData = async (endpoint: string, data?: any, useOxy: boolean = false) => {
   try {
-    const response = await axios.post(`${API_URL}/${endpoint}`, data);
+    const response = await axios.delete(`${getApiUrl(useOxy)}/${endpoint}`, data);
     return response.data;
   } catch (error) {
-    console.error("Error sending data:", error);
-    throw error;
-  }
-}
-
-
-export const fetchDataOxy = async (endpoint: string) => {
-  try {
-    const response = await axios.get(`${API_URL_OXY}/${endpoint}`);
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching data from Oxy API:", error);
+    console.error(`Error deleting data from ${endpoint}:`, error);
     throw error;
   }
 };
 
-export const sendDataOxy = async (endpoint: string, data: any) => {
+export const postData = async (endpoint: string, data: any, useOxy: boolean = false) => {
   try {
-    const response = await axios.post(`${API_URL_OXY}/${endpoint}`, data);
+    const response = await axios.post(`${getApiUrl(useOxy)}/${endpoint}`, data);
     return response.data;
   } catch (error) {
-    console.error("Error sending data:", error);
+    console.error(`Error posting data to ${endpoint}:`, error);
     throw error;
   }
-}
+};
+
+export const putData = async (endpoint: string, data: any, useOxy: boolean = false) => {
+  try {
+    const response = await axios.put(`${getApiUrl(useOxy)}/${endpoint}`, data);
+    return response.data;
+  } catch (error) {
+    console.error(`Error putting data to ${endpoint}:`, error);
+    throw error;
+  }
+};
+
+

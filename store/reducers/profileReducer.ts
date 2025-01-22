@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { Profile } from '@/interfaces/Profile';
-import { fetchData, fetchDataOxy } from '@/utils/api';
+import { fetchData } from '@/utils/api';
 
 interface ProfileState {
   profile: Profile | null;
@@ -16,7 +16,7 @@ const initialState: ProfileState = {
 
 export const getUsernameToId = async ({ username }: { username: string }) => {
   try {
-    const response = await fetchDataOxy(`users/username-to-id/${username}`);
+    const response = await fetchData(`users/username-to-id/${username}`);
     const ProfileData = response;
 
     return ProfileData?.id || null;
@@ -31,7 +31,7 @@ export const fetchProfile = createAsyncThunk('profile/fetchProfile', async ({ us
   if (!userId) {
     throw new Error('Failed to fetch user ID');
   }
-  const response = await fetchDataOxy(`profiles/${userId}`);
+  const response = await fetchData(`profiles/${userId}`);
   return response as Profile;
 });
 

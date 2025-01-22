@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing, Share, ViewStyle } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +9,7 @@ import { detectHashtags } from "./utils";
 import { renderMedia, renderPoll, renderLocation, renderQuotedPost } from "./renderers";
 import AnimatedNumbers from 'react-native-animated-numbers';
 import { useDispatch, useSelector } from 'react-redux';
-import { updateLikes } from '@/store/reducers/postsReducer';
+import { updateLikes, bookmarkPost, fetchBookmarkedPosts } from '@/store/reducers/postsReducer';
 import { Chat } from "@/assets/icons/chat-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { RepostIcon } from "@/assets/icons/repost-icon";
@@ -32,6 +32,10 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
     const animatedRepostsCount = useRef(new Animated.Value(postData?._count?.reposts)).current;
     const animatedBookmarksCount = useRef(new Animated.Value(postData?._count?.bookmarks)).current;
     const animatedRepliesCount = useRef(new Animated.Value(postData?._count?.replies)).current;
+
+    useEffect(() => {
+        dispatch(fetchBookmarkedPosts());
+    }, [dispatch]);
 
     const scaleAnimation = () => {
         Animated.sequence([
@@ -98,6 +102,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
         setIsBookmarked(!isBookmarked);
         const newBookmarksCount = isBookmarked ? bookmarksCount - 1 : bookmarksCount + 1;
         setBookmarksCount(newBookmarksCount);
+        dispatch(bookmarkPost(postData.id));
         Animated.timing(animatedBookmarksCount, {
             toValue: newBookmarksCount,
             duration: 300,
@@ -142,7 +147,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
             <Link href={`/post/${postData.id}`} asChild>
                 <TouchableOpacity>
                     <View style={[styles.container, style]}>
-                        <Avatar source={postData.author?.avatar ? { uri: `http://localhost:3000/api/files/${postData.author.avatar}` } : require('@/assets/images/default-avatar.jpg')} size={40} />
+                        <Avatar id={postData?.author?.avatar} size={40} />
                         <View style={styles.contentContainer}>
                             <View style={styles.header}>
                                 <Text style={styles.name}>{postData.author?.name?.first} {postData.author?.name?.last}</Text>

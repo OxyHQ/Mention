@@ -49,7 +49,7 @@ export default function ProfileScreen() {
             style={styles.coverPhoto}
           />
           <View style={styles.profileInfo}>
-            <Avatar source={profile?.avatar} style={styles.avatar} />
+            <Avatar id={profile?.avatar} style={styles.avatar} />
             <View style={styles.profileButtons}>
               <TouchableOpacity style={styles.ProfileButton}>
                 <ChatIcon size={20} color={colors.primaryColor} />
