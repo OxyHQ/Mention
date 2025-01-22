@@ -142,10 +142,10 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
             <Link href={`/post/${postData.id}`} asChild>
                 <TouchableOpacity>
                     <View style={[styles.container, style]}>
-                        <Avatar source={postData.author?.image} size={40} />
+                        <Avatar source={`http://localhost:3000/api/files/${postData.author?.avatar || require('@/assets/images/default-avatar.jpg')}`} size={40} />
                         <View style={styles.contentContainer}>
                             <View style={styles.header}>
-                                <Text style={styles.name}>{postData.author?.name}</Text>
+                                <Text style={styles.name}>{postData.author?.name?.first} {postData.author?.name?.last}</Text>
                                 <Text style={styles.username}>@{postData.author?.username}</Text>
                                 <Text style={styles.time}>· {new Date(postData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                             </View>

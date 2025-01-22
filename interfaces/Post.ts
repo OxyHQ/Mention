@@ -6,6 +6,7 @@ interface Author {
   image: string;
   description: string;
   color: string;
+  avatar: string;
 }
 
 export interface Post {
