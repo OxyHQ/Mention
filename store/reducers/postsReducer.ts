@@ -12,16 +12,21 @@ const initialState: { posts: Post[], loading: boolean, error: string | null } = 
 export const fetchPosts = createAsyncThunk('posts/', async () => {
   const response = await fetchDataOxy("posts");
   const posts = response.posts.map(async (post: Post) => {
-    const authorResponse = await fetchDataOxy(`profiles/${post.author_id}`);
-    const author = {
-      id: authorResponse?.id,
-      name: {
-        first: authorResponse?.name?.first,
-        last: authorResponse?.name?.last,
-      },
-      username: authorResponse?.username,
-      avatar: authorResponse?.avatar,
-    };
+    let author = null;
+    if (post.author_id) {
+      const authorResponse = await fetchDataOxy(`profiles/${post.author_id}`);
+      if (authorResponse) {
+      author = {
+        id: authorResponse.id,
+        name: {
+          first: authorResponse.name?.first,
+          last: authorResponse.name?.last,
+        },
+        username: authorResponse.username,
+        avatar: authorResponse.avatar,
+      };
+      }
+    }
     return {
       id: post.id,
       text: post.text,
@@ -59,13 +64,21 @@ export const fetchPostById = createAsyncThunk(
   async (postId: string) => {
     const response = await fetchData(`posts/${postId}`);
     const post = response.posts.map(async (post: Post) => {
+      let author = null;
+    if (post.author_id) {
       const authorResponse = await fetchDataOxy(`profiles/${post.author_id}`);
-      const author = {
+      if (authorResponse) {
+      author = {
         id: authorResponse.id,
-        name: authorResponse.name,
+        name: {
+          first: authorResponse.name?.first,
+          last: authorResponse.name?.last,
+        },
         username: authorResponse.username,
         avatar: authorResponse.avatar,
       };
+      }
+    }
       return {
         id: post.id,
         text: post.text,

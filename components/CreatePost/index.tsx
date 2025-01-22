@@ -43,6 +43,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
     const post = () => {
         if (data) {
             const newPost = {
+                author_id: '678b29d19085a13337ca9fd4',
                 text: data,
             };
             dispatch(createPost(newPost));
