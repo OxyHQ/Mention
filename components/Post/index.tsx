@@ -149,7 +149,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
                                 <Text style={styles.username}>@{postData.author?.username}</Text>
                                 <Text style={styles.time}>· {new Date(postData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                             </View>
-                            <Text style={styles.content}>{detectHashtags(postData.text)}</Text>
+                            {postData?.text && <Text style={styles.content}>{detectHashtags(postData.text)}</Text>}
                             {postData?.media && renderMedia(postData.media)}
                             {renderPoll(undefined, selectedOption, handlePollOptionPress)}
                             {renderLocation(undefined)}
