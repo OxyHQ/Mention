@@ -18,6 +18,7 @@ import { Gear, GearActive } from '@/assets/icons/gear-icon';
 import { Plus } from '@/assets/icons/plus-icon';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { List, ListActive } from '@/assets/icons/list-icon';
+import { AccountSwitcherModal, SessionOwnerButton } from '@/modules/oxyhqservices';
 const WindowHeight = Dimensions.get('window').height
 
 
@@ -162,6 +163,9 @@ export function SideBar() {
                                 }),
                         })}
                     />
+                </View>
+                <View style={{ width: '100%', flex: 1, flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    <SessionOwnerButton />
                 </View>
             </View>
         )
