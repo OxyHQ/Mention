@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TextInput, ScrollView, SafeAreaView, TouchableOpacity, FlatList } from "react-native";
 import { Post as PostType } from "@/interfaces/Post";
 import { useTranslation } from "react-i18next";
@@ -7,7 +7,7 @@ import { Stack, Link } from "expo-router";
 import { colors } from "@/styles/colors";
 import { Header } from "@/components/Header";
 import { toast } from '@/lib/sonner';
-import Avatar from "@/components/Avatar";
+import Constants from 'expo-constants';
 
 interface SettingItemProps {
     icon: string;
@@ -35,6 +35,15 @@ const SettingItem: React.FC<SettingItemProps> = ({ icon, title, subtitle, link, 
 
 export default function SettingsAboutScreen() {
     const { t } = useTranslation();
+    const [appVersion, setAppVersion] = useState('');
+
+    useEffect(() => {
+        if (Constants.expoConfig && Constants.expoConfig.version) {
+            setAppVersion(Constants.expoConfig.version);
+        } else {
+            setAppVersion('Undefined'); // Fallback version
+        }
+    }, []);
 
     return (
         <>
@@ -63,9 +72,9 @@ export default function SettingsAboutScreen() {
                 <SettingItem
                     icon="information-circle"
                     title={t('Version')}
-                    subtitle={t('1.0.0')}
+                    subtitle={appVersion}
                     link="/"
-                    content="1.0.0"
+                    content={appVersion}
                 />
             </SafeAreaView>
         </>
