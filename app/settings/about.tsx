@@ -8,6 +8,7 @@ import { colors } from "@/styles/colors";
 import { Header } from "@/components/Header";
 import { toast } from '@/lib/sonner';
 import Constants from 'expo-constants';
+import * as Clipboard from 'expo-clipboard';
 
 interface SettingItemProps {
     icon: string;
@@ -18,8 +19,8 @@ interface SettingItemProps {
     content?: string;
 }
 
-const SettingItem: React.FC<SettingItemProps> = ({ icon, title, subtitle, link, onPress, content }) => (
-    <Link href={link as any} asChild>
+const SettingItem: React.FC<SettingItemProps> = ({ icon, title, subtitle, link, onPress, content }) => {
+    const contentElement = (
         <TouchableOpacity style={styles.settingItem} onPress={onPress}>
             <View style={styles.iconContainer}>
                 <Ionicons name={icon as any} size={24} color="#333" />
@@ -30,8 +31,10 @@ const SettingItem: React.FC<SettingItemProps> = ({ icon, title, subtitle, link, 
             </View>
             <Text style={styles.content}>{content}</Text>
         </TouchableOpacity>
-    </Link>
-);
+    );
+
+    return link ? <Link href={link as any} asChild>{contentElement}</Link> : contentElement;
+};
 
 export default function SettingsAboutScreen() {
     const { t } = useTranslation();
@@ -44,6 +47,11 @@ export default function SettingsAboutScreen() {
             setAppVersion('Undefined'); // Fallback version
         }
     }, []);
+
+    const handleVersionPress = () => {
+        Clipboard.setStringAsync(appVersion);
+        toast(t(`Version ${appVersion} copied to clipboard`));
+    };
 
     return (
         <>
@@ -73,8 +81,8 @@ export default function SettingsAboutScreen() {
                     icon="information-circle"
                     title={t('Version')}
                     subtitle={appVersion}
-                    link="/"
                     content={appVersion}
+                    onPress={handleVersionPress}
                 />
             </SafeAreaView>
         </>
