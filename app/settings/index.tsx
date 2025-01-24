@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TextInput, ScrollView, SafeAreaView, TouchableOpacity, FlatList } from "react-native";
-import { ThemedView } from "@/components/ThemedView";
-import Post from "@/components/Post";
 import { Post as PostType } from "@/interfaces/Post";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useTranslation } from "react-i18next";
@@ -10,40 +8,11 @@ import { Stack, Link } from "expo-router";
 import { colors } from "@/styles/colors";
 import { Header } from "@/components/Header";
 import { toast } from '@/lib/sonner';
+import Avatar from "@/components/Avatar";
 
 
 const languages = ["en", "es", "it"];
 const colorsArray = ["#1DA1F2", "#FF5733", "#33FF57", "#3357FF"];
-
-
-const post: PostType = {
-  id: "1",
-  text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
-  source: "web",
-  in_reply_to_user_id: null,
-  in_reply_to_username: null,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-  author: {
-    id: "1",
-    username: "mention",
-    name: "Mention",
-    image: "https://example.com/profile.jpg",
-    email: "hello@mention.earth",
-    description: "A new social network for a new world.",
-    color: "#000000",
-  },
-  media: [],
-  quoted_post: null,
-  _count: {
-    likes: 0,
-    reposts: 0,
-    bookmarks: 0,
-    replies: 0,
-    comments: 0,
-    quotes: 0,
-  },
-};
 
 interface SettingItemProps {
   icon: string;
@@ -157,13 +126,15 @@ export default function SettingsScreen() {
       <SafeAreaView style={styles.container}>
         <Header options={{
           leftComponents: [<Ionicons name="settings" size={24} color={colors.COLOR_BLACK} />],
-          title: t("Customize your view"),
-          subtitle: t("These settings affect all the Mention accounts on this device."),
+          title: t("Settings"),
           rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
         }} />
-        <ThemedView style={styles.container}>
-          {post && <Post postData={post} showActions={false} />}
-        </ThemedView>
+        <View style={styles.accountContainer}>
+          <Avatar size={80} />
+          <Text style={styles.accountTitle}>Nate Isern Alvarez</Text>
+          <Text style={styles.accountHandle}>@natealvarez</Text>
+        </View>
+        <SettingItem icon="information-circle" title={t('Edit Oxy Profile')} subtitle={t('Open Oxy Accounts Center')} link="/" />
         <SettingsSearch onSearch={setSearchText} />
         <FlatList
           style={styles.scrollView}
@@ -179,20 +150,20 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
   },
-  headerContainer: {
+  accountContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    backgroundColor: '#fff',
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  accountTitle: {
+    fontSize: 30,
+    fontWeight: '700',
     color: '#000',
   },
-  headerSubtitle: {
-    fontSize: 16,
+  accountHandle: {
+    fontSize: 18,
     color: '#666',
-    marginTop: 4,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -219,12 +190,9 @@ const styles = StyleSheet.create({
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 10,
     backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginBottom: 4,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderBottomWidth: 1,
     borderColor: colors.COLOR_BLACK_LIGHT_6,
   },
   iconContainer: {
@@ -232,7 +200,7 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 10,
   },
   textContainer: {
     flex: 1,

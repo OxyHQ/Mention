@@ -6,7 +6,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { fetchBookmarkedPosts } from '@/store/reducers/postsReducer';
 
 export default function BookmarksScreen() {
-    const posts = useSelector((state) => state.posts.posts);
+    const posts = useSelector((state) => state.posts.bookmarkedPosts);
     const dispatch = useDispatch();
     const [loading, setLoading] = useState(true);
 

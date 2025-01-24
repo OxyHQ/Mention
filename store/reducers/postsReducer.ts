@@ -97,6 +97,11 @@ export const fetchBookmarkedPosts = createAsyncThunk('posts/fetchBookmarkedPosts
   return Promise.all(posts);
 });
 
+export const deleteBookmarkedPost = createAsyncThunk('posts/deleteBookmarkedPost', async (postId: string) => {
+  const response = await postData(`posts/${postId}/unbookmark`, {userId: '678b29d19085a13337ca9fd4'});
+  return response;
+});
+
 const postsSlice = createSlice({
   name: 'posts',
   initialState,
@@ -174,6 +179,10 @@ const postsSlice = createSlice({
       .addCase(fetchBookmarkedPosts.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch bookmarked posts';
+      })
+      .addCase(deleteBookmarkedPost.fulfilled, (state, action) => {
+        const postId = action.payload.postId;
+        state.bookmarkedPosts = state.bookmarkedPosts.filter(post => post.id !== postId);
       });
   },
 });

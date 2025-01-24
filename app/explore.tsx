@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   Switch,
 } from "react-native";
-import { Header } from '../components/Header'
+import { Header } from '@/components/Header'
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";

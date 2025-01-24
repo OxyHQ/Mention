@@ -16,11 +16,10 @@ const initialState: TrendsState = {
 
 export const fetchTrends = createAsyncThunk('trends/fetchTrends', async () => {
   const response = await fetchData('hashtags');
-  return response.map((trend: any) => ({
-    id: trend.id,
+  return response.hashtags.map((trend: any) => ({
     text: trend.text,
     hashtag: trend.hashtag,
-    score: trend.score,
+    score: trend.count,
     created_at: trend.created_at,
   }));
 });

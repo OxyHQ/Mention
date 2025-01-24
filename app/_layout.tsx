@@ -24,9 +24,9 @@ import {
 } from "@/utils/notifications";
 import i18n from "i18next";
 import { initReactI18next, I18nextProvider, useTranslation } from "react-i18next";
-import en from "../locales/en.json";
-import es from "../locales/es.json";
-import it from "../locales/it.json";
+import en from "@/locales/en.json";
+import es from "@/locales/es.json";
+import it from "@/locales/it.json";
 import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
 import { BottomBar } from "@/components/BottomBar";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';

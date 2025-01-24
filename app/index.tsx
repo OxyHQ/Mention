@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import { CreatePost } from '../components/CreatePost';
-import { Header } from '../components/Header';
-import Post from '../components/Post';
+import { CreatePost } from '@/components/CreatePost';
+import { Header } from '@/components/Header';
+import Post from '@/components/Post';
 import { Post as IPost } from "@/interfaces/Post";
 import { colors } from '../styles/colors';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
 import { Hashtag } from '@/assets/icons/hashtag-icon';
 import { Link } from 'expo-router';
+import { Stories } from '@/components/Stories';
 
 export default function HomeScreen() {
   const posts = useSelector((state) => state.posts.posts);
@@ -37,6 +38,7 @@ export default function HomeScreen() {
   return (
     <>
       <Header options={{ title: "Home", rightComponents: [<Hashtag />] }} />
+      <Stories />
       <CreatePost style={styles.createPost} />
       {loading ? (
         <ActivityIndicator size="large" color={colors.primaryColor} />

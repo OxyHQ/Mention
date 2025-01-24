@@ -4,22 +4,66 @@ import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Stack } from "expo-router";
+import { Header } from "@/components/Header";
+import { colors } from "@/styles/colors";
+import { ThemedView } from "@/components/ThemedView";
+import Post from "@/components/Post";
 
-const colors = ["#1DA1F2", "#FF5733", "#33FF57", "#3357FF"];
+const colorsArray = ["#1DA1F2", "#FF5733", "#33FF57", "#3357FF"];
+
+const post = {
+    id: "1",
+    text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
+    source: "web",
+    in_reply_to_user_id: null,
+    in_reply_to_username: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    author: {
+        id: "1",
+        username: "mention",
+        name: {
+            first: "Mention",
+        },
+        email: "hello@mention.earth",
+        description: "A new social network for a new world.",
+        color: "#000000",
+    },
+    media: [],
+    quoted_post: null,
+    is_quote_status: false,
+    quoted_status_id: null,
+    possibly_sensitive: false,
+    lang: "en",
+    _count: {
+        likes: 0,
+        reposts: 0,
+        bookmarks: 0,
+        replies: 0,
+        quotes: 0,
+    },
+};
 
 export default function AppearanceScreen() {
     const { t } = useTranslation();
     const colorScheme = useColorScheme();
-    const [selectedColor, setSelectedColor] = useState(colors[0]);
+    const [selectedColor, setSelectedColor] = useState(colorsArray[0]);
 
     return (
         <>
-            <Stack.Screen options={{ title: t("Appearance") }} />
-            <ScrollView style={styles.container}>
-                <View style={styles.headerContainer}>
-                    <Text style={styles.headerTitle}>{t("Appearance")}</Text>
-                    <Text style={styles.headerSubtitle}>{t("Customize the look and feel of the app")}</Text>
-                </View>
+            <Stack.Screen options={{ title: t("Display") }} />
+            <ScrollView>
+                <Header options={{
+                    leftComponents: [<Ionicons name="settings" size={24} color={colors.COLOR_BLACK} />],
+                    title: t("Display"),
+                    subtitle: t("These settings affect all the Mention accounts on this device."),
+                    rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
+                }} />
+                <ThemedView style={styles.postContainer}>
+                    <View style={styles.postContainerView}>
+                        {post && <Post postData={post} showActions={false} />}
+                    </View>
+                </ThemedView>
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>{t("Theme")}</Text>
                     <View style={styles.optionsContainer}>
@@ -42,7 +86,7 @@ export default function AppearanceScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>{t("Accent Color")}</Text>
                     <View style={styles.optionsContainer}>
-                        {colors.map((color) => (
+                        {colorsArray.map((color) => (
                             <TouchableOpacity
                                 key={color}
                                 style={[styles.colorOption, { backgroundColor: color }, selectedColor === color && styles.selectedColorOption]}
@@ -56,36 +100,14 @@ export default function AppearanceScreen() {
     );
 }
 
-export function DisplaySettings() {
-    const { t } = useTranslation();
-
-    return (
-        <SafeAreaView style={styles.container}>
-            <Text style={styles.title}>{t("Display Settings")}</Text>
-            {/* Add display settings components here */}
-        </SafeAreaView>
-    );
-}
 
 const styles = StyleSheet.create({
-    container: {
-        backgroundColor: "#f1f1f1",
-    },
-    headerContainer: {
+    postContainer: {
         padding: 16,
-        backgroundColor: "#fff",
-        borderBottomWidth: 1,
-        borderBottomColor: "#ddd",
     },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: "bold",
-        color: "#000",
-    },
-    headerSubtitle: {
-        fontSize: 16,
-        color: "#666",
-        marginTop: 4,
+    postContainerView: {
+        backgroundColor: colors.primaryLight,
+        borderRadius: 35,
     },
     section: {
         padding: 16,
