@@ -1,9 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import {
-  BottomSheetModalProvider,
-} from '@gorhom/bottom-sheet';
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Slot } from 'expo-router';
@@ -31,6 +28,8 @@ import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimen
 import { BottomBar } from "@/components/BottomBar";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics } from 'react-native-safe-area-context';
+import { BottomSheetProvider } from '@/context/BottomSheetContext';
+import { SessionOwnerButton } from '@/modules/oxyhqservices/components/SessionOwnerButton';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -64,6 +63,16 @@ export default function RootLayout() {
     "Inter-SemiBold": require("@/assets/fonts/inter/Inter-SemiBold.otf"),
     "Inter-Thin": require("@/assets/fonts/inter/Inter-Thin.otf"),
   });
+
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
+
+  const handleSheetChanges = useCallback((index: number) => {
+    console.log('handleSheetChanges', index);
+  }, []);
+
+  const openBottomSheet = () => {
+    bottomSheetRef.current?.expand();
+  };
 
   useEffect(() => {
     async function initializeApp() {
@@ -114,6 +123,10 @@ export default function RootLayout() {
       backgroundColor: colors.primaryLight,
       borderRadius: isScreenNotMobile ? 35 : 0,
     },
+    contentContainer: {
+      flex: 1,
+      alignItems: 'center',
+    },
   });
 
   if (!loaded) {
@@ -123,9 +136,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView>
-        <BottomSheetModalProvider>
-          <Provider store={store}>
-            <I18nextProvider i18n={i18n}>
+        <Provider store={store}>
+          <I18nextProvider i18n={i18n}>
+            <BottomSheetProvider>
               <View style={styles.container}>
                 <SideBar />
                 <View style={styles.mainContentWrapper}>
@@ -135,9 +148,9 @@ export default function RootLayout() {
                 <StatusBar style="auto" />
                 <Toaster position="bottom-center" swipeToDismissDirection="left" offset={20} />
               </View>
-            </I18nextProvider>
-          </Provider>
-        </BottomSheetModalProvider>
+            </BottomSheetProvider>
+          </I18nextProvider>
+        </Provider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
