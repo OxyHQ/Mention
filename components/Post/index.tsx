@@ -147,11 +147,23 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
             <Link href={`/post/${postData.id}`} asChild>
                 <TouchableOpacity>
                     <View style={[styles.container, style]}>
-                        <Avatar id={postData?.author?.avatar} size={40} />
+                        <Link href={`/@${postData.author?.username}`} asChild>
+                            <TouchableOpacity>
+                                <Avatar id={postData?.author?.avatar} size={40} />
+                            </TouchableOpacity>
+                        </Link>
                         <View style={styles.contentContainer}>
                             <View style={styles.header}>
-                                <Text style={styles.name}>{postData.author?.name?.first} {postData.author?.name?.last}</Text>
-                                <Text style={styles.username}>@{postData.author?.username}</Text>
+                                <Link href={`/@${postData.author?.username}`} asChild>
+                                    <TouchableOpacity>
+                                        <Text style={styles.name}>{postData.author?.name?.first} {postData.author?.name?.last}</Text>
+                                    </TouchableOpacity>
+                                </Link>
+                                <Link href={`/@${postData.author?.username}`} asChild>
+                                    <TouchableOpacity>
+                                        <Text style={styles.username}>@{postData.author?.username}</Text>
+                                    </TouchableOpacity>
+                                </Link>
                                 <Text style={styles.time}>· {new Date(postData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                             </View>
                             {postData?.text && <Text style={styles.content}>{detectHashtags(postData.text)}</Text>}

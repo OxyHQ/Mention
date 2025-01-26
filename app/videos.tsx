@@ -81,13 +81,13 @@ function Feed() {
             <View style={[{ zIndex: 7 }, styles.header]}>
                 <View>
                     <TouchableOpacity>
-                        <Text style={styles.textLeftHeader}>Seguindo</Text>
+                        <Text style={styles.textLeftHeader}>Following</Text>
                     </TouchableOpacity>
                 </View>
                 <Text style={styles.spanCenterHeader}>|</Text>
                 <View>
                     <TouchableOpacity>
-                        <Text style={styles.textRightHeader}>Para você</Text>
+                        <Text style={styles.textRightHeader}>For you</Text>
                     </TouchableOpacity>
                 </View>
             </View>

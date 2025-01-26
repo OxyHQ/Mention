@@ -65,10 +65,10 @@ export function SideBar() {
             route: '/lists',
         },
         {
-            title: t("More"),
+            title: t("Videos"),
             icon: <Plus color={colors.COLOR_BLACK} />,
             iconActive: <Plus />,
-            route: '/more',
+            route: '/videos',
         },
         {
             title: t("Settings"),
