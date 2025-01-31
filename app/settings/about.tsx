@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { View, Text, StyleSheet, TextInput, ScrollView, SafeAreaView, TouchableOpacity, FlatList } from "react-native";
 import { Post as PostType } from "@/interfaces/Post";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,7 @@ import { Header } from "@/components/Header";
 import { toast } from '@/lib/sonner';
 import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
+import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 
 interface SettingItemProps {
     icon: string;
@@ -40,6 +41,10 @@ export default function SettingsAboutScreen() {
     const { t } = useTranslation();
     const [appVersion, setAppVersion] = useState('');
 
+    const sessionContext = useContext(SessionContext);
+    const currentUser = sessionContext?.getCurrentUser();
+    const username = currentUser ? currentUser?.username : '';
+
     useEffect(() => {
         if (Constants.expoConfig && Constants.expoConfig.version) {
             setAppVersion(Constants.expoConfig.version);
@@ -53,6 +58,11 @@ export default function SettingsAboutScreen() {
         toast(t(`Version ${appVersion} copied to clipboard`));
     };
 
+    const handleInviteAppPress = () => {
+        Clipboard.setStringAsync(`I'm on Mention as @${username}. Install the app to follow me and see my posts and replies. https://mention.earth/@${username}`);
+        toast(t(`Invite link copied to clipboard`));
+    };
+
     return (
         <>
             <Stack.Screen options={{ title: t("Settings") }} />
@@ -63,18 +73,27 @@ export default function SettingsAboutScreen() {
                     rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
                 }} />
                 <SettingItem
+                    icon="information-circle"
+                    title={t('Invite to Mention')}
+                    subtitle={t('Share Mention with your friends')}
+                    onPress={handleInviteAppPress}
+                />
+                <SettingItem
                     icon="document-text"
                     title={t('Terms of Service')}
+                    subtitle={t('Read our terms of service')}
                     link="/"
                 />
                 <SettingItem
                     icon="shield-checkmark"
                     title={t('Privacy Policy')}
+                    subtitle={t('Read our privacy policy')}
                     link="/"
                 />
                 <SettingItem
                     icon="bug"
                     title={t('System log')}
+                    subtitle={t('View system logs')}
                     link="/settings/log"
                 />
                 <SettingItem
