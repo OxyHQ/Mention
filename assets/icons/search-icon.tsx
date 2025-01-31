@@ -1,25 +1,23 @@
-export const Search = () => {
+import React from 'react';
+import Svg, { Path, Line, Polygon } from 'react-native-svg';
+import { ViewStyle } from 'react-native';
+import { colors } from '@/styles/colors';
+
+
+export const Search = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
   return (
-    <svg className="svgIcon" viewBox="0 0 24 24" aria-hidden="true" style={{ ...style, width: size, height: size, fill: color }}>
-      <path
-        clipRule="evenodd"
-        d="M3.5 11.5C3.5 7.08172 7.08172 3.5 11.5 3.5C15.9183 3.5 19.5 7.08172 19.5 11.5C19.5 15.9183 15.9183 19.5 11.5 19.5C7.08172 19.5 3.5 15.9183 3.5 11.5ZM11.5 1C5.70101 1 1 5.70101 1 11.5C1 17.299 5.70101 22 11.5 22C13.949 22 16.2023 21.1615 17.9883 19.756L22.3661 24.1339C22.8543 24.622 23.6457 24.622 24.1339 24.1339C24.622 23.6457 24.622 22.8543 24.1339 22.3661L19.756 17.9883C21.1615 16.2023 22 13.949 22 11.5C22 5.70101 17.299 1 11.5 1Z"
-        fill="currentColor"
-        fillRule="evenodd"
-      ></path>
-    </svg>
+    <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
+      <Path fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z"></Path>
+      <Line fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" x1="16.511" x2="22" y1="16.511" y2="22"></Line>
+    </Svg>
   );
 };
 
-export const SearchActive = () => {
+export const SearchActive = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
   return (
-    <svg className="svgIcon" viewBox="0 0 24 24" aria-hidden="true" style={{ ...style, width: size, height: size, fill: color }}>
-      <path
-        clipRule="evenodd"
-        d="M3.5 11.5C3.5 7.08172 7.08172 3.5 11.5 3.5C15.9183 3.5 19.5 7.08172 19.5 11.5C19.5 15.9183 15.9183 19.5 11.5 19.5C7.08172 19.5 3.5 15.9183 3.5 11.5ZM11.5 1C5.70101 1 1 5.70101 1 11.5C1 17.299 5.70101 22 11.5 22C13.949 22 16.2023 21.1615 17.9883 19.756L22.3661 24.1339C22.8543 24.622 23.6457 24.622 24.1339 24.1339C24.622 23.6457 24.622 22.8543 24.1339 22.3661L19.756 17.9883C21.1615 16.2023 22 13.949 22 11.5C22 5.70101 17.299 1 11.5 1Z"
-        fill="currentColor"
-        fillRule="evenodd"
-      ></path>
-    </svg>
+    <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
+      <Path fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M18.5 10.5a8 8 0 1 1-8-8 8 8 0 0 1 8 8Z"></Path>
+      <Line fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" x1="16.511" x2="21.643" y1="16.511" y2="21.643"></Line>
+    </Svg>
   );
 };
