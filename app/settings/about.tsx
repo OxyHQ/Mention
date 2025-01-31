@@ -75,7 +75,7 @@ export default function SettingsAboutScreen() {
                 <SettingItem
                     icon="bug"
                     title={t('System log')}
-                    link="/"
+                    link="/settings/log"
                 />
                 <SettingItem
                     icon="information-circle"
