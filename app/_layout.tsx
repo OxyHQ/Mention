@@ -149,10 +149,10 @@ export default function RootLayout() {
                         <Slot />
                       </View>
                       <RightBar />
-                      <StatusBar style="auto" />
-                      <Toaster position="bottom-center" swipeToDismissDirection="left" offset={20} />
                     </View>
                   </ScrollView>
+                  <StatusBar style="auto" />
+                  <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
                   {!isScreenNotMobile && <BottomBar />}
                 </MenuProvider>
               </SessionProvider>
