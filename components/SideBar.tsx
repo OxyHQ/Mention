@@ -24,6 +24,7 @@ const WindowHeight = Dimensions.get('window').height;
 
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { Search, SearchActive } from '@/assets/icons/search-icon';
+import { Video, VideoActive } from '@/assets/icons/video-icon';
 
 export function SideBar() {
 
@@ -76,8 +77,8 @@ export function SideBar() {
         },
         {
             title: t("Videos"),
-            icon: <Plus color={colors.COLOR_BLACK} />,
-            iconActive: <Plus />,
+            icon: <Video color={colors.COLOR_BLACK} />,
+            iconActive: <VideoActive />,
             route: '/videos',
         },
         {
