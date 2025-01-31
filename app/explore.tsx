@@ -19,6 +19,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
 import { Trends } from "@/features/trends/Trends";
 import { Post as PostInterface } from "@/interfaces/Post";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SearchScreen() {
   const { t } = useTranslation();
@@ -71,7 +72,7 @@ export default function SearchScreen() {
   });
 
   return (
-    <>
+    <SafeAreaView>
       <Header options={{ title: "Explore" }} />
       <View style={styles.searchContainer}>
         <Ionicons
@@ -139,7 +140,7 @@ export default function SearchScreen() {
         )}
         keyExtractor={(item) => item.id}
       />
-    </>
+    </SafeAreaView>
   );
 }
 
