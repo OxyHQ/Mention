@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { CreatePost } from '@/components/CreatePost';
 import { Header } from '@/components/Header';
@@ -10,11 +10,14 @@ import { fetchPosts } from '@/store/reducers/postsReducer';
 import { Hashtag } from '@/assets/icons/hashtag-icon';
 import { Link } from 'expo-router';
 import { Stories } from '@/components/Stories';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const posts = useSelector((state) => state.posts.posts);
   const dispatch = useDispatch();
   const [loading, setLoading] = useState(true);
+  const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
 
   useEffect(() => {
     dispatch(fetchPosts());
@@ -35,11 +38,16 @@ export default function HomeScreen() {
     return <Post postData={item} style={isLastItem ? styles.lastItem : undefined} />;
   }, [sortedPosts.length]);
 
+  const handleOpenCreatePostModal = () => {
+    setBottomSheetContent(<CreatePost />);
+    openBottomSheet(true);
+  };
+
   return (
-    <>
+    <SafeAreaView>
       <Header options={{ title: "Home", rightComponents: [<Hashtag />] }} />
       <Stories />
-      <CreatePost style={styles.createPost} />
+      <CreatePost style={styles.createPost} onPress={handleOpenCreatePostModal} />
       {loading ? (
         <ActivityIndicator size="large" color={colors.primaryColor} />
       ) : (
@@ -49,7 +57,7 @@ export default function HomeScreen() {
           style={styles.flatListStyle}
         />
       )}
-    </>
+    </SafeAreaView>
   );
 }
 
