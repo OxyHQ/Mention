@@ -45,4 +45,32 @@ export const putData = async (endpoint: string, data: any, useOxy: boolean = fal
   }
 };
 
+export const login = async (username: string, password: string) => {
+  try {
+    const response = await axios.post(`${API_URL}/login`, { username, password });
+    return response.data;
+  } catch (error) {
+    console.error('Error logging in:', error);
+    throw error;
+  }
+};
 
+export const logout = async () => {
+  try {
+    const response = await axios.post(`${API_URL}/logout`);
+    return response.data;
+  } catch (error) {
+    console.error('Error logging out:', error);
+    throw error;
+  }
+};
+
+export const validateSession = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/validate-session`);
+    return response.data;
+  } catch (error) {
+    console.error('Error validating session:', error);
+    throw error;
+  }
+};
