@@ -1,39 +1,45 @@
 import React from "react";
-import { View, TouchableOpacity, StyleSheet, AccessibilityInfo } from "react-native";
-import { Stack, Link } from "expo-router";
+import { View, TouchableOpacity, StyleSheet, AccessibilityInfo, Pressable, Platform } from "react-native";
+import { Stack, Link, useRouter } from "expo-router";
 
 import { MentionLogo } from "@/assets/mention-logo";
 import { colors } from '@/styles/colors'
 
 export const Logo = () => {
+  const router = useRouter();
 
   return (
-    <Link href="/">
-      <TouchableOpacity
-        style={styles.container}
-        accessibilityLabel="Mention"
-        accessibilityRole="button"
-      >
-        <View style={styles.logo}>
-          <MentionLogo style={styles.logoSvg} size={27}
-            color={colors.primaryColor} />
-        </View>
-      </TouchableOpacity>
-    </Link>
+    <Pressable
+      onPress={() => router.push("/")}
+      style={({ pressed, hovered }) => [
+        pressed ? { backgroundColor: `${colors.primaryColor}33`, } : {},
+        hovered ? { backgroundColor: `${colors.primaryColor}22`, } : {},
+        styles.container,
+      ]}>
+      <View style={styles.logo}>
+        <MentionLogo style={styles.logoSvg} size={27}
+          color={colors.primaryColor} />
+      </View>
+    </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 1000, // Simulates `100vmax`
-    cursor: "pointer",
     justifyContent: "center",
     alignItems: "center",
+    width: 'auto',
+    marginBottom: 10,
+    borderRadius: 1000,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+      },
+    }),
   },
   logo: {
   },
   logoSvg: {
     padding: 10,
   },
-  // Add hover, active, and focus-visible styles using custom touch logic
 });
