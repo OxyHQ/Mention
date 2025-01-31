@@ -3,6 +3,7 @@ import postsReducer from './reducers/postsReducer';
 import trendsReducer from './reducers/trendsReducer';
 import profileReducer from './reducers/profileReducer';
 import followReducer from './reducers/followReducer';
+import sessionReducer from './reducers/sessionReducer';
 
 const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ const store = configureStore({
     trends: trendsReducer,
     profile: profileReducer,
     follow: followReducer,
+    session: sessionReducer,
   },
 });
 
