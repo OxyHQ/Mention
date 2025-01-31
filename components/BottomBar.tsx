@@ -1,17 +1,22 @@
-import { StyleSheet, View, Pressable, Text, ViewStyle } from 'react-native';
+import { StyleSheet, View, Pressable, Text, ViewStyle, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import React from 'react';
+import { Home, HomeActive } from '@/assets/icons/home-icon';
+import { Search, SearchActive } from '@/assets/icons/search-icon';
+import { Bell, BellActive } from '@/assets/icons/bell-icon';
+import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 
 export const BottomBar = () => {
     const router = useRouter();
     const [activeRoute, setActiveRoute] = React.useState('/');
+    const pathname = usePathname();
 
     interface HandlePressProps {
         route: string;
     }
 
-    const handlePress = (route: '/' | '/compose' | '/explore' | '/notifications' | '/messages') => {
+    const handlePress = (route: '/' | '/compose' | '/explore' | '/notifications' | '/chat') => {
         setActiveRoute(route);
         router.push(route);
     };
@@ -19,16 +24,16 @@ export const BottomBar = () => {
     return (
         <View style={styles.bottomBar}>
             <Pressable onPress={() => handlePress('/')} style={[styles.tab, activeRoute === '/' && styles.active]}>
-                <Ionicons name="home" size={28} color={activeRoute === '/' ? '#6200ee' : '#757575'} />
+                {activeRoute === '/' ? <HomeActive size={28} /> : <Home size={28} />}
             </Pressable>
             <Pressable onPress={() => handlePress('/explore')} style={[styles.tab, activeRoute === '/explore' && styles.active]}>
-                <Ionicons name="search" size={28} color={activeRoute === '/explore' ? '#6200ee' : '#757575'} />
+                {activeRoute === '/explore' ? <SearchActive size={28} /> : <Search size={28} />}
             </Pressable>
             <Pressable onPress={() => handlePress('/notifications')} style={[styles.tab, activeRoute === '/notifications' && styles.active]}>
-                <Ionicons name="notifications" size={28} color={activeRoute === '/notifications' ? '#6200ee' : '#757575'} />
+                {activeRoute === '/notifications' ? <BellActive size={28} /> : <Bell size={28} />}
             </Pressable>
-            <Pressable onPress={() => handlePress('/messages')} style={[styles.tab, activeRoute === '/messages' && styles.active]}>
-                <Ionicons name="mail" size={28} color={activeRoute === '/messages' ? '#6200ee' : '#757575'} />
+            <Pressable onPress={() => handlePress('/chat')} style={[styles.tab, activeRoute === '/messages' && styles.active]}>
+                {activeRoute === '/chat' ? <ChatActive size={28} /> : <Chat size={28} />}
             </Pressable>
         </View>
     );
@@ -45,6 +50,13 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#eeeeee',
         elevation: 8,
+        ...Platform.select({
+            web: {
+                position: 'sticky',
+                bottom: 0,
+                left: 0,
+            },
+        }),
     } as ViewStyle,
     tab: {
         flex: 1,
