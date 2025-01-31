@@ -46,7 +46,6 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
             setSelectedFiles([]);
         } catch (error) {
             toast.error("Error fetching files");
-            console.error("Error fetching files:", error);
             setTimeout(() => {
                 fetchFiles();
             }, 10000);
