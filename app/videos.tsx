@@ -16,6 +16,10 @@ import { ScrollView } from "react-native-gesture-handler";
 const { width, height } = Dimensions.get("window");
 
 import { Video, ResizeMode } from "expo-av";
+import Avatar from "@/components/Avatar";
+import { Chat } from "@/assets/icons/chat-icon";
+import { HeartIcon, HeartIconActive } from "@/assets/icons/heart-icon";
+import { CommentIcon } from "@/assets/icons/comment-icon";
 
 function Feed() {
     const [feedd, setfeed] = useState([]);
@@ -151,31 +155,36 @@ function Feed() {
                             <View style={styles.contentIcon}>
                                 <View style={styles.contentIconProfile}>
                                     <TouchableOpacity>
-                                        <Image
-
-                                            style={styles.iconProfile}
-                                        />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity>
-                                        <Image style={styles.iconPlusProfile} />
+                                        <Avatar size={50} />
                                     </TouchableOpacity>
                                 </View>
                                 <View style={styles.iconsAction}>
                                     <View style={styles.contentIconAction}>
                                         <TouchableOpacity onPress={handleLike}>
-                                            <Image
-                                                style={styles.iconAction}
-                                            />
+                                            {liked ? (
+                                                <HeartIconActive
+                                                    size={30}
+                                                    color="red"
+                                                />
+                                            ) : (
+                                                <HeartIcon
+                                                    size={30}
+                                                    color="#536471"
+                                                />
+                                            )}
                                         </TouchableOpacity>
                                         <Text style={styles.textActions}>153.1K</Text>
                                     </View>
                                     <TouchableOpacity style={styles.contentIconAction}>
-                                        <Image style={styles.iconAction} />
+                                        <CommentIcon size={30} color="#536471" />
                                         <Text style={styles.textActions}>208</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={styles.contentIconAction}>
-                                        <Image style={styles.iconWhatsapp} />
-                                        <Text style={styles.textActions}>Compar-tilhar</Text>
+                                        <Chat
+                                            size={30}
+                                            color="#536471"
+                                        />
+                                        <Text style={styles.textActions}>Share</Text>
                                     </TouchableOpacity>
                                 </View>
                                 <View>
@@ -301,40 +310,18 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginBottom: 2
     },
-
-    iconProfile: {
-        width: 50,
-        height: 50,
-        resizeMode: "cover",
-        borderRadius: 25,
-        borderColor: "white",
-        borderWidth: 1
-    },
-    iconPlusProfile: {
-        height: 35,
-        width: 25,
-        position: "relative",
-        bottom: 20,
-        zIndex: 5,
-        resizeMode: "contain"
-    },
     iconsAction: {
         alignItems: "center",
         marginBottom: 20
     },
     contentIconAction: {
         alignItems: "center",
-        marginBottom: 13
+        marginBottom: 13,
+        flex: 10
     },
     iconAction: {
         height: 40,
         width: 40
-    },
-    iconWhatsapp: {
-        height: 40,
-        width: 40,
-        resizeMode: "cover",
-        borderRadius: 20
     },
     textActions: { color: "white", textAlign: "center", width: 54 },
     iconMusic: {
