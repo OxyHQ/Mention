@@ -11,6 +11,7 @@ interface SessionContextType {
     };
     loginUser: (user: any) => void;
     logoutUser: () => void;
+    getCurrentUser: () => any;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -71,8 +72,12 @@ const SessionProvider = ({ children }) => {
         reduxDispatch(logout());
     };
 
+    const getCurrentUser = () => {
+        return state.user ? state.user : null;
+    };
+
     return (
-        <SessionContext.Provider value={{ state, loginUser, logoutUser }}>
+        <SessionContext.Provider value={{ state, loginUser, logoutUser, getCurrentUser }}>
             {children}
         </SessionContext.Provider>
     );
