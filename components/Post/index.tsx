@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing, Share, ViewStyle } from "react-native";
+import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing, Share, ViewStyle, useColorScheme } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Sharing from 'expo-sharing';
@@ -33,6 +33,9 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
     const animatedRepostsCount = useRef(new Animated.Value(postData?._count?.reposts)).current;
     const animatedBookmarksCount = useRef(new Animated.Value(postData?._count?.bookmarks)).current;
     const animatedRepliesCount = useRef(new Animated.Value(postData?._count?.replies)).current;
+
+    const colorScheme = useColorScheme();
+    const isDarkMode = colorScheme === 'dark';
 
     useEffect(() => {
         dispatch(fetchBookmarkedPosts());
@@ -146,7 +149,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
     return (
         <>
             <TouchableOpacity>
-                <View style={[styles.container, style]}>
+                <View style={[styles.container, style, isDarkMode ? styles.darkContainer : styles.lightContainer]}>
                     <View style={styles.topContainer}>
                         <Link href={`/@${postData.author?.username}`} asChild>
                             <TouchableOpacity>
@@ -166,11 +169,11 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
                                             <Text style={styles.authorUsername}>@{postData.author?.username}</Text>
                                         </TouchableOpacity>
                                     </Link>
-                                    <Text style={styles.postTime}>· {new Date(postData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                                    <Text style={[styles.postTime, isDarkMode ? styles.darkText : styles.lightText]}>· {new Date(postData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                                 </View>
-                                <Ionicons name="ellipsis-horizontal" size={20} color={colors.primaryColor} />
+                                <Ionicons name="ellipsis-horizontal" size={20} color={isDarkMode ? colors.lightColor : colors.primaryColor} />
                             </View>
-                            {postData?.text && <Text style={styles.postContent}>{detectHashtags(postData.text)}</Text>}
+                            {postData?.text && <Text style={[styles.postContent, isDarkMode ? styles.darkText : styles.lightText]}>{detectHashtags(postData.text)}</Text>}
                         </View>
                     </View>
                     <View style={styles.contentContainer}>
@@ -275,6 +278,12 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         paddingVertical: 12,
     },
+    darkContainer: {
+        backgroundColor: "#000",
+    },
+    lightContainer: {
+        backgroundColor: "#fff",
+    },
     topContainer: {
         flexDirection: "row",
         gap: 10,
@@ -306,6 +315,12 @@ const styles = StyleSheet.create({
     postContent: {
         marginTop: 4,
         lineHeight: 20,
+    },
+    darkText: {
+        color: "#fff",
+    },
+    lightText: {
+        color: "#000",
     },
     actionsContainer: {
         flexDirection: "row",
