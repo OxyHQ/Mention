@@ -22,6 +22,36 @@ export const BottomBar = () => {
         router.push(route);
     };
 
+    const styles = StyleSheet.create({
+        bottomBar: {
+            width: '100%',
+            height: 60,
+            backgroundColor: '#ffffff',
+            flexDirection: 'row',
+            justifyContent: 'space-around',
+            alignItems: 'center',
+            borderTopWidth: pathname === '/videos' ? 0 : 1,
+            borderTopColor: pathname === '/videos' ? 'transparent' : '#eeeeee',
+            elevation: pathname === '/videos' ? 0 : 8,
+            ...Platform.select({
+                web: {
+                    position: 'sticky',
+                    bottom: 0,
+                    left: 0,
+                },
+            }),
+        } as ViewStyle,
+        tab: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingVertical: 10,
+        },
+        active: {
+            borderRadius: 30,
+        },
+    });
+
     return (
         <View style={styles.bottomBar}>
             <Pressable onPress={() => handlePress('/')} style={[styles.tab, activeRoute === '/' && styles.active]}>
@@ -42,33 +72,3 @@ export const BottomBar = () => {
         </View>
     );
 };
-
-const styles = StyleSheet.create({
-    bottomBar: {
-        width: '100%',
-        height: 60,
-        backgroundColor: '#ffffff',
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        borderTopWidth: 1,
-        borderTopColor: '#eeeeee',
-        elevation: 8,
-        ...Platform.select({
-            web: {
-                position: 'sticky',
-                bottom: 0,
-                left: 0,
-            },
-        }),
-    } as ViewStyle,
-    tab: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 10,
-    },
-    active: {
-        borderRadius: 30,
-    },
-});
