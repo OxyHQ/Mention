@@ -6,6 +6,7 @@ import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
+import { Video, VideoActive } from '@/assets/icons/video-icon';
 
 export const BottomBar = () => {
     const router = useRouter();
@@ -16,7 +17,7 @@ export const BottomBar = () => {
         route: string;
     }
 
-    const handlePress = (route: '/' | '/compose' | '/explore' | '/notifications' | '/chat') => {
+    const handlePress = (route: '/' | '/compose' | '/explore' | '/notifications' | '/chat' | '/videos') => {
         setActiveRoute(route);
         router.push(route);
     };
@@ -28,6 +29,9 @@ export const BottomBar = () => {
             </Pressable>
             <Pressable onPress={() => handlePress('/explore')} style={[styles.tab, activeRoute === '/explore' && styles.active]}>
                 {activeRoute === '/explore' ? <SearchActive size={28} /> : <Search size={28} />}
+            </Pressable>
+            <Pressable onPress={() => handlePress('/videos')} style={[styles.tab, activeRoute === '/videos' && styles.active]}>
+                {activeRoute === '/videos' ? <VideoActive size={28} /> : <Video size={28} />}
             </Pressable>
             <Pressable onPress={() => handlePress('/notifications')} style={[styles.tab, activeRoute === '/notifications' && styles.active]}>
                 {activeRoute === '/notifications' ? <BellActive size={28} /> : <Bell size={28} />}
