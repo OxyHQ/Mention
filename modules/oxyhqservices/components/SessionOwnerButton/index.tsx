@@ -2,12 +2,16 @@ import { User } from '@/assets/icons/user-icon';
 import { colors } from '@/styles/colors';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useContext } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Platform } from 'react-native';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 
 export function SessionOwnerButton() {
     const [currentUserIndex, setCurrentUserIndex] = useState(0);
     const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
+    const { state } = useContext(SessionContext);
+
+    if (!state.isAuthenticated) return null;
 
     const OpenSessions = [
         {
