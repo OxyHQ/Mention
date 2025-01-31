@@ -33,6 +33,7 @@ import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { SessionOwnerButton } from '@/modules/oxyhqservices/components/SessionOwnerButton';
 import { SessionProvider } from '@/modules/oxyhqservices/components/SessionProvider';
 import { MenuProvider } from 'react-native-popup-menu';
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 
 SplashScreen.preventAutoHideAsync();
 
