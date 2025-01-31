@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, Image as RNImage, StyleSheet, Modal, Video as RNVideo, ScrollView, PanResponder, Platform } from "react-native";
+import { View, Text, TouchableOpacity, Image as RNImage, StyleSheet, Modal, Video as RNVideo, ScrollView, PanResponder, Platform, ImageStyle } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchPosts } from "@/store/reducers/postsReducer";
 import { Ionicons } from "@expo/vector-icons";
 import Post from ".";
 import { colors } from "@/styles/colors";
 import { fetchData } from "@/utils/api";
+import AutoWidthImage from "./components/AutoWidthImage ";
 
 export const renderMedia = (mediaIds: string[]) => {
     const [mediaData, setMediaData] = useState<any[]>([]);
@@ -99,11 +100,7 @@ export const renderMedia = (mediaIds: string[]) => {
                     contentContainerStyle={styles.contentContainer}
                 >
                     {images.map((image, index) => (
-                        <RNImage
-                            source={{ uri: image.uri }}
-                            style={[styles.image]}
-                            onError={(error) => console.error("Error loading image:", error)}
-                        />
+                        <AutoWidthImage key={image.id} uri={image.uri} />
                     ))}
                 </ScrollView>
             </View>
@@ -258,11 +255,11 @@ const styles = StyleSheet.create({
         borderRadius: 35,
         borderWidth: 1,
         borderColor: colors.COLOR_BLACK_LIGHT_6,
-        ...Platform.select({
+        ...((Platform.select({
             web: {
                 cursor: 'grab',
             },
-        }),
+        }) as unknown) as ImageStyle),
 
     },
     videoGrid: {
