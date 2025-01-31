@@ -6,6 +6,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Header } from '@/components/Header'
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const messages = [
     {
@@ -45,48 +46,13 @@ const stories = [
         },
     },
     {
-        id: "1",
+        id: "3",
         user: {
-            name: "Alice",
+            name: "Charlie",
             avatar: "https://via.placeholder.com/50",
         },
     },
-    {
-        id: "2",
-        user: {
-            name: "Bob",
-            avatar: "https://via.placeholder.com/50",
-        },
-    },
-    {
-        id: "1",
-        user: {
-            name: "Alice",
-            avatar: "https://via.placeholder.com/50",
-        },
-    },
-    {
-        id: "2",
-        user: {
-            name: "Bob",
-            avatar: "https://via.placeholder.com/50",
-        },
-    },
-    {
-        id: "1",
-        user: {
-            name: "Alice",
-            avatar: "https://via.placeholder.com/50",
-        },
-    },
-    {
-        id: "2",
-        user: {
-            name: "Bob",
-            avatar: "https://via.placeholder.com/50",
-        },
-    },
-    // Add more stories
+    
 ];
 
 type Message = {
@@ -119,6 +85,17 @@ const StoryItem = ({ story }: { story: { id: string; user: { name: string; avata
     </View>
 );
 
+const StoriesList = () => (
+    <FlatList
+        data={stories}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <StoryItem story={item} />}
+        contentContainerStyle={styles.storiesContainer}
+    />
+);
+
 export default function MessagesScreen() {
     const { t } = useTranslation();
     const [searchQuery, setSearchQuery] = useState("");
@@ -129,7 +106,7 @@ export default function MessagesScreen() {
     );
 
     return (
-        <>
+        <SafeAreaView>
             <Header options={{
                 title: "Chat",
                 titlePosition: "center",
@@ -143,11 +120,7 @@ export default function MessagesScreen() {
                     </TouchableOpacity>
                 ]
             }} />
-            <View horizontal showsHorizontalScrollIndicator={false} style={styles.storiesContainer}>
-                {stories.map((story) => (
-                    <StoryItem key={story.id} story={story} />
-                ))}
-            </View>
+            <StoriesList />
             <TextInput
                 style={styles.searchBar}
                 placeholder={t("Search")}
@@ -159,7 +132,7 @@ export default function MessagesScreen() {
                 renderItem={({ item }) => <MessageItem message={item} />}
                 keyExtractor={(item) => item.id}
             />
-        </>
+        </SafeAreaView>
     );
 }
 
