@@ -45,7 +45,7 @@ export function SideBarItem({
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 {icon}
                 {isFullSideBar ? (
-                    <Text style={{ marginStart: 20, fontSize: 20, color: isActive ? colors.primaryColor : colors.COLOR_BLACK }}>
+                    <Text style={{ marginStart: 15, fontSize: 20, color: isActive ? colors.primaryColor : colors.COLOR_BLACK }}>
                         {text}
                     </Text>
                 ) : null}

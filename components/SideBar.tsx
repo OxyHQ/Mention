@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useContext } from 'react'
 import { Dimensions, Platform, Text, View, ViewStyle } from 'react-native'
 import { usePathname } from 'expo-router';
 import { useMediaQuery } from 'react-responsive'
@@ -18,14 +18,18 @@ import { Gear, GearActive } from '@/assets/icons/gear-icon';
 import { Plus } from '@/assets/icons/plus-icon';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { List, ListActive } from '@/assets/icons/list-icon';
+import { Feeds, FeedsActive } from '@/assets/icons/feeds-icon';
 import { SessionOwnerButton } from '@/modules/oxyhqservices';
-const WindowHeight = Dimensions.get('window').height
+const WindowHeight = Dimensions.get('window').height;
 
-
+import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { Search, SearchActive } from '@/assets/icons/search-icon';
 
 export function SideBar() {
 
     const { t } = useTranslation();
+    const sessionContext = useContext(SessionContext);
+    const state = sessionContext ? sessionContext.state : null;
 
     const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.ReactNode, route: string }[] = [
         {
@@ -36,8 +40,8 @@ export function SideBar() {
         },
         {
             title: t("Explore"),
-            icon: <Hashtag color={colors.COLOR_BLACK} />,
-            iconActive: <HashtagActive />,
+            icon: <Search color={colors.COLOR_BLACK} />,
+            iconActive: <SearchActive />,
             route: '/explore',
         },
         {
@@ -57,6 +61,12 @@ export function SideBar() {
             icon: <Bookmark color={colors.COLOR_BLACK} />,
             iconActive: <BookmarkActive />,
             route: '/bookmarks',
+        },
+        {
+            title: t("Feeds"),
+            icon: <Hashtag color={colors.COLOR_BLACK} />,
+            iconActive: <HashtagActive />,
+            route: '/feeds',
         },
         {
             title: t("Lists"),
@@ -94,9 +104,9 @@ export function SideBar() {
                         height: WindowHeight,
                         // width: '30%',
                         // paddingHorizontal: 5,
-                        // alignItems: isFullSideBar ? 'flex-end' : 'center',
-                        alignItems: 'flex-end',
+                        alignItems: isFullSideBar ? 'flex-end' : 'center',
                         paddingEnd: !isFullSideBar ? 10 : 0,
+                        width: isFullSideBar ? 360 : wp('15%'),
                         ...Platform.select({
                             web: {
                                 position: 'sticky',
@@ -110,61 +120,108 @@ export function SideBar() {
                         justifyContent: 'center',
                         alignItems: 'flex-start',
                     }}>
-                    <Pressable
-                        style={({ hovered }) => [
-                            {
-                                borderRadius: 100,
-                                marginStart: 4,
-                                marginTop: 5,
-                                ...Platform.select({
-                                    web: {
-                                        cursor: 'pointer',
-                                    },
-                                }),
-                            },
-                            hovered
-                                ? {
-                                    backgroundColor: `${colors.primaryColor}33`,
-                                }
-                                : {},
-                        ]}>
-                        <Logo />
-                    </Pressable>
-                    {sideBarData.map(({ title, icon, iconActive, route }) => {
-                        return <SideBarItem href={route} key={title}
-                            icon={pathname === route ? iconActive : icon}
-                            text={title}
-                            isActive={pathname === route} />
-                    })}
-                    <Button
-                        renderText={({ state }) =>
-                            state === 'desktop' ? (
-                                <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }}>
-                                    New Post
-                                </Text>
-                            ) : null
-                        }
-                        renderIcon={({ state }) =>
-                            state === 'tablet' ? (
-                                <Ionicons name="create-outline" size={24} color={colors.primaryLight} />
-                            ) : null
-                        }
-                        containerStyle={({ state }) => ({
+                    <Logo />
+                    {!state.isAuthenticated && (
+                        <View>
+                            <Text
+                                style={{
+                                    color: colors.COLOR_BLACK,
+                                    fontSize: 25,
+                                    fontWeight: 'bold',
+                                    flexWrap: 'wrap',
+                                    textAlign: 'left',
+                                    maxWidth: 200,
+                                    lineHeight: 30,
+                                }}
+                            >
+                                Join the conversation
+                            </Text>
+                            <View
+                                style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    marginVertical: 20,
+                                    gap: 10,
+                                }}
+                            >
+                                <Button
+                                    renderText={({ state }) =>
+                                        state === 'desktop' ? (
+                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>Create Account</Text>
+                                        ) : null
+                                    }
+                                    renderIcon={() => null}
+                                    containerStyle={({ state }) => ({
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        backgroundColor: '#34C759',
+                                        borderRadius: 25,
+                                        paddingHorizontal: 15,
+                                        paddingVertical: 8,
+                                    })}
+                                />
+                                <Button
+                                    renderText={({ state }) =>
+                                        state === 'desktop' ? (
+                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>Sign In</Text>
+                                        ) : null
+                                    }
+                                    renderIcon={() => null}
+                                    containerStyle={({ state }) => ({
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        backgroundColor: '#007AFF',
+                                        borderRadius: 25,
+                                        paddingHorizontal: 15,
+                                        paddingVertical: 8,
+                                    })}
+                                />
+                            </View>
+                        </View>
+                    )}
+                    {state.isAuthenticated && (
+                        <View style={{
                             justifyContent: 'center',
-                            alignItems: 'center',
-                            backgroundColor: colors.primaryColor,
-                            borderRadius: 100,
-                            height: state === 'desktop' ? 47 : 50,
-                            width: state === 'desktop' ? 220 : 50,
-                            ...(state === 'desktop'
-                                ? {}
-                                : {
-                                    alignSelf: 'center',
-                                }),
-                        })}
-                    />
+                            alignItems: 'flex-start',
+                        }}>
+                            {
+                                sideBarData.map(({ title, icon, iconActive, route }) => {
+                                    return <SideBarItem href={route} key={title}
+                                        icon={pathname === route ? iconActive : icon}
+                                        text={title}
+                                        isActive={pathname === route} />
+                                })}
+                            <Button
+                                renderText={({ state }) =>
+                                    state === 'desktop' ? (
+                                        <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }}>
+                                            New Post
+                                        </Text>
+                                    ) : null
+                                }
+                                renderIcon={({ state }) =>
+                                    state === 'tablet' ? (
+                                        <Ionicons name="create-outline" size={24} color={colors.primaryLight} />
+                                    ) : null
+                                }
+                                containerStyle={({ state }) => ({
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    backgroundColor: colors.primaryColor,
+                                    borderRadius: 100,
+                                    height: state === 'desktop' ? 47 : 50,
+                                    width: state === 'desktop' ? 220 : 50,
+                                    ...(state === 'desktop'
+                                        ? {}
+                                        : {
+                                            alignSelf: 'center',
+                                        }),
+                                })}
+                            />
+                        </View>)}
                 </View>
-                <View style={{ width: '100%', flex: 1, flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 20 }}>
+                <View style={{ flex: 1, }}></View>
+                <View style={{ width: '100%', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 20, }}>
                     <SessionOwnerButton />
                 </View>
             </View>
