@@ -60,9 +60,7 @@ export default function AppearanceScreen() {
                     rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
                 }} />
                 <ThemedView style={styles.postContainer}>
-                    <View style={styles.postContainerView}>
-                        {post && <Post postData={post} showActions={false} />}
-                    </View>
+                    {post && <Post postData={post} showActions={false} style={styles.postContainerView} />}
                 </ThemedView>
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>{t("Theme")}</Text>
@@ -107,7 +105,7 @@ const styles = StyleSheet.create({
     },
     postContainerView: {
         backgroundColor: colors.primaryLight,
-        borderRadius: 35,
+        borderRadius: 25,
     },
     section: {
         padding: 16,
