@@ -12,7 +12,10 @@ export default function LoginScreen() {
     const handleLogin = async () => {
         try {
             // Replace with actual login logic
-            const user = { username, password };
+            const user = {
+                username: 'testuser',
+                email: 'aaa@aaa.com',
+            };
             loginUser(user);
             router.push('/');
         } catch (error) {
