@@ -15,6 +15,7 @@ import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { RepostIcon } from "@/assets/icons/repost-icon";
 import { HeartIcon, HeartIconActive } from "@/assets/icons/heart-icon";
 import { CommentIcon, CommentIconActive } from "@/assets/icons/comment-icon";
+import { colors } from "@/styles/colors";
 
 export default function Post({ postData, style, quotedPost, showActions }: { postData: PostType, style?: ViewStyle, quotedPost?: boolean, showActions?: boolean }) {
     const dispatch = useDispatch();
@@ -107,7 +108,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
             toValue: newBookmarksCount,
             duration: 300,
             easing: Easing.linear,
-            useNativeDriver: false,
+            useNativeDriver: true,
         }).start();
     };
 
@@ -121,7 +122,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
             toValue: newRepostsCount,
             duration: 300,
             easing: Easing.linear,
-            useNativeDriver: false,
+            useNativeDriver: true,
         }).start();
     };
 
@@ -134,7 +135,7 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
             toValue: newRepliesCount,
             duration: 300,
             easing: Easing.linear,
-            useNativeDriver: false,
+            useNativeDriver: true,
         }).start();
     };
 
@@ -144,159 +145,176 @@ export default function Post({ postData, style, quotedPost, showActions }: { pos
 
     return (
         <>
-            <Link href={`/post/${postData.id}`} asChild>
-                <TouchableOpacity>
-                    <View style={[styles.container, style]}>
+            <TouchableOpacity>
+                <View style={[styles.container, style]}>
+                    <View style={styles.topContainer}>
                         <Link href={`/@${postData.author?.username}`} asChild>
                             <TouchableOpacity>
                                 <Avatar id={postData?.author?.avatar} size={40} />
                             </TouchableOpacity>
                         </Link>
-                        <View style={styles.contentContainer}>
-                            <View style={styles.header}>
-                                <Link href={`/@${postData.author?.username}`} asChild>
-                                    <TouchableOpacity>
-                                        <Text style={styles.name}>{postData.author?.name?.first} {postData.author?.name?.last}</Text>
-                                    </TouchableOpacity>
-                                </Link>
-                                <Link href={`/@${postData.author?.username}`} asChild>
-                                    <TouchableOpacity>
-                                        <Text style={styles.username}>@{postData.author?.username}</Text>
-                                    </TouchableOpacity>
-                                </Link>
-                                <Text style={styles.time}>· {new Date(postData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                        <View style={{ flex: 1, }}>
+                            <View style={styles.headerContainer}>
+                                <View style={styles.headerData}>
+                                    <Link href={`/@${postData.author?.username}`} asChild>
+                                        <TouchableOpacity>
+                                            <Text style={styles.authorName}>{postData.author?.name?.first} {postData.author?.name?.last}</Text>
+                                        </TouchableOpacity>
+                                    </Link>
+                                    <Link href={`/@${postData.author?.username}`} asChild>
+                                        <TouchableOpacity>
+                                            <Text style={styles.authorUsername}>@{postData.author?.username}</Text>
+                                        </TouchableOpacity>
+                                    </Link>
+                                    <Text style={styles.postTime}>· {new Date(postData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                                </View>
+                                <Ionicons name="ellipsis-horizontal" size={20} color={colors.primaryColor} />
                             </View>
-                            {postData?.text && <Text style={styles.content}>{detectHashtags(postData.text)}</Text>}
-                            {postData?.media && renderMedia(postData.media)}
-                            {renderPoll(undefined, selectedOption, handlePollOptionPress)}
-                            {renderLocation(undefined)}
-                            {!quotedPost && renderQuotedPost(postData.quoted_post_id ?? undefined)}
-                            <View style={styles.actions}>
-                                <TouchableOpacity
-                                    style={styles.actionItem}
-                                    onPress={(event) => {
-                                        event.stopPropagation();
-                                        handleLike(event);
-                                    }}
-                                >
-                                    <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
-                                        {isLiked ? <HeartIconActive size={20} color="#F91880" /> : <HeartIcon size={20} color="#536471" />}
-                                    </Animated.View>
-                                    <AnimatedNumbers
-                                        includeComma
-                                        animateToNumber={likesCount}
-                                        animationDuration={300}
-                                        fontStyle={{ color: isLiked ? "#F91880" : "#536471" }}
-                                    />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.actionItem}
-                                    onPress={(event) => {
-                                        event.stopPropagation();
-                                        handleReply(event);
-                                    }}
-                                >
-                                    {false ? <CommentIconActive size={20} color="#F91880" /> : <CommentIcon size={20} color="#536471" />}
-                                    <AnimatedNumbers
-                                        includeComma
-                                        animateToNumber={repliesCount}
-                                        animationDuration={300}
-                                        fontStyle={{ color: "#536471" }}
-                                    />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.actionItem}
-                                    onPress={(event) => {
-                                        event.stopPropagation();
-                                        handleRepost(event);
-                                    }}
-                                >
-                                    {isReposted ? <RepostIcon size={20} color="#1DA1F2" /> : <RepostIcon size={20} color="#536471" />}
-                                    <AnimatedNumbers
-                                        includeComma
-                                        animateToNumber={repostsCount}
-                                        animationDuration={300}
-                                        fontStyle={{ color: isReposted ? "#1DA1F2" : "#536471" }}
-                                    />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.actionItem}
-                                    onPress={(event) => {
-                                        event.stopPropagation();
-                                        handleShare(event);
-                                    }}
-                                >
-                                    <Ionicons name="share-outline" size={20} color="#536471" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.actionItem}
-                                    onPress={(event) => {
-                                        event.stopPropagation();
-                                        handleBookmark(event);
-                                    }}
-                                >
-                                    {isBookmarked ? <BookmarkActive size={20} strokeWidth={2} color="#1DA1F2" /> : <Bookmark size={20} strokeWidth={1} color="#536471" />}
-                                    <AnimatedNumbers
-                                        includeComma
-                                        animateToNumber={bookmarksCount}
-                                        animationDuration={300}
-                                        fontStyle={{ color: isBookmarked ? "#1DA1F2" : "#536471" }}
-                                    />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.actionItem}
-                                >
-                                    <Chat
-                                        size={20}
-                                        color="#536471"
-                                    />
-                                </TouchableOpacity>
-                            </View>
+                            {postData?.text && <Text style={styles.postContent}>{detectHashtags(postData.text)}</Text>}
                         </View>
                     </View>
-                </TouchableOpacity>
-            </Link>
+                    <View style={styles.contentContainer}>
+                        {postData?.media && renderMedia(postData.media)}
+                        {renderPoll(undefined, selectedOption, handlePollOptionPress)}
+                        {renderLocation(undefined)}
+                        {!quotedPost && renderQuotedPost(postData.quoted_post_id ?? undefined)}
+                        <View style={styles.actionsContainer}>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={(event) => {
+                                    event.stopPropagation();
+                                    handleLike(event);
+                                }}
+                            >
+                                <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
+                                    {isLiked ? <HeartIconActive size={20} color="#F91880" /> : <HeartIcon size={20} color="#536471" />}
+                                </Animated.View>
+                                <AnimatedNumbers
+                                    includeComma
+                                    animateToNumber={likesCount}
+                                    animationDuration={300}
+                                    fontStyle={{ color: isLiked ? "#F91880" : "#536471" }}
+                                />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={(event) => {
+                                    event.stopPropagation();
+                                    handleReply(event);
+                                }}
+                            >
+                                {false ? <CommentIconActive size={20} color="#F91880" /> : <CommentIcon size={20} color="#536471" />}
+                                <AnimatedNumbers
+                                    includeComma
+                                    animateToNumber={repliesCount}
+                                    animationDuration={300}
+                                    fontStyle={{ color: "#536471" }}
+                                />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={(event) => {
+                                    event.stopPropagation();
+                                    handleRepost(event);
+                                }}
+                            >
+                                {isReposted ? <RepostIcon size={20} color="#1DA1F2" /> : <RepostIcon size={20} color="#536471" />}
+                                <AnimatedNumbers
+                                    includeComma
+                                    animateToNumber={repostsCount}
+                                    animationDuration={300}
+                                    fontStyle={{ color: isReposted ? "#1DA1F2" : "#536471" }}
+                                />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={(event) => {
+                                    event.stopPropagation();
+                                    handleShare(event);
+                                }}
+                            >
+                                <Ionicons name="share-outline" size={20} color="#536471" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={(event) => {
+                                    event.stopPropagation();
+                                    handleBookmark(event);
+                                }}
+                            >
+                                {isBookmarked ? <BookmarkActive size={20} strokeWidth={2} color="#1DA1F2" /> : <Bookmark size={20} strokeWidth={1} color="#536471" />}
+                                <AnimatedNumbers
+                                    includeComma
+                                    animateToNumber={bookmarksCount}
+                                    animationDuration={300}
+                                    fontStyle={{ color: isBookmarked ? "#1DA1F2" : "#536471" }}
+                                />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                            >
+                                <Chat
+                                    size={20}
+                                    color="#536471"
+                                />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </TouchableOpacity>
         </>
     );
 }
 
+const postPaddingLeft = 62;
+
 const styles = StyleSheet.create({
     container: {
-        flexDirection: "row",
-        padding: 12,
+        flexDirection: "column",
         borderBottomColor: "#e1e8ed",
         borderBottomWidth: 1,
+        paddingVertical: 12,
+    },
+    topContainer: {
+        flexDirection: "row",
+        gap: 10,
+        paddingHorizontal: 12,
+        alignItems: "flex-start",
     },
     contentContainer: {
         flex: 1,
-        marginLeft: 12,
     },
-    header: {
+    headerContainer: {
         flexDirection: "row",
         alignItems: "center",
     },
-    name: {
+    headerData: {
+        flexDirection: "row",
+        alignItems: "center",
+        flex: 1,
+        gap: 4,
+    },
+    authorName: {
         fontWeight: "bold",
-        marginRight: 4,
     },
-    username: {
+    authorUsername: {
         color: "#536471",
     },
-    time: {
+    postTime: {
         color: "#536471",
-        marginLeft: 4,
     },
-    content: {
+    postContent: {
         marginTop: 4,
         lineHeight: 20,
     },
-    actions: {
+    actionsContainer: {
         flexDirection: "row",
         marginTop: 12,
         justifyContent: "space-between",
         maxWidth: 300,
+        paddingLeft: postPaddingLeft,
     },
-    actionItem: {
+    actionButton: {
         flexDirection: "row",
         alignItems: "center",
         marginRight: 16,

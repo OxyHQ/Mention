@@ -21,15 +21,18 @@ import { Video, ResizeMode } from 'expo-av';
 import EmojiPicker from 'emoji-picker-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts, createPost } from '@/store/reducers/postsReducer';
+import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
 
 interface Props {
     style?: ViewStyle
+    onClose?: () => void
 }
 
-export const CreatePost: React.FC<Props> = ({ style }) => {
+export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
     const [data, setData] = useState('')
-    const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video' }[]>([]);
+    const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video', id: string }[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [isModalVisible, setModalVisible] = useState(false);
     const posts = useSelector((state) => state.posts.posts);
     const dispatch = useDispatch();
 
@@ -45,36 +48,42 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
             const newPost = {
                 author_id: '678b29d19085a13337ca9fd4',
                 text: data,
+                media: selectedMedia.map(media => media.id),
             };
             dispatch(createPost(newPost));
             setData('');
             setSelectedMedia([]);
+            if (onClose) onClose();
         }
     }
-
-    const pickMedia = async () => {
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images', 'videos'],
-            allowsEditing: true,
-            allowsMultipleSelection: true,
-            quality: 1,
-        });
-
-        if (!result.canceled) {
-            setSelectedMedia(result.assets.map((asset) => ({ uri: asset.uri, type: asset.type })));
-        }
-    };
 
     const onEmojiClick = (event, emojiObject) => {
         setData(data + emojiObject.emoji);
         setShowEmojiPicker(false);
     };
 
+    const openModal = () => {
+        setModalVisible(true);
+    };
+
+    const closeModal = () => {
+        setModalVisible(false);
+    };
+
+    const onSelect = (selectedFiles: any[]) => {
+        const media = selectedFiles.map(file => ({
+            uri: `http://localhost:3000/api/files/${file._id}`,
+            type: file.contentType.startsWith('image/') ? 'image' : 'video',
+            id: file._id
+        }));
+        setSelectedMedia([...selectedMedia, ...media]);
+    };
+
     return (
         <View style={[styles.container, style]}>
             <View style={styles.topRow}>
                 <Pressable
-                    onPress={post}
+                    onPress={onClose}
                     style={data ? styles.button : styles.buttonDisabled}>
                     <Text style={styles.buttonText}>Cancel</Text>
                 </Pressable>
@@ -102,7 +111,7 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
             <View style={styles.bottomRow}>
                 <View style={styles.iconsContainer}>
                     <Pressable
-                        onPress={pickMedia}
+                        onPress={openModal}
                         style={({ hovered }) => [
                             styles.svgWrapper,
                             hovered
@@ -175,6 +184,18 @@ export const CreatePost: React.FC<Props> = ({ style }) => {
                     )
                 ))}
             </View>
+            {isModalVisible && (
+                <FileSelectorModal
+                    visible={isModalVisible}
+                    onClose={closeModal}
+                    onSelect={onSelect}
+                    userId="user123"
+                    options={{
+                        fileTypeFilter: ["image/", "video/"],
+                        maxFiles: 5,
+                    }}
+                />
+            )}
         </View>
     )
 }
