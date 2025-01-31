@@ -66,12 +66,12 @@ function SuggestedFriends({ followRecData }: { followRecData: any[] }) {
                     flexDirection: 'row',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    paddingHorizontal: 15,
-                    paddingVertical: 15,
+                    paddingHorizontal: 14,
+                    paddingVertical: 14,
                     borderBottomWidth: 0.01,
                     borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
                 }}>
-                <Text style={{ fontSize: 22, fontWeight: 'bold' }}>Who to follow</Text>
+                <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Who to follow</Text>
             </View>
             <View>
                 {followRecData.map((data) => {
@@ -88,8 +88,7 @@ function SuggestedFriends({ followRecData }: { followRecData: any[] }) {
                             }
                             : {},
                         {
-                            paddingVertical: 20,
-                            paddingHorizontal: 14,
+                            padding: 14,
                             ...Platform.select({
                                 web: {
                                     cursor: 'pointer',
