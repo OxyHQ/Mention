@@ -6,16 +6,17 @@ import {
     TouchableOpacity,
     SafeAreaView,
     Image,
-    Dimensions
+    Dimensions,
+    Platform
 } from "react-native";
 import axios from "axios";
-
+import Post from "@/components/Post";
 import TextTicker from "react-native-text-ticker";
 import { ScrollView } from "react-native-gesture-handler";
 
 const { width, height } = Dimensions.get("window");
 
-import { Video, ResizeMode } from "expo-av";
+import { Video, ResizeMode } from 'expo-av';
 import Avatar from "@/components/Avatar";
 import { Chat } from "@/assets/icons/chat-icon";
 import { HeartIcon, HeartIconActive } from "@/assets/icons/heart-icon";
@@ -51,7 +52,7 @@ function Feed() {
 
     const handleScroll = (event: ScrollEvent): void => {
         const { y } = event.nativeEvent.contentOffset;
-        const index = Math.round(y / height);
+        const index = Math.round(height);
         if (scrollViewRef.current) {
             scrollViewRef.current.scrollTo({ y: index * height, animated: true });
         }
@@ -80,8 +81,41 @@ function Feed() {
         },
     ];
 
+    const post = {
+        id: "1",
+        text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
+        source: "web",
+        in_reply_to_user_id: null,
+        in_reply_to_username: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        author: {
+            id: "1",
+            username: "mention",
+            name: {
+                first: "Mention",
+            },
+            email: "hello@mention.earth",
+            description: "A new social network for a new world.",
+            color: "#000000",
+        },
+        media: [],
+        quoted_post: null,
+        is_quote_status: false,
+        quoted_status_id: null,
+        possibly_sensitive: false,
+        lang: "en",
+        _count: {
+            likes: 0,
+            reposts: 0,
+            bookmarks: 0,
+            replies: 0,
+            quotes: 0,
+        },
+    };
+
     return (
-        <SafeAreaView>
+        <>
             <View style={[{ zIndex: 7 }, styles.header]}>
                 <View>
                     <TouchableOpacity>
@@ -112,9 +146,9 @@ function Feed() {
                                     }}
                                     rate={1.0}
                                     volume={1.0}
-                                    isMuted={true}
-                                    resizeMode={ResizeMode.COVER}
+                                    isMuted={Platform.OS === 'web' ? true : false}
                                     shouldPlay
+                                    resizeMode={ResizeMode.COVER}
                                     isLooping
                                     style={styles.videoPlayer}
                                     useNativeControls={false}
@@ -122,95 +156,30 @@ function Feed() {
                             </View>
                             <View style={styles.content}>
                                 <View style={styles.InnerContent}>
-                                    <TouchableOpacity>
-                                        <Text style={styles.name}>{item.author.name}</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity>
-                                        <Text style={styles.description} numberOfLines={5}>
-                                            {item.description}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    <Text style={styles.hashtags}>{item.hashtags}</Text>
-                                    <TouchableOpacity>
-                                        <Text style={styles.translate}>VER TRADUÇÂO</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.componentMusic}>
-                                        <View style={styles.imageIconMusic}>
-                                            <Image style={styles.iMusic} />
-                                        </View>
-                                        <TextTicker
-                                            style={styles.nameMusic}
-                                            duration={4000}
-                                            loop
-                                            bounce={false}
-                                            repeatSpacer={70}
-                                            marqueeDelay={1000}
-                                            shouldAnimateTreshold={40}
-                                        >
-                                            I Don’t Care - Ed Sheeran Part Justin Bieber
-                                        </TextTicker>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                            <View style={styles.contentIcon}>
-                                <View style={styles.contentIconProfile}>
-                                    <TouchableOpacity>
-                                        <Avatar size={50} />
-                                    </TouchableOpacity>
-                                </View>
-                                <View style={styles.iconsAction}>
-                                    <View style={styles.contentIconAction}>
-                                        <TouchableOpacity onPress={handleLike}>
-                                            {liked ? (
-                                                <HeartIconActive
-                                                    size={30}
-                                                    color="red"
-                                                />
-                                            ) : (
-                                                <HeartIcon
-                                                    size={30}
-                                                    color="#536471"
-                                                />
-                                            )}
-                                        </TouchableOpacity>
-                                        <Text style={styles.textActions}>153.1K</Text>
-                                    </View>
-                                    <TouchableOpacity style={styles.contentIconAction}>
-                                        <CommentIcon size={30} color="#536471" />
-                                        <Text style={styles.textActions}>208</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.contentIconAction}>
-                                        <Chat
-                                            size={30}
-                                            color="#536471"
-                                        />
-                                        <Text style={styles.textActions}>Share</Text>
-                                    </TouchableOpacity>
-                                </View>
-                                <View>
-                                    <TouchableOpacity>
-                                        <Image
-
-                                            style={styles.iconMusic}
-                                        />
-                                    </TouchableOpacity>
+                                    <Post postData={post} style={{
+                                        width: "100%",
+                                        borderBottomLeftRadius: 30,
+                                        borderBottomRightRadius: 30,
+                                    }} />
                                 </View>
                             </View>
                         </View>
                     ))}
                 </ScrollView>
             </View>
-        </SafeAreaView>
+        </>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         width: "100%",
-        height: height,
-        backgroundColor: "black",
+        height: height - 40,
         zIndex: 1,
-        alignSelf: "stretch"
+        alignSelf: "stretch",
+        backgroundColor: "black",
+        borderRadius: 35,
+        overflow: "hidden",
     },
     post: {
         display: "flex",
@@ -219,12 +188,10 @@ const styles = StyleSheet.create({
         width: "100%",
         zIndex: 2,
         alignSelf: "stretch",
-        position: "relative",
-        bottom: 30
     },
     page_container: {
         width: width,
-        height: height,
+        height: height - 40,
     },
     video: {
         width: "100%",
@@ -240,8 +207,9 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         position: "absolute",
         top: 40,
-        left: 75,
-        alignItems: "center"
+        left: 0,
+        alignItems: "center",
+        width: "100%",
     },
     spanCenterHeader: { color: "white", fontSize: 10 },
     textLeftHeader: {
@@ -257,11 +225,12 @@ const styles = StyleSheet.create({
         fontWeight: "bold"
     },
     content: {
-        width: "75%",
+        width: "100%",
         position: "absolute",
         left: 0,
         bottom: 0,
-        zIndex: 3
+        zIndex: 3,
+        paddingBottom: 10,
     },
     InnerContent: {
         width: "100%",
@@ -271,65 +240,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         flexDirection: "column"
     },
-
-    name: { color: "white", marginVertical: 3, fontSize: 15, fontWeight: "bold" },
     description: { color: "white", marginTop: 2, fontSize: 15 },
-    hashtags: { color: "white", fontWeight: "bold" },
-    componentMusic: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginVertical: 10,
-        width: 190
-    },
-    imageIconMusic: {
-        marginRight: 15
-    },
-    iMusic: {
-        width: 20,
-        height: 20,
-        resizeMode: "contain"
-    },
-    nameMusic: {
-        color: "white",
-        fontSize: 15
-    },
-    translate: {
-        fontWeight: "bold",
-        color: "white",
-        marginVertical: 5
-    },
-    contentIcon: {
-        width: "20%",
-        position: "absolute",
-        bottom: 11,
-        right: 0,
-        alignItems: "center",
-        zIndex: 3
-    },
-    contentIconProfile: {
-        alignItems: "center",
-        marginBottom: 2
-    },
-    iconsAction: {
-        alignItems: "center",
-        marginBottom: 20
-    },
-    contentIconAction: {
-        alignItems: "center",
-        marginBottom: 13,
-        flex: 10
-    },
-    iconAction: {
-        height: 40,
-        width: 40
-    },
-    textActions: { color: "white", textAlign: "center", width: 54 },
-    iconMusic: {
-        width: 50,
-        height: 50,
-        resizeMode: "cover",
-        borderRadius: 30
-    }
 });
 
 export default Feed;
