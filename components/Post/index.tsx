@@ -2,7 +2,6 @@ import React, { useRef, useState, useEffect } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity, Animated, Easing, Share, ViewStyle, useColorScheme } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import * as Sharing from 'expo-sharing';
 import { Post as PostType } from "@/interfaces/Post";
 import Avatar from "@/components/Avatar";
 import { detectHashtags } from "./utils";
