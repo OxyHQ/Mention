@@ -1,9 +1,16 @@
-import React from 'react'
-import { View, Text, Platform, ViewStyle } from 'react-native'
+import React, { useState } from 'react'
+import { View, TextInput, Platform, ViewStyle } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { colors } from '../styles/colors'
 
 export const SearchBar = () => {
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const handleSearchChange = (query: string) => {
+        setSearchQuery(query);
+        // Add logic to handle search query, e.g., API call or filtering data
+    };
+
     return (
         <View
             style={
@@ -36,14 +43,17 @@ export const SearchBar = () => {
                     flex: 1,
                 }}>
                 <Ionicons name="search" fill={colors.COLOR_BLACK_LIGHT_4} width={20} height={20} />
-                <Text
+                <TextInput
                     style={{
                         fontSize: 16,
                         color: colors.COLOR_BLACK_LIGHT_4,
                         marginHorizontal: 17,
-                    }}>
-                    Search Mention
-                </Text>
+                        flex: 1,
+                    }}
+                    placeholder="Search Mention"
+                    value={searchQuery}
+                    onChangeText={handleSearchChange}
+                />
             </View>
         </View>
     )
