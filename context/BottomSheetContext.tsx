@@ -1,5 +1,5 @@
 import React, { createContext, useState, ReactNode, useRef } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, ScrollView, View } from 'react-native';
 import BottomSheet, { BottomSheetModalProvider, BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import { autoBatchEnhancer } from '@reduxjs/toolkit';
 
@@ -27,9 +27,9 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     return (
         <BottomSheetContext.Provider value={{ openBottomSheet, setBottomSheetContent }}>
+            {children}
             <BottomSheetModalProvider>
-                {children}
-                <BottomSheetModal ref={bottomSheetModalRef} style={styles.contentContainer}>
+                <BottomSheetModal /*snapPoints={['50%']}*/ ref={bottomSheetModalRef} style={styles.contentContainer}>
                     <BottomSheetView>
                         {bottomSheetContent}
                     </BottomSheetView>
