@@ -7,6 +7,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
 import { Header } from "@/components/Header";
 import { fetchData } from "@/utils/api";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type Notification = {
   id: string;
@@ -64,7 +65,7 @@ export default function NotificationsScreen() {
   const unreadCount = notifications.filter((notification) => !notification.read).length;
 
   return (
-    <>
+    <SafeAreaView>
       <Header options={{ title: `${t("Notifications")} (${unreadCount})` }} />
       <View style={styles.container}>
         {loading ? (
@@ -77,7 +78,7 @@ export default function NotificationsScreen() {
           />
         )}
       </View>
-    </>
+    </SafeAreaView>
   );
 }
 
