@@ -102,6 +102,12 @@ export const deleteBookmarkedPost = createAsyncThunk('posts/deleteBookmarkedPost
   return response;
 });
 
+export const fetchPostsByHashtag = createAsyncThunk('posts/fetchPostsByHashtag', async (hashtag: string) => {
+  const response = await fetchData(`posts/hashtag/${hashtag}`);
+  const posts = response.posts.map(mapPost);
+  return Promise.all(posts);
+});
+
 const postsSlice = createSlice({
   name: 'posts',
   initialState,
@@ -183,6 +189,18 @@ const postsSlice = createSlice({
       .addCase(deleteBookmarkedPost.fulfilled, (state, action) => {
         const postId = action.payload.postId;
         state.bookmarkedPosts = state.bookmarkedPosts.filter(post => post.id !== postId);
+      })
+      .addCase(fetchPostsByHashtag.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPostsByHashtag.fulfilled, (state, action) => {
+        state.loading = false;
+        state.posts = action.payload;
+      })
+      .addCase(fetchPostsByHashtag.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch posts by hashtag';
       });
   },
 });
