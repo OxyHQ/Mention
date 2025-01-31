@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
+import { ScrollView } from "react-native";
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
@@ -30,6 +31,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics } from 'react-native-safe-area-context';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { SessionOwnerButton } from '@/modules/oxyhqservices/components/SessionOwnerButton';
+import { SessionProvider } from '@/modules/oxyhqservices/components/SessionProvider';
+import { MenuProvider } from 'react-native-popup-menu';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -110,11 +113,9 @@ export default function RootLayout() {
       paddingHorizontal: isScreenNotMobile ? 10 : 0,
       marginHorizontal: 'auto',
       justifyContent: 'space-between',
-      flexDirection: 'row',
-      ...Platform.select({
-        android: {
-          flex: 1,
-        },
+      flexDirection: isScreenNotMobile ? 'row' : 'column',
+      ...(!isScreenNotMobile && {
+        flex: 1,
       }),
     },
     mainContentWrapper: {
@@ -139,15 +140,22 @@ export default function RootLayout() {
         <Provider store={store}>
           <I18nextProvider i18n={i18n}>
             <BottomSheetProvider>
-              <View style={styles.container}>
-                <SideBar />
-                <View style={styles.mainContentWrapper}>
-                  <Slot />
-                </View>
-                <RightBar />
-                <StatusBar style="auto" />
-                <Toaster position="bottom-center" swipeToDismissDirection="left" offset={20} />
-              </View>
+              <SessionProvider>
+                <MenuProvider>
+                  <ScrollView contentContainerStyle={{ flex: 1, flexDirection: 'column', }}>
+                    <View style={styles.container}>
+                      <SideBar />
+                      <View style={styles.mainContentWrapper}>
+                        <Slot />
+                      </View>
+                      <RightBar />
+                      <StatusBar style="auto" />
+                      <Toaster position="bottom-center" swipeToDismissDirection="left" offset={20} />
+                    </View>
+                  </ScrollView>
+                  {!isScreenNotMobile && <BottomBar />}
+                </MenuProvider>
+              </SessionProvider>
             </BottomSheetProvider>
           </I18nextProvider>
         </Provider>
