@@ -31,7 +31,7 @@ function Feed() {
         setLiked(!liked);
     }
 
-    interface FeedItem {
+    interface FeedPost {
         id: number;
         video_url: string;
         description: string;
@@ -60,59 +60,102 @@ function Feed() {
 
     const feed = [
         {
-            id: 1,
-            video_url: "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4",
-            description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam nec nunc nec nisi ultricies lacinia. Nullam nec nunc nec nisi ultricies lacinia.",
+            id: "1",
+            text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
+            source: "web",
+            in_reply_to_user_id: null,
+            in_reply_to_username: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             author: {
-                name: "John Doe",
-                avatar: "https://avatars.githubusercontent.com/u/1?v=4"
+                id: "1",
+                username: "mention",
+                name: {
+                    first: "Mention",
+                },
+                email: "hello@mention.earth",
+                description: "A new social network for a new world.",
+                color: "#000000",
             },
-            hashtags: "#hashtag1 #hashtag2 #hashtag3"
+            media: [],
+            quoted_post: null,
+            is_quote_status: false,
+            quoted_status_id: null,
+            possibly_sensitive: false,
+            lang: "en",
+            _count: {
+                likes: 0,
+                reposts: 0,
+                bookmarks: 0,
+                replies: 0,
+                quotes: 0,
+            },
         },
         {
-            id: 2,
-            video_url: "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4",
-            description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam nec nunc nec nisi ultricies lacinia. Nullam nec nunc nec nisi ultricies lacinia.",
+            id: "1",
+            text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
+            source: "web",
+            in_reply_to_user_id: null,
+            in_reply_to_username: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             author: {
-                name: "John Doe",
-                avatar: "https://avatars.githubusercontent.com/u/1?v=4"
+                id: "1",
+                username: "mention",
+                name: {
+                    first: "Mention",
+                },
+                email: "hello@mention.earth",
+                description: "A new social network for a new world.",
+                color: "#000000",
             },
-            hashtags: "#hashtag1 #hashtag2 #hashtag3"
+            media: [],
+            quoted_post: null,
+            is_quote_status: false,
+            quoted_status_id: null,
+            possibly_sensitive: false,
+            lang: "en",
+            _count: {
+                likes: 0,
+                reposts: 0,
+                bookmarks: 0,
+                replies: 0,
+                quotes: 0,
+            },
+        },
+        {
+            id: "1",
+            text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
+            source: "web",
+            in_reply_to_user_id: null,
+            in_reply_to_username: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            author: {
+                id: "1",
+                username: "mention",
+                name: {
+                    first: "Mention",
+                },
+                email: "hello@mention.earth",
+                description: "A new social network for a new world.",
+                color: "#000000",
+            },
+            media: [],
+            quoted_post: null,
+            is_quote_status: false,
+            quoted_status_id: null,
+            possibly_sensitive: false,
+            lang: "en",
+            _count: {
+                likes: 0,
+                reposts: 0,
+                bookmarks: 0,
+                replies: 0,
+                quotes: 0,
+            },
         },
     ];
-
-    const post = {
-        id: "1",
-        text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
-        source: "web",
-        in_reply_to_user_id: null,
-        in_reply_to_username: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        author: {
-            id: "1",
-            username: "mention",
-            name: {
-                first: "Mention",
-            },
-            email: "hello@mention.earth",
-            description: "A new social network for a new world.",
-            color: "#000000",
-        },
-        media: [],
-        quoted_post: null,
-        is_quote_status: false,
-        quoted_status_id: null,
-        possibly_sensitive: false,
-        lang: "en",
-        _count: {
-            likes: 0,
-            reposts: 0,
-            bookmarks: 0,
-            replies: 0,
-            quotes: 0,
-        },
-    };
 
     return (
         <>
@@ -136,28 +179,28 @@ function Feed() {
                     showsVerticalScrollIndicator={false}
                     pagingEnabled
                 >
-                    {feed.map(item => (
-                        <View key={item.id} style={[styles.page_container, styles.post]}>
-                            <View style={styles.video}>
-                                <Video
-                                    source={{
-                                        uri: "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4"
-                                        //uri: item.video_url
-                                    }}
-                                    rate={1.0}
-                                    volume={1.0}
-                                    isMuted={Platform.OS === 'web' ? true : false}
-                                    shouldPlay
-                                    resizeMode={ResizeMode.COVER}
-                                    isLooping
-                                    style={styles.videoPlayer}
-                                    useNativeControls={false}
-                                />
-                            </View>
+                    {feed.map(post => (
+                        <View key={post.id} style={[styles.page_container, styles.post]}>
+                            <Video
+                                source={{
+                                    uri: "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4"
+                                    //uri: post.video_url
+                                }}
+                                rate={1.0}
+                                volume={1.0}
+                                isMuted={Platform.OS === 'web' ? true : false}
+                                shouldPlay
+                                resizeMode={ResizeMode.COVER}
+                                isLooping
+                                style={styles.videoPlayer}
+                                useNativeControls={false}
+                                videoStyle={{ height: "100%" }}
+                            />
                             <View style={styles.content}>
                                 <View style={styles.InnerContent}>
                                     <Post postData={post} style={{
                                         width: "100%",
+                                        borderRadius: 15,
                                         borderBottomLeftRadius: 30,
                                         borderBottomRightRadius: 30,
                                     }} />
@@ -183,7 +226,7 @@ const styles = StyleSheet.create({
     },
     post: {
         display: "flex",
-        alignItems: "center",
+        alignPosts: "center",
         justifyContent: "center",
         width: "100%",
         zIndex: 2,
@@ -193,22 +236,19 @@ const styles = StyleSheet.create({
         width: width,
         height: height - 40,
     },
-    video: {
-        width: "100%",
-        flex: 1,
-        zIndex: 2
-    },
     videoPlayer: {
         width: "100%",
+        height: "100%",
+        position: "absolute",
         zIndex: 2,
-        flex: 1
+        flex: 1,
     },
     header: {
         flexDirection: "row",
         position: "absolute",
         top: 40,
         left: 0,
-        alignItems: "center",
+        alignPosts: "center",
         width: "100%",
     },
     spanCenterHeader: { color: "white", fontSize: 10 },
@@ -231,6 +271,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         zIndex: 3,
         paddingBottom: 10,
+
     },
     InnerContent: {
         width: "100%",
