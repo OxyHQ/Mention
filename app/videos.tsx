@@ -21,11 +21,13 @@ import Avatar from "@/components/Avatar";
 import { Chat } from "@/assets/icons/chat-icon";
 import { HeartIcon, HeartIconActive } from "@/assets/icons/heart-icon";
 import { CommentIcon } from "@/assets/icons/comment-icon";
+import { useMediaQuery } from "react-responsive";
 
-function Feed() {
-    const [feedd, setfeed] = useState([]);
+
+export default Feed = () => {
     const [liked, setLiked] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
+    const isScreenNotMobile = useMediaQuery({ minWidth: 500 });
 
     function handleLike() {
         setLiked(!liked);
@@ -54,11 +56,11 @@ function Feed() {
         const { y } = event.nativeEvent.contentOffset;
         const index = Math.round(height);
         if (scrollViewRef.current) {
-            scrollViewRef.current.scrollTo({ y: index * height, animated: true });
+            scrollViewRef.current.scrollTo({ y: index * height, animated: false });
         }
     };
 
-    const feed = [
+    const feedData = [
         {
             id: "1",
             text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
@@ -77,7 +79,9 @@ function Feed() {
                 description: "A new social network for a new world.",
                 color: "#000000",
             },
-            media: [],
+            media: [
+                "https://videos.pexels.com/video-files/26867688/12024499_1080_1920_30fps.mp4"
+            ],
             quoted_post: null,
             is_quote_status: false,
             quoted_status_id: null,
@@ -109,7 +113,9 @@ function Feed() {
                 description: "A new social network for a new world.",
                 color: "#000000",
             },
-            media: [],
+            media: [
+                "https://videos.pexels.com/video-files/30441554/13045108_1440_2560_30fps.mp4"
+            ],
             quoted_post: null,
             is_quote_status: false,
             quoted_status_id: null,
@@ -141,7 +147,9 @@ function Feed() {
                 description: "A new social network for a new world.",
                 color: "#000000",
             },
-            media: [],
+            media: [
+                "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4"
+            ],
             quoted_post: null,
             is_quote_status: false,
             quoted_status_id: null,
@@ -156,6 +164,90 @@ function Feed() {
             },
         },
     ];
+
+    const styles = StyleSheet.create({
+        container: {
+            width: "100%",
+            zIndex: 1,
+            alignSelf: "stretch",
+            backgroundColor: "black",
+            borderBottomLeftRadius: 35,
+            borderBottomRightRadius: 35,
+            ...(isScreenNotMobile && {
+                borderRadius: 35,
+            }),
+            overflow: "hidden",
+            ...(!isScreenNotMobile && {
+                height: height - 90,
+            }),
+            ...(isScreenNotMobile && {
+                height: height - 40,
+            }),
+        },
+        post: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "100%",
+            zIndex: 2,
+            alignSelf: "stretch",
+        },
+        page_container: {
+            width: width,
+            ...(!isScreenNotMobile && {
+                height: height - 90,
+            }),
+            ...(isScreenNotMobile && {
+                height: height - 40,
+            }),
+        },
+        videoPlayer: {
+            width: "100%",
+            height: "100%",
+            position: "absolute",
+            zIndex: 2,
+            flex: 1,
+        },
+        header: {
+            flexDirection: "row",
+            position: "absolute",
+            top: 40,
+            left: 0,
+            alignItems: "center",
+            width: "100%",
+        },
+        spanCenterHeader: { color: "white", fontSize: 10 },
+        textLeftHeader: {
+            color: "grey",
+            paddingHorizontal: 10,
+            fontSize: 20
+        },
+
+        textRightHeader: {
+            color: "white",
+            paddingHorizontal: 10,
+            fontSize: 23,
+            fontWeight: "bold"
+        },
+        content: {
+            width: "100%",
+            position: "absolute",
+            left: 0,
+            bottom: 0,
+            zIndex: 3,
+            paddingBottom: 10,
+
+        },
+        InnerContent: {
+            width: "100%",
+            position: "relative",
+            bottom: 0,
+            justifyContent: "flex-end",
+            paddingHorizontal: 10,
+            flexDirection: "column"
+        },
+        description: { color: "white", marginTop: 2, fontSize: 15 },
+    });
 
     return (
         <>
@@ -179,22 +271,21 @@ function Feed() {
                     showsVerticalScrollIndicator={false}
                     pagingEnabled
                 >
-                    {feed.map(post => (
+                    {feedData.map(post => (
                         <View key={post.id} style={[styles.page_container, styles.post]}>
                             <Video
                                 source={{
-                                    uri: "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4"
-                                    //uri: post.video_url
+                                    uri: post?.media[0],
                                 }}
                                 rate={1.0}
                                 volume={1.0}
                                 isMuted={Platform.OS === 'web' ? true : false}
                                 shouldPlay
-                                resizeMode={ResizeMode.COVER}
-                                isLooping
+                                isLooping={true}
                                 style={styles.videoPlayer}
                                 useNativeControls={false}
-                                videoStyle={{ height: "100%" }}
+                                resizeMode={ResizeMode.CONTAIN}
+                                videoStyle={{ width: "100%", height: "100%" }}
                             />
                             <View style={styles.content}>
                                 <View style={styles.InnerContent}>
@@ -212,76 +303,6 @@ function Feed() {
             </View>
         </>
     );
+
+
 }
-
-const styles = StyleSheet.create({
-    container: {
-        width: "100%",
-        height: height - 40,
-        zIndex: 1,
-        alignSelf: "stretch",
-        backgroundColor: "black",
-        borderRadius: 35,
-        overflow: "hidden",
-    },
-    post: {
-        display: "flex",
-        alignPosts: "center",
-        justifyContent: "center",
-        width: "100%",
-        zIndex: 2,
-        alignSelf: "stretch",
-    },
-    page_container: {
-        width: width,
-        height: height - 40,
-    },
-    videoPlayer: {
-        width: "100%",
-        height: "100%",
-        position: "absolute",
-        zIndex: 2,
-        flex: 1,
-    },
-    header: {
-        flexDirection: "row",
-        position: "absolute",
-        top: 40,
-        left: 0,
-        alignPosts: "center",
-        width: "100%",
-    },
-    spanCenterHeader: { color: "white", fontSize: 10 },
-    textLeftHeader: {
-        color: "grey",
-        paddingHorizontal: 10,
-        fontSize: 20
-    },
-
-    textRightHeader: {
-        color: "white",
-        paddingHorizontal: 10,
-        fontSize: 23,
-        fontWeight: "bold"
-    },
-    content: {
-        width: "100%",
-        position: "absolute",
-        left: 0,
-        bottom: 0,
-        zIndex: 3,
-        paddingBottom: 10,
-
-    },
-    InnerContent: {
-        width: "100%",
-        position: "relative",
-        bottom: 0,
-        justifyContent: "flex-end",
-        paddingHorizontal: 10,
-        flexDirection: "column"
-    },
-    description: { color: "white", marginTop: 2, fontSize: 15 },
-});
-
-export default Feed;
