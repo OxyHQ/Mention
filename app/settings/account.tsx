@@ -1,17 +1,26 @@
-import React, { useEffect } from "react";
-import { View, Text, StyleSheet, SafeAreaView } from "react-native";
+import React, { useEffect, useContext } from "react";
+import { View, Text, StyleSheet, SafeAreaView, Button } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchProfile } from "@/store/reducers/profileReducer";
+import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { useRouter } from "expo-router";
 
 export default function AccountSettings() {
     const { t } = useTranslation();
     const dispatch = useDispatch();
     const profile = useSelector((state: { profile: { profile: any } }) => state.profile.profile);
+    const { logoutUser } = useContext(SessionContext);
+    const router = useRouter();
 
     useEffect(() => {
         dispatch(fetchProfile());
     }, [dispatch]);
+
+    const handleLogout = () => {
+        logoutUser();
+        router.push('/login');
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -23,6 +32,7 @@ export default function AccountSettings() {
                     <Text>{t("Avatar")}: {profile.avatar}</Text>
                 </View>
             )}
+            <Button title={t("Logout")} onPress={handleLogout} />
         </SafeAreaView>
     );
 }
