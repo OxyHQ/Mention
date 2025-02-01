@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, TextInput, ScrollView } from "react-native";
-import { Stack, useLocalSearchParams, router } from "expo-router";
+import { Stack, useLocalSearchParams, router, Link } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { Header } from '@/components/Header'
@@ -52,7 +52,7 @@ const stories = [
             avatar: "https://via.placeholder.com/50",
         },
     },
-    
+
 ];
 
 type Message = {
@@ -66,7 +66,7 @@ type Message = {
 };
 
 const MessageItem = ({ message }: { message: Message }) => (
-    <TouchableOpacity style={styles.messageContainer}>
+    <Link href={`/chat/c/${message.user.name}`} style={styles.messageContainer}>
         <Image source={{ uri: message.user.avatar }} style={styles.avatar} />
         <View style={styles.messageContent}>
             <View style={styles.messageHeader}>
@@ -75,7 +75,7 @@ const MessageItem = ({ message }: { message: Message }) => (
             </View>
             <ThemedText style={styles.messageText} numberOfLines={1}>{message.content}</ThemedText>
         </View>
-    </TouchableOpacity>
+    </Link>
 );
 
 const StoryItem = ({ story }: { story: { id: string; user: { name: string; avatar: string } } }) => (
