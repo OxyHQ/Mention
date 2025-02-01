@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback } from "react";
-import { ScrollView } from "react-native";
+import { useEffect, useRef, useCallback, useState } from "react";
+import { ScrollView, Keyboard } from "react-native";
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
@@ -78,6 +78,17 @@ export default function RootLayout() {
     bottomSheetRef.current?.expand();
   };
 
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
   useEffect(() => {
     async function initializeApp() {
       try {
@@ -154,7 +165,7 @@ export default function RootLayout() {
                   </ScrollView>
                   <StatusBar style="auto" />
                   <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
-                  {!isScreenNotMobile && <BottomBar />}
+                  {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
                 </MenuProvider>
               </SessionProvider>
             </BottomSheetProvider>
