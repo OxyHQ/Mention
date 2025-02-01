@@ -30,11 +30,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
       - name: Build React Native Web project
-        run: npm run build
+        run: npm run build-web
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./build
+          path: ./dist
 
   deploy:
     environment:
