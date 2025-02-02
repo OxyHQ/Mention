@@ -12,6 +12,8 @@ interface SessionContextType {
     loginUser: (user: any) => void;
     logoutUser: () => void;
     getCurrentUser: () => any;
+    sessions: any[]; // added sessions array
+    switchSession: (sessionId: string) => void;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -62,6 +64,29 @@ const SessionProvider = ({ children }) => {
         }
     }, [state.isAuthenticated, reduxDispatch]);
 
+    // Define fake sessions
+    const fakeSessions = [
+        {
+            id: '679f4993e38393a3a9edd4dd',
+            name: { first: 'Nate', last: 'Isern' },
+            username: 'nate',
+            avatarSource: { uri: 'https://api.mention.earth/api/files/6790749544634262da8394f2' },
+        },
+        {
+            id: '679fcac00e2353edc2f02f19',
+            name: { first: 'Mention' },
+            username: 'mention',
+            avatarSource: { uri: 'http://localhost:8081/assets/?unstable_path=.%2Fassets%2Fimages/default-avatar.jpg' },
+        }
+    ];
+
+    const switchSession = (sessionId: string) => {
+        const session = fakeSessions.find(s => s.id === sessionId);
+        if (session) {
+            loginUser(session);
+        }
+    };
+
     const loginUser = (user) => {
         dispatch({ type: 'LOGIN', payload: user });
         reduxDispatch(login(user));
@@ -77,7 +102,7 @@ const SessionProvider = ({ children }) => {
     };
 
     return (
-        <SessionContext.Provider value={{ state, loginUser, logoutUser, getCurrentUser }}>
+        <SessionContext.Provider value={{ state, loginUser, logoutUser, getCurrentUser, sessions: fakeSessions, switchSession }}>
             {children}
         </SessionContext.Provider>
     );
