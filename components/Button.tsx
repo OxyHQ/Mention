@@ -1,29 +1,37 @@
 import React, { FC, useState } from 'react'
-import { StyleProp } from 'react-native'
+import { ViewStyle, Platform } from 'react-native'
 import { Pressable } from 'react-native-web-hover'
 import { useMediaQuery } from 'react-responsive'
+import { Link } from 'expo-router' // added Link import
+
 type ChildProps = {
-    renderText: ({
-        state,
-    }: {
-        state: 'desktop' | 'tablet'
-    }) => React.ReactElement | null
-    renderIcon: ({
-        state,
-    }: {
-        state: 'desktop' | 'tablet'
-    }) => React.ReactElement | null
-    containerStyle: ({ state }: { state: 'desktop' | 'tablet' }) => StyleProp<any>
-}
+    href?: string; // optional href prop
+    renderText: ({ state }: { state: "desktop" | "tablet" }) => React.ReactNode;
+    renderIcon: ({ state }: { state: "desktop" | "tablet" }) => React.ReactNode;
+    containerStyle: ({ state }: { state: "desktop" | "tablet" }) => ViewStyle;
+};
+
 export const Button: FC<ChildProps> = ({
+    href,
     renderText,
     renderIcon,
     containerStyle,
 }) => {
     const isDesktop = useMediaQuery({ minWidth: 1266 })
     const state = isDesktop ? 'desktop' : 'tablet'
+    const style = containerStyle?.({ state })
+
+    if (href) {
+        return (
+            <Link href={href} style={style}>
+                {renderIcon ? renderIcon({ state }) : null}
+                {renderText ? renderText({ state }) : null}
+            </Link>
+        )
+    }
+
     return (
-        <Pressable style={containerStyle?.({ state })}>
+        <Pressable style={style}>
             {renderIcon ? renderIcon({ state }) : null}
             {renderText ? renderText({ state }) : null}
         </Pressable>
