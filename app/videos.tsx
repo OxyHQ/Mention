@@ -7,7 +7,9 @@ import {
     SafeAreaView,
     Image,
     Dimensions,
-    Platform
+    Platform,
+    Animated,
+    TouchableWithoutFeedback
 } from "react-native";
 import axios from "axios";
 import Post from "@/components/Post";
@@ -22,16 +24,39 @@ import { Chat } from "@/assets/icons/chat-icon";
 import { HeartIcon, HeartIconActive } from "@/assets/icons/heart-icon";
 import { CommentIcon } from "@/assets/icons/comment-icon";
 import { useMediaQuery } from "react-responsive";
+import { Ionicons } from "@expo/vector-icons";
 
 
 export default Feed = () => {
     const [liked, setLiked] = useState(false);
+    const [lastTap, setLastTap] = useState<number | null>(null);
+    const scaleValue = useRef(new Animated.Value(0)).current;
     const scrollViewRef = useRef<ScrollView>(null);
     const isScreenNotMobile = useMediaQuery({ minWidth: 500 });
 
     function handleLike() {
         setLiked(!liked);
     }
+
+    const handleDoubleTap = () => {
+        const now = Date.now();
+        if (lastTap && (now - lastTap) < 300) {
+            // Double tap detected
+            Animated.sequence([
+                Animated.spring(scaleValue, {
+                    toValue: 1,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(scaleValue, {
+                    toValue: 0,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+            setLiked(true);
+        } else {
+            setLastTap(now);
+        }
+    };
 
     interface FeedPost {
         id: number;
@@ -247,6 +272,14 @@ export default Feed = () => {
             flexDirection: "column"
         },
         description: { color: "white", marginTop: 2, fontSize: 15 },
+        likeIcon: {
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            marginLeft: -50, // Half of the icon size
+            marginTop: -50, // Half of the icon size
+            zIndex: 3,
+        },
     });
 
     return (
@@ -272,32 +305,37 @@ export default Feed = () => {
                     pagingEnabled
                 >
                     {feedData.map(post => (
-                        <View key={post.id} style={[styles.page_container, styles.post]}>
-                            <Video
-                                source={{
-                                    uri: post?.media[0],
-                                }}
-                                rate={1.0}
-                                volume={1.0}
-                                isMuted={Platform.OS === 'web' ? true : false}
-                                shouldPlay
-                                isLooping={true}
-                                style={styles.videoPlayer}
-                                useNativeControls={false}
-                                resizeMode={ResizeMode.CONTAIN}
-                                videoStyle={{ width: "100%", height: "100%" }}
-                            />
-                            <View style={styles.content}>
-                                <View style={styles.InnerContent}>
-                                    <Post postData={post} style={{
-                                        width: "100%",
-                                        borderRadius: 15,
-                                        borderBottomLeftRadius: 30,
-                                        borderBottomRightRadius: 30,
-                                    }} />
+                        <TouchableWithoutFeedback key={post.id} onPress={handleDoubleTap}>
+                            <View style={[styles.page_container, styles.post]}>
+                                <Video
+                                    source={{
+                                        uri: post?.media[0],
+                                    }}
+                                    rate={1.0}
+                                    volume={1.0}
+                                    isMuted={Platform.OS === 'web' ? true : false}
+                                    shouldPlay
+                                    isLooping={true}
+                                    style={styles.videoPlayer}
+                                    useNativeControls={false}
+                                    resizeMode={ResizeMode.CONTAIN}
+                                    videoStyle={{ width: "100%", height: "100%" }}
+                                />
+                                <Animated.View style={[styles.likeIcon, { transform: [{ scale: scaleValue }] }]}>
+                                    <Ionicons name="heart" size={100} color="red" />
+                                </Animated.View>
+                                <View style={styles.content}>
+                                    <View style={styles.InnerContent}>
+                                        <Post postData={post} style={{
+                                            width: "100%",
+                                            borderRadius: 15,
+                                            borderBottomLeftRadius: 30,
+                                            borderBottomRightRadius: 30,
+                                        }} />
+                                    </View>
                                 </View>
                             </View>
-                        </View>
+                        </TouchableWithoutFeedback>
                     ))}
                 </ScrollView>
             </View>
