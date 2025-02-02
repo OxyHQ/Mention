@@ -154,7 +154,7 @@ export default function RootLayout() {
             <BottomSheetProvider>
               <SessionProvider>
                 <MenuProvider>
-                  <ScrollView contentContainerStyle={{ flex: 1, flexDirection: 'column', }}>
+                  <View style={{ flex: 1 }}>
                     <View style={styles.container}>
                       <SideBar />
                       <View style={styles.mainContentWrapper}>
@@ -162,7 +162,7 @@ export default function RootLayout() {
                       </View>
                       <RightBar />
                     </View>
-                  </ScrollView>
+                  </View>
                   <StatusBar style="auto" />
                   <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
                   {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
