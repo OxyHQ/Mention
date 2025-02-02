@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Image } from "react-native";
+import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Image, Platform, ImageStyle, ViewStyle } from "react-native";
 import io from "socket.io-client";
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
 import { colors } from "@/styles/colors";
@@ -10,15 +10,19 @@ import { Chat } from "@/assets/icons/chat-icon";
 import { Header } from "@/components/Header";
 import Avatar from "@/components/Avatar";
 import { Ionicons } from "@expo/vector-icons";
-import { Video, ResizeMode } from 'expo-av';
+import { Video, ResizeMode } from "expo-av";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type Message = {
     id: string;
     userId: string;
     text: string;
     isSent: boolean;
-    timestamp: string;
-    media?: string;
+    timestamp: string; // ISO string for reliable comparisons
+    media?: {
+        uri: string;
+        type: "image" | "video";
+    }[];
 };
 
 type MessageGroup = {
@@ -37,36 +41,34 @@ export default function ChatScreen() {
     const scrollViewRef = useRef<ScrollView>(null);
     const socket = useRef(io("http://localhost:3000")).current;
 
+    // 5 minute threshold for grouping messages
     const TIME_THRESHOLD = 5 * 60 * 1000;
 
-    // Called when the user selects media files
     const onSelect = (selectedFiles: any[]) => {
-        const media = selectedFiles.map(file => ({
+        const media = selectedFiles.map((file) => ({
             uri: `http://localhost:3000/api/files/${file._id}`,
             type: file.contentType.startsWith("image/") ? "image" as const : "video" as const,
             id: file._id,
         }));
-        setSelectedMedia(prev => [...prev, ...media]);
+        setSelectedMedia((prev) => [...prev, ...media]);
     };
 
     useEffect(() => {
         socket.on("message", (newMessage: Message) => {
-            setMessages(prev => [...prev, newMessage]);
+            setMessages((prev) => [...prev, newMessage]);
         });
         fetch("http://localhost:3000/messages")
-            .then(res => res.json())
-            .then(data => setMessages(data));
+            .then((res) => res.json())
+            .then((data) => setMessages(data));
         return () => {
             socket.off("message");
         };
     }, [socket]);
 
-    // Focus the input whenever messages update (optional)
     useEffect(() => {
         inputRef.current?.focus();
     }, [messages]);
 
-    // Auto scroll to the bottom when messages update
     useEffect(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
     }, [messages]);
@@ -78,10 +80,11 @@ export default function ChatScreen() {
             userId: "current-user",
             text: inputText,
             isSent: true,
-            // This example uses a formatted time string (hours and minutes)
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            timestamp: new Date().toISOString(),
         };
         socket.emit("sendMessage", newMessage);
+        // Optionally add the message locally for immediate feedback:
+        setMessages((prev) => [...prev, newMessage]);
         setInputText("");
     };
 
@@ -93,18 +96,15 @@ export default function ChatScreen() {
         setModalVisible(false);
     };
 
-    // Group messages by same user and timestamp.
-    // (This simple grouping assumes messages are in order and uses an exact match on the formatted time.)
+    // Group messages by same user and within the time threshold
     const groupMessages = (messages: Message[]): MessageGroup[] => {
         const groups: MessageGroup[] = [];
         messages.forEach((message) => {
-            // If no groups exist, create a new one.
             if (groups.length === 0) {
                 groups.push({ userId: message.userId, messages: [message] });
             } else {
                 const lastGroup = groups[groups.length - 1];
                 const lastMessage = lastGroup.messages[lastGroup.messages.length - 1];
-                // Check: same user and time gap less than the threshold.
                 if (
                     message.userId === lastGroup.userId &&
                     new Date(message.timestamp).getTime() - new Date(lastMessage.timestamp).getTime() < TIME_THRESHOLD
@@ -121,109 +121,157 @@ export default function ChatScreen() {
     const groupedMessages = groupMessages(messages);
 
     return (
-        <View style={styles.container}>
-            <Header
-                options={{
-                    title: "Chat",
-                    titlePosition: "left",
-                    subtitle: "Online",
-                    leftComponents: [<Avatar key="avatar" size={40} source={{ uri: "" }} />],
-                    rightComponents: [
-                        <Ionicons key="call" name="call" size={24} color={colors.primaryColor} />,
-                        <Ionicons key="videocam" name="videocam" size={24} color={colors.primaryColor} />,
-                    ],
-                }}
-            />
-            <ScrollView ref={scrollViewRef} style={styles.messageContainer}>
-                {groupedMessages.map((group, index) => {
-                    const isSent = group.messages[0].isSent;
-                    return (
-                        <View
-                            key={index}
-                            style={[styles.messageWrapper, isSent ? styles.sentWrapper : styles.receivedWrapper]}
-                        >
-                            <View style={[styles.bubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
-                                {group.messages.map(message => (
-                                    <React.Fragment key={message.id}>
-                                        {message.media && (
-                                            <Image source={{ uri: message.media }} style={styles.mediaImage} />
-                                        )}
-                                        {message.text && (
-                                            <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}>
-                                                {message.text}
-                                            </Text>
-                                        )}
-                                    </React.Fragment>
-                                ))}
-                                <Text
-                                    style={[
-                                        styles.timestampText,
-                                        { alignSelf: isSent ? "flex-end" : "flex-start" },
-                                    ]}
-                                >
-                                    {group.timestamp}
-                                </Text>
-                            </View>
-                        </View>
-                    );
-                })}
-            </ScrollView>
-            <View style={styles.inputContainer}>
-                <FileSelectorModal
-                    visible={isModalVisible}
-                    onClose={closeMediaSelect}
-                    onSelect={onSelect}
-                    userId="user123"
+        <SafeAreaView style={{ flex: 1 }}>
+            <View style={styles.container}>
+                <Header
                     options={{
-                        fileTypeFilter: ["image/", "video/"],
-                        maxFiles: 5,
+                        title: "Chat",
+                        titlePosition: "left",
+                        subtitle: "Online",
+                        leftComponents: [<Avatar key="avatar" size={40} id="" />],
+                        rightComponents: [
+                            <Ionicons key="call" name="call" size={24} color={colors.primaryColor} />,
+                            <Ionicons key="videocam" name="videocam" size={24} color={colors.primaryColor} />,
+                        ],
                     }}
                 />
-                <View style={styles.input}>
-                    <View style={styles.mediaPreviewContainer}>
-                        {selectedMedia.map((asset, index) =>
-                            asset.type === "image" ? (
-                                <Image key={index} source={{ uri: asset.uri }} style={styles.mediaPreview} />
-                            ) : (
-                                <Video
-                                    key={index}
-                                    source={{ uri: asset.uri }}
-                                    style={styles.mediaPreview}
-                                    useNativeControls
-                                    resizeMode={ResizeMode.CONTAIN}
-                                    shouldPlay
-                                    isLooping
-                                    isMuted
-                                />
-                            )
-                        )}
-                    </View>
-                    <View style={styles.inputGroup}>
-                        <Pressable onPress={openMediaSelect} style={styles.svgWrapper}>
-                            <MediaIcon size={20} />
-                        </Pressable>
-                        <Pressable style={styles.svgWrapper}>
-                            <EmojiIcon size={20} />
-                        </Pressable>
-                        <Pressable style={styles.svgWrapper}>
-                            <LocationIcon size={20} />
-                        </Pressable>
-                        <TextInput
-                            ref={inputRef}
-                            style={styles.inputText}
-                            placeholder="Type a message..."
-                            value={inputText}
-                            onChangeText={setInputText}
-                            onSubmitEditing={handleSendMessage}
-                            blurOnSubmit={false}
-                        />
-                        <Pressable onPress={handleSendMessage} style={styles.svgWrapper}>
-                            <Chat size={20} />
-                        </Pressable>
+                <ScrollView ref={scrollViewRef} style={styles.messageContainer}>
+                    {groupedMessages.map((group, groupIndex) => {
+                        const isSent = group.messages[0].isSent;
+                        return (
+                            <View
+                                key={groupIndex}
+                                style={[
+                                    styles.messageWrapper,
+                                    isSent ? styles.sentWrapper : styles.receivedWrapper,
+                                ]}
+                            >
+                                {group.messages.map((message, idx) => {
+                                    const isFirst = idx === 0;
+                                    const isLast = idx === group.messages.length - 1;
+                                    return (
+                                        <View
+                                            key={message.id}
+                                            style={[
+                                                styles.bubble,
+                                                isSent ? styles.sentBubble : styles.receivedBubble,
+                                                !isFirst && !isLast && (isSent ? styles.sentMiddle : styles.receivedMiddle),
+                                                isFirst && (isSent ? styles.sentFirst : styles.receivedFirst),
+                                                isLast && (isSent ? styles.sentLast : styles.receivedLast),
+                                            ]}
+                                        >
+                                            {message.media &&
+                                                message.media.map((mediaItem, mediaIndex) => {
+                                                    return mediaItem.type === "image" ? (
+                                                        <Image
+                                                            key={mediaIndex}
+                                                            source={{ uri: mediaItem.uri }}
+                                                            style={styles.mediaImage}
+                                                        />
+                                                    ) : (
+                                                        <Video
+                                                            key={mediaIndex}
+                                                            source={{ uri: mediaItem.uri }}
+                                                            style={styles.mediaImage}
+                                                            useNativeControls
+                                                            resizeMode={ResizeMode.CONTAIN}
+                                                            shouldPlay
+                                                            isLooping
+                                                            isMuted
+                                                        />
+                                                    );
+                                                })}
+                                            {message.text ? (
+                                                <Text
+                                                    style={[
+                                                        styles.messageText,
+                                                        isSent ? styles.sentText : styles.receivedText,
+                                                    ]}
+                                                >
+                                                    {message.text}
+                                                </Text>
+                                            ) : null}
+                                            {isLast && (
+                                                <Text
+                                                    style={[
+                                                        styles.timestampText,
+                                                        { alignSelf: isSent ? "flex-end" : "flex-start" },
+                                                    ]}
+                                                >
+                                                    {new Date(message.timestamp).toLocaleTimeString([], {
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                    })}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        );
+                    })}
+                </ScrollView>
+                <View style={styles.inputContainer}>
+                    <FileSelectorModal
+                        visible={isModalVisible}
+                        onClose={closeMediaSelect}
+                        onSelect={onSelect}
+                        userId="user123"
+                        options={{
+                            fileTypeFilter: ["image/", "video/"],
+                            maxFiles: 5,
+                        }}
+                    />
+                    <View style={styles.input}>
+                        <View style={styles.mediaPreviewContainer}>
+                            {selectedMedia.map((asset, index) =>
+                                asset.type === "image" ? (
+                                    <Image
+                                        key={index}
+                                        source={{ uri: asset.uri }}
+                                        style={styles.mediaPreview}
+                                    />
+                                ) : (
+                                    <Video
+                                        key={index}
+                                        source={{ uri: asset.uri }}
+                                        style={styles.mediaPreview}
+                                        useNativeControls
+                                        resizeMode={ResizeMode.CONTAIN}
+                                        shouldPlay
+                                        isLooping
+                                        isMuted
+                                    />
+                                )
+                            )}
+                        </View>
+                        <View style={styles.inputGroup}>
+                            <Pressable onPress={openMediaSelect} style={styles.svgWrapper}>
+                                <MediaIcon size={20} />
+                            </Pressable>
+                            <Pressable style={styles.svgWrapper}>
+                                <EmojiIcon size={20} />
+                            </Pressable>
+                            <Pressable style={styles.svgWrapper}>
+                                <LocationIcon size={20} />
+                            </Pressable>
+                            <TextInput
+                                ref={inputRef}
+                                style={styles.inputText}
+                                placeholder="Type a message..."
+                                value={inputText}
+                                onChangeText={setInputText}
+                                onSubmitEditing={handleSendMessage}
+                                blurOnSubmit={false}
+                            />
+                            <Pressable onPress={handleSendMessage} style={styles.svgWrapper}>
+                                <Chat size={20} />
+                            </Pressable>
+                        </View>
                     </View>
                 </View>
             </View>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -236,28 +284,48 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     messageWrapper: {
-        flexDirection: "row",
+        flexDirection: "column",
+        marginBottom: 8,
+        flex: 1,
     },
     sentWrapper: {
-        justifyContent: "flex-end",
+        alignItems: "flex-end",
     },
     receivedWrapper: {
-        justifyContent: "flex-start",
+        alignItems: "flex-start",
     },
     bubble: {
         maxWidth: "80%",
         paddingHorizontal: 8,
         paddingVertical: 6,
-        borderRadius: 20,
-        flexDirection: "column",
+        borderRadius: 5,
+        marginBottom: 2,
     },
     sentBubble: {
         backgroundColor: colors.primaryColor,
-        borderBottomRightRadius: 8,
+        borderTopLeftRadius: 20,
+        borderBottomLeftRadius: 20,
     },
     receivedBubble: {
         backgroundColor: "#f1f0f0",
-        borderBottomLeftRadius: 8,
+        borderTopRightRadius: 20,
+        borderBottomRightRadius: 20,
+    },
+    sentFirst: {
+        borderTopRightRadius: 20,
+    },
+    receivedFirst: {
+        borderTopLeftRadius: 20,
+    },
+    sentLast: {
+        borderBottomRightRadius: 20,
+    },
+    receivedLast: {
+        borderBottomLeftRadius: 20,
+    },
+    sentMiddle: {
+    },
+    receivedMiddle: {
     },
     messageText: {
         fontSize: 14,
@@ -271,13 +339,14 @@ const styles = StyleSheet.create({
     timestampText: {
         fontSize: 10,
         color: "#999",
+        marginTop: 4,
     },
     mediaImage: {
         width: 200,
         height: 200,
         borderRadius: 8,
         marginBottom: 4,
-    },
+    } as ImageStyle,
     inputContainer: {
         borderTopWidth: 1,
         borderColor: "#e5e5e5",
@@ -287,7 +356,14 @@ const styles = StyleSheet.create({
         alignItems: "center",
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
-    },
+        ...Platform.select({
+            web: {
+                position: "sticky",
+                bottom: 0,
+                zIndex: 101,
+            },
+        }),
+    } as ViewStyle,
     input: {
         flex: 1,
         flexDirection: "column",
@@ -306,7 +382,6 @@ const styles = StyleSheet.create({
         flex: 1,
         height: 40,
         paddingHorizontal: 5,
-        borderWidth: 0,
     },
     svgWrapper: {
         borderRadius: 100,
@@ -320,7 +395,6 @@ const styles = StyleSheet.create({
         flexWrap: "wrap",
         marginVertical: 10,
         paddingHorizontal: 10,
-        gap: 5,
     },
     mediaPreview: {
         width: 100,
@@ -328,5 +402,7 @@ const styles = StyleSheet.create({
         borderRadius: 35,
         borderWidth: 1,
         borderColor: colors.COLOR_BLACK_LIGHT_6,
-    },
+        marginRight: 5,
+        marginBottom: 5,
+    } as ImageStyle,
 });
