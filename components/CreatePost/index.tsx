@@ -25,6 +25,7 @@ import Avatar from '../Avatar';
 interface Props {
     style?: ViewStyle
     onClose?: () => void
+    onPress?: () => void;
 }
 
 export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
@@ -71,7 +72,7 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
     const onSelect = (selectedFiles: any[]) => {
         const media = selectedFiles.map(file => ({
             uri: `${process.env.OXY_CLOUD_URL}/files/${file._id}`,
-            type: file.contentType.startsWith('image/') ? 'image' : 'video',
+            type: file.contentType.startsWith('image/') ? 'image' : 'video' as 'image' | 'video',
             id: file._id
         }));
         setSelectedMedia([...selectedMedia, ...media]);
