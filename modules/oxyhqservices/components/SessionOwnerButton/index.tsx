@@ -21,7 +21,7 @@ export function SessionOwnerButton() {
                 last: 'Isern',
             },
             username: 'nate',
-            avatarSource: { uri: 'http://localhost:3000/api/files/6790749544634262da8394f2' },
+            avatarSource: { uri: 'http://192.168.1.196:3000/api/files/6790749544634262da8394f2' },
         },
         {
             id: 'user2',
