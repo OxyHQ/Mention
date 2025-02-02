@@ -61,7 +61,11 @@ export default function ProfileScreen() {
                 <Ionicons name="ellipsis-horizontal" size={20} color={colors.primaryColor} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.name}>{profile?.name?.first} {profile?.name?.last}</Text>
+            <Text style={styles.name}>
+              {profile?.name?.first && profile?.name?.last
+                ? `${profile.name.first} ${profile.name.last}`
+                : profile?.username}
+            </Text>
             <Text style={styles.username}>@{profile?.username}</Text>
             {profile?.bio && (
               <Text style={styles.bio}>{profile?.bio}</Text>
