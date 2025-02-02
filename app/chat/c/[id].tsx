@@ -46,7 +46,7 @@ export default function ChatScreen() {
 
     const onSelect = (selectedFiles: any[]) => {
         const media = selectedFiles.map((file) => ({
-            uri: `http://192.168.1.196:3000/api/files/${file._id}`,
+            uri: `https://api.mention.earth/api/files/${file._id}`,
             type: file.contentType.startsWith("image/") ? "image" as const : "video" as const,
             id: file._id,
         }));
@@ -57,7 +57,7 @@ export default function ChatScreen() {
         socket.on("message", (newMessage: Message) => {
             setMessages((prev) => [...prev, newMessage]);
         });
-        fetch("http://192.168.1.196:3000/messages")
+        fetch("https://api.mention.earth/messages")
             .then((res) => res.json())
             .then((data) => setMessages(data));
         return () => {
