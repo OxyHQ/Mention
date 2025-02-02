@@ -11,7 +11,7 @@ interface AvatarProps {
 }
 
 const Avatar: React.FC<AvatarProps> = ({ id, size = 40, style }) => {
-  const source = id ? { uri: `https://api.mention.earth/api/files/${id}` } : defaultAvatar;
+  const source = id ? { uri: `${process.env.OXY_CLOUD_URL}/files/${id}` } : defaultAvatar;
   return <Image source={source} style={[styles.avatar, { width: size, height: size, borderRadius: size }, style]} />;
 };
 
