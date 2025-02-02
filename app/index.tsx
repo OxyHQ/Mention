@@ -12,6 +12,7 @@ import { Link } from 'expo-router';
 import { Stories } from '@/components/Stories';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView } from 'react-native-gesture-handler';
 
 export default function HomeScreen() {
   const posts = useSelector((state) => state.posts.posts);
@@ -44,20 +45,22 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView>
-      <Header options={{ title: "Home", rightComponents: [<Hashtag />] }} />
-      <Stories />
-      <CreatePost style={styles.createPost} onPress={handleOpenCreatePostModal} />
-      {loading ? (
-        <ActivityIndicator size="large" color={colors.primaryColor} />
-      ) : (
-        <FlatList<IPost>
-          data={sortedPosts}
-          renderItem={renderItem}
-          style={styles.flatListStyle}
-        />
-      )}
-    </SafeAreaView>
+    <ScrollView>
+      <SafeAreaView>
+        <Header options={{ title: "Home", rightComponents: [<Hashtag />] }} />
+        <Stories />
+        <CreatePost style={styles.createPost} onPress={handleOpenCreatePostModal} />
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primaryColor} />
+        ) : (
+          <FlatList<IPost>
+            data={sortedPosts}
+            renderItem={renderItem}
+            style={styles.flatListStyle}
+          />
+        )}
+      </SafeAreaView>
+    </ScrollView>
   );
 }
 
