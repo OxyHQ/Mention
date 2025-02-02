@@ -22,6 +22,7 @@ interface ProfileData {
         first: string;
         last: string;
     };
+    // ...other properties if needed...
 }
 
 export function RightBar() {
@@ -119,45 +120,38 @@ const FollowRowComponent = ({ profileData }: { profileData: ProfileData }) => {
     const router = useRouter();
     return (
         <Link href={`/@${profileData.username}`} style={{ display: 'flex' }}>
-            <Pressable
-                style={({ hovered }) => [
-                    hovered
-                        ? {
-                            backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-                        }
-                        : {},
-                    {
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        borderBottomWidth: 0.01,
-                        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-                        padding: 12,
-                        flex: 1,
-                        ...Platform.select({
-                            web: {
-                                cursor: 'pointer',
-                            },
-                        }),
-                    },
-                ]}>
-                <Avatar id={profileData?.avatar} />
+            <View
+                style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottomWidth: 0.01,
+                    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+                    padding: 12,
+                    flex: 1,
+                    ...Platform.select({
+                        web: {
+                            cursor: 'pointer',
+                        },
+                    }),
+                }}>
+                <Avatar id={profileData.avatar} />
                 <View
                     style={{
                         marginRight: 'auto',
                         marginLeft: 13,
                     }}>
                     <Text style={{ fontWeight: 'bold', fontSize: 15 }}>
-                        {profileData?.name?.first && profileData?.name?.last
+                        {profileData.name?.first
                             ? `${profileData.name.first} ${profileData.name.last}`
-                            : profileData?.username}
+                            : profileData.username}
                     </Text>
                     <Text style={{ color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 }}>
-                        @{profileData?.username}
+                        @{profileData.username}
                     </Text>
                 </View>
                 <FollowButton />
-            </Pressable>
+            </View>
         </Link>
     )
 }
