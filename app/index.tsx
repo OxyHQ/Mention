@@ -7,6 +7,7 @@ import { Post as IPost } from "@/interfaces/Post";
 import { colors } from '../styles/colors';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
+import { fetchTrends } from '@/store/reducers/trendsReducer';
 import { Hashtag } from '@/assets/icons/hashtag-icon';
 import { Link } from 'expo-router';
 import { Stories } from '@/components/Stories';
@@ -22,6 +23,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     dispatch(fetchPosts());
+    dispatch(fetchTrends());
   }, [dispatch]);
 
   useEffect(() => {
