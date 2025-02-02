@@ -9,9 +9,7 @@ import {
     Platform,
 } from 'react-native'
 import { Pressable } from 'react-native'
-import { Ionicons } from "@expo/vector-icons";
 import { colors } from '@/styles/colors'
-import { v4 as uuidv4 } from 'uuid';
 import { EmojiIcon } from '@/assets/icons/emoji-icon';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
@@ -34,7 +32,6 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
     const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video', id: string }[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isModalVisible, setModalVisible] = useState(false);
-    const posts = useSelector((state) => state.posts.posts);
     const dispatch = useDispatch();
 
     useEffect(() => {
@@ -240,13 +237,6 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         flexWrap: 'wrap',
-        // ...Platform.select({
-        //   web: {
-        //     input: {
-        //       outline: 'none',
-        //     },
-        //   },
-        // }),
     },
     profileImage: {
         width: 50,
