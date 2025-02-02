@@ -46,6 +46,9 @@ ios/
 # Logs
 *.log
 
+#Env
+.env
+
 # Temporary files
 tmp/
 temp/
