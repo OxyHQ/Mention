@@ -1,12 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useContext, useEffect, useState } from 'react';
+import { SafeAreaView, View, Image, FlatList, TouchableOpacity, Text } from 'react-native';
 import { router, useLocalSearchParams } from "expo-router";
 import {
-  View,
-  Text,
   StyleSheet,
-  Image,
-  TouchableOpacity,
-  FlatList,
   Platform,
   ViewStyle,
 } from "react-native";
@@ -18,20 +14,19 @@ import Avatar from "@/components/Avatar";
 import { HandleIcon } from '@/assets/icons/handle-icon';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
-import { fetchProfile } from '@/store/reducers/profileReducer';
 import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
   const [activeTab, setActiveTab] = useState("Posts");
+  const sessionContext = useContext(SessionContext);
+  const currentUser = sessionContext ? sessionContext.getCurrentUser() : null;
   const posts = useSelector((state: { posts: { posts: any[] } }) => state.posts.posts);
-  const profile = useSelector((state: { profile: { profile: any } }) => state.profile.profile);
   const dispatch = useDispatch();
 
   useEffect(() => {
     dispatch(fetchPosts());
-    dispatch(fetchProfile({ username: localUsername.slice(1) }));
   }, [dispatch, localUsername]);
 
   return (
@@ -50,7 +45,7 @@ export default function ProfileScreen() {
             style={styles.coverPhoto}
           />
           <View style={styles.profileInfo}>
-            <Avatar id={profile?.avatar} style={styles.avatar} />
+            <Avatar id={currentUser?.avatar} style={styles.avatar} />
             <View style={styles.profileButtons}>
               <TouchableOpacity style={styles.ProfileButton}>
                 <ChatIcon size={20} color={colors.primaryColor} />
@@ -63,48 +58,48 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.name}>
-              {profile?.name?.first
-                ? `${profile.name.first} ${profile.name.last}`
-                : profile?.username}
+              {currentUser?.name?.first
+                ? `${currentUser.name.first} ${currentUser.name.last}`
+                : currentUser?.username}
             </Text>
-            <Text style={styles.username}>@{profile?.username}</Text>
-            {profile?.bio && (
-              <Text style={styles.bio}>{profile?.bio}</Text>
+            <Text style={styles.username}>@{currentUser?.username}</Text>
+            {currentUser?.bio && (
+              <Text style={styles.bio}>{currentUser?.bio}</Text>
             )}
             <View style={styles.userDetails}>
-              {profile?.location && (
+              {currentUser?.location && (
                 <View style={styles.userDetailItem}>
                   <Ionicons name="location-outline" size={16} color="gray" />
-                  <Text style={styles.userDetailText}>{profile?.location}</Text>
+                  <Text style={styles.userDetailText}>{currentUser?.location}</Text>
                 </View>
               )}
-              {profile?.website && (
+              {currentUser?.website && (
                 <View style={styles.userDetailItem}>
                   <Ionicons name="link-outline" size={16} color="gray" />
                   <Text style={[styles.userDetailText, styles.link]}>
-                    {profile.website}
+                    {currentUser.website}
                   </Text>
                 </View>
               )}
-              {profile?.joinDate && (
+              {currentUser?.joinDate && (
                 <View style={styles.userDetailItem}>
                   <Ionicons name="calendar-outline" size={16} color="gray" />
-                  <Text style={styles.userDetailText}>{profile?.joinDate}</Text>
+                  <Text style={styles.userDetailText}>{currentUser?.joinDate}</Text>
                 </View>
               )}
             </View>
             <View style={styles.statsContainer}>
-              <Link href={`/@${profile?.username}/following`} style={styles.statText}>
-                <Text style={styles.statCount}>{profile?._count?.following}</Text> Following
+              <Link href={`/@${currentUser?.username}/following`} style={styles.statText}>
+                <Text style={styles.statCount}>{currentUser?._count?.following}</Text> Following
               </Link>
-              <Link href={`/@${profile?.username}/followers`} style={styles.statText}>
-                <Text style={styles.statCount}>{profile?._count?.followers}</Text> Followers
+              <Link href={`/@${currentUser?.username}/followers`} style={styles.statText}>
+                <Text style={styles.statCount}>{currentUser?._count?.followers}</Text> Followers
               </Link>
               <Text style={styles.statText}>
-                <Text style={styles.statCount}>{profile?._count?.posts}</Text> Posts
+                <Text style={styles.statCount}>{currentUser?._count?.posts}</Text> Posts
               </Text>
               <Text style={styles.statText}>
-                <Text style={styles.statCount}>{profile?._count?.karma}</Text> Karma
+                <Text style={styles.statCount}>{currentUser?._count?.karma}</Text> Karma
               </Text>
             </View>
           </View>
