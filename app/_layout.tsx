@@ -154,14 +154,12 @@ export default function RootLayout() {
             <BottomSheetProvider>
               <SessionProvider>
                 <MenuProvider>
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.container}>
-                      <SideBar />
-                      <View style={styles.mainContentWrapper}>
-                        <Slot />
-                      </View>
-                      <RightBar />
+                  <View style={styles.container}>
+                    <SideBar />
+                    <View style={styles.mainContentWrapper}>
+                      <Slot />
                     </View>
+                    <RightBar />
                   </View>
                   <StatusBar style="auto" />
                   <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
