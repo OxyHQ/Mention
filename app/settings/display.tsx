@@ -10,6 +10,7 @@ import { ThemedView } from "@/components/ThemedView";
 import Post from "@/components/Post";
 
 const colorsArray = ["#1DA1F2", "#FF5733", "#33FF57", "#3357FF"];
+const fontSizes = [12, 14, 16, 18, 20];
 
 const post = {
     id: "1",
@@ -48,6 +49,7 @@ export default function AppearanceScreen() {
     const { t } = useTranslation();
     const colorScheme = useColorScheme();
     const [selectedColor, setSelectedColor] = useState(colorsArray[0]);
+    const [selectedFontSize, setSelectedFontSize] = useState(fontSizes[2]);
 
     return (
         <>
@@ -90,6 +92,20 @@ export default function AppearanceScreen() {
                                 style={[styles.colorOption, { backgroundColor: color }, selectedColor === color && styles.selectedColorOption]}
                                 onPress={() => setSelectedColor(color)}
                             />
+                        ))}
+                    </View>
+                </View>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>{t("Font Size")}</Text>
+                    <View style={styles.optionsContainer}>
+                        {fontSizes.map((size) => (
+                            <TouchableOpacity
+                                key={size}
+                                style={[styles.option, selectedFontSize === size && styles.selectedOption]}
+                                onPress={() => setSelectedFontSize(size)}
+                            >
+                                <Text style={[styles.optionText, { fontSize: size }]}>{`${size}px`}</Text>
+                            </TouchableOpacity>
                         ))}
                     </View>
                 </View>
@@ -136,7 +152,7 @@ const styles = StyleSheet.create({
     },
     optionText: {
         marginLeft: 8,
-        fontSize: 16,
+        fontSize: 16, // Default font size
         color: "#000",
     },
     colorOption: {
