@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/styles/colors";
 import { TrendItem } from "@/features/trends/TrendItem";
 import { fetchTrends } from '@/store/reducers/trendsReducer';
+import { Loading } from "@/assets/icons/loading-icon";
 
 export const Trends = ({
     hideTrends
@@ -17,6 +18,7 @@ export const Trends = ({
     const router = useRouter();
     const { t } = useTranslation();
     const trendsData = useSelector((state) => state.trends.trends);
+    const isLoading = useSelector((state) => state.trends.isLoading); // Add loading state
 
     const dispatch = useDispatch();
 
@@ -26,12 +28,27 @@ export const Trends = ({
 
     if (hideTrends) return null;
 
+    if (isLoading) {
+        return (
+            <View
+                style={{
+                    backgroundColor: colors.primaryLight,
+                    borderRadius: 15,
+                    alignContent: 'center',
+                    alignItems: 'center',
+                    flexDirection: 'column',
+                    height: 400,
+                }}>
+                <Loading size={40} />
+            </View>
+        );
+    }
+
     return (
         <View
             style={{
                 backgroundColor: colors.primaryLight,
                 borderRadius: 15,
-                marginVertical: 10,
                 overflow: 'hidden',
             }}>
             <View
