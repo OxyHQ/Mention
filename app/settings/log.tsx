@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Header } from "@/components/Header";
 
@@ -48,11 +48,14 @@ export default function LogSettings() {
                     <Text style={styles.clearButtonText}>{t("Clear Logs")}</Text>
                 </TouchableOpacity>]
             }} />
-            <View style={styles.logContainer}>
-                {logData.map((log, index) => (
-                    <Text key={index} style={[styles.logTextBase, getLogStyle(log.type)]}>{log.message}</Text>
-                ))}
-            </View>
+            <FlatList
+                data={logData}
+                renderItem={({ item }) => (
+                    <Text style={[styles.logTextBase, getLogStyle(item.type)]}>{item.message}</Text>
+                )}
+                keyExtractor={(item, index) => index.toString()}
+                contentContainerStyle={styles.logContainer}
+            />
         </SafeAreaView>
     );
 }
