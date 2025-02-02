@@ -1,19 +1,28 @@
 import React, { useEffect } from 'react'
-import { View, StyleSheet, Text, FlatList, Image, Platform, ViewStyle } from "react-native";
+import { View, StyleSheet, Text, Platform, ViewStyle } from "react-native";
 import { Link } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useMediaQuery } from 'react-responsive'
 import { colors } from '../styles/colors'
 import { Ionicons } from '@expo/vector-icons'
 import { SearchBar } from './SearchBar'
-import { Pressable, ScrollView } from 'react-native-web-hover'
+import { Pressable } from 'react-native-web-hover'
 import { FollowButton } from '@/components/FollowButton'
 import { useRouter, usePathname } from "expo-router";
 import Avatar from '@/components/Avatar'
 import { useSelector, useDispatch } from 'react-redux'
 import { fetchFollowRecommendations } from '@/store/reducers/followReducer'
-
 import { Trends } from "@/features/trends/Trends"
+
+// Define types for profile data
+interface ProfileData {
+    username: string;
+    avatar: string;
+    name: {
+        first: string;
+        last: string;
+    };
+}
 
 export function RightBar() {
     const isRightBarVisible = useMediaQuery({ minWidth: 990 })
@@ -21,7 +30,7 @@ export function RightBar() {
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
     const dispatch = useDispatch();
-    const followRecData = useSelector((state: { follow: { profiles: any[] } }) => state.follow.profiles);
+    const followRecData = useSelector((state: { follow: { profiles: ProfileData[] } }) => state.follow.profiles);
 
     useEffect(() => {
         dispatch(fetchFollowRecommendations());
@@ -51,7 +60,7 @@ export function RightBar() {
     )
 }
 
-function SuggestedFriends({ followRecData }: { followRecData: any[] }) {
+function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
     const router = useRouter();
     return (
         <View
@@ -74,9 +83,9 @@ function SuggestedFriends({ followRecData }: { followRecData: any[] }) {
                 <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Who to follow</Text>
             </View>
             <View>
-                {followRecData.map((data) => {
-                    return <FollowRowComponent profileData={data} />
-                })}
+                {followRecData.map((data, index) => (
+                    <FollowRowComponent key={data.username || index} profileData={data} />
+                ))}
             </View>
             <View>
                 <Pressable
@@ -105,10 +114,11 @@ function SuggestedFriends({ followRecData }: { followRecData: any[] }) {
     )
 }
 
-const FollowRowComponent = ({ profileData }) => {
+// Add prop types for FollowRowComponent
+const FollowRowComponent = ({ profileData }: { profileData: ProfileData }) => {
     const router = useRouter();
     return (
-        <Link href={`/@${profileData?.username}`} style={{ display: 'flex' }}>
+        <Link href={`/@${profileData.username}`} style={{ display: 'flex' }}>
             <Pressable
                 style={({ hovered }) => [
                     hovered
@@ -137,7 +147,11 @@ const FollowRowComponent = ({ profileData }) => {
                         marginRight: 'auto',
                         marginLeft: 13,
                     }}>
-                    <Text style={{ fontWeight: 'bold', fontSize: 15 }}>{profileData?.name?.first} {profileData?.name?.last}</Text>
+                    <Text style={{ fontWeight: 'bold', fontSize: 15 }}>
+                        {profileData?.name?.first && profileData?.name?.last
+                            ? `${profileData.name.first} ${profileData.name.last}`
+                            : profileData?.username}
+                    </Text>
                     <Text style={{ color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 }}>
                         @{profileData?.username}
                     </Text>
@@ -147,6 +161,7 @@ const FollowRowComponent = ({ profileData }) => {
         </Link>
     )
 }
+
 const TrendComponent = ({
     topHeader,
     mainTitle,
@@ -205,7 +220,7 @@ const styles = StyleSheet.create({
     container: {
         width: 350,
         alignItems: 'flex-start',
-        // marginTop: 30,
+        // ...existing code...
         paddingStart: 20,
     },
     trendItem: {
@@ -223,4 +238,5 @@ const styles = StyleSheet.create({
             },
         }),
     },
-})
+    // ...existing code...
+});
