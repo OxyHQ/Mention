@@ -6,16 +6,17 @@ import { Loading } from "@/assets/icons/loading-icon";
 
 interface AvatarProps {
     size?: number;
+    iconSize?: number;
     style?: ImageStyle;
     showLoading?: boolean;
 }
 
-const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, style, showLoading }) => {
+const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, style, showLoading }) => {
     const heightAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         Animated.timing(heightAnim, {
-            toValue: showLoading ? size : 0,
+            toValue: showLoading ? iconSize : 0,
             duration: 300,
             useNativeDriver: false,
         }).start();
@@ -27,16 +28,17 @@ const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, style, showLoadin
             alignItems: 'center',
             justifyContent: 'center',
             overflow: 'hidden',
+            height: iconSize + size,
             paddingVertical: heightAnim.interpolate({
-                inputRange: [0, size],
-                outputRange: [0, size / 2],
+                inputRange: [0, iconSize],
+                outputRange: [0, iconSize / 2],
             }),
         },
     });
 
     return (
         <Animated.View style={[styles.LoadingView, style]}>
-            <Loading size={size} />
+            <Loading size={iconSize} />
         </Animated.View>
     );
 };
