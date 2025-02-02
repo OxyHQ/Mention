@@ -39,12 +39,6 @@ import WebSplashScreen from "@/components/WebSplashScreen";
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
-// Set the animation options. This is optional.
-SplashScreen.setOptions({
-  duration: 1000,
-  fade: true,
-});
-
 i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },
