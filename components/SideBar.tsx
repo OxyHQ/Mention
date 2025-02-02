@@ -226,7 +226,7 @@ export function SideBar() {
                         </View>)}
                 </View>
                 <View style={{ flex: 1, }}></View>
-                <View style={{ flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
                     <SessionOwnerButton collapsed={!isFullSideBar} />
                 </View>
             </View>
