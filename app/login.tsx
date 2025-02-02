@@ -59,7 +59,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         padding: 16,
-        backgroundColor: '#ffffff',
     },
     logo: {
         width: 50,
