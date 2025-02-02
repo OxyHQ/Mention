@@ -4,13 +4,13 @@ import { Trend } from '@/interfaces/Trend';
 
 interface TrendsState {
   trends: Trend[];
-  loading: boolean;
+  isLoading: boolean; // Change loading to isLoading
   error: string | null;
 }
 
 const initialState: TrendsState = {
   trends: [],
-  loading: false,
+  isLoading: true, // Change loading to isLoading
   error: null,
 };
 
@@ -31,15 +31,15 @@ const trendsSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(fetchTrends.pending, (state) => {
-        state.loading = true;
+        state.isLoading = true; // Change loading to isLoading
         state.error = null;
       })
       .addCase(fetchTrends.fulfilled, (state, action) => {
-        state.loading = false;
+        state.isLoading = false; // Change loading to isLoading
         state.trends = action.payload;
       })
       .addCase(fetchTrends.rejected, (state, action) => {
-        state.loading = false;
+        state.isLoading = false; // Change loading to isLoading
         state.error = action.error.message || 'Failed to fetch trends';
       });
   },
