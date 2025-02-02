@@ -356,6 +356,8 @@ const styles = StyleSheet.create({
         alignItems: "center",
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
+        position: "absolute",
+        bottom: 0,
         ...Platform.select({
             web: {
                 position: "sticky",
