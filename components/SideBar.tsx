@@ -25,6 +25,7 @@ const WindowHeight = Dimensions.get('window').height;
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { Video, VideoActive } from '@/assets/icons/video-icon';
+import { Compose } from '@/assets/icons/compose-icon';
 
 export function SideBar() {
 
@@ -202,7 +203,7 @@ export function SideBar() {
                                 }
                                 renderIcon={({ state }) =>
                                     state === 'tablet' ? (
-                                        <Ionicons name="create-outline" size={24} color={colors.primaryLight} />
+                                        <Compose size={24} color={colors.primaryLight} />
                                     ) : null
                                 }
                                 containerStyle={({ state }) => ({
