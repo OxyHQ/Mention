@@ -149,6 +149,8 @@ export default function RootLayout() {
       flex: isScreenNotMobile ? 2.2 : 1,
       backgroundColor: colors.primaryLight,
       borderRadius: isScreenNotMobile ? 35 : 0,
+      //borderWidth: isScreenNotMobile ? 1 : 0,
+      //borderColor: colors.primaryColor,
     },
     contentContainer: {
       flex: 1,
