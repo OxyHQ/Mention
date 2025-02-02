@@ -6,7 +6,11 @@ import { View, Text, TouchableOpacity, StyleSheet, Image, Platform } from 'react
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 
-export function SessionOwnerButton() {
+interface SessionOwnerButtonProps {
+    collapsed?: boolean;
+}
+
+export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProps) {
     const [currentUserIndex, setCurrentUserIndex] = useState(0);
     const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
     const { state } = useContext(SessionContext);
@@ -57,52 +61,58 @@ export function SessionOwnerButton() {
         openBottomSheet(true);
     };
 
+
+    const styles = StyleSheet.create({
+        container: {
+            flex: 1,
+            marginBottom: 0,
+        },
+        button: {
+            flexDirection: 'row',
+            padding: !collapsed ? 16 : 0,
+            backgroundColor: colors.primaryLight,
+            borderRadius: 35,
+            width: !collapsed ? '100%' : 40,
+            alignItems: 'center',
+        },
+        avatar: {
+            width: 40,
+            height: 40,
+            borderRadius: 35,
+            marginRight: 8,
+        },
+        name: {
+            fontWeight: 'bold',
+        },
+        contentContainer: {
+            flex: 1,
+            padding: 36,
+            alignItems: 'center',
+        },
+        userOption: {
+            flexDirection: 'row',
+            padding: 10,
+            alignItems: 'center',
+            width: '100%',
+        },
+    });
+
     return (
         <View style={styles.container}>
             <TouchableOpacity style={styles.button} onPress={handleOpenBottomSheet}>
                 <Image style={styles.avatar} source={OpenSessions[currentUserIndex].avatarSource} />
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>{OpenSessions[currentUserIndex].name?.first} {OpenSessions[currentUserIndex].name?.last}</Text>
-                    <Text>@{OpenSessions[currentUserIndex].username}</Text>
-                </View>
-                <Ionicons name="chevron-down" size={24} color={colors.primaryColor} />
+                {!collapsed && (
+                    <>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.name}>
+                                {OpenSessions[currentUserIndex].name?.first} {OpenSessions[currentUserIndex].name?.last}
+                            </Text>
+                            <Text>@{OpenSessions[currentUserIndex].username}</Text>
+                        </View>
+                        <Ionicons name="chevron-down" size={24} color={colors.primaryColor} />
+                    </>
+                )}
             </TouchableOpacity>
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        width: '100%',
-        marginBottom: 0,
-    },
-    button: {
-        flexDirection: 'row',
-        padding: 10,
-        backgroundColor: colors.primaryLight,
-        borderRadius: 35,
-        width: '100%',
-        alignItems: 'center',
-    },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 16,
-        marginRight: 8,
-    },
-    name: {
-        fontWeight: 'bold',
-    },
-    contentContainer: {
-        flex: 1,
-        padding: 36,
-        alignItems: 'center',
-    },
-    userOption: {
-        flexDirection: 'row',
-        padding: 10,
-        alignItems: 'center',
-        width: '100%',
-    },
-});
