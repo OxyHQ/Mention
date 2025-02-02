@@ -148,22 +148,24 @@ export function SideBar() {
                                 }}
                             >
                                 <Button
+                                    href="/signup"
                                     renderText={({ state }) =>
                                         state === 'desktop' ? (
-                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>Create Account</Text>
+                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>Sign Up</Text>
                                         ) : null
                                     }
                                     renderIcon={() => null}
                                     containerStyle={({ state }) => ({
                                         justifyContent: 'center',
                                         alignItems: 'center',
-                                        backgroundColor: '#34C759',
+                                        backgroundColor: colors.COLOR_BLACK,
                                         borderRadius: 25,
                                         paddingHorizontal: 15,
                                         paddingVertical: 8,
                                     })}
                                 />
                                 <Button
+                                    href="/login"
                                     renderText={({ state }) =>
                                         state === 'desktop' ? (
                                             <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>Sign In</Text>
@@ -173,7 +175,7 @@ export function SideBar() {
                                     containerStyle={({ state }) => ({
                                         justifyContent: 'center',
                                         alignItems: 'center',
-                                        backgroundColor: '#007AFF',
+                                        backgroundColor: colors.primaryColor,
                                         borderRadius: 25,
                                         paddingHorizontal: 15,
                                         paddingVertical: 8,
