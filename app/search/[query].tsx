@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput } from "react-native";
 import { useLocalSearchParams } from 'expo-router';
 import { fetchData } from "@/utils/api";
+import { Loading } from "@/assets/icons/loading-icon";
 
 interface SearchResult {
     id: string;
@@ -53,7 +54,7 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({ onSelectResul
             </View>
             {loading ? (
                 <View style={styles.loader}>
-                    <ActivityIndicator size="large" color="#000" />
+                    <Loading size={30} />
                 </View>
             ) : results.length === 0 ? (
                 <View style={styles.container}>
