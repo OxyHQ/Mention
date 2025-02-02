@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import axios from "axios";
 import Post from "@/components/Post";
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchPosts } from '@/store/reducers/postsReducer';
 import TextTicker from "react-native-text-ticker";
 import { ScrollView } from "react-native-gesture-handler";
 
@@ -25,14 +27,28 @@ import { HeartIcon, HeartIconActive } from "@/assets/icons/heart-icon";
 import { CommentIcon } from "@/assets/icons/comment-icon";
 import { useMediaQuery } from "react-responsive";
 import { Ionicons } from "@expo/vector-icons";
+import { Post as IPost } from "@/interfaces/Post";
 
 
 export default Feed = () => {
+    const posts = useSelector((state) => state.posts.posts);
+    const dispatch = useDispatch();
+    const [loading, setLoading] = useState(true);
     const [liked, setLiked] = useState(false);
     const [lastTap, setLastTap] = useState<number | null>(null);
     const scaleValue = useRef(new Animated.Value(0)).current;
     const scrollViewRef = useRef<ScrollView>(null);
     const isScreenNotMobile = useMediaQuery({ minWidth: 500 });
+
+    useEffect(() => {
+        dispatch(fetchPosts());
+    }, [dispatch]);
+
+    useEffect(() => {
+        if (Array.isArray(posts) && posts.length > 0) {
+            setLoading(false);
+        }
+    }, [posts]);
 
     function handleLike() {
         setLiked(!liked);
@@ -84,111 +100,6 @@ export default Feed = () => {
             scrollViewRef.current.scrollTo({ y: index * height, animated: false });
         }
     };
-
-    const feedData = [
-        {
-            id: "1",
-            text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
-            source: "web",
-            in_reply_to_user_id: null,
-            in_reply_to_username: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            author: {
-                id: "1",
-                username: "mention",
-                name: {
-                    first: "Mention",
-                },
-                email: "hello@mention.earth",
-                description: "A new social network for a new world.",
-                color: "#000000",
-            },
-            media: [
-                "https://videos.pexels.com/video-files/26867688/12024499_1080_1920_30fps.mp4"
-            ],
-            quoted_post: null,
-            is_quote_status: false,
-            quoted_status_id: null,
-            possibly_sensitive: false,
-            lang: "en",
-            _count: {
-                likes: 0,
-                reposts: 0,
-                bookmarks: 0,
-                replies: 0,
-                quotes: 0,
-            },
-        },
-        {
-            id: "1",
-            text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
-            source: "web",
-            in_reply_to_user_id: null,
-            in_reply_to_username: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            author: {
-                id: "1",
-                username: "mention",
-                name: {
-                    first: "Mention",
-                },
-                email: "hello@mention.earth",
-                description: "A new social network for a new world.",
-                color: "#000000",
-            },
-            media: [
-                "https://videos.pexels.com/video-files/30441554/13045108_1440_2560_30fps.mp4"
-            ],
-            quoted_post: null,
-            is_quote_status: false,
-            quoted_status_id: null,
-            possibly_sensitive: false,
-            lang: "en",
-            _count: {
-                likes: 0,
-                reposts: 0,
-                bookmarks: 0,
-                replies: 0,
-                quotes: 0,
-            },
-        },
-        {
-            id: "1",
-            text: "At the heart of Mention are short messages called Posts — just like this one — which can include photos, videos, links, text, hashtags, and mentions like @Oxy.",
-            source: "web",
-            in_reply_to_user_id: null,
-            in_reply_to_username: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            author: {
-                id: "1",
-                username: "mention",
-                name: {
-                    first: "Mention",
-                },
-                email: "hello@mention.earth",
-                description: "A new social network for a new world.",
-                color: "#000000",
-            },
-            media: [
-                "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_5MB.mp4"
-            ],
-            quoted_post: null,
-            is_quote_status: false,
-            quoted_status_id: null,
-            possibly_sensitive: false,
-            lang: "en",
-            _count: {
-                likes: 0,
-                reposts: 0,
-                bookmarks: 0,
-                replies: 0,
-                quotes: 0,
-            },
-        },
-    ];
 
     const styles = StyleSheet.create({
         container: {
@@ -304,12 +215,12 @@ export default Feed = () => {
                     showsVerticalScrollIndicator={false}
                     pagingEnabled
                 >
-                    {feedData.map(post => (
+                    {posts.map((post: IPost) => (
                         <TouchableWithoutFeedback key={post.id} onPress={handleDoubleTap}>
                             <View style={[styles.page_container, styles.post]}>
                                 <Video
                                     source={{
-                                        uri: post?.media[0],
+                                        uri: post?.media ? post.media[0] : "https://videos.pexels.com/video-files/26867688/12024499_1080_1920_30fps.mp4",
                                     }}
                                     rate={1.0}
                                     volume={1.0}
