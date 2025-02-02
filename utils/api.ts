@@ -1,8 +1,8 @@
 import axios from "axios";
 import { toast } from "sonner";
 
-const API_URL = "http://192.168.1.196:3000/api";
-const API_URL_OXY = "http://192.168.1.196:3000/api";
+const API_URL = "https://api.mention.earth/api";
+const API_URL_OXY = "https://api.mention.earth/api";
 
 const getApiUrl = (useOxy: boolean) => (useOxy ? API_URL_OXY : API_URL);
 
