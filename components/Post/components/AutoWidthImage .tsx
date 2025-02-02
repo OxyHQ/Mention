@@ -2,7 +2,7 @@ import { colors } from "@/styles/colors";
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, Image, StyleSheet, Modal, Video as RNVideo, ScrollView, PanResponder, Platform, ImageStyle } from "react-native";
 
-const AutoWidthImage = ({ uri, style }) => {
+const AutoWidthImage = ({ uri, style }: { uri: string; style?: ImageStyle }) => {
     const [width, setWidth] = useState(0);
 
     useEffect(() => {
