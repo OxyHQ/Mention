@@ -1,12 +1,15 @@
 interface Author {
   id: string;
-  name: string;
+  name: {
+    first: string;
+    last: string;
+  };
   username: string;
+  avatar: string;
   email: string;
   image: string;
   description: string;
   color: string;
-  avatar: string;
 }
 
 export interface Post {
@@ -19,8 +22,8 @@ export interface Post {
   updated_at: string;
   quoted_post_id: string | null;
   in_reply_to_status_id: string | null;
-  author_id: string;
-  author: Author;
+  userID: string;
+  author?: Author | null;
   media: any[];
   quoted_post: any | null;
   _count: {
