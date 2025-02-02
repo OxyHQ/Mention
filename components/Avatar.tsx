@@ -11,7 +11,7 @@ interface AvatarProps {
 }
 
 const Avatar: React.FC<AvatarProps> = ({ id, size = 40, style }) => {
-  const source = id ? { uri: `http://localhost:3000/api/files/${id}` } : defaultAvatar;
+  const source = id ? { uri: `http://192.168.1.196:3000/api/files/${id}` } : defaultAvatar;
   return <Image source={source} style={[styles.avatar, { width: size, height: size, borderRadius: size }, style]} />;
 };
 
