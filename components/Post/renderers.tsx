@@ -100,7 +100,7 @@ export const renderMedia = (mediaIds: string[]) => {
                     contentContainerStyle={styles.contentContainer}
                 >
                     {images.map((image, index) => (
-                        <AutoWidthImage key={image.id} uri={image.uri} />
+                        <AutoWidthImage key={image.id} uri={image.uri} style={styles.mediaItem} />
                     ))}
                 </ScrollView>
             </View>
@@ -248,10 +248,7 @@ const styles = StyleSheet.create({
         paddingRight: 10,
         gap: 10,
     },
-    image: {
-        flex: 1,
-        width: 250,
-        height: 250,
+    mediaItem: {
         borderRadius: 35,
         borderWidth: 1,
         borderColor: colors.COLOR_BLACK_LIGHT_6,
