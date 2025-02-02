@@ -63,7 +63,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.name}>
-              {profile?.name?.first && profile?.name?.last
+              {profile?.name?.first
                 ? `${profile.name.first} ${profile.name.last}`
                 : profile?.username}
             </Text>
