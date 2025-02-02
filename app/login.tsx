@@ -1,7 +1,9 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { useRouter } from 'expo-router';
+import { MentionLogo } from '@/assets/mention-logo';
+import { colors } from '@/styles/colors';
 
 export default function LoginScreen() {
     const [username, setUsername] = useState('');
@@ -25,12 +27,13 @@ export default function LoginScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Login</Text>
+            <MentionLogo style={styles.logo} />
             <TextInput
                 style={styles.input}
-                placeholder="Username"
+                placeholder="Email, or username"
                 value={username}
                 onChangeText={setUsername}
+                placeholderTextColor="#657786"
             />
             <TextInput
                 style={styles.input}
@@ -38,8 +41,14 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
+                placeholderTextColor="#657786"
             />
-            <Button title="Login" onPress={handleLogin} />
+            <TouchableOpacity style={styles.button} onPress={handleLogin}>
+                <Text style={styles.buttonText}>Log in</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { /* Handle forgot password */ }}>
+                <Text style={styles.forgotPassword}>Forgot password?</Text>
+            </TouchableOpacity>
         </View>
     );
 }
@@ -48,19 +57,42 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         justifyContent: 'center',
+        alignItems: 'center',
         padding: 16,
+        backgroundColor: '#ffffff',
     },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 16,
-        textAlign: 'center',
+    logo: {
+        width: 50,
+        height: 50,
+        marginBottom: 32,
     },
     input: {
-        height: 40,
-        borderColor: 'gray',
+        width: '100%',
+        height: 50,
+        borderColor: colors.primaryColor,
         borderWidth: 1,
+        borderRadius: 25,
         marginBottom: 12,
-        paddingHorizontal: 8,
+        paddingHorizontal: 16,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+        color: colors.COLOR_BLACK,
+    },
+    button: {
+        width: '100%',
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: colors.primaryColor,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    buttonText: {
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    forgotPassword: {
+        color: colors.primaryColor,
+        fontSize: 14,
     },
 });
