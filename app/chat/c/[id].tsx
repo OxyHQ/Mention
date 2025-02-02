@@ -39,14 +39,14 @@ export default function ChatScreen() {
     const [inputText, setInputText] = useState("");
     const inputRef = useRef<TextInput>(null);
     const scrollViewRef = useRef<ScrollView>(null);
-    const socket = useRef(io("http://localhost:3000")).current;
+    const socket = useRef(io(process.env.API_URL_SOCKET)).current;
 
     // 5 minute threshold for grouping messages
     const TIME_THRESHOLD = 5 * 60 * 1000;
 
     const onSelect = (selectedFiles: any[]) => {
         const media = selectedFiles.map((file) => ({
-            uri: `https://api.mention.earth/api/files/${file._id}`,
+            uri: `${process.env.OXY_CLOUD_URL}/files/${file._id}`,
             type: file.contentType.startsWith("image/") ? "image" as const : "video" as const,
             id: file._id,
         }));
@@ -57,7 +57,7 @@ export default function ChatScreen() {
         socket.on("message", (newMessage: Message) => {
             setMessages((prev) => [...prev, newMessage]);
         });
-        fetch("https://api.mention.earth/messages")
+        fetch(`${process.env.API_URL}/messages`)
             .then((res) => res.json())
             .then((data) => setMessages(data));
         return () => {
