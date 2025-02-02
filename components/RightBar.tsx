@@ -41,22 +41,8 @@ export function RightBar() {
     return (
         <View style={styles.container}>
             <SearchBar />
-            <View style={
-                {
-                    paddingTop: 5,
-                    width: '100%',
-                    ...Platform.select({
-                        web: {
-                            position: 'sticky',
-                            top: 50,
-                            bottom: 20,
-                        },
-                    }),
-                } as ViewStyle
-            }>
-                <Trends hideTrends={isExplorePage} />
-                <SuggestedFriends followRecData={followRecData} />
-            </View>
+            <Trends hideTrends={isExplorePage} />
+            <SuggestedFriends followRecData={followRecData} />
         </View>
     )
 }
@@ -68,7 +54,6 @@ function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
             style={{
                 backgroundColor: colors.primaryLight,
                 borderRadius: 15,
-                marginVertical: 10,
                 overflow: 'hidden',
             }}>
             <View
@@ -159,24 +144,15 @@ const FollowRowComponent = ({ profileData }: { profileData: ProfileData }) => {
 const styles = StyleSheet.create({
     container: {
         width: 350,
-        alignItems: 'flex-start',
-        // ...existing code...
         paddingStart: 20,
-    },
-    trendItem: {
-        display: 'flex',
-        flex: 1,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 12,
-        borderBottomWidth: 0.01,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        flexDirection: 'column',
+        gap: 20,
         ...Platform.select({
             web: {
-                cursor: 'pointer',
+                position: 'sticky' as any,
+                top: 50,
+                bottom: 20,
             },
         }),
     },
-    // ...existing code...
 });
