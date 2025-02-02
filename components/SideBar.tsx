@@ -106,10 +106,10 @@ export function SideBar() {
                         paddingVertical: 20,
                         height: WindowHeight,
                         // width: '30%',
-                        // paddingHorizontal: 5,
+                        paddingHorizontal: isFullSideBar ? 20 : 0,
                         alignItems: isFullSideBar ? 'flex-end' : 'center',
                         paddingEnd: !isFullSideBar ? 10 : 0,
-                        width: isFullSideBar ? 360 : wp('15%'),
+                        width: isFullSideBar ? 360 : 60,
                         ...Platform.select({
                             web: {
                                 position: 'sticky',
@@ -226,8 +226,8 @@ export function SideBar() {
                         </View>)}
                 </View>
                 <View style={{ flex: 1, }}></View>
-                <View style={{ width: '100%', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', paddingRight: 20, }}>
-                    <SessionOwnerButton />
+                <View style={{ flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', }}>
+                    <SessionOwnerButton collapsed={!isFullSideBar} />
                 </View>
             </View>
         )
