@@ -119,7 +119,7 @@ function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
 const FollowRowComponent = ({ profileData }: { profileData: ProfileData }) => {
     const router = useRouter();
     return (
-        <Link href={`/@${profileData.username}`} style={{ display: 'flex' }}>
+        <Link href={`/@${profileData.username}`} asChild>
             <View
                 style={{
                     flexDirection: 'row',
