@@ -1,4 +1,4 @@
-import { User } from '@/assets/icons/user-icon'; 
+import { User } from '@/assets/icons/user-icon';
 import { colors } from '@/styles/colors';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useContext, useEffect } from 'react';
@@ -15,26 +15,10 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
-  const { state } = useContext(SessionContext);
-
-  // Always call hooks regardless of authentication.
-  const OpenSessions = [
-    {
-      id: 'user1',
-      name: { first: 'Nate', last: 'Isern' },
-      username: 'nate',
-      avatarSource: { uri: 'https://api.mention.earth/api/files/6790749544634262da8394f2' },
-    },
-    {
-      id: 'user2',
-      name: { first: 'Mention' },
-      username: 'mention',
-      avatarSource: { uri: 'http://localhost:8081/assets/?unstable_path=.%2Fassets%2Fimages/default-avatar.jpg' },
-    }
-  ];
+  const { state, switchSession, sessions } = useContext(SessionContext);
 
   const getBottomSheetContent = () => {
-    const filteredSessions = OpenSessions.filter(session =>
+    const filteredSessions = sessions.filter(session =>
       session.name.first.toLowerCase().includes(searchText.toLowerCase())
     );
     return (
@@ -73,6 +57,7 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
   };
 
   const switchUser = (index: number) => {
+    switchSession(sessions[index].id);
     setCurrentUserIndex(index);
     openBottomSheet(false);
     setIsSheetOpen(false);
@@ -146,14 +131,14 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.button} onPress={handleOpenBottomSheet}>
-        <Image style={styles.avatar} source={OpenSessions[currentUserIndex].avatarSource} />
+        <Image style={styles.avatar} source={sessions[currentUserIndex].avatarSource} />
         {!collapsed && (
           <>
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>
-                {OpenSessions[currentUserIndex].name.first} {OpenSessions[currentUserIndex].name.last}
+                {sessions[currentUserIndex].name.first} {sessions[currentUserIndex].name.last}
               </Text>
-              <Text>@{OpenSessions[currentUserIndex].username}</Text>
+              <Text>@{sessions[currentUserIndex].username}</Text>
             </View>
             <Ionicons name="chevron-down" size={24} color={colors.primaryColor} />
           </>
