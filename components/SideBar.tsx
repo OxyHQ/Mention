@@ -27,6 +27,7 @@ import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { Video, VideoActive } from '@/assets/icons/video-icon';
 import { Compose } from '@/assets/icons/compose-icon';
 
+
 export function SideBar() {
 
     const { t } = useTranslation();
