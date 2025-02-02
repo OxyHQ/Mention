@@ -3,15 +3,7 @@ import { Post } from '@/interfaces/Post';
 import { fetchData, postData, } from '@/utils/api';
 import { toast } from 'sonner';
 
-interface Author {
-  id: string;
-  name: {
-    first: string;
-    last: string;
-  };
-  username: string;
-  avatar: string;
-}
+
 
 interface PostState {
   posts: Post[];
@@ -48,7 +40,7 @@ const fetchAuthor = async (authorId: string): Promise<Author | null> => {
 };
 
 const mapPost = async (post: Post): Promise<Post> => {
-  const author = post.author_id ? await fetchAuthor(post.author_id) : null;
+  const author = post.userID ? await fetchAuthor(post.userID) : null;
   return {
     ...post,
     author,
@@ -87,18 +79,18 @@ export const createPost = createAsyncThunk('posts/createPost', async (newPost: P
 });
 
 export const bookmarkPost = createAsyncThunk('posts/bookmarkPost', async (postId: string) => {
-  const response = await postData(`posts/${postId}/bookmark`, {userId: '678b29d19085a13337ca9fd4'});
+  const response = await postData(`posts/${postId}/bookmark`, {userId: '678b301dcad209f45ad4760b'});
   return response;
 });
 
 export const fetchBookmarkedPosts = createAsyncThunk('posts/fetchBookmarkedPosts', async () => {
-  const response = await fetchData(`posts/bookmarks`, {params: {userId: '678b29d19085a13337ca9fd4'}});
+  const response = await fetchData(`posts/bookmarks`, {params: {userId: '678b301dcad209f45ad4760b'}});
   const posts = response.posts.map(mapPost);
   return Promise.all(posts);
 });
 
 export const deleteBookmarkedPost = createAsyncThunk('posts/deleteBookmarkedPost', async (postId: string) => {
-  const response = await postData(`posts/${postId}/unbookmark`, {userId: '678b29d19085a13337ca9fd4'});
+  const response = await postData(`posts/${postId}/unbookmark`, {userId: '678b301dcad209f45ad4760b'});
   return response;
 });
 
