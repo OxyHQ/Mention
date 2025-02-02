@@ -11,7 +11,7 @@ export const Loading = ({ color = colors.primaryColor, size = 26, style }: { col
         const animation = Animated.loop(
             Animated.timing(rotateAnim, {
                 toValue: 1,
-                duration: 1000,
+                duration: 500,
                 easing: Easing.linear,
                 useNativeDriver: false,
             })
