@@ -39,7 +39,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
     const fetchFiles = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`http://192.168.1.196:3000/api/files/list/678b29d19085a13337ca9fd3`);
+            const response = await axios.get(`https://api.mention.earth/api/files/list/678b29d19085a13337ca9fd3`);
             let fetchedFiles = response.data;
             fetchedFiles = fetchedFiles.filter((file: File) => fileTypeFilter.some((type: string) => file.contentType.startsWith(type)));
             setFiles(fetchedFiles);
@@ -87,7 +87,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
 
                 formData.append("userId", userId);
 
-                await axios.post("http://192.168.1.196:3000/api/files/upload", formData, {
+                await axios.post("https://api.mention.earth/api/files/upload", formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
                     },
@@ -128,7 +128,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
     const renderFileItem = ({ item }) => {
         const isImage = item.contentType.startsWith("image/");
         const isVideo = item.contentType.startsWith("video/");
-        const fileUri = `http://192.168.1.196:3000/api/files/${item._id}`;
+        const fileUri = `https://api.mention.earth/api/files/${item._id}`;
         const isSelected = selectedFiles.includes(item._id);
 
         return (
