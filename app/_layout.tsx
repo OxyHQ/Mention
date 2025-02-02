@@ -1,12 +1,12 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { ScrollView, Keyboard } from "react-native";
+import * as SplashScreen from 'expo-splash-screen';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Slot } from 'expo-router';
 import store from '@/store/store';
-import * as SplashScreen from "expo-splash-screen";
 import { useMediaQuery } from 'react-responsive'
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
@@ -34,8 +34,16 @@ import { SessionOwnerButton } from '@/modules/oxyhqservices/components/SessionOw
 import { SessionProvider } from '@/modules/oxyhqservices/components/SessionProvider';
 import { MenuProvider } from 'react-native-popup-menu';
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import WebSplashScreen from "@/components/WebSplashScreen";
 
+// Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
+
+// Set the animation options. This is optional.
+SplashScreen.setOptions({
+  duration: 1000,
+  fade: true,
+});
 
 i18n.use(initReactI18next).init({
   resources: {
@@ -53,6 +61,7 @@ i18n.use(initReactI18next).init({
 });
 
 export default function RootLayout() {
+  const [appIsReady, setAppIsReady] = useState(false);
   const { i18n } = useTranslation();
   const colorScheme = useColorScheme();
 
@@ -99,6 +108,7 @@ export default function RootLayout() {
           if (hasPermission) {
             await scheduleDemoNotification();
           }
+          setAppIsReady(true);
           await SplashScreen.hideAsync();
         }
       } catch (error) {
@@ -116,6 +126,15 @@ export default function RootLayout() {
   }, [loaded]);
 
   const isScreenNotMobile = useMediaQuery({ minWidth: 500 })
+
+  if (!appIsReady) {
+    // check if we are in web
+    if (Platform.OS === 'web') {
+      return <WebSplashScreen />;
+    } else {
+      return null;
+    }
+  }
 
   const styles = StyleSheet.create({
     container: {
