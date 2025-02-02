@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, TextInput, ScrollView } from "react-native";
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, TextInput } from "react-native";
 import { Stack, useLocalSearchParams, router, Link } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -120,14 +120,18 @@ export default function MessagesScreen() {
                     </TouchableOpacity>
                 ]
             }} />
-            <StoriesList />
-            <TextInput
-                style={styles.searchBar}
-                placeholder={t("Search")}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-            />
             <FlatList
+                ListHeaderComponent={
+                    <>
+                        <StoriesList />
+                        <TextInput
+                            style={styles.searchBar}
+                            placeholder={t("Search")}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                    </>
+                }
                 data={filteredMessages}
                 renderItem={({ item }) => <MessageItem message={item} />}
                 keyExtractor={(item) => item.id}
