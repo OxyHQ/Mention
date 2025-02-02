@@ -35,6 +35,7 @@ import { SessionProvider } from '@/modules/oxyhqservices/components/SessionProvi
 import { MenuProvider } from 'react-native-popup-menu';
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import WebSplashScreen from "@/components/WebSplashScreen";
+import LoadingTopSpinner from "@/components/LoadingTopSpinner";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -170,6 +171,7 @@ export default function RootLayout() {
                   <View style={styles.container}>
                     <SideBar />
                     <View style={styles.mainContentWrapper}>
+                      <LoadingTopSpinner showLoading={true} size={20} style={{ paddingBottom: 0, }} />
                       <Slot />
                     </View>
                     <RightBar />
