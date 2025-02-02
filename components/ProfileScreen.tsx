@@ -20,6 +20,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
 import { fetchProfile } from '@/store/reducers/profileReducer';
 import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
@@ -34,7 +35,7 @@ export default function ProfileScreen() {
   }, [dispatch, localUsername]);
 
   return (
-    <>
+    <SafeAreaView>
       <View>
         <View style={{ padding: 15 }}>
           {router.canGoBack() && (
@@ -133,7 +134,7 @@ export default function ProfileScreen() {
         renderItem={({ item }) => <Post postData={item} />}
         keyExtractor={(item) => item.id}
       />
-    </>
+    </SafeAreaView>
   );
 }
 
