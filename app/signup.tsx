@@ -4,6 +4,8 @@ import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvid
 import { useRouter } from 'expo-router';
 import { MentionLogo } from '@/assets/mention-logo';
 import { colors } from '@/styles/colors';
+import axios from 'axios';
+import { toast } from 'sonner';
 
 const { width } = Dimensions.get('window');
 
@@ -13,13 +15,12 @@ export default function SignUpScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const { loginUser } = useContext(SessionContext);
     const router = useRouter();
     const slideAnim = useState(new Animated.Value(0))[0];
     const containerHeight = useState(new Animated.Value(200))[0];
     const currentHeight = useRef(200);
 
-    const onContentLayout = (event) => {
+    const onContentLayout = (event: { nativeEvent: { layout: { height: any; }; }; }) => {
         const { height } = event.nativeEvent.layout;
         if (currentHeight.current !== height) {
             currentHeight.current = height;
@@ -31,7 +32,7 @@ export default function SignUpScreen() {
         }
     };
 
-    const animateStepChange = (nextStep, direction) => {
+    const animateStepChange = (nextStep: React.SetStateAction<number>, direction: number) => {
         Animated.timing(slideAnim, {
             toValue: direction,
             duration: 300,
@@ -47,19 +48,37 @@ export default function SignUpScreen() {
         });
     };
 
-    const handleNextStep = () => {
+    const handleNextStep = async () => {
         if (step === 1 && username) {
             animateStepChange(2, -width);
         } else if (step === 2 && email) {
             animateStepChange(3, -width);
         } else if (step === 3 && password && confirmPassword) {
             if (password !== confirmPassword) {
-                alert("Passwords do not match");
+                toast.error("Passwords do not match");
                 return;
             }
-            // Add sign-up logic here
+            try {
+                const response = await axios.post(`${process.env.API_URL_OXY}/auth/signup`, {
+                    username,
+                    email,
+                    password,
+                });
+                if (response.status === 200) {
+                    toast.success("Sign up successful");
+                    router.push('/login'); // Navigate to login screen after successful registration
+                } else {
+                    toast.error("Sign up failed: " + response.data.message);
+                }
+            } catch (error) {
+                if (axios.isAxiosError(error) && error.response) {
+                    toast.error("Sign up failed: " + error.response.data.message);
+                } else {
+                    toast.error("Sign up failed: " + (error as Error).message);
+                }
+            }
         } else {
-            alert("Please fill in all fields");
+            toast.error("Please fill in all fields");
         }
     };
 
