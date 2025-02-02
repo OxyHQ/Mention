@@ -46,7 +46,7 @@ export default function ChatScreen() {
 
     const onSelect = (selectedFiles: any[]) => {
         const media = selectedFiles.map((file) => ({
-            uri: `http://localhost:3000/api/files/${file._id}`,
+            uri: `http://192.168.1.196:3000/api/files/${file._id}`,
             type: file.contentType.startsWith("image/") ? "image" as const : "video" as const,
             id: file._id,
         }));
@@ -57,7 +57,7 @@ export default function ChatScreen() {
         socket.on("message", (newMessage: Message) => {
             setMessages((prev) => [...prev, newMessage]);
         });
-        fetch("http://localhost:3000/messages")
+        fetch("http://192.168.1.196:3000/messages")
             .then((res) => res.json())
             .then((data) => setMessages(data));
         return () => {
@@ -249,7 +249,17 @@ export default function ChatScreen() {
                             <Pressable onPress={openMediaSelect} style={styles.svgWrapper}>
                                 <MediaIcon size={20} />
                             </Pressable>
-                            <Pressable style={styles.svgWrapper}>
+                            <Pressable
+                                style={styles.svgWrapper}
+                                onPress={() => {
+                                    if (Platform.OS === "ios" || Platform.OS === "android") {
+                                        // Open emoji keyboard
+                                        inputRef.current?.focus();
+                                    } else {
+                                        // Handle emoji picker for web or other platforms
+                                    }
+                                }}
+                            >
                                 <EmojiIcon size={20} />
                             </Pressable>
                             <Pressable style={styles.svgWrapper}>
@@ -356,8 +366,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
-        position: "absolute",
-        bottom: 0,
         ...Platform.select({
             web: {
                 position: "sticky",
