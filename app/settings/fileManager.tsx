@@ -21,7 +21,7 @@ const SomeComponent = () => {
     }
 
     const onSelect = (selectedFiles: File[]) => {
-        const fileUris = selectedFiles.map(file => `https://api.mention.earth/api/files/${file._id}`);
+        const fileUris = selectedFiles.map(file => `${process.env.OXY_CLOUD_URL}/files/${file._id}`);
         console.log('Selected files:', fileUris);
         setImages([...images, ...fileUris]);
     };
