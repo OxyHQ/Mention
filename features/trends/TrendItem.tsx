@@ -15,7 +15,7 @@ export const TrendItem = ({
     numberOfPosts: number
 }) => {
     return (
-        <Link href={`/search/${mainTitle}`} style={styles.trendItem}>
+        <Link href={`/search/%23${mainTitle}`} style={styles.trendItem}>
             <View
                 style={{
                     flex: 1,
