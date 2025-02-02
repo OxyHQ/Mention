@@ -70,7 +70,7 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
 
     const onSelect = (selectedFiles: any[]) => {
         const media = selectedFiles.map(file => ({
-            uri: `https://api.mention.earth/api/files/${file._id}`,
+            uri: `${process.env.OXY_CLOUD_URL}/files/${file._id}`,
             type: file.contentType.startsWith('image/') ? 'image' : 'video',
             id: file._id
         }));
