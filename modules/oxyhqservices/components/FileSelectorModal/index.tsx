@@ -39,7 +39,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
     const fetchFiles = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`https://api.mention.earth/api/files/list/678b29d19085a13337ca9fd3`);
+            const response = await axios.get(`${process.env.OXY_CLOUD_URL}/files/list/678b29d19085a13337ca9fd3`);
             let fetchedFiles = response.data;
             fetchedFiles = fetchedFiles.filter((file: File) => fileTypeFilter.some((type: string) => file.contentType.startsWith(type)));
             setFiles(fetchedFiles);
@@ -128,7 +128,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
     const renderFileItem = ({ item }) => {
         const isImage = item.contentType.startsWith("image/");
         const isVideo = item.contentType.startsWith("video/");
-        const fileUri = `https://api.mention.earth/api/files/${item._id}`;
+        const fileUri = `${process.env.OXY_CLOUD_URL}/files/${item._id}`;
         const isSelected = selectedFiles.includes(item._id);
 
         return (
