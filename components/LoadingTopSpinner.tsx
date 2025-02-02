@@ -16,7 +16,7 @@ const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, st
 
     useEffect(() => {
         Animated.timing(heightAnim, {
-            toValue: showLoading ? iconSize : 0,
+            toValue: showLoading ? iconSize + size : 0,
             duration: 300,
             useNativeDriver: false,
         }).start();
@@ -28,7 +28,7 @@ const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, st
             alignItems: 'center',
             justifyContent: 'center',
             overflow: 'hidden',
-            height: iconSize + size,
+            height: heightAnim,
             paddingVertical: heightAnim.interpolate({
                 inputRange: [0, iconSize],
                 outputRange: [0, iconSize / 2],
