@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { View, StyleSheet, FlatList, TouchableOpacity, Text, Platform } from "react-native";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { Pressable } from 'react-native-web-hover'
 import { useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from 'react-redux';
@@ -16,6 +16,8 @@ export const Trends = ({
     hideTrends?: boolean
 }) => {
     const router = useRouter();
+    const pathname = usePathname();
+    const isExplorePage = pathname === '/explore';
     const { t } = useTranslation();
     const trendsData = useSelector((state) => state.trends.trends);
     const isLoading = useSelector((state) => state.trends.isLoading); // Add loading state
@@ -77,29 +79,31 @@ export const Trends = ({
                     keyExtractor={(item) => item.id}
                 />
             </View>
-            <View>
-                <Pressable
-                    onPress={() => { router.push('/explore') }}
-                    style={({ hovered }) => [
-                        hovered
-                            ? {
-                                backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-                            }
-                            : {},
-                        {
-                            padding: 14,
-                            ...Platform.select({
-                                web: {
-                                    cursor: 'pointer',
-                                },
-                            }),
-                        },
-                    ]}>
-                    <Text style={{ fontSize: 15, color: colors.primaryColor }}>
-                        Show more
-                    </Text>
-                </Pressable>
-            </View>
+            {!isExplorePage && (
+                <View>
+                    <Pressable
+                        onPress={() => { router.push('/explore') }}
+                        style={({ hovered }) => [
+                            hovered
+                                ? {
+                                    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+                                }
+                                : {},
+                            {
+                                padding: 14,
+                                ...Platform.select({
+                                    web: {
+                                        cursor: 'pointer',
+                                    },
+                                }),
+                            },
+                        ]}>
+                        <Text style={{ fontSize: 15, color: colors.primaryColor }}>
+                            Show more
+                        </Text>
+                    </Pressable>
+                </View>
+            )}
         </View>
     )
 }
