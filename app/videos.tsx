@@ -145,24 +145,28 @@ export default Feed = () => {
             flex: 1,
         },
         header: {
-            flexDirection: "row",
             position: "absolute",
             top: 40,
             left: 0,
+            flexDirection: "row",
             alignItems: "center",
             width: "100%",
+            zIndex: 7,
+            justifyContent: 'center'
         },
-        spanCenterHeader: { color: "white", fontSize: 10 },
+        spanCenterHeader: {
+            color: "white",
+            fontSize: 20
+        },
         textLeftHeader: {
             color: "grey",
             paddingHorizontal: 10,
             fontSize: 20
         },
-
         textRightHeader: {
             color: "white",
             paddingHorizontal: 10,
-            fontSize: 23,
+            fontSize: 20,
             fontWeight: "bold"
         },
         content: {
@@ -195,7 +199,7 @@ export default Feed = () => {
 
     return (
         <>
-            <View style={[{ zIndex: 7 }, styles.header]}>
+            <View style={styles.header}>
                 <View>
                     <TouchableOpacity>
                         <Text style={styles.textLeftHeader}>Following</Text>
