@@ -22,7 +22,6 @@ interface ProfileData {
         first: string;
         last: string;
     };
-    // ...other properties if needed...
 }
 
 export function RightBar() {
@@ -41,7 +40,7 @@ export function RightBar() {
     return (
         <View style={styles.container}>
             <SearchBar />
-            <Trends hideTrends={isExplorePage} />
+            {!isExplorePage && (<Trends />)}
             <SuggestedFriends followRecData={followRecData} />
         </View>
     )
