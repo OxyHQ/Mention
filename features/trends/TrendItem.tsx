@@ -4,6 +4,7 @@ import { Link } from "expo-router";
 import { Pressable } from 'react-native-web-hover'
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/styles/colors";
+import { useTranslation } from "react-i18next";
 
 export const TrendItem = ({
     topHeader,
@@ -14,6 +15,7 @@ export const TrendItem = ({
     mainTitle: string
     numberOfPosts: number
 }) => {
+    const { t } = useTranslation();
     return (
         <Link href={`/search/%23${mainTitle}`} style={styles.trendItem}>
             <View
@@ -28,7 +30,7 @@ export const TrendItem = ({
                     {`#${mainTitle}`}
                 </Text>
                 <Text style={{ fontSize: 14, color: colors.COLOR_BLACK_LIGHT_4 }}>
-                    {numberOfPosts} posts
+                    {numberOfPosts} {t("posts")}
                 </Text>
             </View>
             <Pressable
@@ -60,12 +62,7 @@ export const TrendItem = ({
 }
 
 const styles = StyleSheet.create({
-    container: {
-        width: 350,
-        alignItems: 'flex-start',
-        // marginTop: 30,
-        paddingStart: 20,
-    },
+
     trendItem: {
         display: 'flex',
         flex: 1,
