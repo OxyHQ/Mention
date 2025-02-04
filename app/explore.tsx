@@ -157,4 +157,8 @@ const styles = StyleSheet.create({
   searchInput: {
     // ...existing code...
   },
+  filtersContainer: {
+  },
+  filterItem: {
+  },
 });
