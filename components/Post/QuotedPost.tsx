@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import Post from ".";
 
 interface QuotedPostProps {
     id?: string;
@@ -9,9 +10,7 @@ export default function QuotedPost({ id }: QuotedPostProps) {
     // Minimal implementation; expand as needed.
     if (!id) return null;
     return (
-        <View style={styles.container}>
-            <Text style={styles.text}>Quoted post: {id}</Text>
-        </View>
+        <Post id={id} />
     );
 }
 
