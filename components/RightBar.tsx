@@ -48,6 +48,7 @@ export function RightBar() {
 
 function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
     const router = useRouter();
+    const { t } = useTranslation();
     return (
         <View
             style={{
@@ -65,7 +66,9 @@ function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
                     borderBottomWidth: 0.01,
                     borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
                 }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Who to follow</Text>
+                <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+                    {t("Who to follow")}
+                </Text>
             </View>
             <View>
                 {followRecData.map((data, index) => (
@@ -91,7 +94,7 @@ function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
                         },
                     ]}>
                     <Text style={{ fontSize: 15, color: colors.primaryColor }}>
-                        Show more
+                        {t("Show more")}
                     </Text>
                 </Pressable>
             </View>
