@@ -6,7 +6,8 @@ import { useDispatch, useSelector } from "react-redux";
 import AnimatedNumbers from "react-native-animated-numbers";
 import Avatar from "@/components/Avatar";
 import { detectHashtags } from "./utils";
-import { renderMedia, renderPoll, renderLocation, renderQuotedPost } from "./renderers";
+import { renderMedia, renderPoll, renderLocation } from "./renderers";
+import QuotedPost from "./QuotedPost";
 import { updateLikes, bookmarkPost, fetchBookmarkedPosts } from "@/store/reducers/postsReducer";
 import { Chat } from "@/assets/icons/chat-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
@@ -149,7 +150,7 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
                 {postData?.media && renderMedia(postData.media)}
                 {renderPoll(undefined, selectedOption, handlePollOptionPress)}
                 {renderLocation(undefined)}
-                {!quotedPost && renderQuotedPost(postData.quoted_post_id ?? undefined)}
+                {!quotedPost && <QuotedPost id={postData.quoted_post_id ?? undefined} />}
                 <View style={styles.actionsContainer}>
                     <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
                         <Animated.View style={{ transform: [{ scale: animatedScale }] }}>

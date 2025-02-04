@@ -210,33 +210,6 @@ export const renderLocation = (location: string | undefined) => {
     );
 };
 
-export const renderQuotedPost = (id: string | undefined) => {
-    if (!id) return null;
-    const dispatch = useDispatch();
-    const posts = useSelector((state) => state.posts.posts);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        dispatch(fetchPosts());
-    }, [dispatch]);
-
-    useEffect(() => {
-        if (posts.length > 0) {
-            setLoading(false);
-        }
-    }, [posts]);
-
-    const post = posts.find((post) => post.id === id);
-
-    return (
-        <Post
-            postData={post}
-            quotedPost={true}
-            style={{ borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 16, marginTop: 8 }}
-        />
-    );
-};
-
 const styles = StyleSheet.create({
     scrollView: {
         flexGrow: 0,
