@@ -5,6 +5,9 @@
       "distribution": "internal"
     },
     "preview": {
+      "android": {
+        "buildType": "apk"
+      },
       "extends": "production",
       "distribution": "internal",
       "env": {
