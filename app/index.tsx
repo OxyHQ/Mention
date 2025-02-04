@@ -28,8 +28,4 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: {},
-  lastItem: {
-    borderBottomRightRadius: 35,
-    borderBottomLeftRadius: 35,
-  },
 });
