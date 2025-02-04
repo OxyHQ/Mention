@@ -10,8 +10,10 @@ import Animated, {
 import { ThemedText } from "./ThemedText";
 import { colors } from '../styles/colors';
 import { Link } from 'expo-router';
+import { useTranslation } from "react-i18next";
 
 export const FollowButton = React.memo(() => {
+    const { t } = useTranslation();
     const [isFollowing, setIsFollowing] = useState(false);
     const scale = useSharedValue(1);
     const translateY = useSharedValue(0);
@@ -52,7 +54,7 @@ export const FollowButton = React.memo(() => {
             >
                 <Animated.View style={textAnimatedStyle}>
                     <ThemedText style={styles.followButtonText}>
-                        {isFollowing ? "Following" : "Follow"}
+                        {isFollowing ? t("Following") : t("Follow")}
                     </ThemedText>
                 </Animated.View>
             </Pressable>
