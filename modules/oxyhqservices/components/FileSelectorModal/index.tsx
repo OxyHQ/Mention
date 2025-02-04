@@ -9,6 +9,7 @@ import { Header } from "@/modules/oxyhqservices/components/ui/Header";
 import { colors } from "@/styles/colors";
 import * as DocumentPicker from 'expo-document-picker';
 import { Video, ResizeMode } from 'expo-av';
+import { useTranslation } from "react-i18next";
 
 interface FileSelectorModalProps {
     visible: boolean;
@@ -31,6 +32,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
     const [filterText, setFilterText] = useState("");
     const [filterDate, setFilterDate] = useState("");
     const [filterType, setFilterType] = useState("");
+    const { t } = useTranslation();
 
     useEffect(() => {
         fetchFiles();
@@ -148,7 +150,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
                 <View style={styles.modalParent}>
                     <Header options={{
                         leftComponents: [<Ionicons name="settings" size={24} color={colors.COLOR_BLACK} />],
-                        title: 'File Manager',
+                        title: t("File Manager"),
                         rightComponents: [
                             <View style={styles.limitContainer}>
                                 <Text style={styles.limitText}>{selectedFiles.length}/{maxFiles}</Text>
@@ -166,19 +168,19 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
                         <View style={styles.filterContainer}>
                             <TextInput
                                 style={styles.filterInput}
-                                placeholder="Filter files by name"
+                                placeholder={t("Filter files by name")}
                                 value={filterText}
                                 onChangeText={setFilterText}
                             />
                             <TextInput
                                 style={styles.filterInput}
-                                placeholder="Filter files by date (MM/DD/YYYY)"
+                                placeholder={t("Filter files by date (MM/DD/YYYY)")}
                                 value={filterDate}
                                 onChangeText={setFilterDate}
                             />
                             <TextInput
                                 style={styles.filterInput}
-                                placeholder="Filter files by type (e.g., image, video)"
+                                placeholder={t("Filter files by type (e.g., image, video)")}
                                 value={filterType}
                                 onChangeText={setFilterType}
                             />
