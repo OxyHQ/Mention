@@ -49,8 +49,8 @@ export const Trends = ({
     return (
         <View
             style={{
-                backgroundColor: colors.primaryLight,
-                borderRadius: 15,
+                backgroundColor: isExplorePage ? "" : colors.primaryLight,
+                borderRadius: isExplorePage ? 0 : 15,
                 overflow: 'hidden',
             }}>
             <View
@@ -63,7 +63,9 @@ export const Trends = ({
                     borderBottomWidth: 0.01,
                     borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
                 }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Trends for you</Text>
+                <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+                    {t("Trends for you")}
+                </Text>
                 <Ionicons style={{ fontSize: 20 }} name="settings" />
             </View>
             <View>
@@ -71,7 +73,7 @@ export const Trends = ({
                     data={trendsData}
                     renderItem={({ item, index }) => (
                         <TrendItem
-                            topHeader="Politics · Trending"
+                            topHeader="Hashtag · Trending"
                             mainTitle={item.text}
                             numberOfPosts={item.score}
                         />
@@ -99,7 +101,7 @@ export const Trends = ({
                             },
                         ]}>
                         <Text style={{ fontSize: 15, color: colors.primaryColor }}>
-                            Show more
+                            {t("Show more")}
                         </Text>
                     </Pressable>
                 </View>
