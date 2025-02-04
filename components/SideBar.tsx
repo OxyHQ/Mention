@@ -124,7 +124,7 @@ export function SideBar() {
                         alignItems: 'flex-start',
                     }}>
                     <Logo />
-                    {!state.isAuthenticated && (
+                    {state && !state.isAuthenticated && (
                         <View>
                             <Text
                                 style={{
@@ -136,9 +136,7 @@ export function SideBar() {
                                     maxWidth: 200,
                                     lineHeight: 30,
                                 }}
-                            >
-                                Join the conversation
-                            </Text>
+                            >{t("Join the conversation")}</Text>
                             <View
                                 style={{
                                     flexDirection: 'row',
@@ -151,7 +149,7 @@ export function SideBar() {
                                     href="/signup"
                                     renderText={({ state }) =>
                                         state === 'desktop' ? (
-                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>Sign Up</Text>
+                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{t("Sign Up")}</Text>
                                         ) : null
                                     }
                                     renderIcon={() => null}
@@ -168,7 +166,7 @@ export function SideBar() {
                                     href="/login"
                                     renderText={({ state }) =>
                                         state === 'desktop' ? (
-                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>Sign In</Text>
+                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{t("Sign In")}</Text>
                                         ) : null
                                     }
                                     renderIcon={() => null}
@@ -184,7 +182,7 @@ export function SideBar() {
                             </View>
                         </View>
                     )}
-                    {state.isAuthenticated && (
+                    {state && state.isAuthenticated && (
                         <View style={{
                             justifyContent: 'center',
                             alignItems: 'flex-start',
