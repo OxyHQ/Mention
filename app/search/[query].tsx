@@ -3,6 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, 
 import { useLocalSearchParams } from 'expo-router';
 import { fetchData } from "@/utils/api";
 import { Loading } from "@/assets/icons/loading-icon";
+import { useTranslation } from "react-i18next";
 
 interface SearchResult {
     id: string;
@@ -19,6 +20,7 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({ onSelectResul
     const [searchText, setSearchText] = useState(query || "");
     const [results, setResults] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(true);
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (query !== undefined) {
@@ -48,7 +50,7 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({ onSelectResul
                     style={styles.searchBar}
                     value={searchText}
                     onChangeText={setSearchText}
-                    placeholder="Search..."
+                    placeholder={t("Search...")}
                     returnKeyType="search"
                 />
             </View>
@@ -58,7 +60,7 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({ onSelectResul
                 </View>
             ) : results.length === 0 ? (
                 <View style={styles.container}>
-                    <Text>No results found for "{searchText}".</Text>
+                    <Text>{t("No results found for")} "{searchText}".</Text>
                 </View>
             ) : (
                 <FlatList
