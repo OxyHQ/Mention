@@ -34,5 +34,17 @@
     "About": "About",
     "About this app": "About this app",
     "Battery": "Battery",
-    "Loading...": "Loading..."
+    "Loading...": "Loading...",
+    "Trends for you": "Trends for you",
+    "Show more": "Show more",
+    "posts": "posts",
+    "File Manager": "File Manager",
+    "Filter files by name": "Filter files by name",
+    "Filter files by date (MM/DD/YYYY)": "Filter files by date (MM/DD/YYYY)",
+    "Filter files by type (e.g., image, video)": "Filter files by type (e.g., image, video)",
+    "Who to follow": "Who to follow",
+    "Search...": "Search...",
+    "No results found for": "No results found for",
+    "Follow": "Follow",
+    "Following": "Following"
 }

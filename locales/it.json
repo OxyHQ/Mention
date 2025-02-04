@@ -33,5 +33,17 @@
   "About": "Informazioni",
   "About this app": "Informazioni su questa app",
   "Battery": "Batteria",
-  "Loading...": "Caricamento..."
+  "Loading...": "Caricamento...",
+  "Trends for you": "Tendenze per te",
+  "Show more": "Mostra di più",
+  "posts": "post",
+  "File Manager": "Gestore file",
+  "Filter files by name": "Filtra file per nome",
+  "Filter files by date (MM/DD/YYYY)": "Filtra file per data (MM/DD/YYYY)",
+  "Filter files by type (e.g., image, video)": "Filtra file per tipo (es. immagine, video)",
+  "Who to follow": "Chi seguire",
+  "Search...": "Cerca...",
+  "No results found for": "Nessun risultato trovato per",
+  "Follow": "Segui",
+  "Following": "Seguito"
 }

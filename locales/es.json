@@ -39,5 +39,17 @@
   "Light": "Claro",
   "Dark": "Oscuro",
   "Accent Color": "Color de Acento",
-  "Display Settings": "Configuración de Pantalla"
+  "Display Settings": "Configuración de Pantalla",
+  "Trends for you": "Tendencias para ti",
+  "Show more": "Mostrar más",
+  "posts": "publicaciones",
+  "File Manager": "Gestor de archivos",
+  "Filter files by name": "Filtrar archivos por nombre",
+  "Filter files by date (MM/DD/YYYY)": "Filtrar archivos por fecha (MM/DD/YYYY)",
+  "Filter files by type (e.g., image, video)": "Filtrar archivos por tipo (por ejemplo, imagen, video)",
+  "Who to follow": "A quién seguir",
+  "Search...": "Buscar...",
+  "No results found for": "No se encontraron resultados para",
+  "Follow": "Seguir",
+  "Following": "Siguiendo"
 }
