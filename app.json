@@ -4,7 +4,7 @@
     "slug": "mention",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/mention-icon.png",
     "scheme": "mention",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,8 +14,9 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/mention-icon_foreground.png",
+        "backgroundImage": "./assets/images/mention-icon_background.png",
+        "monochromeImage": "./assets/images/mention-icon_monochrome.png"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -52,7 +53,6 @@
           "recordAudioAndroid": true
         }
       ],
-      "expo-font",
       "expo-video"
     ],
     "extra": {
