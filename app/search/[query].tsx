@@ -1,39 +1,33 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput } from "react-native";
-import { useLocalSearchParams } from 'expo-router';
-import { fetchData } from "@/utils/api";
+import { View, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import api from "@/utils/api";
 import { Loading } from "@/assets/icons/loading-icon";
 import { useTranslation } from "react-i18next";
+import { ThemedView } from "@/components/ThemedView";
+import { ThemedText } from "@/components/ThemedText";
+import Post from "@/components/Post";
+import Avatar from "@/components/Avatar";
+import { colors } from "@/styles/colors";
 
-interface SearchResult {
-    id: string;
-    title: string;
-    description: string;
-}
+type SearchResultType = "all" | "users" | "posts" | "profiles";
 
-interface SearchResultsScreenProps {
-    onSelectResult: (result: SearchResult) => void;
-}
-
-const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({ onSelectResult }) => {
+const SearchResultsScreen = () => {
     const { query } = useLocalSearchParams<{ query: string }>();
     const [searchText, setSearchText] = useState(query || "");
-    const [results, setResults] = useState<SearchResult[]>([]);
+    const [activeTab, setActiveTab] = useState<SearchResultType>("all");
+    const [results, setResults] = useState<any>({ users: [], posts: [], profiles: [] });
     const [loading, setLoading] = useState(true);
     const { t } = useTranslation();
-
-    useEffect(() => {
-        if (query !== undefined) {
-            setSearchText(query);
-        }
-    }, [query]);
+    const router = useRouter();
 
     useEffect(() => {
         const fetchResults = async () => {
+            if (!searchText) return;
             try {
                 setLoading(true);
-                const data = await fetchData(`search?query=${encodeURIComponent(searchText)}`);
-                setResults(data);
+                const response = await api.get(`/search?query=${encodeURIComponent(searchText)}&type=${activeTab}`);
+                setResults(response.data);
             } catch (error) {
                 console.error("Error fetching search results:", error);
             } finally {
@@ -41,39 +35,89 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({ onSelectResul
             }
         };
         fetchResults();
-    }, [searchText]);
+    }, [searchText, activeTab]);
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.searchBarContainer}>
-                <TextInput
-                    style={styles.searchBar}
-                    value={searchText}
-                    onChangeText={setSearchText}
-                    placeholder={t("Search...")}
-                    returnKeyType="search"
-                />
-            </View>
-            {loading ? (
+    const renderTabs = () => (
+        <View style={styles.tabs}>
+            {["all", "users", "posts", "profiles"].map((tab) => (
+                <TouchableOpacity
+                    key={tab}
+                    style={[styles.tab, activeTab === tab && styles.activeTab]}
+                    onPress={() => setActiveTab(tab as SearchResultType)}
+                >
+                    <ThemedText style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                        {t(tab.charAt(0).toUpperCase() + tab.slice(1))}
+                    </ThemedText>
+                </TouchableOpacity>
+            ))}
+        </View>
+    );
+
+    const renderContent = () => {
+        if (loading) {
+            return (
                 <View style={styles.loader}>
                     <Loading size={30} />
                 </View>
-            ) : results.length === 0 ? (
-                <View style={styles.container}>
-                    <Text>{t("No results found for")} "{searchText}".</Text>
+            );
+        }
+
+        const currentResults = activeTab === "all" ? 
+            [...results.users, ...results.posts, ...results.profiles] :
+            results[activeTab];
+
+        if (currentResults.length === 0) {
+            return (
+                <View style={styles.noResults}>
+                    <ThemedText>{t("No results found")}</ThemedText>
                 </View>
-            ) : (
-                <FlatList
-                    data={results}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.itemContainer} onPress={() => onSelectResult(item)}>
-                            <Text style={styles.title}>{item.title}</Text>
-                            <Text style={styles.description}>{item.description}</Text>
+            );
+        }
+
+        return (
+            <FlatList
+                data={currentResults}
+                keyExtractor={(item) => item._id || item.id}
+                renderItem={({ item }) => {
+                    if ("username" in item) {
+                        return (
+                            <TouchableOpacity 
+                                style={styles.userItem}
+                                onPress={() => router.push(`/${item.username}`)}
+                            >
+                                <Avatar size={40} id={item.avatarId} />
+                                <View style={styles.userInfo}>
+                                    <ThemedText style={styles.username}>{item.username}</ThemedText>
+                                    <ThemedText style={styles.email}>{item.email}</ThemedText>
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    }
+                    if ("text" in item) {
+                        return <Post postData={item} />;
+                    }
+                    // Profile result
+                    return (
+                        <TouchableOpacity 
+                            style={styles.profileItem}
+                            onPress={() => router.push(`/${item.username}`)}
+                        >
+                            <Avatar size={40} id={item.avatarId} />
+                            <View style={styles.profileInfo}>
+                                <ThemedText style={styles.displayName}>{item.displayName}</ThemedText>
+                                <ThemedText style={styles.bio} numberOfLines={2}>{item.bio}</ThemedText>
+                            </View>
                         </TouchableOpacity>
-                    )}
-                />
-            )}
+                    );
+                }}
+            />
+        );
+    };
+
+    return (
+        <View style={styles.container}>
+            {renderTabs()}
+            {renderContent()}
         </View>
     );
 };
@@ -81,45 +125,77 @@ const SearchResultsScreen: React.FC<SearchResultsScreenProps> = ({ onSelectResul
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 16,
     },
-    searchBarContainer: {
-        marginBottom: 10,
+    tabs: {
+        flexDirection: 'row',
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
     },
-    searchBar: {
-        height: 40,
-        borderColor: "#e1e8ed",
-        borderWidth: 1,
-        borderRadius: 20,
-        paddingHorizontal: 15,
-        backgroundColor: "#f5f8fa",
+    tab: {
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        marginRight: 8,
+    },
+    activeTab: {
+        borderBottomWidth: 2,
+        borderBottomColor: colors.primaryColor,
+    },
+    tabText: {
+        fontSize: 14,
+    },
+    activeTabText: {
+        color: colors.primaryColor,
+        fontWeight: '600',
     },
     loader: {
         flex: 1,
-        justifyContent: "center",
-        alignItems: "center"
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    itemContainer: {
-        backgroundColor: "#fff",
-        padding: 12,
-        marginVertical: 6, // spacing between items
-        borderRadius: 12, // rounded corners for a card feel
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 2, // Android shadow
+    noResults: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingTop: 32,
     },
-    title: {
-        fontSize: 18,
-        fontWeight: "600", // bold text similar to Twitter
-        color: "#14171A", // Twitter-like dark text color
-        marginBottom: 4,
+    userItem: {
+        flexDirection: 'row',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.primaryLight,
     },
-    description: {
+    userInfo: {
+        marginLeft: 12,
+        flex: 1,
+    },
+    username: {
+        fontWeight: '600',
+        fontSize: 16,
+    },
+    email: {
         fontSize: 14,
-        color: "#657786"
-    }
+        color: colors.COLOR_BLACK_LIGHT_4,
+    },
+    profileItem: {
+        flexDirection: 'row',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.primaryLight,
+    },
+    profileInfo: {
+        marginLeft: 12,
+        flex: 1,
+    },
+    displayName: {
+        fontWeight: '600',
+        fontSize: 16,
+    },
+    bio: {
+        fontSize: 14,
+        color: colors.COLOR_BLACK_LIGHT_4,
+        marginTop: 4,
+    },
 });
 
 export default SearchResultsScreen;
