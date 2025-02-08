@@ -189,7 +189,7 @@ export const likePost = createAsyncThunk(
       const userId = state.session?.user?.id;
       if (!userId) throw new Error('User not authenticated');
       const response = await postData(`posts/${postId}/like`, { userId });
-      return { ...response, postId };
+      return response;
     } catch (error: any) {
       toast(`Failed to like post: ${error.message}`);
       return thunkAPI.rejectWithValue(error.response?.data || error.message);
@@ -205,7 +205,7 @@ export const unlikePost = createAsyncThunk(
       const userId = state.session?.user?.id;
       if (!userId) throw new Error('User not authenticated');
       const response = await deleteData(`posts/${postId}/like`, { data: { userId } });
-      return { ...response, postId };
+      return response;
     } catch (error: any) {
       toast(`Failed to unlike post: ${error.message}`);
       return thunkAPI.rejectWithValue(error.response?.data || error.message);
@@ -237,6 +237,14 @@ const postsSlice = createSlice({
         post._count.bookmarks += 1;
       }
     },
+    updatePostLikes: (state, action) => {
+      const { postId, likesCount, isLiked } = action.payload;
+      const post = state.posts.find(post => post.id === postId);
+      if (post) {
+        post._count.likes = likesCount;
+        post.isLiked = isLiked;
+      }
+    }
   },
   extraReducers: (builder) => {
     builder
@@ -308,21 +316,23 @@ const postsSlice = createSlice({
         state.error = action.error.message || 'Failed to fetch posts by hashtag';
       })
       .addCase(likePost.fulfilled, (state, action) => {
-        const post = state.posts.find(post => post.id === action.payload.postId);
+        const { postId, likesCount, isLiked } = action.payload;
+        const post = state.posts.find(post => post.id === postId);
         if (post) {
-          post._count.likes = action.payload.likesCount;
-          post.isLiked = true;
+          post._count.likes = likesCount;
+          post.isLiked = isLiked;
         }
       })
       .addCase(unlikePost.fulfilled, (state, action) => {
-        const post = state.posts.find(post => post.id === action.payload.postId);
+        const { postId, likesCount, isLiked } = action.payload;
+        const post = state.posts.find(post => post.id === postId);
         if (post) {
-          post._count.likes = action.payload.likesCount;
-          post.isLiked = false;
+          post._count.likes = likesCount;
+          post.isLiked = isLiked;
         }
       });
   },
 });
 
-export const { setPosts, addPost, updateLikes, updateBookmarks } = postsSlice.actions;
+export const { setPosts, addPost, updateLikes, updateBookmarks, updatePostLikes } = postsSlice.actions;
 export default postsSlice.reducer;
