@@ -1,14 +1,12 @@
 import axios from 'axios';
 import { getData } from './storage';
 
-const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
-  headers: {
-    'Content-Type': 'application/json'
-  }
+const chatApi = axios.create({
+  baseURL: process.env.API_URL,
+  withCredentials: true
 });
 
-api.interceptors.request.use(async (config) => {
+chatApi.interceptors.request.use(async (config) => {
   const accessToken = await getData('accessToken');
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
@@ -18,30 +16,30 @@ api.interceptors.request.use(async (config) => {
 
 export const conversationApi = {
   checkConversation: (participantId: string) =>
-    api.post('/conversations/check', { participantId }),
+    chatApi.post('/conversations/check', { participantId }),
   createConversation: (data: { participants: string[]; type: string; name?: string }) =>
-    api.post('/conversations/create', data),
+    chatApi.post('/conversations/create', data),
   getAllConversations: () =>
-    api.get('/conversations/all'),
+    chatApi.get('/conversations/all'),
 };
 
 export const messageApi = {
   sendMessage: (data: { conversationId: string; content: string; type?: string }) =>
-    api.post('/messages/send', data),
+    chatApi.post('/messages/send', data),
   sendSecureMessage: (data: { conversationId: string; content: string }) =>
-    api.post('/messages/send-secure', data),
+    chatApi.post('/messages/send-secure', data),
   editMessage: (data: { messageId: string; content: string }) =>
-    api.put('/messages/edit', data),
+    chatApi.put('/messages/edit', data),
   deleteMessage: (messageId: string) =>
-    api.delete(`/messages/${messageId}`),
+    chatApi.delete(`/messages/${messageId}`),
   markAsRead: (messageId: string) =>
-    api.put(`/messages/${messageId}/read`),
+    chatApi.put(`/messages/${messageId}/read`),
   pinMessage: (messageId: string) =>
-    api.put(`/messages/${messageId}/pin`),
+    chatApi.put(`/messages/${messageId}/pin`),
   addReaction: (data: { messageId: string; type: string }) =>
-    api.post('/messages/reaction', data),
+    chatApi.post('/messages/reaction', data),
   createPoll: (data: { conversationId: string; question: string; options: string[] }) =>
-    api.post('/messages/poll', data),
+    chatApi.post('/messages/poll', data),
   votePoll: (data: { messageId: string; optionIndex: number }) =>
-    api.post('/messages/poll/vote', data),
+    chatApi.post('/messages/poll/vote', data),
 };
