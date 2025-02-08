@@ -111,18 +111,13 @@ const clearCache = (pattern?: string) => {
   }
 };
 
-// Enhanced request interceptor with connection pooling
+// Enhanced request interceptor without unsafe headers
 api.interceptors.request.use(
   async (config) => {
     const accessToken = await getData('accessToken');
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
-    
-    // Add connection pooling headers
-    config.headers['Connection'] = 'keep-alive';
-    config.headers['Keep-Alive'] = 'timeout=5, max=1000';
-    
     return config;
   },
   (error) => Promise.reject(error)
@@ -441,5 +436,17 @@ export const validateSession = async (): Promise<boolean> => {
 // Export the api instance for direct use
 export const clearApiCache = clearCache;
 export const invalidateCache = (pattern: string) => clearCache(pattern);
+
+
+export const fetchUsersByUsername = async (username: string) => {
+  try {
+    const response = await api.get(`/users/search?username=${username}`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.message || error.message;
+    toast.error(`Error fetching users: ${errorMessage}`);
+    throw error;
+  }
+};
 
 export default api;
