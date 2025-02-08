@@ -186,7 +186,6 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
                     visible={isModalVisible}
                     onClose={closeModal}
                     onSelect={onSelect}
-                    userId="user123"
                     options={{
                         fileTypeFilter: ["image/", "video/"],
                         maxFiles: 5,
