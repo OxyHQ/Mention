@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { conversationApi } from '@/utils/chatApi';
 import { fetchUsersByUsername } from '@/utils/api';
+import { colors } from '@/styles/colors';
 
 interface Participant {
     id: string;
@@ -126,7 +127,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         padding: 16,
-        backgroundColor: '#fff',
     },
     switchContainer: {
         flexDirection: 'row',
@@ -141,14 +141,14 @@ const styles = StyleSheet.create({
     input: {
         backgroundColor: '#f0f0f0',
         padding: 12,
-        borderRadius: 8,
+        borderRadius: 35,
         marginBottom: 16,
         fontSize: 16,
     },
     button: {
-        backgroundColor: '#007AFF',
+        backgroundColor: colors.primaryColor,
         padding: 16,
-        borderRadius: 8,
+        borderRadius: 35,
         alignItems: 'center',
     },
     buttonText: {

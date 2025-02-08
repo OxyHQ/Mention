@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { conversationApi } from '@/utils/chatApi';
+import { colors } from '@/styles/colors';
 
 interface Conversation {
     _id: string;
@@ -73,13 +74,12 @@ export default function ConversationList() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
     },
     createButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: colors.primaryColor,
         margin: 16,
         padding: 12,
-        borderRadius: 8,
+        borderRadius: 35,
         alignItems: 'center',
     },
     createButtonText: {
