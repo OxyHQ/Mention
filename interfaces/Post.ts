@@ -26,6 +26,7 @@ export interface Post {
   author?: Author | null;
   media: any[];
   quoted_post: any | null;
+  isLiked?: boolean;
   _count: {
     comments: number;
     likes: number;

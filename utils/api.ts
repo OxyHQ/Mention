@@ -2,6 +2,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import { getData, storeData } from './storage';
 import { router } from 'expo-router';
+import { getSocket, disconnectSocket } from './socket';
 
 const API_URL = process.env.API_URL || "http://localhost:3000/api";
 
@@ -119,9 +120,9 @@ api.interceptors.response.use(
   }
 );
 
-export const fetchData = async (endpoint: string, data?: any) => {
+export const fetchData = async (endpoint: string, config?: any) => {
   try {
-    const response = await api.get(endpoint, data);
+    const response = await api.get(endpoint, config);
     return response.data;
   } catch (error) {
     toast.error(`Error fetching data from ${endpoint}:` + error);
@@ -191,7 +192,6 @@ export const refreshAccessToken = async () => {
       throw new Error('No refresh token available');
     }
     
-    // Use a direct axios call to avoid interceptors
     const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, {
       headers: {
         'Content-Type': 'application/json'
@@ -203,6 +203,13 @@ export const refreshAccessToken = async () => {
         storeData('accessToken', response.data.accessToken),
         storeData('refreshToken', response.data.refreshToken)
       ]);
+      
+      // Reconnect socket with new token
+      const socket = getSocket();
+      socket.disconnect();
+      socket.auth = { token: response.data.accessToken };
+      socket.connect();
+      
       return response.data.accessToken;
     }
     throw new Error('Invalid token refresh response');
@@ -213,6 +220,7 @@ export const refreshAccessToken = async () => {
       storeData('refreshToken', null),
       storeData('session', null)
     ]);
+    disconnectSocket();
     
     if (error.response?.status === 401) {
       throw new Error('Session expired. Please log in again.');
@@ -229,6 +237,7 @@ export const logout = async () => {
     }
     await storeData('accessToken', null);
     await storeData('refreshToken', null);
+    disconnectSocket(); // Disconnect socket on logout
   } catch (error) {
     toast.error('Error logging out: ' + error);
     throw error;

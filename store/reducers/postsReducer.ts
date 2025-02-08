@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { Post } from '@/interfaces/Post';
-import { fetchData, postData } from '@/utils/api';
+import { fetchData, postData, deleteData } from '@/utils/api';
 import { toast } from 'sonner';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { RootState } from '../store';
@@ -50,12 +50,26 @@ const fetchAuthor = async (authorId: string): Promise<PostAuthor | null> => {
   return null;
 };
 
-const mapPost = async (post: Post): Promise<Post> => {
+const mapPost = async (post: Post, thunkAPI: any): Promise<Post> => {
   const author = post.userID ? await fetchAuthor(post.userID) : null;
+  const state = thunkAPI.getState() as RootState;
+  const userId = state.session?.user?.id;
+  
+  let isLiked = false;
+  if (userId) {
+    try {
+      const likeResponse = await fetchData(`posts/${post.id}/like`, { params: { userId } });
+      isLiked = likeResponse.isLiked;
+    } catch (error) {
+      console.error('Error fetching like status:', error);
+    }
+  }
+
   return {
     ...post,
     author: author as Post['author'],
     created_at: new Date(post.created_at).toLocaleString(),
+    isLiked,
     _count: {
       comments: 0,
       likes: post._count?.likes || 0,
@@ -83,7 +97,7 @@ export const fetchPosts = createAsyncThunk(
         throw new Error('Invalid response format');
       }
       
-      const posts = response.posts.map(mapPost);
+      const posts = response.posts.map((post: Post) => mapPost(post, { getState }));
       return Promise.all(posts);
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch posts');
@@ -91,9 +105,9 @@ export const fetchPosts = createAsyncThunk(
   }
 );
 
-export const fetchPostById = createAsyncThunk('posts/fetchPostById', async (postId: string) => {
+export const fetchPostById = createAsyncThunk('posts/fetchPostById', async (postId: string, thunkAPI) => {
   const response = await fetchData(`posts/${postId}`);
-  const post = response.posts.map(mapPost);
+  const post = response.posts.map((post: Post) => mapPost(post, thunkAPI));
   return Promise.all(post);
 });
 
@@ -142,7 +156,7 @@ export const fetchBookmarkedPosts = createAsyncThunk(
     const userId = state.session?.user?.id;
     if (!userId) throw new Error('User not authenticated');
     const response = await fetchData(`posts/bookmarks`, { params: { userId } });
-    const posts = response.posts.map(mapPost);
+    const posts = response.posts.map((post: Post) => mapPost(post, thunkAPI));
     return Promise.all(posts);
   }
 );
@@ -160,10 +174,42 @@ export const deleteBookmarkedPost = createAsyncThunk(
 
 export const fetchPostsByHashtag = createAsyncThunk(
   'posts/fetchPostsByHashtag',
-  async (hashtag: string) => {
+  async (hashtag: string, thunkAPI) => {
     const response = await fetchData(`posts/hashtag/${hashtag}`);
-    const posts = response.posts.map(mapPost);
+    const posts = response.posts.map((post: Post) => mapPost(post, thunkAPI));
     return Promise.all(posts);
+  }
+);
+
+export const likePost = createAsyncThunk(
+  'posts/likePost',
+  async (postId: string, thunkAPI) => {
+    try {
+      const state = thunkAPI.getState() as any;
+      const userId = state.session?.user?.id;
+      if (!userId) throw new Error('User not authenticated');
+      const response = await postData(`posts/${postId}/like`, { userId });
+      return { ...response, postId };
+    } catch (error: any) {
+      toast(`Failed to like post: ${error.message}`);
+      return thunkAPI.rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
+
+export const unlikePost = createAsyncThunk(
+  'posts/unlikePost',
+  async (postId: string, thunkAPI) => {
+    try {
+      const state = thunkAPI.getState() as any;
+      const userId = state.session?.user?.id;
+      if (!userId) throw new Error('User not authenticated');
+      const response = await deleteData(`posts/${postId}/like`, { data: { userId } });
+      return { ...response, postId };
+    } catch (error: any) {
+      toast(`Failed to unlike post: ${error.message}`);
+      return thunkAPI.rejectWithValue(error.response?.data || error.message);
+    }
   }
 );
 
@@ -260,6 +306,20 @@ const postsSlice = createSlice({
       .addCase(fetchPostsByHashtag.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch posts by hashtag';
+      })
+      .addCase(likePost.fulfilled, (state, action) => {
+        const post = state.posts.find(post => post.id === action.payload.postId);
+        if (post) {
+          post._count.likes = action.payload.likesCount;
+          post.isLiked = true;
+        }
+      })
+      .addCase(unlikePost.fulfilled, (state, action) => {
+        const post = state.posts.find(post => post.id === action.payload.postId);
+        if (post) {
+          post._count.likes = action.payload.likesCount;
+          post.isLiked = false;
+        }
       });
   },
 });

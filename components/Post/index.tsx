@@ -3,12 +3,13 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Share, View
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch } from "@/store/store";
 import AnimatedNumbers from "react-native-animated-numbers";
 import Avatar from "@/components/Avatar";
 import { detectHashtags } from "./utils";
 import { renderMedia, renderPoll, renderLocation } from "./renderers";
 import QuotedPost from "./QuotedPost";
-import { updateLikes, bookmarkPost, fetchBookmarkedPosts } from "@/store/reducers/postsReducer";
+import { updateLikes, bookmarkPost, fetchBookmarkedPosts, likePost, unlikePost, setPosts } from "@/store/reducers/postsReducer";
 import { Chat } from "@/assets/icons/chat-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { RepostIcon } from "@/assets/icons/repost-icon";
@@ -16,6 +17,7 @@ import { HeartIcon, HeartIconActive } from "@/assets/icons/heart-icon";
 import { CommentIcon, CommentIconActive } from "@/assets/icons/comment-icon";
 import { colors } from "@/styles/colors";
 import { Post as PostType } from "@/interfaces/Post";
+import { getSocket } from '@/utils/socket';
 
 interface PostProps {
     postData: PostType;
@@ -25,9 +27,11 @@ interface PostProps {
 }
 
 export default function Post({ postData, style, quotedPost }: PostProps) {
-    const dispatch = useDispatch();
-    const likesCount = useSelector((state: any) => state.posts.posts.find((p: any) => p.id === postData.id)?._count?.likes || 0);
-    const isLiked = useSelector((state: any) => state.posts.posts.find((p: any) => p.id === postData.id)?.isLiked || false);
+    const socket = getSocket();
+    const dispatch = useDispatch<AppDispatch>();
+    const post = useSelector((state: any) => state.posts.posts.find((p: any) => p.id === postData.id));
+    const likesCount = post?._count?.likes || 0;
+    const isLiked = post?.isLiked || false;
     const [_isBookmarked, setIsBookmarked] = useState(false);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [isReposted, setIsReposted] = useState(false);
@@ -45,8 +49,41 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
     const isDarkMode = colorScheme === "dark";
 
     useEffect(() => {
-        dispatch(fetchBookmarkedPosts());
+        dispatch(fetchBookmarkedPosts() as any);
     }, [dispatch]);
+
+    useEffect(() => {
+        // Join the post's room for real-time updates
+        socket.emit('joinPost', postData.id);
+
+        // Listen for like updates
+        socket.on('postLiked', (data: { postId: string; likesCount: number; isLiked: boolean }) => {
+            if (data.postId === postData.id) {
+                dispatch(setPosts((posts: PostType[]) => posts.map((post: PostType) => 
+                    post.id === data.postId 
+                        ? { ...post, _count: { ...post._count, likes: data.likesCount }, isLiked: data.isLiked }
+                        : post
+                )));
+            }
+        });
+
+        socket.on('postUnliked', (data: { postId: string; likesCount: number; isLiked: boolean }) => {
+            if (data.postId === postData.id) {
+                dispatch(setPosts((posts: PostType[]) => posts.map((post: PostType) => 
+                    post.id === data.postId 
+                        ? { ...post, _count: { ...post._count, likes: data.likesCount }, isLiked: data.isLiked }
+                        : post
+                )));
+            }
+        });
+
+        // Cleanup
+        return () => {
+            socket.emit('leavePost', postData.id);
+            socket.off('postLiked');
+            socket.off('postUnliked');
+        };
+    }, [postData.id, socket, dispatch]);
 
     const scaleAnimation = useCallback(() => {
         Animated.sequence([
@@ -65,10 +102,20 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
     const handleLike = useCallback((event: any) => {
         event.preventDefault();
         event.stopPropagation();
-        dispatch(updateLikes(postData.id));
-        scaleAnimation();
-        fadeAnimation();
-    }, [dispatch, postData.id, scaleAnimation, fadeAnimation]);
+        if (isLiked) {
+            dispatch(unlikePost(postData.id) as any)
+                .then(() => {
+                    scaleAnimation();
+                    fadeAnimation();
+                });
+        } else {
+            dispatch(likePost(postData.id) as any)
+                .then(() => {
+                    scaleAnimation();
+                    fadeAnimation();
+                });
+        }
+    }, [dispatch, postData.id, isLiked, scaleAnimation, fadeAnimation]);
 
     const handleShare = useCallback(async (event: any) => {
         event.preventDefault();
@@ -89,7 +136,7 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
         setIsBookmarked((prev) => !prev);
         const newCount = _isBookmarked ? bookmarksCount - 1 : bookmarksCount + 1;
         setBookmarksCount(newCount);
-        dispatch(bookmarkPost(postData.id));
+        dispatch(bookmarkPost(postData.id) as any);
         Animated.timing(animatedBookmarksCount, { toValue: newCount, duration: 300, easing: Easing.linear, useNativeDriver: true }).start();
     }, [_isBookmarked, bookmarksCount, dispatch, postData.id, animatedBookmarksCount]);
 
@@ -137,7 +184,7 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
                                 · {new Date(postData.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                             </Text>
                         </View>
-                        <Ionicons name="ellipsis-horizontal" size={20} color={isDarkMode ? colors.lightColor : colors.primaryColor} />
+                        <Ionicons name="ellipsis-horizontal" size={20} color={isDarkMode ? colors.COLOR_BLACK_LIGHT_1 : colors.primaryColor} />
                     </View>
                     {postData?.text && (
                         <Text style={[styles.postContent, isDarkMode ? styles.darkText : styles.lightText]}>
@@ -170,7 +217,7 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
                         <Ionicons name="share-outline" size={20} color="#536471" />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionButton} onPress={handleBookmark}>
-                        {_isBookmarked ? <BookmarkActive size={20} color="#1DA1F2" /> : <Bookmark size={20} strokeWidth={1} color="#536471" />}
+                        {_isBookmarked ? <BookmarkActive size={20} color="#1DA1F2" /> : <Bookmark size={20} color="#536471" />}
                         <AnimatedNumbers includeComma animateToNumber={bookmarksCount} animationDuration={300} fontStyle={{ color: _isBookmarked ? "#1DA1F2" : "#536471" }} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.actionButton}>
