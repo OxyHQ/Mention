@@ -217,7 +217,7 @@ export const renderMedia = (mediaIds: string[]) => {
                         >
                             <Ionicons name="close" size={30} color="#FFFFFF" />
                         </TouchableOpacity>
-                        <Video source={{ uri: selectedVideo.uri }} style={styles.videoModalImage} useNativeControls resizeMode={ResizeMode.CONTAIN} onError={(e: { nativeEvent: { error: string } }) => console.error("Error loading video:", e.nativeEvent.error)} />
+                        <Video source={{ uri: selectedVideo.uri }} style={styles.videoModalImage} useNativeControls resizeMode={ResizeMode.CONTAIN} />
                     </View>
                 </Modal>
             )}
