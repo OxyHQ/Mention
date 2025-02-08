@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Button, Image, StyleSheet } from 'react-native';
+import { View, Button, Image, StyleSheet, Text } from 'react-native';
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
+import { useSelector } from "react-redux";
 
-const SomeComponent = () => {
+const FileManager = () => {
     const [isModalVisible, setModalVisible] = useState(false);
     const [images, setImages] = useState<string[]>([]);
+    const currentUser = useSelector((state: any) => state.session?.user);
 
     const openModal = () => {
         setModalVisible(true);
@@ -21,10 +23,14 @@ const SomeComponent = () => {
     }
 
     const onSelect = (selectedFiles: File[]) => {
-        const fileUris = selectedFiles.map(file => `${process.env.OXY_CLOUD_URL}/files/${file._id}`);
+        const fileUris = selectedFiles.map(file => `/api/files/${file._id}`);
         console.log('Selected files:', fileUris);
         setImages([...images, ...fileUris]);
     };
+
+    if (!currentUser?._id) {
+        return <View><Text>Please log in to manage files</Text></View>;
+    }
 
     return (
         <View>
@@ -34,7 +40,6 @@ const SomeComponent = () => {
                     visible={isModalVisible}
                     onClose={closeModal}
                     onSelect={onSelect}
-                    userId="user123"
                     options={{
                         fileTypeFilter: ["image/", "video/"],
                         maxFiles: 5,
@@ -63,4 +68,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default SomeComponent;
+export default FileManager;
