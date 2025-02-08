@@ -4,36 +4,70 @@ import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvid
 import { useRouter } from 'expo-router';
 import { MentionLogo } from '@/assets/mention-logo';
 import { colors } from '@/styles/colors';
+import axios from 'axios';
+import { toast } from 'sonner';
+import { storeData } from '@/utils/storage';
+import api from '@/utils/api';
 
 export default function LoginScreen() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const { loginUser } = useContext(SessionContext);
+    const sessionContext = useContext(SessionContext);
     const router = useRouter();
+
+    if (!sessionContext) {
+        return null;
+    }
+
+    const { loginUser } = sessionContext;
 
     const handleLogin = async () => {
         try {
-            // Replace with actual login logic
-            const user = {
-                username: 'testuser',
-                email: 'aaa@aaa.com',
-            };
-            loginUser(user);
-            router.push('/');
+            const response = await api.post(`/auth/signin`, {
+                username,
+                password
+            });
+            
+            if (response.status === 200) {
+                const { accessToken, refreshToken, user } = response.data;
+                
+                // Store all session-related data atomically
+                await Promise.all([
+                    storeData('accessToken', accessToken),
+                    storeData('refreshToken', refreshToken),
+                    storeData('user', user),
+                    storeData('session', { 
+                        isAuthenticated: true, 
+                        user,
+                        lastRefresh: Date.now() 
+                    })
+                ]);
+
+                // Update session context
+                await loginUser(user);
+                toast.success('Login successful');
+                router.push('/');
+            }
         } catch (error) {
+            if (axios.isAxiosError(error) && error.response) {
+                toast.error(error.response.data.message);
+            } else {
+                toast.error('Login failed');
+            }
             console.error('Login failed:', error);
         }
     };
 
     return (
         <View style={styles.container}>
-            <MentionLogo style={styles.logo} />
+            <MentionLogo style={styles.logo} size={50} />
             <TextInput
                 style={styles.input}
-                placeholder="Email, or username"
+                placeholder="Username"
                 value={username}
                 onChangeText={setUsername}
                 placeholderTextColor="#657786"
+                autoCapitalize="none"
             />
             <TextInput
                 style={styles.input}
@@ -46,8 +80,8 @@ export default function LoginScreen() {
             <TouchableOpacity style={styles.button} onPress={handleLogin}>
                 <Text style={styles.buttonText}>Log in</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { /* Handle forgot password */ }}>
-                <Text style={styles.forgotPassword}>Forgot password?</Text>
+            <TouchableOpacity onPress={() => router.push('/signup')}>
+                <Text style={styles.signupLink}>Don't have an account? Sign up</Text>
             </TouchableOpacity>
         </View>
     );
@@ -61,8 +95,6 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     logo: {
-        width: 50,
-        height: 50,
         marginBottom: 32,
     },
     input: {
@@ -94,4 +126,9 @@ const styles = StyleSheet.create({
         color: colors.primaryColor,
         fontSize: 14,
     },
+    signupLink: {
+        color: colors.primaryColor,
+        fontSize: 14,
+        marginTop: 16
+    }
 });
