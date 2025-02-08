@@ -6,6 +6,21 @@ import { getSocket, disconnectSocket } from './socket';
 
 const API_URL = process.env.API_URL || "http://localhost:3000/api";
 
+// Cache configuration
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+const cache = new Map();
+
+// Batch request handling
+interface BatchRequest {
+  endpoint: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  data?: any;
+}
+
+let batchTimeout: NodeJS.Timeout | null = null;
+const batchQueue: BatchRequest[] = [];
+const BATCH_DELAY = 50; // ms to wait before processing batch
+
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_URL,
@@ -22,6 +37,44 @@ const api = axios.create({
     return JSON.stringify(data);
   }]
 });
+
+// Cache management
+const getCacheKey = (endpoint: string, config?: any) => {
+  return `${endpoint}${config ? JSON.stringify(config) : ''}`;
+};
+
+const setCache = (key: string, data: any) => {
+  cache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+};
+
+const getCache = (key: string) => {
+  const cached = cache.get(key);
+  if (!cached) return null;
+  
+  if (Date.now() - cached.timestamp > CACHE_TTL) {
+    cache.delete(key);
+    return null;
+  }
+  
+  return cached.data;
+};
+
+const clearCache = (pattern?: string) => {
+  if (!pattern) {
+    cache.clear();
+    return;
+  }
+  
+  const regex = new RegExp(pattern);
+  for (const key of cache.keys()) {
+    if (regex.test(key)) {
+      cache.delete(key);
+    }
+  }
+};
 
 // Add request interceptor for authentication
 api.interceptors.request.use(
@@ -120,22 +173,83 @@ api.interceptors.response.use(
   }
 );
 
-export const fetchData = async (endpoint: string, config?: any) => {
+// Batch processing function
+const processBatchQueue = async () => {
+  if (batchQueue.length === 0) return;
+  
+  const requests = [...batchQueue];
+  batchQueue.length = 0;
+  
   try {
-    const response = await api.get(endpoint, config);
+    const response = await api.post('/batch', { requests });
     return response.data;
   } catch (error) {
-    toast.error(`Error fetching data from ${endpoint}:` + error);
+    console.error('Batch request failed:', error);
     throw error;
   }
 };
 
+// Enhanced fetch with caching
+export const fetchData = async (endpoint: string, config?: any) => {
+  const cacheKey = getCacheKey(endpoint, config);
+  const cachedData = getCache(cacheKey);
+  
+  if (cachedData) {
+    return cachedData;
+  }
+  
+  try {
+    const response = await api.get(endpoint, config);
+    setCache(cacheKey, response.data);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.message || error.message;
+    toast.error(`Error fetching data: ${errorMessage}`);
+    throw error;
+  }
+};
+
+// Batch request helper
+const addToBatch = (request: BatchRequest): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    batchQueue.push({
+      ...request,
+      resolve,
+      reject,
+    });
+    
+    if (batchTimeout) {
+      clearTimeout(batchTimeout);
+    }
+    
+    batchTimeout = setTimeout(() => {
+      processBatchQueue()
+        .then(results => {
+          results.forEach((result: any, index: number) => {
+            const request = batchQueue[index] as any;
+            if (result.error) {
+              request.reject(result.error);
+            } else {
+              request.resolve(result.data);
+            }
+          });
+        })
+        .catch(error => {
+          batchQueue.forEach(request => (request as any).reject(error));
+        });
+    }, BATCH_DELAY);
+  });
+};
+
+// Enhanced data mutation methods
 export const deleteData = async (endpoint: string, data?: any) => {
   try {
     const response = await api.delete(endpoint, data);
+    clearCache(endpoint);
     return response.data;
-  } catch (error) {
-    toast.error(`Error deleting data from ${endpoint}:` + error);
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.message || error.message;
+    toast.error(`Error deleting data: ${errorMessage}`);
     throw error;
   }
 };
@@ -143,9 +257,11 @@ export const deleteData = async (endpoint: string, data?: any) => {
 export const postData = async (endpoint: string, data: any) => {
   try {
     const response = await api.post(endpoint, data);
+    clearCache(endpoint);
     return response.data;
-  } catch (error) {
-    toast.error(`Error posting data to ${endpoint}:` + error);
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.message || error.message;
+    toast.error(`Error posting data: ${errorMessage}`);
     throw error;
   }
 };
@@ -153,9 +269,11 @@ export const postData = async (endpoint: string, data: any) => {
 export const putData = async (endpoint: string, data: any) => {
   try {
     const response = await api.put(endpoint, data);
+    clearCache(endpoint);
     return response.data;
-  } catch (error) {
-    toast.error(`Error putting data to ${endpoint}:` + error);
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.message || error.message;
+    toast.error(`Error updating data: ${errorMessage}`);
     throw error;
   }
 };
@@ -163,12 +281,14 @@ export const putData = async (endpoint: string, data: any) => {
 export const patchData = async (endpoint: string, data: any) => {
   try {
     const response = await api.patch(endpoint, data);
+    clearCache(endpoint);
     return response.data;
-  } catch (error) {
-    toast.error(`Error patching data to ${endpoint}:` + error);
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.message || error.message;
+    toast.error(`Error patching data: ${errorMessage}`);
     throw error;
   }
-}
+};
 
 export const login = async (username: string, password: string) => {
   try {
@@ -262,4 +382,7 @@ export const validateSession = async (): Promise<boolean> => {
 };
 
 // Export the api instance for direct use
+export const clearApiCache = clearCache;
+export const invalidateCache = (pattern: string) => clearCache(pattern);
+
 export default api;

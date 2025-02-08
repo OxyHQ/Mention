@@ -33,6 +33,8 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
     const [socketError, setSocketError] = useState<string | null>(null);
     const socketInitAttemptsRef = useRef(0);
     const maxSocketInitAttempts = 3;
+    const socketInitTimeoutRef = useRef<NodeJS.Timeout>();
+    const mounted = useRef(true);
     const dispatch = useDispatch<AppDispatch>();
     const allPosts = useSelector((state: RootState) => state.posts.posts);
     const post = allPosts.find((p) => p.id === postData.id) || postData;
@@ -58,45 +60,6 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
         dispatch(fetchBookmarkedPosts() as any);
     }, [dispatch]);
 
-    // Initialize socket with retry
-    useEffect(() => {
-        let mounted = true;
-        let retryTimeout: NodeJS.Timeout;
-        
-        const initSocket = async () => {
-            try {
-                if (socketInitAttemptsRef.current >= maxSocketInitAttempts) {
-                    setSocketError('Max connection attempts reached');
-                    return;
-                }
-
-                const socketInstance = await getSocket();
-                if (mounted && socketInstance) {
-                    console.log('Socket initialized for post:', postData.id);
-                    setSocket(socketInstance);
-                    setSocketError(null);
-                    socketInitAttemptsRef.current = 0;
-                } else if (mounted) {
-                    socketInitAttemptsRef.current++;
-                    retryTimeout = setTimeout(initSocket, 2000); // Retry after 2 seconds
-                }
-            } catch (error) {
-                console.error('Error initializing socket:', error);
-                if (mounted) {
-                    socketInitAttemptsRef.current++;
-                    retryTimeout = setTimeout(initSocket, 2000);
-                }
-            }
-        };
-
-        initSocket();
-        
-        return () => {
-            mounted = false;
-            clearTimeout(retryTimeout);
-        };
-    }, [postData.id]);
-
     const scaleAnimation = useCallback(() => {
         Animated.sequence([
             Animated.timing(animatedScale, { toValue: 1.2, duration: 150, easing: Easing.ease, useNativeDriver: true }),
@@ -111,14 +74,56 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
         ]).start();
     }, [animatedOpacity]);
 
+    // Initialize socket with retry
+    useEffect(() => {
+        const initSocket = async () => {
+            try {
+                if (socketInitAttemptsRef.current >= maxSocketInitAttempts) {
+                    setSocketError('Max connection attempts reached');
+                    return;
+                }
+
+                const socketInstance = await getSocket('posts');  // Using 'posts' namespace
+                if (!mounted.current) return;
+
+                if (socketInstance) {
+                    console.log('Socket initialized for post:', postData.id);
+                    setSocket(socketInstance);
+                    setSocketError(null);
+                    socketInitAttemptsRef.current = 0;
+                } else {
+                    socketInitAttemptsRef.current++;
+                    if (mounted.current) {
+                        socketInitTimeoutRef.current = setTimeout(initSocket, Math.min(2000 * socketInitAttemptsRef.current, 10000));
+                    }
+                }
+            } catch (error) {
+                console.error('Error initializing socket:', error);
+                if (mounted.current) {
+                    socketInitAttemptsRef.current++;
+                    socketInitTimeoutRef.current = setTimeout(initSocket, Math.min(2000 * socketInitAttemptsRef.current, 10000));
+                }
+            }
+        };
+
+        mounted.current = true;
+        initSocket();
+        
+        return () => {
+            mounted.current = false;
+            if (socketInitTimeoutRef.current) {
+                clearTimeout(socketInitTimeoutRef.current);
+            }
+        };
+    }, [postData.id]);
+
+    // Handle socket reconnection and events
     useEffect(() => {
         if (!socket) return;
 
-        console.log('Socket connected:', socket.connected);
-
         const handleReconnect = () => {
             console.log('Socket reconnected for post:', postData.id);
-            socket.emit('joinPost', postData.id);
+            socket.emit('joinPost', { postId: postData.id });
         };
 
         const handleReconnectError = (error: Error) => {
@@ -126,55 +131,30 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
             setSocketError('Connection lost. Trying to reconnect...');
         };
 
+        const handlePostEvents = (data: { postId: string; likesCount: number; isLiked: boolean }) => {
+            if (data.postId === postData.id) {
+                dispatch(updatePostLikes(data));
+                scaleAnimation();
+                fadeAnimation();
+            }
+        };
+
         socket.on('reconnect', handleReconnect);
         socket.on('reconnect_error', handleReconnectError);
+        socket.on('postLiked', handlePostEvents);
+        socket.on('postUnliked', handlePostEvents);
+
+        // Join post room with data object
+        socket.emit('joinPost', { postId: postData.id });
 
         return () => {
+            socket.emit('leavePost', { postId: postData.id });
             socket.off('reconnect', handleReconnect);
             socket.off('reconnect_error', handleReconnectError);
+            socket.off('postLiked', handlePostEvents);
+            socket.off('postUnliked', handlePostEvents);
         };
-    }, [socket, postData.id]);
-
-    useEffect(() => {
-        if (!socket) {
-            console.log('No socket available yet for post:', postData.id);
-            return;
-        }
-
-        console.log('Joining post room:', postData.id);
-        socket.emit('joinPost', postData.id);
-
-        const handlePostLiked = (data: { postId: string; likesCount: number; isLiked: boolean }) => {
-            console.log('Received postLiked event:', data);
-            if (data.postId === postData.id) {
-                console.log('Updating likes for post:', postData.id);
-                dispatch(updatePostLikes(data));
-                scaleAnimation();
-                fadeAnimation();
-            }
-        };
-
-        const handlePostUnliked = (data: { postId: string; likesCount: number; isLiked: boolean }) => {
-            console.log('Received postUnliked event:', data);
-            if (data.postId === postData.id) {
-                console.log('Updating likes for post:', postData.id);
-                dispatch(updatePostLikes(data));
-                scaleAnimation();
-                fadeAnimation();
-            }
-        };
-
-        socket.on('postLiked', handlePostLiked);
-        socket.on('postUnliked', handlePostUnliked);
-
-        // Cleanup
-        return () => {
-            console.log('Leaving post room:', postData.id);
-            socket.emit('leavePost', postData.id);
-            socket.off('postLiked', handlePostLiked);
-            socket.off('postUnliked', handlePostUnliked);
-        };
-    }, [postData.id, socket, dispatch, scaleAnimation, fadeAnimation]);
+    }, [socket, postData.id, dispatch, scaleAnimation, fadeAnimation]);
 
     const handleLike = useCallback(async (event: any) => {
         event.preventDefault();
