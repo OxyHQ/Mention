@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext } from 'react'
 import {
     StyleSheet,
     Image,
@@ -8,7 +8,7 @@ import {
     TextInput,
     Platform,
 } from 'react-native'
-import { Pressable } from 'react-native'
+import { Pressable, PressableStateCallbackType } from 'react-native'
 import { colors } from '@/styles/colors'
 import { EmojiIcon } from '@/assets/icons/emoji-icon';
 import { MediaIcon } from '@/assets/icons/media-icon';
@@ -16,11 +16,14 @@ import { LocationIcon } from '@/assets/icons/location-icon';
 import { HandleIcon } from '@/assets/icons/handle-icon';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
-import EmojiPicker from 'emoji-picker-react';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts, createPost } from '@/store/reducers/postsReducer';
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
 import Avatar from '../Avatar';
+import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { AppDispatch } from '@/store/store';
+import { Post } from '@/interfaces/Post';
 
 interface Props {
     style?: ViewStyle
@@ -33,7 +36,9 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
     const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video', id: string }[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isModalVisible, setModalVisible] = useState(false);
-    const dispatch = useDispatch();
+    const dispatch = useDispatch<AppDispatch>();
+    const sessionContext = useContext(SessionContext);
+    const currentUser = sessionContext?.getCurrentUser();
 
     useEffect(() => {
         dispatch(fetchPosts());
@@ -42,22 +47,34 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
     const onChange = (text: string) => {
         setData(text)
     }
+    
     const post = () => {
-        if (data) {
-            const newPost = {
-                userID: '678b29d19085a13337ca9fd4',
+        if (data && currentUser?.id) {
+            const newPost: Partial<Post> = {
+                userID: currentUser.id,
                 text: data,
                 media: selectedMedia.map(media => media.id),
+                created_at: new Date().toISOString(),
+                source: 'web',
+                lang: 'en',
+                _count: {
+                    comments: 0,
+                    likes: 0,
+                    quotes: 0,
+                    reposts: 0,
+                    bookmarks: 0,
+                    replies: 0
+                }
             };
-            dispatch(createPost(newPost));
+            dispatch(createPost(newPost as Post));
             setData('');
             setSelectedMedia([]);
             if (onClose) onClose();
         }
     }
 
-    const onEmojiClick = (event, emojiObject) => {
-        setData(data + emojiObject.emoji);
+    const onEmojiClick = (emojiData: EmojiClickData) => {
+        setData(data + emojiData.emoji);
         setShowEmojiPicker(false);
     };
 
@@ -109,49 +126,31 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
                 <View style={styles.iconsContainer}>
                     <Pressable
                         onPress={openModal}
-                        style={({ hovered }) => [
+                        style={({ pressed }) => [
                             styles.svgWrapper,
-                            hovered
-                                ? {
-                                    backgroundColor: colors.primaryLight_1,
-                                }
-                                : {},
+                            pressed && { backgroundColor: colors.primaryLight_1 }
                         ]}>
                         <MediaIcon size={20} />
                     </Pressable>
                     <Pressable
                         onPress={() => setShowEmojiPicker(!showEmojiPicker)}
-                        style={({ hovered }) => [
+                        style={({ pressed }) => [
                             styles.svgWrapper,
-                            hovered
-                                ? {
-                                    backgroundColor: colors.primaryLight_1,
-                                }
-                                : {},
+                            pressed && { backgroundColor: colors.primaryLight_1 }
                         ]}>
                         <EmojiIcon size={20} />
                     </Pressable>
                     <Pressable
-                        style={({ hovered }) => [
+                        style={({ pressed }) => [
                             styles.svgWrapper,
-                            hovered
-                                ? {
-                                    backgroundColor: colors.primaryLight_1,
-                                }
-                                : {},
+                            pressed && { backgroundColor: colors.primaryLight_1 }
                         ]}>
-                        <LocationIcon
-                            size={20}
-                        />
+                        <LocationIcon size={20} />
                     </Pressable>
                     <Pressable
-                        style={({ hovered }) => [
+                        style={({ pressed }) => [
                             styles.svgWrapper,
-                            hovered
-                                ? {
-                                    backgroundColor: colors.primaryLight_1,
-                                }
-                                : {},
+                            pressed && { backgroundColor: colors.primaryLight_1 }
                         ]}>
                         <HandleIcon size={18} />
                     </Pressable>
@@ -160,7 +159,7 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
             {showEmojiPicker && (
                 <EmojiPicker
                     style={{ width: '100%', border: 'none' }}
-                    onEmojiClick={(event, emojiObject) => onEmojiClick(event, emojiObject)}
+                    onEmojiClick={onEmojiClick}
                 />
             )}
             <View style={styles.mediaPreviewContainer}>
