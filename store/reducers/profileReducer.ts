@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { Profile } from '@/interfaces/Profile';
-import { fetchData } from '@/utils/api';
+import { fetchData, patchData } from '@/utils/api';
 
 interface ProfileState {
   profile: Profile | null;
@@ -17,30 +17,50 @@ const initialState: ProfileState = {
 export const getUsernameToId = async ({ username }: { username: string }) => {
   try {
     const response = await fetchData(`users/username-to-id/${username}`);
-    const ProfileData = response;
-
-    return ProfileData?.id || null;
+    return response?.id || null;
   } catch (error) {
     console.error(error);
     return null;
   }
 };
 
-export const fetchProfile = createAsyncThunk('profile/fetchProfile', async ({ username }: { username: string }) => {
-  const userId = await getUsernameToId({ username });
-  if (!userId) {
-    throw new Error('Failed to fetch user ID');
+export const fetchProfile = createAsyncThunk(
+  'profile/fetchProfile', 
+  async ({ username }: { username: string }) => {
+    const userId = await getUsernameToId({ username });
+    if (!userId) {
+      throw new Error('Failed to fetch user ID');
+    }
+    const response = await fetchData(`profiles/${userId}`);
+    return response as Profile;
   }
-  const response = await fetchData(`profiles/${userId}`);
-  return response as Profile;
-});
+);
+
+export const updateProfileData = createAsyncThunk(
+  'profile/updateProfileData',
+  async ({ id, data }: { id: string; data: Partial<Profile> }, { rejectWithValue }) => {
+    try {
+      const response = await patchData(`profiles/${id}`, data);
+      return response as Profile;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update profile');
+    }
+  }
+);
 
 const profileSlice = createSlice({
   name: 'profile',
   initialState,
   reducers: {
-    updateProfile: (state, action) => {
+    setProfile: (state, action) => {
       state.profile = action.payload;
+      state.loading = false;
+      state.error = null;
+    },
+    clearProfile: (state) => {
+      state.profile = null;
+      state.loading = false;
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
@@ -56,9 +76,21 @@ const profileSlice = createSlice({
       .addCase(fetchProfile.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to fetch profile';
+      })
+      .addCase(updateProfileData.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateProfileData.fulfilled, (state, action) => {
+        state.loading = false;
+        state.profile = action.payload;
+      })
+      .addCase(updateProfileData.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to update profile';
       });
   },
 });
 
-export const { updateProfile } = profileSlice.actions;
+export const { setProfile, clearProfile } = profileSlice.actions;
 export default profileSlice.reducer;
