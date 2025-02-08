@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { View, Text, StyleSheet, TextInput, ScrollView, SafeAreaView, TouchableOpacity, FlatList } from "react-native";
 import { Post as PostType } from "@/interfaces/Post";
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -9,6 +9,10 @@ import { colors } from "@/styles/colors";
 import { Header } from "@/components/Header";
 import { toast } from '@/lib/sonner';
 import Avatar from "@/components/Avatar";
+import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { useDispatch, useSelector } from "react-redux";
+import { RootState, AppDispatch } from "@/store/store";
+import { fetchProfile } from "@/store/reducers/profileReducer";
 
 
 const languages = ["en", "es", "it"];
@@ -56,6 +60,18 @@ export default function SettingsScreen() {
   const [selectedColor, setSelectedColor] = useState(colorsArray[0]);
   const [searchText, setSearchText] = useState("");
 
+  // Add SessionContext integration with correct dispatch type
+  const sessionContext = useContext(SessionContext);
+  const currentUser = sessionContext?.getCurrentUser();
+  const dispatch = useDispatch<AppDispatch>();
+  const { profile, loading } = useSelector((state: RootState) => state.profile);
+
+  useEffect(() => {
+    if (currentUser?.username) {
+      dispatch(fetchProfile({ username: currentUser.username }));
+    }
+  }, [currentUser?.username, dispatch]);
+
   const getBatteryIcon = (level: number | null) => {
     if (level === null) return 'battery-unknown';
     if (level >= 0.75) return 'battery-full';
@@ -67,9 +83,9 @@ export default function SettingsScreen() {
   const settings = [
     {
       icon: 'person',
-      title: t('Account'),
+      title: t('Profile'),
       subtitle: t('Manage your account settings'),
-      link: "/settings/account",
+      link: "/settings/profile",
     },
     {
       icon: 'notifications',
@@ -130,11 +146,18 @@ export default function SettingsScreen() {
           rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
         }} />
         <View style={styles.accountContainer}>
-          <Avatar size={80} />
-          <Text style={styles.accountTitle}>Nate Isern Alvarez</Text>
-          <Text style={styles.accountHandle}>@natealvarez</Text>
+          <Avatar size={80} id={currentUser?.avatar} />
+            <Text style={styles.accountTitle}>
+            {profile?.name?.first} {profile?.name?.last ? ` ${profile.name.last}` : ''}
+            </Text>
+          <Text style={styles.accountHandle}>@{currentUser?.username}</Text>
         </View>
-        <SettingItem icon="information-circle" title={t('Edit Oxy Profile')} subtitle={t('Open Oxy Accounts Center')} link="/" />
+        <SettingItem 
+          icon="information-circle" 
+          title={t('Edit Profile')} 
+          subtitle={t('Update your profile information')} 
+          link="/settings/profile/edit" 
+        />
         <SettingsSearch onSearch={setSearchText} />
         <FlatList
           style={styles.scrollView}
