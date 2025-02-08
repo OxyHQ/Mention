@@ -383,7 +383,9 @@ export const refreshAccessToken = async () => {
       if (socket) {
         socket.auth = { token: response.data.accessToken };
       }
-      socket.connect();
+      if (socket) {
+        socket.connect();
+      }
       
       return response.data.accessToken;
     }
