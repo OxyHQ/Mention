@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { View, FlatList, StyleSheet, ActivityIndicator, Text } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import Post from '@/components/Post';
 import { Header } from '@/components/Header';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchBookmarkedPosts } from '@/store/reducers/postsReducer';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { AppDispatch } from '@/store/store';
 
 const BookmarksScreen = () => {
     const posts = useSelector((state: any) => state.posts.bookmarkedPosts);
-    const dispatch = useDispatch();
+    const dispatch = useDispatch<AppDispatch>();
     const session = useContext(SessionContext);
+    const { t } = useTranslation();
 
     if (!session) {
         return (
@@ -37,7 +40,7 @@ const BookmarksScreen = () => {
 
     return (
         <>
-            <Header options={{ title: currentUser?.id }} />
+            <Header options={{ title: t('Bookmarks') }} />
             {loading ? (
                 <ActivityIndicator size="large" color="#1DA1F2" />
             ) : posts && posts.length > 0 ? (
