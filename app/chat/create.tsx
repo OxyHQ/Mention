@@ -7,24 +7,48 @@ import {
     StyleSheet,
     Switch,
     Alert,
+    FlatList,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { conversationApi } from '@/utils/chatApi';
+import { fetchUsersByUsername } from '@/utils/api';
+
+interface Participant {
+    id: string;
+    username: string;
+}
 
 export default function CreateConversation() {
     const [name, setName] = useState('');
-    const [participantId, setParticipantId] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
     const [isGroup, setIsGroup] = useState(false);
+    const [searchResults, setSearchResults] = useState<Participant[]>([]);
+    const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([]);
     const router = useRouter();
+
+    const handleSearch = async (query: string) => {
+        try {
+            const results = await fetchUsersByUsername(query);
+            setSearchResults(results);
+        } catch (error) {
+            console.error('Error fetching users:', error);
+        }
+    };
+
+    const handleSelectParticipant = (participant: Participant) => {
+        setSelectedParticipants((prev) => [...prev, participant]);
+        setSearchQuery('');
+        setSearchResults([]);
+    };
 
     const handleCreate = async () => {
         try {
-            if (!participantId) {
-                Alert.alert('Error', 'Please enter participant ID');
+            if (selectedParticipants.length === 0) {
+                Alert.alert('Error', 'Please select at least one participant');
                 return;
             }
 
-            const participants = participantId.split(',').map(id => id.trim());
+            const participants = selectedParticipants.map((user) => user.id);
 
             const response = await conversationApi.createConversation({
                 participants,
@@ -64,11 +88,32 @@ export default function CreateConversation() {
 
             <TextInput
                 style={styles.input}
-                value={participantId}
-                onChangeText={setParticipantId}
-                placeholder={isGroup ? "Participant IDs (comma-separated)" : "Participant ID"}
+                value={searchQuery}
+                onChangeText={(text) => {
+                    setSearchQuery(text);
+                    handleSearch(text);
+                }}
+                placeholder="Search users by username"
                 placeholderTextColor="#666"
             />
+
+            <FlatList
+                data={searchResults}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                    <TouchableOpacity onPress={() => handleSelectParticipant(item)}>
+                        <Text style={styles.searchResult}>{item.username}</Text>
+                    </TouchableOpacity>
+                )}
+            />
+
+            <View style={styles.selectedParticipantsContainer}>
+                {selectedParticipants.map((participant) => (
+                    <Text key={participant.id} style={styles.selectedParticipant}>
+                        {participant.username}
+                    </Text>
+                ))}
+            </View>
 
             <TouchableOpacity style={styles.button} onPress={handleCreate}>
                 <Text style={styles.buttonText}>Create Conversation</Text>
@@ -110,5 +155,24 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    searchResult: {
+        padding: 12,
+        fontSize: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#ccc',
+    },
+    selectedParticipantsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 16,
+    },
+    selectedParticipant: {
+        backgroundColor: '#007AFF',
+        color: '#fff',
+        padding: 8,
+        borderRadius: 16,
+        marginRight: 8,
+        marginBottom: 8,
     },
 });
