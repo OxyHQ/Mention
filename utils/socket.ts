@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { getData } from './storage';
 
-const API_URL = process.env.API_URL || "http://localhost:3000";
+const SOCKET_URL = process.env.API_URL_SOCKET || "ws://localhost:3000";
 let socket: Socket | null = null;
 let retryCount = 0;
 const MAX_RETRIES = 3;
@@ -15,7 +15,7 @@ export const getSocket = async (namespace?: string) => {
         return null;
       }
 
-      const url = namespace ? `${API_URL}/${namespace}` : API_URL;
+      const url = namespace ? `${SOCKET_URL}/${namespace}` : SOCKET_URL;
       
       socket = io(url, {
         withCredentials: true,
