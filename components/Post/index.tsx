@@ -9,7 +9,7 @@ import Avatar from "@/components/Avatar";
 import { detectHashtags } from "./utils";
 import { renderMedia, renderPoll, renderLocation } from "./renderers";
 import QuotedPost from "./QuotedPost";
-import { updateLikes, bookmarkPost, fetchBookmarkedPosts, likePost, unlikePost, setPosts } from "@/store/reducers/postsReducer";
+import { updateLikes, bookmarkPost, fetchBookmarkedPosts, likePost, unlikePost, setPosts, updatePostLikes } from "@/store/reducers/postsReducer";
 import { Chat } from "@/assets/icons/chat-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { RepostIcon } from "@/assets/icons/repost-icon";
@@ -18,6 +18,8 @@ import { CommentIcon, CommentIconActive } from "@/assets/icons/comment-icon";
 import { colors } from "@/styles/colors";
 import { Post as PostType } from "@/interfaces/Post";
 import { getSocket } from '@/utils/socket';
+import { RootState } from "@/store/store";
+import { Socket } from 'socket.io-client';
 
 interface PostProps {
     postData: PostType;
@@ -27,9 +29,13 @@ interface PostProps {
 }
 
 export default function Post({ postData, style, quotedPost }: PostProps) {
-    const socket = getSocket();
+    const [socket, setSocket] = useState<Socket | null>(null);
+    const [socketError, setSocketError] = useState<string | null>(null);
+    const socketInitAttemptsRef = useRef(0);
+    const maxSocketInitAttempts = 3;
     const dispatch = useDispatch<AppDispatch>();
-    const post = useSelector((state: any) => state.posts.posts.find((p: any) => p.id === postData.id));
+    const allPosts = useSelector((state: RootState) => state.posts.posts);
+    const post = allPosts.find((p) => p.id === postData.id) || postData;
     const likesCount = post?._count?.likes || 0;
     const isLiked = post?.isLiked || false;
     const [_isBookmarked, setIsBookmarked] = useState(false);
@@ -52,38 +58,44 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
         dispatch(fetchBookmarkedPosts() as any);
     }, [dispatch]);
 
+    // Initialize socket with retry
     useEffect(() => {
-        // Join the post's room for real-time updates
-        socket.emit('joinPost', postData.id);
+        let mounted = true;
+        let retryTimeout: NodeJS.Timeout;
+        
+        const initSocket = async () => {
+            try {
+                if (socketInitAttemptsRef.current >= maxSocketInitAttempts) {
+                    setSocketError('Max connection attempts reached');
+                    return;
+                }
 
-        // Listen for like updates
-        socket.on('postLiked', (data: { postId: string; likesCount: number; isLiked: boolean }) => {
-            if (data.postId === postData.id) {
-                dispatch(setPosts((posts: PostType[]) => posts.map((post: PostType) => 
-                    post.id === data.postId 
-                        ? { ...post, _count: { ...post._count, likes: data.likesCount }, isLiked: data.isLiked }
-                        : post
-                )));
+                const socketInstance = await getSocket();
+                if (mounted && socketInstance) {
+                    console.log('Socket initialized for post:', postData.id);
+                    setSocket(socketInstance);
+                    setSocketError(null);
+                    socketInitAttemptsRef.current = 0;
+                } else if (mounted) {
+                    socketInitAttemptsRef.current++;
+                    retryTimeout = setTimeout(initSocket, 2000); // Retry after 2 seconds
+                }
+            } catch (error) {
+                console.error('Error initializing socket:', error);
+                if (mounted) {
+                    socketInitAttemptsRef.current++;
+                    retryTimeout = setTimeout(initSocket, 2000);
+                }
             }
-        });
-
-        socket.on('postUnliked', (data: { postId: string; likesCount: number; isLiked: boolean }) => {
-            if (data.postId === postData.id) {
-                dispatch(setPosts((posts: PostType[]) => posts.map((post: PostType) => 
-                    post.id === data.postId 
-                        ? { ...post, _count: { ...post._count, likes: data.likesCount }, isLiked: data.isLiked }
-                        : post
-                )));
-            }
-        });
-
-        // Cleanup
-        return () => {
-            socket.emit('leavePost', postData.id);
-            socket.off('postLiked');
-            socket.off('postUnliked');
         };
-    }, [postData.id, socket, dispatch]);
+
+        initSocket();
+        
+        return () => {
+            mounted = false;
+            clearTimeout(retryTimeout);
+        };
+    }, [postData.id]);
 
     const scaleAnimation = useCallback(() => {
         Animated.sequence([
@@ -99,23 +111,86 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
         ]).start();
     }, [animatedOpacity]);
 
-    const handleLike = useCallback((event: any) => {
+    useEffect(() => {
+        if (!socket) return;
+
+        console.log('Socket connected:', socket.connected);
+
+        const handleReconnect = () => {
+            console.log('Socket reconnected for post:', postData.id);
+            socket.emit('joinPost', postData.id);
+        };
+
+        const handleReconnectError = (error: Error) => {
+            console.error('Socket reconnection error:', error);
+            setSocketError('Connection lost. Trying to reconnect...');
+        };
+
+        socket.on('reconnect', handleReconnect);
+        socket.on('reconnect_error', handleReconnectError);
+
+        return () => {
+            socket.off('reconnect', handleReconnect);
+            socket.off('reconnect_error', handleReconnectError);
+        };
+    }, [socket, postData.id]);
+
+    useEffect(() => {
+        if (!socket) {
+            console.log('No socket available yet for post:', postData.id);
+            return;
+        }
+
+        console.log('Joining post room:', postData.id);
+        socket.emit('joinPost', postData.id);
+
+        const handlePostLiked = (data: { postId: string; likesCount: number; isLiked: boolean }) => {
+            console.log('Received postLiked event:', data);
+            if (data.postId === postData.id) {
+                console.log('Updating likes for post:', postData.id);
+                dispatch(updatePostLikes(data));
+                scaleAnimation();
+                fadeAnimation();
+            }
+        };
+
+        const handlePostUnliked = (data: { postId: string; likesCount: number; isLiked: boolean }) => {
+            console.log('Received postUnliked event:', data);
+            if (data.postId === postData.id) {
+                console.log('Updating likes for post:', postData.id);
+                dispatch(updatePostLikes(data));
+                scaleAnimation();
+                fadeAnimation();
+            }
+        };
+
+        socket.on('postLiked', handlePostLiked);
+        socket.on('postUnliked', handlePostUnliked);
+
+        // Cleanup
+        return () => {
+            console.log('Leaving post room:', postData.id);
+            socket.emit('leavePost', postData.id);
+            socket.off('postLiked', handlePostLiked);
+            socket.off('postUnliked', handlePostUnliked);
+        };
+    }, [postData.id, socket, dispatch, scaleAnimation, fadeAnimation]);
+
+    const handleLike = useCallback(async (event: any) => {
         event.preventDefault();
         event.stopPropagation();
-        if (isLiked) {
-            dispatch(unlikePost(postData.id) as any)
-                .then(() => {
-                    scaleAnimation();
-                    fadeAnimation();
-                });
-        } else {
-            dispatch(likePost(postData.id) as any)
-                .then(() => {
-                    scaleAnimation();
-                    fadeAnimation();
-                });
+        try {
+            if (isLiked) {
+                console.log('Unliking post:', postData.id);
+                await dispatch(unlikePost(postData.id) as any);
+            } else {
+                console.log('Liking post:', postData.id);
+                await dispatch(likePost(postData.id) as any);
+            }
+        } catch (error) {
+            console.error('Error handling like:', error);
         }
-    }, [dispatch, postData.id, isLiked, scaleAnimation, fadeAnimation]);
+    }, [dispatch, postData.id, isLiked]);
 
     const handleShare = useCallback(async (event: any) => {
         event.preventDefault();
