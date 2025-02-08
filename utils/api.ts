@@ -1,10 +1,15 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { toast } from "sonner";
 import { getData, storeData } from './storage';
 import { router } from 'expo-router';
 import { getSocket, disconnectSocket } from './socket';
 
 const API_URL = process.env.API_URL || "http://localhost:3000/api";
+
+// Retry configuration
+const MAX_RETRIES = 3;
+const INITIAL_RETRY_DELAY = 1000; // 1 second
+const MAX_RETRY_DELAY = 10000; // 10 seconds
 
 // Cache configuration
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
@@ -15,16 +20,19 @@ interface BatchRequest {
   endpoint: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   data?: any;
+  resolve?: (value?: any) => void;
+  reject?: (error?: any) => void;
 }
 
 let batchTimeout: NodeJS.Timeout | null = null;
 const batchQueue: BatchRequest[] = [];
 const BATCH_DELAY = 50; // ms to wait before processing batch
 
-// Create axios instance with default config
+// Create axios instance with default config and timeout
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true, // Important for sending cookies/session
+  timeout: 10000, // 10 second timeout
   headers: {
     'Content-Type': 'application/json'
   },
@@ -37,6 +45,33 @@ const api = axios.create({
     return JSON.stringify(data);
   }]
 });
+
+// Retry logic with exponential backoff
+const retryRequest = async (error: AxiosError, retryCount: number = 0): Promise<any> => {
+  const shouldRetry = retryCount < MAX_RETRIES &&
+    (error.code === 'ECONNABORTED' || 
+     error.code === 'ETIMEDOUT' || 
+     error.response?.status === 429 ||
+     (error.response?.status ?? 0) >= 500);
+
+  if (!shouldRetry) {
+    throw error;
+  }
+
+  const delay = Math.min(
+    INITIAL_RETRY_DELAY * Math.pow(2, retryCount),
+    MAX_RETRY_DELAY
+  );
+
+  await new Promise(resolve => setTimeout(resolve, delay));
+  
+  const config = error.config;
+  if (!config) throw error;
+  
+  return api.request(config).catch(nextError => 
+    retryRequest(nextError, retryCount + 1)
+  );
+};
 
 // Cache management
 const getCacheKey = (endpoint: string, config?: any) => {
@@ -76,13 +111,18 @@ const clearCache = (pattern?: string) => {
   }
 };
 
-// Add request interceptor for authentication
+// Enhanced request interceptor with connection pooling
 api.interceptors.request.use(
   async (config) => {
     const accessToken = await getData('accessToken');
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
+    
+    // Add connection pooling headers
+    config.headers['Connection'] = 'keep-alive';
+    config.headers['Keep-Alive'] = 'timeout=5, max=1000';
+    
     return config;
   },
   (error) => Promise.reject(error)
@@ -107,13 +147,20 @@ const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue = [];
 };
 
-// Add response interceptor for handling errors
+// Enhanced response interceptor with retry logic
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    // Handle retry logic for connection errors
+    if (error.code === 'ECONNABORTED' || 
+        error.code === 'ETIMEDOUT' || 
+        error.response?.status === 429 ||
+        (error.response?.status ?? 0) >= 500) {
+      return retryRequest(error);
+    }
 
-    // If error is not 401 or request already tried after refresh
+    // Handle token refresh as before
+    const originalRequest = error.config;
     if (error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
@@ -199,10 +246,16 @@ export const fetchData = async (endpoint: string, config?: any) => {
   }
   
   try {
-    const response = await api.get(endpoint, config);
+    const response = await api.get(endpoint, {
+      ...config,
+      timeout: 5000, // 5 second timeout for GET requests
+    });
     setCache(cacheKey, response.data);
     return response.data;
   } catch (error: any) {
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      toast.error('Connection timeout. Retrying...');
+    }
     const errorMessage = error.response?.data?.message || error.message;
     toast.error(`Error fetching data: ${errorMessage}`);
     throw error;
@@ -325,9 +378,11 @@ export const refreshAccessToken = async () => {
       ]);
       
       // Reconnect socket with new token
-      const socket = getSocket();
-      socket.disconnect();
-      socket.auth = { token: response.data.accessToken };
+      const socket = await getSocket();
+      socket?.disconnect();
+      if (socket) {
+        socket.auth = { token: response.data.accessToken };
+      }
       socket.connect();
       
       return response.data.accessToken;
