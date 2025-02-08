@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { StyleSheet, } from 'react-native';
+import { Link } from "expo-router";
+import { useRouter } from 'next/router';
 import { useSelector, useDispatch } from 'react-redux';
 import { Header } from '@/components/Header';
 import { fetchTrends } from '@/store/reducers/trendsReducer';
@@ -18,11 +20,10 @@ export default function HomeScreen() {
   return (
     <ScrollView>
       <SafeAreaView>
-        <Header options={{ title: "Home", rightComponents: [<Hashtag />] }} />
-        <Stories />
+        <Header options={{ title: "Home", rightComponents: [<Hashtag />, <Link href="/login">Login</Link>] }} />
         <Feed />
       </SafeAreaView>
-    </ScrollView>
+    </ScrollView >
   );
 }
 
