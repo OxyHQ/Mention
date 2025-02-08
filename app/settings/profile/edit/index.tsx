@@ -5,49 +5,79 @@ import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvid
 import { Header } from '@/components/Header';
 import { colors } from '@/styles/colors';
 import { useDispatch, useSelector } from 'react-redux';
-import { updateProfileData } from '@/store/reducers/profileReducer';
+import { updateProfileData, fetchProfile } from '@/store/reducers/profileReducer';
 import { toast } from '@/lib/sonner';
 import Avatar from '@/components/Avatar';
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
 import { RootState, AppDispatch } from '@/store/store';
+import { router } from 'expo-router';
+import { Profile } from '@/interfaces/Profile';
+
+interface FormData {
+    name: {
+        first: string;
+        last: string;
+    };
+    description: string;
+    location: string;
+    website: string;
+    avatar: string;
+}
 
 export default function EditProfileScreen() {
     const { t } = useTranslation();
     const sessionContext = useContext(SessionContext);
-    const currentUser = sessionContext?.getCurrentUser();
+    const getCurrentUser = sessionContext?.getCurrentUser || (() => null);
+    const currentUser = getCurrentUser();
     const dispatch = useDispatch<AppDispatch>();
-    const { loading, error } = useSelector((state: RootState) => state.profile);
+    const { profile, loading, error } = useSelector((state: RootState) => state.profile);
 
     const [isAvatarModalVisible, setAvatarModalVisible] = useState(false);
-    const [formData, setFormData] = useState({
+    const [isSaving, setIsSaving] = useState(false);
+    const [formData, setFormData] = useState<FormData>({
         name: {
-            first: '',
-            last: ''
+            first: profile?.name?.first || '',
+            last: profile?.name?.last || ''
         },
-        description: '',
-        location: '',
-        website: '',
-        avatar: ''
+        description: profile?.description || '',
+        location: profile?.location || '',
+        website: profile?.website || '',
+        avatar: profile?.avatar || ''
     });
 
     useEffect(() => {
-        if (currentUser) {
+        if (currentUser?.username) {
+            dispatch(fetchProfile({ username: currentUser.username }));
+        }
+    }, [currentUser?.username, dispatch]);
+
+    useEffect(() => {
+        if (profile) {
             setFormData({
                 name: {
-                    first: currentUser.name?.first || '',
-                    last: currentUser.name?.last || ''
+                    first: profile.name?.first || '',
+                    last: profile.name?.last || ''
                 },
-                description: currentUser.description || '',
-                location: currentUser.location || '',
-                website: currentUser.website || '',
-                avatar: currentUser.avatar || ''
+                description: profile.description || '',
+                location: profile.location || '',
+                website: profile.website || '',
+                avatar: profile.avatar || ''
             });
         }
-    }, [currentUser]);
+    }, [profile]);
+
+    const validateForm = (): boolean => {
+        if (formData.website && !formData.website.match(/^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/)) {
+            toast.error(t('Please enter a valid website URL'));
+            return false;
+        }
+        return true;
+    };
 
     const handleUpdateProfile = async () => {
-        if (!currentUser?.id) return;
+        if (!currentUser?.id || !validateForm()) return;
         
+        setIsSaving(true);
         try {
             const result = await dispatch(updateProfileData({ 
                 id: currentUser.id, 
@@ -56,10 +86,13 @@ export default function EditProfileScreen() {
             
             if (result) {
                 toast.success(t('Profile updated successfully'));
+                router.back();
             }
         } catch (error) {
             toast.error(t('Failed to update profile'));
             console.error('Error updating profile:', error);
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -85,6 +118,8 @@ export default function EditProfileScreen() {
         );
     }
 
+    const isLoading = loading || isSaving;
+
     return (
         <SafeAreaView style={styles.container}>
             <Header options={{
@@ -92,11 +127,12 @@ export default function EditProfileScreen() {
                 showBackButton: true,
                 rightComponents: [
                     <TouchableOpacity 
-                        style={[styles.saveButton, loading && styles.saveButtonDisabled]} 
+                        key="save"
+                        style={[styles.saveButton, isLoading && styles.saveButtonDisabled]} 
                         onPress={handleUpdateProfile}
-                        disabled={loading}
+                        disabled={isLoading}
                     >
-                        {loading ? (
+                        {isLoading ? (
                             <ActivityIndicator color="#fff" size="small" />
                         ) : (
                             <Text style={styles.saveButtonText}>{t('Save')}</Text>
@@ -106,10 +142,18 @@ export default function EditProfileScreen() {
             }} />
             
             <View style={styles.avatarContainer}>
-                <TouchableOpacity onPress={() => setAvatarModalVisible(true)}>
+                <TouchableOpacity 
+                    onPress={() => setAvatarModalVisible(true)}
+                    disabled={isLoading}
+                >
                     <Avatar id={formData.avatar} size={100} />
                 </TouchableOpacity>
-                <Text style={styles.changePhotoText}>{t('Change profile photo')}</Text>
+                <TouchableOpacity 
+                    onPress={() => setAvatarModalVisible(true)}
+                    disabled={isLoading}
+                >
+                    <Text style={styles.changePhotoText}>{t('Change profile photo')}</Text>
+                </TouchableOpacity>
             </View>
 
             <View style={styles.form}>
@@ -123,6 +167,8 @@ export default function EditProfileScreen() {
                             name: { ...prev.name, first: text }
                         }))}
                         placeholder={t('Enter your first name')}
+                        editable={!isLoading}
+                        maxLength={50}
                     />
                 </View>
 
@@ -136,6 +182,8 @@ export default function EditProfileScreen() {
                             name: { ...prev.name, last: text }
                         }))}
                         placeholder={t('Enter your last name')}
+                        editable={!isLoading}
+                        maxLength={50}
                     />
                 </View>
 
@@ -148,6 +196,8 @@ export default function EditProfileScreen() {
                         placeholder={t('Write a bio about yourself')}
                         multiline
                         numberOfLines={4}
+                        editable={!isLoading}
+                        maxLength={160}
                     />
                 </View>
 
@@ -158,6 +208,8 @@ export default function EditProfileScreen() {
                         value={formData.location}
                         onChangeText={(text) => setFormData(prev => ({ ...prev, location: text }))}
                         placeholder={t('Add your location')}
+                        editable={!isLoading}
+                        maxLength={100}
                     />
                 </View>
 
@@ -169,6 +221,9 @@ export default function EditProfileScreen() {
                         onChangeText={(text) => setFormData(prev => ({ ...prev, website: text }))}
                         placeholder={t('Add your website')}
                         keyboardType="url"
+                        autoCapitalize="none"
+                        editable={!isLoading}
+                        maxLength={100}
                     />
                 </View>
             </View>
@@ -181,7 +236,6 @@ export default function EditProfileScreen() {
                 visible={isAvatarModalVisible}
                 onClose={() => setAvatarModalVisible(false)}
                 onSelect={handleAvatarSelect}
-                userId={currentUser.id}
                 options={{
                     fileTypeFilter: ["image/"],
                     maxFiles: 1,
@@ -194,6 +248,7 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: '#fff',
     },
     avatarContainer: {
         alignItems: 'center',
