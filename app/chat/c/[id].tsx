@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Image, Platform, ImageStyle, ViewStyle } from "react-native";
-import io from "socket.io-client";
-import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
+import { useLocalSearchParams } from "expo-router";
+import axios from "axios";
+import FileSelectorModal from "@/modules/oxyhqservices/components/FileSelectorModal";
 import { colors } from "@/styles/colors";
 import { MediaIcon } from "@/assets/icons/media-icon";
 import { EmojiIcon } from "@/assets/icons/emoji-icon";
@@ -14,15 +15,21 @@ import { Video, ResizeMode } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type Message = {
-    id: string;
-    userId: string;
-    text: string;
-    isSent: boolean;
-    timestamp: string; // ISO string for reliable comparisons
-    media?: {
-        uri: string;
-        type: "image" | "video";
-    }[];
+    _id: string;
+    conversationId: string;
+    sender: string;
+    content: string;
+    type: string;
+    isSecure: boolean;
+    readBy: string[];
+    reactions: string[];
+    isPinned: boolean;
+    createdAt: string;
+    updatedAt: string;
+    poll: {
+        options: string[];
+    };
+    media?: { uri: string; type: "image" | "video" }[];
 };
 
 type MessageGroup = {
@@ -31,39 +38,34 @@ type MessageGroup = {
 };
 
 export default function ChatScreen() {
+    const { id: conversationID } = useLocalSearchParams<{ id: string }>();
     const [messages, setMessages] = useState<Message[]>([]);
-    const [selectedMedia, setSelectedMedia] = useState<
-        { uri: string; type: "image" | "video"; id: string }[]
-    >([]);
+    const [selectedMedia, setSelectedMedia] = useState<{ uri: string; type: "image" | "video"; id: string }[]>([]);
     const [isModalVisible, setModalVisible] = useState(false);
     const [inputText, setInputText] = useState("");
     const inputRef = useRef<TextInput>(null);
     const scrollViewRef = useRef<ScrollView>(null);
-    const socket = useRef(io(process.env.API_URL_SOCKET)).current;
 
-    // 5 minute threshold for grouping messages
-    const TIME_THRESHOLD = 5 * 60 * 1000;
-
-    const onSelect = (selectedFiles: any[]) => {
-        const media = selectedFiles.map((file) => ({
-            uri: `${process.env.OXY_CLOUD_URL}/files/${file._id}`,
-            type: file.contentType.startsWith("image/") ? "image" as const : "video" as const,
-            id: file._id,
-        }));
-        setSelectedMedia((prev) => [...prev, ...media]);
-    };
-
+    // Fetch messages using the working API logic
     useEffect(() => {
-        socket.on("message", (newMessage: Message) => {
-            setMessages((prev) => [...prev, newMessage]);
-        });
-        fetch(`${process.env.API_URL}/messages`)
-            .then((res) => res.json())
-            .then((data) => setMessages(data));
-        return () => {
-            socket.off("message");
+        const fetchMessages = async () => {
+            try {
+                const response = await axios.get(`http://localhost:3000/api/messages/${conversationID}`);
+                const fetchedMessages = response.data.map((msg: any) => ({
+                    ...msg,
+                    id: msg._id,
+                    text: msg.content,
+                    isSent: msg.sender === "yourUserId", // Replace "yourUserId" with the actual user ID
+                    createdat: msg.createdAt,
+                }));
+                setMessages(fetchedMessages);
+            } catch (error) {
+                console.error("Error fetching messages:", error);
+            }
         };
-    }, [socket]);
+
+        fetchMessages();
+    }, [conversationID]);
 
     useEffect(() => {
         inputRef.current?.focus();
@@ -73,30 +75,36 @@ export default function ChatScreen() {
         scrollViewRef.current?.scrollToEnd({ animated: true });
     }, [messages]);
 
-    const handleSendMessage = () => {
+    // Send message using the working API endpoint
+    const handleSendMessage = async () => {
         if (!inputText.trim()) return;
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            userId: "current-user",
-            text: inputText,
-            isSent: true,
-            timestamp: new Date().toISOString(),
-        };
-        socket.emit("sendMessage", newMessage);
-        // Optionally add the message locally for immediate feedback:
-        setMessages((prev) => [...prev, newMessage]);
-        setInputText("");
+        try {
+            const response = await axios.post("http://localhost:3000/api/messages/send", {
+                conversationId: conversationID,
+                content: inputText,
+                type: "text",
+            });
+            setMessages([...messages, response.data]);
+            setInputText("");
+        } catch (error) {
+            console.error("Error sending message:", error);
+        }
     };
 
-    const openMediaSelect = async () => {
-        setModalVisible(true);
+    const openMediaSelect = () => setModalVisible(true);
+    const closeMediaSelect = () => setModalVisible(false);
+
+    const onSelect = (selectedFiles: any[]) => {
+        const media = selectedFiles.map((file) => ({
+            uri: `http://localhost:5000/files/${file._id}`,
+            type: file.contentType.startsWith("image/") ? "image" : "video",
+            id: file._id,
+        }));
+        setSelectedMedia((prev) => [...prev, ...media]);
     };
 
-    const closeMediaSelect = () => {
-        setModalVisible(false);
-    };
-
-    // Group messages by same user and within the time threshold
+    // Group messages by user and time threshold (5 minutes)
+    const TIME_THRESHOLD = 5 * 60 * 1000;
     const groupMessages = (messages: Message[]): MessageGroup[] => {
         const groups: MessageGroup[] = [];
         messages.forEach((message) => {
@@ -107,7 +115,7 @@ export default function ChatScreen() {
                 const lastMessage = lastGroup.messages[lastGroup.messages.length - 1];
                 if (
                     message.userId === lastGroup.userId &&
-                    new Date(message.timestamp).getTime() - new Date(lastMessage.timestamp).getTime() < TIME_THRESHOLD
+                    new Date(message.createdat).getTime() - new Date(lastMessage.createdat).getTime() < TIME_THRESHOLD
                 ) {
                     lastGroup.messages.push(message);
                 } else {
@@ -141,10 +149,7 @@ export default function ChatScreen() {
                         return (
                             <View
                                 key={groupIndex}
-                                style={[
-                                    styles.messageWrapper,
-                                    isSent ? styles.sentWrapper : styles.receivedWrapper,
-                                ]}
+                                style={[styles.messageWrapper, isSent ? styles.sentWrapper : styles.receivedWrapper]}
                             >
                                 {group.messages.map((message, idx) => {
                                     const isFirst = idx === 0;
@@ -161,13 +166,9 @@ export default function ChatScreen() {
                                             ]}
                                         >
                                             {message.media &&
-                                                message.media.map((mediaItem, mediaIndex) => {
-                                                    return mediaItem.type === "image" ? (
-                                                        <Image
-                                                            key={mediaIndex}
-                                                            source={{ uri: mediaItem.uri }}
-                                                            style={styles.mediaImage}
-                                                        />
+                                                message.media.map((mediaItem, mediaIndex) =>
+                                                    mediaItem.type === "image" ? (
+                                                        <Image key={mediaIndex} source={{ uri: mediaItem.uri }} style={styles.mediaImage} />
                                                     ) : (
                                                         <Video
                                                             key={mediaIndex}
@@ -179,29 +180,16 @@ export default function ChatScreen() {
                                                             isLooping
                                                             isMuted
                                                         />
-                                                    );
-                                                })}
+                                                    )
+                                                )}
                                             {message.text ? (
-                                                <Text
-                                                    style={[
-                                                        styles.messageText,
-                                                        isSent ? styles.sentText : styles.receivedText,
-                                                    ]}
-                                                >
-                                                    {message.text}
+                                                <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}>
+                                                    {message.content}
                                                 </Text>
                                             ) : null}
                                             {isLast && (
-                                                <Text
-                                                    style={[
-                                                        styles.timestampText,
-                                                        { alignSelf: isSent ? "flex-end" : "flex-start" },
-                                                    ]}
-                                                >
-                                                    {new Date(message.timestamp).toLocaleTimeString([], {
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                    })}
+                                                <Text style={[styles.createdatText, { alignSelf: isSent ? "flex-end" : "flex-start" }]}>
+                                                    {new Date(message.createdat).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                                 </Text>
                                             )}
                                         </View>
@@ -216,21 +204,13 @@ export default function ChatScreen() {
                         visible={isModalVisible}
                         onClose={closeMediaSelect}
                         onSelect={onSelect}
-                        userId="user123"
-                        options={{
-                            fileTypeFilter: ["image/", "video/"],
-                            maxFiles: 5,
-                        }}
+                        options={{ fileTypeFilter: ["image/", "video/"], maxFiles: 5 }}
                     />
                     <View style={styles.input}>
                         <View style={styles.mediaPreviewContainer}>
                             {selectedMedia.map((asset, index) =>
                                 asset.type === "image" ? (
-                                    <Image
-                                        key={index}
-                                        source={{ uri: asset.uri }}
-                                        style={styles.mediaPreview}
-                                    />
+                                    <Image key={index} source={{ uri: asset.uri }} style={styles.mediaPreview} />
                                 ) : (
                                     <Video
                                         key={index}
@@ -253,10 +233,7 @@ export default function ChatScreen() {
                                 style={styles.svgWrapper}
                                 onPress={() => {
                                     if (Platform.OS === "ios" || Platform.OS === "android") {
-                                        // Open emoji keyboard
                                         inputRef.current?.focus();
-                                    } else {
-                                        // Handle emoji picker for web or other platforms
                                     }
                                 }}
                             >
@@ -286,77 +263,25 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    messageContainer: {
-        flex: 1,
-        padding: 16,
-    },
-    messageWrapper: {
-        flexDirection: "column",
-        marginBottom: 8,
-        flex: 1,
-    },
-    sentWrapper: {
-        alignItems: "flex-end",
-    },
-    receivedWrapper: {
-        alignItems: "flex-start",
-    },
-    bubble: {
-        maxWidth: "80%",
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        borderRadius: 5,
-        marginBottom: 2,
-    },
-    sentBubble: {
-        backgroundColor: colors.primaryColor,
-        borderTopLeftRadius: 20,
-        borderBottomLeftRadius: 20,
-    },
-    receivedBubble: {
-        backgroundColor: "#f1f0f0",
-        borderTopRightRadius: 20,
-        borderBottomRightRadius: 20,
-    },
-    sentFirst: {
-        borderTopRightRadius: 20,
-    },
-    receivedFirst: {
-        borderTopLeftRadius: 20,
-    },
-    sentLast: {
-        borderBottomRightRadius: 20,
-    },
-    receivedLast: {
-        borderBottomLeftRadius: 20,
-    },
-    sentMiddle: {
-    },
-    receivedMiddle: {
-    },
-    messageText: {
-        fontSize: 14,
-    },
-    sentText: {
-        color: "white",
-    },
-    receivedText: {
-        color: "black",
-    },
-    timestampText: {
-        fontSize: 10,
-        color: "#999",
-        marginTop: 4,
-    },
-    mediaImage: {
-        width: 200,
-        height: 200,
-        borderRadius: 8,
-        marginBottom: 4,
-    } as ImageStyle,
+    container: { flex: 1 },
+    messageContainer: { flex: 1, padding: 16 },
+    messageWrapper: { flexDirection: "column", marginBottom: 8, flex: 1 },
+    sentWrapper: { alignItems: "flex-end" },
+    receivedWrapper: { alignItems: "flex-start" },
+    bubble: { maxWidth: "80%", paddingHorizontal: 8, paddingVertical: 6, borderRadius: 5, marginBottom: 2 },
+    sentBubble: { backgroundColor: colors.primaryColor, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 },
+    receivedBubble: { backgroundColor: "#f1f0f0", borderTopRightRadius: 20, borderBottomRightRadius: 20 },
+    sentFirst: { borderTopRightRadius: 20 },
+    receivedFirst: { borderTopLeftRadius: 20 },
+    sentLast: { borderBottomRightRadius: 20 },
+    receivedLast: { borderBottomLeftRadius: 20 },
+    sentMiddle: {},
+    receivedMiddle: {},
+    messageText: { fontSize: 14 },
+    sentText: { color: "white" },
+    receivedText: { color: "black" },
+    createdatText: { fontSize: 10, color: "#999", marginTop: 4 },
+    mediaImage: { width: 200, height: 200, borderRadius: 8, marginBottom: 4 } as ImageStyle,
     inputContainer: {
         borderTopWidth: 1,
         borderColor: "#e5e5e5",
@@ -367,17 +292,10 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 35,
         borderBottomRightRadius: 35,
         ...Platform.select({
-            web: {
-                position: "sticky",
-                bottom: 0,
-                zIndex: 101,
-            },
+            web: { position: "sticky", bottom: 0, zIndex: 101 },
         }),
     } as ViewStyle,
-    input: {
-        flex: 1,
-        flexDirection: "column",
-    },
+    input: { flex: 1, flexDirection: "column" },
     inputGroup: {
         flex: 1,
         borderWidth: 1,
@@ -388,24 +306,9 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
     },
-    inputText: {
-        flex: 1,
-        height: 40,
-        paddingHorizontal: 5,
-    },
-    svgWrapper: {
-        borderRadius: 100,
-        justifyContent: "center",
-        alignItems: "center",
-        width: 30,
-        height: 30,
-    },
-    mediaPreviewContainer: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        marginVertical: 10,
-        paddingHorizontal: 10,
-    },
+    inputText: { flex: 1, height: 40, paddingHorizontal: 5 },
+    svgWrapper: { borderRadius: 100, justifyContent: "center", alignItems: "center", width: 30, height: 30 },
+    mediaPreviewContainer: { flexDirection: "row", flexWrap: "wrap", marginVertical: 10, paddingHorizontal: 10 },
     mediaPreview: {
         width: 100,
         height: 100,
