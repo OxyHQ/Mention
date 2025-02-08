@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Modal, View, Text, FlatList, TouchableOpacity, ActivityIndicator, Button, StyleSheet, Image, ScrollView, TextInput } from "react-native";
+import { Modal, View, Text, FlatList, TouchableOpacity, ActivityIndicator, Button, StyleSheet, Image, ScrollView, TextInput, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
 import { toast } from '@/lib/sonner';
@@ -10,69 +10,95 @@ import { colors } from "@/styles/colors";
 import * as DocumentPicker from 'expo-document-picker';
 import { Video, ResizeMode } from 'expo-av';
 import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
+import api from '@/utils/api';
+import { ImagePickerAsset } from 'expo-image-picker';
+import { DocumentPickerAsset } from 'expo-document-picker';
 
 interface FileSelectorModalProps {
     visible: boolean;
     onClose: () => void;
     onSelect: (files: any[]) => void; // Change to array of files
-    userId: string;
     options?: {
         fileTypeFilter?: string[];
         maxFiles?: number;
     };
 }
 
+interface FileType {
+    _id: string;
+    filename: string;
+    contentType: string;
+    uploadDate: string;
+    length: number;
+    metadata?: {
+        userID: string;
+        originalname?: string;
+    };
+}
+
 const defaultFileTypes = ["image/", "video/", "application/pdf", "image/gif"]; // Default allowed types
 
-const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose, onSelect, userId, options = {} }) => {
+const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose, onSelect, options = {} }) => {
     const { fileTypeFilter = defaultFileTypes, maxFiles = 5 } = options;
-    const [files, setFiles] = useState([]);
+    const [files, setFiles] = useState<FileType[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedFiles, setSelectedFiles] = useState([]);
+    const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
     const [filterText, setFilterText] = useState("");
     const [filterDate, setFilterDate] = useState("");
     const [filterType, setFilterType] = useState("");
     const { t } = useTranslation();
+    const currentUser = useSelector((state: any) => state.session?.user);
 
     useEffect(() => {
-        fetchFiles();
-    }, [visible]);
+        if (visible && currentUser?.id) {
+            fetchFiles();
+        }
+    }, [visible, currentUser?.id]);
 
     const fetchFiles = async () => {
+        if (!currentUser?.id) {
+            toast.error("User not authenticated");
+            return;
+        }
+
         try {
             setLoading(true);
-            const response = await axios.get(`${process.env.OXY_CLOUD_URL}/files/list/678b29d19085a13337ca9fd3`);
+            const response = await api.get(`/files/list/${currentUser.id}`);
             let fetchedFiles = response.data;
-            fetchedFiles = fetchedFiles.filter((file: File) => fileTypeFilter.some((type: string) => file.contentType.startsWith(type)));
+            fetchedFiles = fetchedFiles.filter((file: FileType) => fileTypeFilter.some((type: string) => file.contentType.startsWith(type)));
             setFiles(fetchedFiles);
             setSelectedFiles([]);
-        } catch (error) {
-            toast.error("Error fetching files");
-            setTimeout(() => {
-                fetchFiles();
-            }, 10000);
+        } catch (error: any) {
+            console.error("Fetch error:", error);
+            toast.error(error?.response?.data?.message || "Error fetching files");
         } finally {
             setLoading(false);
         }
     };
 
     const uploadFile = async () => {
+        if (!currentUser?.id) {
+            toast.error("User not authenticated");
+            return;
+        }
+
         try {
             let result;
             if (fileTypeFilter.includes("image/") || fileTypeFilter.includes("video/")) {
                 result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ['images', 'videos'],
-                    allowsEditing: true,
+                    mediaTypes: ImagePicker.MediaTypeOptions.All,
                     allowsMultipleSelection: true,
                     quality: 1,
                 });
             } else {
                 result = await DocumentPicker.getDocumentAsync({
                     type: fileTypeFilter.length > 0 ? fileTypeFilter.map(type => `${type}*`).join(",") : "*/*",
+                    multiple: true,
                 });
             }
 
-            if (!result.canceled) {
+            if (!result.canceled && result.assets && result.assets.length > 0) {
                 if (result.assets.length + selectedFiles.length > maxFiles) {
                     toast.error(`You can only select up to ${maxFiles} files.`);
                     return;
@@ -80,29 +106,65 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
 
                 const formData = new FormData();
 
-                await Promise.all(result.assets.map(async (asset) => {
-                    const fileName = 'name' in asset ? asset.name : asset.uri.split('/').pop();
-                    const response = await fetch(asset.uri);
+                for (const asset of result.assets) {
+                    // Get the file URI based on platform
+                    const fileUri = Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri;
+                    
+                    // Handle name and type based on picker type
+                    let fileName: string;
+                    let fileType: string;
+                    
+                    if ('mimeType' in asset) {
+                        // DocumentPicker asset
+                        fileName = (asset as DocumentPickerAsset).name;
+                        fileType = (asset as DocumentPickerAsset).mimeType || 'application/octet-stream';
+                    } else {
+                        // ImagePicker asset
+                        const extension = fileUri.split('.').pop() || 'jpg';
+                        fileName = `image-${Date.now()}.${extension}`;
+                        fileType = (asset as ImagePickerAsset).type || `image/${extension}`;
+                    }
+
+                    // Create file object from URI
+                    const response = await fetch(fileUri);
                     const blob = await response.blob();
-                    formData.append('files', blob, fileName);
-                }));
 
-                formData.append("userId", userId);
+                    // Create a File object from the blob with proper name and type
+                    const file = new File([blob], fileName, {
+                        type: fileType
+                    });
 
-                await axios.post("https://api.mention.earth/api/files/upload", formData, {
+                    // Append to FormData with the correct field name
+                    formData.append('files', file);
+                }
+
+                // Log FormData for debugging
+                console.log("FormData entries:");
+                for (const pair of (formData as any).entries()) {
+                    console.log('Field:', pair[0], 'Value type:', typeof pair[1], 'Filename:', (pair[1] as any).name);
+                }
+
+                const response = await api.post('/files/upload', formData, {
                     headers: {
+                        'Accept': 'application/json',
                         'Content-Type': 'multipart/form-data',
                     },
+                    // Prevent axios from trying to transform the FormData
+                    transformRequest: [(data) => data],
                 });
-                fetchFiles();
+
+                if (response.data?.files) {
+                    toast.success("Files uploaded successfully");
+                    fetchFiles();
+                }
             }
-        } catch (error) {
-            toast.error("Error uploading file");
-            console.error("Error uploading file:", error);
+        } catch (error: any) {
+            console.error("Upload error:", error);
+            toast.error(error?.response?.data?.message || "Error uploading files");
         }
     };
 
-    const handleSelectFile = (file) => {
+    const handleSelectFile = (file: FileType) => {
         if (selectedFiles.includes(file._id)) {
             setSelectedFiles(selectedFiles.filter(id => id !== file._id));
         } else {
@@ -127,10 +189,10 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose,
         (!filterType || file.contentType.includes(filterType))
     );
 
-    const renderFileItem = ({ item }) => {
+    const renderFileItem = ({ item }: { item: FileType }) => {
         const isImage = item.contentType.startsWith("image/");
         const isVideo = item.contentType.startsWith("video/");
-        const fileUri = `${process.env.OXY_CLOUD_URL}/files/${item._id}`;
+        const fileUri = `/api/files/${item._id}`;
         const isSelected = selectedFiles.includes(item._id);
 
         return (
