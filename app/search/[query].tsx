@@ -83,7 +83,7 @@ const SearchResultsScreen = () => {
                         return (
                             <TouchableOpacity 
                                 style={styles.userItem}
-                                onPress={() => router.push(`/${item.username}`)}
+                                onPress={() => router.push(`/@${item.username}`)}
                             >
                                 <Avatar size={40} id={item.avatarId} />
                                 <View style={styles.userInfo}>
