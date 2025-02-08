@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, Image as RNImage, StyleSheet, Modal, Video as RNVideo, ScrollView, PanResponder, Platform, ImageStyle } from "react-native";
+import { View, Text, TouchableOpacity, Image as RNImage, StyleSheet, Modal, ScrollView, PanResponder, Platform, ImageStyle } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchPosts } from "@/store/reducers/postsReducer";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,14 +7,62 @@ import Post from ".";
 import { colors } from "@/styles/colors";
 import { fetchData } from "@/utils/api";
 import AutoWidthImage from "./components/AutoWidthImage ";
+import { Video, ResizeMode } from 'expo-av'; // Using expo-av for video playback
+
+interface MediaItem {
+    id: string;
+    contentType: string;
+}
+
+interface MediaSections {
+    images: Array<{ id: string; uri: string }>;
+    videos: Array<{ id: string; uri: string }>;
+    others: Array<{ id: string; uri: string }>;
+}
+
+const getMediaSections = (items: MediaItem[]): MediaSections => {
+    const mediaItems = {
+        images: (items as MediaItem[])
+            .filter((item: MediaItem) => item.contentType.startsWith("image/"))
+            .map((item: MediaItem) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` })),
+        videos: (items as MediaItem[])
+            .filter((item: MediaItem) => item.contentType.startsWith("video/"))
+            .map((item: MediaItem) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` })),
+        others: (items as MediaItem[])
+            .filter((item: MediaItem) => !item.contentType.startsWith("image/") && !item.contentType.startsWith("video/"))
+            .map((item: MediaItem) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` }))
+    };
+    return mediaItems;
+};
+
+const getMediaItems = (items: any[]): MediaSections => ({
+    images: items
+        .filter((item: { contentType: string }): boolean => item.contentType.startsWith("image/"))
+        .map((item: { id: string }): { id: string; uri: string } => ({ 
+            id: item.id, 
+            uri: `${process.env.API_URL}/files/${item.id}` 
+        })),
+    videos: items
+        .filter((item: { contentType: string }): boolean => item.contentType.startsWith("video/"))
+        .map((item: { id: string }): { id: string; uri: string } => ({ 
+            id: item.id, 
+            uri: `${process.env.API_URL}/files/${item.id}` 
+        })),
+    others: items
+        .filter((item: { contentType: string }): boolean => !item.contentType.startsWith("image/") && !item.contentType.startsWith("video/"))
+        .map((item: { id: string }): { id: string; uri: string } => ({ 
+            id: item.id, 
+            uri: `${process.env.API_URL}/files/${item.id}` 
+        }))
+});
 
 export const renderMedia = (mediaIds: string[]) => {
     const [mediaData, setMediaData] = useState<any[]>([]);
     const [images, setImages] = useState<{ id: string, uri: string }[]>([]);
     const [videos, setVideos] = useState<{ id: string, uri: string }[]>([]);
     const [documents, setDocuments] = useState<{ id: string, uri: string }[]>([]);
-    const [selectedImage, setSelectedImage] = useState<string | null>(null);
-    const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+    const [selectedImage, setSelectedImage] = useState<{ id: string; uri: string } | null>(null);
+    const [selectedVideo, setSelectedVideo] = useState<{ id: string; uri: string } | null>(null);
 
     useEffect(() => {
         const fetchMediaData = async () => {
@@ -23,16 +71,16 @@ export const renderMedia = (mediaIds: string[]) => {
                 setMediaData(response);
 
                 const fetchedImages = response
-                    .filter(item => item.contentType.startsWith("image/"))
-                    .map(item => ({ id: item.id, uri: "http://localhost:3000/api/files/" + item.id }));
+                    .filter((item: { contentType: string; }) => item.contentType.startsWith("image/"))
+                    .map((item: { id: any; }) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` }));
 
                 const fetchedVideos = response
-                    .filter(item => item.contentType.startsWith("video/"))
-                    .map(item => ({ id: item.id, uri: "http://localhost:3000/api/files/" + item.id }));
+                    .filter((item: { contentType: string; }) => item.contentType.startsWith("video/"))
+                    .map((item: { id: any; }) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` }));
 
                 const fetchedDocuments = response
-                    .filter(item => !item.contentType.startsWith("image/") && !item.contentType.startsWith("video/"))
-                    .map(item => ({ id: item.id, uri: "http://localhost:3000/api/files/" + item.id }));
+                    .filter((item: { contentType: string; }) => !item.contentType.startsWith("image/") && !item.contentType.startsWith("video/"))
+                    .map((item: { id: any; }) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` }));
 
                 setImages(fetchedImages);
                 setVideos(fetchedVideos);
@@ -111,10 +159,13 @@ export const renderMedia = (mediaIds: string[]) => {
                         onPress={(event) => handleVideoPress(event, video)}
                         accessibilityLabel={`Video ${index + 1}`}
                     >
-                        <RNVideo
+                        <Video
                             source={{ uri: video.uri }}
                             style={[styles.video]}
-                            onError={(error) => console.error("Error loading video:", error)}
+                            onError={(err: any) => {
+                                const errorMessage = typeof err === 'string' ? err : err?.message || 'Unknown error';
+                                console.error("Error loading video:", errorMessage);
+                            }}
                         />
                     </TouchableOpacity>
                 ))}
@@ -140,15 +191,15 @@ export const renderMedia = (mediaIds: string[]) => {
                     transparent={true}
                     onRequestClose={handleModalClose}
                 >
-                    <View style={styles.modalContainer}>
+                    <View style={styles.imageModalContainer}>
                         <TouchableOpacity
-                            style={styles.modalCloseButton}
+                            style={styles.imageModalCloseButton}
                             onPress={handleModalClose}
                             accessibilityLabel="Close image modal"
                         >
                             <Ionicons name="close" size={30} color="#FFFFFF" />
                         </TouchableOpacity>
-                        <RNImage source={{ uri: selectedImage }} style={styles.modalImage} />
+                        <RNImage source={{ uri: selectedImage.uri }} style={styles.imageModalImage} />
                     </View>
                 </Modal>
             )}
@@ -158,15 +209,15 @@ export const renderMedia = (mediaIds: string[]) => {
                     transparent={true}
                     onRequestClose={handleModalClose}
                 >
-                    <View style={styles.modalContainer}>
+                    <View style={styles.videoModalContainer}>
                         <TouchableOpacity
-                            style={styles.modalCloseButton}
+                            style={styles.videoModalCloseButton}
                             onPress={handleModalClose}
                             accessibilityLabel="Close video modal"
                         >
                             <Ionicons name="close" size={30} color="#FFFFFF" />
                         </TouchableOpacity>
-                        <RNVideo source={{ uri: selectedVideo }} style={styles.modalVideo} controls />
+                        <Video source={{ uri: selectedVideo.uri }} style={styles.videoModalImage} useNativeControls resizeMode={ResizeMode.CONTAIN} onError={(e: { nativeEvent: { error: string } }) => console.error("Error loading video:", e.nativeEvent.error)} />
                     </View>
                 </Modal>
             )}
@@ -259,26 +310,36 @@ const styles = StyleSheet.create({
         backgroundColor: "#fff",
         textAlign: "center",
     },
-    modalContainer: {
+    imageModalContainer: {
         flex: 1,
         backgroundColor: "rgba(0, 0, 0, 0.8)",
         justifyContent: "center",
         alignItems: "center",
     },
-    modalImage: {
+    videoModalContainer: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    imageModalImage: {
         width: "90%",
         height: "70%",
-        resizeMode: "contain",
+        borderRadius: 10,
     },
-    modalVideo: {
+    videoModalImage: {
         width: "90%",
         height: "70%",
     },
-    modalCloseButton: {
+    imageModalCloseButton: {
         position: "absolute",
         top: 40,
         right: 20,
-        zIndex: 1,
+    },
+    videoModalCloseButton: {
+        position: "absolute",
+        top: 40,
+        right: 20,
     },
     pollContainer: {
         marginTop: 8,
@@ -324,21 +385,5 @@ const styles = StyleSheet.create({
     locationText: {
         marginLeft: 4,
         color: "#1DA1F2",
-    },
-    modalContainer: {
-        flex: 1,
-        backgroundColor: "rgba(0, 0, 0, 0.8)",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    modalCloseButton: {
-        position: "absolute",
-        top: 40,
-        right: 20,
-    },
-    modalImage: {
-        width: "90%",
-        height: "70%",
-        borderRadius: 10,
     },
 });
