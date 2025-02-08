@@ -2,6 +2,8 @@
 
 # dependencies
 node_modules/
+.pnp
+.pnp.js
 
 # Expo
 .expo/
@@ -48,8 +50,23 @@ ios/
 
 #Env
 .env
+.env.local
+.env.development
+.env.test
+.env.production
 
 # Temporary files
 tmp/
 temp/
 .vercel
+
+# testing
+coverage/
+
+# production
+build/
+
+# misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
