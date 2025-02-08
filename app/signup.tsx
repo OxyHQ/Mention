@@ -49,11 +49,13 @@ export default function SignUpScreen() {
     };
 
     const handleNextStep = async () => {
-        if (step === 1 && username) {
+        if (step === 1) {
             animateStepChange(2, -width);
-        } else if (step === 2 && email) {
+        } else if (step === 2 && username) {
             animateStepChange(3, -width);
-        } else if (step === 3 && password && confirmPassword) {
+        } else if (step === 3 && email) {
+            animateStepChange(4, -width);
+        } else if (step === 4 && password && confirmPassword) {
             if (password !== confirmPassword) {
                 toast.error("Passwords do not match");
                 return;
@@ -66,7 +68,7 @@ export default function SignUpScreen() {
                 });
                 if (response.status === 200) {
                     toast.success("Sign up successful");
-                    router.push('/login'); // Navigate to login screen after successful registration
+                    router.push('/login');
                 } else {
                     toast.error("Sign up failed: " + response.data.message);
                 }
@@ -95,6 +97,12 @@ export default function SignUpScreen() {
                 <View onLayout={onContentLayout} style={styles.formContent}>
                     {step === 1 && (
                         <>
+                            <Text style={styles.stepTitle}>Welcome to Mention by Oxy</Text>
+                            <Text style={styles.welcomeText}>Create your Oxy Account to get started</Text>
+                        </>
+                    )}
+                    {step === 2 && (
+                        <>
                             <Text style={styles.stepTitle}>Choose a Username</Text>
                             <TextInput
                                 style={styles.input}
@@ -105,7 +113,7 @@ export default function SignUpScreen() {
                             />
                         </>
                     )}
-                    {step === 2 && (
+                    {step === 3 && (
                         <TextInput
                             style={styles.input}
                             placeholder="Email"
@@ -114,7 +122,7 @@ export default function SignUpScreen() {
                             placeholderTextColor="#657786"
                         />
                     )}
-                    {step === 3 && (
+                    {step === 4 && (
                         <>
                             <TextInput
                                 style={styles.input}
@@ -137,7 +145,7 @@ export default function SignUpScreen() {
                 </View>
             </Animated.View>
             <TouchableOpacity style={styles.button} onPress={handleNextStep}>
-                <Text style={styles.buttonText}>{step === 3 ? 'Sign Up' : 'Next'}</Text>
+                <Text style={styles.buttonText}>{step === 4 ? 'Sign Up' : 'Next'}</Text>
             </TouchableOpacity>
             {step > 1 && (
                 <TouchableOpacity style={styles.button} onPress={handleBackStep}>
@@ -206,5 +214,11 @@ const styles = StyleSheet.create({
     signIn: {
         color: colors.primaryColor,
         fontSize: 14,
+    },
+    welcomeText: {
+        fontSize: 16,
+        color: colors.COLOR_BLACK,
+        textAlign: 'center',
+        marginBottom: 12,
     },
 });
