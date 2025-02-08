@@ -1,9 +1,20 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { Post } from '@/interfaces/Post';
-import { fetchData, postData, } from '@/utils/api';
+import { fetchData, postData } from '@/utils/api';
 import { toast } from 'sonner';
+import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { RootState } from '../store';
 
-
+interface PostAuthor {
+  id: string;
+  name: { first: string; last: string };
+  username: string;
+  avatar?: string;
+  email?: string;
+  image?: string;
+  description?: string;
+  color?: string;
+}
 
 interface PostState {
   posts: Post[];
@@ -19,7 +30,7 @@ const initialState: PostState = {
   error: null,
 };
 
-const fetchAuthor = async (authorId: string): Promise<Author | null> => {
+const fetchAuthor = async (authorId: string): Promise<PostAuthor | null> => {
   try {
     const authorResponse = await fetchData(`profiles/${authorId}`);
     if (authorResponse) {
@@ -30,7 +41,7 @@ const fetchAuthor = async (authorId: string): Promise<Author | null> => {
           last: authorResponse.name?.last,
         },
         username: authorResponse.username,
-        avatar: authorResponse.avatar,
+        avatar: authorResponse.avatar || '',
       };
     }
   } catch (error) {
@@ -43,11 +54,11 @@ const mapPost = async (post: Post): Promise<Post> => {
   const author = post.userID ? await fetchAuthor(post.userID) : null;
   return {
     ...post,
-    author,
+    author: author as Post['author'],
     created_at: new Date(post.created_at).toLocaleString(),
     _count: {
       comments: 0,
-      likes: post._count.likes,
+      likes: post._count?.likes || 0,
       quotes: 0,
       reposts: 0,
       bookmarks: 0,
@@ -56,11 +67,29 @@ const mapPost = async (post: Post): Promise<Post> => {
   };
 };
 
-export const fetchPosts = createAsyncThunk('posts/fetchPosts', async () => {
-  const response = await fetchData('posts');
-  const posts = response.posts.map(mapPost);
-  return Promise.all(posts);
-});
+export const fetchPosts = createAsyncThunk(
+  'posts/fetchPosts',
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as RootState;
+      const userId = state.session?.user?.id;
+      
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      const response = await fetchData('posts');
+      if (!response || !response.posts) {
+        throw new Error('Invalid response format');
+      }
+      
+      const posts = response.posts.map(mapPost);
+      return Promise.all(posts);
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch posts');
+    }
+  }
+);
 
 export const fetchPostById = createAsyncThunk('posts/fetchPostById', async (postId: string) => {
   const response = await fetchData(`posts/${postId}`);
@@ -68,37 +97,75 @@ export const fetchPostById = createAsyncThunk('posts/fetchPostById', async (post
   return Promise.all(post);
 });
 
-export const createPost = createAsyncThunk('posts/createPost', async (newPost: Post, { rejectWithValue }) => {
-  try {
-    const response = await postData('posts', newPost);
-    return response.post;
-  } catch (error: any) {
-    toast(`Failed to create post: ${error.response.data.message}`);
-    return rejectWithValue(error.response.data);
+export const createPost = createAsyncThunk(
+  'posts/createPost',
+  async (newPost: Post, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as any;
+      const userId = state.session?.user?.id;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+      const postWithUser = {
+        ...newPost,
+        userID: userId
+      };
+      const response = await postData('posts', postWithUser);
+      return response.post;
+    } catch (error: any) {
+      toast(`Failed to create post: ${error.message || error.response?.data?.message}`);
+      return rejectWithValue(error.response?.data || { message: error.message });
+    }
   }
-});
+);
 
-export const bookmarkPost = createAsyncThunk('posts/bookmarkPost', async (postId: string) => {
-  const response = await postData(`posts/${postId}/bookmark`, {userId: '678b301dcad209f45ad4760b'});
-  return response;
-});
+export const bookmarkPost = createAsyncThunk(
+  'posts/bookmarkPost',
+  async (postId: string, thunkAPI) => {
+    try {
+      const state = thunkAPI.getState() as any;
+      const userId = state.session?.user?.id;
+      if (!userId) throw new Error('User not authenticated');
+      const response = await postData(`posts/${postId}/bookmark`, { userId });
+      return { ...response, postId };
+    } catch (error: any) {
+      toast(`Failed to bookmark post: ${error.message}`);
+      return thunkAPI.rejectWithValue(error.response?.data || error.message);
+    }
+  }
+);
 
-export const fetchBookmarkedPosts = createAsyncThunk('posts/fetchBookmarkedPosts', async () => {
-  const response = await fetchData(`posts/bookmarks`, {params: {userId: '678b301dcad209f45ad4760b'}});
-  const posts = response.posts.map(mapPost);
-  return Promise.all(posts);
-});
+export const fetchBookmarkedPosts = createAsyncThunk(
+  'posts/fetchBookmarkedPosts',
+  async (_, thunkAPI) => {
+    const state = thunkAPI.getState() as any;
+    const userId = state.session?.user?.id;
+    if (!userId) throw new Error('User not authenticated');
+    const response = await fetchData(`posts/bookmarks`, { params: { userId } });
+    const posts = response.posts.map(mapPost);
+    return Promise.all(posts);
+  }
+);
 
-export const deleteBookmarkedPost = createAsyncThunk('posts/deleteBookmarkedPost', async (postId: string) => {
-  const response = await postData(`posts/${postId}/unbookmark`, {userId: '678b301dcad209f45ad4760b'});
-  return response;
-});
+export const deleteBookmarkedPost = createAsyncThunk(
+  'posts/deleteBookmarkedPost',
+  async (postId: string, thunkAPI) => {
+    const state = thunkAPI.getState() as any;
+    const userId = state.session?.user?.id;
+    if (!userId) throw new Error('User not authenticated');
+    const response = await postData(`posts/${postId}/unbookmark`, { userId });
+    return response;
+  }
+);
 
-export const fetchPostsByHashtag = createAsyncThunk('posts/fetchPostsByHashtag', async (hashtag: string) => {
-  const response = await fetchData(`posts/hashtag/${hashtag}`);
-  const posts = response.posts.map(mapPost);
-  return Promise.all(posts);
-});
+export const fetchPostsByHashtag = createAsyncThunk(
+  'posts/fetchPostsByHashtag',
+  async (hashtag: string) => {
+    const response = await fetchData(`posts/hashtag/${hashtag}`);
+    const posts = response.posts.map(mapPost);
+    return Promise.all(posts);
+  }
+);
 
 const postsSlice = createSlice({
   name: 'posts',
@@ -157,7 +224,7 @@ const postsSlice = createSlice({
       })
       .addCase(createPost.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.message || 'Failed to create post';
+        state.error = (action.payload as any)?.message || 'Failed to create post';
       })
       .addCase(bookmarkPost.fulfilled, (state, action) => {
         const postId = action.payload.postId;
