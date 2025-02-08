@@ -192,7 +192,7 @@ const SessionProvider = ({ children }: SessionProviderProps) => {
             id: '679f4993e38393a3a9edd4dd',
             username: 'nate',
             name: { first: 'Nate', last: 'Isern' },
-            avatarSource: { uri: 'http://localhost:3000/api/files/6790749544634262da8394f2' },
+            avatarSource: { uri: `${process.env.API_URL}/files/6790749544634262da8394f2` },
         },
         {
             id: '679fcac00e2353edc2f02f19',
