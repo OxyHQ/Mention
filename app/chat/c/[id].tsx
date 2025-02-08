@@ -14,28 +14,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { Video, ResizeMode } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Message = {
+interface Message {
     _id: string;
-    conversationId: string;
-    sender: string;
-    content: string;
-    type: string;
-    isSecure: boolean;
-    readBy: string[];
-    reactions: string[];
-    isPinned: boolean;
+    userId: string;
     createdAt: string;
-    updatedAt: string;
-    poll: {
-        options: string[];
-    };
-    media?: { uri: string; type: "image" | "video" }[];
-};
+    message: string;
+    isSent: boolean;
+    media?: { uri: string; type: "video" | "image"; id: string; }[];
+}
 
-type MessageGroup = {
+interface MessageGroup {
     userId: string;
     messages: Message[];
-};
+}
 
 export default function ChatScreen() {
     const { id: conversationID } = useLocalSearchParams<{ id: string }>();
@@ -79,7 +70,7 @@ export default function ChatScreen() {
     const handleSendMessage = async () => {
         if (!inputText.trim()) return;
         try {
-            const response = await axios.post("http://localhost:3000/api/messages/send", {
+            const response = await axios.post(`${process.env.API_URL}/messages/send`, {
                 conversationId: conversationID,
                 content: inputText,
                 type: "text",
@@ -91,13 +82,27 @@ export default function ChatScreen() {
         }
     };
 
+    const handleReadMessages = async () => {
+        try {
+            const response = await axios.get(`${process.env.API_URL}/messages/${conversationID}`);
+            const fetchedMessages = response.data.map((msg: any) => ({
+                ...msg,
+                _id: msg._id,
+                createdAt: msg.createdAt,
+            }));
+            setMessages(fetchedMessages);
+        } catch (error) {
+            console.error("Error fetching messages:", error);
+        }
+    };
+
     const openMediaSelect = () => setModalVisible(true);
     const closeMediaSelect = () => setModalVisible(false);
 
     const onSelect = (selectedFiles: any[]) => {
         const media = selectedFiles.map((file) => ({
-            uri: `http://localhost:5000/files/${file._id}`,
-            type: file.contentType.startsWith("image/") ? "image" : "video",
+            uri: `${process.env.API_URL}/files/${file._id}`,
+            type: file.contentType.startsWith("image/") ? "image" : "video" as "video" | "image",
             id: file._id,
         }));
         setSelectedMedia((prev) => [...prev, ...media]);
@@ -115,7 +120,7 @@ export default function ChatScreen() {
                 const lastMessage = lastGroup.messages[lastGroup.messages.length - 1];
                 if (
                     message.userId === lastGroup.userId &&
-                    new Date(message.createdat).getTime() - new Date(lastMessage.createdat).getTime() < TIME_THRESHOLD
+                    new Date(message.createdAt).getTime() - new Date(lastMessage.createdAt).getTime() < TIME_THRESHOLD
                 ) {
                     lastGroup.messages.push(message);
                 } else {
@@ -156,7 +161,7 @@ export default function ChatScreen() {
                                     const isLast = idx === group.messages.length - 1;
                                     return (
                                         <View
-                                            key={message.id}
+                                            key={message._id}
                                             style={[
                                                 styles.bubble,
                                                 isSent ? styles.sentBubble : styles.receivedBubble,
@@ -182,16 +187,12 @@ export default function ChatScreen() {
                                                         />
                                                     )
                                                 )}
-                                            {message.text ? (
-                                                <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}>
-                                                    {message.content}
-                                                </Text>
-                                            ) : null}
-                                            {isLast && (
-                                                <Text style={[styles.createdatText, { alignSelf: isSent ? "flex-end" : "flex-start" }]}>
-                                                    {new Date(message.createdat).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                                </Text>
+                                            {message.message && (
+                                                <Text style={styles.textContent}>{message.message}</Text>
                                             )}
+                                            <Text style={styles.timestamp}>
+                                                {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                            </Text>
                                         </View>
                                     );
                                 })}
@@ -270,14 +271,15 @@ const styles = StyleSheet.create({
     receivedWrapper: { alignItems: "flex-start" },
     bubble: { maxWidth: "80%", paddingHorizontal: 8, paddingVertical: 6, borderRadius: 5, marginBottom: 2 },
     sentBubble: { backgroundColor: colors.primaryColor, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 },
-    receivedBubble: { backgroundColor: "#f1f0f0", borderTopRightRadius: 20, borderBottomRightRadius: 20 },
+    receivedBubble: { backgroundColor: "#e5e5ea", borderTopRightRadius: 20, borderBottomRightRadius: 20 },
+    textContent: { fontSize: 14, color: "#000" },
+    timestamp: { fontSize: 12, color: "#666", marginTop: 2 },
     sentFirst: { borderTopRightRadius: 20 },
     receivedFirst: { borderTopLeftRadius: 20 },
     sentLast: { borderBottomRightRadius: 20 },
     receivedLast: { borderBottomLeftRadius: 20 },
     sentMiddle: {},
     receivedMiddle: {},
-    messageText: { fontSize: 14 },
     sentText: { color: "white" },
     receivedText: { color: "black" },
     createdatText: { fontSize: 10, color: "#999", marginTop: 4 },
