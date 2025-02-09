@@ -27,7 +27,7 @@ export default function SignUpScreen() {
             Animated.timing(containerHeight, {
                 toValue: height,
                 duration: 300,
-                useNativeDriver: false,
+                useNativeDriver: true,
             }).start();
         }
     };
