@@ -19,6 +19,7 @@ import Avatar from '@/components/Avatar';
 import { BlurView } from 'expo-blur';
 import { Menu } from '@/components/ui/Menu';
 import { getChatSocket, initializeChatSocket } from "@/utils/chatSocket";
+import ExpandableMenu from '@/components/ui/ExpandableMenu';
 
 interface Conversation {
     _id: string;
@@ -235,9 +236,9 @@ export default function ConversationList() {
                 <Text style={styles.title}>Messages</Text>
                 <Menu
                     trigger={
-                        <Pressable style={styles.createButton}>
+                        <View style={styles.createButton}>
                             <Ionicons name="add" size={24} color={colors.primaryColor} />
-                        </Pressable>
+                        </View>
                     }
                     items={[
                         {
