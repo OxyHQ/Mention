@@ -22,6 +22,11 @@ export default function LoginScreen() {
     const { loginUser } = sessionContext;
 
     const handleLogin = async () => {
+        if (!username || !password) {
+            toast.error('Please enter both username and password');
+            return;
+        }
+
         try {
             const response = await api.post(`/auth/signin`, {
                 username,
