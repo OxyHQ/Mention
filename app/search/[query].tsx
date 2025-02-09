@@ -9,6 +9,7 @@ import { ThemedText } from "@/components/ThemedText";
 import Post from "@/components/Post";
 import Avatar from "@/components/Avatar";
 import { colors } from "@/styles/colors";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type SearchResultType = "all" | "users" | "posts" | "profiles";
 
@@ -115,10 +116,10 @@ const SearchResultsScreen = () => {
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             {renderTabs()}
             {renderContent()}
-        </View>
+        </SafeAreaView>
     );
 };
 
