@@ -38,8 +38,8 @@ const styles = StyleSheet.create({
     }),
   },
   logo: {
+    padding: 10,
   },
   logoSvg: {
-    padding: 10,
   },
 });
