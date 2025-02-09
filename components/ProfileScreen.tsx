@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Image, FlatList, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { View, Image, FlatList, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams, Link } from "expo-router";
 import { StyleSheet, Platform, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,7 @@ import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
 import { fetchProfile } from '@/store/reducers/profileReducer';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
