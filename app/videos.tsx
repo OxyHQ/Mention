@@ -26,6 +26,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Post as IPost } from "@/interfaces/Post";
 import { RootState, AppDispatch } from '@/store/store';
 import { Video, ResizeMode } from 'expo-av';
+import { StatusBar } from 'expo-status-bar';
 
 const { width, height } = Dimensions.get("window");
 
@@ -232,6 +233,7 @@ const VideoFeed: React.FC = () => {
 
     return (
         <>
+            <StatusBar style="light" translucent={true} backgroundColor="transparent" />
             <View style={styles.header}>
                 <View>
                     <TouchableOpacity>
