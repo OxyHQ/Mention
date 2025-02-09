@@ -13,6 +13,7 @@ import Avatar from "@/components/Avatar";
 import { Ionicons } from "@expo/vector-icons";
 import { Video, ResizeMode } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { API_URL, OXY_CLOUD_URL } from "@/config";
 
 interface Message {
     _id: string;
@@ -41,7 +42,7 @@ export default function ChatScreen() {
     useEffect(() => {
         const fetchMessages = async () => {
             try {
-                const response = await axios.get(`http://localhost:3000/api/messages/${conversationID}`);
+                const response = await axios.get(`${API_URL}/messages/${conversationID}`);
                 const fetchedMessages = response.data.map((msg: any) => ({
                     ...msg,
                     id: msg._id,
@@ -70,7 +71,7 @@ export default function ChatScreen() {
     const handleSendMessage = async () => {
         if (!inputText.trim()) return;
         try {
-            const response = await axios.post(`${process.env.API_URL}/messages/send`, {
+            const response = await axios.post(`${API_URL}/messages/send`, {
                 conversationId: conversationID,
                 content: inputText,
                 type: "text",
@@ -84,7 +85,7 @@ export default function ChatScreen() {
 
     const handleReadMessages = async () => {
         try {
-            const response = await axios.get(`${process.env.API_URL}/messages/${conversationID}`);
+            const response = await axios.get(`${API_URL}/messages/${conversationID}`);
             const fetchedMessages = response.data.map((msg: any) => ({
                 ...msg,
                 _id: msg._id,
@@ -101,7 +102,7 @@ export default function ChatScreen() {
 
     const onSelect = (selectedFiles: any[]) => {
         const media = selectedFiles.map((file) => ({
-            uri: `${process.env.API_URL}/files/${file._id}`,
+            uri: `${OXY_CLOUD_URL}/files/${file._id}`,
             type: file.contentType.startsWith("image/") ? "image" : "video" as "video" | "image",
             id: file._id,
         }));
