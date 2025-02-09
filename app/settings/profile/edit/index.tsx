@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, SafeAreaView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { Header } from '@/components/Header';
@@ -12,6 +12,7 @@ import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorMo
 import { RootState, AppDispatch } from '@/store/store';
 import { router } from 'expo-router';
 import { Profile } from '@/interfaces/Profile';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface FormData {
     name: {
@@ -121,6 +122,7 @@ export default function EditProfileScreen() {
     const isLoading = loading || isSaving;
 
     return (
+        <ScrollView>
         <SafeAreaView style={styles.container}>
             <Header options={{
                 title: t('Edit Profile'),
@@ -242,6 +244,7 @@ export default function EditProfileScreen() {
                 }}
             />
         </SafeAreaView>
+        </ScrollView>
     );
 }
 
