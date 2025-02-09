@@ -91,24 +91,24 @@ export default function RootLayout() {
     };
   }, []);
 
-  useEffect(() => {
-    async function initializeApp() {
-      try {
-        if (loaded) {
-          await setupNotifications();
-          const hasPermission = await requestNotificationPermissions();
+  const initializeApp = async () => {
+    try {
+      if (loaded) {
+        await setupNotifications();
+        const hasPermission = await requestNotificationPermissions();
 
-          if (hasPermission) {
-            await scheduleDemoNotification();
-          }
-          setAppIsReady(true);
-          await SplashScreen.hideAsync();
+        if (hasPermission) {
+          await scheduleDemoNotification();
         }
-      } catch (error) {
-        console.warn("Failed to set up notifications:", error);
+        setAppIsReady(true);
+        await SplashScreen.hideAsync();
       }
+    } catch (error) {
+      console.warn("Failed to set up notifications:", error);
     }
+  };
 
+  useEffect(() => {
     initializeApp();
 
     // Change overflow style to visible only on web
