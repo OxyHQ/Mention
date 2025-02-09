@@ -47,14 +47,22 @@ export default function ProfileScreen() {
           <View style={styles.profileInfo}>
             <Avatar id={currentUser?.avatar} style={styles.avatar} />
             <View style={styles.profileButtons}>
-              <TouchableOpacity style={styles.ProfileButton}>
-                <ChatIcon size={20} color={colors.primaryColor} />
+              <TouchableOpacity style={styles.ProfileButton} onPress={() => {
+              // TODO: implement chat functionality
+              console.log("Chat button pressed");
+              }}>
+              <ChatIcon size={20} color={colors.primaryColor} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.ProfileButton}>
-                <Text style={styles.ProfileButtonText}>Edit profile</Text>
+              <TouchableOpacity style={styles.ProfileButton} onPress={() => {
+              router.push('/settings/profile/edit');
+              }}>
+              <Text style={styles.ProfileButtonText}>Edit profile</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.ProfileButton}>
-                <Ionicons name="ellipsis-horizontal" size={20} color={colors.primaryColor} />
+              <TouchableOpacity style={styles.ProfileButton} onPress={() => {
+              // TODO: implement more options functionality
+              console.log("More options button pressed");
+              }}>
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.primaryColor} />
               </TouchableOpacity>
             </View>
             <Text style={styles.name}>
