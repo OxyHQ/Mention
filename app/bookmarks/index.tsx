@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { View, FlatList, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Post from '@/components/Post';
@@ -26,17 +26,16 @@ const BookmarksScreen = () => {
     const currentUser = getCurrentUser();
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
+    const fetchBookmarks = useCallback(async () => {
         if (currentUser) {
-            dispatch(fetchBookmarkedPosts());
-        } else {
-            setLoading(false);
+            await dispatch(fetchBookmarkedPosts());
         }
+        setLoading(false);
     }, [currentUser, dispatch]);
 
     useEffect(() => {
-        setLoading(false);
-    }, [posts]);
+        fetchBookmarks();
+    }, [fetchBookmarks]);
 
     return (
         <>
