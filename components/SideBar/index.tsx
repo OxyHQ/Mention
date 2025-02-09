@@ -6,10 +6,10 @@ import { widthPercentageToDP as wp } from 'react-native-responsive-screen'
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from './SideBarItem'
 import { colors } from '@/styles/colors'
-import { Button } from './Button'
+import { Button } from '@/components/Button'
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable } from 'react-native-web-hover'
-import { Logo } from './Logo'
+import { Logo } from '@/components/Logo'
 import { Home, HomeActive } from '@/assets/icons/home-icon'
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
