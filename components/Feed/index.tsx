@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext } from "react";
-import { View, StyleSheet, FlatList, } from "react-native";
+import React, { useState, useEffect, useContext, useCallback } from "react";
+import { View, StyleSheet, VirtualizedList } from "react-native";
 import { useSelector, useDispatch } from 'react-redux';
 import { CreatePost } from "../CreatePost";
 import { Loading } from "@/assets/icons/loading-icon";
@@ -9,16 +9,28 @@ import Post from "@/components/Post";
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { colors } from "@/styles/colors";
 
-export default function Feed({ }) {
+const POSTS_PER_PAGE = 10;
+
+export default function Feed() {
     const dispatch = useDispatch();
     const posts = useSelector((state) => state.posts.posts);
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
 
+    const loadPosts = useCallback(async () => {
+        if (!isLoadingMore) {
+            setIsLoadingMore(true);
+            await dispatch(fetchPosts({ page, limit: POSTS_PER_PAGE }));
+            setIsLoadingMore(false);
+        }
+    }, [dispatch, page, isLoadingMore]);
+
     useEffect(() => {
-        dispatch(fetchPosts());
-    }, [dispatch]);
+        loadPosts();
+    }, [page]);
 
     useEffect(() => {
         if (Array.isArray(posts) && posts.length > 0) {
@@ -26,14 +38,26 @@ export default function Feed({ }) {
         }
     }, [posts]);
 
-    const sortedPosts = React.useMemo(() => {
-        return Array.isArray(posts) ? [...posts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) : [];
-    }, [posts]);
+    const handleEndReached = () => {
+        if (!isLoadingMore) {
+            setPage(prev => prev + 1);
+        }
+    };
 
-    const renderItem = React.useCallback(({ item, index }: { item: IPost, index: number }) => {
-        const isLastItem = index === sortedPosts.length - 1;
-        return <Post postData={item} style={isLastItem ? styles.lastItem : undefined} />;
-    }, [sortedPosts.length]);
+    const getItem = (data: IPost[], index: number) => data[index];
+    const getItemCount = (data: IPost[]) => data.length;
+    const keyExtractor = (item: IPost) => item.id;
+
+    const renderItem = useCallback(({ item, index }: { item: IPost, index: number }) => {
+        const isLastItem = index === posts.length - 1;
+        return (
+            <Post 
+                postData={item} 
+                style={isLastItem ? styles.lastItem : undefined}
+                shouldLoadMedia={index < 5} // Only preload media for first 5 visible posts
+            />
+        );
+    }, [posts.length]);
 
     const handleOpenCreatePostModal = () => {
         setBottomSheetContent(<CreatePost />);
@@ -41,15 +65,24 @@ export default function Feed({ }) {
     };
 
     return (
-        <View style={[styles.container]}>
+        <View style={styles.container}>
             <CreatePost style={styles.createPost} onPress={handleOpenCreatePostModal} />
             {loading ? (
                 <Loading size={40} />
             ) : (
-                <FlatList<IPost>
-                    data={sortedPosts}
+                <VirtualizedList
+                    data={posts}
                     renderItem={renderItem}
+                    getItem={getItem}
+                    getItemCount={getItemCount}
+                    keyExtractor={keyExtractor}
+                    onEndReached={handleEndReached}
+                    onEndReachedThreshold={0.5}
+                    maxToRenderPerBatch={5}
+                    windowSize={5}
+                    initialNumToRender={5}
                     style={styles.flatListStyle}
+                    ListFooterComponent={isLoadingMore ? <Loading size={20} /> : null}
                 />
             )}
         </View>
