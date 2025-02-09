@@ -1,374 +1,245 @@
-import React, { useState, useEffect } from "react";
-import { Modal, View, Text, FlatList, TouchableOpacity, ActivityIndicator, Button, StyleSheet, Image, ScrollView, TextInput, Platform } from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import axios from "axios";
-import { toast } from '@/lib/sonner';
-import { ProgressCircle } from 'react-native-svg-charts';
-import { Ionicons } from "@expo/vector-icons";
-import { Header } from "@/modules/oxyhqservices/components/ui/Header";
-import { colors } from "@/styles/colors";
-import * as DocumentPicker from 'expo-document-picker';
-import { Video, ResizeMode } from 'expo-av';
+import React, { useState, useEffect, useCallback } from "react";
+import { Modal, View, FlatList, TouchableOpacity, ActivityIndicator, TextInput, Text, Platform } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
-import api from '@/utils/api';
-import { ImagePickerAsset } from 'expo-image-picker';
-import { DocumentPickerAsset } from 'expo-document-picker';
+import { Ionicons } from "@expo/vector-icons";
+import { Header } from "../ui/Header";
+import { useFiles } from '../../hooks/useFiles';
+import { FileItem } from './FileItem';
+import { modalStyles, gridStyles, controlStyles } from './styles';
+import { FileType, FileSelectorModalProps } from './types';
+import { OXY_CLOUD_URL } from "@/config";
 
-interface FileSelectorModalProps {
-    visible: boolean;
-    onClose: () => void;
-    onSelect: (files: any[]) => void; // Change to array of files
-    options?: {
-        fileTypeFilter?: string[];
-        maxFiles?: number;
-    };
-}
+const defaultFileTypes = ["image/", "video/", "application/pdf", "image/gif"];
 
-interface FileType {
-    _id: string;
-    filename: string;
-    contentType: string;
-    uploadDate: string;
-    length: number;
-    metadata?: {
-        userID: string;
-        originalname?: string;
-    };
-}
-
-const defaultFileTypes = ["image/", "video/", "application/pdf", "image/gif"]; // Default allowed types
-
-const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ visible, onClose, onSelect, options = {} }) => {
+const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ 
+    visible, 
+    onClose, 
+    onSelect, 
+    options = {} 
+}) => {
     const { fileTypeFilter = defaultFileTypes, maxFiles = 5 } = options;
-    const [files, setFiles] = useState<FileType[]>([]);
-    const [loading, setLoading] = useState(true);
     const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
     const [filterText, setFilterText] = useState("");
-    const [filterDate, setFilterDate] = useState("");
-    const [filterType, setFilterType] = useState("");
     const { t } = useTranslation();
     const currentUser = useSelector((state: any) => state.session?.user);
+
+    const {
+        files,
+        loading,
+        uploading,
+        fetchFiles,
+        uploadFiles,
+        deleteFile
+    } = useFiles({
+        fileTypeFilter,
+        maxFiles,
+        userId: currentUser?.id
+    });
 
     useEffect(() => {
         if (visible && currentUser?.id) {
             fetchFiles();
         }
-    }, [visible, currentUser?.id]);
-
-    const fetchFiles = async () => {
-        if (!currentUser?.id) {
-            toast.error("User not authenticated");
-            return;
-        }
-
-        try {
-            setLoading(true);
-            const response = await api.get(`/files/list/${currentUser.id}`);
-            let fetchedFiles = response.data;
-            fetchedFiles = fetchedFiles.filter((file: FileType) => fileTypeFilter.some((type: string) => file.contentType.startsWith(type)));
-            setFiles(fetchedFiles);
-            setSelectedFiles([]);
-        } catch (error: any) {
-            console.error("Fetch error:", error);
-            toast.error(error?.response?.data?.message || "Error fetching files");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const uploadFile = async () => {
-        if (!currentUser?.id) {
-            toast.error("User not authenticated");
-            return;
-        }
-
-        try {
-            let result;
-            if (fileTypeFilter.includes("image/") || fileTypeFilter.includes("video/")) {
-                result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.All,
-                    allowsMultipleSelection: true,
-                    quality: 1,
-                });
-            } else {
-                result = await DocumentPicker.getDocumentAsync({
-                    type: fileTypeFilter.length > 0 ? fileTypeFilter.map(type => `${type}*`).join(",") : "*/*",
-                    multiple: true,
-                });
-            }
-
-            if (!result.canceled && result.assets && result.assets.length > 0) {
-                if (result.assets.length + selectedFiles.length > maxFiles) {
-                    toast.error(`You can only select up to ${maxFiles} files.`);
-                    return;
-                }
-
-                const formData = new FormData();
-
-                for (const asset of result.assets) {
-                    // Get the file URI based on platform
-                    const fileUri = Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri;
-                    
-                    // Handle name and type based on picker type
-                    let fileName: string;
-                    let fileType: string;
-                    
-                    if ('mimeType' in asset) {
-                        // DocumentPicker asset
-                        fileName = (asset as DocumentPickerAsset).name;
-                        fileType = (asset as DocumentPickerAsset).mimeType || 'application/octet-stream';
-                    } else {
-                        // ImagePicker asset
-                        const extension = fileUri.split('.').pop() || 'jpg';
-                        fileName = `image-${Date.now()}.${extension}`;
-                        fileType = (asset as ImagePickerAsset).type || `image/${extension}`;
-                    }
-
-                    // Create file object from URI
-                    const response = await fetch(fileUri);
-                    const blob = await response.blob();
-
-                    // Create a File object from the blob with proper name and type
-                    const file = new File([blob], fileName, {
-                        type: fileType
-                    });
-
-                    // Append to FormData with the correct field name
-                    formData.append('files', file);
-                }
-
-                // Log FormData for debugging
-                console.log("FormData entries:");
-                for (const pair of (formData as any).entries()) {
-                    console.log('Field:', pair[0], 'Value type:', typeof pair[1], 'Filename:', (pair[1] as any).name);
-                }
-
-                const response = await api.post('/files/upload', formData, {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'multipart/form-data',
-                    },
-                    // Prevent axios from trying to transform the FormData
-                    transformRequest: [(data) => data],
-                });
-
-                if (response.data?.files) {
-                    toast.success("Files uploaded successfully");
-                    fetchFiles();
-                }
-            }
-        } catch (error: any) {
-            console.error("Upload error:", error);
-            toast.error(error?.response?.data?.message || "Error uploading files");
-        }
-    };
+    }, [visible, currentUser?.id, fetchFiles]);
 
     const handleSelectFile = (file: FileType) => {
-        if (selectedFiles.includes(file._id)) {
-            setSelectedFiles(selectedFiles.filter(id => id !== file._id));
-        } else {
-            if (selectedFiles.length < maxFiles) {
-                setSelectedFiles([...selectedFiles, file._id]);
-            } else {
-                toast.error(`You can only select up to ${maxFiles} files.`);
+        setSelectedFiles(prev => {
+            if (prev.includes(file._id)) {
+                return prev.filter(id => id !== file._id);
             }
-        }
+            if (prev.length >= maxFiles) {
+                return prev;
+            }
+            return [...prev, file._id];
+        });
     };
 
     const handleDone = () => {
         const selectedFileObjects = files.filter(file => selectedFiles.includes(file._id));
-        console.log("Selected files:", selectedFileObjects);
         onSelect(selectedFileObjects);
         onClose();
     };
 
-    const filteredFiles = files.filter(file =>
-        file.filename.toLowerCase().includes(filterText.toLowerCase()) &&
-        (!filterDate || new Date(file.uploadDate).toLocaleDateString().includes(filterDate)) &&
-        (!filterType || file.contentType.includes(filterType))
-    );
-
-    const renderFileItem = ({ item }: { item: FileType }) => {
-        const isImage = item.contentType.startsWith("image/");
-        const isVideo = item.contentType.startsWith("video/");
-        const fileUri = `/api/files/${item._id}`;
-        const isSelected = selectedFiles.includes(item._id);
-
-        return (
-            <TouchableOpacity onPress={() => handleSelectFile(item)} style={[styles.fileItem, isSelected && styles.selectedFileItem]}>
-                {isImage && <Image source={{ uri: fileUri }} style={styles.filePreview} />}
-                {isVideo && <Video source={{ uri: fileUri }} style={styles.filePreview} />}
-                <View style={styles.fileOverlay}>
-                    <Text style={styles.fileName}>{item.filename}</Text>
-                </View>
-            </TouchableOpacity>
-        );
+    const handleDeleteFile = async (fileId: string) => {
+        if (window.confirm(t('Are you sure you want to delete this file?'))) {
+            await deleteFile(fileId);
+            setSelectedFiles(prev => prev.filter(id => id !== fileId));
+        }
     };
 
+    const filteredFiles = files.filter(file =>
+        file.filename.toLowerCase().includes(filterText.toLowerCase()) ||
+        file.metadata?.originalname?.toLowerCase().includes(filterText.toLowerCase())
+    );
+
+    const renderEmptyState = () => (
+        <View style={gridStyles.empty}>
+            <Ionicons name="cloud-upload-outline" size={64} color="#999" />
+            <Text style={gridStyles.emptyText}>
+                {t("No files found. Upload some files to get started!")}
+            </Text>
+        </View>
+    );
+
+    // Handle keyboard shortcuts
+    const handleKeyPress = useCallback((event: KeyboardEvent) => {
+        if (!visible) return;
+
+        if (event.key === 'Escape') {
+            onClose();
+        } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            if (selectedFiles.length > 0) {
+                handleDone();
+            }
+        } else if (event.key === 'a' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            const remainingSlots = maxFiles - selectedFiles.length;
+            if (remainingSlots > 0) {
+                const newFiles = files
+                    .filter(file => !selectedFiles.includes(file._id))
+                    .slice(0, remainingSlots)
+                    .map(file => file._id);
+                setSelectedFiles(prev => [...prev, ...newFiles]);
+            }
+        }
+    }, [visible, selectedFiles, files, maxFiles, handleDone, onClose]);
+
+    // Add keyboard event listeners for web platform
+    useEffect(() => {
+        if (Platform.OS === 'web') {
+            window.addEventListener('keydown', handleKeyPress);
+            return () => window.removeEventListener('keydown', handleKeyPress);
+        }
+    }, [handleKeyPress]);
+
+    // Prevent scrolling of background content when modal is open
+    useEffect(() => {
+        if (Platform.OS === 'web' && visible) {
+            document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = 'unset';
+            };
+        }
+    }, [visible]);
+
     return (
-        <Modal visible={visible} transparent animationType="slide">
-            <View style={styles.modalBackground}>
-                <View style={styles.modalParent}>
+        <Modal 
+            visible={visible} 
+            transparent 
+            animationType="fade"
+            onRequestClose={onClose} // Handle back button on Android
+        >
+            <View 
+                style={modalStyles.background}
+                onTouchEnd={(e) => {
+                    if (e.target === e.currentTarget) {
+                        onClose(); // Close on background click
+                    }
+                }}
+            >
+                <View style={[
+                    modalStyles.container,
+                    Platform.OS === 'web' && { maxHeight: '90vh' as any }
+                ]}>
                     <Header options={{
-                        leftComponents: [<Ionicons name="settings" size={24} color={colors.COLOR_BLACK} />],
                         title: t("File Manager"),
+                        showBackButton: true,
+                        leftComponents: [
+                            <TouchableOpacity key="back" onPress={onClose}>
+                                <Ionicons name="arrow-back" size={24} color="black" />
+                            </TouchableOpacity>
+                        ],
                         rightComponents: [
-                            <View style={styles.limitContainer}>
-                                <Text style={styles.limitText}>{selectedFiles.length}/{maxFiles}</Text>
-                                <ProgressCircle
-                                    style={styles.progressCircle}
-                                    progress={selectedFiles.length / maxFiles}
-                                    progressColor={colors.primaryColor}
-                                    backgroundColor={colors.primaryLight_1}
-                                />
-                            </View>,
-                            <Ionicons name="cloud-upload" size={24} color={colors.COLOR_BLACK} onPress={uploadFile} />,
-                            <Ionicons name="close" size={24} color={colors.COLOR_BLACK} onPress={onClose} />],
+                            <Text key="count" style={controlStyles.buttonText}>
+                                {selectedFiles.length}/{maxFiles}
+                            </Text>
+                        ],
                     }} />
-                    <ScrollView style={styles.modalContainer}>
-                        <View style={styles.filterContainer}>
-                            <TextInput
-                                style={styles.filterInput}
-                                placeholder={t("Filter files by name")}
-                                value={filterText}
-                                onChangeText={setFilterText}
-                            />
-                            <TextInput
-                                style={styles.filterInput}
-                                placeholder={t("Filter files by date (MM/DD/YYYY)")}
-                                value={filterDate}
-                                onChangeText={setFilterDate}
-                            />
-                            <TextInput
-                                style={styles.filterInput}
-                                placeholder={t("Filter files by type (e.g., image, video)")}
-                                value={filterType}
-                                onChangeText={setFilterType}
-                            />
-                        </View>
-                        {loading ? (
-                            <ActivityIndicator size="large" color={colors.primaryColor} />
-                        ) : (
-                            <FlatList
-                                data={filteredFiles}
-                                keyExtractor={(item) => item._id}
-                                numColumns={2}
-                                renderItem={renderFileItem}
-                            />
+                    
+                    <View style={controlStyles.filterContainer}>
+                        <TextInput
+                            style={controlStyles.input}
+                            placeholder={t("Search files...")}
+                            value={filterText}
+                            onChangeText={setFilterText}
+                            autoFocus={Platform.OS === 'web'} // Autofocus on web
+                        />
+                        {Platform.OS === 'web' && (
+                            <Text style={controlStyles.shortcutHint}>
+                                {t("Press Esc to close, Ctrl+Enter to confirm")}
+                            </Text>
                         )}
-                    </ScrollView>
-                    <View style={styles.buttonContainer}>
-                        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                            <Text style={styles.closeButtonText}>Close</Text>
+                    </View>
+
+                    {(loading || uploading) ? (
+                        <View style={gridStyles.empty}>
+                            <ActivityIndicator size="large" color="#0066FF" />
+                            <Text style={gridStyles.emptyText}>
+                                {uploading ? t("Uploading files...") : t("Loading files...")}
+                            </Text>
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={filteredFiles}
+                            renderItem={({ item }) => (
+                                <FileItem
+                                    file={item}
+                                    isSelected={selectedFiles.includes(item._id)}
+                                    onSelect={handleSelectFile}
+                                    onDelete={handleDeleteFile}
+                                    baseUrl={OXY_CLOUD_URL}
+                                />
+                            )}
+                            keyExtractor={(item) => item._id}
+                            numColumns={2}
+                            contentContainerStyle={gridStyles.container}
+                            ListEmptyComponent={renderEmptyState}
+                        />
+                    )}
+
+                    <View style={controlStyles.buttonsContainer}>
+                        <TouchableOpacity 
+                            onPress={onClose}
+                            style={[controlStyles.button, controlStyles.buttonCancel]}
+                        >
+                            <Text style={[controlStyles.buttonText, controlStyles.buttonTextCancel]}>
+                                {t("Cancel")}
+                            </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={handleDone} style={[styles.doneButton, selectedFiles.length === 0 && styles.disabledButton]} disabled={selectedFiles.length === 0}>
-                            <Text style={styles.doneButtonText}>Done</Text>
+                        <TouchableOpacity 
+                            onPress={handleDone}
+                            style={[
+                                controlStyles.button, 
+                                controlStyles.buttonDone,
+                                selectedFiles.length === 0 && controlStyles.buttonDisabled
+                            ]} 
+                            disabled={selectedFiles.length === 0}
+                        >
+                            <Text style={[controlStyles.buttonText, controlStyles.buttonTextDone]}>
+                                {t("Select")} ({selectedFiles.length})
+                            </Text>
                         </TouchableOpacity>
                     </View>
+
+                    <TouchableOpacity 
+                        style={[
+                            controlStyles.uploadButton,
+                            uploading && controlStyles.buttonDisabled
+                        ]}
+                        onPress={uploadFiles}
+                        disabled={uploading}
+                    >
+                        <Ionicons 
+                            name={uploading ? "hourglass" : "cloud-upload"} 
+                            size={24} 
+                            color="white" 
+                        />
+                    </TouchableOpacity>
                 </View>
             </View>
         </Modal>
     );
 };
-
-const styles = StyleSheet.create({
-    modalBackground: {
-        flex: 1,
-        justifyContent: "center",
-        backgroundColor: "rgba(0,0,0,0.5)",
-    },
-    modalParent: {
-        maxWidth: 900,
-        width: "100%",
-        margin: "auto",
-        backgroundColor: "white",
-        borderRadius: 35,
-    },
-    modalContainer: {
-        width: "100%",
-        height: "100%",
-        minHeight: 500,
-    },
-    fileItem: {
-        flex: 1,
-        margin: 5,
-        borderRadius: 35,
-        overflow: "hidden",
-        position: "relative",
-        borderWidth: 2,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
-    },
-    selectedFileItem: {
-        borderColor: colors.primaryColor,
-    },
-    fileName: {
-        color: "white",
-        fontWeight: "bold",
-        textAlign: "center",
-    },
-    closeButton: {
-        alignSelf: "flex-end",
-        padding: 5,
-    },
-    closeButtonText: {
-        color: "red",
-    },
-    doneButton: {
-        alignSelf: "flex-end",
-        marginLeft: 10,
-        padding: 5,
-    },
-    doneButtonText: {
-        color: "green",
-    },
-    disabledButton: {
-        opacity: 0.5,
-    },
-    filePreview: {
-        width: "100%",
-        height: 150,
-    },
-    fileOverlay: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: `${colors.primaryColor}90`,
-        padding: 5,
-    },
-    limitContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 5,
-        backgroundColor: colors.COLOR_BACKGROUND,
-        borderRadius: 35,
-        gap: 5,
-    },
-    limitText: {
-        fontSize: 16,
-        color: colors.primaryColor,
-        fontWeight: 900,
-    },
-    progressCircle: {
-        height: 30,
-        width: 30,
-    },
-    buttonContainer: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-    },
-    filterContainer: {
-        padding: 10,
-    },
-    filterInput: {
-        height: 40,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
-        borderWidth: 1,
-        borderRadius: 5,
-        paddingHorizontal: 10,
-        marginBottom: 10,
-    },
-});
 
 export default FileSelectorModal;
