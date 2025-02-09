@@ -291,7 +291,6 @@ export default function ConversationList() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.primaryLight,
     },
     header: {
         flexDirection: 'row',

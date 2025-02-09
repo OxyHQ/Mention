@@ -287,7 +287,6 @@ export default function CreateConversation() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.primaryLight,
     },
     header: {
         flexDirection: 'row',
