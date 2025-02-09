@@ -8,53 +8,7 @@ import { colors } from "@/styles/colors";
 import { fetchData } from "@/utils/api";
 import AutoWidthImage from "./components/AutoWidthImage ";
 import { Video, ResizeMode } from 'expo-av'; // Using expo-av for video playback
-
-interface MediaItem {
-    id: string;
-    contentType: string;
-}
-
-interface MediaSections {
-    images: Array<{ id: string; uri: string }>;
-    videos: Array<{ id: string; uri: string }>;
-    others: Array<{ id: string; uri: string }>;
-}
-
-const getMediaSections = (items: MediaItem[]): MediaSections => {
-    const mediaItems = {
-        images: (items as MediaItem[])
-            .filter((item: MediaItem) => item.contentType.startsWith("image/"))
-            .map((item: MediaItem) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` })),
-        videos: (items as MediaItem[])
-            .filter((item: MediaItem) => item.contentType.startsWith("video/"))
-            .map((item: MediaItem) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` })),
-        others: (items as MediaItem[])
-            .filter((item: MediaItem) => !item.contentType.startsWith("image/") && !item.contentType.startsWith("video/"))
-            .map((item: MediaItem) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` }))
-    };
-    return mediaItems;
-};
-
-const getMediaItems = (items: any[]): MediaSections => ({
-    images: items
-        .filter((item: { contentType: string }): boolean => item.contentType.startsWith("image/"))
-        .map((item: { id: string }): { id: string; uri: string } => ({ 
-            id: item.id, 
-            uri: `${process.env.API_URL}/files/${item.id}` 
-        })),
-    videos: items
-        .filter((item: { contentType: string }): boolean => item.contentType.startsWith("video/"))
-        .map((item: { id: string }): { id: string; uri: string } => ({ 
-            id: item.id, 
-            uri: `${process.env.API_URL}/files/${item.id}` 
-        })),
-    others: items
-        .filter((item: { contentType: string }): boolean => !item.contentType.startsWith("image/") && !item.contentType.startsWith("video/"))
-        .map((item: { id: string }): { id: string; uri: string } => ({ 
-            id: item.id, 
-            uri: `${process.env.API_URL}/files/${item.id}` 
-        }))
-});
+import { OXY_CLOUD_URL } from "@/config";
 
 export const renderMedia = (mediaIds: string[]) => {
     const [mediaData, setMediaData] = useState<any[]>([]);
@@ -72,15 +26,15 @@ export const renderMedia = (mediaIds: string[]) => {
 
                 const fetchedImages = response
                     .filter((item: { contentType: string; }) => item.contentType.startsWith("image/"))
-                    .map((item: { id: any; }) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` }));
+                    .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
 
                 const fetchedVideos = response
                     .filter((item: { contentType: string; }) => item.contentType.startsWith("video/"))
-                    .map((item: { id: any; }) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` }));
+                    .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
 
                 const fetchedDocuments = response
                     .filter((item: { contentType: string; }) => !item.contentType.startsWith("image/") && !item.contentType.startsWith("video/"))
-                    .map((item: { id: any; }) => ({ id: item.id, uri: `${process.env.API_URL}/files/${item.id}` }));
+                    .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
 
                 setImages(fetchedImages);
                 setVideos(fetchedVideos);
