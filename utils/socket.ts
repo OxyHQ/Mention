@@ -54,7 +54,6 @@ export const getSocket = async (namespace?: string) => {
       socket.on('disconnect', (reason) => {
         console.log('Socket disconnected:', reason);
         if (reason === 'io server disconnect') {
-          // Server initiated disconnect, try to reconnect
           socket?.connect();
         }
       });
@@ -96,3 +95,6 @@ export const leaveRoom = (socket: Socket, room: string) => {
   }
   return false;
 };
+
+// Initialize chat socket connection
+export const initializeChatSocket = () => getSocket('chat');

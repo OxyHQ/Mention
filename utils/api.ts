@@ -443,8 +443,8 @@ export const invalidateCache = (pattern: string) => clearCache(pattern);
 
 export const fetchUsersByUsername = async (username: string) => {
   try {
-    const response = await api.get(`/users/search?username=${username}`);
-    return response.data;
+    const response = await api.get(`/search?query=${username}&type=users`);
+    return response.data.users;
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || error.message;
     toast.error(`Error fetching users: ${errorMessage}`);
