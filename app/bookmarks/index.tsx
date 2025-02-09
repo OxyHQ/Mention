@@ -26,16 +26,21 @@ const BookmarksScreen = () => {
     const currentUser = getCurrentUser();
     const [loading, setLoading] = useState(true);
 
-    const fetchBookmarks = useCallback(async () => {
-        if (currentUser) {
-            await dispatch(fetchBookmarkedPosts());
+    const fetchBookmarkedPostsHandler = useCallback(async () => {
+        try {
+            if (currentUser) {
+                await dispatch(fetchBookmarkedPosts());
+            }
+        } catch (error) {
+            console.error('Error fetching bookmarked posts:', error);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }, [currentUser, dispatch]);
 
     useEffect(() => {
-        fetchBookmarks();
-    }, [fetchBookmarks]);
+        fetchBookmarkedPostsHandler();
+    }, [fetchBookmarkedPostsHandler]);
 
     return (
         <>
