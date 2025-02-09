@@ -4,6 +4,7 @@ import { login, logout, loadSession, selectSession } from '@/store/reducers/sess
 import { setProfile, clearProfile } from '@/store/reducers/profileReducer';
 import { validateSession, refreshAccessToken } from '@/utils/api';
 import { getData, storeData } from '@/utils/storage';
+import { OXY_CLOUD_URL } from '@/config';
 
 interface User {
     id: string;
@@ -192,7 +193,7 @@ const SessionProvider = ({ children }: SessionProviderProps) => {
             id: '679f4993e38393a3a9edd4dd',
             username: 'nate',
             name: { first: 'Nate', last: 'Isern' },
-            avatarSource: { uri: `${process.env.API_URL}/files/6790749544634262da8394f2` },
+            avatarSource: { uri: `${OXY_CLOUD_URL}/files/6790749544634262da8394f2` },
         },
         {
             id: '679fcac00e2353edc2f02f19',
