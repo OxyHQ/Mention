@@ -27,7 +27,9 @@ export interface Post {
   media: any[];
   quoted_post: any | null;
   isLiked?: boolean;
-  _count: {
+  location?: { type: string; coordinates: [number, number] } | string;
+  metadata?: string;
+  _count?: {
     comments: number;
     likes: number;
     quotes: number;
