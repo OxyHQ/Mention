@@ -49,18 +49,18 @@ export default function SignUpScreen() {
     };
 
     const handleNextStep = async () => {
-        if (step === 1) {
-            animateStepChange(2, -width);
-        } else if (step === 2 && username) {
-            animateStepChange(3, -width);
-        } else if (step === 3 && email) {
-            animateStepChange(4, -width);
-        } else if (step === 4 && password && confirmPassword) {
-            if (password !== confirmPassword) {
-                toast.error("Passwords do not match");
-                return;
-            }
-            try {
+        try {
+            if (step === 1) {
+                animateStepChange(2, -width);
+            } else if (step === 2 && username) {
+                animateStepChange(3, -width);
+            } else if (step === 3 && email) {
+                animateStepChange(4, -width);
+            } else if (step === 4 && password && confirmPassword) {
+                if (password !== confirmPassword) {
+                    toast.error("Passwords do not match");
+                    return;
+                }
                 const response = await axios.post(`${process.env.API_URL_OXY}/auth/signup`, {
                     username,
                     email,
@@ -72,15 +72,15 @@ export default function SignUpScreen() {
                 } else {
                     toast.error("Sign up failed: " + response.data.message);
                 }
-            } catch (error) {
-                if (axios.isAxiosError(error) && error.response) {
-                    toast.error("Sign up failed: " + error.response.data.message);
-                } else {
-                    toast.error("Sign up failed: " + (error as Error).message);
-                }
+            } else {
+                toast.error("Please fill in all fields");
             }
-        } else {
-            toast.error("Please fill in all fields");
+        } catch (error) {
+            if (axios.isAxiosError(error) && error.response) {
+                toast.error("Sign up failed: " + error.response.data.message);
+            } else {
+                toast.error("Sign up failed: " + (error as Error).message);
+            }
         }
     };
 
