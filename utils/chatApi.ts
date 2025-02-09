@@ -17,8 +17,15 @@ chatApi.interceptors.request.use(async (config) => {
 export const conversationApi = {
   checkConversation: (participantId: string) =>
     chatApi.post('/conversations/check', { participantId }),
-  createConversation: (data: { participants: string[]; type: string; name?: string }) =>
-    chatApi.post('/conversations/create', data),
+  createConversation: async (data: { participants: string[]; type: string; name?: string }) => {
+    try {
+      const response = await chatApi.post('/conversations/create', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      throw error;
+    }
+  },
   getAllConversations: () =>
     chatApi.get('/conversations/all'),
 };
