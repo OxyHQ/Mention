@@ -1,8 +1,7 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Post } from '@/interfaces/Post';
 import { fetchData, postData, deleteData } from '@/utils/api';
 import { toast } from 'sonner';
-import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { RootState } from '../store';
 
 interface PostAuthor {
@@ -97,8 +96,8 @@ export const fetchPosts = createAsyncThunk(
         throw new Error('Invalid response format');
       }
       
-      const posts = response.posts.map((post: Post) => mapPost(post, { getState }));
-      return Promise.all(posts);
+      const posts = await Promise.all(response.posts.map((post: Post) => mapPost(post, { getState })));
+      return posts;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch posts');
     }
@@ -217,27 +216,27 @@ const postsSlice = createSlice({
   name: 'posts',
   initialState,
   reducers: {
-    setPosts: (state, action) => {
+    setPosts: (state, action: PayloadAction<Post[]>) => {
       state.posts = action.payload;
     },
-    addPost: (state, action: { payload: Post }) => {
+    addPost: (state, action: PayloadAction<Post>) => {
       state.posts.push(action.payload);
     },
-    updateLikes: (state, action) => {
+    updateLikes: (state, action: PayloadAction<string>) => {
       const postId = action.payload;
       const post = state.posts.find(post => post.id === postId);
       if (post) {
         post._count.likes += 1;
       }
     },
-    updateBookmarks: (state, action) => {
+    updateBookmarks: (state, action: PayloadAction<string>) => {
       const postId = action.payload;
       const post = state.posts.find(post => post.id === postId);
       if (post) {
         post._count.bookmarks += 1;
       }
     },
-    updatePostLikes: (state, action) => {
+    updatePostLikes: (state, action: PayloadAction<{ postId: string; likesCount: number; isLiked: boolean }>) => {
       const { postId, likesCount, isLiked } = action.payload;
       const post = state.posts.find(post => post.id === postId);
       if (post) {
