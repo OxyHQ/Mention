@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { ScrollView, Keyboard } from "react-native";
+import { ScrollView, Keyboard, LogBox, Platform } from "react-native";
 import * as SplashScreen from 'expo-splash-screen';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -25,7 +25,7 @@ import { initReactI18next, I18nextProvider, useTranslation } from "react-i18next
 import en from "@/locales/en.json";
 import es from "@/locales/es.json";
 import it from "@/locales/it.json";
-import { Dimensions, Platform, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
+import { Dimensions, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
 import { BottomBar } from "@/components/BottomBar";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics } from 'react-native-safe-area-context';
@@ -34,6 +34,8 @@ import { MenuProvider } from 'react-native-popup-menu';
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import WebSplashScreen from "@/components/WebSplashScreen";
 import LoadingTopSpinner from "@/components/LoadingTopSpinner";
+import ErrorBoundary from '@/components/ErrorBoundary';
+import { BottomSheetProvider } from '@/context/BottomSheetContext';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -167,17 +169,21 @@ export default function RootLayout() {
           <I18nextProvider i18n={i18n}>
             <SessionProvider>
               <MenuProvider>
-                <View style={styles.container}>
-                  <SideBar />
-                  <View style={styles.mainContentWrapper}>
-                    <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0, }} />
-                    <Slot />
-                  </View>
-                  <RightBar />
-                </View>
-                <StatusBar style="auto" />
-                <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
-                {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                <ErrorBoundary>
+                  <BottomSheetProvider>
+                    <View style={styles.container}>
+                      <SideBar />
+                      <View style={styles.mainContentWrapper}>
+                        <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0, }} />
+                        <Slot />
+                      </View>
+                      <RightBar />
+                    </View>
+                    <StatusBar style="auto" />
+                    <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
+                    {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                  </BottomSheetProvider>
+                </ErrorBoundary>
               </MenuProvider>
             </SessionProvider>
           </I18nextProvider>
