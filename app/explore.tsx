@@ -79,16 +79,29 @@ export default function SearchScreen() {
     return true;
   });
 
-  const FilterChip: React.FC<FilterChipProps> = ({ label, active, onPress }) => (
-    <TouchableOpacity 
-      style={[styles.filterChip, active && styles.filterChipActive]} 
-      onPress={onPress}
-    >
-      <ThemedText style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-        {label}
-      </ThemedText>
-    </TouchableOpacity>
-  );
+  const FilterChip: React.FC<FilterChipProps> = ({ label, active, onPress }) => {
+    const [isPressed, setIsPressed] = useState(false);
+    
+    return (
+      <TouchableOpacity 
+        style={[
+          styles.filterChip, 
+          active && styles.filterChipActive,
+          isPressed && styles.filterChipPressed
+        ]} 
+        onPress={onPress}
+        onPressIn={() => setIsPressed(true)}
+        onPressOut={() => setIsPressed(false)}
+      >
+        <ThemedText style={[
+          styles.filterChipText, 
+          active && styles.filterChipTextActive
+        ]}>
+          {label}
+        </ThemedText>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -174,24 +187,42 @@ const styles = StyleSheet.create({
   },
   filterChipsContainer: {
     paddingHorizontal: 16,
+    paddingVertical: 8,
     marginBottom: 16,
   },
   filterChip: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    marginRight: 8,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: '#F5F5F5',
+    marginRight: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   filterChipActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#2196F3',
+    borderColor: '#1976D2',
+  },
+  filterChipPressed: {
+    transform: [{ scale: 0.98 }],
+    backgroundColor: '#EEEEEE',
   },
   filterChipText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#424242',
   },
   filterChipTextActive: {
-    color: '#fff',
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   postList: {
     paddingHorizontal: 16,
