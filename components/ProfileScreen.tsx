@@ -45,7 +45,7 @@ export default function ProfileScreen() {
           )}
           
           <View style={styles.profileInfo}>
-          <Avatar id={displayUser.id} style={styles.avatar} />
+          <Avatar style={styles.avatar} />
             <View style={styles.profileButtons}>
               <TouchableOpacity style={styles.ProfileButton} onPress={() => {
                 console.log("Chat button pressed");
