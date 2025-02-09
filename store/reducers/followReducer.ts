@@ -8,8 +8,8 @@ const initialState: { profiles: any[], loading: boolean, error: string | null } 
 };
 
 export const fetchFollowRecommendations = createAsyncThunk('follow/fetchFollowRecommendations', async () => {
-    const response = await fetchData('profiles');
-    response.username = response.username ? response.username : response.id;
+  const response = await fetchData('profiles');
+  response.username = response.username ? response.username : response.id;
   return response;
 });
 
