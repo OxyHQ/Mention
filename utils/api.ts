@@ -3,8 +3,7 @@ import { toast } from "sonner";
 import { getData, storeData } from './storage';
 import { router } from 'expo-router';
 import { getSocket, disconnectSocket } from './socket';
-
-const API_URL = process.env.API_URL || "http://localhost:3000/api";
+import { API_URL } from "@/config";
 
 // Retry configuration
 const MAX_RETRIES = 3;
@@ -39,6 +38,10 @@ const api = axios.create({
   transformRequest: [(data, headers) => {
     // Don't transform FormData
     if (data instanceof FormData) {
+      // Remove the JSON Content-Type header to allow proper handling of FormData (files)
+      if (headers && headers['Content-Type']) {
+        delete headers['Content-Type'];
+      }
       return data;
     }
     // For other data types, use default transformation
