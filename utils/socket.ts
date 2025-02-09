@@ -1,7 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 import { getData } from './storage';
+import { API_URL_SOCKET } from "@/config";
 
-const SOCKET_URL = process.env.API_URL_SOCKET || "ws://localhost:3000";
+const SOCKET_URL = API_URL_SOCKET || "ws://localhost:3000";
 let socket: Socket | null = null;
 let retryCount = 0;
 const MAX_RETRIES = 3;
