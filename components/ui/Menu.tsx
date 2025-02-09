@@ -25,7 +25,10 @@ export const Menu: React.FC<MenuProps> = ({ trigger, items }) => {
 
     return (
         <View style={styles.container}>
-            <Pressable onPress={() => setIsOpen(!isOpen)}>
+            <Pressable onPress={() => { 
+      console.log('Trigger pressed, isOpen:', !isOpen); 
+      setIsOpen(!isOpen); 
+}}>
                 {trigger}
             </Pressable>
             
