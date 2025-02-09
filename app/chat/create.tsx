@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { conversationApi } from '@/utils/chatApi';
 import { fetchUsersByUsername } from '@/utils/api';
 import { colors } from '@/styles/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface Participant {
     id: string;
@@ -68,7 +69,7 @@ export default function CreateConversation() {
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <View style={styles.switchContainer}>
                 <Text style={styles.label}>Group Chat</Text>
                 <Switch
@@ -119,7 +120,7 @@ export default function CreateConversation() {
             <TouchableOpacity style={styles.button} onPress={handleCreate}>
                 <Text style={styles.buttonText}>Create Conversation</Text>
             </TouchableOpacity>
-        </View>
+        </SafeAreaView>
     );
 }
 
