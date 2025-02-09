@@ -47,18 +47,18 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const response = await fetchData("notifications");
-        setNotifications(response.notifications);
-      } catch (error) {
-        console.error("Error fetching notifications:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetchData("notifications");
+      setNotifications(response.notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchNotifications();
   }, []);
 
