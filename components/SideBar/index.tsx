@@ -197,7 +197,7 @@ export function SideBar() {
                             <Button
                                 renderText={({ state }) =>
                                     state === 'desktop' ? (
-                                        <Text style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }}>
+                                        <Text className="text-white text-[17px] font-bold">
                                             New Post
                                         </Text>
                                     ) : null

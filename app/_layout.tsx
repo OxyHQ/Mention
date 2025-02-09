@@ -3,7 +3,6 @@ import { ScrollView, Keyboard, LogBox, Platform } from "react-native";
 import * as SplashScreen from 'expo-splash-screen';
 import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Slot } from 'expo-router';
 import store from '@/store/store';
@@ -25,7 +24,7 @@ import { initReactI18next, I18nextProvider, useTranslation } from "react-i18next
 import en from "@/locales/en.json";
 import es from "@/locales/es.json";
 import it from "@/locales/it.json";
-import { Dimensions, Text, View, ViewStyle, StyleSheet, useWindowDimensions, } from 'react-native';
+import { View, StyleSheet, } from 'react-native';
 import { BottomBar } from "@/components/BottomBar";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics } from 'react-native-safe-area-context';

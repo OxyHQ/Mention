@@ -43,6 +43,11 @@ export default function ConversationList() {
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'private' | 'secret' | 'group' | 'channel'>('all');
     const router = useRouter();
+    const [showMenu, setShowMenu] = useState(false);
+
+    const toggleMenu = () => {
+        setShowMenu(!showMenu);
+      };
 
     useEffect(() => {
         loadConversations();
@@ -232,13 +237,17 @@ export default function ConversationList() {
 
     return (
         <SafeAreaView style={styles.container}>
+            <ExpandableMenu isOpen={showMenu} onToggle={toggleMenu} />
             <View style={styles.header}>
                 <Text style={styles.title}>Messages</Text>
                 <Menu
                     trigger={
+                        <>
                         <View style={styles.createButton}>
                             <Ionicons name="add" size={24} color={colors.primaryColor} />
                         </View>
+                        
+                        </>
                     }
                     items={[
                         {
