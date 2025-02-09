@@ -212,6 +212,31 @@ export const unlikePost = createAsyncThunk(
   }
 );
 
+export const createReply = createAsyncThunk(
+  'posts/createReply',
+  async ({ text, postId }: { text: string, postId: string }, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as any;
+      const userId = state.session?.user?.id;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+      const newPost = {
+        userID: userId,
+        text,
+        in_reply_to_status_id: postId,
+        created_at: new Date().toISOString(),
+        source: 'web'
+      };
+      const response = await postData('posts', newPost);
+      return response.post;
+    } catch (error: any) {
+      toast(`Failed to create reply: ${error.message || error.response?.data?.message}`);
+      return rejectWithValue(error.response?.data || { message: error.message });
+    }
+  }
+);
+
 const postsSlice = createSlice({
   name: 'posts',
   initialState,
@@ -225,23 +250,30 @@ const postsSlice = createSlice({
     updateLikes: (state, action: PayloadAction<string>) => {
       const postId = action.payload;
       const post = state.posts.find(post => post.id === postId);
-      if (post) {
+      if (post && post._count) {
         post._count.likes += 1;
       }
     },
     updateBookmarks: (state, action: PayloadAction<string>) => {
       const postId = action.payload;
       const post = state.posts.find(post => post.id === postId);
-      if (post) {
+      if (post && post._count) {
         post._count.bookmarks += 1;
       }
     },
     updatePostLikes: (state, action: PayloadAction<{ postId: string; likesCount: number; isLiked: boolean }>) => {
       const { postId, likesCount, isLiked } = action.payload;
       const post = state.posts.find(post => post.id === postId);
-      if (post) {
+      if (post && post._count) {
         post._count.likes = likesCount;
         post.isLiked = isLiked;
+      }
+    },
+    updateRepliesCount: (state, action: PayloadAction<{ postId: string; repliesCount: number }>) => {
+      const { postId, repliesCount } = action.payload;
+      const post = state.posts.find(post => post.id === postId);
+      if (post && post._count) {
+        post._count.replies = repliesCount;
       }
     }
   },
@@ -283,6 +315,17 @@ const postsSlice = createSlice({
         const postId = action.payload.postId;
         const post = state.posts.find(post => post.id === postId);
         if (post) {
+          // Initialize _count if it doesn't exist
+          if (!post._count) {
+            post._count = {
+              comments: 0,
+              likes: 0,
+              quotes: 0,
+              reposts: 0,
+              bookmarks: 0,
+              replies: 0
+            };
+          }
           post._count.bookmarks += 1;
         }
       })
@@ -317,7 +360,7 @@ const postsSlice = createSlice({
       .addCase(likePost.fulfilled, (state, action) => {
         const { postId, likesCount, isLiked } = action.payload;
         const post = state.posts.find(post => post.id === postId);
-        if (post) {
+        if (post && post._count) {
           post._count.likes = likesCount;
           post.isLiked = isLiked;
         }
@@ -325,13 +368,26 @@ const postsSlice = createSlice({
       .addCase(unlikePost.fulfilled, (state, action) => {
         const { postId, likesCount, isLiked } = action.payload;
         const post = state.posts.find(post => post.id === postId);
-        if (post) {
+        if (post && post._count) {
           post._count.likes = likesCount;
           post.isLiked = isLiked;
         }
+      })
+      .addCase(createReply.fulfilled, (state, action) => {
+        state.loading = false;
+        state.posts.push(action.payload);
+        // Update the reply count of the parent post
+        const parentPost = state.posts.find(post => post.id === action.payload.in_reply_to_status_id);
+        if (parentPost && parentPost._count) {
+          parentPost._count.replies += 1;
+        }
+      })
+      .addCase(createReply.rejected, (state, action) => {
+        state.loading = false;
+        state.error = (action.payload as any)?.message || 'Failed to create reply';
       });
   },
 });
 
-export const { setPosts, addPost, updateLikes, updateBookmarks, updatePostLikes } = postsSlice.actions;
+export const { setPosts, addPost, updateLikes, updateBookmarks, updatePostLikes, updateRepliesCount } = postsSlice.actions;
 export default postsSlice.reducer;

@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useSelector, useDispatch } from "react-redux";
-import { fetchPosts } from "@/store/reducers/postsReducer";
+import { fetchPosts, fetchPostById } from "@/store/reducers/postsReducer";
 import { Header } from "@/components/Header";
 import Post from "@/components/Post";
 import { colors } from "@/styles/colors";
@@ -16,8 +15,9 @@ export default function PostScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    dispatch(fetchPostById(id));
     dispatch(fetchPosts());
-  }, [dispatch]);
+  }, [dispatch, id]);
 
   useEffect(() => {
     if (posts.length > 0) {
@@ -26,6 +26,7 @@ export default function PostScreen() {
   }, [posts]);
 
   const post = posts.find((post) => post.id === id);
+  const replies = posts.filter(p => p.in_reply_to_status_id === id);
 
   if (loading) {
     return <ActivityIndicator size="large" color="#1DA1F2" />;
@@ -43,15 +44,16 @@ export default function PostScreen() {
   }
 
   return (
-    <>
-      <View style={styles.container}>
-        <Header options={{
-          title: `Post by ${post?.author?.username}`
-        }} />
-        <Post postData={post} />
-        <CreatePost style={styles.createPost} />
-      </View>
-    </>
+    <ScrollView style={styles.container}>
+      <Header options={{
+        title: `Post by ${post?.author?.username}`
+      }} />
+      <Post postData={post} />
+      <CreatePost style={styles.createPost} replyToPostId={id} />
+      {replies.map((reply) => (
+        <Post key={reply.id} postData={reply} />
+      ))}
+    </ScrollView>
   );
 }
 
@@ -66,5 +68,10 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   createPost: {
+    borderTopWidth: 1,
+    borderTopColor: colors.COLOR_BLACK_LIGHT_3,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.COLOR_BLACK_LIGHT_3,
+    paddingVertical: 10,
   },
 });

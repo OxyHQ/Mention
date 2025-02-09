@@ -9,7 +9,7 @@ import Avatar from "@/components/Avatar";
 import { detectHashtags } from "./utils";
 import { renderMedia, renderPoll, renderLocation } from "./renderers";
 import QuotedPost from "./QuotedPost";
-import { updateLikes, bookmarkPost, fetchBookmarkedPosts, likePost, unlikePost, setPosts, updatePostLikes } from "@/store/reducers/postsReducer";
+import { updateLikes, bookmarkPost, fetchBookmarkedPosts, likePost, unlikePost, setPosts, updatePostLikes, createReply } from "@/store/reducers/postsReducer";
 import { Chat } from "@/assets/icons/chat-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { RepostIcon } from "@/assets/icons/repost-icon";
@@ -20,6 +20,7 @@ import { Post as PostType } from "@/interfaces/Post";
 import { getSocket } from '@/utils/socket';
 import { RootState } from "@/store/store";
 import { Socket } from 'socket.io-client';
+import { router } from "expo-router";
 
 interface PostProps {
     postData: PostType;
@@ -43,15 +44,15 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
     const [_isBookmarked, setIsBookmarked] = useState(false);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [isReposted, setIsReposted] = useState(false);
-    const [repostsCount, setRepostsCount] = useState(postData?._count?.reposts);
-    const [bookmarksCount, setBookmarksCount] = useState(postData?._count?.bookmarks);
-    const [repliesCount, setRepliesCount] = useState(postData?._count?.replies);
+    const [repostsCount, setRepostsCount] = useState(postData?._count?.reposts || 0);
+    const [bookmarksCount, setBookmarksCount] = useState(postData?._count?.bookmarks || 0);
+    const [repliesCount, setRepliesCount] = useState(postData?._count?.replies || 0);
 
     const animatedScale = useRef(new Animated.Value(1)).current;
     const animatedOpacity = useRef(new Animated.Value(1)).current;
-    const animatedRepostsCount = useRef(new Animated.Value(postData?._count?.reposts)).current;
-    const animatedBookmarksCount = useRef(new Animated.Value(postData?._count?.bookmarks)).current;
-    const animatedRepliesCount = useRef(new Animated.Value(postData?._count?.replies)).current;
+    const animatedRepostsCount = useRef(new Animated.Value(postData?._count?.reposts || 0)).current;
+    const animatedBookmarksCount = useRef(new Animated.Value(postData?._count?.bookmarks || 0)).current;
+    const animatedRepliesCount = useRef(new Animated.Value(postData?._count?.replies || 0)).current;
 
     const colorScheme = useColorScheme();
     const isDarkMode = colorScheme === "dark";
@@ -207,10 +208,9 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
     const handleReply = useCallback((event: any) => {
         event.preventDefault();
         event.stopPropagation();
-        const newCount = repliesCount + 1;
-        setRepliesCount(newCount);
-        Animated.timing(animatedRepliesCount, { toValue: newCount, duration: 300, easing: Easing.linear, useNativeDriver: true }).start();
-    }, [repliesCount, animatedRepliesCount]);
+        // Navigate to the post screen where user can create a reply
+        router.push(`/post/${postData.id}`);
+    }, [postData.id]);
 
     const handlePollOptionPress = useCallback((index: number) => setSelectedOption(index), []);
 

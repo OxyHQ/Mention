@@ -28,10 +28,11 @@ import { Post } from '@/interfaces/Post';
 interface Props {
     style?: ViewStyle
     onClose?: () => void
-    onPress?: () => void;
+    onPress?: () => void
+    replyToPostId?: string
 }
 
-export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
+export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPostId }) => {
     const [data, setData] = useState('')
     const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video', id: string }[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -56,6 +57,7 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
                 media: selectedMedia.map(media => media.id),
                 created_at: new Date().toISOString(),
                 source: 'web',
+                in_reply_to_status_id: replyToPostId || null,
                 lang: 'en',
                 _count: {
                     comments: 0,
@@ -98,25 +100,32 @@ export const CreatePost: React.FC<Props> = ({ style, onClose }) => {
     return (
         <View style={[styles.container, style]}>
             <View style={styles.topRow}>
-                <Pressable
-                    onPress={onClose}
-                    style={data ? styles.button : styles.buttonDisabled}>
-                    <Text style={styles.buttonText}>Cancel</Text>
-                </Pressable>
+                {onClose && (
+                    <Pressable
+                        onPress={onClose}
+                        style={data ? styles.button : styles.buttonDisabled}>
+                        <Text style={styles.buttonText}>Cancel</Text>
+                    </Pressable>
+                )}
                 <Pressable
                     onPress={post}
                     style={data ? styles.button : styles.buttonDisabled}>
-                    <Text style={styles.buttonText}>Post</Text>
+                    <Text style={styles.buttonText}>{replyToPostId ? 'Reply' : 'Post'}</Text>
                 </Pressable>
             </View>
+            {replyToPostId && (
+                <Text style={styles.replyingText}>
+                    Replying to post
+                </Text>
+            )}
             <View style={styles.middleRow}>
                 <Avatar
                     style={styles.profileImage}
-                    id=""
+                    id={currentUser?.avatar || ""}
                 />
                 <TextInput
                     style={styles.middleRowText}
-                    placeholder="What's happening?"
+                    placeholder={replyToPostId ? "Post your reply" : "What's happening?"}
                     value={data}
                     multiline={true}
                     onChangeText={onChange}
@@ -301,5 +310,11 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 35,
+    },
+    replyingText: {
+        fontSize: 14,
+        color: colors.COLOR_BLACK_LIGHT_3,
+        marginBottom: 8,
+        paddingHorizontal: 12,
     },
 })
