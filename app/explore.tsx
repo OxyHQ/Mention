@@ -5,7 +5,7 @@ import {
   TextInput,
   StyleSheet,
   FlatList,
-  Image,
+  ScrollView,
   TouchableOpacity,
   Switch,
 } from "react-native";
@@ -20,6 +20,12 @@ import { fetchPosts } from '@/store/reducers/postsReducer';
 import { Trends } from "@/features/trends/Trends";
 import { Post as PostInterface } from "@/interfaces/Post";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+interface FilterChipProps {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}
 
 export default function SearchScreen() {
   const { t } = useTranslation();
@@ -65,80 +71,81 @@ export default function SearchScreen() {
   };
 
   const filteredResults = posts.filter((result) => {
-    if (!filters.showImages && result.content.includes("image")) return false;
-    if (!filters.showVideos && result.content.includes("video")) return false;
-    if (!filters.showText && result.content.includes("text")) return false;
+    // Safely check if post has content property
+    const postContent = result.text || ''; // Assuming 'text' is the content field in your Post interface
+    if (!filters.showImages && postContent.includes("image")) return false;
+    if (!filters.showVideos && postContent.includes("video")) return false;
+    if (!filters.showText && postContent.includes("text")) return false;
     return true;
   });
 
+  const FilterChip: React.FC<FilterChipProps> = ({ label, active, onPress }) => (
+    <TouchableOpacity 
+      style={[styles.filterChip, active && styles.filterChipActive]} 
+      onPress={onPress}
+    >
+      <ThemedText style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+        {label}
+      </ThemedText>
+    </TouchableOpacity>
+  );
+
   return (
-    <SafeAreaView>
+    <SafeAreaView style={styles.container}>
       <Header options={{ title: "Explore" }} />
       <View style={styles.searchContainer}>
         <Ionicons
           name="search"
           size={20}
-          color="#ccc"
+          color="#666"
           style={styles.searchIcon}
         />
-        <TextInput placeholder={t("Explore")} style={styles.searchInput} />
+        <TextInput 
+          placeholder={t("Search posts, people, and more...")} 
+          style={styles.searchInput}
+          placeholderTextColor="#666"
+        />
       </View>
-      <View style={styles.filtersContainer}>
-        <ThemedText>{t("Filters")}</ThemedText>
-        <View style={styles.filterItem}>
-          <ThemedText>{t("Show Images")}</ThemedText>
-          <Switch
-            value={filters.showImages}
-            onValueChange={(value) => handleFilterChange("showImages", value)}
-          />
-        </View>
-        <View style={styles.filterItem}>
-          <ThemedText>{t("Show Videos")}</ThemedText>
-          <Switch
-            value={filters.showVideos}
-            onValueChange={(value) => handleFilterChange("showVideos", value)}
-          />
-        </View>
-        <View style={styles.filterItem}>
-          <ThemedText>{t("Show Text")}</ThemedText>
-          <Switch
-            value={filters.showText}
-            onValueChange={(value) => handleFilterChange("showText", value)}
-          />
-        </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterChipsContainer}>
+        <FilterChip 
+          label={t("Images")} 
+          active={filters.showImages} 
+          onPress={() => handleFilterChange("showImages", !filters.showImages)} 
+        />
+        <FilterChip 
+          label={t("Videos")} 
+          active={filters.showVideos} 
+          onPress={() => handleFilterChange("showVideos", !filters.showVideos)} 
+        />
+        <FilterChip 
+          label={t("Text")} 
+          active={filters.showText} 
+          onPress={() => handleFilterChange("showText", !filters.showText)} 
+        />
         {isPremium && (
           <>
-            <ThemedText>{t("Advanced Filters")}</ThemedText>
-            <View style={styles.filterItem}>
-              <ThemedText>{t("Sort by Date")}</ThemedText>
-              <Switch
-                value={advancedFilters.sortByDate}
-                onValueChange={(value) =>
-                  handleAdvancedFilterChange({ filter: "sortByDate", value })
-                }
-              />
-            </View>
-            <View style={styles.filterItem}>
-              <ThemedText>{t("Sort by Relevance")}</ThemedText>
-              <Switch
-                value={advancedFilters.sortByRelevance}
-                onValueChange={(value) =>
-                  handleAdvancedFilterChange({ filter: "sortByRelevance", value })
-                }
-              />
-            </View>
+            <FilterChip 
+              label={t("Latest")} 
+              active={advancedFilters.sortByDate} 
+              onPress={() => handleAdvancedFilterChange({ filter: "sortByDate", value: !advancedFilters.sortByDate })} 
+            />
+            <FilterChip 
+              label={t("Relevant")} 
+              active={advancedFilters.sortByRelevance} 
+              onPress={() => handleAdvancedFilterChange({ filter: "sortByRelevance", value: !advancedFilters.sortByRelevance })} 
+            />
           </>
         )}
-      </View>
+      </ScrollView>
+
       <Trends />
+      
       <FlatList
         data={filteredResults}
-        renderItem={({ item }) => (
-          <Post
-            postData={item}
-          />
-        )}
+        renderItem={({ item }) => <Post postData={item} />}
         keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.postList}
       />
     </SafeAreaView>
   );
@@ -146,19 +153,47 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    // ...existing code...
+    flex: 1,
   },
   searchContainer: {
-    // ...existing code...
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    margin: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    height: 44,
   },
   searchIcon: {
-    // ...existing code...
+    marginRight: 8,
   },
   searchInput: {
-    // ...existing code...
+    flex: 1,
+    fontSize: 16,
+    height: '100%',
   },
-  filtersContainer: {
+  filterChipsContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
-  filterItem: {
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: '#007AFF',
+  },
+  filterChipText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  postList: {
+    paddingHorizontal: 16,
   },
 });
