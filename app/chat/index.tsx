@@ -9,6 +9,7 @@ import {
 import { useRouter } from 'expo-router';
 import { conversationApi } from '@/utils/chatApi';
 import { colors } from '@/styles/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface Conversation {
     _id: string;
@@ -53,7 +54,7 @@ export default function ConversationList() {
     );
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <TouchableOpacity
                 style={styles.createButton}
                 onPress={() => router.push('/chat/create')}
@@ -67,7 +68,7 @@ export default function ConversationList() {
                 keyExtractor={(item) => item._id}
                 contentContainerStyle={styles.listContainer}
             />
-        </View>
+        </SafeAreaView>
     );
 }
 
