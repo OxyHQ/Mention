@@ -1,0 +1,239 @@
+import { StyleSheet, Platform } from 'react-native';
+import { colors } from '@/styles/colors';
+
+export const fileItemStyles = StyleSheet.create({
+    container: {
+        width: '48%',
+        aspectRatio: 1,
+        margin: '1%',
+        borderRadius: 20,
+        overflow: "hidden",
+        position: "relative",
+        borderWidth: 2,
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+    },
+    selected: {
+        borderColor: colors.primaryColor,
+        shadowColor: colors.primaryColor,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    preview: {
+        width: "100%",
+        height: "100%",
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    overlay: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        padding: 8,
+        ...Platform.select({
+            web: {
+                backdropFilter: 'blur(5px)',
+            },
+        }),
+    },
+    fileName: {
+        color: "white",
+        fontSize: 12,
+        textAlign: "center",
+        paddingHorizontal: 5,
+    },
+    indicator: {
+        position: "absolute",
+        backgroundColor: colors.primaryColor,
+        borderRadius: 12,
+        padding: 4,
+    },
+    checkmark: {
+        top: 10,
+        right: 10,
+    },
+    fileInfo: {
+        top: 10,
+        left: 10,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+    },
+    fileInfoText: {
+        color: 'white',
+        fontSize: 10,
+    },
+    touchable: {
+        flex: 1,
+    },
+    loadingOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+});
+
+export const modalStyles = StyleSheet.create({
+    background: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: colors.overlay,
+    },
+    container: {
+        maxWidth: 900,
+        width: "90%",
+        height: "90%",
+        backgroundColor: colors.primaryLight,
+        borderRadius: 35,
+        overflow: "hidden",
+        elevation: 5,
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        ...Platform.select({
+            web: {
+                maxHeight: '90%',
+                transition: 'transform 0.2s ease-out',
+                transform: [{scale: 1}],
+                ':enter': {
+                    transform: [{scale: 0.95}]
+                }
+            }
+        })
+    },
+});
+
+export const gridStyles = StyleSheet.create({
+    container: {
+        padding: 10,
+    },
+    empty: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    emptyText: {
+        fontSize: 16,
+        color: colors.COLOR_BLACK_LIGHT_4,
+        textAlign: 'center',
+        marginTop: 10,
+    },
+});
+
+export const controlStyles = StyleSheet.create({
+    filterContainer: {
+        padding: 15,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+    },
+    input: {
+        height: 40,
+        backgroundColor: colors.primaryLight,
+        borderRadius: 20,
+        paddingHorizontal: 15,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        ...Platform.select({
+            web: {
+                outlineColor: colors.primaryColor,
+            }
+        })
+    },
+    buttonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        padding: 15,
+        borderTopWidth: 1,
+        borderTopColor: colors.COLOR_BLACK_LIGHT_6,
+        backgroundColor: colors.primaryLight,
+    },
+    button: {
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 20,
+        minWidth: 100,
+        alignItems: 'center',
+        ...Platform.select({
+            web: {
+                cursor: 'pointer',
+                transition: 'opacity 0.2s ease',
+                ':hover': {
+                    opacity: 0.8
+                }
+            }
+        })
+    },
+    buttonCancel: {
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    },
+    buttonDone: {
+        backgroundColor: colors.primaryColor,
+    },
+    buttonDisabled: {
+        opacity: 0.5,
+        ...Platform.select({
+            web: {
+                cursor: 'not-allowed' as any,
+            },
+        })
+    },
+    buttonText: {
+        fontWeight: '600',
+    },
+    buttonTextCancel: {
+        color: colors.COLOR_BLACK,
+    },
+    buttonTextDone: {
+        color: colors.primaryLight,
+    },
+    uploadButton: {
+        position: 'absolute',
+        bottom: 90,
+        right: 20,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: colors.primaryColor,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 5,
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        ...Platform.select({
+            web: {
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease, opacity 0.2s ease',
+                ':hover': {
+                    transform: [{scale: 1.05}],
+                    opacity: 0.9
+                }
+            }
+        })
+    },
+    shortcutHint: {
+        fontSize: 12,
+        color: colors.COLOR_BLACK_LIGHT_4,
+        textAlign: 'center',
+        marginTop: 4,
+        ...Platform.select({
+            web: {
+                userSelect: 'none',
+            }
+        })
+    },
+});
