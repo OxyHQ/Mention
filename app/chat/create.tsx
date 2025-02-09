@@ -38,6 +38,7 @@ export default function CreateConversation() {
     const [searchResults, setSearchResults] = useState<Participant[]>([]);
     const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const router = useRouter();
 
     const isChannel = type === 'channel';
@@ -121,6 +122,7 @@ export default function CreateConversation() {
     const handleCreate = async () => {
         try {
             if (!validateForm()) return;
+            setIsSubmitting(true);
 
             const currentUserId = await getData('userId');
             if (!currentUserId) {
@@ -139,12 +141,18 @@ export default function CreateConversation() {
                 admins: isGroup || isChannel ? [currentUserId] : undefined
             };
 
-            await conversationApi.createConversation(data);
-            router.push('/chat');
+            const conversation = await conversationApi.createConversation(data);
+            if (conversation._id) {
+                router.replace(`/chat/c/${conversation._id}`);
+            } else {
+                router.push('/chat');
+            }
         } catch (error: any) {
             const errorMsg = error.response?.data?.error?.message || error.message || 'Failed to create conversation';
             Alert.alert('Error', errorMsg);
             console.error('Error creating conversation:', error);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -271,14 +279,18 @@ export default function CreateConversation() {
             <TouchableOpacity
                 style={[
                     styles.createButton,
-                    (!selectedParticipants.length || (isGroup && !name.trim())) && styles.buttonDisabled
+                    ((!selectedParticipants.length || (isGroup && !name.trim()) || isSubmitting)) && styles.buttonDisabled
                 ]}
                 onPress={handleCreate}
-                disabled={!selectedParticipants.length || ((isGroup || isChannel) && !name.trim())}
+                disabled={!selectedParticipants.length || ((isGroup || isChannel) && !name.trim()) || isSubmitting}
             >
-                <Text style={styles.createButtonText}>
-                    Create {type.charAt(0).toUpperCase() + type.slice(1)}
-                </Text>
+                {isSubmitting ? (
+                    <ActivityIndicator color={colors.primaryLight} />
+                ) : (
+                    <Text style={styles.createButtonText}>
+                        Create {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Text>
+                )}
             </TouchableOpacity>
         </SafeAreaView>
     );

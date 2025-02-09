@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getData } from './storage';
 import CryptoJS from 'crypto-js';
 import { API_OXY_CHAT } from '@/config';
-import { getChatSocket, initializeChatSocket } from './chatSocket';
+import { getChatSocket, initializeChatSocket, ChatSocket } from './chatSocket';
 import { toast } from 'sonner';
 
 // Chat types and interfaces
@@ -11,6 +11,23 @@ export type ChatType = 'private' | 'secret' | 'group' | 'channel';
 interface ChatEncryption {
   encrypt: (text: string, key: string) => string;
   decrypt: (text: string, key: string) => string;
+}
+
+export interface ConversationData {
+  participants: string[];
+  type: ChatType;
+  name?: string;
+  isPublic?: boolean;
+  description?: string;
+  ttl?: number;
+  encryptionKey?: string;
+}
+
+interface SocketResponse<T = any> {
+  error?: string;
+  success?: boolean;
+  conversation?: T;
+  message?: T;
 }
 
 // Initialize axios instance
@@ -57,24 +74,13 @@ const encryption: ChatEncryption = {
   }
 };
 
-export interface ConversationData {
-  participants: string[];
-  type: ChatType;
-  name?: string;
-  isPublic?: boolean;
-  description?: string;
-  ttl?: number;
-  encryptionKey?: string;
-}
-
 // Ensure socket connection with retry mechanism
-const ensureSocketConnection = async (retries = 3): Promise<void> => {
-  for (let i = 0; i < retries; i++) {
-    const socket = await initializeChatSocket();
-    if (socket?.connected) return;
-    await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+const ensureSocketConnection = async (): Promise<ChatSocket | null> => {
+  const socket = await initializeChatSocket();
+  if (!socket?.connected) {
+    throw new Error('Could not establish socket connection');
   }
-  throw new Error('Could not establish socket connection');
+  return socket;
 };
 
 export const conversationApi = {
@@ -109,11 +115,32 @@ export const conversationApi = {
         data = { ...data, encryptionKey };
       }
       
-      const response = await chatApi.post('/chat/conversations/create', data);
-      return response.data;
+      // Initialize socket first to ensure connection is ready
+      const socket = await initializeChatSocket();
+      if (!socket) {
+        throw new Error('Unable to establish socket connection');
+      }
+
+      // Create conversation via socket instead of REST
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Create conversation timeout'));
+        }, 10000);
+
+        socket.emit('createConversation', data, (response: SocketResponse) => {
+          clearTimeout(timeout);
+          if (response.error) {
+            reject(new Error(response.error));
+          } else if (response.conversation) {
+            socket.emit('joinConversation', response.conversation._id);
+            resolve(response.conversation);
+          } else {
+            reject(new Error('Invalid server response'));
+          }
+        });
+      });
     } catch (error: any) {
-      // Handle network or validation errors
-      const errorMessage = error.response?.data?.error?.message || error.message || 'Failed to create conversation';
+      const errorMessage = error.message || 'Failed to create conversation';
       toast.error(errorMessage);
       throw error;
     }
@@ -162,22 +189,18 @@ export const messageApi = {
     type?: string;
     replyTo?: string;
   }) => {
-    await ensureSocketConnection();
-    const socket = getChatSocket();
+    const socket = await ensureSocketConnection();
+    if (!socket) {
+      throw new Error('Socket connection not available');
+    }
     
     return new Promise((resolve, reject) => {
-      if (!socket?.connected) {
-        toast.error('Not connected to chat server');
-        reject(new Error('Socket connection not available'));
-        return;
-      }
-
       const timeout = setTimeout(() => {
         reject(new Error('Message send timeout'));
         toast.error('Message send timeout. Please try again.');
       }, 5000);
 
-      socket.emit('sendMessage', data, (response: any) => {
+      socket.emit('sendMessage', data, (response: SocketResponse) => {
         clearTimeout(timeout);
         if (response.error) {
           toast.error(response.error);
@@ -214,7 +237,7 @@ export const messageApi = {
       socket.emit('sendSecureMessage', {
         conversationId: data.conversationId,
         content: encryptedContent
-      }, (response: any) => {
+      }, (response: SocketResponse) => {
         clearTimeout(timeout);
         if (response.error) {
           toast.error(response.error);
@@ -243,7 +266,7 @@ export const messageApi = {
         toast.error('Edit timeout. Please try again.');
       }, 5000);
 
-      socket.emit('editMessage', data, (response: any) => {
+      socket.emit('editMessage', data, (response: SocketResponse) => {
         clearTimeout(timeout);
         if (response.error) {
           toast.error(response.error);
@@ -272,7 +295,7 @@ export const messageApi = {
         toast.error('Delete timeout. Please try again.');
       }, 5000);
 
-      socket.emit('deleteMessage', { messageId }, (response: any) => {
+      socket.emit('deleteMessage', { messageId }, (response: SocketResponse) => {
         clearTimeout(timeout);
         if (response.error) {
           toast.error(response.error);
@@ -309,7 +332,7 @@ export const messageApi = {
         toast.error('Reaction timeout. Please try again.');
       }, 5000);
 
-      socket.emit('reactionMessage', data, (response: any) => {
+      socket.emit('reactionMessage', data, (response: SocketResponse) => {
         clearTimeout(timeout);
         if (response.error) {
           toast.error(response.error);
@@ -346,7 +369,7 @@ export const messageApi = {
         toast.error('Poll creation timeout. Please try again.');
       }, 5000);
 
-      socket.emit('createPoll', data, (response: any) => {
+      socket.emit('createPoll', data, (response: SocketResponse) => {
         clearTimeout(timeout);
         if (response.error) {
           toast.error(response.error);
@@ -374,7 +397,7 @@ export const messageApi = {
         toast.error('Vote timeout. Please try again.');
       }, 5000);
 
-      socket.emit('votePoll', data, (response: any) => {
+      socket.emit('votePoll', data, (response: SocketResponse) => {
         clearTimeout(timeout);
         if (response.error) {
           toast.error(response.error);

@@ -1,84 +1,128 @@
 import { io, Socket } from 'socket.io-client';
 import { API_URL_SOCKET_CHAT } from '@/config';
 import { getData } from './storage';
+import { toast } from 'sonner';
 
-let socket: Socket | null = null;
+// Define socket types
+export interface ChatSocket extends Socket {
+    connected: boolean;
+}
+
+let socket: ChatSocket | null = null;
 let retryCount = 0;
 const MAX_RETRIES = 3;
 
-export const initializeChatSocket = async () => {
-    if (socket && socket.connected) return socket;
+export const initializeChatSocket = async (): Promise<ChatSocket | null> => {
+    if (socket?.connected) return socket;
+    
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+    }
 
     try {
         const token = await getData('accessToken');
         if (!token) {
-            console.error('No access token available for chat socket connection');
+            console.error('No access token available');
+            toast.error('Please log in to use chat features');
             return null;
         }
-        
-        socket = io(`${API_URL_SOCKET_CHAT}/chat`, {
+
+        const newSocket = io(`${API_URL_SOCKET_CHAT}/chat`, {
             auth: { token },
-            transports: ['websocket', 'polling'], // Support both WebSocket and polling
+            transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             reconnectionAttempts: 5,
-            autoConnect: true,
-            timeout: 10000 // 10 second timeout for connection attempts
-        });
+            timeout: 10000,
+            autoConnect: false
+        }) as ChatSocket;
 
-        socket.on('connect', () => {
-            console.log('Chat socket connected');
+        // Set up event handlers
+        newSocket.on('connect', () => {
+            console.log('Chat socket connected successfully');
             retryCount = 0;
+            toast.success('Connected to chat server');
         });
 
-        socket.on('connect_error', async (error) => {
+        newSocket.on('connect_error', (error) => {
             console.error('Chat socket connection error:', error);
             if (retryCount < MAX_RETRIES) {
                 retryCount++;
-                const newToken = await getData('accessToken');
-                if (socket && newToken) {
-                    console.log(`Retrying chat socket connection (${retryCount}/${MAX_RETRIES})...`);
-                    socket.auth = { token: newToken };
-                    socket.connect();
-                }
+                console.log(`Retrying chat socket connection (${retryCount}/${MAX_RETRIES})...`);
+                newSocket.connect();
             } else {
                 console.error('Max chat socket connection retries reached');
+                toast.error('Could not connect to chat server');
                 disconnectChatSocket();
             }
         });
 
-        socket.on('disconnect', (reason) => {
+        newSocket.on('disconnect', (reason) => {
             console.log('Chat socket disconnected:', reason);
             if (reason === 'io server disconnect') {
-                socket?.connect();
+                newSocket.connect();
             }
+            toast.error('Disconnected from chat server');
         });
 
-        socket.on('error', (error) => {
+        newSocket.on('error', (error: Error) => {
             console.error('Chat socket error:', error);
+            toast.error('Chat connection error: ' + (error.message || 'Unknown error'));
         });
 
-        return socket;
+        // Explicitly connect and wait for result
+        newSocket.connect();
+
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                newSocket.disconnect();
+                reject(new Error('Connection timeout'));
+            }, 10000);
+
+            newSocket.once('connect', () => {
+                clearTimeout(timeout);
+                socket = newSocket;
+                resolve(newSocket);
+            });
+
+            newSocket.once('connect_error', (error) => {
+                clearTimeout(timeout);
+                reject(error);
+            });
+        });
+
     } catch (error) {
         console.error('Error initializing chat socket:', error);
+        toast.error('Failed to connect to chat server');
         return null;
     }
 };
 
-export const joinConversation = (conversationId: string) => {
-    if (!socket?.connected) return;
-    socket.emit('joinConversation', conversationId);
+export const joinConversation = async (conversationId: string): Promise<boolean> => {
+    const chatSocket = await initializeChatSocket();
+    if (!chatSocket?.connected) {
+        console.error('Not connected to chat server');
+        toast.error('Not connected to chat server');
+        return false;
+    }
+    
+    return new Promise<boolean>((resolve) => {
+        chatSocket.emit('joinConversation', conversationId, (response: any) => {
+            if (response?.error) {
+                toast.error(response.error);
+                resolve(false);
+            } else {
+                resolve(true);
+            }
+        });
+    });
 };
 
-export const leaveConversation = (conversationId: string) => {
-    if (!socket?.connected) return;
-    socket.emit('leaveConversation', conversationId);
-};
+export const getChatSocket = (): ChatSocket | null => socket;
 
-export const getChatSocket = () => socket;
-
-export const disconnectChatSocket = () => {
+export const disconnectChatSocket = (): void => {
     if (socket) {
         socket.disconnect();
         socket = null;
