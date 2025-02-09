@@ -15,8 +15,9 @@ const initialState: ProfileState = {
 };
 
 export const getUsernameToId = async ({ username }: { username: string }) => {
+  const cleanUsername = username.startsWith('@') ? username.substring(1) : username;
   try {
-    const response = await fetchData(`users/username-to-id/${username}`);
+    const response = await fetchData(`users/username-to-id/${cleanUsername}`);
     return response?.id || null;
   } catch (error) {
     console.error(error);
@@ -87,7 +88,7 @@ const profileSlice = createSlice({
       })
       .addCase(updateProfileData.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to update profile';
+        state.error = (action.payload as string) || action.error.message || 'Failed to update profile';
       });
   },
 });
