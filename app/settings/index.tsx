@@ -53,7 +53,6 @@ const SettingsSearch: React.FC<{ onSearch: (text: string) => void }> = ({ onSear
 );
 
 export default function SettingsScreen() {
-  const batteryLevel = 0.5;
   const colorScheme = useColorScheme();
   const { t } = useTranslation();
   const [selectedLanguage, setSelectedLanguage] = useState(languages[0]);
@@ -71,14 +70,6 @@ export default function SettingsScreen() {
       dispatch(fetchProfile({ username: currentUser.username }));
     }
   }, [currentUser?.username, dispatch]);
-
-  const getBatteryIcon = (level: number | null) => {
-    if (level === null) return 'battery-unknown';
-    if (level >= 0.75) return 'battery-full';
-    if (level >= 0.5) return 'battery-half';
-    if (level >= 0.25) return 'battery-quarter';
-    return 'battery-empty';
-  };
 
   const settings = [
     {
@@ -122,12 +113,6 @@ export default function SettingsScreen() {
       title: t('About'),
       subtitle: t('About this app'),
       link: "/settings/about",
-    },
-    {
-      icon: getBatteryIcon(batteryLevel),
-      title: t('Battery'),
-      subtitle: batteryLevel !== null ? `${Math.round(batteryLevel * 100)}%` : t('Loading...'),
-      link: "/settings/battery",
     },
   ];
 
