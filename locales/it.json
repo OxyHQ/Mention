@@ -114,5 +114,15 @@
   "error.fetch_trends": "Errore durante il caricamento dei trend",
   "file.size_mb": "MB",
   "profile.edit": "Modifica profilo",
-  "profile.chat": "Chat"
+  "profile.chat": "Chat",
+  "error.validation.token_expired": "Il token è scaduto",
+  "error.validation.token_invalid": "Il formato del token non è valido",
+  "error.validation.token_signature": "La firma del token non è valida",
+  "error.auth.invalid_token": "Token di autenticazione non valido",
+  "error.chat.forward_failed": "Impossibile inoltrare il messaggio",
+  "error.chat.delete_failed": "Impossibile eliminare il messaggio",
+  "error.chat.send_failed": "Invio del messaggio fallito",
+  "error.chat.load_failed": "Caricamento dei messaggi fallito",
+  "error.data.fetch_failed": "Errore nel recupero dei dati: {{message}}",
+  "error.users.fetch_failed": "Errore nel recupero degli utenti: {{message}}"
 }
