@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Share, ViewStyle, useColorScheme } from "react-native";
+import { View, Text, TouchableOpacity, Animated, Easing, Share, ViewStyle, useColorScheme } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
@@ -27,9 +27,10 @@ interface PostProps {
     style?: ViewStyle;
     quotedPost?: boolean;
     showActions?: boolean;
+    className?: string;
 }
 
-export default function Post({ postData, style, quotedPost }: PostProps) {
+export default function Post({ postData, quotedPost, className, showActions = true }: PostProps) {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [socketError, setSocketError] = useState<string | null>(null);
     const socketInitAttemptsRef = useRef(0);
@@ -215,119 +216,77 @@ export default function Post({ postData, style, quotedPost }: PostProps) {
     const handlePollOptionPress = useCallback((index: number) => setSelectedOption(index), []);
 
     return (
-        <View style={[styles.container, style, isDarkMode ? styles.darkContainer : styles.lightContainer]}>
-            <View style={styles.topContainer}>
+        <View 
+            className={`flex flex-col border-b border-gray-200 py-3 ${
+                isDarkMode ? 'bg-black' : 'bg-white'
+            } ${className}`}
+        >
+            <View className="flex-row gap-2.5 px-3 items-start">
                 <Link href={`/@${postData.author?.username}`} asChild>
                     <TouchableOpacity>
                         <Avatar id={postData.author?.avatar} size={40} />
                     </TouchableOpacity>
                 </Link>
-                <View style={{ flex: 1 }}>
-                    <View style={styles.headerContainer}>
-                        <View style={styles.headerData}>
+                <View className="flex-1">
+                    <View className="flex-row items-center">
+                        <View className="flex-row items-center flex-1 gap-1">
                             <Link href={`/@${postData.author?.username}`} asChild>
                                 <TouchableOpacity>
-                                    <Text style={styles.authorName}>{postData.author?.name?.first} {postData.author?.name?.last}</Text>
+                                    <Text className="font-bold">{postData.author?.name?.first} {postData.author?.name?.last}</Text>
                                 </TouchableOpacity>
                             </Link>
                             <Link href={`/@${postData.author?.username}`} asChild>
                                 <TouchableOpacity>
-                                    <Text style={styles.authorUsername}>@{postData.author?.username}</Text>
+                                    <Text className="text-gray-500">@{postData.author?.username}</Text>
                                 </TouchableOpacity>
                             </Link>
-                            <Text style={[styles.postTime]}>
+                            <Text className="text-gray-500">
                                 · {new Date(postData.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                             </Text>
                         </View>
                         <Ionicons name="ellipsis-horizontal" size={20} color={isDarkMode ? colors.COLOR_BLACK_LIGHT_1 : colors.primaryColor} />
                     </View>
                     {postData?.text && (
-                        <Text style={[styles.postContent, isDarkMode ? styles.darkText : styles.lightText]}>
+                        <Text className={`mt-1 leading-5 ${isDarkMode ? 'text-white' : 'text-black'}`}>
                             {detectHashtags(postData.text)}
                         </Text>
                     )}
                 </View>
             </View>
-            <View style={styles.contentContainer}>
+            <View className="flex-1">
                 {postData?.media && renderMedia(postData.media)}
                 {renderPoll(undefined, selectedOption, handlePollOptionPress)}
                 {renderLocation(undefined)}
                 {!quotedPost && <QuotedPost id={postData.quoted_post_id ?? undefined} />}
-                <View style={styles.actionsContainer}>
-                    <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
-                        <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
-                            {isLiked ? <HeartIconActive size={20} color="#F91880" /> : <HeartIcon size={20} color="#536471" />}
-                        </Animated.View>
-                        <AnimatedNumbers includeComma animateToNumber={likesCount} animationDuration={300} fontStyle={{ color: isLiked ? "#F91880" : "#536471" }} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton} onPress={handleReply}>
-                        {false ? <CommentIconActive size={20} color="#F91880" /> : <CommentIcon size={20} color="#536471" />}
-                        <AnimatedNumbers includeComma animateToNumber={repliesCount} animationDuration={300} fontStyle={{ color: "#536471" }} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton} onPress={handleRepost}>
-                        {isReposted ? <RepostIcon size={20} color="#1DA1F2" /> : <RepostIcon size={20} color="#536471" />}
-                        <AnimatedNumbers includeComma animateToNumber={repostsCount} animationDuration={300} fontStyle={{ color: isReposted ? "#1DA1F2" : "#536471" }} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
-                        <Ionicons name="share-outline" size={20} color="#536471" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton} onPress={handleBookmark}>
-                        {_isBookmarked ? <BookmarkActive size={20} color="#1DA1F2" /> : <Bookmark size={20} color="#536471" />}
-                        <AnimatedNumbers includeComma animateToNumber={bookmarksCount} animationDuration={300} fontStyle={{ color: _isBookmarked ? "#1DA1F2" : "#536471" }} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
-                        <Chat size={20} color="#536471" />
-                    </TouchableOpacity>
-                </View>
+                {showActions && (
+                    <View className="flex-row mt-3 justify-between max-w-[300px] pl-[62px]">
+                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleLike}>
+                            <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
+                                {isLiked ? <HeartIconActive size={20} color="#F91880" /> : <HeartIcon size={20} color="#536471" />}
+                            </Animated.View>
+                            <AnimatedNumbers includeComma animateToNumber={likesCount} animationDuration={300} fontStyle={{ color: isLiked ? "#F91880" : "#536471" }} />
+                        </TouchableOpacity>
+                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleReply}>
+                            {false ? <CommentIconActive size={20} color="#F91880" /> : <CommentIcon size={20} color="#536471" />}
+                            <AnimatedNumbers includeComma animateToNumber={repliesCount} animationDuration={300} fontStyle={{ color: "#536471" }} />
+                        </TouchableOpacity>
+                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleRepost}>
+                            {isReposted ? <RepostIcon size={20} color="#1DA1F2" /> : <RepostIcon size={20} color="#536471" />}
+                            <AnimatedNumbers includeComma animateToNumber={repostsCount} animationDuration={300} fontStyle={{ color: isReposted ? "#1DA1F2" : "#536471" }} />
+                        </TouchableOpacity>
+                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleShare}>
+                            <Ionicons name="share-outline" size={20} color="#536471" />
+                        </TouchableOpacity>
+                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleBookmark}>
+                            {_isBookmarked ? <BookmarkActive size={20} color="#1DA1F2" /> : <Bookmark size={20} color="#536471" />}
+                            <AnimatedNumbers includeComma animateToNumber={bookmarksCount} animationDuration={300} fontStyle={{ color: _isBookmarked ? "#1DA1F2" : "#536471" }} />
+                        </TouchableOpacity>
+                        <TouchableOpacity className="flex-row items-center gap-1">
+                            <Chat size={20} color="#536471" />
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         </View>
     );
 }
-
-const postPaddingLeft = 62;
-
-const styles = StyleSheet.create({
-    container: {
-        flexDirection: "column",
-        borderBottomColor: "#e1e8ed",
-        borderBottomWidth: 1,
-        paddingVertical: 12,
-    },
-    darkContainer: { backgroundColor: "#000" },
-    lightContainer: { backgroundColor: "#fff" },
-    topContainer: {
-        flexDirection: "row",
-        gap: 10,
-        paddingHorizontal: 12,
-        alignItems: "flex-start",
-    },
-    contentContainer: { flex: 1 },
-    headerContainer: { flexDirection: "row", alignItems: "center" },
-    headerData: {
-        flexDirection: "row",
-        alignItems: "center",
-        flex: 1,
-        gap: 4,
-    },
-    authorName: { fontWeight: "bold" },
-    authorUsername: { color: "#536471" },
-    postTime: { color: "#536471" },
-    postContent: { marginTop: 4, lineHeight: 20 },
-    darkText: { color: "#fff" },
-    lightText: { color: "#000" },
-    actionsContainer: {
-        flexDirection: "row",
-        marginTop: 12,
-        justifyContent: "space-between",
-        maxWidth: 300,
-        paddingLeft: postPaddingLeft,
-    },
-    actionButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginRight: 16,
-        gap: 4,
-    },
-    actionText: { color: "#536471", fontSize: 13, marginLeft: 4 },
-    likedText: { color: "#F91880" },
-});

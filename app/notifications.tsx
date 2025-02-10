@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, FlatList, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from "react-native";
+import { View, FlatList, ActivityIndicator, Pressable, RefreshControl } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,7 @@ import Avatar from "@/components/Avatar";
 import { getData } from "@/utils/storage";
 import { format } from "date-fns";
 import { Socket } from 'socket.io-client';
+import Post from "@/components/Post";
 
 type Notification = {
   id: string;
@@ -31,26 +32,60 @@ type Notification = {
   createdAt: string;
 };
 
-const NotificationItem = ({ notification, onNotificationPress }: { notification: Notification, onNotificationPress: (notification: Notification) => void }) => (
-  <Pressable 
-    style={[styles.notificationContainer, !notification.read && styles.unreadNotification]}
-    onPress={() => onNotificationPress(notification)}
-  >
-    <Avatar id={notification.actorId.avatar} size={50} />
-    <View style={styles.notificationContent}>
-      <ThemedText style={styles.notificationText}>
-        <ThemedText style={styles.userName}>
-          {notification.actorId.name?.first} {notification.actorId.name?.last}
-        </ThemedText>{" "}
-        {getNotificationContent(notification)}
-      </ThemedText>
-      <ThemedText style={styles.timestamp}>
-        {format(new Date(notification.createdAt), 'PPp')}
-      </ThemedText>
-    </View>
-    {getNotificationIcon(notification.type)}
-  </Pressable>
-);
+const NotificationItem = ({ notification, onNotificationPress }: { notification: Notification, onNotificationPress: (notification: Notification) => void }) => {
+  const [postData, setPostData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchPostData = async () => {
+      if (['like', 'reply', 'quote', 'repost', 'mention'].includes(notification.type) && notification.entityId) {
+        setLoading(true);
+        try {
+          const response = await fetchData(`posts/${notification.entityId}`);
+          if (response?.posts?.[0]) {
+            setPostData(response.posts[0]);
+          }
+        } catch (error) {
+          console.error('Error fetching post:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchPostData();
+  }, [notification]);
+
+  return (
+    <Pressable 
+      className={`flex-column p-4 border-b border-gray-200 ${!notification.read ? 'bg-blue-50' : ''}`}
+      onPress={() => onNotificationPress(notification)}
+    >
+      <View className="flex-row items-center">
+        <Avatar id={notification.actorId.avatar} size={50} />
+        <View className="flex-1 mx-2.5">
+          <ThemedText className="text-base">
+            <ThemedText className="font-bold">
+              {notification.actorId.name?.first} {notification.actorId.name?.last}
+            </ThemedText>{" "}
+            {getNotificationContent(notification)}
+          </ThemedText>
+          <ThemedText className="text-gray-500 mt-1.5 text-xs">
+            {format(new Date(notification.createdAt), 'PPp')}
+          </ThemedText>
+        </View>
+        {getNotificationIcon(notification.type)}
+      </View>
+      {loading ? (
+        <ActivityIndicator size="small" className="ml-[50px] mt-2" />
+      ) : (
+        postData && ['like', 'reply', 'quote', 'repost', 'mention'].includes(notification.type) && (
+          <Post postData={postData} className="rounded-xl ml-[50px] mt-2 border border-gray-200" showActions={false} />
+        )
+      )}
+    </Pressable>
+  );
+};
 
 const getNotificationContent = (notification: Notification) => {
   switch (notification.type) {
@@ -74,17 +109,17 @@ const getNotificationContent = (notification: Notification) => {
 const getNotificationIcon = (type: string) => {
   switch (type) {
     case 'like':
-      return <Ionicons name="heart" size={20} color="#E0245E" style={styles.icon} />;
+      return <Ionicons name="heart" size={20} color="#E0245E" className="ml-2.5" />;
     case 'reply':
-      return <Ionicons name="chatbubble" size={20} color="#17BF63" style={styles.icon} />;
+      return <Ionicons name="chatbubble" size={20} color="#17BF63" className="ml-2.5" />;
     case 'mention':
-      return <Ionicons name="at" size={20} color="#1DA1F2" style={styles.icon} />;
+      return <Ionicons name="at" size={20} color="#1DA1F2" className="ml-2.5" />;
     case 'follow':
-      return <Ionicons name="person-add" size={20} color="#794BC4" style={styles.icon} />;
+      return <Ionicons name="person-add" size={20} color="#794BC4" className="ml-2.5" />;
     case 'repost':
-      return <Ionicons name="repeat" size={20} color="#17BF63" style={styles.icon} />;
+      return <Ionicons name="repeat" size={20} color="#17BF63" className="ml-2.5" />;
     case 'quote':
-      return <Ionicons name="chatbubbles" size={20} color="#1DA1F2" style={styles.icon} />;
+      return <Ionicons name="chatbubbles" size={20} color="#1DA1F2" className="ml-2.5" />;
     default:
       return null;
   }
@@ -253,32 +288,32 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView className="flex-1">
       <Header 
         options={{ 
           title: t("Notifications"),
           rightComponents: notifications.length > 0 ? [
-            <Pressable key="markAllRead" onPress={markAllAsRead} style={styles.markAllRead}>
+            <Pressable key="markAllRead" onPress={markAllAsRead} className="p-2">
               <ThemedText>Mark all as read</ThemedText>
             </Pressable>
           ] : undefined
         }} 
       />
       {socketStatus !== 'Connected' && (
-        <View style={styles.socketStatusContainer}>
-          <ThemedText style={styles.socketStatusText}>
+        <View className="p-2 bg-red-50 items-center">
+          <ThemedText className="text-red-800 text-xs">
             {socketStatus || 'Connecting...'}
           </ThemedText>
         </View>
       )}
-      <View style={styles.container}>
+      <View className="flex-1">
         {loading && page === 1 ? (
           <ActivityIndicator size="large" color="#1DA1F2" />
         ) : error ? (
-          <View style={styles.errorContainer}>
-            <ThemedText style={styles.errorText}>{error}</ThemedText>
-            <Pressable onPress={() => fetchNotifications(1, true)} style={styles.retryButton}>
-              <ThemedText style={styles.retryText}>{t("Try Again")}</ThemedText>
+          <View className="flex-1 items-center justify-center p-5">
+            <ThemedText className="text-base text-center mb-4">{error}</ThemedText>
+            <Pressable onPress={() => fetchNotifications(1, true)} className="bg-[#1DA1F2] px-5 py-2.5 rounded-full">
+              <ThemedText className="text-white text-base">{t("Try Again")}</ThemedText>
             </Pressable>
           </View>
         ) : (
@@ -303,15 +338,15 @@ export default function NotificationsScreen() {
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
             ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <ThemedText style={styles.emptyText}>
+              <View className="flex-1 items-center justify-center p-5">
+                <ThemedText className="text-base text-gray-500">
                   {t("No notifications yet")}
                 </ThemedText>
               </View>
             }
             ListFooterComponent={
               loading && page > 1 ? (
-                <ActivityIndicator size="small" color="#1DA1F2" style={styles.loadingFooter} />
+                <ActivityIndicator size="small" color="#1DA1F2" className="py-5" />
               ) : null
             }
           />
@@ -320,86 +355,3 @@ export default function NotificationsScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-  },
-  notificationContainer: {
-    flexDirection: "row",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-    alignItems: "center",
-  },
-  unreadNotification: {
-    backgroundColor: "#f0f8ff",
-  },
-  notificationContent: {
-    flex: 1,
-    marginHorizontal: 10,
-  },
-  notificationText: {
-    fontSize: 16,
-  },
-  userName: {
-    fontWeight: "bold",
-  },
-  timestamp: {
-    color: "gray",
-    marginTop: 5,
-    fontSize: 12,
-  },
-  icon: {
-    marginLeft: 10,
-  },
-  markAllRead: {
-    padding: 8,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: '#1DA1F2',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: 'gray',
-  },
-  loadingFooter: {
-    paddingVertical: 20,
-  },
-  socketStatusContainer: {
-    padding: 8,
-    backgroundColor: '#ffebee',
-    alignItems: 'center',
-  },
-  socketStatusText: {
-    color: '#c62828',
-    fontSize: 12,
-  },
-});
