@@ -65,9 +65,6 @@ const NotificationItem = ({ notification, onNotificationPress }: { notification:
         <Avatar id={notification.actorId.avatar} size={50} />
         <View className="flex-1 mx-2.5">
           <ThemedText className="text-base">
-            <ThemedText className="font-bold">
-              {notification.actorId.name?.first} {notification.actorId.name?.last}
-            </ThemedText>{" "}
             {getNotificationContent(notification)}
           </ThemedText>
           <ThemedText className="text-gray-500 mt-1.5 text-xs">
@@ -101,6 +98,15 @@ const getNotificationContent = (notification: Notification) => {
       return 'reposted your post';
     case 'quote':
       return 'quoted your post';
+    case 'welcome':
+      const name = notification.actorId.name?.first && notification.actorId.name?.last 
+        ? `${notification.actorId.name.first} ${notification.actorId.name.last}` 
+        : notification.actorId.username;
+      return (
+        <>
+          Hey <ThemedText style={{ fontWeight: 'bold' }}>{name}</ThemedText>! Welcome to Mention. We're excited to have you here and hope you enjoy using the app. Feel free to explore, and let us know your thoughts—we'd love to hear your feedback!
+        </>
+      );
     default:
       return 'interacted with your content';
   }
@@ -120,6 +126,8 @@ const getNotificationIcon = (type: string) => {
       return <Ionicons name="repeat" size={20} color="#17BF63" className="ml-2.5" />;
     case 'quote':
       return <Ionicons name="chatbubbles" size={20} color="#1DA1F2" className="ml-2.5" />;
+    case 'welcome':
+      return <Ionicons name="notifications" size={20} color="#1DA1F2" className="ml-2.5" />;
     default:
       return null;
   }
