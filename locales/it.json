@@ -88,6 +88,7 @@
   "error.message.delete_timeout": "Timeout eliminazione. Per favore riprova.",
   "error.signup.missing_fields": "Per favore compila tutti i campi",
   "error.signup.failed": "Registrazione fallita:",
+  "error.signup.password_mismatch": "Le password non coincidono",
   "error.boundary.title": "Ops! Qualcosa è andato storto",
   "error.boundary.message": "Ci scusiamo per l'inconveniente. Per favore riprova.",
   "error.boundary.retry": "Riprova",

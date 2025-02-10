@@ -94,6 +94,7 @@
   "error.message.delete_timeout": "Tiempo de espera agotado al eliminar. Por favor, inténtalo de nuevo.",
   "error.signup.missing_fields": "Por favor, completa todos los campos",
   "error.signup.failed": "Error al registrarse:",
+  "error.signup.password_mismatch": "Las contraseñas no coinciden",
   "error.boundary.title": "¡Ups! Algo salió mal",
   "error.boundary.message": "Lamentamos el inconveniente. Por favor, inténtalo de nuevo.",
   "error.boundary.retry": "Reintentar",
