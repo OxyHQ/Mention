@@ -43,11 +43,11 @@ const KaanaClientPage = () => {
         };
     });
 
-    const handleTextChange = (text) => {
+    const handleTextChange = (text: React.SetStateAction<string>) => {
         setInputText(text);
     };
 
-    const handleContentSizeChange = (event) => {
+    const handleContentSizeChange = (event: { nativeEvent: { contentSize: { height: number; }; }; }) => {
         const contentHeight = Math.max(40, event.nativeEvent.contentSize.height);
         if (inputHeight !== contentHeight) {
             setInputHeight(contentHeight);
