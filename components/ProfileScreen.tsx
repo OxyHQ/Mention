@@ -11,11 +11,12 @@ import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
 import { fetchProfile } from '@/store/reducers/profileReducer';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { AppDispatch } from '@/store/store';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
   const [activeTab, setActiveTab] = useState("Posts");
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const { profile, loading, error } = useSelector((state: any) => state.profile);
   const posts = useSelector((state: { posts: { posts: any[] } }) => state.posts.posts);
 
