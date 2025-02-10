@@ -235,28 +235,38 @@ const processBatchQueue = async () => {
 };
 
 // Enhanced fetch with caching
-export const fetchData = async (endpoint: string, config?: any) => {
-  const cacheKey = getCacheKey(endpoint, config);
-  const cachedData = getCache(cacheKey);
-  
-  if (cachedData) {
-    return cachedData;
-  }
-  
+export const fetchData = async (endpoint: string, options: RequestInit = {}) => {
   try {
-    const response = await api.get(endpoint, {
-      ...config,
-      timeout: 5000, // 5 second timeout for GET requests
-    });
-    setCache(cacheKey, response.data);
-    return response.data;
-  } catch (error: any) {
-    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
-      toast.error('Connection timeout. Retrying...');
+    const accessToken = await getData('accessToken');
+    if (!accessToken) {
+      throw new Error('No access token available');
     }
-    const errorMessage = error.response?.data?.message || error.message;
-    toast.error(`Error fetching data: ${errorMessage}`);
-    throw error;
+
+    const response = await fetch(`${API_URL}/${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        ...options.headers,
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Handle specific error cases
+      if (response.status === 401) {
+        throw new Error('AUTH_ERROR');
+      }
+      throw new Error(data.error || data.message || 'Request failed');
+    }
+
+    return data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('An unexpected error occurred');
   }
 };
 

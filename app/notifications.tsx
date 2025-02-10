@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, FlatList, StyleSheet, ActivityIndicator, Pressable, RefreshControl } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -12,6 +12,7 @@ import { router } from "expo-router";
 import Avatar from "@/components/Avatar";
 import { getData } from "@/utils/storage";
 import { format } from "date-fns";
+import { Socket } from 'socket.io-client';
 
 type Notification = {
   id: string;
@@ -91,18 +92,118 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [socketStatus, setSocketStatus] = useState<string>('Initializing...');
+  const socketRef = useRef<Socket | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const initializingRef = useRef(false);
 
-  const fetchNotifications = async () => {
+  const initializeSocket = async () => {
+    if (initializingRef.current) return;
+    initializingRef.current = true;
+
     try {
-      const response = await fetchData("notifications");
-      setNotifications(response.notifications);
+      setSocketStatus('Connecting...');
+      const socket = await initializeNotificationSocket();
+      
+      if (!socket) {
+        setSocketStatus('Connection failed');
+        setError('Failed to initialize notification socket');
+        return;
+      }
+
+      socketRef.current = socket;
+      const id = await getData('userId');
+      if (id && typeof id === 'string') {
+        setUserId(id);
+        socket.emit('joinRoom', `user:${id}`);
+      }
+
+      socket.on('connect', () => {
+        console.log('Socket connected successfully');
+        setSocketStatus('Connected');
+        setError(null);
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        setSocketStatus(`Connection error: ${error.message}`);
+      });
+
+      socket.on('notification', (newNotification: Notification) => {
+        setNotifications(prev => [newNotification, ...prev]);
+      });
+
+      socket.on('notificationUpdated', (updatedNotification: Notification) => {
+        setNotifications(prev =>
+          prev.map(notif =>
+            notif.id === updatedNotification.id ? updatedNotification : notif
+          )
+        );
+      });
+
+      socket.on('allNotificationsRead', () => {
+        setNotifications(prev =>
+          prev.map(notif => ({ ...notif, read: true }))
+        );
+      });
+    } catch (err) {
+      console.error('Error in initializeSocket:', err);
+      setSocketStatus(`Setup error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      initializingRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    initializeSocket();
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off('connect');
+        socketRef.current.off('connect_error');
+        socketRef.current.off('notification');
+        socketRef.current.off('notificationUpdated');
+        socketRef.current.off('allNotificationsRead');
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  const fetchNotifications = async (pageNum = 1, shouldRefresh = false) => {
+    try {
+      setError(null);
+      const response = await fetchData(`notifications?page=${pageNum}&limit=20`);
+      
+      if (!response.notifications) {
+        throw new Error(response.message || 'No notifications data');
+      }
+
+      setNotifications(prev => 
+        shouldRefresh ? response.notifications : [...prev, ...response.notifications]
+      );
+      setHasMore(response.hasMore);
+      setPage(response.page);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error fetching notifications';
       console.error("Error fetching notifications:", error);
+      setError(errorMessage);
+      if (shouldRefresh) {
+        setNotifications([]);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    if (userId) {
+      fetchNotifications(1, true);
+    }
+  }, [userId]);
 
   const handleNotificationPress = async (notification: Notification) => {
     // Mark as read
@@ -126,43 +227,9 @@ export default function NotificationsScreen() {
     }
   };
 
-  const setupSocketListeners = async () => {
-    const socket = await initializeNotificationSocket();
-    if (!socket) return;
-
-    socket.on('notification', (newNotification: Notification) => {
-      setNotifications(prev => [newNotification, ...prev]);
-    });
-
-    socket.on('notificationUpdated', (updatedNotification: Notification) => {
-      setNotifications(prev =>
-        prev.map(notif =>
-          notif.id === updatedNotification.id ? updatedNotification : notif
-        )
-      );
-    });
-
-    socket.on('allNotificationsRead', () => {
-      setNotifications(prev =>
-        prev.map(notif => ({ ...notif, read: true }))
-      );
-    });
-
-    // Join user's notification room
-    const userId = await getData('userId');
-    if (userId) {
-      socket.emit('joinRoom', `user:${userId}`);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    setupSocketListeners();
-  }, []);
-
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    fetchNotifications();
+    fetchNotifications(1, true);
   }, []);
 
   const markAllAsRead = () => {
@@ -170,21 +237,41 @@ export default function NotificationsScreen() {
     socket?.emit('markAllNotificationsRead');
   };
 
+  const handleLoadMore = () => {
+    if (!loading && hasMore) {
+      fetchNotifications(page + 1, false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <Header 
         options={{ 
           title: t("Notifications"),
-          rightComponents: [
+          rightComponents: notifications.length > 0 ? [
             <Pressable key="markAllRead" onPress={markAllAsRead} style={styles.markAllRead}>
               <ThemedText>Mark all as read</ThemedText>
             </Pressable>
-          ]
+          ] : undefined
         }} 
       />
+      {socketStatus !== 'Connected' && (
+        <View style={styles.socketStatusContainer}>
+          <ThemedText style={styles.socketStatusText}>
+            {socketStatus || 'Connecting...'}
+          </ThemedText>
+        </View>
+      )}
       <View style={styles.container}>
-        {loading ? (
+        {loading && page === 1 ? (
           <ActivityIndicator size="large" color="#1DA1F2" />
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <ThemedText style={styles.errorText}>{error}</ThemedText>
+            <Pressable onPress={() => fetchNotifications(1, true)} style={styles.retryButton}>
+              <ThemedText style={styles.retryText}>{t("Try Again")}</ThemedText>
+            </Pressable>
+          </View>
         ) : (
           <FlatList
             data={notifications}
@@ -196,7 +283,27 @@ export default function NotificationsScreen() {
             )}
             keyExtractor={(item) => item.id}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={() => {
+                  setRefreshing(true);
+                  fetchNotifications(1, true);
+                }}
+              />
+            }
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <ThemedText style={styles.emptyText}>
+                  {t("No notifications yet")}
+                </ThemedText>
+              </View>
+            }
+            ListFooterComponent={
+              loading && page > 1 ? (
+                <ActivityIndicator size="small" color="#1DA1F2" style={styles.loadingFooter} />
+              ) : null
             }
           />
         )}
@@ -242,5 +349,48 @@ const styles = StyleSheet.create({
   },
   markAllRead: {
     padding: 8,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#1DA1F2',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: 'gray',
+  },
+  loadingFooter: {
+    paddingVertical: 20,
+  },
+  socketStatusContainer: {
+    padding: 8,
+    backgroundColor: '#ffebee',
+    alignItems: 'center',
+  },
+  socketStatusText: {
+    color: '#c62828',
+    fontSize: 12,
   },
 });
