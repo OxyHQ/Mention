@@ -98,7 +98,7 @@ export default function EditProfileScreen() {
         }
     };
 
-    const handleAvatarSelect = (files: Array<{ _id: string; contentType: string; uri: string }>) => {
+    const handleAvatarSelect = (files: Array<{ _id: string; filename: string; contentType: string }>) => {
         if (files.length > 0) {
             const fileUri = `${OXY_CLOUD_URL}${files[0]._id}`;
             setFormData(prev => ({ ...prev, avatar: files[0]._id}));

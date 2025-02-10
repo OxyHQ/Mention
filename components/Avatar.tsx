@@ -1,7 +1,7 @@
 import React from "react";
 import { Image, ImageSourcePropType } from 'react-native';
 import { StyleSheet, ImageStyle } from "react-native";
-import { colors } from "../styles/colors";
+import { colors } from "@/styles/colors";
 import defaultAvatar from "@/assets/images/default-avatar.jpg";
 import { OXY_CLOUD_URL } from "@/config";
 
