@@ -239,7 +239,7 @@ export default function ConversationList() {
         <SafeAreaView style={styles.container}>
             <ExpandableMenu isOpen={showMenu} onToggle={toggleMenu} />
             <View style={styles.header}>
-                <Text style={styles.title}>Messages</Text>
+                <Text style={styles.title}>Allo</Text>
                 <Menu
                     trigger={
                         <>
@@ -274,17 +274,15 @@ export default function ConversationList() {
                 />
             </View>
 
-            <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filterContainer}
-            >
-                <FilterChip type="all" label="All" />
-                <FilterChip type="private" label="Chats" />
-                <FilterChip type="secret" label="Secret" />
-                <FilterChip type="group" label="Groups" />
-                <FilterChip type="channel" label="Channels" />
-            </ScrollView>
+            <View style={styles.filterContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <FilterChip type="all" label="All" />
+                    <FilterChip type="private" label="Private" />
+                    <FilterChip type="secret" label="Secret" />
+                    <FilterChip type="group" label="Group" />
+                    <FilterChip type="channel" label="Channel" />
+                </ScrollView>
+            </View>
 
             <FlatList
                 data={conversations.filter(c => filter === 'all' || c.type === filter)}
@@ -301,6 +299,7 @@ export default function ConversationList() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        flexDirection: 'column',
     },
     header: {
         flexDirection: 'row',
@@ -348,7 +347,7 @@ const styles = StyleSheet.create({
         color: colors.primaryLight,
     },
     listContainer: {
-        flexGrow: 1,
+        flex: 1,
     },
     conversationItem: {
         flexDirection: 'row',
