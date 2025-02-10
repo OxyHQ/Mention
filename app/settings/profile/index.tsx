@@ -61,7 +61,7 @@ export default function AccountSettings() {
             
             <View style={styles.content}>
                 <View style={styles.profileSection}>
-                    <Avatar id={profile?.avatar || currentUser.avatar} size={80} />
+                    <Avatar size={80} id={profile?.avatar} />
                     <View style={styles.profileInfo}>
                         <Text style={styles.name}>
                         {profile?.name?.first} {profile?.name?.last ? ` ${profile.name.last}` : ''}

@@ -146,7 +146,7 @@ export default function SettingsScreen() {
           rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
         }} />
         <View style={styles.accountContainer}>
-          <Avatar size={80} id={currentUser?.avatar} />
+          <Avatar size={80} id={profile?.avatar} />
             <Text style={styles.accountTitle}>
             {profile?.name?.first} {profile?.name?.last ? ` ${profile.name.last}` : ''}
             </Text>
