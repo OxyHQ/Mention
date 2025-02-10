@@ -7,6 +7,7 @@ import { colors } from '@/styles/colors';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useTranslation } from "react-i18next";
+import { API_URL, API_URL_OXY } from '@/config';
 
 const { width } = Dimensions.get('window');
 
@@ -63,7 +64,7 @@ export default function SignUpScreen() {
                     toast.error(t("error.signup.password_mismatch"));
                     return;
                 }
-                const response = await axios.post(`${process.env.API_URL_OXY}/auth/signup`, {
+                const response = await axios.post(`${API_URL_OXY}/auth/signup`, {
                     username,
                     email,
                     password,
