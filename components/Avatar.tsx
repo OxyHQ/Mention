@@ -3,6 +3,7 @@ import { Image, ImageSourcePropType } from 'react-native';
 import { StyleSheet, ImageStyle } from "react-native";
 import { colors } from "../styles/colors";
 import defaultAvatar from "@/assets/images/default-avatar.jpg";
+import { OXY_CLOUD_URL } from "@/config";
 
 interface AvatarProps {
   id?: string; // Add id prop
@@ -11,7 +12,7 @@ interface AvatarProps {
 }
 
 const Avatar: React.FC<AvatarProps> = ({ id, size = 40, style }) => {
-  const source = id ? { uri: `${process.env.OXY_CLOUD_URL}/files/${id}` } : defaultAvatar;
+  const source = id ? { uri: `${OXY_CLOUD_URL}${id}` } : defaultAvatar;
   return <Image source={source} style={[styles.avatar, { width: size, height: size, borderRadius: size }, style]} />;
 };
 

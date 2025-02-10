@@ -13,6 +13,7 @@ import { RootState, AppDispatch } from '@/store/store';
 import { router } from 'expo-router';
 import { Profile } from '@/interfaces/Profile';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { OXY_CLOUD_URL } from '@/config';
 
 interface FormData {
     name: {
@@ -99,8 +100,8 @@ export default function EditProfileScreen() {
 
     const handleAvatarSelect = (files: Array<{ _id: string; contentType: string; uri: string }>) => {
         if (files.length > 0) {
-            const fileUri = `${process.env.OXY_CLOUD_URL}/files/${files[0]._id}`;
-            setFormData(prev => ({ ...prev, avatar: fileUri }));
+            const fileUri = `${OXY_CLOUD_URL}${files[0]._id}`;
+            setFormData(prev => ({ ...prev, avatar: files[0]._id}));
         }
         setAvatarModalVisible(false);
     };

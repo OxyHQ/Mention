@@ -24,6 +24,7 @@ import Avatar from '../Avatar';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { AppDispatch } from '@/store/store';
 import { Post } from '@/interfaces/Post';
+import { OXY_CLOUD_URL } from '@/config';
 
 interface Props {
     style?: ViewStyle
@@ -90,7 +91,7 @@ export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPo
 
     const onSelect = (selectedFiles: any[]) => {
         const media = selectedFiles.map(file => ({
-            uri: `${process.env.OXY_CLOUD_URL}/files/${file._id}`,
+            uri: `${OXY_CLOUD_URL}${file._id}`,
             type: file.contentType.startsWith('image/') ? 'image' : 'video' as 'image' | 'video',
             id: file._id
         }));
