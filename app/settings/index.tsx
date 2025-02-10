@@ -145,11 +145,13 @@ export default function SettingsScreen() {
           title: t("Settings"),
           rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
         }} />
-        <View style={styles.accountContainer}>
+        <View style={styles.accountContainer} className="gap-2">
           <Avatar size={80} id={profile?.avatar} />
-            <Text style={styles.accountTitle}>
-            {profile?.name?.first} {profile?.name?.last ? ` ${profile.name.last}` : ''}
-            </Text>
+              {profile?.name?.first && (
+              <Text style={styles.accountTitle}>
+                {profile.name.first} {profile.name.last ? ` ${profile.name.last}` : ''}
+              </Text>
+              )}
           <Text style={styles.accountHandle}>@{currentUser?.username}</Text>
         </View>
         <SettingItem 
