@@ -20,7 +20,10 @@ type Notification = {
   actorId: {
     _id: string;
     username: string;
-    name: string;
+    name: {
+      first: string,
+      last: string
+    };
     avatar: string;
   };
   entityId: any;
@@ -33,11 +36,11 @@ const NotificationItem = ({ notification, onNotificationPress }: { notification:
     style={[styles.notificationContainer, !notification.read && styles.unreadNotification]}
     onPress={() => onNotificationPress(notification)}
   >
-    <Avatar id={notification.actorId._id} size={50} />
+    <Avatar id={notification.actorId.avatar} size={50} />
     <View style={styles.notificationContent}>
       <ThemedText style={styles.notificationText}>
         <ThemedText style={styles.userName}>
-          {notification.actorId.name}
+          {notification.actorId.name?.first} {notification.actorId.name?.last}
         </ThemedText>{" "}
         {getNotificationContent(notification)}
       </ThemedText>
@@ -213,13 +216,19 @@ export default function NotificationsScreen() {
     // Navigate based on notification type
     switch (notification.type) {
       case 'like':
+        router.push(`/post/${notification.entityId}`);
+        break;
       case 'reply':
+        router.push(`/post/${notification.entityId}`);
+        break;
       case 'quote':
+        router.push(`/post/${notification.entityId}`);
+        break;
       case 'repost':
         router.push(`/post/${notification.entityId}`);
         break;
       case 'follow':
-        router.push(`/${notification.actorId.username}`);
+        router.push(`/@${notification.actorId.username}`);
         break;
       case 'mention':
         router.push(`/post/${notification.entityId}`);
