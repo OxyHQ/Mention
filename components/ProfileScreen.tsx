@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { View, Image, FlatList, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams, Link } from "expo-router";
 import { StyleSheet, Platform, ViewStyle } from "react-native";
@@ -12,6 +12,7 @@ import { fetchPosts } from '@/store/reducers/postsReducer';
 import { fetchProfile } from '@/store/reducers/profileReducer';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { AppDispatch } from '@/store/store';
+import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
@@ -19,6 +20,8 @@ export default function ProfileScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const { profile, loading, error } = useSelector((state: any) => state.profile);
   const posts = useSelector((state: { posts: { posts: any[] } }) => state.posts.posts);
+  const sessionContext = useContext(SessionContext);
+  const currentUser = sessionContext?.getCurrentUser();
 
   useEffect(() => {
     if (localUsername) {
@@ -28,6 +31,7 @@ export default function ProfileScreen() {
   }, [dispatch, localUsername]);
 
   const displayUser = profile; // Use profile fetched from the server
+  const isOwnProfile = currentUser?.username === displayUser?.username;
   
   return (
     <SafeAreaView>
@@ -49,16 +53,20 @@ export default function ProfileScreen() {
           <View style={styles.profileInfo}>
           <Avatar style={styles.avatar} id={displayUser?.avatar} />
             <View style={styles.profileButtons}>
-              <TouchableOpacity style={styles.ProfileButton} onPress={() => {
-                console.log("Chat button pressed");
-              }}>
-                <ChatIcon size={20} color={colors.primaryColor} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.ProfileButton} onPress={() => {
-                router.push('/settings/profile/edit');
-              }}>
-                <Text style={styles.ProfileButtonText}>Edit profile</Text>
-              </TouchableOpacity>
+              {!isOwnProfile && (
+                <TouchableOpacity style={styles.ProfileButton} onPress={() => {
+                  console.log("Chat button pressed");
+                }}>
+                  <ChatIcon size={20} color={colors.primaryColor} />
+                </TouchableOpacity>
+              )}
+              {isOwnProfile && (
+                <TouchableOpacity style={styles.ProfileButton} onPress={() => {
+                  router.push('/settings/profile/edit');
+                }}>
+                  <Text style={styles.ProfileButtonText}>Edit profile</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity style={styles.ProfileButton} onPress={() => {
                 console.log("More options button pressed");
               }}>
