@@ -17,30 +17,47 @@ export const renderMedia = (mediaIds: string[]) => {
     const [documents, setDocuments] = useState<{ id: string, uri: string }[]>([]);
     const [selectedImage, setSelectedImage] = useState<{ id: string; uri: string } | null>(null);
     const [selectedVideo, setSelectedVideo] = useState<{ id: string; uri: string } | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchMediaData = async () => {
+            if (!mediaIds || mediaIds.length === 0) return;
+            
             try {
-                const response = await fetchData("files/data/" + mediaIds.join(","));
+                setError(null);
+                const response = await fetchData("files/data/" + mediaIds.filter(Boolean).join(","));
+                
+                if (!Array.isArray(response)) {
+                    throw new Error("Invalid response format");
+                }
+                
                 setMediaData(response);
 
                 const fetchedImages = response
-                    .filter((item: { contentType: string; }) => item.contentType.startsWith("image/"))
+                    .filter((item: { contentType: string; }) => item?.contentType?.startsWith("image/"))
                     .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
 
                 const fetchedVideos = response
-                    .filter((item: { contentType: string; }) => item.contentType.startsWith("video/"))
+                    .filter((item: { contentType: string; }) => item?.contentType?.startsWith("video/"))
                     .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
 
                 const fetchedDocuments = response
-                    .filter((item: { contentType: string; }) => !item.contentType.startsWith("image/") && !item.contentType.startsWith("video/"))
+                    .filter((item: { contentType: string; }) => 
+                        item?.contentType && 
+                        !item.contentType.startsWith("image/") && 
+                        !item.contentType.startsWith("video/")
+                    )
                     .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
 
                 setImages(fetchedImages);
                 setVideos(fetchedVideos);
                 setDocuments(fetchedDocuments);
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Error fetching media data:", error);
+                setError(error?.response?.data?.message || "Error loading media");
+                setImages([]);
+                setVideos([]);
+                setDocuments([]);
             }
         };
 
