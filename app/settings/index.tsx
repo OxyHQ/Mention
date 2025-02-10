@@ -155,7 +155,7 @@ export default function SettingsScreen() {
         <SettingItem 
           icon="information-circle" 
           title={t('Edit Profile')} 
-          subtitle={t('Update your profile information')} 
+          subtitle={t('Update your Oxy Account information')} 
           link="/settings/profile/edit" 
         />
         <SettingsSearch onSearch={setSearchText} />
