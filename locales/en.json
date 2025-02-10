@@ -56,6 +56,17 @@
     "Sign Up": "Sign Up",
     "Sign In": "Sign In",
     "Join the conversation": "Join the conversation",
+    "error.socket.not_connected": "Not connected to chat server",
+    "error.message.send_timeout": "Message send timeout. Please try again.",
+    "error.message.edit_timeout": "Edit timeout. Please try again.",
+    "error.message.delete_timeout": "Delete timeout. Please try again.",
     "error.signup.missing_fields": "Please fill in all fields",
-    "error.signup.failed": "Signup failed:"
+    "error.signup.failed": "Signup failed:",
+    "error.boundary.title": "Oops! Something went wrong",
+    "error.boundary.message": "We apologize for the inconvenience. Please try again.",
+    "error.boundary.retry": "Retry",
+    "error.file_selection": "Error processing selected files. Please try again.",
+    "error.login_required": "Please login to manage files",
+    "error.load_notifications": "Error loading notifications",
+    "error.fetch_trends": "Error loading trends"
 }
