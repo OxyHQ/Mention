@@ -55,5 +55,7 @@
     "Videos": "Videos",
     "Sign Up": "Sign Up",
     "Sign In": "Sign In",
-    "Join the conversation": "Join the conversation"
+    "Join the conversation": "Join the conversation",
+    "error.signup.missing_fields": "Please fill in all fields",
+    "error.signup.failed": "Signup failed:"
 }
