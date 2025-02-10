@@ -2,15 +2,17 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TextInput } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from "react-native-reanimated";
 import { colors } from "@/styles/colors";
+import { useTranslation } from "react-i18next";
 
 const KaanaClientPage = () => {
+    const { t } = useTranslation();
     const placeholders = [
-        "What's the first rule of Fight Club?",
-        "Who is Adam Mosseri?",
-        "Where is Enric Duran Hiding?",
-        "Write a Javascript method to reverse a string",
-        "How to assemble your own PC?",
-        "How is Nate Isern?",
+        t("kaana.placeholder.fight_club"),
+        t("kaana.placeholder.adam_mosseri"),
+        t("kaana.placeholder.enric_duran"),
+        t("kaana.placeholder.javascript"),
+        t("kaana.placeholder.pc_build"),
+        t("kaana.placeholder.nate"),
     ];
 
     const [currentPlaceholder, setCurrentPlaceholder] = useState(0);

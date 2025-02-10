@@ -40,14 +40,19 @@ const SearchResultsScreen = () => {
 
     const renderTabs = () => (
         <View style={styles.tabs}>
-            {["all", "users", "posts", "profiles"].map((tab) => (
+            {[
+                { id: "all", label: t("All") },
+                { id: "users", label: t("Users") },
+                { id: "posts", label: t("Posts") },
+                { id: "profiles", label: t("Profiles") }
+            ].map((tab) => (
                 <TouchableOpacity
-                    key={tab}
-                    style={[styles.tab, activeTab === tab && styles.activeTab]}
-                    onPress={() => setActiveTab(tab as SearchResultType)}
+                    key={tab.id}
+                    style={[styles.tab, activeTab === tab.id && styles.activeTab]}
+                    onPress={() => setActiveTab(tab.id as SearchResultType)}
                 >
-                    <ThemedText style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                        {t(tab.charAt(0).toUpperCase() + tab.slice(1))}
+                    <ThemedText style={[styles.tabText, activeTab === tab.id && styles.activeTabText]}>
+                        {tab.label}
                     </ThemedText>
                 </TouchableOpacity>
             ))}

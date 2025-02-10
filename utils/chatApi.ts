@@ -4,6 +4,8 @@ import CryptoJS from 'crypto-js';
 import { API_OXY_CHAT } from '@/config';
 import { getChatSocket, initializeChatSocket, ChatSocket } from './chatSocket';
 import { toast } from 'sonner';
+import { useTranslation } from "react-i18next";
+import i18next from 'i18next';
 
 // Chat types and interfaces
 export type ChatType = 'private' | 'secret' | 'group' | 'channel';
@@ -195,9 +197,15 @@ export const messageApi = {
     }
     
     return new Promise((resolve, reject) => {
+      if (!socket?.connected) {
+        toast.error(i18next.t('error.socket.not_connected'));
+        reject(new Error('Socket connection not available'));
+        return;
+      }
+
       const timeout = setTimeout(() => {
         reject(new Error('Message send timeout'));
-        toast.error('Message send timeout. Please try again.');
+        toast.error(i18next.t('error.message.send_timeout'));
       }, 5000);
 
       socket.emit('sendMessage', data, (response: SocketResponse) => {
@@ -256,14 +264,14 @@ export const messageApi = {
     
     return new Promise((resolve, reject) => {
       if (!socket?.connected) {
-        toast.error('Not connected to chat server');
+        toast.error(i18next.t('error.socket.not_connected'));
         reject(new Error('Socket connection not available'));
         return;
       }
 
       const timeout = setTimeout(() => {
         reject(new Error('Edit timeout'));
-        toast.error('Edit timeout. Please try again.');
+        toast.error(i18next.t('error.message.edit_timeout'));
       }, 5000);
 
       socket.emit('editMessage', data, (response: SocketResponse) => {
@@ -285,14 +293,14 @@ export const messageApi = {
     
     return new Promise((resolve, reject) => {
       if (!socket?.connected) {
-        toast.error('Not connected to chat server');
+        toast.error(i18next.t('error.socket.not_connected'));
         reject(new Error('Socket connection not available'));
         return;
       }
 
       const timeout = setTimeout(() => {
         reject(new Error('Delete timeout'));
-        toast.error('Delete timeout. Please try again.');
+        toast.error(i18next.t('error.message.delete_timeout'));
       }, 5000);
 
       socket.emit('deleteMessage', { messageId }, (response: SocketResponse) => {

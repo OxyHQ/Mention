@@ -6,10 +6,12 @@ import { MentionLogo } from '@/assets/mention-logo';
 import { colors } from '@/styles/colors';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { useTranslation } from "react-i18next";
 
 const { width } = Dimensions.get('window');
 
 export default function SignUpScreen() {
+    const { t } = useTranslation();
     const [step, setStep] = useState(1);
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
@@ -58,7 +60,7 @@ export default function SignUpScreen() {
                 animateStepChange(4, -width);
             } else if (step === 4 && password && confirmPassword) {
                 if (password !== confirmPassword) {
-                    toast.error("Passwords do not match");
+                    toast.error(t("error.signup.password_mismatch"));
                     return;
                 }
                 const response = await axios.post(`${process.env.API_URL_OXY}/auth/signup`, {
@@ -67,19 +69,19 @@ export default function SignUpScreen() {
                     password,
                 });
                 if (response.status === 200) {
-                    toast.success("Sign up successful");
+                    toast.success(t("success.signup"));
                     router.push('/login');
                 } else {
-                    toast.error("Sign up failed: " + response.data.message);
+                    toast.error(`${t("error.signup.failed")} ${response.data.message}`);
                 }
             } else {
-                toast.error("Please fill in all fields");
+                toast.error(t("error.signup.missing_fields"));
             }
         } catch (error) {
             if (axios.isAxiosError(error) && error.response) {
-                toast.error("Sign up failed: " + error.response.data.message);
+                toast.error(`${t("error.signup.failed")} ${error.response.data.message}`);
             } else {
-                toast.error("Sign up failed: " + (error as Error).message);
+                toast.error(`${t("error.signup.failed")} ${(error as Error).message}`);
             }
         }
     };

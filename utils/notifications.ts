@@ -1,5 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import i18next from 'i18next';
 
 export async function requestNotificationPermissions() {
   if (Platform.OS === "web") {
@@ -15,8 +16,8 @@ export async function scheduleDemoNotification() {
   }
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Welcome to Mention! 👋",
-      body: "Thanks for trying out our app. Start exploring now!",
+      title: i18next.t("notification.welcome.title"),
+      body: i18next.t("notification.welcome.body"),
       data: { screen: "notifications" },
     },
     trigger: null, // Shows notification immediately
