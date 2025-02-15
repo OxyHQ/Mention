@@ -11,9 +11,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScrollView } from 'react-native-gesture-handler';
 import Feed from '@/components/Feed';
 import { Gear } from '@/assets/icons/gear-icon';
+import { AppDispatch } from '@/store/store';
 
 export default function HomeScreen() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
+
   useEffect(() => {
     dispatch(fetchTrends());
   }, [dispatch]);
