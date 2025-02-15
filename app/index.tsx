@@ -10,6 +10,7 @@ import { Stories } from '@/components/Stories';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScrollView } from 'react-native-gesture-handler';
 import Feed from '@/components/Feed';
+import { Gear } from '@/assets/icons/gear-icon';
 
 export default function HomeScreen() {
   const dispatch = useDispatch();
@@ -20,7 +21,7 @@ export default function HomeScreen() {
   return (
     <ScrollView>
       <SafeAreaView>
-        <Header options={{ title: "Home", rightComponents: [<Hashtag />, <Link href="/login">Login</Link>] }} />
+        <Header options={{ title: "Home", rightComponents: [<Hashtag />, <Link href="/settings"><Gear /></Link>, <Link href="/login">Login</Link>] }} />
         <Feed />
       </SafeAreaView>
     </ScrollView >
