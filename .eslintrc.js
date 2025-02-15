@@ -3,8 +3,28 @@ module.exports = {
   parser: '@typescript-eslint/parser',
   root: true,
   extends: ['@react-native-community', 'prettier'],
+  env: {
+    browser: true,
+    node: true,
+    es6: true,
+  },
+  globals: {
+    Promise: 'readonly',
+    setTimeout: 'readonly',
+    setImmediate: 'readonly',
+    Headers: 'readonly',
+    Request: 'readonly',
+    Response: 'readonly',
+    FileReader: 'readonly',
+    Blob: 'readonly',
+    FormData: 'readonly',
+    URLSearchParams: 'readonly',
+    AbortController: 'readonly',
+    XMLHttpRequest: 'readonly',
+    self: 'readonly',
+    DebuggerInternal: 'readonly',
+  },
   rules: {
-    // 'no-semi': 1,
     'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
     'react-native/no-unused-styles': 1,
@@ -14,4 +34,4 @@ module.exports = {
     'react-native/no-raw-text': 1,
     'react-native/no-single-element-style-arrays': 2,
   },
-}
+};
