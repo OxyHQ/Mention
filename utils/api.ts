@@ -120,6 +120,9 @@ api.interceptors.request.use(
     const accessToken = await getData('accessToken');
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
+      console.debug('[API] Request with auth token:', config.url);
+    } else {
+      console.warn('[API] No auth token available for request:', config.url);
     }
     return config;
   },
@@ -239,7 +242,21 @@ export const fetchData = async (endpoint: string, options: RequestInit = {}) => 
   try {
     const accessToken = await getData('accessToken');
     if (!accessToken) {
+      console.warn('[API] No access token found for:', endpoint);
+      await forceLogout();
       throw new Error('No access token available');
+    }
+
+    // Add token validation before making request
+    const isValid = await validateSession().catch(() => false);
+    if (!isValid) {
+      console.warn('[API] Session invalid, attempting token refresh');
+      try {
+        await refreshAccessToken();
+      } catch (error) {
+        await forceLogout();
+        throw error;
+      }
     }
 
     const response = await fetch(`${API_URL}/${endpoint}`, {
@@ -251,16 +268,21 @@ export const fetchData = async (endpoint: string, options: RequestInit = {}) => 
       },
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      // Handle specific error cases
+      const data = await response.json();
+      console.error('[API] Request failed:', { 
+        endpoint, 
+        status: response.status,
+        error: data.error || data.message 
+      });
       if (response.status === 401) {
+        await forceLogout();
         throw new Error('AUTH_ERROR');
       }
       throw new Error(data.error || data.message || 'Request failed');
     }
 
+    const data = await response.json();
     return data;
   } catch (error) {
     if (error instanceof Error) {
@@ -373,41 +395,40 @@ export const refreshAccessToken = async () => {
       throw new Error('No refresh token available');
     }
     
-    const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, {
+    console.debug('[API] Attempting to refresh token');
+    
+    // Create a new axios instance for refresh to avoid interceptors
+    const refreshApi = axios.create({
+      baseURL: API_URL,
       headers: {
         'Content-Type': 'application/json'
       }
     });
 
+    const response = await refreshApi.post('/auth/refresh', { refreshToken });
+
     if (response.data.accessToken && response.data.refreshToken) {
+      console.debug('[API] Token refresh successful');
       await Promise.all([
         storeData('accessToken', response.data.accessToken),
         storeData('refreshToken', response.data.refreshToken)
       ]);
-      
-      // Reconnect socket with new token
-      const socket = await getSocket();
-      socket?.disconnect();
-      if (socket) {
-        socket.auth = { token: response.data.accessToken };
-      }
-      if (socket) {
-        socket.connect();
-      }
-      
       return response.data.accessToken;
     }
     throw new Error('Invalid token refresh response');
   } catch (error: any) {
-    // Clear tokens on refresh failure
-    await Promise.all([
-      storeData('accessToken', null),
-      storeData('refreshToken', null),
-      storeData('session', null)
-    ]);
-    disconnectSocket();
-    
-    if (error.response?.status === 401) {
+    console.error('[API] Token refresh failed:', error.response?.data || error.message);
+    // Clear tokens and redirect only on specific errors
+    if (error.response?.status === 401 || 
+        error.response?.data?.message?.includes('invalid') ||
+        error.response?.data?.message?.includes('expired')) {
+      await Promise.all([
+        storeData('accessToken', null),
+        storeData('refreshToken', null),
+        storeData('session', null),
+        storeData('user', null)
+      ]);
+      router.replace('/login');
       throw new Error('Session expired. Please log in again.');
     }
     throw error;
@@ -418,14 +439,38 @@ export const logout = async () => {
   try {
     const refreshToken = await getData('refreshToken');
     if (refreshToken) {
-      await api.post(`/auth/logout`, { refreshToken });
+      // Try to logout on server
+      await api.post(`/auth/logout`, { refreshToken }).catch(console.error);
     }
-    await storeData('accessToken', null);
-    await storeData('refreshToken', null);
-    disconnectSocket(); // Disconnect socket on logout
+    
+    // Clear all auth-related data regardless of server response
+    await Promise.all([
+      storeData('accessToken', null),
+      storeData('refreshToken', null),
+      storeData('session', null),
+      storeData('user', null)
+    ]);
+    
+    // Clear any pending requests
+    if (batchTimeout) {
+      clearTimeout(batchTimeout);
+      batchQueue.length = 0;
+    }
+    
+    disconnectSocket();
+    
+    // Force navigation to login
+    router.replace('/login');
   } catch (error) {
-    toast.error('Error logging out: ' + error);
-    throw error;
+    console.error('Logout error:', error);
+    // Still clear local data even if server request fails
+    await Promise.all([
+      storeData('accessToken', null),
+      storeData('refreshToken', null),
+      storeData('session', null),
+      storeData('user', null)
+    ]);
+    router.replace('/login');
   }
 };
 
@@ -433,12 +478,23 @@ export const validateSession = async (): Promise<boolean> => {
   try {
     const accessToken = await getData('accessToken');
     if (!accessToken) {
+      console.debug('[API] No access token available for validation');
       return false;
     }
 
-    const response = await api.get('/auth/validate');
+    // Create a new axios instance for validation to avoid interceptors
+    const validateApi = axios.create({
+      baseURL: API_URL,
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const response = await validateApi.get('/auth/validate');
     return response.data.valid === true;
   } catch (error: any) {
+    console.error('[API] Session validation failed:', error.response?.data || error.message);
     if (error.response?.status === 401) {
       throw new Error('Session expired');
     }
@@ -459,6 +515,41 @@ export const fetchUsersByUsername = async (username: string) => {
     const errorMessage = error.response?.data?.message || error.message;
     toast.error(`Error fetching users: ${errorMessage}`);
     throw error;
+  }
+};
+
+export const forceLogout = async () => {
+  try {
+    // Clear all auth-related data
+    await Promise.all([
+      storeData('accessToken', null),
+      storeData('refreshToken', null),
+      storeData('session', null),
+      storeData('user', null)
+    ]);
+    
+    // Clear any pending requests
+    if (batchTimeout) {
+      clearTimeout(batchTimeout);
+      batchQueue.length = 0;
+    }
+    
+    // Clear failed queue
+    failedQueue = [];
+    isRefreshing = false;
+    
+    // Clear cache
+    clearCache();
+    
+    // Disconnect socket
+    disconnectSocket();
+    
+    // Force redirect to login
+    router.replace('/login');
+  } catch (error) {
+    console.error('[API] Force logout error:', error);
+    // Still try to redirect
+    router.replace('/login');
   }
 };
 
