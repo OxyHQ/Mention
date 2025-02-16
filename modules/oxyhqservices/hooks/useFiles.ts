@@ -5,6 +5,8 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from 'expo-document-picker';
 import { Platform } from 'react-native';
 import api from '@/utils/api';
+import { DocumentPickerAsset } from 'expo-document-picker';
+import { ImagePickerAsset } from 'expo-image-picker';
 
 interface FileType {
     _id: string;
