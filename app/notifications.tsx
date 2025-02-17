@@ -84,6 +84,8 @@ const NotificationItem = ({ notification, onNotificationPress }: { notification:
   );
 };
 
+const MemoizedNotificationItem = React.memo(NotificationItem);
+
 const getNotificationContent = (notification: Notification) => {
   switch (notification.type) {
     case 'like':
@@ -284,29 +286,29 @@ export default function NotificationsScreen() {
     fetchNotifications(1, true);
   }, []);
 
-  const markAllAsRead = () => {
+  const markAllAsRead = React.useCallback(() => {
     const socket = getNotificationSocket();
     socket?.emit('markAllNotificationsRead');
-  };
+  }, []);
 
-  const handleLoadMore = () => {
+  const handleLoadMore = React.useCallback(() => {
     if (!loading && hasMore) {
       fetchNotifications(page + 1, false);
     }
-  };
+  }, [loading, hasMore, page, fetchNotifications]);
+
+  const headerOptions = React.useMemo(() => ({
+    title: t("Notifications"),
+    rightComponents: notifications.length > 0 ? [
+      <Pressable key="markAllRead" onPress={markAllAsRead} className="p-2">
+        <ThemedText>Mark all as read</ThemedText>
+      </Pressable>
+    ] : undefined,
+  }), [notifications.length, markAllAsRead, t]);
 
   return (
     <SafeAreaView className="flex-1">
-      <Header 
-        options={{ 
-          title: t("Notifications"),
-          rightComponents: notifications.length > 0 ? [
-            <Pressable key="markAllRead" onPress={markAllAsRead} className="p-2">
-              <ThemedText>Mark all as read</ThemedText>
-            </Pressable>
-          ] : undefined
-        }} 
-      />
+      <Header options={headerOptions} />
       {socketStatus !== 'Connected' && (
         <View className="p-2 bg-red-50 items-center">
           <ThemedText className="text-red-800 text-xs">
@@ -328,7 +330,7 @@ export default function NotificationsScreen() {
           <FlatList
             data={notifications}
             renderItem={({ item }) => (
-              <NotificationItem 
+              <MemoizedNotificationItem 
                 notification={item} 
                 onNotificationPress={handleNotificationPress}
               />
