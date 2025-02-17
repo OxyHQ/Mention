@@ -1,33 +1,31 @@
 export interface Profile {
-  id: string;
+  _id: string;
   userID: string;
-  name: {
+  username: string;
+  name?: {
     first?: string;
     last?: string;
   };
   avatar?: string;
-  username?: string;
-  bio?: string;
-  location?: string;
-  website?: string;
-  joinDate?: string;
-  description?: string;
-  banner?: string;
   associated?: {
-    lists: number;
-    feedgens: number;
-    starterPacks: number;
-    labeler: boolean;
+    lists?: number;
+    feedgens?: number;
+    starterPacks?: number;
+    labeler?: boolean;
   };
   labels?: string[];
   created_at?: string;
+  description?: string;
   indexedAt?: string;
+  banner?: string;
+  location?: string;
+  website?: string;
   followersCount?: number;
   followsCount?: number;
   postsCount?: number;
   pinnedPost?: {
-    cid: string;
-    uri: string;
+    cid?: string;
+    uri?: string;
   };
   _count?: {
     followers: number;
@@ -35,4 +33,5 @@ export interface Profile {
     posts: number;
     karma: number;
   };
+  joinDate?: string;
 }
