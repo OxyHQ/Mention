@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { View, FlatList, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Post from '@/components/Post';
@@ -10,52 +10,61 @@ import { AppDispatch } from '@/store/store';
 
 const BookmarksScreen = () => {
     const posts = useSelector((state: any) => state.posts.bookmarkedPosts);
+    const loading = useSelector((state: any) => state.posts.loading);
     const dispatch = useDispatch<AppDispatch>();
     const session = useContext(SessionContext);
     const { t } = useTranslation();
 
-    if (!session) {
-        return (
-            <View style={styles.container}>
-                <Text>Session not available.</Text>
-            </View>
-        );
-    }
+    const currentUser = session?.getCurrentUser();
 
-    const { getCurrentUser } = session;
-    const currentUser = getCurrentUser();
-    const [loading, setLoading] = useState(true);
+    // Memoize posts to prevent unnecessary re-renders
+    const memoizedPosts = useMemo(() => posts, [posts]);
 
     const fetchBookmarkedPostsHandler = useCallback(async () => {
-        try {
-            if (currentUser) {
-                await dispatch(fetchBookmarkedPosts());
-            }
-        } catch (error) {
-            console.error('Error fetching bookmarked posts:', error);
-        } finally {
-            setLoading(false);
+        if (currentUser) {
+            await dispatch(fetchBookmarkedPosts());
         }
     }, [currentUser, dispatch]);
 
     useEffect(() => {
-        fetchBookmarkedPostsHandler();
-    }, [fetchBookmarkedPostsHandler]);
+        if (!posts?.length) {
+            fetchBookmarkedPostsHandler();
+        }
+    }, [fetchBookmarkedPostsHandler, posts?.length]);
+
+    if (!session) {
+        return (
+            <View style={styles.container}>
+                <Text>{t('Please log in to view bookmarks')}</Text>
+            </View>
+        );
+    }
+
+    const renderPost = useCallback(({ item }) => (
+        <Post postData={item} />
+    ), []);
+
+    const keyExtractor = useCallback((item) => 
+        item.id.toString()
+    , []);
 
     return (
         <>
             <Header options={{ title: t('Bookmarks') }} />
-            {loading ? (
+            {loading && !posts?.length ? (
                 <ActivityIndicator size="large" color="#1DA1F2" />
-            ) : posts && posts.length > 0 ? (
+            ) : memoizedPosts && memoizedPosts.length > 0 ? (
                 <FlatList
-                    data={posts}
-                    renderItem={({ item }) => <Post postData={item} />}
-                    keyExtractor={(item) => item.id.toString()}
+                    data={memoizedPosts}
+                    renderItem={renderPost}
+                    keyExtractor={keyExtractor}
+                    maxToRenderPerBatch={10}
+                    windowSize={5}
+                    removeClippedSubviews={true}
                 />
             ) : (
                 <View style={styles.container}>
-                    <Text>No bookmarks found.</Text>
+                    <Text>{t('No bookmarks found')}</Text>
                 </View>
             )}
         </>
