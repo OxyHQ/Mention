@@ -35,7 +35,9 @@ const setupTokenRefresh = (socket: Socket) => {
   }, 45 * 60 * 1000);
 };
 
-const attemptTransportFallback = (socket: Socket) => {
+// Changed function signature to accept Socket | null
+const attemptTransportFallback = (socket: Socket | null) => {
+  if (!socket || !socket.io) return;
   if (!transportFallbackAttempted) {
     transportFallbackAttempted = true;
     debug.log('Attempting transport fallback to polling');
