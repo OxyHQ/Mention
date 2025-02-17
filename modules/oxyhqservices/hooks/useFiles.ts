@@ -68,7 +68,7 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
             let result;
             if (fileTypeFilter.includes("image/") || fileTypeFilter.includes("video/")) {
                 result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.All,
+                    mediaTypes: ['images', 'videos'],
                     allowsMultipleSelection: true,
                     quality: 1,
                 });
@@ -86,6 +86,7 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                 for (const asset of result.assets) {
                     const fileUri = Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri;
                     
+                    console.log('Asset:', asset);
                     let fileName: string;
                     let fileType: string;
                     
@@ -95,11 +96,13 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                     } else {
                         const extension = fileUri.split('.').pop() || 'jpg';
                         fileName = `image-${Date.now()}.${extension}`;
-                        fileType = (asset as ImagePickerAsset).type || `image/${extension}`;
+                        fileType = `image/${extension}`;
                     }
+                    console.log('File details:', { fileName, fileType });
 
                     const response = await fetch(fileUri);
                     const blob = await response.blob();
+                    console.log('Creating file with:', { blob, fileName, fileType });
                     const file = new File([blob], fileName, { type: fileType });
                     formData.append('files', file);
                 }
