@@ -53,7 +53,8 @@
           "recordAudioAndroid": true
         }
       ],
-      "expo-video"
+      "expo-video",
+      "expo-image-picker"
     ],
     "extra": {
       "eas": {
