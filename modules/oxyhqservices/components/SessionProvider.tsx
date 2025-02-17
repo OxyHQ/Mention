@@ -5,6 +5,7 @@ import { setProfile, clearProfile } from '@/store/reducers/profileReducer';
 import { validateSession, refreshAccessToken } from '@/utils/api';
 import { getData, storeData } from '@/utils/storage';
 import { OXY_CLOUD_URL } from '@/config';
+import { Profile } from '@/interfaces/Profile';
 
 interface User {
     id: string;
@@ -99,7 +100,7 @@ const SessionProvider = ({ children }: SessionProviderProps) => {
                             }));
                             
                             // Load profile data if available
-                            const storedProfile = await getData('profile');
+                            const storedProfile = await getData<Profile>('profile');
                             if (storedProfile) {
                                 reduxDispatch(setProfile(storedProfile));
                             }
@@ -123,7 +124,7 @@ const SessionProvider = ({ children }: SessionProviderProps) => {
                                                 lastRefresh: Date.now()
                                             }));
                                             
-                                            const storedProfile = await getData('profile');
+                                            const storedProfile = await getData<Profile>('profile');
                                             if (storedProfile) {
                                                 reduxDispatch(setProfile(storedProfile));
                                             }
@@ -193,7 +194,7 @@ const SessionProvider = ({ children }: SessionProviderProps) => {
             id: '679f4993e38393a3a9edd4dd',
             username: 'nate',
             name: { first: 'Nate', last: 'Isern' },
-            avatarSource: { uri: `${OXY_CLOUD_URL}/files/6790749544634262da8394f2` },
+            avatarSource: { uri: `${OXY_CLOUD_URL}6790749544634262da8394f2` },
         },
         {
             id: '679fcac00e2353edc2f02f19',
