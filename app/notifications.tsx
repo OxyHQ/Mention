@@ -154,6 +154,7 @@ export default function NotificationsScreen() {
 
     try {
       setSocketStatus('Connecting...');
+      console.log('Initializing notification socket...');
       const socket = await initializeNotificationSocket();
       
       if (!socket) {

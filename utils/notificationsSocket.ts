@@ -62,10 +62,9 @@ export const initializeNotificationSocket = async (): Promise<Socket | null> => 
     }
 
     debug.log('Creating new notifications socket connection');
-    const socket = io(`${API_URL_SOCKET}`, {
+    const socket = io(`${API_URL_SOCKET}/notifications`, {
       ...SOCKET_CONFIG,
-      auth: { token },
-      query: { namespace: 'notifications' }
+      auth: { token }
     });
 
     // Set up event handlers before connecting
