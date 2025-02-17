@@ -276,6 +276,13 @@ const postsSlice = createSlice({
       if (post && post._count) {
         post._count.replies = repliesCount;
       }
+    },
+    updatePost: (state, action: PayloadAction<{ id: string; changes: Partial<Post> }>) => {
+      const { id, changes } = action.payload;
+      const post = state.posts.find(post => post.id === id);
+      if (post) {
+        Object.assign(post, changes);
+      }
     }
   },
   extraReducers: (builder) => {
@@ -390,5 +397,5 @@ const postsSlice = createSlice({
   },
 });
 
-export const { setPosts, addPost, updateLikes, updateBookmarks, updatePostLikes, updateRepliesCount } = postsSlice.actions;
+export const { setPosts, addPost, updateLikes, updateBookmarks, updatePostLikes, updateRepliesCount, updatePost } = postsSlice.actions;
 export default postsSlice.reducer;
