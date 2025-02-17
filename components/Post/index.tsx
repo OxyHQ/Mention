@@ -156,18 +156,52 @@ export default function Post({ postData, quotedPost, className, showActions = tr
             setSocketError('Disconnected from server');
         };
 
+        const handlePostLiked = (data: any) => {
+            if (data.postId === postData.id) {
+                dispatch({
+                    type: 'posts/updatePost',
+                    payload: {
+                        id: postData.id,
+                        changes: {
+                            _count: data._count,
+                            isLiked: data.isLiked
+                        }
+                    }
+                });
+            }
+        };
+
+        const handlePostUnliked = (data: any) => {
+            if (data.postId === postData.id) {
+                dispatch({
+                    type: 'posts/updatePost',
+                    payload: {
+                        id: postData.id,
+                        changes: {
+                            _count: data._count,
+                            isLiked: data.isLiked
+                        }
+                    }
+                });
+            }
+        };
+
         socket.on('error', handleError);
         socket.on('connect', handleConnect);
         socket.on('disconnect', handleDisconnect);
         socket.on('connect_error', handleError);
+        socket.on('postLiked', handlePostLiked);
+        socket.on('postUnliked', handlePostUnliked);
 
         return () => {
             socket.off('error', handleError);
             socket.off('connect', handleConnect);
             socket.off('disconnect', handleDisconnect);
             socket.off('connect_error', handleError);
+            socket.off('postLiked', handlePostLiked);
+            socket.off('postUnliked', handlePostUnliked);
         };
-    }, [socket, postData.id]);
+    }, [socket, postData.id, dispatch]);
 
     const handleLike = useCallback(async (event: any) => {
         event.preventDefault();
