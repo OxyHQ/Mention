@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Modal, View, FlatList, TouchableOpacity, ActivityIndicator, TextInput, Text, Platform } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
@@ -24,6 +24,9 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     const { t } = useTranslation();
     const currentUser = useSelector((state: any) => state.session?.user);
 
+    // Use a ref to track whether files have been fetched
+    const hasFetchedRef = useRef(false);
+
     const {
         files,
         loading,
@@ -37,11 +40,22 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
         userId: currentUser?.id
     });
 
+    // Updated useEffect to fetch only once per modal open using ref
     useEffect(() => {
-        if (visible && currentUser?.id) {
+        if (visible && currentUser?.id && !hasFetchedRef.current) {
             fetchFiles();
+            hasFetchedRef.current = true;
+        } else if (!visible) {
+            hasFetchedRef.current = false;
         }
-    }, [visible, currentUser?.id, fetchFiles]);
+    }, [visible, currentUser?.id]); // removed fetchFiles from dependency array
+
+    // Wrap handleDone in useCallback to keep its identity stable
+    const handleDone = useCallback(() => {
+        const selectedFileObjects = files.filter(file => selectedFiles.includes(file._id));
+        onSelect(selectedFileObjects);
+        onClose();
+    }, [files, selectedFiles, onSelect, onClose]);
 
     const handleSelectFile = (file: FileType) => {
         setSelectedFiles(prev => {
@@ -55,12 +69,6 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
         });
     };
 
-    const handleDone = () => {
-        const selectedFileObjects = files.filter(file => selectedFiles.includes(file._id));
-        onSelect(selectedFileObjects);
-        onClose();
-    };
-
     const handleDeleteFile = async (fileId: string) => {
         if (window.confirm(t('Are you sure you want to delete this file?'))) {
             await deleteFile(fileId);
@@ -68,9 +76,13 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
         }
     };
 
-    const filteredFiles = files.filter(file =>
-        file.filename.toLowerCase().includes(filterText.toLowerCase()) ||
-        file.metadata?.originalname?.toLowerCase().includes(filterText.toLowerCase())
+    // Memoize filtered files
+    const filteredFiles = React.useMemo(() => 
+        files.filter(file =>
+            file.filename.toLowerCase().includes(filterText.toLowerCase()) ||
+            file.metadata?.originalname?.toLowerCase().includes(filterText.toLowerCase())
+        ),
+        [files, filterText]
     );
 
     const renderEmptyState = () => (
@@ -81,6 +93,22 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
             </Text>
         </View>
     );
+
+    // Memoize Header options to avoid unnecessary re-creations
+    const headerOptions = React.useMemo(() => ({
+        title: t("File Manager"),
+        showBackButton: true,
+        leftComponents: [
+            <TouchableOpacity key="back" onPress={onClose}>
+                <Ionicons name="arrow-back" size={24} color="black" />
+            </TouchableOpacity>
+        ],
+        rightComponents: [
+            <Text key="count" style={controlStyles.buttonText}>
+                {selectedFiles.length}/{maxFiles}
+            </Text>
+        ],
+    }), [onClose, selectedFiles.length, maxFiles, t]);
 
     // Handle keyboard shortcuts
     const handleKeyPress = useCallback((event: KeyboardEvent) => {
@@ -142,20 +170,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                     modalStyles.container,
                     Platform.OS === 'web' && { maxHeight: '90vh' as any }
                 ]}>
-                    <Header options={{
-                        title: t("File Manager"),
-                        showBackButton: true,
-                        leftComponents: [
-                            <TouchableOpacity key="back" onPress={onClose}>
-                                <Ionicons name="arrow-back" size={24} color="black" />
-                            </TouchableOpacity>
-                        ],
-                        rightComponents: [
-                            <Text key="count" style={controlStyles.buttonText}>
-                                {selectedFiles.length}/{maxFiles}
-                            </Text>
-                        ],
-                    }} />
+                    <Header options={headerOptions} />
                     
                     <View style={controlStyles.filterContainer}>
                         <TextInput
