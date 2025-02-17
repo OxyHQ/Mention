@@ -12,26 +12,47 @@ import { fetchPosts } from '@/store/reducers/postsReducer';
 import { fetchProfile } from '@/store/reducers/profileReducer';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { AppDispatch } from '@/store/store';
+import type { RootState } from '@/store/store';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { Profile } from '@/interfaces/Profile';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
   const [activeTab, setActiveTab] = useState("Posts");
   const dispatch = useDispatch<AppDispatch>();
-  const { profile, loading, error } = useSelector((state: any) => state.profile);
+  const { profile, loading, error } = useSelector((state: RootState) => state.profile);
   const posts = useSelector((state: { posts: { posts: any[] } }) => state.posts.posts);
   const sessionContext = useContext(SessionContext);
   const currentUser = sessionContext?.getCurrentUser();
 
   useEffect(() => {
     if (localUsername) {
-      dispatch(fetchProfile({ username: localUsername }));
+      dispatch(fetchProfile({ username: localUsername.replace('@', '') }));
     }
     dispatch(fetchPosts());
   }, [dispatch, localUsername]);
 
-  const displayUser = profile; // Use profile fetched from the server
-  const isOwnProfile = currentUser?.username === displayUser?.username;
+  if (loading) {
+    return (
+      <SafeAreaView>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primaryColor} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <SafeAreaView>
+        <View style={styles.errorContainer}>
+          <Text>{error || 'Profile not found'}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const isOwnProfile = currentUser?.username === profile.username;
   
   return (
     <SafeAreaView>
@@ -44,14 +65,14 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           )}
-          {displayUser?.banner ? (
-            <Image source={{ uri: displayUser.banner }} style={styles.coverPhoto} />
+          {profile.banner ? (
+            <Image source={{ uri: profile.banner }} style={styles.coverPhoto} />
           ) : (
             <View style={[styles.coverPhoto, { backgroundColor: '#ccc' }]} />
           )}
           
           <View style={styles.profileInfo}>
-          <Avatar style={styles.avatar} id={displayUser?.avatar} />
+            <Avatar style={styles.avatar} id={profile.avatar} />
             <View style={styles.profileButtons}>
               {!isOwnProfile && (
                 <TouchableOpacity style={styles.ProfileButton} onPress={() => {
@@ -74,50 +95,42 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.name}>
-              {displayUser && displayUser.name?.first ? `${displayUser.name.first} ${displayUser.name.last}` : localUsername?.replace('@', '')}
+              {profile.name?.first ? `${profile.name.first} ${profile.name.last || ''}` : profile.username}
             </Text>
-            <Text style={styles.username}>@{displayUser ? displayUser.username : localUsername?.replace('@', '')}</Text>
-            {displayUser?.description && (
-              <Text style={styles.bio}>{displayUser.description}</Text>
+            <Text style={styles.username}>@{profile.username}</Text>
+            {profile.description && (
+              <Text style={styles.bio}>{profile.description}</Text>
             )}
             <View style={styles.userDetails}>
-              {displayUser?.location && (
+              {profile.location && (
                 <View style={styles.userDetailItem}>
                   <Ionicons name="location-outline" size={16} color="gray" />
-                  <Text style={styles.userDetailText}>{displayUser.location}</Text>
+                  <Text style={styles.userDetailText}>{profile.location}</Text>
                 </View>
               )}
-              {displayUser?.website && (
+              {profile.website && (
                 <View style={styles.userDetailItem}>
                   <Ionicons name="link-outline" size={16} color="gray" />
-                  <Text style={[styles.userDetailText, styles.link]}>
-                    {displayUser.website}
-                  </Text>
-                </View>
-              )}
-              {displayUser?.joinDate && (
-                <View style={styles.userDetailItem}>
-                  <Ionicons name="calendar-outline" size={16} color="gray" />
-                  <Text style={styles.userDetailText}>{displayUser.joinDate}</Text>
+                  <Link href={profile.website} style={styles.link}>
+                    {profile.website.replace(/^https?:\/\//, '')}
+                  </Link>
                 </View>
               )}
             </View>
             <View style={styles.statsContainer}>
-              <Link href={`/@${displayUser?.username || localUsername?.replace('@', '')}`} style={styles.statText}>
-                <Text style={styles.statCount}>{displayUser?._count?.following || 0}</Text> Following
+              <Link href={`/@${profile?.username || localUsername?.replace('@', '')}`} style={styles.statText}>
+                <Text style={styles.statCount}>{profile?._count?.following || 0}</Text> Following
               </Link>
-              <Link href={`/@${displayUser?.username || localUsername?.replace('@', '')}/followers`} style={styles.statText}>
-                <Text style={styles.statCount}>{displayUser?._count?.followers || 0}</Text> Followers
+              <Link href={`/@${profile?.username || localUsername?.replace('@', '')}/followers`} style={styles.statText}>
+                <Text style={styles.statCount}>{profile?._count?.followers || 0}</Text> Followers
               </Link>
               <Text style={styles.statText}>
-                <Text style={styles.statCount}>{displayUser?._count?.posts || 0}</Text> Posts
+                <Text style={styles.statCount}>{profile?._count?.posts || 0}</Text> Posts
               </Text>
               <Text style={styles.statText}>
-                <Text style={styles.statCount}>{displayUser?._count?.karma || 0}</Text> Karma
+                <Text style={styles.statCount}>{profile?._count?.karma || 0}</Text> Karma
               </Text>
             </View>
-            {loading && <ActivityIndicator size="small" color={colors.primaryColor} />}
-            {error && <Text style={{color: 'red'}}>{error}</Text>}
           </View>
         </View>
       </View>
@@ -263,5 +276,17 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: colors.primaryColor,
     fontWeight: "bold",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
 });
