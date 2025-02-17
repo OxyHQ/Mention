@@ -1,68 +1,145 @@
 import { io, Socket } from 'socket.io-client';
 import { getData } from './storage';
 import { API_URL_SOCKET } from "@/config";
+import { toast } from 'sonner';
+import { SOCKET_CONFIG, getReconnectDelay, debug, isAuthError } from './socketConfig';
 
 const SOCKET_URL = API_URL_SOCKET || "ws://localhost:3000";
 let socket: Socket | null = null;
 let retryCount = 0;
-const MAX_RETRIES = 3;
+let tokenRefreshTimeout: NodeJS.Timeout | null = null;
+let transportFallbackAttempted = false;
+
+const refreshSocketToken = async (socket: Socket) => {
+  try {
+    const newToken = await getData('accessToken');
+    if (!newToken) throw new Error('No access token available');
+    
+    if (socket) {
+      socket.auth = { token: newToken };
+      socket.disconnect().connect(); // Force reconnection with new token
+    }
+  } catch (error) {
+    debug.error('Token refresh failed:', error);
+    disconnectSocket();
+  }
+};
+
+const setupTokenRefresh = (socket: Socket) => {
+  if (tokenRefreshTimeout) {
+    clearTimeout(tokenRefreshTimeout);
+  }
+  
+  tokenRefreshTimeout = setTimeout(() => {
+    refreshSocketToken(socket);
+  }, 45 * 60 * 1000);
+};
+
+const attemptTransportFallback = (socket: Socket) => {
+  if (!transportFallbackAttempted) {
+    transportFallbackAttempted = true;
+    debug.log('Attempting transport fallback to polling');
+    socket.io.opts.transports = ['polling', 'websocket'];
+    socket.connect();
+  }
+};
 
 export const getSocket = async (namespace?: string) => {
   if (!socket) {
     try {
       const accessToken = await getData('accessToken');
       if (!accessToken) {
-        console.error('No access token available for socket connection');
+        debug.error('No access token available for socket connection');
         return null;
       }
 
       const url = namespace ? `${SOCKET_URL}/${namespace}` : SOCKET_URL;
+      transportFallbackAttempted = false;
       
       socket = io(url, {
-        withCredentials: true,
-        auth: {
-          token: accessToken
-        },
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5,
-        transports: ['websocket', 'polling']
+        ...SOCKET_CONFIG,
+        auth: { token: accessToken }
       });
 
       socket.on('connect', () => {
-        console.log('Socket connected successfully to:', url);
+        debug.log('Socket connected successfully to:', url);
         retryCount = 0;
+        toast.success('Connected to server');
+        setupTokenRefresh(socket!);
       });
 
       socket.on('connect_error', async (error) => {
-        console.error('Socket connection error:', error);
-        if (retryCount < MAX_RETRIES) {
+        debug.error('Socket connection error:', error);
+        if (isAuthError(error)) {
+          await refreshSocketToken(socket!);
+          return;
+        }
+
+        // Try transport fallback on initial connection errors
+        if (!socket?.connected && !transportFallbackAttempted) {
+          attemptTransportFallback(socket!);
+          return;
+        }
+
+        if (retryCount < (SOCKET_CONFIG.reconnectionAttempts || 5)) {
           retryCount++;
-          const newToken = await getData('accessToken');
-          if (socket && newToken) {
-            console.log(`Retrying socket connection (${retryCount}/${MAX_RETRIES})...`);
-            socket.auth = { token: newToken };
-            socket.connect();
-          }
+          const delay = getReconnectDelay(retryCount);
+          debug.log(`Retrying socket connection (${retryCount}/${SOCKET_CONFIG.reconnectionAttempts}) in ${delay}ms...`);
+          setTimeout(() => {
+            if (socket) {
+              socket.connect();
+            }
+          }, delay);
         } else {
-          console.error('Max socket connection retries reached');
+          debug.error('Max socket connection retries reached');
+          toast.error('Could not connect to server. Please refresh the page.');
           disconnectSocket();
         }
       });
 
-      socket.on('disconnect', (reason) => {
-        console.log('Socket disconnected:', reason);
-        if (reason === 'io server disconnect') {
-          socket?.connect();
+      // Handle transport-specific errors
+      socket.io.on("error", (error) => {
+        debug.error('Transport error:', error);
+        if (!socket?.connected && !transportFallbackAttempted) {
+          attemptTransportFallback(socket);
         }
       });
 
-      socket.on('error', (error) => {
-        console.error('Socket error:', error);
+      socket.io.on("reconnect_attempt", (attempt) => {
+        debug.log('Reconnection attempt:', attempt);
       });
+
+      socket.io.on("reconnect_error", (error) => {
+        debug.error('Reconnection error:', error);
+        if (!socket?.connected && !transportFallbackAttempted) {
+          attemptTransportFallback(socket);
+        }
+      });
+
+      socket.io.on("reconnect_failed", () => {
+        debug.error('Reconnection failed');
+        toast.error('Connection lost. Please refresh the page.');
+      });
+
+      socket.on('disconnect', (reason) => {
+        debug.log('Socket disconnected:', reason);
+        if (reason === 'io server disconnect' || reason === 'transport close') {
+          debug.log('Attempting to reconnect...');
+          socket?.connect();
+        }
+        toast.error('Disconnected from server');
+      });
+
+      socket.on('error', (error) => {
+        debug.error('Socket error:', error);
+        toast.error('Connection error occurred');
+      });
+
+      socket.connect();
+      
     } catch (error) {
-      console.error('Error initializing socket:', error);
+      debug.error('Error initializing socket:', error);
+      toast.error('Failed to initialize connection');
       return null;
     }
   }
@@ -70,11 +147,17 @@ export const getSocket = async (namespace?: string) => {
 };
 
 export const disconnectSocket = () => {
+  if (tokenRefreshTimeout) {
+    clearTimeout(tokenRefreshTimeout);
+    tokenRefreshTimeout = null;
+  }
+  
   if (socket) {
     console.log('Manually disconnecting socket');
     socket.disconnect();
     socket = null;
     retryCount = 0;
+    transportFallbackAttempted = false;
   }
 };
 

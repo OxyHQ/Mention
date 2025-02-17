@@ -57,7 +57,8 @@ const mapPost = async (post: Post, thunkAPI: any): Promise<Post> => {
   let isLiked = false;
   if (userId) {
     try {
-      const likeResponse = await fetchData(`posts/${post.id}/like`, { params: { userId } });
+      // Pass userId as a query parameter
+      const likeResponse = await fetchData(`posts/${post.id}/like?userId=${userId}`);
       isLiked = likeResponse.isLiked;
     } catch (error) {
       console.error('Error fetching like status:', error);

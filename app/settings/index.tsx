@@ -130,28 +130,30 @@ export default function SettingsScreen() {
           title: t("Settings"),
           rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
         }} />
-        <View style={styles.accountContainer} className="gap-2">
-          <Avatar size={80} id={profile?.avatar} />
-              {profile?.name?.first && (
-              <Text style={styles.accountTitle}>
-                {profile.name.first} {profile.name.last ? ` ${profile.name.last}` : ''}
-              </Text>
-              )}
-          <Text style={styles.accountHandle}>@{currentUser?.username}</Text>
-        </View>
-        <SettingItem 
-          icon="information-circle" 
-          title={t('Edit Profile')} 
-          subtitle={t('Update your Oxy Account information')} 
-          link="/settings/profile/edit" 
-        />
-        <SettingsSearch onSearch={setSearchText} />
-        <FlatList
-          style={styles.scrollView}
-          data={filteredSettings}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => <SettingItem {...item} />}
-        />
+        <ScrollView>
+          <View style={styles.accountContainer} className="gap-2">
+                    <Avatar size={80} id={profile?.avatar} />
+                        {profile?.name?.first && (
+                        <Text style={styles.accountTitle}>
+                          {profile.name.first} {profile.name.last ? ` ${profile.name.last}` : ''}
+                        </Text>
+                        )}
+                    <Text style={styles.accountHandle}>@{currentUser?.username}</Text>
+                  </View>
+                  <SettingItem 
+                    icon="information-circle" 
+                    title={t('Edit Profile')} 
+                    subtitle={t('Update your Oxy Account information')} 
+                    link="/settings/profile/edit" 
+                  />
+                  <SettingsSearch onSearch={setSearchText} />
+                  <FlatList
+                    style={styles.scrollView}
+                    data={filteredSettings}
+                    keyExtractor={(item, index) => index.toString()}
+                    renderItem={({ item }) => <SettingItem {...item} />}
+                  />
+        </ScrollView>
       </SafeAreaView>
     </>
   );
@@ -159,6 +161,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
   },
   accountContainer: {
     flexDirection: 'column',
@@ -195,7 +198,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   scrollView: {
-    flex: 1,
   },
   settingItem: {
     flexDirection: 'row',

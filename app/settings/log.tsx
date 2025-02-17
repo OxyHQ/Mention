@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Header } from "@/components/Header";
+import { ScrollView } from "react-native-gesture-handler";
 
 const logMessages: { type: string, message: string }[] = [];
 
@@ -48,6 +49,7 @@ export default function LogSettings() {
                     <Text style={styles.clearButtonText}>{t("Clear Logs")}</Text>
                 </TouchableOpacity>]
             }} />
+            <ScrollView style={{ flex: 1 }}>
             <FlatList
                 data={logData}
                 renderItem={({ item }) => (
@@ -56,6 +58,7 @@ export default function LogSettings() {
                 keyExtractor={(item, index) => index.toString()}
                 contentContainerStyle={styles.logContainer}
             />
+            </ScrollView>
         </SafeAreaView>
     );
 }

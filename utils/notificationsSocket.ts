@@ -3,17 +3,43 @@ import { API_URL_SOCKET } from "@/config";
 import { getData, storeData } from './storage';
 import { toast } from 'sonner';
 import { jwtDecode } from 'jwt-decode';
+import { SOCKET_CONFIG, getReconnectDelay, debug } from './socketConfig';
 
 let notificationSocket: Socket | null = null;
 let retryCount = 0;
-const MAX_RETRIES = 3;
+let tokenRefreshTimeout: NodeJS.Timeout | null = null;
+
+const refreshSocketToken = async (socket: Socket) => {
+  try {
+    const newToken = await getData<string>('accessToken');
+    if (!newToken) throw new Error('No access token available');
+    
+    if (socket) {
+      socket.auth = { token: newToken };
+      socket.disconnect().connect();
+    }
+  } catch (error) {
+    debug.error('Token refresh failed:', error);
+    disconnectNotificationSocket();
+  }
+};
+
+const setupTokenRefresh = (socket: Socket) => {
+  if (tokenRefreshTimeout) {
+    clearTimeout(tokenRefreshTimeout);
+  }
+  
+  tokenRefreshTimeout = setTimeout(() => {
+    refreshSocketToken(socket);
+  }, 45 * 60 * 1000);
+};
 
 export const initializeNotificationSocket = async (): Promise<Socket | null> => {
-  console.log('initializeNotificationSocket called');
+  debug.log('initializeNotificationSocket called');
   if (notificationSocket?.connected) return notificationSocket;
   
   if (notificationSocket) {
-    console.log('Disconnecting existing socket');
+    debug.log('Disconnecting existing socket');
     notificationSocket.disconnect();
     notificationSocket = null;
   }
@@ -21,82 +47,98 @@ export const initializeNotificationSocket = async (): Promise<Socket | null> => 
   try {
     const token = await getData<string>('accessToken');
     if (!token) {
-      console.error('No access token available');
+      debug.error('No access token available');
       return null;
     }
 
     // Decode token to get user ID
     try {
       const decoded = jwtDecode<{ id: string }>(token);
-      console.log('Decoded user ID from token:', decoded.id);
+      debug.log('Decoded user ID from token:', decoded.id);
       await storeData('userId', decoded.id);
     } catch (error) {
-      console.error('Error decoding token:', error);
+      debug.error('Error decoding token:', error);
       return null;
     }
 
-    console.log('Creating new notifications socket connection');
+    debug.log('Creating new notifications socket connection');
     const socket = io(`${API_URL_SOCKET}`, {
-      path: '/socket.io',
+      ...SOCKET_CONFIG,
       auth: { token },
-      transports: ['websocket'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      timeout: 10000,
-      forceNew: true,
-      autoConnect: false,
       query: { namespace: 'notifications' }
     });
 
     // Set up event handlers before connecting
     socket.on('connect', () => {
-      console.log('Notification socket connected successfully');
+      debug.log('Notification socket connected successfully');
       retryCount = 0;
       notificationSocket = socket;
       toast.success('Connected to notifications');
+      setupTokenRefresh(socket);
     });
 
     socket.on('connect_error', async (error) => {
-      console.error('Notification socket connection error:', error);
-      if (retryCount < MAX_RETRIES) {
+      debug.error('Notification socket connection error:', error);
+      if (error.message?.includes('authentication')) {
+        await refreshSocketToken(socket);
+        return;
+      }
+
+      if (retryCount < (SOCKET_CONFIG.reconnectionAttempts || 5)) {
         retryCount++;
-        const newToken = await getData('accessToken');
-        if (socket && newToken) {
-          console.log(`Retrying notification socket connection (${retryCount}/${MAX_RETRIES})...`);
-          socket.auth = { token: newToken };
-          socket.connect();
-        }
+        const delay = getReconnectDelay(retryCount);
+        debug.log(`Retrying notification socket connection (${retryCount}/${SOCKET_CONFIG.reconnectionAttempts}) in ${delay}ms...`);
+        setTimeout(() => {
+          if (socket) {
+            socket.connect();
+          }
+        }, delay);
       } else {
-        console.error('Max notification socket connection retries reached');
-        toast.error('Failed to connect to notifications');
+        debug.error('Max notification socket connection retries reached');
+        toast.error('Could not connect to notifications. Please refresh the page.');
         disconnectNotificationSocket();
       }
     });
 
+    socket.io.on("error", (error) => {
+      debug.error('Transport error:', error);
+    });
+
+    socket.io.on("reconnect_attempt", (attempt) => {
+      debug.log('Reconnection attempt:', attempt);
+    });
+
+    socket.io.on("reconnect_error", (error) => {
+      debug.error('Reconnection error:', error);
+    });
+
+    socket.io.on("reconnect_failed", () => {
+      debug.error('Reconnection failed');
+      toast.error('Notification connection lost. Please refresh the page.');
+    });
+
     socket.on('disconnect', (reason) => {
-      console.log('Notification socket disconnected:', reason);
+      debug.log('Notification socket disconnected:', reason);
       if (reason === 'io server disconnect' || reason === 'transport close') {
-        console.log('Attempting reconnection...');
+        debug.log('Attempting reconnection...');
         socket.connect();
       }
       toast.error('Disconnected from notifications');
     });
 
     socket.on('error', (error) => {
-      console.error('Notification socket error:', error);
+      debug.error('Notification socket error:', error);
       toast.error('Notification error: ' + error?.message);
     });
 
-    // Connect and wait for result
+    // Connect and wait for result with timeout
     socket.connect();
     
     try {
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Connection timeout'));
-        }, 5000);
+        }, SOCKET_CONFIG.timeout || 20000);
 
         socket.once('connect', () => {
           clearTimeout(timeout);
@@ -111,13 +153,13 @@ export const initializeNotificationSocket = async (): Promise<Socket | null> => 
       
       return socket;
     } catch (error) {
-      console.error('Connection establishment failed:', error);
+      debug.error('Connection establishment failed:', error);
       socket.disconnect();
       throw error;
     }
 
   } catch (error) {
-    console.error('Error initializing notification socket:', error);
+    debug.error('Error initializing notification socket:', error);
     return null;
   }
 };
@@ -125,6 +167,11 @@ export const initializeNotificationSocket = async (): Promise<Socket | null> => 
 export const getNotificationSocket = (): Socket | null => notificationSocket;
 
 export const disconnectNotificationSocket = (): void => {
+  if (tokenRefreshTimeout) {
+    clearTimeout(tokenRefreshTimeout);
+    tokenRefreshTimeout = null;
+  }
+
   if (notificationSocket) {
     console.log('Manually disconnecting notification socket');
     notificationSocket.disconnect();

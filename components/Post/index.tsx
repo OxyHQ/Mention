@@ -21,6 +21,7 @@ import { getSocket } from '@/utils/socket';
 import { RootState } from "@/store/store";
 import { Socket } from 'socket.io-client';
 import { router } from "expo-router";
+import { getReconnectDelay } from '@/utils/socketConfig';
 
 interface PostProps {
     postData: PostType;
@@ -30,11 +31,12 @@ interface PostProps {
     className?: string;
 }
 
+const maxSocketInitAttempts = 5;
+
 export default function Post({ postData, quotedPost, className, showActions = true }: PostProps) {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [socketError, setSocketError] = useState<string | null>(null);
     const socketInitAttemptsRef = useRef(0);
-    const maxSocketInitAttempts = 3;
     const socketInitTimeoutRef = useRef<NodeJS.Timeout>();
     const mounted = useRef(true);
     const dispatch = useDispatch<AppDispatch>();
@@ -76,38 +78,46 @@ export default function Post({ postData, quotedPost, className, showActions = tr
         ]).start();
     }, [animatedOpacity]);
 
-    // Initialize socket with retry
-    useEffect(() => {
-        const initSocket = async () => {
-            try {
-                if (socketInitAttemptsRef.current >= maxSocketInitAttempts) {
-                    setSocketError('Max connection attempts reached');
-                    return;
-                }
+    const initSocket = async () => {
+        try {
+            if (socketInitAttemptsRef.current >= maxSocketInitAttempts) {
+                setSocketError('Max connection attempts reached');
+                return;
+            }
 
-                const socketInstance = await getSocket('posts');  // Using 'posts' namespace
-                if (!mounted.current) return;
+            const socketInstance = await getSocket('posts');
+            if (!mounted.current) return;
 
-                if (socketInstance) {
-                    console.log('Socket initialized for post:', postData.id);
-                    setSocket(socketInstance);
-                    setSocketError(null);
-                    socketInitAttemptsRef.current = 0;
-                } else {
-                    socketInitAttemptsRef.current++;
-                    if (mounted.current) {
-                        socketInitTimeoutRef.current = setTimeout(initSocket, Math.min(2000 * socketInitAttemptsRef.current, 10000));
-                    }
-                }
-            } catch (error) {
-                console.error('Error initializing socket:', error);
+            if (socketInstance) {
+                console.log('Socket initialized for post:', postData.id);
+                setSocket(socketInstance);
+                setSocketError(null);
+                socketInitAttemptsRef.current = 0;
+
+                // Join the post's room
+                socketInstance.emit('joinPost', postData.id);
+            } else {
+                socketInitAttemptsRef.current++;
                 if (mounted.current) {
-                    socketInitAttemptsRef.current++;
-                    socketInitTimeoutRef.current = setTimeout(initSocket, Math.min(2000 * socketInitAttemptsRef.current, 10000));
+                    const delay = getReconnectDelay(socketInitAttemptsRef.current);
+                    socketInitTimeoutRef.current = setTimeout(initSocket, delay);
                 }
             }
-        };
+        } catch (error) {
+            console.error('Error initializing socket:', error);
+            if (mounted.current) {
+                socketInitAttemptsRef.current++;
+                setSocketError(error instanceof Error ? error.message : 'Connection failed');
+                
+                if (socketInitAttemptsRef.current < maxSocketInitAttempts) {
+                    const delay = getReconnectDelay(socketInitAttemptsRef.current);
+                    socketInitTimeoutRef.current = setTimeout(initSocket, delay);
+                }
+            }
+        }
+    };
 
+    useEffect(() => {
         mounted.current = true;
         initSocket();
         
@@ -116,47 +126,48 @@ export default function Post({ postData, quotedPost, className, showActions = tr
             if (socketInitTimeoutRef.current) {
                 clearTimeout(socketInitTimeoutRef.current);
             }
+            if (socket) {
+                socket.emit('leavePost', postData.id);
+                socket.disconnect();
+            }
         };
     }, [postData.id]);
 
-    // Handle socket reconnection and events
+    // Handle socket events
     useEffect(() => {
         if (!socket) return;
 
-        const handleReconnect = () => {
-            console.log('Socket reconnected for post:', postData.id);
-            socket.emit('joinPost', { postId: postData.id });
+        const handleError = (error: Error) => {
+            console.error('Socket error:', error);
+            setSocketError(error.message);
         };
 
-        const handleReconnectError = (error: Error) => {
-            console.error('Socket reconnection error:', error);
-            setSocketError('Connection lost. Trying to reconnect...');
+        const handleConnect = () => {
+            console.log('Socket connected for post:', postData.id);
+            setSocketError(null);
+            socket.emit('joinPost', postData.id);
         };
 
-        const handlePostEvents = (data: { postId: string; likesCount: number; isLiked: boolean }) => {
-            if (data.postId === postData.id) {
-                dispatch(updatePostLikes(data));
-                scaleAnimation();
-                fadeAnimation();
+        const handleDisconnect = (reason: string) => {
+            console.log('Socket disconnected:', reason);
+            if (reason === 'io server disconnect' || reason === 'transport close') {
+                socket.connect();
             }
+            setSocketError('Disconnected from server');
         };
 
-        socket.on('reconnect', handleReconnect);
-        socket.on('reconnect_error', handleReconnectError);
-        socket.on('postLiked', handlePostEvents);
-        socket.on('postUnliked', handlePostEvents);
-
-        // Join post room with data object
-        socket.emit('joinPost', { postId: postData.id });
+        socket.on('error', handleError);
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
+        socket.on('connect_error', handleError);
 
         return () => {
-            socket.emit('leavePost', { postId: postData.id });
-            socket.off('reconnect', handleReconnect);
-            socket.off('reconnect_error', handleReconnectError);
-            socket.off('postLiked', handlePostEvents);
-            socket.off('postUnliked', handlePostEvents);
+            socket.off('error', handleError);
+            socket.off('connect', handleConnect);
+            socket.off('disconnect', handleDisconnect);
+            socket.off('connect_error', handleError);
         };
-    }, [socket, postData.id, dispatch, scaleAnimation, fadeAnimation]);
+    }, [socket, postData.id]);
 
     const handleLike = useCallback(async (event: any) => {
         event.preventDefault();

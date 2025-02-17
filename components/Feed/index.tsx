@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from "react";
-import { View, StyleSheet, VirtualizedList } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { useSelector, useDispatch } from 'react-redux';
 import { CreatePost } from "../CreatePost";
 import { Loading } from "@/assets/icons/loading-icon";
@@ -8,14 +8,13 @@ import { Post as IPost } from "@/interfaces/Post";
 import Post from "@/components/Post";
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { colors } from "@/styles/colors";
-
-const POSTS_PER_PAGE = 10;
+import { FlatList } from "react-native-gesture-handler";
+import { RootState, AppDispatch } from '@/store/store';
 
 export default function Feed() {
-    const dispatch = useDispatch();
-    const posts = useSelector((state) => state.posts.posts);
+    const dispatch = useDispatch<AppDispatch>();
+    const posts = useSelector((state: RootState) => state.posts.posts);
     const [loading, setLoading] = useState(true);
-    const [page, setPage] = useState(1);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
@@ -23,14 +22,14 @@ export default function Feed() {
     const loadPosts = useCallback(async () => {
         if (!isLoadingMore) {
             setIsLoadingMore(true);
-            await dispatch(fetchPosts({ page, limit: POSTS_PER_PAGE }));
+            await dispatch(fetchPosts());
             setIsLoadingMore(false);
         }
-    }, [dispatch, page, isLoadingMore]);
+    }, [dispatch, isLoadingMore]);
 
     useEffect(() => {
         loadPosts();
-    }, [page]);
+    }, [loadPosts]);
 
     useEffect(() => {
         if (Array.isArray(posts) && posts.length > 0) {
@@ -40,13 +39,9 @@ export default function Feed() {
 
     const handleEndReached = () => {
         if (!isLoadingMore) {
-            setPage(prev => prev + 1);
+            loadPosts();
         }
     };
-
-    const getItem = (data: IPost[], index: number) => data[index];
-    const getItemCount = (data: IPost[]) => data.length;
-    const keyExtractor = (item: IPost) => item.id;
 
     const renderItem = useCallback(({ item, index }: { item: IPost, index: number }) => {
         const isLastItem = index === posts.length - 1;
@@ -54,7 +49,6 @@ export default function Feed() {
             <Post 
                 postData={item} 
                 style={isLastItem ? styles.lastItem : undefined}
-                shouldLoadMedia={index < 5} // Only preload media for first 5 visible posts
             />
         );
     }, [posts.length]);
@@ -68,28 +62,24 @@ export default function Feed() {
         <View style={styles.container}>
             <CreatePost style={styles.createPost} onPress={handleOpenCreatePostModal} />
             {loading ? (
-                <Loading size={40} />
+            <Loading size={40} />
             ) : (
-                <VirtualizedList
-                    data={posts}
-                    renderItem={renderItem}
-                    getItem={getItem}
-                    getItemCount={getItemCount}
-                    keyExtractor={keyExtractor}
-                    onEndReached={handleEndReached}
-                    onEndReachedThreshold={0.5}
-                    maxToRenderPerBatch={5}
-                    windowSize={5}
-                    initialNumToRender={5}
-                    style={styles.flatListStyle}
-                    ListFooterComponent={isLoadingMore ? <Loading size={20} /> : null}
-                />
+            <FlatList
+                data={posts}
+                renderItem={renderItem}
+                keyExtractor={(item: IPost) => item.id}
+                onEndReached={handleEndReached}
+                onEndReachedThreshold={0.5}
+                maxToRenderPerBatch={5}
+                windowSize={5}
+                initialNumToRender={5}
+                style={styles.flatListStyle}
+                ListFooterComponent={isLoadingMore ? <Loading size={20} /> : null}
+            />
             )}
         </View>
     );
 }
-
-const postPaddingLeft = 62;
 
 const styles = StyleSheet.create({
     container: {

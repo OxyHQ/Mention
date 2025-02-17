@@ -238,7 +238,7 @@ const processBatchQueue = async () => {
 };
 
 // Enhanced fetch with caching
-export const fetchData = async (endpoint: string, options: RequestInit = {}) => {
+export const fetchData = async (endpoint: string, options: { params?: Record<string, any> } & RequestInit = {}) => {
   try {
     const accessToken = await getData('accessToken');
     if (!accessToken) {
@@ -259,8 +259,13 @@ export const fetchData = async (endpoint: string, options: RequestInit = {}) => 
       }
     }
 
-    const response = await fetch(`${API_URL}/${endpoint}`, {
-      ...options,
+    // Handle query parameters
+    const { params, ...fetchOptions } = options;
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    const url = `${API_URL}/${endpoint}${queryString}`;
+
+    const response = await fetch(url, {
+      ...fetchOptions,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
