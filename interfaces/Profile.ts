@@ -6,6 +6,9 @@ export interface Profile {
     first?: string;
     last?: string;
   };
+  privacySettings?: {
+    isPrivateAccount: boolean;
+  };
   avatar?: string;
   associated?: {
     lists?: number;

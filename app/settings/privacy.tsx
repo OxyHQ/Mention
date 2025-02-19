@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Header } from "@/components/Header";
 import api from "@/utils/api";
 import { toast } from "sonner";
+import { colors } from "@/styles/colors";
 
 
 export default function PrivacySettings() {
@@ -359,7 +360,6 @@ export default function PrivacySettings() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff'
     },
     loadingContainer: {
         flex: 1,
@@ -390,15 +390,13 @@ const styles = StyleSheet.create({
         fontSize: 16
     },
     adFreeBanner: {
-        backgroundColor: '#f8f9fa',
+        backgroundColor: colors.COLOR_BACKGROUND,
         padding: 16,
-        borderRadius: 8,
-        marginTop: 24,
-        marginBottom: 24
+        borderRadius: 35,
     },
     adFreeBannerText: {
         textAlign: 'center',
-        color: '#6c757d',
+        color: colors.primaryColor,
         fontSize: 14
     }
 });

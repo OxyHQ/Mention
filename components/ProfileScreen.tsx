@@ -97,7 +97,12 @@ export default function ProfileScreen() {
             <Text style={styles.name}>
               {profile.name?.first ? `${profile.name.first} ${profile.name.last || ''}` : profile.username}
             </Text>
-            <Text style={styles.username}>@{profile.username}</Text>
+            <View style={styles.usernameContainer}>
+              <Text style={styles.username}>@{profile.username}</Text>
+              {profile.privacySettings?.isPrivateAccount && (
+                <Ionicons name="lock-closed" size={16} color={colors.COLOR_BLACK_LIGHT_3} style={styles.lockIcon} />
+              )}
+            </View>
             {profile.description && (
               <Text style={styles.bio}>{profile.description}</Text>
             )}
@@ -209,10 +214,17 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginTop: 10,
   },
+  usernameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   username: {
     fontSize: 16,
     color: colors.COLOR_BLACK_LIGHT_3,
-    marginBottom: 10,
+  },
+  lockIcon: {
+    marginLeft: 4,
   },
   bio: {
     marginBottom: 10,
