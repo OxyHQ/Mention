@@ -57,11 +57,11 @@ const NotificationItem = ({ notification, onNotificationPress }: { notification:
   }, [notification]);
 
   return (
-    <Pressable 
+    <Pressable
       className={`flex-column p-4 border-b border-gray-200 ${!notification.read ? 'bg-blue-50' : ''}`}
       onPress={() => onNotificationPress(notification)}
     >
-      <View className="flex-row items-center">
+      <View className="flex-row items-start">
         <Avatar id={notification.actorId.avatar} size={50} />
         <View className="flex-1 mx-2.5">
           <ThemedText className="text-base">
@@ -101,8 +101,8 @@ const getNotificationContent = (notification: Notification) => {
     case 'quote':
       return 'quoted your post';
     case 'welcome':
-      const name = notification.actorId.name?.first && notification.actorId.name?.last 
-        ? `${notification.actorId.name.first} ${notification.actorId.name.last}` 
+      const name = notification.actorId.name?.first && notification.actorId.name?.last
+        ? `${notification.actorId.name.first} ${notification.actorId.name.last}`
         : notification.actorId.username;
       return (
         <>
@@ -156,7 +156,7 @@ export default function NotificationsScreen() {
       setSocketStatus('Connecting...');
       console.log('Initializing notification socket...');
       const socket = await initializeNotificationSocket();
-      
+
       if (!socket) {
         setSocketStatus('Connection failed');
         setError('Failed to initialize notification socket');
@@ -225,12 +225,12 @@ export default function NotificationsScreen() {
     try {
       setError(null);
       const response = await fetchData(`notifications?page=${pageNum}&limit=20`);
-      
+
       if (!response.notifications) {
         throw new Error(response.message || 'No notifications data');
       }
 
-      setNotifications(prev => 
+      setNotifications(prev =>
         shouldRefresh ? response.notifications : [...prev, ...response.notifications]
       );
       setHasMore(response.hasMore);
@@ -331,15 +331,15 @@ export default function NotificationsScreen() {
           <FlatList
             data={notifications}
             renderItem={({ item }) => (
-              <MemoizedNotificationItem 
-                notification={item} 
+              <MemoizedNotificationItem
+                notification={item}
                 onNotificationPress={handleNotificationPress}
               />
             )}
             keyExtractor={(item) => item.id}
             refreshControl={
-              <RefreshControl 
-                refreshing={refreshing} 
+              <RefreshControl
+                refreshing={refreshing}
                 onRefresh={() => {
                   setRefreshing(true);
                   fetchNotifications(1, true);
