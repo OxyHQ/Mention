@@ -24,6 +24,7 @@ export const FollowButton = React.memo(({ userId }: FollowButtonProps) => {
     const isFollowing = useSelector((state: RootState) => state.follow.following[userId] || false);
     const scale = useSharedValue(1);
     const translateY = useSharedValue(0);
+    const textOpacity = useSharedValue(1);
 
     useEffect(() => {
         if (userId) {
@@ -32,32 +33,55 @@ export const FollowButton = React.memo(({ userId }: FollowButtonProps) => {
     }, [dispatch, userId]);
 
     const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
+        transform: [
+            { scale: scale.value },
+            { translateY: translateY.value * 0.1 }
+        ],
     }));
 
     const textAnimatedStyle = useAnimatedStyle(() => ({
+        opacity: textOpacity.value,
         transform: [{ translateY: translateY.value }],
     }));
 
     const handlePressIn = useCallback(() => {
-        scale.value = withSpring(0.9, { stiffness: 200 });
+        scale.value = withSpring(0.95, { 
+            damping: 12,
+            stiffness: 200 
+        });
     }, []);
 
     const handlePressOut = useCallback(() => {
-        scale.value = withSpring(1, { stiffness: 200 });
+        scale.value = withSpring(1, { 
+            damping: 12,
+            stiffness: 200 
+        });
     }, []);
 
     const handlePress = useCallback(async (event: GestureResponderEvent) => {
         event.preventDefault();
         try {
-            if (isFollowing) {
-                await dispatch(unfollowUser(userId)).unwrap();
-            } else {
-                await dispatch(followUser(userId)).unwrap();
-            }
-            translateY.value = withTiming(-20, { duration: 200 }, () => {
+            scale.value = withSpring(0.9, {
+                damping: 10,
+                stiffness: 200
+            });
+            
+            textOpacity.value = withTiming(0, { duration: 100 }, () => {
                 translateY.value = 20;
+                runOnJS(async () => {
+                    if (isFollowing) {
+                        await dispatch(unfollowUser(userId)).unwrap();
+                    } else {
+                        await dispatch(followUser(userId)).unwrap();
+                    }
+                })();
+                
                 translateY.value = withTiming(0, { duration: 200 });
+                textOpacity.value = withTiming(1, { duration: 200 });
+                scale.value = withSpring(1, {
+                    damping: 8,
+                    stiffness: 200
+                });
             });
         } catch (error) {
             console.error('Error toggling follow state:', error);
