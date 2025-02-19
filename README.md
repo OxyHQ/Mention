@@ -1,142 +1,220 @@
-<div align="center">
-  <a href="https://mention.earth/" target="_blank" rel="noopener">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/OxyHQ/Mention/main/assets/images/mention-logo-dark.png" />
-      <img alt="Mention" src="https://raw.githubusercontent.com/OxyHQ/Mention/main/assets/images/mention-logo.png" width="100"/>
-    </picture>
-  </a>
-</div>
+# Mention Frontend Documentation
 
-<div align="center">
-  <h1>Mention React Client</h1>
-  <p>
-    A cutting-edge social media client, built with React Native and TypeScript.
-  </p>
+## Overview
 
-  <br />
-  <figure>
-    <img src="https://raw.githubusercontent.com/OxyHQ/Mention/main/public/MentionBanner.png" alt="Mention" />
-  </figure>
+Mention is a modern social media application built with React Native and Expo, providing a cross-platform experience for both mobile and web platforms. The application features a rich set of social interactions including posts, stories, real-time chat, notifications, and more.
 
-  <p>
-    <b>Mention</b> is an innovative social media client designed to connect users and facilitate engaging conversations. 
-    With a focus on modern technologies, seamless user experience, and community-driven development, Mention aims to redefine social interactions online.
-  </p>
+## Tech Stack
 
-  <p>
-    Join us in shaping the future of social media!
-  </p>
-</div>
+- React Native / Expo
+- TypeScript
+- TailwindCSS (via NativeWind)
+- Redux for state management
+- Socket.IO for real-time features
+- React Navigation
 
-## Project Overview
+## Prerequisites
 
-Mention is not just another social media app; it's a dynamically evolving project built with the latest technologies to provide a rich, engaging, and user-friendly experience. Here’s what makes Mention stand out:
+- Node.js (v14 or higher)
+- npm or yarn package manager
+- Expo CLI
+- iOS Simulator (for iOS development)
+- Android Studio (for Android development)
 
-### Purpose
-
-Our goal is to create a modern, scalable, and accessible social media client that fosters genuine connections and engaging interactions. Mention is designed to provide users with a platform that’s more intuitive, inclusive, and enjoyable.
-
-### Key Features
-
-*   **Engaging Interactions**: Facilitate likes, comments, reposts, and more.
-*   **User Profiles**: Personalize your profile, share your story, and connect with others.
-*   **Explore**: Discover new content, trending topics, and interesting users.
-*   **Notifications**: Stay updated with the latest activities and interactions.
-*   **Direct Messaging**: Connect with friends and other users via private messaging.
-*   **Customizable Settings**: Tailor your experience with account, display, and notification settings.
-*   **Bookmarks:** Save your favorite posts.
-*   **Lists**: Create, share, and follow lists.
-
-### Technologies Used
-
-*   **React Native**: For building cross-platform mobile applications with a single codebase.
-*   **TypeScript**: Adding static typing to our codebase, ensuring robustness and maintainability.
-*   **Expo**:  Accelerating the development process with its set of tools and services.
-*   **File-Based Routing:** Simplified navigation management using the directory structure.
-*   **React Navigation**: Handling navigation between different screens and components.
-*   **Redux Toolkit**: Managing application state effectively.
-*   **Vercel**: Deployment and hosting for the web version.
-* **Sonner**: Displaying toasts and notifications.
-
-## Setup and Usage
-
-### Prerequisites
-
-*   Node.js and npm installed on your machine.
-*   Expo CLI (`npm install -g expo-cli`)
-*   A code editor (like VS Code).
-*   An Android or iOS device/emulator for testing.
+## Getting Started
 
 ### Installation
 
-1.  Clone the repository:
+1. Clone the repository
+2. Install dependencies:
+```bash
+yarn install
+```
 
-    
+3. Start the development server:
+```bash
+yarn start
+```
 
-<div align="center">
-  <img src="https://img.shields.io/github/stars/OxyHQ/MentionReact?style=flat" height="20">
-  <img src="https://img.shields.io/github/commit-activity/m/OxyHQ/MentionReact" height="20">
-  <img src="https://img.shields.io/github/deployments/OxyHQ/MentionReact/Production?label=vercel&logo=vercel&logoColor=white" height="20">
-  <a href="https://twitter.com/OxyHQ?ref_src=twsrc%5Etfw" target="_blank"><img src="https://img.shields.io/twitter/follow/OxyHQ?style=social" height="20"></a>
-</div>
+4. Run on specific platforms:
+```bash
+# For iOS
+yarn ios
 
-<br />
+# For Android
+yarn android
 
-## Table of Contents
-## Get started
+# For Web
+yarn web
+```
 
-1. Install dependencies
+## Project Structure
 
-   ```bash
-   npm install
-   ```
+```
+frontend/
+├── app/                 # App screens and navigation
+├── assets/             # Static assets (images, fonts, icons)
+├── components/         # Reusable UI components
+├── constants/         # App-wide constants
+├── context/           # React Context providers
+├── features/          # Feature-specific components and logic
+├── hooks/             # Custom React hooks
+├── interfaces/        # TypeScript interfaces
+├── lib/               # Third-party library configurations
+├── locales/           # Internationalization files
+├── store/             # Redux store configuration
+├── styles/            # Global styles and themes
+├── utils/             # Utility functions and helpers
+└── types/             # Global TypeScript type definitions
+```
 
-2. Start the app
+## Key Features
 
-   ```bash
-    npx expo start
-   ```
+### Authentication
+- Login and Signup screens
+- Secure token management
+- Persistent authentication state
 
-In the output, you'll find options to open the app in a
+### Feed
+- Infinite scroll post feed
+- Create and interact with posts
+- Media upload support
+- Like and comment functionality
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Profile
+- User profiles with customizable information
+- Follow/Unfollow functionality
+- Activity history
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Real-time Features
+- Live chat messaging
+- Push notifications
+- Story viewing
+
+### Search and Discovery
+- User search
+- Hashtag exploration
+- Trending content
+
+## Component Architecture
+
+### Core Components
+
+- `Avatar` - User profile picture component
+- `Button` - Customizable button component
+- `Post` - Social media post display
+- `Feed` - Infinite scroll post list
+- `Header` - Screen header with navigation
+- `BottomBar` - Mobile navigation bar
+- `SideBar` - Web navigation sidebar
+
+### Layout Components
+
+- `ThemedView` - Themed container component
+- `ThemedText` - Themed text component
+- `Collapsible` - Expandable/collapsible content
+
+## State Management
+
+The application uses Redux for global state management:
+
+```typescript
+// Store structure
+interface RootState {
+  auth: AuthState;
+  posts: PostsState;
+  profile: ProfileState;
+  ui: UIState;
+}
+```
+
+## API Integration
+
+API calls are managed through custom hooks and utility functions:
+
+- `useAuth` - Authentication operations
+- `useCache` - Client-side caching
+- `api.ts` - REST API client
+- `socket.ts` - WebSocket connections
+
+## Styling
+
+### Theme System
+
+The app uses a dynamic theme system supporting light and dark modes:
+
+```typescript
+// Access theme colors
+const colors = useThemeColor();
+```
+
+### TailwindCSS
+
+Styling is primarily handled through TailwindCSS/NativeWind:
+
+```typescript
+// Example component styling
+<View className="flex-1 bg-white dark:bg-gray-900">
+  <Text className="text-lg font-bold text-gray-900 dark:text-white">
+    Content
+  </Text>
+</View>
+```
+
+## Development Guidelines
+
+### Code Style
+
+- Follow TypeScript best practices
+- Use functional components with hooks
+- Implement proper error handling
+- Write meaningful component documentation
+
+### Performance Optimization
+
+- Implement proper list virtualization
+- Use memo and useMemo for expensive computations
+- Optimize image loading and caching
+- Minimize re-renders
+
+### Testing
+
+Run tests using:
+```bash
+yarn test
+```
+
+### Building for Production
+
+```bash
+# Build for iOS/Android
+eas build
+
+# Build for web
+yarn build:web
+```
 
 ## Contributing
 
-We welcome contributions from everyone! If you're interested in contributing to Mention, please take a look at our [contribution guidelines](CONTRIBUTING.md).
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a new Pull Request
 
-### How to Contribute
+## Troubleshooting
 
-1.  **Fork** the repository.
-2.  **Create** a new branch for your feature or bug fix.
-3.  **Commit** your changes with descriptive commit messages.
-4.  **Push** your changes to your forked repository.
-5.  **Submit** a pull request to the main repository.
-## Get a fresh project
+### Common Issues
 
-When you're ready, run:
-
+1. Metro bundler issues
 ```bash
-npm run reset-project
+# Clear metro cache
+yarn start --clear
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+2. Dependencies issues
+```bash
+# Clean install dependencies
+rm -rf node_modules
+yarn install
+```
