@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from "react-native";
+import Slider from '@react-native-community/slider';
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -8,9 +9,16 @@ import { Header } from "@/components/Header";
 import { colors } from "@/styles/colors";
 import { ThemedView } from "@/components/ThemedView";
 import Post from "@/components/Post";
+import { toast } from 'sonner';
 
 const colorsArray = ["#1DA1F2", "#FF5733", "#33FF57", "#3357FF"];
-const fontSizes = [12, 14, 16, 18, 20];
+const MIN_FONT_SIZE = 12;
+const MAX_FONT_SIZE = 24;
+const DEFAULT_FONT_SIZE = 16;
+const FONT_SIZE_STEPS = 5;
+const FONT_SIZE_VALUES = Array.from({ length: FONT_SIZE_STEPS }, (_, i) => 
+    MIN_FONT_SIZE + (i * ((MAX_FONT_SIZE - MIN_FONT_SIZE) / (FONT_SIZE_STEPS - 1)))
+);
 
 const post = {
     id: "1",
@@ -25,15 +33,21 @@ const post = {
         username: "mention",
         name: {
             first: "Mention",
+            last: ""
         },
         email: "hello@mention.earth",
         description: "A new social network for a new world.",
         color: "#000000",
+        avatar: "https://mention.earth/default-avatar.png",
+        image: "https://mention.earth/default-image.png"
     },
     media: [],
     quoted_post: null,
     is_quote_status: false,
     quoted_status_id: null,
+    quoted_post_id: null,
+    in_reply_to_status_id: null,
+    userID: "1",
     possibly_sensitive: false,
     lang: "en",
     _count: {
@@ -42,6 +56,7 @@ const post = {
         bookmarks: 0,
         replies: 0,
         quotes: 0,
+        comments: 0
     },
 };
 
@@ -49,7 +64,7 @@ export default function AppearanceScreen() {
     const { t } = useTranslation();
     const colorScheme = useColorScheme();
     const [selectedColor, setSelectedColor] = useState(colorsArray[0]);
-    const [selectedFontSize, setSelectedFontSize] = useState(fontSizes[2]);
+    const [selectedFontSize, setSelectedFontSize] = useState(DEFAULT_FONT_SIZE);
 
     return (
         <>
@@ -62,7 +77,7 @@ export default function AppearanceScreen() {
                     rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
                 }} />
                 <ThemedView style={styles.postContainer}>
-                    {post && <Post postData={post} showActions={false} style={styles.postContainerView} />}
+                    {post && <Post postData={post} showActions={false} className="rounded-3xl" />}
                 </ThemedView>
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>{t("Theme")}</Text>
@@ -97,17 +112,28 @@ export default function AppearanceScreen() {
                 </View>
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>{t("Font Size")}</Text>
-                    <View style={styles.optionsContainer}>
-                        {fontSizes.map((size) => (
-                            <TouchableOpacity
-                                key={size}
-                                style={[styles.option, selectedFontSize === size && styles.selectedOption]}
-                                onPress={() => setSelectedFontSize(size)}
-                            >
-                                <Text style={[styles.optionText, { fontSize: size }]}>{`${size}px`}</Text>
-                            </TouchableOpacity>
-                        ))}
+                    <View style={styles.sliderContainer}>
+                        <Text style={styles.fontSizeLabel}>Aa</Text>
+                        <View style={styles.sliderWrapper}>
+                            <Slider
+                                style={styles.slider}
+                                minimumValue={MIN_FONT_SIZE}
+                                maximumValue={MAX_FONT_SIZE}
+                                step={(MAX_FONT_SIZE - MIN_FONT_SIZE) / (FONT_SIZE_STEPS - 1)}
+                                value={selectedFontSize}
+                                onValueChange={setSelectedFontSize}
+                                minimumTrackTintColor={selectedColor}
+                                maximumTrackTintColor="#CCCCCC"
+                            />
+                            <View style={styles.stepsContainer}>
+                                {FONT_SIZE_VALUES.map((_, index) => (
+                                    <View key={index} style={styles.step} />
+                                ))}
+                            </View>
+                        </View>
+                        <Text style={styles.fontSizeLabelLarge}>Aa</Text>
                     </View>
+                    <Text style={styles.fontSizeValue}>{Math.round(selectedFontSize)}px</Text>
                 </View>
             </ScrollView>
         </>
@@ -118,10 +144,6 @@ export default function AppearanceScreen() {
 const styles = StyleSheet.create({
     postContainer: {
         padding: 16,
-    },
-    postContainerView: {
-        backgroundColor: colors.primaryLight,
-        borderRadius: 25,
     },
     section: {
         padding: 16,
@@ -170,5 +192,49 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: 'bold',
         marginBottom: 16,
+    },
+    sliderContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+    },
+    sliderWrapper: {
+        flex: 1,
+        marginHorizontal: 10,
+        height: 40,  // Reduced height
+        position: 'relative',
+    },
+    slider: {
+        width: '100%',
+        height: 40,
+        zIndex: 2,
+    },
+    stepsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 10,
+        position: 'absolute',
+        width: '100%',
+        top: '50%',  // Center vertically
+        zIndex: 1,
+    },
+    step: {
+        width: 2,
+        height: 8,
+        backgroundColor: '#CCCCCC',
+        transform: [{translateY: -4}],  // Center the step marker vertically
+    },
+    fontSizeLabel: {
+        fontSize: 14,
+        color: '#000',
+    },
+    fontSizeLabelLarge: {
+        fontSize: 20,
+        color: '#000',
+    },
+    fontSizeValue: {
+        textAlign: 'center',
+        marginTop: 8,
+        color: '#666',
     },
 });
