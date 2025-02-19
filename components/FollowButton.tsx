@@ -84,15 +84,15 @@ export const FollowButton = React.memo(({ userId }: FollowButtonProps) => {
 
 const styles = StyleSheet.create({
     followButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
+        paddingVertical: 4,
+        paddingHorizontal: 12,
         borderRadius: 20,
         backgroundColor: colors.primaryColor,
         overflow: "hidden",
     },
     followingButton: {
         backgroundColor: 'transparent',
-        borderWidth: 1,
+        borderWidth: 2,
         borderColor: colors.primaryColor,
     },
     followButtonText: {
