@@ -26,7 +26,7 @@ import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvid
 import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { Video, VideoActive } from '@/assets/icons/video-icon';
 import { Compose } from '@/assets/icons/compose-icon';
-
+import { Analytics, AnalyticsActive } from './analytics-icon';
 
 export function SideBar() {
 
@@ -58,6 +58,12 @@ export function SideBar() {
             icon: <Chat color={colors.COLOR_BLACK} />,
             iconActive: <ChatActive />,
             route: '/chat',
+        },
+        {
+            title: t("Analytics"),
+            icon: <Analytics color={colors.COLOR_BLACK} />,
+            iconActive: <AnalyticsActive />,
+            route: '/analytics',
         },
         {
             title: t("Bookmarks"),

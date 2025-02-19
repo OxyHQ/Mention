@@ -1,26 +1,27 @@
-import React, { useEffect } from 'react'
-import { View, StyleSheet, Text, Platform, ViewStyle } from "react-native";
+import React from 'react'
+import { View, StyleSheet, Text, Platform, TouchableOpacity, ViewStyle, GestureResponderEvent } from "react-native";
 import { Link } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useMediaQuery } from 'react-responsive'
 import { colors } from '../styles/colors'
-import { Ionicons } from '@expo/vector-icons'
 import { SearchBar } from './SearchBar'
-import { Pressable } from 'react-native-web-hover'
 import { FollowButton } from '@/components/FollowButton'
 import { useRouter, usePathname } from "expo-router";
 import Avatar from '@/components/Avatar'
 import { useSelector, useDispatch } from 'react-redux'
+import { AppDispatch, RootState } from '@/store/store'
 import { fetchFollowRecommendations } from '@/store/reducers/followReducer'
 import { Trends } from "@/features/trends/Trends"
 
 // Define types for profile data
 interface ProfileData {
-    username: string;
-    avatar: string;
-    name: {
-        first: string;
-        last: string;
+    _id: string;
+    userID: string;
+    username?: string;
+    avatar?: string;
+    name?: {
+        first?: string;
+        last?: string;
     };
 }
 
@@ -29,14 +30,15 @@ export function RightBar() {
     const router = useRouter();
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
-    const dispatch = useDispatch();
-    const followRecData = useSelector((state: { follow: { profiles: ProfileData[] } }) => state.follow.profiles);
+    const dispatch = useDispatch<AppDispatch>();
+    const followRecData = useSelector((state: RootState) => state.follow.profiles);
 
-    useEffect(() => {
+    React.useEffect(() => {
         dispatch(fetchFollowRecommendations());
     }, [dispatch]);
 
-    if (!isRightBarVisible) return null
+    if (!isRightBarVisible) return null;
+
     return (
         <View style={styles.container}>
             <SearchBar />
@@ -49,6 +51,7 @@ export function RightBar() {
 function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
     const router = useRouter();
     const { t } = useTranslation();
+    
     return (
         <View
             style={{
@@ -71,42 +74,45 @@ function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
                 </Text>
             </View>
             <View>
-                {followRecData.map((data, index) => (
-                    <FollowRowComponent key={data.username || index} profileData={data} />
+                {followRecData?.map((data, index) => (
+                    <FollowRowComponent key={data.userID || index} profileData={data} />
                 ))}
             </View>
-            <View>
-                <Pressable
-                    onPress={() => { router.push('/explore') }}
-                    style={({ hovered }) => [
-                        hovered
-                            ? {
-                                backgroundColor: colors.COLOR_BLACK_LIGHT_6,
-                            }
-                            : {},
-                        {
-                            padding: 14,
-                            ...Platform.select({
-                                web: {
-                                    cursor: 'pointer',
-                                },
-                            }),
+            <TouchableOpacity
+                onPress={() => router.push('/explore')}
+                style={{
+                    padding: 14,
+                    backgroundColor: 'transparent',
+                    ...Platform.select({
+                        web: {
+                            cursor: 'pointer',
                         },
-                    ]}>
-                    <Text style={{ fontSize: 15, color: colors.primaryColor }}>
-                        {t("Show more")}
-                    </Text>
-                </Pressable>
-            </View>
+                    }),
+                }}
+                activeOpacity={0.7}>
+                <Text style={{ fontSize: 15, color: colors.primaryColor }}>
+                    {t("Show more")}
+                </Text>
+            </TouchableOpacity>
         </View>
-    )
+    );
 }
 
-// Add prop types for FollowRowComponent
 const FollowRowComponent = ({ profileData }: { profileData: ProfileData }) => {
     const router = useRouter();
+    const handleFollowClick = (e: GestureResponderEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const displayName = profileData.name?.first
+        ? `${profileData.name.first} ${profileData.name.last || ''}`
+        : profileData.username || 'Unknown User';
+
+    const username = profileData.username || profileData.userID;
+
     return (
-        <Link href={`/@${profileData.username}`} asChild>
+        <Link href={`/@${username}`} asChild>
             <View
                 style={{
                     flexDirection: 'row',
@@ -122,26 +128,24 @@ const FollowRowComponent = ({ profileData }: { profileData: ProfileData }) => {
                         },
                     }),
                 }}>
-                <Avatar id={profileData.avatar} />
-                <View
-                    style={{
-                        marginRight: 'auto',
-                        marginLeft: 13,
-                    }}>
-                    <Text style={{ fontWeight: 'bold', fontSize: 15 }}>
-                        {profileData.name?.first
-                            ? `${profileData.name.first} ${profileData.name.last}`
-                            : profileData.username}
-                    </Text>
-                    <Text style={{ color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 }}>
-                        @{profileData.username}
-                    </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <Avatar id={profileData.avatar} />
+                    <View style={{ marginRight: 'auto', marginLeft: 13 }}>
+                        <Text style={{ fontWeight: 'bold', fontSize: 15 }}>
+                            {displayName}
+                        </Text>
+                        <Text style={{ color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 }}>
+                            @{username}
+                        </Text>
+                    </View>
                 </View>
-                <FollowButton />
+                <TouchableOpacity onPress={handleFollowClick}>
+                    <FollowButton userId={profileData._id} />
+                </TouchableOpacity>
             </View>
         </Link>
-    )
-}
+    );
+};
 
 const styles = StyleSheet.create({
     container: {

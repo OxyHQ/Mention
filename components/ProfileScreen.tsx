@@ -15,6 +15,7 @@ import type { AppDispatch } from '@/store/store';
 import type { RootState } from '@/store/store';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { Profile } from '@/interfaces/Profile';
+import { FollowButton } from '@/components/FollowButton';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
@@ -75,11 +76,14 @@ export default function ProfileScreen() {
             <Avatar style={styles.avatar} id={profile.avatar} />
             <View style={styles.profileButtons}>
               {!isOwnProfile && (
-                <TouchableOpacity style={styles.ProfileButton} onPress={() => {
-                  console.log("Chat button pressed");
-                }}>
-                  <ChatIcon size={20} color={colors.primaryColor} />
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity style={styles.ProfileButton} onPress={() => {
+                    console.log("Chat button pressed");
+                  }}>
+                    <ChatIcon size={20} color={colors.primaryColor} />
+                  </TouchableOpacity>
+                  <FollowButton userId={profile._id} />
+                </>
               )}
               {isOwnProfile && (
                 <TouchableOpacity style={styles.ProfileButton} onPress={() => {

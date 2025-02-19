@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import React, { useState, useCallback, useEffect } from "react";
+import { Pressable, StyleSheet, GestureResponderEvent } from "react-native";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -9,14 +9,27 @@ import Animated, {
 } from "react-native-reanimated";
 import { ThemedText } from "./ThemedText";
 import { colors } from '../styles/colors';
-import { Link } from 'expo-router';
 import { useTranslation } from "react-i18next";
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '@/store/store';
+import { followUser, unfollowUser, checkFollowStatus } from '@/store/reducers/followReducer';
 
-export const FollowButton = React.memo(() => {
+interface FollowButtonProps {
+    userId: string;
+}
+
+export const FollowButton = React.memo(({ userId }: FollowButtonProps) => {
     const { t } = useTranslation();
-    const [isFollowing, setIsFollowing] = useState(false);
+    const dispatch = useDispatch<AppDispatch>();
+    const isFollowing = useSelector((state: RootState) => state.follow.following[userId] || false);
     const scale = useSharedValue(1);
     const translateY = useSharedValue(0);
+
+    useEffect(() => {
+        if (userId) {
+            dispatch(checkFollowStatus(userId));
+        }
+    }, [dispatch, userId]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -32,28 +45,35 @@ export const FollowButton = React.memo(() => {
 
     const handlePressOut = useCallback(() => {
         scale.value = withSpring(1, { stiffness: 200 });
-        translateY.value = withTiming(-20, { duration: 200 }, () => {
-            runOnJS(setIsFollowing)((prev) => !prev);
-            translateY.value = 20;
-            translateY.value = withTiming(0, { duration: 200 });
-        });
     }, []);
 
-    const handlePress = useCallback((event) => {
+    const handlePress = useCallback(async (event: GestureResponderEvent) => {
         event.preventDefault();
-        // Add any additional logic here if needed
-    }, []);
+        try {
+            if (isFollowing) {
+                await dispatch(unfollowUser(userId)).unwrap();
+            } else {
+                await dispatch(followUser(userId)).unwrap();
+            }
+            translateY.value = withTiming(-20, { duration: 200 }, () => {
+                translateY.value = 20;
+                translateY.value = withTiming(0, { duration: 200 });
+            });
+        } catch (error) {
+            console.error('Error toggling follow state:', error);
+        }
+    }, [dispatch, userId, isFollowing]);
 
     return (
         <Animated.View style={animatedStyle}>
             <Pressable
-                style={styles.followButton}
+                style={[styles.followButton, isFollowing && styles.followingButton]}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
                 onPress={handlePress}
             >
                 <Animated.View style={textAnimatedStyle}>
-                    <ThemedText style={styles.followButtonText}>
+                    <ThemedText style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
                         {isFollowing ? t("Following") : t("Follow")}
                     </ThemedText>
                 </Animated.View>
@@ -70,9 +90,17 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primaryColor,
         overflow: "hidden",
     },
+    followingButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: colors.primaryColor,
+    },
     followButtonText: {
         color: "white",
         fontWeight: "bold",
         fontSize: 16,
+    },
+    followingButtonText: {
+        color: colors.primaryColor,
     },
 });

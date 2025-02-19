@@ -1,18 +1,22 @@
-import { configureStore } from '@reduxjs/toolkit';
-import postsReducer from './reducers/postsReducer';
-import trendsReducer from './reducers/trendsReducer';
-import profileReducer from './reducers/profileReducer';
+import { combineReducers, configureStore } from "@reduxjs/toolkit";
+import postsReducer from "./reducers/postsReducer";
+import sessionReducer from "./reducers/sessionReducer";
+import profileReducer from "./reducers/profileReducer";
+import trendsReducer from "./reducers/trendsReducer";
 import followReducer from './reducers/followReducer';
-import sessionReducer from './reducers/sessionReducer';
+import analyticsReducer from "./reducers/analyticsReducer";
 
-const store = configureStore({
-  reducer: {
-    posts: postsReducer,
-    trends: trendsReducer,
-    profile: profileReducer,
-    follow: followReducer,
-    session: sessionReducer,
-  },
+const rootReducer = combineReducers({
+  posts: postsReducer,
+  session: sessionReducer,
+  profile: profileReducer,
+  trends: trendsReducer,
+  follow: followReducer,
+  analytics: analyticsReducer,
+});
+
+export const store = configureStore({
+  reducer: rootReducer,
 });
 
 export type RootState = ReturnType<typeof store.getState>;
