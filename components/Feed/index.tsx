@@ -38,7 +38,7 @@ export default function Feed() {
             console.log('Connected to posts namespace');
         });
 
-        socketRef.current.on('connect_error', (error) => {
+        socketRef.current.on('connect_error', (error: Error) => {
             console.error('Socket connection error:', error.message);
             setError('Failed to connect to server');
         });
@@ -57,7 +57,7 @@ export default function Feed() {
 
     const loadPosts = useCallback(async () => {
         if (isLoadingMore || !hasMore) return;
-        
+
         try {
             setIsLoadingMore(true);
             setError(null);
@@ -97,8 +97,8 @@ export default function Feed() {
     const renderItem = useCallback(({ item, index }: { item: IPost, index: number }) => {
         const isLastItem = index === posts.length - 1;
         return (
-            <Post 
-                postData={item} 
+            <Post
+                postData={item}
                 className={isLastItem ? "rounded-bl-[35px] rounded-br-[35px]" : ""}
             />
         );
@@ -111,7 +111,7 @@ export default function Feed() {
 
     return (
         <View className="flex flex-col flex-1 rounded-[35px] overflow-hidden">
-            <CreatePost className="mb-3" onPress={handleOpenCreatePostModal} />
+            <CreatePost onPress={handleOpenCreatePostModal} />
             {loading ? (
                 <Loading size={40} />
             ) : error ? (
