@@ -21,6 +21,10 @@ import { Trends } from "@/features/trends/Trends";
 import { Post as PostInterface } from "@/interfaces/Post";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// Removed unresolved import; added inline types:
+type RootState = { posts: { posts: PostInterface[] } };
+type AppDispatch = any;
+
 interface FilterChipProps {
   label: string;
   active: boolean;
@@ -39,8 +43,8 @@ export default function SearchScreen() {
     sortByDate: false,
     sortByRelevance: false,
   });
-  const posts: PostInterface[] = useSelector((state) => state.posts.posts);
-  const dispatch = useDispatch();
+  const posts: PostInterface[] = useSelector((state: RootState) => state.posts.posts);
+  const dispatch = useDispatch<AppDispatch>();
 
   useEffect(() => {
     dispatch(fetchPosts());
@@ -174,7 +178,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     margin: 16,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 35,
     height: 44,
   },
   searchIcon: {
@@ -191,11 +195,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: 24,
     backgroundColor: '#F5F5F5',
-    marginRight: 10,
+    marginRight: 5,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -225,6 +229,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   postList: {
-    paddingHorizontal: 16,
   },
 });
