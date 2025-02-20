@@ -67,17 +67,17 @@ export default function AnalyticsScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
-      </ThemedView>
+      </View>
     );
   }
 
   if (!analytics) {
     return (
-      <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ThemedText>No analytics data available</ThemedText>
-      </ThemedView>
+      </View>
     );
   }
 
