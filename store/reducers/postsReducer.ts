@@ -55,13 +55,17 @@ const mapPost = async (post: Post, thunkAPI: any): Promise<Post> => {
   const userId = state.session?.user?.id;
   
   let isLiked = false;
+  let isBookmarked = false;
   if (userId) {
     try {
-      // Pass userId as a query parameter
-      const likeResponse = await fetchData(`posts/${post.id}/like?userId=${userId}`);
+      const [likeResponse, bookmarkResponse] = await Promise.all([
+        fetchData(`posts/${post.id}/like?userId=${userId}`),
+        fetchData(`posts/${post.id}/bookmark?userId=${userId}`)
+      ]);
       isLiked = likeResponse.isLiked;
+      isBookmarked = bookmarkResponse.isBookmarked;
     } catch (error) {
-      console.error('Error fetching like status:', error);
+      console.error('Error fetching post status:', error);
     }
   }
 
@@ -70,12 +74,13 @@ const mapPost = async (post: Post, thunkAPI: any): Promise<Post> => {
     author: author as Post['author'],
     created_at: new Date(post.created_at).toLocaleString(),
     isLiked,
+    isBookmarked,
     _count: {
       comments: 0,
       likes: post._count?.likes || 0,
       quotes: 0,
       reposts: 0,
-      bookmarks: 0,
+      bookmarks: post._count?.bookmarks || 0,
       replies: 0,
     },
   };
@@ -164,11 +169,16 @@ export const fetchBookmarkedPosts = createAsyncThunk(
 export const deleteBookmarkedPost = createAsyncThunk(
   'posts/deleteBookmarkedPost',
   async (postId: string, thunkAPI) => {
-    const state = thunkAPI.getState() as any;
-    const userId = state.session?.user?.id;
-    if (!userId) throw new Error('User not authenticated');
-    const response = await postData(`posts/${postId}/unbookmark`, { userId });
-    return response;
+    try {
+      const state = thunkAPI.getState() as any;
+      const userId = state.session?.user?.id;
+      if (!userId) throw new Error('User not authenticated');
+      const response = await deleteData(`posts/${postId}/bookmark`, { data: { userId } });
+      return { ...response, postId };
+    } catch (error: any) {
+      toast(`Failed to unbookmark post: ${error.message}`);
+      return thunkAPI.rejectWithValue(error.response?.data || error.message);
+    }
   }
 );
 
@@ -323,7 +333,6 @@ const postsSlice = createSlice({
         const postId = action.payload.postId;
         const post = state.posts.find(post => post.id === postId);
         if (post) {
-          // Initialize _count if it doesn't exist
           if (!post._count) {
             post._count = {
               comments: 0,
@@ -335,6 +344,7 @@ const postsSlice = createSlice({
             };
           }
           post._count.bookmarks += 1;
+          post.isBookmarked = true;
         }
       })
       .addCase(fetchBookmarkedPosts.pending, (state) => {
@@ -351,6 +361,11 @@ const postsSlice = createSlice({
       })
       .addCase(deleteBookmarkedPost.fulfilled, (state, action) => {
         const postId = action.payload.postId;
+        const post = state.posts.find(post => post.id === postId);
+        if (post && post._count) {
+          post._count.bookmarks = Math.max(0, post._count.bookmarks - 1);
+          post.isBookmarked = false;
+        }
         state.bookmarkedPosts = state.bookmarkedPosts.filter(post => post.id !== postId);
       })
       .addCase(fetchPostsByHashtag.pending, (state) => {

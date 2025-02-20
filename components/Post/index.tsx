@@ -9,7 +9,7 @@ import Avatar from "@/components/Avatar";
 import { detectHashtags } from "./utils";
 import { renderMedia, renderPoll, renderLocation } from "./renderers";
 import QuotedPost from "./QuotedPost";
-import { updateLikes, bookmarkPost, fetchBookmarkedPosts, likePost, unlikePost, setPosts, updatePostLikes, createReply } from "@/store/reducers/postsReducer";
+import { updateLikes, bookmarkPost, fetchBookmarkedPosts, likePost, unlikePost, setPosts, updatePostLikes, createReply, deleteBookmarkedPost } from "@/store/reducers/postsReducer";
 import { Chat } from "@/assets/icons/chat-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { RepostIcon } from "@/assets/icons/repost-icon";
@@ -44,17 +44,15 @@ export default function Post({ postData, quotedPost, className, showActions = tr
     const post = allPosts.find((p) => p.id === postData.id) || postData;
     const likesCount = post?._count?.likes || 0;
     const isLiked = post?.isLiked || false;
-    const [_isBookmarked, setIsBookmarked] = useState(false);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [isReposted, setIsReposted] = useState(false);
     const [repostsCount, setRepostsCount] = useState(postData?._count?.reposts || 0);
-    const [bookmarksCount, setBookmarksCount] = useState(postData?._count?.bookmarks || 0);
     const [repliesCount, setRepliesCount] = useState(postData?._count?.replies || 0);
 
     const animatedScale = useRef(new Animated.Value(1)).current;
     const animatedOpacity = useRef(new Animated.Value(1)).current;
     const animatedRepostsCount = useRef(new Animated.Value(postData?._count?.reposts || 0)).current;
-    const animatedBookmarksCount = useRef(new Animated.Value(postData?._count?.bookmarks || 0)).current;
+    const animatedBookmarksCount = useRef(new Animated.Value(post._count?.bookmarks || 0)).current;
     const animatedRepliesCount = useRef(new Animated.Value(postData?._count?.replies || 0)).current;
 
     const colorScheme = useColorScheme();
@@ -203,6 +201,49 @@ export default function Post({ postData, quotedPost, className, showActions = tr
         };
     }, [socket, postData.id, dispatch]);
 
+    // Add handlers for bookmark socket events
+    useEffect(() => {
+        if (!socket) return;
+
+        const handlePostBookmarked = (data: any) => {
+            if (data.postId === postData.id) {
+                dispatch({
+                    type: 'posts/updatePost',
+                    payload: {
+                        id: postData.id,
+                        changes: {
+                            _count: data._count,
+                            isBookmarked: data.isBookmarked
+                        }
+                    }
+                });
+            }
+        };
+
+        const handlePostUnbookmarked = (data: any) => {
+            if (data.postId === postData.id) {
+                dispatch({
+                    type: 'posts/updatePost',
+                    payload: {
+                        id: postData.id,
+                        changes: {
+                            _count: data._count,
+                            isBookmarked: data.isBookmarked
+                        }
+                    }
+                });
+            }
+        };
+
+        socket.on('postBookmarked', handlePostBookmarked);
+        socket.on('postUnbookmarked', handlePostUnbookmarked);
+
+        return () => {
+            socket.off('postBookmarked', handlePostBookmarked);
+            socket.off('postUnbookmarked', handlePostUnbookmarked);
+        };
+    }, [socket, postData.id, dispatch]);
+
     const handleLike = useCallback(async (event: any) => {
         event.preventDefault();
         event.stopPropagation();
@@ -232,15 +273,26 @@ export default function Post({ postData, quotedPost, className, showActions = tr
         }
     }, [postData.id]);
 
-    const handleBookmark = useCallback((event: any) => {
+    const handleBookmark = useCallback(async (event: any) => {
         event.preventDefault();
         event.stopPropagation();
-        setIsBookmarked((prev) => !prev);
-        const newCount = _isBookmarked ? bookmarksCount - 1 : bookmarksCount + 1;
-        setBookmarksCount(newCount);
-        dispatch(bookmarkPost(postData.id) as any);
-        Animated.timing(animatedBookmarksCount, { toValue: newCount, duration: 300, easing: Easing.linear, useNativeDriver: true }).start();
-    }, [_isBookmarked, bookmarksCount, dispatch, postData.id, animatedBookmarksCount]);
+        try {
+            if (post.isBookmarked) {
+                await dispatch(deleteBookmarkedPost(postData.id) as any);
+            } else {
+                await dispatch(bookmarkPost(postData.id) as any);
+            }
+            // Animate the bookmarks count
+            Animated.timing(animatedBookmarksCount, { 
+                toValue: post._count?.bookmarks || 0, 
+                duration: 300, 
+                easing: Easing.linear, 
+                useNativeDriver: true 
+            }).start();
+        } catch (error) {
+            console.error('Error handling bookmark:', error);
+        }
+    }, [post.isBookmarked, post._count?.bookmarks, dispatch, postData.id, animatedBookmarksCount]);
 
     const handleRepost = useCallback((event: any) => {
         event.preventDefault();
@@ -323,8 +375,8 @@ export default function Post({ postData, quotedPost, className, showActions = tr
                             <Ionicons name="share-outline" size={20} color="#536471" />
                         </TouchableOpacity>
                         <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleBookmark}>
-                            {_isBookmarked ? <BookmarkActive size={20} color="#1DA1F2" /> : <Bookmark size={20} color="#536471" />}
-                            <AnimatedNumbers includeComma animateToNumber={bookmarksCount} animationDuration={300} fontStyle={{ color: _isBookmarked ? "#1DA1F2" : "#536471" }} />
+                            {post.isBookmarked ? <BookmarkActive size={20} color="#1DA1F2" /> : <Bookmark size={20} color="#536471" />}
+                            <AnimatedNumbers includeComma animateToNumber={post._count?.bookmarks || 0} animationDuration={300} fontStyle={{ color: post.isBookmarked ? "#1DA1F2" : "#536471" }} />
                         </TouchableOpacity>
                         <TouchableOpacity className="flex-row items-center gap-1">
                             <Chat size={20} color="#536471" />
