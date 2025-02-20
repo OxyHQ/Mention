@@ -27,10 +27,10 @@ export const getUsernameToId = async ({ username }: { username: string }) => {
 
 export const fetchProfile = createAsyncThunk(
   'profile/fetchProfile', 
-  async ({ username }: { username: string }) => {
+  async ({ username }: { username: string }, { rejectWithValue }) => {
     const userId = await getUsernameToId({ username });
     if (!userId) {
-      throw new Error('Failed to fetch user ID');
+      return rejectWithValue('User ID not found');
     }
     const response = await fetchData(`profiles/${userId}`);
     return response as Profile;
@@ -76,7 +76,7 @@ const profileSlice = createSlice({
       })
       .addCase(fetchProfile.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to fetch profile';
+        state.error = action.payload as string || action.error.message || 'Failed to fetch profile';
       })
       .addCase(updateProfileData.pending, (state) => {
         state.loading = true;
