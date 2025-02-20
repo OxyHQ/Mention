@@ -264,6 +264,13 @@ export const fetchData = async (endpoint: string, options: { params?: Record<str
     const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
     const url = `${API_URL}/${endpoint}${queryString}`;
 
+    // Check cache before making request
+    const cacheKey = getCacheKey(endpoint, options);
+    const cachedData = getCache(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+
     const response = await fetch(url, {
       ...fetchOptions,
       headers: {
@@ -288,6 +295,8 @@ export const fetchData = async (endpoint: string, options: { params?: Record<str
     }
 
     const data = await response.json();
+    // Cache the response data
+    setCache(cacheKey, data);
     return data;
   } catch (error) {
     if (error instanceof Error) {
