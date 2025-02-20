@@ -312,79 +312,88 @@ export default function Post({ postData, quotedPost, className, style, showActio
 
     const handlePollOptionPress = useCallback((index: number) => setSelectedOption(index), []);
 
+    const handlePostPress = useCallback((event: any) => {
+        router.push(`/post/${postData.id}`);
+    }, [postData.id]);
+
     return (
-        <View 
-            className={`flex flex-col border-b border-gray-200 py-3 ${
-                isDarkMode ? 'bg-black' : 'bg-white'
-            } ${className}`}
-            style={style}
-        >
-            <View className="flex-row gap-2.5 px-3 items-start">
-                <Link href={`/@${postData.author?.username}`} asChild>
-                    <TouchableOpacity>
-                        <Avatar id={postData.author?.avatar} size={40} />
-                    </TouchableOpacity>
-                </Link>
-                <View className="flex-1">
-                    <View className="flex-row items-center">
-                        <View className="flex-row items-center flex-1 gap-1">
-                            <Link href={`/@${postData.author?.username}`} asChild>
-                                <TouchableOpacity>
-                                    <Text className="font-bold">{postData.author?.name?.first} {postData.author?.name?.last}</Text>
-                                </TouchableOpacity>
-                            </Link>
-                            <Link href={`/@${postData.author?.username}`} asChild>
-                                <TouchableOpacity>
-                                    <Text className="text-gray-500">@{postData.author?.username}</Text>
-                                </TouchableOpacity>
-                            </Link>
-                            <Text className="text-gray-500">
-                                · {new Date(postData.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            </Text>
+        <Link href={`/post/${postData.id}`} asChild>
+            <TouchableOpacity 
+                activeOpacity={0.7}
+                className={`flex flex-col border-b border-gray-200 py-3 ${
+                    isDarkMode ? 'bg-black' : 'bg-white'
+                } ${className}`}
+                style={style}
+            >
+                <View className="flex-row gap-2.5 px-3 items-start">
+                    <Link href={`/@${postData.author?.username}`} asChild>
+                        <TouchableOpacity onPress={(e) => e.stopPropagation()}>
+                            <Avatar id={postData.author?.avatar} size={40} />
+                        </TouchableOpacity>
+                    </Link>
+                    <View className="flex-1">
+                        <View className="flex-row items-center">
+                            <View className="flex-row items-center flex-1 gap-1">
+                                <Link href={`/@${postData.author?.username}`} asChild>
+                                    <TouchableOpacity onPress={(e) => e.stopPropagation()}>
+                                        <Text className="font-bold">{postData.author?.name?.first} {postData.author?.name?.last}</Text>
+                                    </TouchableOpacity>
+                                </Link>
+                                <Link href={`/@${postData.author?.username}`} asChild>
+                                    <TouchableOpacity onPress={(e) => e.stopPropagation()}>
+                                        <Text className="text-gray-500">@{postData.author?.username}</Text>
+                                    </TouchableOpacity>
+                                </Link>
+                                <Text className="text-gray-500">
+                                    · {new Date(postData.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={(e) => e.stopPropagation()}>
+                                <Ionicons name="ellipsis-horizontal" size={20} color={isDarkMode ? colors.COLOR_BLACK_LIGHT_1 : colors.primaryColor} />
+                            </TouchableOpacity>
                         </View>
-                        <Ionicons name="ellipsis-horizontal" size={20} color={isDarkMode ? colors.COLOR_BLACK_LIGHT_1 : colors.primaryColor} />
+                        {postData?.text && (
+                            <Text className={`mt-1 leading-5 ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                                {detectHashtags(postData.text)}
+                            </Text>
+                        )}
                     </View>
-                    {postData?.text && (
-                        <Text className={`mt-1 leading-5 ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                            {detectHashtags(postData.text)}
-                        </Text>
+                </View>
+                <View className="flex-1">
+                    {postData?.media && renderMedia(postData.media)}
+                    {renderPoll(undefined, selectedOption, handlePollOptionPress)}
+                    {renderLocation(undefined)}
+                    {!quotedPost && <QuotedPost id={postData.quoted_post_id ?? undefined} />}
+                    {showActions && (
+                        <View className="flex-row mt-3 justify-between max-w-[300px] pl-[62px]">
+                            <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleLike}>
+                                <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
+                                    {isLiked ? <HeartIconActive size={20} color="#F91880" /> : <HeartIcon size={20} color="#536471" />}
+                                </Animated.View>
+                                <AnimatedNumbers includeComma animateToNumber={likesCount} animationDuration={300} fontStyle={{ color: isLiked ? "#F91880" : "#536471" }} />
+                            </TouchableOpacity>
+                            <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={(e) => { e.stopPropagation(); handleReply(e); }}>
+                                {false ? <CommentIconActive size={20} color="#F91880" /> : <CommentIcon size={20} color="#536471" />}
+                                <AnimatedNumbers includeComma animateToNumber={repliesCount} animationDuration={300} fontStyle={{ color: "#536471" }} />
+                            </TouchableOpacity>
+                            <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={(e) => { e.stopPropagation(); handleRepost(e); }}>
+                                {isReposted ? <RepostIcon size={20} color="#1DA1F2" /> : <RepostIcon size={20} color="#536471" />}
+                                <AnimatedNumbers includeComma animateToNumber={repostsCount} animationDuration={300} fontStyle={{ color: isReposted ? "#1DA1F2" : "#536471" }} />
+                            </TouchableOpacity>
+                            <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={(e) => { e.stopPropagation(); handleShare(e); }}>
+                                <Ionicons name="share-outline" size={20} color="#536471" />
+                            </TouchableOpacity>
+                            <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={(e) => { e.stopPropagation(); handleBookmark(e); }}>
+                                {post.isBookmarked ? <BookmarkActive size={20} color="#1DA1F2" /> : <Bookmark size={20} color="#536471" />}
+                                <AnimatedNumbers includeComma animateToNumber={post._count?.bookmarks || 0} animationDuration={300} fontStyle={{ color: post.isBookmarked ? "#1DA1F2" : "#536471" }} />
+                            </TouchableOpacity>
+                            <TouchableOpacity className="flex-row items-center gap-1" onPress={(e) => e.stopPropagation()}>
+                                <Chat size={20} color="#536471" />
+                            </TouchableOpacity>
+                        </View>
                     )}
                 </View>
-            </View>
-            <View className="flex-1">
-                {postData?.media && renderMedia(postData.media)}
-                {renderPoll(undefined, selectedOption, handlePollOptionPress)}
-                {renderLocation(undefined)}
-                {!quotedPost && <QuotedPost id={postData.quoted_post_id ?? undefined} />}
-                {showActions && (
-                    <View className="flex-row mt-3 justify-between max-w-[300px] pl-[62px]">
-                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleLike}>
-                            <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
-                                {isLiked ? <HeartIconActive size={20} color="#F91880" /> : <HeartIcon size={20} color="#536471" />}
-                            </Animated.View>
-                            <AnimatedNumbers includeComma animateToNumber={likesCount} animationDuration={300} fontStyle={{ color: isLiked ? "#F91880" : "#536471" }} />
-                        </TouchableOpacity>
-                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleReply}>
-                            {false ? <CommentIconActive size={20} color="#F91880" /> : <CommentIcon size={20} color="#536471" />}
-                            <AnimatedNumbers includeComma animateToNumber={repliesCount} animationDuration={300} fontStyle={{ color: "#536471" }} />
-                        </TouchableOpacity>
-                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleRepost}>
-                            {isReposted ? <RepostIcon size={20} color="#1DA1F2" /> : <RepostIcon size={20} color="#536471" />}
-                            <AnimatedNumbers includeComma animateToNumber={repostsCount} animationDuration={300} fontStyle={{ color: isReposted ? "#1DA1F2" : "#536471" }} />
-                        </TouchableOpacity>
-                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleShare}>
-                            <Ionicons name="share-outline" size={20} color="#536471" />
-                        </TouchableOpacity>
-                        <TouchableOpacity className="flex-row items-center mr-4 gap-1" onPress={handleBookmark}>
-                            {post.isBookmarked ? <BookmarkActive size={20} color="#1DA1F2" /> : <Bookmark size={20} color="#536471" />}
-                            <AnimatedNumbers includeComma animateToNumber={post._count?.bookmarks || 0} animationDuration={300} fontStyle={{ color: post.isBookmarked ? "#1DA1F2" : "#536471" }} />
-                        </TouchableOpacity>
-                        <TouchableOpacity className="flex-row items-center gap-1">
-                            <Chat size={20} color="#536471" />
-                        </TouchableOpacity>
-                    </View>
-                )}
-            </View>
-        </View>
+            </TouchableOpacity>
+        </Link>
     );
 }
