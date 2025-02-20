@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, ScrollView } from 'react-native';
+import { View, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { ThemedView } from '../components/ThemedView';
 import { ThemedText } from '../components/ThemedText';
 import { fetchData } from '../utils/api';
@@ -54,6 +54,7 @@ export default function AnalyticsScreen() {
         setAnalytics(data);
       } catch (error) {
         console.error('Error fetching analytics:', error);
+        Alert.alert('Network Error', 'Failed to fetch analytics data. Please try again later.');
       } finally {
         setLoading(false);
       }
