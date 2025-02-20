@@ -15,11 +15,15 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
-  const { state, switchSession, sessions } = useContext(SessionContext);
+  const sessionContext = useContext(SessionContext);
+
+  if (!sessionContext) return null;
+
+  const { state, switchSession, sessions } = sessionContext;
 
   const getBottomSheetContent = () => {
     const filteredSessions = sessions.filter(session =>
-      session.name.first.toLowerCase().includes(searchText.toLowerCase())
+      session.name?.first?.toLowerCase().includes(searchText.toLowerCase()) ?? false
     );
     return (
       <ScrollView contentContainerStyle={styles.bottomSheetContainer} keyboardShouldPersistTaps="handled">
@@ -37,10 +41,10 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
         />
         {filteredSessions.map((session, index) => (
           <TouchableOpacity key={session.id} onPress={() => switchUser(index)} style={styles.userOption}>
-            <Image style={styles.avatar} source={session.avatarSource} />
+            <Image style={styles.avatar} source={session.avatar ? { uri: session.avatar } : require('@/assets/images/default-avatar.jpg')} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={styles.name}>
-                {session.name.first} {session.name.last || ''}
+                {session.name?.first} {session.name?.last || ''}
               </Text>
               <Text>@{session.username}</Text>
             </View>
@@ -126,17 +130,23 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
     },
   });
 
-  if (!state.isAuthenticated) return null;
+  if (!state.isAuthenticated || !sessions[currentUserIndex]) return null;
 
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.button} onPress={handleOpenBottomSheet}>
-        <Image style={styles.avatar} source={sessions[currentUserIndex].avatarSource} />
+        <Image 
+          style={styles.avatar} 
+          source={sessions[currentUserIndex].avatar ? 
+            { uri: sessions[currentUserIndex].avatar } : 
+            require('@/assets/images/default-avatar.jpg')
+          } 
+        />
         {!collapsed && (
           <>
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>
-                {sessions[currentUserIndex].name.first} {sessions[currentUserIndex].name.last}
+                {sessions[currentUserIndex].name?.first} {sessions[currentUserIndex].name?.last || ''}
               </Text>
               <Text>@{sessions[currentUserIndex].username}</Text>
             </View>

@@ -4,10 +4,8 @@ import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvid
 import { useRouter } from 'expo-router';
 import { MentionLogo } from '@/assets/mention-logo';
 import { colors } from '@/styles/colors';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { useTranslation } from "react-i18next";
-import { API_URL, API_URL_OXY } from '@/config';
 
 const { width } = Dimensions.get('window');
 
@@ -22,6 +20,7 @@ export default function SignUpScreen() {
     const slideAnim = useState(new Animated.Value(0))[0];
     const containerHeight = useState(new Animated.Value(200))[0];
     const currentHeight = useRef(200);
+    const sessionContext = useContext(SessionContext);
 
     const onContentLayout = (event: { nativeEvent: { layout: { height: any; }; }; }) => {
         const { height } = event.nativeEvent.layout;
@@ -64,26 +63,23 @@ export default function SignUpScreen() {
                     toast.error(t("error.signup.password_mismatch"));
                     return;
                 }
-                const response = await axios.post(`${API_URL_OXY}/auth/signup`, {
-                    username,
-                    email,
-                    password,
-                });
-                if (response.status === 200) {
-                    toast.success(t("success.signup"));
-                    router.push('/login');
-                } else {
-                    toast.error(`${t("error.signup.failed")} ${response.data.message}`);
+                if (!sessionContext) {
+                    toast.error(t("error.signup.session_error"));
+                    return;
                 }
+                const user: { username: string; email: string; password: string } = { 
+                    username, 
+                    email, 
+                    password 
+                };
+                await sessionContext.registerUser(user);
+                toast.success(t("success.signup"));
+                router.push('/login');
             } else {
                 toast.error(t("error.signup.missing_fields"));
             }
         } catch (error) {
-            if (axios.isAxiosError(error) && error.response) {
-                toast.error(`${t("error.signup.failed")} ${error.response.data.message}`);
-            } else {
-                toast.error(`${t("error.signup.failed")} ${(error as Error).message}`);
-            }
+            toast.error(`${t("error.signup.failed")} ${(error as Error).message}`);
         }
     };
 

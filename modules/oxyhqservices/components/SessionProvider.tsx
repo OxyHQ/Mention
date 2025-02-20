@@ -1,10 +1,9 @@
-import React, { createContext, useReducer, useEffect, ReactNode } from 'react';
+import React, { createContext, useReducer, useEffect, ReactNode, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { login, logout, loadSession, selectSession } from '@/store/reducers/sessionReducer';
+import { login, logout, loadSession, selectSession, updateLastRefresh } from '@/store/reducers/sessionReducer';
 import { setProfile, clearProfile } from '@/store/reducers/profileReducer';
 import { validateSession, refreshAccessToken } from '@/utils/api';
 import { getData, storeData } from '@/utils/storage';
-import { OXY_CLOUD_URL } from '@/config';
 import { Profile } from '@/interfaces/Profile';
 
 interface User {
@@ -32,6 +31,7 @@ interface SessionContextType {
     getCurrentUser: () => User | null;
     sessions: User[];
     switchSession: (sessionId: string) => Promise<void>;
+    registerUser: (user: User) => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -65,8 +65,22 @@ const SessionProvider = ({ children }: SessionProviderProps) => {
         isLoading: true
     });
     
+    const [sessions, setSessions] = useState<User[]>([]);
     const reduxDispatch = useDispatch();
     useSelector(selectSession);
+
+    // Load available sessions
+    useEffect(() => {
+        const loadSessions = async () => {
+            try {
+                const storedSessions = await getData<User[]>('availableSessions') || [];
+                setSessions(storedSessions);
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+            }
+        };
+        loadSessions();
+    }, []);
 
     useEffect(() => {
         const initializeSession = async () => {
@@ -159,6 +173,15 @@ const SessionProvider = ({ children }: SessionProviderProps) => {
         try {
             dispatch({ type: 'LOGIN', payload: user });
             reduxDispatch(login(user));
+            
+            // Update sessions list
+            const updatedSessions = [...sessions];
+            if (!sessions.find(s => s.id === user.id)) {
+                updatedSessions.push(user);
+                setSessions(updatedSessions);
+                await storeData('availableSessions', updatedSessions);
+            }
+            
             // Store complete session state
             const sessionData = { isAuthenticated: true, user };
             await storeData('session', sessionData);
@@ -188,29 +211,39 @@ const SessionProvider = ({ children }: SessionProviderProps) => {
 
     const getCurrentUser = () => state.user;
 
-    // Temp sessions for development
-    const fakeSessions = [
-        {
-            id: '679f4993e38393a3a9edd4dd',
-            username: 'nate',
-            name: { first: 'Nate', last: 'Isern' },
-            avatarSource: { uri: `${OXY_CLOUD_URL}6790749544634262da8394f2` },
-        },
-        {
-            id: '679fcac00e2353edc2f02f19',
-            username: 'mention',
-            name: { first: 'Mention' },
-            avatarSource: { uri: 'http://localhost:8081/assets/?unstable_path=.%2Fassets%2Fimages/default-avatar.jpg' },
-        }
-    ];
-
-    const switchSession = async (sessionId: string) => {
-        const foundSession = fakeSessions.find(s => s.id === sessionId);
-        if (foundSession) {
-            await logoutUser(); // Clear current session and profile
-            await loginUser(foundSession);
+    const registerUser = async (user: User) => {
+        try {
+            await loginUser(user);
+        } catch (error) {
+            console.error('Registration error:', error);
+            throw error;
         }
     };
+
+    const switchSession = async (sessionId: string) => {
+        const targetSession = sessions.find(s => s.id === sessionId);
+        if (targetSession) {
+            await logoutUser(); // Clear current session and profile
+            await loginUser(targetSession);
+        }
+    };
+
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            try {
+                const isValid = await validateSession();
+                if (!isValid) {
+                    await refreshAccessToken();
+                }
+                reduxDispatch(updateLastRefresh());
+            } catch (error) {
+                console.error('Token refresh error:', error);
+                await logoutUser();
+            }
+        }, 15 * 60 * 1000); // 15 minutes
+
+        return () => clearInterval(interval);
+    }, [reduxDispatch]);
 
     if (state.isLoading) {
         return null;
@@ -222,8 +255,9 @@ const SessionProvider = ({ children }: SessionProviderProps) => {
             loginUser,
             logoutUser,
             getCurrentUser,
-            sessions: fakeSessions,
-            switchSession
+            sessions,
+            switchSession,
+            registerUser
         }}>
             {children}
         </SessionContext.Provider>
