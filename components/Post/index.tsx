@@ -33,7 +33,7 @@ interface PostProps {
 
 const maxSocketInitAttempts = 5;
 
-export default function Post({ postData, quotedPost, className, showActions = true }: PostProps) {
+export default function Post({ postData, quotedPost, className, style, showActions = true }: PostProps) {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [socketError, setSocketError] = useState<string | null>(null);
     const socketInitAttemptsRef = useRef(0);
@@ -317,6 +317,7 @@ export default function Post({ postData, quotedPost, className, showActions = tr
             className={`flex flex-col border-b border-gray-200 py-3 ${
                 isDarkMode ? 'bg-black' : 'bg-white'
             } ${className}`}
+            style={style}
         >
             <View className="flex-row gap-2.5 px-3 items-start">
                 <Link href={`/@${postData.author?.username}`} asChild>
