@@ -12,7 +12,7 @@ import Avatar from "@/components/Avatar";
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "@/store/store";
-import { fetchProfile } from "@/store/reducers/profileReducer";
+import { fetchProfile } from "@/modules/oxyhqservices/reducers/profileReducer";
 
 
 const languages = ["en", "es", "it"];

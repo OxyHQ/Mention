@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { getData, storeData } from '@/utils/storage';
+import { getData, storeData } from '@/modules/oxyhqservices/utils/storage';
 
 interface User {
   id: string;
@@ -16,6 +16,7 @@ interface User {
 interface SessionState {
   user: User | null;
   isAuthenticated: boolean;
+  accessToken: string | null;
   lastRefresh?: number;
 }
 
@@ -23,6 +24,7 @@ interface SessionState {
 const initialState: SessionState = {
   user: null,
   isAuthenticated: false,
+  accessToken: null,
   lastRefresh: undefined
 };
 
@@ -30,32 +32,38 @@ const sessionSlice = createSlice({
   name: 'session',
   initialState,
   reducers: {
-    login: (state, action: PayloadAction<any>) => {
+    login: (state, action: PayloadAction<{ user: User; accessToken: string }>) => {
       state.isAuthenticated = true;
-      state.user = action.payload;
+      state.user = action.payload.user;
+      state.accessToken = action.payload.accessToken;
       state.lastRefresh = Date.now();
-      // Persist session state
-      storeData('session', { 
-        isAuthenticated: true, 
-        user: action.payload,
+      // Persist session state immediately
+      storeData('session', {
+        isAuthenticated: true,
+        user: action.payload.user,
+        accessToken: action.payload.accessToken,
         lastRefresh: Date.now()
+      }).catch(error => {
+        console.error('Failed to persist session:', error);
       });
     },
     logout: (state) => {
       state.isAuthenticated = false;
       state.user = null;
+      state.accessToken = null;
       state.lastRefresh = undefined;
-      // Clear persisted session
+      // Clear all persisted data
       Promise.all([
         storeData('session', null),
         storeData('accessToken', null),
-        storeData('refreshToken', null)
-      ]).catch(console.error);
+        storeData('refreshToken', null),
+        storeData('user', null)
+      ]).catch(error => {
+        console.error('Failed to clear session data:', error);
+      });
     },
     loadSession: (state, action: PayloadAction<SessionState>) => {
-      state.isAuthenticated = action.payload.isAuthenticated;
-      state.user = action.payload.user;
-      state.lastRefresh = action.payload.lastRefresh;
+      Object.assign(state, action.payload);
     },
     updateLastRefresh: (state) => {
       state.lastRefresh = Date.now();
@@ -63,6 +71,7 @@ const sessionSlice = createSlice({
       storeData('session', { 
         isAuthenticated: state.isAuthenticated, 
         user: state.user,
+        accessToken: state.accessToken,
         lastRefresh: Date.now()
       }).catch(console.error);
     }

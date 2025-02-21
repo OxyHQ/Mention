@@ -7,15 +7,12 @@ import { useTranslation } from "react-i18next";
 import { SideBarItem } from './SideBarItem'
 import { colors } from '@/styles/colors'
 import { Button } from '@/components/Button'
-import { Ionicons } from "@expo/vector-icons";
-import { Pressable } from 'react-native-web-hover'
 import { Logo } from '@/components/Logo'
 import { Home, HomeActive } from '@/assets/icons/home-icon'
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Gear, GearActive } from '@/assets/icons/gear-icon';
-import { Plus } from '@/assets/icons/plus-icon';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { List, ListActive } from '@/assets/icons/list-icon';
 import { Feeds, FeedsActive } from '@/assets/icons/feeds-icon';
@@ -32,7 +29,13 @@ export function SideBar() {
 
     const { t } = useTranslation();
     const sessionContext = useContext(SessionContext);
-    const state = sessionContext ? sessionContext.state : null;
+    
+    // Early return if no session context is available
+    if (!sessionContext) {
+        return null;
+    }
+    
+    const { state } = sessionContext;
 
     const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.ReactNode, route: string }[] = [
         {
@@ -130,7 +133,7 @@ export function SideBar() {
                         alignItems: 'flex-start',
                     }}>
                     <Logo />
-                    {state && !state.isAuthenticated && (
+                    {!state.user && (
                         <View>
                             <Text
                                 style={{
@@ -188,7 +191,7 @@ export function SideBar() {
                             </View>
                         </View>
                     )}
-                    {state && state.isAuthenticated && (
+                    {state.user && (
                         <View style={{
                             justifyContent: 'center',
                             alignItems: 'flex-start',

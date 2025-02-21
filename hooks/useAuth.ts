@@ -1,11 +1,10 @@
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/store/store';
-
-interface User {
-  id: string;
-  username: string;
-  [key: string]: any;
-}
+import { User } from '@/modules/oxyhqservices';
+import { useEffect } from 'react';
+import { setFollowing } from '@/store/reducers/followReducer';
+import { profileService } from '@/modules/oxyhqservices';
+import type { OxyProfile } from '@/modules/oxyhqservices/types';
 
 interface SessionState {
   user: User | null;
@@ -13,12 +12,28 @@ interface SessionState {
   isAuthenticated: boolean;
 }
 
-const useAuth = () => {
+export const useAuth = () => {
   const session = useSelector((state: RootState) => state.session) as SessionState;
+  const dispatch = useDispatch();
   
+  useEffect(() => {
+    const initializeUser = async () => {
+      if (session?.user) {
+        try {
+          const following = await profileService.getFollowing(session.user.id);
+          dispatch(setFollowing(following.map((f: OxyProfile) => f.userID)));
+        } catch (error) {
+          console.error('Failed to load following list:', error);
+        }
+      }
+    };
+
+    initializeUser();
+  }, [session?.user?.id]);
+
   return {
     token: session?.accessToken,
-    user: session?.user,
+    user: session?.user as User | null,
     isAuthenticated: !!session?.accessToken && !!session?.user,
   };
 };

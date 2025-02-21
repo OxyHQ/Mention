@@ -1,19 +1,13 @@
-import React, { useState, useContext, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, TextInput, TouchableOpacity, SafeAreaView, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { toast } from 'sonner';
 import { Header } from '@/components/Header';
+import { useAuth } from '@/modules/oxyhqservices/hooks';
+import { profileService } from '@/modules/oxyhqservices';
+import type { Profile } from '@/interfaces/Profile';
 import { colors } from '@/styles/colors';
-import { useDispatch, useSelector } from 'react-redux';
-import { updateProfileData, fetchProfile } from '@/store/reducers/profileReducer';
-import { toast } from '@/lib/sonner';
-import Avatar from '@/components/Avatar';
-import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
-import { RootState, AppDispatch } from '@/store/store';
-import { router } from 'expo-router';
-import { Profile } from '@/interfaces/Profile';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { OXY_CLOUD_URL } from '@/config';
+import Avatar from '@/components/Avatar'; // Changed to default import
 
 interface FormData {
     name: {
@@ -23,50 +17,45 @@ interface FormData {
     description: string;
     location: string;
     website: string;
-    avatar: string;
+    avatar?: string;
 }
 
 export default function EditProfileScreen() {
     const { t } = useTranslation();
-    const sessionContext = useContext(SessionContext);
-    const getCurrentUser = sessionContext?.getCurrentUser || (() => null);
-    const currentUser = getCurrentUser();
-    const dispatch = useDispatch<AppDispatch>();
-    const { profile, loading, error } = useSelector((state: RootState) => state.profile);
-
-    const [isAvatarModalVisible, setAvatarModalVisible] = useState(false);
+    const { user: currentUser } = useAuth();
     const [isSaving, setIsSaving] = useState(false);
+    const [profile, setProfile] = useState<Profile | null>(null);
+    const [avatarModalVisible, setAvatarModalVisible] = useState(false);
     const [formData, setFormData] = useState<FormData>({
-        name: {
-            first: profile?.name?.first || '',
-            last: profile?.name?.last || ''
-        },
-        description: profile?.description || '',
-        location: profile?.location || '',
-        website: profile?.website || '',
-        avatar: profile?.avatar || ''
+        avatar: '',
+        name: { first: '', last: '' },
+        description: '',
+        location: '',
+        website: '',
     });
 
     useEffect(() => {
-        if (currentUser?.username) {
-            dispatch(fetchProfile({ username: currentUser.username }));
-        }
-    }, [currentUser?.username, dispatch]);
-
-    useEffect(() => {
-        if (profile) {
-            setFormData({
-                name: {
-                    first: profile.name?.first || '',
-                    last: profile.name?.last || ''
-                },
-                description: profile.description || '',
-                location: profile.location || '',
-                website: profile.website || '',
-                avatar: profile.avatar || ''
-            });
-        }
-    }, [profile]);
+        const loadProfile = async () => {
+            if (!currentUser?.id) return;
+            try {
+                const profileData = await profileService.getProfileById(currentUser.id);
+                setProfile(profileData as unknown as Profile);
+                setFormData({
+                    name: {
+                        first: profileData.name?.first || '',
+                        last: profileData.name?.last || ''
+                    },
+                    description: profileData.description || '',
+                    location: profileData.location || '',
+                    website: profileData.website || '',
+                    avatar: profileData.avatar
+                });
+            } catch (error) {
+                toast.error(t('Failed to load profile'));
+            }
+        };
+        loadProfile();
+    }, [currentUser?.id]);
 
     const validateForm = (): boolean => {
         if (formData.website && !formData.website.match(/^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/)) {
@@ -77,181 +66,148 @@ export default function EditProfileScreen() {
     };
 
     const handleUpdateProfile = async () => {
-        if (!currentUser?.id || !validateForm()) return;
+        if (!validateForm() || !currentUser) return;
         
         setIsSaving(true);
         try {
-            const result = await dispatch(updateProfileData({ 
-                id: currentUser.id, 
-                data: formData 
-            })).unwrap();
-            
-            if (result) {
-                toast.success(t('Profile updated successfully'));
-                router.back();
-            }
+            const updatedProfile = await profileService.updateProfile({
+                userID: currentUser.id,
+                ...formData
+            });
+            setProfile(updatedProfile as unknown as Profile);
+            toast.success(t('Profile updated successfully'));
         } catch (error) {
             toast.error(t('Failed to update profile'));
-            console.error('Error updating profile:', error);
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleAvatarSelect = (files: Array<{ _id: string; filename: string; contentType: string }>) => {
-        if (files.length > 0) {
-            const fileUri = `${OXY_CLOUD_URL}${files[0]._id}`;
-            setFormData(prev => ({ ...prev, avatar: files[0]._id}));
-        }
-        setAvatarModalVisible(false);
-    };
-
-    if (!currentUser) {
+    if (!profile) {
         return (
             <SafeAreaView style={styles.container}>
                 <Header options={{
                     title: t('Edit Profile'),
-                    showBackButton: true,
+                    showBackButton: true
                 }} />
-                <View style={styles.centered}>
-                    <Text>{t('Please log in to edit your profile')}</Text>
+                <View style={styles.loadingContainer}>
+                    <Text>{t('Loading...')}</Text>
                 </View>
             </SafeAreaView>
         );
     }
 
-    const isLoading = loading || isSaving;
-
     return (
-        <ScrollView>
         <SafeAreaView style={styles.container}>
-            <Header options={{
-                title: t('Edit Profile'),
-                showBackButton: true,
-                rightComponents: [
-                    <TouchableOpacity 
+            <Header 
+                options={{
+                    title: t('Edit Profile'),
+                    showBackButton: true,
+                    rightComponents: [(
+                        <TouchableOpacity 
                         key="save"
-                        style={[styles.saveButton, isLoading && styles.saveButtonDisabled]} 
+                        style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
                         onPress={handleUpdateProfile}
-                        disabled={isLoading}
+                        disabled={isSaving}
                     >
-                        {isLoading ? (
+                        {isSaving ? (
                             <ActivityIndicator color="#fff" size="small" />
                         ) : (
                             <Text style={styles.saveButtonText}>{t('Save')}</Text>
                         )}
                     </TouchableOpacity>
-                ]
-            }} />
-            
+                    )]
+                }}
+            />
             <View style={styles.avatarContainer}>
                 <TouchableOpacity 
                     onPress={() => setAvatarModalVisible(true)}
-                    disabled={isLoading}
+                    disabled={isSaving}
                 >
                     <Avatar id={formData.avatar} size={100} />
                 </TouchableOpacity>
                 <TouchableOpacity 
                     onPress={() => setAvatarModalVisible(true)}
-                    disabled={isLoading}
+                    disabled={isSaving}
                 >
                     <Text style={styles.changePhotoText}>{t('Change profile photo')}</Text>
                 </TouchableOpacity>
             </View>
-
             <View style={styles.form}>
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>{t('First Name')}</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={formData.name.first}
-                        onChangeText={(text) => setFormData(prev => ({
-                            ...prev,
-                            name: { ...prev.name, first: text }
-                        }))}
-                        placeholder={t('Enter your first name')}
-                        editable={!isLoading}
-                        maxLength={50}
-                    />
+            <View style={styles.inputGroup}>
+            <Text style={styles.label}>{t('First Name')}</Text>
+                <TextInput
+                    style={styles.input}
+                    placeholder={t('First Name')}
+                    value={formData.name.first}
+                    onChangeText={(text) => setFormData(prev => ({
+                        ...prev,
+                        name: { ...prev.name, first: text }
+                    }))}
+                />
                 </View>
-
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>{t('Last Name')}</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={formData.name.last}
-                        onChangeText={(text) => setFormData(prev => ({
-                            ...prev,
-                            name: { ...prev.name, last: text }
-                        }))}
-                        placeholder={t('Enter your last name')}
-                        editable={!isLoading}
-                        maxLength={50}
-                    />
+                <TextInput
+                    style={styles.input}
+                    placeholder={t('Last Name')}
+                    value={formData.name.last}
+                    onChangeText={(text) => setFormData(prev => ({
+                        ...prev,
+                        name: { ...prev.name, last: text }
+                    }))}
+                />
                 </View>
-
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>{t('Bio')}</Text>
-                    <TextInput
-                        style={[styles.input, styles.textArea]}
-                        value={formData.description}
-                        onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
-                        placeholder={t('Write a bio about yourself')}
-                        multiline
-                        numberOfLines={4}
-                        editable={!isLoading}
-                        maxLength={160}
-                    />
+                <TextInput
+                    style={styles.input}
+                    placeholder={t('Description')}
+                    value={formData.description}
+                    onChangeText={(text) => setFormData(prev => ({
+                        ...prev,
+                        description: text
+                    }))}
+                    multiline
+                />
                 </View>
-
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>{t('Location')}</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={formData.location}
-                        onChangeText={(text) => setFormData(prev => ({ ...prev, location: text }))}
-                        placeholder={t('Add your location')}
-                        editable={!isLoading}
-                        maxLength={100}
-                    />
+                <TextInput
+                    style={styles.input}
+                    placeholder={t('Location')}
+                    value={formData.location}
+                    onChangeText={(text) => setFormData(prev => ({
+                        ...prev,
+                        location: text
+                    }))}
+                />
                 </View>
-
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>{t('Website')}</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={formData.website}
-                        onChangeText={(text) => setFormData(prev => ({ ...prev, website: text }))}
-                        placeholder={t('Add your website')}
-                        keyboardType="url"
-                        autoCapitalize="none"
-                        editable={!isLoading}
-                        maxLength={100}
-                    />
+                <TextInput
+                    style={styles.input}
+                    placeholder={t('Website')}
+                    value={formData.website}
+                    onChangeText={(text) => setFormData(prev => ({
+                        ...prev,
+                        website: text
+                    }))}
+                />
                 </View>
             </View>
-
-            {error && (
-                <Text style={styles.errorText}>{error}</Text>
-            )}
-
-            <FileSelectorModal
-                visible={isAvatarModalVisible}
-                onClose={() => setAvatarModalVisible(false)}
-                onSelect={handleAvatarSelect}
-                options={{
-                    fileTypeFilter: ["image/"],
-                    maxFiles: 1,
-                }}
-            />
         </SafeAreaView>
-        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     avatarContainer: {
         alignItems: 'center',

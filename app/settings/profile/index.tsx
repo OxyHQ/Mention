@@ -9,7 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Avatar from "@/components/Avatar";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "@/store/store";
-import { fetchProfile } from "@/store/reducers/profileReducer";
+import { fetchProfile } from "@/modules/oxyhqservices/reducers/profileReducer";
 
 export default function AccountSettings() {
     const { t } = useTranslation();

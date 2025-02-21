@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { Profile } from '@/interfaces/Profile';
-import { fetchData, patchData } from '@/utils/api';
+import type { Profile } from '../types';
+import { fetchData, patchData } from '../utils/api';
 
 interface ProfileState {
   profile: Profile | null;
@@ -14,13 +14,17 @@ const initialState: ProfileState = {
   error: null,
 };
 
-export const getUsernameToId = async ({ username }: { username: string }) => {
+export const getUsernameToId = async ({ username }: { username: string }): Promise<string | null> => {
   const cleanUsername = username.startsWith('@') ? username.substring(1) : username;
   try {
     const response = await fetchData(`users/username-to-id/${cleanUsername}`);
-    return response?.id || null;
+    if (!response?.id || typeof response.id !== 'string') {
+      console.error('Invalid ID format received:', response);
+      return null;
+    }
+    return response.id;
   } catch (error) {
-    console.error(error);
+    console.error('Error converting username to ID:', error);
     return null;
   }
 };
@@ -28,12 +32,21 @@ export const getUsernameToId = async ({ username }: { username: string }) => {
 export const fetchProfile = createAsyncThunk(
   'profile/fetchProfile', 
   async ({ username }: { username: string }, { rejectWithValue }) => {
-    const userId = await getUsernameToId({ username });
-    if (!userId) {
-      return rejectWithValue('User ID not found');
+    try {
+      const userId = await getUsernameToId({ username });
+      if (!userId || typeof userId !== 'string') {
+        return rejectWithValue(`User not found: ${username}`);
+      }
+      
+      const response = await fetchData(`profiles/${userId}`);
+      if (!response) {
+        return rejectWithValue('No profile data received');
+      }
+      return response;
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to fetch profile';
+      return rejectWithValue(errorMessage);
     }
-    const response = await fetchData(`profiles/${userId}`);
-    return response as Profile;
   }
 );
 

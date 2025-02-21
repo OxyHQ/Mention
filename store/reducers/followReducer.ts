@@ -1,16 +1,11 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { fetchData, postData, deleteData } from '@/utils/api';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { toast } from 'sonner';
+import { profileService } from '@/modules/oxyhqservices';
+import { fetchData } from '@/modules/oxyhqservices/utils/api';
+import type { OxyProfile } from '@/modules/oxyhqservices/types';
 
-interface ProfileRecommendation {
-  _id: string;
+interface ProfileRecommendation extends Partial<OxyProfile> {
   userID: string;
-  username?: string;
-  avatar?: string;
-  name?: {
-    first?: string;
-    last?: string;
-  };
 }
 
 interface FollowState {
@@ -18,6 +13,7 @@ interface FollowState {
   error: string | null;
   profiles: ProfileRecommendation[];
   following: Record<string, boolean>;
+  followingIds: string[];
 }
 
 const initialState: FollowState = {
@@ -25,14 +21,15 @@ const initialState: FollowState = {
   loading: false,
   error: null,
   following: {},
+  followingIds: []
 };
 
 export const followUser = createAsyncThunk(
   'follow/followUser',
   async (userId: string, { rejectWithValue }) => {
     try {
-      const response = await postData(`profiles/${userId}/follow`, {});
-      return { userId, ...response };
+      await profileService.follow(userId);
+      return { userId, success: true };
     } catch (error: any) {
       toast.error(`Failed to follow user: ${error.message}`);
       return rejectWithValue(error.response?.data || error.message);
@@ -44,8 +41,8 @@ export const unfollowUser = createAsyncThunk(
   'follow/unfollowUser',
   async (userId: string, { rejectWithValue }) => {
     try {
-      const response = await deleteData(`profiles/${userId}/follow`);
-      return { userId, ...response };
+      await profileService.unfollow(userId);
+      return { userId, success: true };
     } catch (error: any) {
       toast.error(`Failed to unfollow user: ${error.message}`);
       return rejectWithValue(error.response?.data || error.message);
@@ -57,8 +54,8 @@ export const checkFollowStatus = createAsyncThunk(
   'follow/checkFollowStatus',
   async (userId: string, { rejectWithValue }) => {
     try {
-      const response = await fetchData(`profiles/${userId}/following-status`);
-      return { userId, isFollowing: response.isFollowing };
+      const isFollowing = await profileService.getFollowingStatus(userId);
+      return { userId, isFollowing };
     } catch (error: any) {
       console.error('Error checking follow status:', error);
       return rejectWithValue(error.response?.data || error.message);
@@ -82,7 +79,19 @@ export const fetchFollowRecommendations = createAsyncThunk(
 const followSlice = createSlice({
   name: 'follow',
   initialState,
-  reducers: {},
+  reducers: {
+    setFollowing: (state, action: PayloadAction<string[]>) => {
+      state.followingIds = action.payload;
+    },
+    addFollowing: (state, action: PayloadAction<string>) => {
+      if (!state.followingIds.includes(action.payload)) {
+        state.followingIds.push(action.payload);
+      }
+    },
+    removeFollowing: (state, action: PayloadAction<string>) => {
+      state.followingIds = state.followingIds.filter(id => id !== action.payload);
+    }
+  },
   extraReducers: (builder) => {
     builder
       // Follow User
@@ -131,4 +140,5 @@ const followSlice = createSlice({
   },
 });
 
+export const { setFollowing, addFollowing, removeFollowing } = followSlice.actions;
 export default followSlice.reducer;

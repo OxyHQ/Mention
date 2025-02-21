@@ -11,6 +11,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { FlatList } from "react-native-gesture-handler";
 import { RootState, AppDispatch } from '@/store/store';
 import useAuth from "@/hooks/useAuth";
+import { FlashList } from "@shopify/flash-list";
 
 export default function Feed() {
     const dispatch = useDispatch<AppDispatch>();
@@ -119,15 +120,13 @@ export default function Feed() {
                     <Text className="text-red-500 text-base">{error}</Text>
                 </View>
             ) : (
-                <FlatList
+                
+                <FlashList
                     data={posts}
                     renderItem={renderItem}
                     keyExtractor={(item: IPost) => item.id}
                     onEndReached={handleEndReached}
                     onEndReachedThreshold={0.5}
-                    maxToRenderPerBatch={10}
-                    windowSize={7}
-                    initialNumToRender={7}
                     removeClippedSubviews={true}
                     className="flex-1"
                     ListFooterComponent={isLoadingMore ? <Loading size={20} /> : null}

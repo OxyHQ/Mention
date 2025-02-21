@@ -1,29 +1,18 @@
-import React from 'react'
-import { View, StyleSheet, Text, Platform, TouchableOpacity, ViewStyle, GestureResponderEvent } from "react-native";
+import React, { useEffect } from 'react'
+import { View, StyleSheet, Text, Platform, TouchableOpacity, GestureResponderEvent } from "react-native";
 import { Link } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useMediaQuery } from 'react-responsive'
 import { colors } from '../styles/colors'
 import { SearchBar } from './SearchBar'
-import { FollowButton } from '@/components/FollowButton'
+import { FollowButton } from '@/modules/oxyhqservices/components/FollowButton'
 import { useRouter, usePathname } from "expo-router";
 import Avatar from '@/components/Avatar'
+import { Trends } from "@/features/trends/Trends"
+import type { OxyProfile } from '@/modules/oxyhqservices/types'
 import { useSelector, useDispatch } from 'react-redux'
 import { AppDispatch, RootState } from '@/store/store'
 import { fetchFollowRecommendations } from '@/store/reducers/followReducer'
-import { Trends } from "@/features/trends/Trends"
-
-// Define types for profile data
-interface ProfileData {
-    _id: string;
-    userID: string;
-    username?: string;
-    avatar?: string;
-    name?: {
-        first?: string;
-        last?: string;
-    };
-}
 
 export function RightBar() {
     const isRightBarVisible = useMediaQuery({ minWidth: 990 })
@@ -32,8 +21,9 @@ export function RightBar() {
     const isExplorePage = pathname === '/explore';
     const dispatch = useDispatch<AppDispatch>();
     const followRecData = useSelector((state: RootState) => state.follow.profiles);
+    const loading = useSelector((state: RootState) => state.follow.loading);
 
-    React.useEffect(() => {
+    useEffect(() => {
         dispatch(fetchFollowRecommendations());
     }, [dispatch]);
 
@@ -48,7 +38,7 @@ export function RightBar() {
     )
 }
 
-function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
+function SuggestedFriends({ followRecData }: { followRecData: Partial<OxyProfile>[] }) {
     const router = useRouter();
     const { t } = useTranslation();
     
@@ -98,12 +88,15 @@ function SuggestedFriends({ followRecData }: { followRecData: ProfileData[] }) {
     );
 }
 
-const FollowRowComponent = ({ profileData }: { profileData: ProfileData }) => {
+const FollowRowComponent = ({ profileData }: { profileData: Partial<OxyProfile> }) => {
     const router = useRouter();
     const handleFollowClick = (e: GestureResponderEvent) => {
         e.preventDefault();
         e.stopPropagation();
     };
+
+    // Skip rendering if no userID
+    if (!profileData.userID) return null;
 
     const displayName = profileData.name?.first
         ? `${profileData.name.first} ${profileData.name.last || ''}`
@@ -140,7 +133,7 @@ const FollowRowComponent = ({ profileData }: { profileData: ProfileData }) => {
                     </View>
                 </View>
                 <TouchableOpacity onPress={handleFollowClick}>
-                    <FollowButton userId={profileData._id} />
+                    <FollowButton userId={profileData.userID} />
                 </TouchableOpacity>
             </View>
         </Link>

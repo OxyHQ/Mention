@@ -1,85 +1,51 @@
-import React, { useState, useContext, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
-import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import React, { useState, useRef } from 'react';
+import { View, TextInput, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MentionLogo } from '@/assets/mention-logo';
-import { colors } from '@/styles/colors';
 import { toast } from 'sonner';
-import { useTranslation } from "react-i18next";
+import { MentionLogo } from '@/assets/mention-logo';
+import { Text } from '@/components/ThemedText';
+import { useTranslation } from 'react-i18next';
+import { authService } from '@/modules/oxyhqservices';
+import { colors } from '@/styles/colors';
 
 const { width } = Dimensions.get('window');
 
 export default function SignUpScreen() {
-    const { t } = useTranslation();
     const [step, setStep] = useState(1);
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
+    const slideAnim = useRef(new Animated.Value(0)).current;
     const router = useRouter();
-    const slideAnim = useState(new Animated.Value(0))[0];
-    const containerHeight = useState(new Animated.Value(200))[0];
-    const currentHeight = useRef(200);
-    const sessionContext = useContext(SessionContext);
+    const { t } = useTranslation();
 
-    const onContentLayout = (event: { nativeEvent: { layout: { height: any; }; }; }) => {
-        const { height } = event.nativeEvent.layout;
-        if (currentHeight.current !== height) {
-            currentHeight.current = height;
-            Animated.timing(containerHeight, {
-                toValue: height,
-                duration: 300,
-                useNativeDriver: true,
-            }).start();
+    const animateStepChange = (newStep: number, direction: number) => {
+        setStep(newStep);
+        Animated.timing(slideAnim, {
+            toValue: -direction * (newStep - 1) * width,
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const handleNextStep = () => {
+        if (step < 4) {
+            animateStepChange(step + 1, width);
         }
     };
 
-    const animateStepChange = (nextStep: React.SetStateAction<number>, direction: number) => {
-        Animated.timing(slideAnim, {
-            toValue: direction,
-            duration: 300,
-            useNativeDriver: true,
-        }).start(() => {
-            setStep(nextStep);
-            slideAnim.setValue(-direction);
-            Animated.timing(slideAnim, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: true,
-            }).start();
-        });
-    };
-
-    const handleNextStep = async () => {
-        try {
-            if (step === 1) {
-                animateStepChange(2, -width);
-            } else if (step === 2 && username) {
-                animateStepChange(3, -width);
-            } else if (step === 3 && email) {
-                animateStepChange(4, -width);
-            } else if (step === 4 && password && confirmPassword) {
-                if (password !== confirmPassword) {
-                    toast.error(t("error.signup.password_mismatch"));
-                    return;
-                }
-                if (!sessionContext) {
-                    toast.error(t("error.signup.session_error"));
-                    return;
-                }
-                const user: { username: string; email: string; password: string } = { 
-                    username, 
-                    email, 
-                    password 
-                };
-                await sessionContext.registerUser(user);
-                toast.success(t("success.signup"));
+    const handleSignup = async () => {
+        if (username && email && password) {
+            try {
+                const user = { username, email, password };
+                await authService.register(user);
+                toast.success(t('success.signup'));
                 router.push('/login');
-            } else {
-                toast.error(t("error.signup.missing_fields"));
+            } catch (error) {
+                toast.error(`${t('error.signup.failed')} ${(error as Error).message}`);
             }
-        } catch (error) {
-            toast.error(`${t("error.signup.failed")} ${(error as Error).message}`);
+        } else {
+            toast.error(t('error.signup.missing_fields'));
         }
     };
 
@@ -92,67 +58,73 @@ export default function SignUpScreen() {
     return (
         <View style={styles.container}>
             <MentionLogo style={styles.logo} />
-            <Animated.View style={[styles.formContainer, { transform: [{ translateX: slideAnim }], height: containerHeight }]}>
-                <View onLayout={onContentLayout} style={styles.formContent}>
+            <Animated.View style={[styles.formContainer, { transform: [{ translateX: slideAnim }] }]}>
+                <View style={styles.formContent}>
                     {step === 1 && (
                         <>
-                            <Text style={styles.stepTitle}>Welcome to Mention by Oxy</Text>
-                            <Text style={styles.welcomeText}>Create your Oxy Account to get started</Text>
+                            <Text style={styles.stepTitle}>{t('Welcome to Mention by Oxy')}</Text>
+                            <Text style={styles.welcomeText}>{t('Create your Oxy Account to get started')}</Text>
                         </>
                     )}
                     {step === 2 && (
                         <>
-                            <Text style={styles.stepTitle}>Choose a Username</Text>
+                            <Text style={styles.stepTitle}>{t('Choose a Username')}</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="Username"
+                                placeholder={t('Username')}
                                 value={username}
                                 onChangeText={setUsername}
-                                placeholderTextColor="#657786"
+                                placeholderTextColor={colors.COLOR_BLACK_LIGHT_6}
+                                autoCapitalize="none"
                             />
                         </>
                     )}
                     {step === 3 && (
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Email"
-                            value={email}
-                            onChangeText={setEmail}
-                            placeholderTextColor="#657786"
-                        />
+                        <>
+                            <Text style={styles.stepTitle}>{t('Enter your Email')}</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder={t('Email')}
+                                value={email}
+                                onChangeText={setEmail}
+                                placeholderTextColor={colors.COLOR_BLACK_LIGHT_6}
+                                autoCapitalize="none"
+                                keyboardType="email-address"
+                            />
+                        </>
                     )}
                     {step === 4 && (
                         <>
+                            <Text style={styles.stepTitle}>{t('Create a Password')}</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="Password"
+                                placeholder={t('Password')}
                                 value={password}
                                 onChangeText={setPassword}
                                 secureTextEntry
-                                placeholderTextColor="#657786"
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Confirm Password"
-                                value={confirmPassword}
-                                onChangeText={setConfirmPassword}
-                                secureTextEntry
-                                placeholderTextColor="#657786"
+                                placeholderTextColor={colors.COLOR_BLACK_LIGHT_6}
                             />
                         </>
                     )}
                 </View>
             </Animated.View>
-            <TouchableOpacity style={styles.button} onPress={handleNextStep}>
-                <Text style={styles.buttonText}>{step === 4 ? 'Sign Up' : 'Next'}</Text>
-            </TouchableOpacity>
-            {step > 1 && (
-                <TouchableOpacity style={styles.button} onPress={handleBackStep}>
-                    <Text style={styles.buttonText}>Back</Text>
+            <View style={styles.buttonContainer}>
+                {step > 1 && (
+                    <TouchableOpacity style={styles.backButton} onPress={handleBackStep}>
+                        <Text style={styles.backButtonText}>{t('Back')}</Text>
+                    </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                    style={[styles.button, step === 4 && styles.finalButton]}
+                    onPress={step === 4 ? handleSignup : handleNextStep}
+                >
+                    <Text style={styles.buttonText}>
+                        {step === 4 ? t('Sign Up') : t('Next')}
+                    </Text>
                 </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => { /* Handle sign in navigation */ }}>
-                <Text style={styles.signIn}>Sign In</Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push('/login')}>
+                <Text style={styles.loginText}>{t('Already have an account? Log in')}</Text>
             </TouchableOpacity>
         </View>
     );
@@ -180,44 +152,64 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     stepTitle: {
-        fontSize: 20,
+        fontSize: 24,
         fontWeight: 'bold',
-        color: colors.primaryColor,
-        marginBottom: 12,
-    },
-    input: {
-        width: '100%',
-        height: 50,
-        borderColor: colors.primaryColor,
-        borderWidth: 1,
-        borderRadius: 25,
-        marginBottom: 12,
-        paddingHorizontal: 16,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+        marginBottom: 16,
+        textAlign: 'center',
         color: colors.COLOR_BLACK,
-    },
-    button: {
-        width: '100%',
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: colors.primaryColor,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    buttonText: {
-        color: '#ffffff',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    signIn: {
-        color: colors.primaryColor,
-        fontSize: 14,
     },
     welcomeText: {
         fontSize: 16,
-        color: colors.COLOR_BLACK,
         textAlign: 'center',
-        marginBottom: 12,
+        marginBottom: 24,
+        color: colors.COLOR_BLACK_LIGHT_4,
+    },
+    input: {
+        width: '100%',
+        height: 40,
+        marginBottom: 16,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        borderRadius: 5,
+        color: colors.COLOR_BLACK,
+    },
+    buttonContainer: {
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 24,
+    },
+    button: {
+        flex: 1,
+        height: 40,
+        backgroundColor: colors.primaryColor,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 5,
+    },
+    finalButton: {
+        backgroundColor: colors.primaryColor,
+    },
+    buttonText: {
+        color: colors.primaryLight,
+        fontWeight: '600',
+    },
+    backButton: {
+        marginRight: 8,
+        height: 40,
+        paddingHorizontal: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 5,
+        borderWidth: 1,
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
+    },
+    backButtonText: {
+        color: colors.COLOR_BLACK,
+    },
+    loginText: {
+        marginTop: 20,
+        color: colors.primaryColor,
     },
 });

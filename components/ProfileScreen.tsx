@@ -9,27 +9,102 @@ import Avatar from "@/components/Avatar";
 import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
-import { fetchProfile } from '@/store/reducers/profileReducer';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { AppDispatch } from '@/store/store';
 import type { RootState } from '@/store/store';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
-import { Profile } from '@/interfaces/Profile';
-import { FollowButton } from '@/components/FollowButton';
+import { profileService, FollowButton } from '@/modules/oxyhqservices';
+import type { OxyProfile } from '@/modules/oxyhqservices/types';
+import { getUsernameToId } from '@/modules/oxyhqservices/reducers/profileReducer';
+import { FlashList } from '@shopify/flash-list';
+import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
+import { toast } from '@/lib/sonner';
+import { useTranslation } from 'react-i18next';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
   const [activeTab, setActiveTab] = useState("Posts");
   const dispatch = useDispatch<AppDispatch>();
-  const { profile, loading, error } = useSelector((state: RootState) => state.profile);
+  const [profile, setProfile] = useState<OxyProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const posts = useSelector((state: { posts: { posts: any[] } }) => state.posts.posts);
   const sessionContext = useContext(SessionContext);
   const currentUser = sessionContext?.getCurrentUser();
+  const { t } = useTranslation();
+  const [isAvatarModalVisible, setIsAvatarModalVisible] = useState(false);
+  const [isCoverModalVisible, setIsCoverModalVisible] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleFollowStatusChange = (isFollowing: boolean) => {
+    if (profile && profile._count) {
+      setProfile({
+        ...profile,
+        _count: {
+          ...profile._count,
+          followers: profile._count.followers + (isFollowing ? 1 : -1)
+        }
+      });
+    }
+  };
+
+  const handleUpdateProfile = async (updateData: Partial<OxyProfile>) => {
+    if (!profile || !currentUser) return;
+    
+    setIsUpdating(true);
+    try {
+      const updatedProfile = await profileService.updateProfile({
+        userID: profile.userID,
+        ...updateData
+      });
+      setProfile(updatedProfile);
+      toast.success(t('Profile updated successfully'));
+    } catch (error) {
+      toast.error(t('Failed to update profile'));
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleAvatarSelect = async (files: any[]) => {
+    if (files.length > 0) {
+      await handleUpdateProfile({ avatar: files[0]._id });
+    }
+    setIsAvatarModalVisible(false);
+  };
+
+  const handleCoverSelect = async (files: any[]) => {
+    if (files.length > 0) {
+      await handleUpdateProfile({ coverPhoto: files[0]._id });
+    }
+    setIsCoverModalVisible(false);
+  };
 
   useEffect(() => {
-    if (localUsername) {
-      dispatch(fetchProfile({ username: localUsername.replace('@', '') }));
-    }
+    const fetchProfileData = async () => {
+      if (localUsername) {
+        try {
+          setLoading(true);
+          const username = localUsername.replace('@', '');
+          const userId = await getUsernameToId({ username });
+          
+          if (!userId) {
+            throw new Error(`User not found: ${username}`);
+          }
+          
+          const profileData = await profileService.getProfileById(userId);
+          setProfile(profileData);
+          setError(null);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to load profile');
+          setProfile(null);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchProfileData();
     dispatch(fetchPosts());
   }, [dispatch, localUsername]);
 
@@ -53,7 +128,7 @@ export default function ProfileScreen() {
     );
   }
 
-  const isOwnProfile = currentUser?.username === profile.username;
+  const isOwnProfile = currentUser?.username === profile?.username;
   
   return (
     <SafeAreaView>
@@ -66,14 +141,32 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           )}
-          {profile.banner ? (
-            <Image source={{ uri: profile.banner }} style={styles.coverPhoto} />
-          ) : (
-            <View style={[styles.coverPhoto, { backgroundColor: '#ccc' }]} />
-          )}
+          <TouchableOpacity 
+            onPress={() => isOwnProfile && setIsCoverModalVisible(true)}
+            disabled={!isOwnProfile || isUpdating}
+            style={styles.coverPhotoButton}
+          >
+            {profile.coverPhoto ? (
+              <Image source={{ uri: profile.coverPhoto }} style={styles.coverPhoto} />
+            ) : (
+              <View className="w-full h-40 rounded-[35px] bg-black flex justify-center items-center">
+                {isOwnProfile && (
+                  <>
+                    <Ionicons name="camera" size={40} color="white" className="mb-2.5" />
+                    <Text className="text-white text-lg font-bold mb-2.5">{t('Add a cover photo')}</Text>
+                  </>
+                )}
+              </View>
+            )}
+          </TouchableOpacity>
           
           <View style={styles.profileInfo}>
-            <Avatar style={styles.avatar} id={profile.avatar} />
+            <TouchableOpacity
+              onPress={() => isOwnProfile && setIsAvatarModalVisible(true)}
+              disabled={!isOwnProfile || isUpdating}
+            >
+              <Avatar style={styles.avatar} id={profile.avatar} size={100} />
+            </TouchableOpacity>
             <View style={styles.profileButtons}>
               {!isOwnProfile && (
                 <>
@@ -82,7 +175,10 @@ export default function ProfileScreen() {
                   }}>
                     <ChatIcon size={20} color={colors.primaryColor} />
                   </TouchableOpacity>
-                  <FollowButton userId={profile._id} />
+                  <FollowButton 
+                    userId={profile.userID}
+                    onFollowStatusChange={handleFollowStatusChange}
+                  />
                 </>
               )}
               {isOwnProfile && (
@@ -156,11 +252,30 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      <FlatList
+      <FlashList
         style={styles.container}
         data={posts}
         renderItem={({ item }) => <Post postData={item} />}
         keyExtractor={(item) => item.id}
+      />
+      <FileSelectorModal
+        visible={isAvatarModalVisible}
+        onClose={() => setIsAvatarModalVisible(false)}
+        onSelect={handleAvatarSelect}
+        options={{
+          fileTypeFilter: ["image/"],
+          maxFiles: 1
+        }}
+      />
+      
+      <FileSelectorModal
+        visible={isCoverModalVisible}
+        onClose={() => setIsCoverModalVisible(false)}
+        onSelect={handleCoverSelect}
+        options={{
+          fileTypeFilter: ["image/"],
+          maxFiles: 1
+        }}
       />
     </SafeAreaView>
   );
@@ -171,18 +286,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   coverPhoto: {
-    width: "100%",
-    height: 150,
+    width: '100%',
+    height: 160,
     borderRadius: 35,
-  },
-  profileInfo: {
+    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
   },
   avatar: {
-    width: 75,
-    height: 75,
     borderWidth: 4,
     marginTop: -40,
     borderColor: colors.primaryLight,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'transform 0.2s ease',
+        ':hover': {
+          transform: [{ scale: 1.05 }],
+        },
+      },
+    }),
+  },
+  coverPhotoButton: {
+    width: '100%',
+    height: 160,
+    borderRadius: 35,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'opacity 0.2s ease',
+        ':hover': {
+          opacity: 0.9,
+        },
+      },
+    }),
   },
   profileButtons: {
     position: "absolute",
@@ -190,6 +326,9 @@ const styles = StyleSheet.create({
     top: 15,
     flexDirection: "row",
     gap: 10,
+  },
+  profileInfo: {
+    padding: 15,
   },
   ProfileButton: {
     borderRadius: 20,

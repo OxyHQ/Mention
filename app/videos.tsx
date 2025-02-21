@@ -4,8 +4,6 @@ import {
     View,
     StyleSheet,
     TouchableOpacity,
-    SafeAreaView,
-    Image,
     Dimensions,
     Platform,
     Animated,
@@ -16,7 +14,6 @@ import axios from "axios";
 import Post from "@/components/Post";
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
-import TextTicker from "react-native-text-ticker";
 import { ScrollView } from "react-native-gesture-handler";
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { colors } from "@/styles/colors";
@@ -178,10 +175,6 @@ const VideoFeed: React.FC = () => {
                 <Text style={styles.errorText}>{error}</Text>
             </View>
         );
-    }
-
-    function handleLike() {
-        setLiked(!liked);
     }
 
     const handleDoubleTap = () => {

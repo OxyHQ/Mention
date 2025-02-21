@@ -22,7 +22,6 @@
     "@expo/match-media": "^0.4.0",
     "@expo/vector-icons": "^14.0.2",
     "@gorhom/bottom-sheet": "^5.0.6",
-    "@oxyhq/services": "^0.0.85",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@react-native-community/slider": "4.5.5",
     "@react-native-community/viewpager": "^5.0.11",
@@ -30,6 +29,7 @@
     "@react-navigation/bottom-tabs": "^7.0.0",
     "@react-navigation/native": "^7.0.14",
     "@reduxjs/toolkit": "^2.5.0",
+    "@shopify/flash-list": "1.7.3",
     "babel-plugin-module-resolver": "^5.0.2",
     "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
@@ -101,6 +101,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@babel/runtime": "^7.26.7",
+    "@types/axios": "^0.14.4",
     "@types/crypto-js": "^4.2.2",
     "@types/jest": "^29.5.12",
     "@types/lodash": "^4.17.15",

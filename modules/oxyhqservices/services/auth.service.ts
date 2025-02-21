@@ -1,0 +1,127 @@
+import axios from 'axios';
+import { apiService } from './api.service';
+import { storeData, getData } from '@/utils/storage';
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  name?: {
+    first?: string;
+    last?: string;
+  };
+  avatar?: string;
+  avatarSource?: {
+    uri: string;
+  };
+}
+
+interface LoginResponse {
+  success: boolean;
+  message: string;
+  accessToken: string;
+  refreshToken: string;
+  user: User;
+}
+
+interface ValidateResponse {
+  valid: boolean;
+  message?: string;
+}
+
+interface RefreshResponse {
+  accessToken: string;
+  refreshToken?: string;
+}
+
+class AuthService {
+  async register(user: { username: string; email: string; password: string }) {
+    try {
+      const response = await apiService.post('/auth/signup', user);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async login(username: string, password: string): Promise<LoginResponse> {
+    try {
+      const response = await apiService.post<LoginResponse>('/auth/login', {
+        username,
+        password
+      });
+
+      if (!response.data.success || !response.data.accessToken || !response.data.refreshToken) {
+        throw new Error(response.data.message || 'Login failed');
+      }
+
+      // Store tokens
+      await Promise.all([
+        storeData('accessToken', response.data.accessToken),
+        storeData('refreshToken', response.data.refreshToken)
+      ]);
+
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.data) {
+        throw error;
+      }
+      throw new Error('Network error during login');
+    }
+  }
+
+  async validateCurrentSession() {
+    try {
+      const response = await apiService.get<ValidateResponse>('/auth/validate');
+      return response.data.valid;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async refreshToken(): Promise<{ accessToken: string; refreshToken: string } | false> {
+    try {
+      const currentRefreshToken = await getData('refreshToken');
+      if (!currentRefreshToken) {
+        return false;
+      }
+
+      const response = await apiService.post<RefreshResponse>('/auth/refresh', {
+        refreshToken: currentRefreshToken
+      });
+
+      const { accessToken, refreshToken } = response.data;
+      if (!accessToken || !refreshToken) {
+        throw new Error('Invalid refresh response');
+      }
+
+      await Promise.all([
+        storeData('accessToken', accessToken),
+        storeData('refreshToken', refreshToken)
+      ]);
+
+      return { accessToken, refreshToken };
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      await this.logout();
+      return false;
+    }
+  }
+
+  async logout() {
+    try {
+      await Promise.all([
+        storeData('accessToken', null),
+        storeData('refreshToken', null),
+        storeData('session', null),
+        storeData('user', null),
+        storeData('profile', null)
+      ]);
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    }
+  }
+}
+
+export const authService = new AuthService();

@@ -97,7 +97,6 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     // Memoize Header options to avoid unnecessary re-creations
     const headerOptions = React.useMemo(() => ({
         title: t("File Manager"),
-        showBackButton: true,
         leftComponents: [
             <TouchableOpacity key="back" onPress={onClose}>
                 <Ionicons name="arrow-back" size={24} color="black" />
