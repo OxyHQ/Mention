@@ -1,25 +1,23 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { View, Image, FlatList, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { View, Image, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Platform, ViewStyle } from 'react-native';
 import { router, useLocalSearchParams, Link } from "expo-router";
-import { StyleSheet, Platform, ViewStyle } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import Post from "@/components/Post";
+import { FlashList } from "@shopify/flash-list";
 import { colors } from "@/styles/colors";
-import Avatar from "@/components/Avatar";
-import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchPosts } from '@/store/reducers/postsReducer';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { AppDispatch } from '@/store/store';
-import type { RootState } from '@/store/store';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { profileService, FollowButton } from '@/modules/oxyhqservices';
-import type { OxyProfile } from '@/modules/oxyhqservices/types';
 import { getUsernameToId } from '@/modules/oxyhqservices/reducers/profileReducer';
-import { FlashList } from '@shopify/flash-list';
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
+import { Ionicons } from "@expo/vector-icons";
+import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
 import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
+import Avatar from "@/components/Avatar";
+import Post from "@/components/Post";
+import type { AppDispatch } from '@/store/store';
+import type { OxyProfile } from '@/modules/oxyhqservices/types';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
@@ -49,7 +47,7 @@ export default function ProfileScreen() {
   };
 
   const handleUpdateProfile = async (updateData: Partial<OxyProfile>) => {
-    if (!profile || !currentUser) return;
+    if (!profile?.userID || !currentUser) return;
     
     setIsUpdating(true);
     try {
@@ -61,6 +59,7 @@ export default function ProfileScreen() {
       toast.success(t('Profile updated successfully'));
     } catch (error) {
       toast.error(t('Failed to update profile'));
+      console.error('Profile update error:', error);
     } finally {
       setIsUpdating(false);
     }
@@ -82,31 +81,37 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     const fetchProfileData = async () => {
-      if (localUsername) {
-        try {
-          setLoading(true);
-          const username = localUsername.replace('@', '');
-          const userId = await getUsernameToId({ username });
-          
-          if (!userId) {
-            throw new Error(`User not found: ${username}`);
-          }
-          
-          const profileData = await profileService.getProfileById(userId);
-          setProfile(profileData);
-          setError(null);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to load profile');
-          setProfile(null);
-        } finally {
-          setLoading(false);
+      if (!localUsername) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        const username = localUsername.replace('@', '');
+        const userId = await getUsernameToId({ username });
+        
+        if (!userId) {
+          throw new Error(`User not found: ${username}`);
         }
+        
+        const profileData = await profileService.getProfileById(userId);
+        if (!profileData) {
+          throw new Error('Failed to load profile data');
+        }
+        
+        setProfile(profileData);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load profile';
+        setError(errorMessage);
+        setProfile(null);
+        toast.error(t(errorMessage));
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchProfileData();
     dispatch(fetchPosts());
-  }, [dispatch, localUsername]);
+  }, [dispatch, localUsername, t]);
 
   if (loading) {
     return (
