@@ -1,30 +1,26 @@
 import React from 'react';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Line, Polygon, Rect } from 'react-native-svg';
+import { ViewStyle } from 'react-native';
+import { colors } from '@/styles/colors';
 
-interface IconProps {
-  size?: number;
-  color?: string;
-}
+export const AnalyticsIcon = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+  return (
+    <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
+      <Rect fill="none" height="20" rx="5" stroke={color} stroke-width="2" width="20" x="2" y="2"></Rect>
+      <Rect height="12" rx="1" width="2" x="11" y="6" fill={color}></Rect>
+      <Rect height="9" rx="1" width="2" x="15" y="9" fill={color}></Rect>
+      <Rect height="5" rx="1" width="2" x="7" y="13" fill={color}></Rect>
+    </Svg>
+  );
+};
 
-export const Analytics = ({ size = 24, color = '#000' }: IconProps) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M3 3v18h18"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M7 12l4-4 4 4 4-4"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-export const AnalyticsActive = ({ size = 24 }: Omit<IconProps, 'color'>) => (
-  <Analytics size={size} color="#1DA1F2" />
-);
+export const AnalyticsIconActive = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+  return (
+    <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
+<Rect fill="none" height="20" rx="5" stroke={color} stroke-width="2" width="20" x="2" y="2"></Rect>
+      <Rect height="12" rx="1" width="2.5" x="11" y="6" fill={color}></Rect>
+      <Rect height="9" rx="1" width="2.5" x="15" y="9" fill={color}></Rect>
+      <Rect height="5" rx="1" width="2.5" x="7" y="13" fill={color}></Rect>
+    </Svg>
+  );
+};
