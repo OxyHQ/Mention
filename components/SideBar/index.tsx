@@ -6,7 +6,7 @@ import { widthPercentageToDP as wp } from 'react-native-responsive-screen'
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from './SideBarItem'
 import { colors } from '@/styles/colors'
-import { Button } from '@/components/Button'
+import { Button } from '@/components/SideBar/Button'
 import { Logo } from '@/components/Logo'
 import { Home, HomeActive } from '@/assets/icons/home-icon'
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';

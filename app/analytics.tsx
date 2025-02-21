@@ -10,6 +10,7 @@ import Avatar from '../components/Avatar';
 import { useProfile } from '../modules/oxyhqservices/hooks/useProfile';
 import { useRouter } from 'expo-router';
 import { OxyProfile } from '../modules/oxyhqservices/types';
+import Button from '@/components/Button';
 
 interface ViewerData {
   _id: string;
@@ -189,19 +190,13 @@ export default function AnalyticsScreen() {
         <ThemedText style={{ textAlign: 'center', marginBottom: 20 }}>
           Upgrade to Premium to access detailed analytics about your content performance, audience engagement, and more.
         </ThemedText>
-        <TouchableOpacity
-          style={{
-            backgroundColor: '#007AFF',
-            padding: 12,
-            borderRadius: 8,
-          }}
+        <Button
           onPress={() => {
             // Handle upgrade to premium navigation
             router.push('/settings/premium');
           }}
-        >
-          <ThemedText style={{ color: '#ffffff', fontWeight: 'bold' }}>Upgrade to Premium</ThemedText>
-        </TouchableOpacity>
+        >Upgrade to Premium
+        </Button>
       </View>
     );
   }

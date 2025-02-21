@@ -79,6 +79,12 @@ export default function SettingsScreen() {
       link: "/settings/profile",
     },
     {
+      icon: 'star',
+      title: t('Premium'),
+      subtitle: t('Upgrade to premium features'),
+      link: "/settings/premium",
+    },
+    {
       icon: 'notifications',
       title: t('Notifications'),
       subtitle: t('Notification preferences'),
