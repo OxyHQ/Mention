@@ -1,39 +1,39 @@
-import React, { FC, useState } from 'react'
-import { ViewStyle, Platform } from 'react-native'
-import { Pressable } from 'react-native-web-hover'
-import { useMediaQuery } from 'react-responsive'
-import { Link } from 'expo-router' // added Link import
+import { colors } from '@/styles/colors';
+import React from 'react';
+import { StyleSheet, ViewStyle, TouchableOpacity, Text } from 'react-native';
 
-type ChildProps = {
-    href?: string; // optional href prop
-    renderText: ({ state }: { state: "desktop" | "tablet" }) => React.ReactNode;
-    renderIcon: ({ state }: { state: "desktop" | "tablet" }) => React.ReactNode;
-    containerStyle: ({ state }: { state: "desktop" | "tablet" }) => ViewStyle;
+interface ButtonProps {
+    onPress: () => void;
+    onLongPress?: () => void;
+    children: React.ReactNode;
+    disabled?: boolean;
+    style?: React.CSSProperties | ViewStyle;
+    className?: string;
+}
+
+const Button: React.FC<ButtonProps> = ({ onPress, onLongPress, children, disabled = false, style, className }) => {
+    return (
+        <TouchableOpacity onPress={onPress} onLongPress={onLongPress} disabled={disabled} className={className} style={[styles.button, style]}>
+            <Text style={styles.buttonText}>{children}</Text>
+        </TouchableOpacity>
+    );
 };
 
-export const Button: FC<ChildProps> = ({
-    href,
-    renderText,
-    renderIcon,
-    containerStyle,
-}) => {
-    const isDesktop = useMediaQuery({ minWidth: 1266 })
-    const state = isDesktop ? 'desktop' : 'tablet'
-    const style = containerStyle?.({ state })
+const styles = StyleSheet.create({
+    button: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        backgroundColor: colors.primaryColor,
+        color: colors.primaryLight,
+        borderRadius: 35,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    buttonText: {
+        color: colors.primaryLight,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+});
 
-    if (href) {
-        return (
-            <Link href={href} style={style}>
-                {renderIcon ? renderIcon({ state }) : null}
-                {renderText ? renderText({ state }) : null}
-            </Link>
-        )
-    }
-
-    return (
-        <Pressable style={style}>
-            {renderIcon ? renderIcon({ state }) : null}
-            {renderText ? renderText({ state }) : null}
-        </Pressable>
-    )
-}
+export default Button;
