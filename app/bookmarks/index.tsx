@@ -7,6 +7,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { fetchBookmarkedPosts } from '@/store/reducers/postsReducer';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { AppDispatch } from '@/store/store';
+import type { Post as PostType } from '@/interfaces/Post';
 
 const BookmarksScreen = () => {
     const posts = useSelector((state: any) => state.posts.bookmarkedPosts);
@@ -15,16 +16,16 @@ const BookmarksScreen = () => {
     const session = useContext(SessionContext);
     const { t } = useTranslation();
 
-    const currentUser = session?.getCurrentUser();
+    const currentUserId = session?.getCurrentUserId();
 
     // Memoize posts to prevent unnecessary re-renders
     const memoizedPosts = useMemo(() => posts, [posts]);
 
     const fetchBookmarkedPostsHandler = useCallback(async () => {
-        if (currentUser) {
+        if (currentUserId) {
             await dispatch(fetchBookmarkedPosts());
         }
-    }, [currentUser, dispatch]);
+    }, [currentUserId, dispatch]);
 
     useEffect(() => {
         if (!posts?.length) {
@@ -40,11 +41,11 @@ const BookmarksScreen = () => {
         );
     }
 
-    const renderPost = useCallback(({ item }) => (
+    const renderPost = useCallback(({ item }: { item: PostType }) => (
         <Post postData={item} />
     ), []);
 
-    const keyExtractor = useCallback((item) => 
+    const keyExtractor = useCallback((item: PostType) => 
         item.id.toString()
     , []);
 

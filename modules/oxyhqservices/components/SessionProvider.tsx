@@ -4,22 +4,17 @@ import { login, logout, loadSession } from '@/store/reducers/sessionReducer';
 import { setProfile, clearProfile } from '@/modules/oxyhqservices/reducers/profileReducer';
 import { authService } from '../services/auth.service';
 import { userService } from '../services/user.service';
-import { storeData, getData } from '../utils/storage';
-import { validateSession } from '@/utils/api';
+import { profileService } from '../services/profile.service';
 import { logger } from '@/utils/logger';
 import type { User } from '../services/auth.service';
 import type { OxyProfile } from '../types';
 
-// Add interface for stored session
-interface StoredSession {
-  isAuthenticated: boolean;
-  user: User;
-  accessToken: string;
-  lastRefresh?: number;
-}
+// The session management is refactored to rely solely on oxyhqservices.
+// Session tokens and session IDs are handled by the backend and stored in the database.
+// User details (name, username, email, avatar) are fetched dynamically using profileService.
 
 interface SessionState {
-  user: User | null;
+  userId: string | null;
   loading: boolean;
   error: string | null;
 }
@@ -28,19 +23,18 @@ interface SessionContextType {
   state: SessionState;
   loginUser: (username: string, password: string) => Promise<void>;
   logoutUser: () => Promise<void>;
-  getCurrentUser: () => User | null;
+  getCurrentUserId: () => string | null;
   switchSession: (userId: string) => Promise<void>;
-  sessions: User[];
 }
 
 const initialState: SessionState = {
-  user: null,
+  userId: null,
   loading: true,
   error: null,
 };
 
 type Action =
-  | { type: 'LOGIN'; payload: User }
+  | { type: 'LOGIN'; payload: string }  // payload is userId
   | { type: 'LOGOUT' }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string };
@@ -48,9 +42,9 @@ type Action =
 const sessionReducer = (state: SessionState, action: Action): SessionState => {
   switch (action.type) {
     case 'LOGIN':
-      return { ...state, user: action.payload, error: null };
+      return { ...state, userId: action.payload, error: null };
     case 'LOGOUT':
-      return { ...state, user: null, error: null };
+      return { ...state, userId: null, error: null };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
     case 'SET_ERROR':
@@ -64,204 +58,112 @@ export const SessionContext = createContext<SessionContextType | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
-  const [sessions, setSessions] = useState<User[]>([]);
+  const [activeProfile, setActiveProfile] = useState<OxyProfile | null>(null);
   const reduxDispatch = useDispatch();
 
+  // On initialization, validate session using oxyhqservices
   useEffect(() => {
     const initializeSession = async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
       try {
-        dispatch({ type: 'SET_LOADING', payload: true });
-        
-        // Load stored sessions first and validate them
-        const storedSessions = await userService.getUserSessions();
-        const validSessions = storedSessions.filter(session => 
-          session && session.id && session.username
-        );
-        setSessions(validSessions);
-        
-        // First check if we have a stored session
-        const storedSession = await getData<StoredSession>('session');
-        if (storedSession?.accessToken && storedSession?.user) {
-          // Validate the stored token
-          try {
-            const isValid = await validateSession();
-            if (isValid) {
-              // If token is valid, restore the session
-              dispatch({ type: 'LOGIN', payload: storedSession.user });
-              reduxDispatch(login({ user: storedSession.user, accessToken: storedSession.accessToken }));
-              
-              // Refresh user data in background
-              const { profile } = await userService.refreshUserData(storedSession.user.id);
-              if (profile) {
-                reduxDispatch(setProfile(profile));
-              }
-            } else {
-              // If token is invalid, try to refresh it
-              const refreshToken = await getData('refreshToken');
-              if (refreshToken) {
-                try {
-                  const { user, profile, accessToken } = await userService.refreshUserData(storedSession.user.id);
-                  if (accessToken && user && user.username) {
-                    await storeData('accessToken', accessToken);
-                    dispatch({ type: 'LOGIN', payload: user });
-                    reduxDispatch(login({ user, accessToken }));
-                    reduxDispatch(setProfile(profile));
-                  } else {
-                    throw new Error('Invalid user data received during refresh');
-                  }
-                } catch (refreshError) {
-                  logger.error('Failed to refresh session:', refreshError);
-                  await logoutUser();
-                }
-              } else {
-                await logoutUser();
-              }
-            }
-          } catch (error) {
-            logger.error('Session validation failed:', error);
-            await logoutUser();
+        // Validate current session via oxyhqservices. This call only validates the token stored in memory (managed by authService).
+        const isValid = await authService.validateCurrentSession();
+        if (isValid) {
+          // Assume authService exposes the current session's user ID.
+          const currentUserId = await authService.getCurrentSessionUserId();
+          if (currentUserId) {
+            dispatch({ type: 'LOGIN', payload: currentUserId });
+            reduxDispatch(login({ user: { id: currentUserId } as User, accessToken: 'secured' }));
+            // Dynamically fetch fresh user profile
+            const profile = await profileService.getProfileById(currentUserId);
+            reduxDispatch(setProfile(profile));
+            setActiveProfile(profile);
+          } else {
+            dispatch({ type: 'LOGOUT' });
+            reduxDispatch(logout());
           }
+        } else {
+          dispatch({ type: 'LOGOUT' });
+          reduxDispatch(logout());
         }
       } catch (error) {
         logger.error('Session initialization error:', error);
-        await logoutUser();
+        dispatch({ type: 'SET_ERROR', payload: 'Session initialization failed' });
+        dispatch({ type: 'LOGOUT' });
+        reduxDispatch(logout());
       } finally {
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
-
+    
     initializeSession();
   }, [reduxDispatch]);
 
   const loginUser = async (username: string, password: string) => {
     try {
       logger.info(`Login attempt for user: ${username}`);
-      const { user, accessToken, refreshToken } = await authService.login(username, password);
-      
-      if (!accessToken || !refreshToken) {
-        logger.error('Login failed: Missing tokens');
-        throw new Error('Login failed: Missing tokens');
+      // Call oxyhqservices auth to login. This returns session tokens and user ID only.
+      const { user, accessToken } = await authService.login(username, password);
+      if (!user || !user.id) {
+        throw new Error('Login failed: Missing user session data');
       }
-      
-      await Promise.all([
-        storeData('accessToken', accessToken),
-        storeData('refreshToken', refreshToken)
-      ]);
-      
-      dispatch({ type: 'LOGIN', payload: user });
-      reduxDispatch(login({ user, accessToken }));
-      
-      try {
-        const { profile } = await userService.refreshUserData(user.id);
-        reduxDispatch(setProfile(profile));
-      } catch (profileError) {
-        logger.error('Failed to fetch user profile:', profileError);
-        throw profileError;
-      }
-      
-      await userService.addUserSession(user);
-      setSessions(prev => [...prev, user]);
+      dispatch({ type: 'LOGIN', payload: user.id });
+      reduxDispatch(login({ user: { id: user.id } as User, accessToken }));
+      // Dynamically fetch user profile details
+      const profile = await profileService.getProfileById(user.id);
+      reduxDispatch(setProfile(profile));
+      setActiveProfile(profile);
       logger.info(`Login successful for user: ${user.id}`);
     } catch (error) {
       logger.error('Login error:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'Login failed' });
       throw error;
     }
   };
 
   const logoutUser = async () => {
     try {
-      if (state.user) {
-        await userService.removeUserSession(state.user.id);
-        setSessions(prev => prev.filter(s => s.id !== state.user?.id));
-      }
-      
+      await authService.logout();
       dispatch({ type: 'LOGOUT' });
       reduxDispatch(logout());
       reduxDispatch(clearProfile());
-      await authService.logout();
+      setActiveProfile(null);
     } catch (error) {
-      console.error('Logout error:', error);
+      logger.error('Logout error:', error);
       throw error;
     }
   };
 
   const switchSession = async (userId: string) => {
     try {
-      const session = sessions.find(s => s.id === userId);
-      if (!session) {
-        logger.warn(`Session switch failed: Session not found for user ${userId}`);
-        throw new Error('Session not found');
+      // In this refactored version, switching sessions means fetching the profile for the given userId
+      const profile = await profileService.getProfileById(userId);
+      if (!profile || !profile.userID) {
+        throw new Error('Session switch failed: Invalid profile data');
       }
-      
-      // First try to refresh tokens and user data
-      const response = await userService.refreshUserData(userId);
-      
-      if (!response.accessToken) {
-        logger.error(`Session switch failed: No access token received for user ${userId}`);
-        throw new Error('Session switch failed: Missing access token');
-      }
-
-      // Validate and merge user data, using session as fallback
-      if (!response.user || !response.user.id) {
-        if (!session.id || !session.username) {
-          logger.error(`Session switch failed: Invalid session data for ${userId}`);
-          throw new Error('Session switch failed: Invalid session data');
-        }
-        response.user = session;
-      }
-
-      const user = {
-        ...session,  // base data from session
-        ...response.user, // override with fresh data
-        name: response.user?.name || session.name || { first: '', last: '' },
-        avatar: response.user?.avatar || session.avatar || ''
-      };
-
-      // Final validation of merged user data
-      if (!user.username) {
-        logger.error(`Session switch failed: Missing required user data for ${userId}`);
-        throw new Error('Session switch failed: Missing required user data');
-      }
-
-      // Create profile with validated user data
-      const userProfile = response.profile || {
-        _id: userId,
-        userID: userId,
-        username: user.username,
-        name: user.name,
-        avatar: user.avatar
-      };
-      
-      // Update tokens and session state
-      await storeData('accessToken', response.accessToken);
-      dispatch({ type: 'LOGIN', payload: user });
-      reduxDispatch(login({ user, accessToken: response.accessToken }));
-      reduxDispatch(setProfile(userProfile));
-
-      logger.info(`Session switched successfully to user ${userId}`);
+      dispatch({ type: 'LOGIN', payload: profile.userID });
+      reduxDispatch(login({ user: { id: profile.userID } as User, accessToken: 'secured' }));
+      reduxDispatch(setProfile(profile));
+      setActiveProfile(profile);
+      logger.info(`Session switched successfully to user ${profile.userID}`);
     } catch (error) {
       logger.error('Session switch error:', error);
-      // If this was the last session, log out completely
-      if (sessions.length <= 1) {
-        await logoutUser();
-      }
       throw error;
     }
   };
 
-  const getCurrentUser = () => state.user;
+  const getCurrentUserId = () => state.userId;
 
   const contextValue: SessionContextType = {
     state,
     loginUser,
     logoutUser,
-    getCurrentUser,
+    getCurrentUserId,
     switchSession,
-    sessions
   };
 
   if (state.loading) {
-    return null;
+    return null; // or a loading indicator
   }
 
   return (

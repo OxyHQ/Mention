@@ -28,7 +28,7 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const posts = useSelector((state: { posts: { posts: any[] } }) => state.posts.posts);
   const sessionContext = useContext(SessionContext);
-  const currentUser = sessionContext?.getCurrentUser();
+  const currentUserId = sessionContext?.getCurrentUserId();
   const { t } = useTranslation();
   const [isAvatarModalVisible, setIsAvatarModalVisible] = useState(false);
   const [isCoverModalVisible, setIsCoverModalVisible] = useState(false);
@@ -47,7 +47,7 @@ export default function ProfileScreen() {
   };
 
   const handleUpdateProfile = async (updateData: Partial<OxyProfile>) => {
-    if (!profile?.userID || !currentUser) return;
+    if (!profile?.userID || !currentUserId) return;
     
     setIsUpdating(true);
     try {
@@ -133,7 +133,7 @@ export default function ProfileScreen() {
     );
   }
 
-  const isOwnProfile = currentUser?.username === profile?.username;
+  const isOwnProfile = currentUserId === profile?.userID;
   
   return (
     <SafeAreaView>

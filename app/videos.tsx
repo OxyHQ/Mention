@@ -148,7 +148,7 @@ const VideoFeed: React.FC = () => {
     });
 
     useEffect(() => {
-        if (!session?.getCurrentUser()) {
+        if (!session?.state.userId) {
             router.push('/login');
             return;
         }

@@ -122,6 +122,32 @@ class AuthService {
       throw error;
     }
   }
+
+  // New method to decode JWT and extract user ID
+  async getCurrentSessionUserId(): Promise<string | null> {
+    try {
+      const token = await getData<string>('accessToken');
+      if (!token) return null;
+      const parts = token.split('.');
+      if (parts.length !== 3) return null;
+      const payload = parts[1];
+      // Replace '-' with '+' and '_' with '/' for base64url decode
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          })
+          .join('')
+      );
+      const obj = JSON.parse(jsonPayload);
+      return obj.id || null;
+    } catch (error) {
+      console.error('Error decoding token:', error);
+      return null;
+    }
+  }
 }
 
 export const authService = new AuthService();

@@ -22,8 +22,9 @@ import { fetchPosts, createPost } from '@/store/reducers/postsReducer';
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
 import Avatar from '../Avatar';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { profileService } from '@/modules/oxyhqservices';
 import { AppDispatch } from '@/store/store';
-import { Post } from '@/interfaces/Post';
+import type { Post } from '@/interfaces/Post';
 import { OXY_CLOUD_URL } from '@/config';
 
 interface Props {
@@ -40,7 +41,22 @@ export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPo
     const [isModalVisible, setModalVisible] = useState(false);
     const dispatch = useDispatch<AppDispatch>();
     const sessionContext = useContext(SessionContext);
-    const currentUser = sessionContext?.getCurrentUser();
+    const currentUserId = sessionContext?.getCurrentUserId();
+    const [avatarId, setAvatarId] = useState<string | undefined>();
+
+    useEffect(() => {
+        if (currentUserId) {
+            const fetchProfile = async () => {
+                try {
+                    const profileData = await profileService.getProfileById(currentUserId);
+                    setAvatarId(profileData.avatar);
+                } catch (error) {
+                    console.error('Error fetching profile:', error);
+                }
+            };
+            fetchProfile();
+        }
+    }, [currentUserId]);
 
     useEffect(() => {
         dispatch(fetchPosts());
@@ -51,9 +67,9 @@ export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPo
     }
     
     const post = () => {
-        if (data && currentUser?.id) {
+        if (data && currentUserId) {
             const newPost: Partial<Post> = {
-                userID: currentUser.id,
+                userID: currentUserId,
                 text: data,
                 media: selectedMedia.map(media => media.id),
                 created_at: new Date().toISOString(),
@@ -122,7 +138,7 @@ export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPo
             <View style={styles.middleRow}>
                 <Avatar
                     style={styles.profileImage}
-                    id={currentUser?.avatar || ""}
+                    id={avatarId}
                 />
                 <TextInput
                     style={styles.middleRowText}

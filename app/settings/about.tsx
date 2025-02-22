@@ -9,7 +9,7 @@ import { Header } from "@/components/Header";
 import { toast } from '@/lib/sonner';
 import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
-import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { useSession } from '@/modules/oxyhqservices';
 
 interface SettingItemProps {
     icon: string;
@@ -41,9 +41,8 @@ export default function SettingsAboutScreen() {
     const { t } = useTranslation();
     const [appVersion, setAppVersion] = useState('');
 
-    const sessionContext = useContext(SessionContext);
-    const currentUser = sessionContext?.getCurrentUser();
-    const username = currentUser ? currentUser?.username : '';
+    const { state } = useSession();
+    const username = state.userId;
 
     useEffect(() => {
         if (Constants.expoConfig && Constants.expoConfig.version) {

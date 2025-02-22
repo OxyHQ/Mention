@@ -1,6 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { getData, storeData } from '@/modules/oxyhqservices/utils/storage';
 
 interface User {
   id: string;
@@ -20,7 +19,6 @@ interface SessionState {
   lastRefresh?: number;
 }
 
-// Initialize with empty state - will be hydrated by SessionProvider
 const initialState: SessionState = {
   user: null,
   isAuthenticated: false,
@@ -37,43 +35,21 @@ const sessionSlice = createSlice({
       state.user = action.payload.user;
       state.accessToken = action.payload.accessToken;
       state.lastRefresh = Date.now();
-      // Persist session state immediately
-      storeData('session', {
-        isAuthenticated: true,
-        user: action.payload.user,
-        accessToken: action.payload.accessToken,
-        lastRefresh: Date.now()
-      }).catch(error => {
-        console.error('Failed to persist session:', error);
-      });
+      // Removed local storage persistence
     },
     logout: (state) => {
       state.isAuthenticated = false;
       state.user = null;
       state.accessToken = null;
       state.lastRefresh = undefined;
-      // Clear all persisted data
-      Promise.all([
-        storeData('session', null),
-        storeData('accessToken', null),
-        storeData('refreshToken', null),
-        storeData('user', null)
-      ]).catch(error => {
-        console.error('Failed to clear session data:', error);
-      });
+      // Removed local storage clearing
     },
     loadSession: (state, action: PayloadAction<SessionState>) => {
       Object.assign(state, action.payload);
     },
     updateLastRefresh: (state) => {
       state.lastRefresh = Date.now();
-      // Update persisted session
-      storeData('session', { 
-        isAuthenticated: state.isAuthenticated, 
-        user: state.user,
-        accessToken: state.accessToken,
-        lastRefresh: Date.now()
-      }).catch(console.error);
+      // Removed local storage update
     }
   },
 });

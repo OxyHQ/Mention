@@ -59,17 +59,11 @@ export default function SettingsScreen() {
   const [selectedColor, setSelectedColor] = useState(colorsArray[0]);
   const [searchText, setSearchText] = useState("");
 
-  // Add SessionContext integration with correct dispatch type
+  // Fix: Use getCurrentUserId instead of getCurrentUser
   const sessionContext = useContext(SessionContext);
-  const currentUser = sessionContext?.getCurrentUser();
+  const currentUserId = sessionContext?.getCurrentUserId();
   const dispatch = useDispatch<AppDispatch>();
   const { profile, loading } = useSelector((state: RootState) => state.profile);
-
-  useEffect(() => {
-    if (currentUser?.username) {
-      dispatch(fetchProfile({ username: currentUser.username }));
-    }
-  }, [currentUser?.username, dispatch]);
 
   const settings = [
     {
@@ -144,7 +138,7 @@ export default function SettingsScreen() {
                           {profile.name.first} {profile.name.last ? ` ${profile.name.last}` : ''}
                         </Text>
                         )}
-                    <Text style={styles.accountHandle}>@{currentUser?.username}</Text>
+                    <Text style={styles.accountHandle}>@{currentUserId}</Text>
                   </View>
                   <SettingItem 
                     icon="information-circle" 

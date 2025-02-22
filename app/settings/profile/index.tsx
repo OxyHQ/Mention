@@ -14,18 +14,17 @@ import { fetchProfile } from "@/modules/oxyhqservices/reducers/profileReducer";
 export default function AccountSettings() {
     const { t } = useTranslation();
     const sessionContext = useContext(SessionContext);
-    const { logoutUser } = sessionContext || {};
-    const getCurrentUser = sessionContext?.getCurrentUser || (() => null);
-    const currentUser = getCurrentUser();
+    const { logoutUser, getCurrentUserId } = sessionContext || {};
+    const currentUserId = getCurrentUserId?.();
     const router = useRouter();
     const dispatch = useDispatch<AppDispatch>();
     const { profile, loading } = useSelector((state: RootState) => state.profile);
 
     useEffect(() => {
-        if (currentUser?.username) {
-            dispatch(fetchProfile({ username: currentUser.username }));
+        if (currentUserId) {
+            dispatch(fetchProfile({ username: currentUserId }));
         }
-    }, [currentUser?.username, dispatch]);
+    }, [currentUserId, dispatch]);
 
     const handleLogout = () => {
         if (logoutUser) {
@@ -34,7 +33,7 @@ export default function AccountSettings() {
         router.push('/login');
     };
 
-    if (!currentUser || loading) {
+    if (!currentUserId || loading) {
         return (
             <SafeAreaView style={styles.container}>
                 <Header options={{
@@ -66,7 +65,7 @@ export default function AccountSettings() {
                         <Text style={styles.name}>
                         {profile?.name?.first} {profile?.name?.last ? ` ${profile.name.last}` : ''}
                         </Text>
-                        <Text style={styles.username}>@{currentUser.username}</Text>
+                        <Text style={styles.username}>{profile?.username ? `@${profile.username}` : ''}</Text>
                         {profile?.description && (
                             <Text style={styles.bio} numberOfLines={2}>{profile.description}</Text>
                         )}

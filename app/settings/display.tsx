@@ -74,7 +74,6 @@ export default function AppearanceScreen() {
                     leftComponents: [<Ionicons name="settings" size={24} color={colors.COLOR_BLACK} />],
                     title: t("Display"),
                     subtitle: t("These settings affect all the Mention accounts on this device."),
-                    rightComponents: [<Ionicons name="add" size={24} color={colors.COLOR_BLACK} onPress={() => toast('My first toast')} />],
                 }} />
                 <ThemedView style={styles.postContainer}>
                     {post && <Post postData={post} showActions={false} className="rounded-3xl" />}

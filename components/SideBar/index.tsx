@@ -133,7 +133,7 @@ export function SideBar() {
                         alignItems: 'flex-start',
                     }}>
                     <Logo />
-                    {!state.user && (
+                    {!state.userId && (
                         <View>
                             <Text
                                 style={{
@@ -191,7 +191,7 @@ export function SideBar() {
                             </View>
                         </View>
                     )}
-                    {state.user && (
+                    {state.userId && (
                         <View style={{
                             justifyContent: 'center',
                             alignItems: 'flex-start',
