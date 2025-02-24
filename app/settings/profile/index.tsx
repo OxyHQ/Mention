@@ -89,7 +89,6 @@ export default function AccountSettings() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.primaryLight,
     },
     centered: {
         flex: 1,
