@@ -1,4 +1,46 @@
-# Mention Frontend Documentation
+<a href="https://mention.earth/" target="_blank" rel="noopener">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="" />
+    <img alt="Mention" src="" />
+  </picture>
+</a>
+
+<div align="center">
+  <h1>Mention (Frontend)</h1>
+  <h3>Mention client<br />built with React Native and Expo</h3>
+  
+  <br />
+  <figure>
+    <img src="https://raw.githubusercontent.com/OxyHQ/Mention/main/assets/images/MentionBanner.png" alt="Mention" />
+  </figure>
+</div>
+
+<div align="center">
+  <img src="https://img.shields.io/github/stars/OxyHQ/Mention?style=flat" height="20">
+  <img src="https://img.shields.io/github/commit-activity/m/OxyHQ/Mention" height="20">
+  <img src="https://img.shields.io/github/deployments/OxyHQ/Mention/Production?label=vercel&logo=vercel&logoColor=white" height="20">
+  <a href="https://twitter.com/OxyHQ?ref_src=twsrc%5Etfw" target="_blank"><img src="https://img.shields.io/twitter/follow/OxyHQ?style=social" height="20"></a>
+</div>
+
+<br />
+
+## Features
+
+Mention users can:
+
+- 📱 View the optimal layout for the interface depending on their device's screen size
+- 🎨 Tailor the interface to their preferences with custom themes and colors
+- 🔑 Sign in with Oxy
+- 🎨 Customize profile (upload profile and banner images, change name, add description, location, and website)
+- 👀 See what other users are posting about and inspect their activity such as likes, reposts, and comments.
+- 📷 Share their moments - create and upload posts with up to 4 images.
+- 💬 Engage in conversation by replying to posts
+- ❤️ Give their approval with a like, or take it back
+- 🔄 Repost and quote posts - Share a post with their followers by reposting or quote it with their own thoughts and comments.
+- 🔖 Save posts for later and organize them with bookmarks
+- 🔥 View trending hashtags and create their own by including them in their posts
+- 👥 Discover and follow other users, as well as inspect their profiles and posts.
+- 📩 Send and receive direct messages
 
 ## Overview
 
