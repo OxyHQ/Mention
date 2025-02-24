@@ -8,33 +8,42 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
 import { showAuthBottomSheet } from '@/utils/auth';
+import { UserSession } from '../../types';
 
 interface SessionOwnerButtonProps {
   collapsed?: boolean;
 }
 
+interface SessionContextType {
+  sessions: UserSession[];
+  state: {
+    user: any;
+  };
+  switchSession: (userId: string) => Promise<void>;
+}
+
 export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProps) {
   const [currentUserIndex, setCurrentUserIndex] = useState(0);
+  const context = useContext(SessionContext);
+  const [searchText, setSearchText] = useState('');
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [searchText, setSearchText] = useState("");
   const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
-  const sessionContext = useContext(SessionContext);
   const router = useRouter();
 
-  if (!sessionContext) return null;
-
-  const { state, switchSession, sessions } = sessionContext;
+  if (!context) return null;
+  const { sessions, state, switchSession } = context;
 
   const getBottomSheetContent = () => {
-    const filteredSessions = sessions.filter(session => {
+    const filteredSessions = sessions.filter((session: UserSession) => {
       const searchLower = searchText.toLowerCase();
-      const firstName = session.name?.first?.toLowerCase() || '';
-      const lastName = session.name?.last?.toLowerCase() || '';
-      const username = session.username?.toLowerCase() || '';
+      const profile = session.profile;
+      if (!profile) return false;
 
-      return firstName.includes(searchLower) ||
-        lastName.includes(searchLower) ||
-        username.includes(searchLower);
+      return (
+        profile.name?.first?.toLowerCase().includes(searchLower) ||
+        profile.name?.last?.toLowerCase().includes(searchLower) ||
+        profile.username?.toLowerCase().includes(searchLower)
+      );
     });
 
     return (
@@ -52,14 +61,19 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
           onChangeText={setSearchText}
         />
         {filteredSessions.length > 0 ? (
-          filteredSessions.map((session, index) => (
+          filteredSessions.map((session: UserSession, index: number) => (
             <TouchableOpacity key={session.id} onPress={() => switchUser(index)} style={styles.userOption}>
-              <Image style={styles.avatar} source={session.avatar ? { uri: session.avatar } : require('@/assets/images/default-avatar.jpg')} />
+              <Image
+                style={styles.avatar}
+                source={session.profile?.avatar ?
+                  { uri: session.profile.avatar } :
+                  require('@/assets/images/default-avatar.jpg')}
+              />
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={styles.name}>
-                  {session.name?.first || session.username || 'Unknown'} {session.name?.last || ''}
+                  {session.profile?.name?.first || session.profile?.username || 'Unknown'} {session.profile?.name?.last || ''}
                 </Text>
-                {session.username && <Text>@{session.username}</Text>}
+                {session.profile?.username && <Text>@{session.profile.username}</Text>}
               </View>
             </TouchableOpacity>
           ))
@@ -218,15 +232,17 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
     }
   });
 
-  if (!state.user || !sessions[currentUserIndex] || !sessions[currentUserIndex].username) return null;
+  if (!state.user || !sessions[currentUserIndex] || !sessions[currentUserIndex].profile) return null;
+
+  const currentProfile = sessions[currentUserIndex].profile;
 
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.button} onPress={handleOpenBottomSheet}>
         <Image
           style={styles.avatar}
-          source={sessions[currentUserIndex].avatar ?
-            { uri: sessions[currentUserIndex].avatar } :
+          source={currentProfile.avatar ?
+            { uri: currentProfile.avatar } :
             require('@/assets/images/default-avatar.jpg')
           }
         />
@@ -234,9 +250,9 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
           <>
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>
-                {sessions[currentUserIndex].name?.first || sessions[currentUserIndex].username} {sessions[currentUserIndex].name?.last || ''}
+                {currentProfile.name?.first || currentProfile.username} {currentProfile.name?.last || ''}
               </Text>
-              <Text>@{sessions[currentUserIndex].username}</Text>
+              <Text>@{currentProfile.username}</Text>
             </View>
             <Ionicons name="chevron-down" size={24} color={colors.primaryColor} />
           </>

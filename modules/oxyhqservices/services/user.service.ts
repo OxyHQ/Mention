@@ -2,6 +2,7 @@ import { apiService } from './api.service';
 import { User } from './auth.service';
 import { OxyProfile } from '../types';
 import { getData, storeData } from '../utils/storage';
+import { profileService } from './profile.service';
 
 interface UserDataResponse {
   user: User;
@@ -11,25 +12,26 @@ interface UserDataResponse {
 
 interface UserSession {
   id: string;
-  username: string;
-  name?: {
-    first?: string;
-    last?: string;
-  };
-  avatar?: string;
+  accessToken: string;
+  refreshToken?: string;
+  lastRefresh: number;
 }
 
 class UserService {
   async getSessions(): Promise<{ data: UserSession[] }> {
     try {
       const sessions = await this.getUserSessions();
+      const enrichedSessions = await Promise.all(
+        sessions.map(async (session) => {
+          const profile = await profileService.getProfileById(session.id);
+          return {
+            ...session,
+            profile
+          };
+        })
+      );
       return {
-        data: sessions.map(user => ({
-          id: user.id,
-          username: user.username,
-          name: user.name,
-          avatar: user.avatar
-        }))
+        data: enrichedSessions
       };
     } catch (error) {
       console.error('Error getting user sessions:', error);
@@ -37,9 +39,9 @@ class UserService {
     }
   }
 
-  private async getUserSessions(): Promise<User[]> {
+  private async getUserSessions(): Promise<UserSession[]> {
     try {
-      const sessions: User[] = await getData('sessions') || [];
+      const sessions: UserSession[] = await getData('sessions') || [];
       return sessions;
     } catch (error) {
       console.error('Error getting user sessions:', error);
@@ -47,15 +49,21 @@ class UserService {
     }
   }
 
-  async addUserSession(user: User): Promise<void> {
+  async addUserSession(user: User, accessToken: string): Promise<void> {
     try {
       const sessions = await this.getUserSessions();
+      const sessionData: UserSession = {
+        id: user.id,
+        accessToken,
+        lastRefresh: Date.now()
+      };
+      
       const existingIndex = sessions.findIndex(s => s.id === user.id);
       
       if (existingIndex !== -1) {
-        sessions[existingIndex] = user;
+        sessions[existingIndex] = sessionData;
       } else {
-        sessions.push(user);
+        sessions.push(sessionData);
       }
       
       await storeData('sessions', sessions);

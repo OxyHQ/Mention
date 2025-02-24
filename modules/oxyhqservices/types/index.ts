@@ -1,9 +1,9 @@
 export interface UserSession {
   id: string;
-  username: string;
   accessToken: string;
   refreshToken?: string;
   lastRefresh: number;
+  profile?: OxyProfile;
 }
 
 export interface OxyProfile {

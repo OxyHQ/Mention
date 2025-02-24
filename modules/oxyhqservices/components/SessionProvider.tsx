@@ -19,12 +19,10 @@ interface SessionState {
 
 interface UserSession {
   id: string;
-  username: string;
-  name?: {
-    first?: string;
-    last?: string;
-  };
-  avatar?: string;
+  accessToken: string;
+  refreshToken?: string;
+  lastRefresh: number;
+  profile?: OxyProfile;
 }
 
 interface SessionContextType {
@@ -151,14 +149,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const profile = await profileService.getProfileById(user.id);
       reduxDispatch(setProfile(profile));
 
-      // Add user to sessions
-      await userService.addUserSession({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        name: profile.name,
-        avatar: profile.avatar
-      });
+      // Add user to sessions with only essential data
+      await userService.addUserSession(user, accessToken);
 
       // Refresh sessions list and update state
       const response = await userService.getSessions();
@@ -192,23 +184,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const switchSession = async (userId: string) => {
     try {
-      // In this refactored version, switching sessions means fetching the profile for the given userId
+      // Fetch fresh profile data for the user
       const profile = await profileService.getProfileById(userId);
       if (!profile || !profile.userID) {
         throw new Error('Session switch failed: Invalid profile data');
       }
 
-      // Get user data
+      // Get user data and tokens
       const { user, accessToken } = await userService.refreshUserData(userId);
 
-      // Add or update session
-      await userService.addUserSession({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        name: profile.name,
-        avatar: profile.avatar
-      });
+      // Add or update session with only essential data
+      await userService.addUserSession(user, accessToken);
 
       // Refresh sessions list and update state
       const response = await userService.getSessions();
