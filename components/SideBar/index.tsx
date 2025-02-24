@@ -1,5 +1,5 @@
 import React, { useContext } from 'react'
-import { Dimensions, Platform, Text, View, ViewStyle } from 'react-native'
+import { Dimensions, Platform, Text, View, ViewStyle, TouchableOpacity } from 'react-native'
 import { usePathname } from 'expo-router';
 import { useMediaQuery } from 'react-responsive'
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen'
@@ -24,17 +24,21 @@ import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { Video, VideoActive } from '@/assets/icons/video-icon';
 import { Compose } from '@/assets/icons/compose-icon';
 import { AnalyticsIcon, AnalyticsIconActive } from '@/assets/icons/analytics-icon';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
 
 export function SideBar() {
 
     const { t } = useTranslation();
     const sessionContext = useContext(SessionContext);
-    
+    const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
+    const isAuthenticated = sessionContext?.state?.userId != null;
+
     // Early return if no session context is available
     if (!sessionContext) {
         return null;
     }
-    
+
     const { state } = sessionContext;
 
     const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.ReactNode, route: string }[] = [
@@ -105,6 +109,11 @@ export function SideBar() {
     const isFullSideBar = useMediaQuery({ minWidth: 1266 })
     const isRightBarVisible = useMediaQuery({ minWidth: 990 })
 
+    const handleAuthClick = () => {
+        setBottomSheetContent(<AuthBottomSheet />);
+        openBottomSheet(true);
+    };
+
     if (!isSideBarVisible) return null
 
     if (isSideBarVisible) {
@@ -146,49 +155,43 @@ export function SideBar() {
                                     lineHeight: 30,
                                 }}
                             >{t("Join the conversation")}</Text>
-                            <View
-                                style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    marginVertical: 20,
-                                    gap: 10,
-                                }}
-                            >
-                                <Button
-                                    href="/signup"
-                                    renderText={({ state }) =>
-                                        state === 'desktop' ? (
-                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{t("Sign Up")}</Text>
-                                        ) : null
-                                    }
-                                    renderIcon={() => null}
-                                    containerStyle={({ state }) => ({
-                                        justifyContent: 'center',
+                            {!isAuthenticated && (
+                                <View
+                                    style={{
+                                        flexDirection: 'row',
                                         alignItems: 'center',
-                                        backgroundColor: colors.COLOR_BLACK,
-                                        borderRadius: 25,
-                                        paddingHorizontal: 15,
-                                        paddingVertical: 8,
-                                    })}
-                                />
-                                <Button
-                                    href="/login"
-                                    renderText={({ state }) =>
-                                        state === 'desktop' ? (
-                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{t("Sign In")}</Text>
-                                        ) : null
-                                    }
-                                    renderIcon={() => null}
-                                    containerStyle={({ state }) => ({
-                                        justifyContent: 'center',
-                                        alignItems: 'center',
-                                        backgroundColor: colors.primaryColor,
-                                        borderRadius: 25,
-                                        paddingHorizontal: 15,
-                                        paddingVertical: 8,
-                                    })}
-                                />
-                            </View>
+                                        marginVertical: 20,
+                                        gap: 10,
+                                    }}
+                                >
+                                    <TouchableOpacity
+                                        onPress={handleAuthClick}
+                                        style={{
+                                            justifyContent: 'center',
+                                            alignItems: 'center',
+                                            backgroundColor: colors.COLOR_BLACK,
+                                            borderRadius: 25,
+                                            paddingHorizontal: 15,
+                                            paddingVertical: 8,
+                                        }}
+                                    >
+                                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{t("Sign Up")}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={handleAuthClick}
+                                        style={{
+                                            justifyContent: 'center',
+                                            alignItems: 'center',
+                                            backgroundColor: colors.primaryColor,
+                                            borderRadius: 25,
+                                            paddingHorizontal: 15,
+                                            paddingVertical: 8,
+                                        }}
+                                    >
+                                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{t("Sign In")}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                         </View>
                     )}
                     {state.userId && (

@@ -9,8 +9,35 @@ interface UserDataResponse {
   accessToken: string;
 }
 
+interface UserSession {
+  id: string;
+  username: string;
+  name?: {
+    first?: string;
+    last?: string;
+  };
+  avatar?: string;
+}
+
 class UserService {
-  async getUserSessions(): Promise<User[]> {
+  async getSessions(): Promise<{ data: UserSession[] }> {
+    try {
+      const sessions = await this.getUserSessions();
+      return {
+        data: sessions.map(user => ({
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          avatar: user.avatar
+        }))
+      };
+    } catch (error) {
+      console.error('Error getting user sessions:', error);
+      return { data: [] };
+    }
+  }
+
+  private async getUserSessions(): Promise<User[]> {
     try {
       const sessions: User[] = await getData('sessions') || [];
       return sessions;

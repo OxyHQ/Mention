@@ -17,6 +17,18 @@ interface SessionState {
   userId: string | null;
   loading: boolean;
   error: string | null;
+  user: User | null;
+  sessions: UserSession[];
+}
+
+interface UserSession {
+  id: string;
+  username: string;
+  name?: {
+    first?: string;
+    last?: string;
+  };
+  avatar?: string;
 }
 
 interface SessionContextType {
@@ -25,12 +37,15 @@ interface SessionContextType {
   logoutUser: () => Promise<void>;
   getCurrentUserId: () => string | null;
   switchSession: (userId: string) => Promise<void>;
+  sessions: UserSession[];
 }
 
 const initialState: SessionState = {
   userId: null,
   loading: true,
   error: null,
+  user: null,
+  sessions: [],
 };
 
 type Action =
@@ -58,8 +73,24 @@ export const SessionContext = createContext<SessionContextType | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
-  const [activeProfile, setActiveProfile] = useState<OxyProfile | null>(null);
+  const [sessions, setSessions] = useState<UserSession[]>([]);
   const reduxDispatch = useDispatch();
+
+  useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        // Fetch sessions from the backend
+        const response = await userService.getSessions();
+        setSessions(response.data || []);
+      } catch (error) {
+        logger.error('Failed to load sessions:', error);
+      }
+    };
+
+    if (state.userId) {
+      loadSessions();
+    }
+  }, [state.userId]);
 
   // On initialization, validate session using oxyhqservices
   useEffect(() => {
@@ -77,7 +108,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             // Dynamically fetch fresh user profile
             const profile = await profileService.getProfileById(currentUserId);
             reduxDispatch(setProfile(profile));
-            setActiveProfile(profile);
           } else {
             dispatch({ type: 'LOGOUT' });
             reduxDispatch(logout());
@@ -95,7 +125,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
-    
+
     initializeSession();
   }, [reduxDispatch]);
 
@@ -109,11 +139,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       dispatch({ type: 'LOGIN', payload: user.id });
       reduxDispatch(login({ user: { id: user.id } as User, accessToken }));
+
       // Dynamically fetch user profile details
       const profile = await profileService.getProfileById(user.id);
       reduxDispatch(setProfile(profile));
-      setActiveProfile(profile);
-      logger.info(`Login successful for user: ${user.id}`);
+
+      // Add user to sessions
+      await userService.addUserSession({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        name: profile.name,
+        avatar: profile.avatar
+      });
+
+      // Refresh sessions list
+      const response = await userService.getSessions();
+      setSessions(response.data || []);
     } catch (error) {
       logger.error('Login error:', error);
       dispatch({ type: 'SET_ERROR', payload: 'Login failed' });
@@ -123,11 +165,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const logoutUser = async () => {
     try {
+      const currentUserId = state.userId;
       await authService.logout();
+
+      if (currentUserId) {
+        await userService.removeUserSession(currentUserId);
+        // Refresh sessions list
+        const response = await userService.getSessions();
+        setSessions(response.data || []);
+      }
+
       dispatch({ type: 'LOGOUT' });
       reduxDispatch(logout());
       reduxDispatch(clearProfile());
-      setActiveProfile(null);
     } catch (error) {
       logger.error('Logout error:', error);
       throw error;
@@ -141,11 +191,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!profile || !profile.userID) {
         throw new Error('Session switch failed: Invalid profile data');
       }
+
+      // Get user data
+      const { user, accessToken } = await userService.refreshUserData(userId);
+
+      // Update session state
       dispatch({ type: 'LOGIN', payload: profile.userID });
-      reduxDispatch(login({ user: { id: profile.userID } as User, accessToken: 'secured' }));
+      reduxDispatch(login({ user: { id: profile.userID } as User, accessToken }));
       reduxDispatch(setProfile(profile));
-      setActiveProfile(profile);
-      logger.info(`Session switched successfully to user ${profile.userID}`);
+
+      // Add or update session
+      await userService.addUserSession({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        name: profile.name,
+        avatar: profile.avatar
+      });
+
+      // Refresh sessions list
+      const response = await userService.getSessions();
+      setSessions(response.data || []);
     } catch (error) {
       logger.error('Session switch error:', error);
       throw error;
@@ -160,6 +226,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     logoutUser,
     getCurrentUserId,
     switchSession,
+    sessions,
   };
 
   if (state.loading) {
