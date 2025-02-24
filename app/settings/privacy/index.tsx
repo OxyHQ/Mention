@@ -60,7 +60,7 @@ export default function PrivacySettingsScreen() {
         [setting]: !settings[setting]
       };
       setSettings(updatedSettings);
-      await privacyService.updatePrivacySettings(user!.id, { [setting]: !settings[setting] });
+      await privacyService.updatePrivacySettings(user!.id, updatedSettings);
     } catch (error) {
       toast.error(t('Error updating setting'));
       // Revert the setting if update failed
