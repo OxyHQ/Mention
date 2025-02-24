@@ -10,6 +10,14 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
 import { useContext } from 'react';
 import { showAuthBottomSheet } from './auth';
+import { fetchData, batchRequest, getCacheKey, setCacheEntry, clearCache } from './api';
+import api from './api';
+
+// Constants
+const MESSAGE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CONVERSATION_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+const SOCKET_RECONNECT_DELAY = 1000; // 1 second
+const MAX_RECONNECT_ATTEMPTS = 3;
 
 // Chat types and interfaces
 export type ChatType = 'private' | 'secret' | 'group' | 'channel';
@@ -81,19 +89,65 @@ const encryption: ChatEncryption = {
   }
 };
 
-// Ensure socket connection with retry mechanism
-const ensureSocketConnection = async (): Promise<ChatSocket | null> => {
-  const socket = await initializeChatSocket();
-  if (!socket?.connected) {
-    throw new Error('Could not establish socket connection');
+// Socket connection management
+let socketReconnectAttempts = 0;
+let socketReconnectTimeout: NodeJS.Timeout | null = null;
+
+const resetSocketReconnectAttempts = () => {
+  socketReconnectAttempts = 0;
+  if (socketReconnectTimeout) {
+    clearTimeout(socketReconnectTimeout);
+    socketReconnectTimeout = null;
   }
-  return socket;
+};
+
+// Enhanced socket connection with retry mechanism
+const ensureSocketConnection = async (): Promise<ChatSocket | null> => {
+  try {
+    const socket = await initializeChatSocket();
+    if (socket?.connected) {
+      resetSocketReconnectAttempts();
+      return socket;
+    }
+
+    if (socketReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      throw new Error('Max reconnection attempts reached');
+    }
+
+    return new Promise((resolve, reject) => {
+      socketReconnectAttempts++;
+      socketReconnectTimeout = setTimeout(async () => {
+        try {
+          const newSocket = await initializeChatSocket();
+          if (newSocket?.connected) {
+            resetSocketReconnectAttempts();
+            resolve(newSocket);
+          } else {
+            reject(new Error('Socket connection failed'));
+          }
+        } catch (error) {
+          reject(error);
+        }
+      }, SOCKET_RECONNECT_DELAY * socketReconnectAttempts);
+    });
+  } catch (error) {
+    console.error('Socket connection error:', error);
+    throw error;
+  }
 };
 
 export const conversationApi = {
-  // Check if conversation exists
-  checkConversation: (participantId: string) =>
-    chatApi.post('/chat/conversations/check', { participantId }),
+  // Check if conversation exists with caching
+  checkConversation: async (participantId: string) => {
+    const cacheKey = getCacheKey(`conversations/check/${participantId}`);
+    return fetchData(
+      '/chat/conversations/check',
+      {
+        params: { participantId },
+        cacheTTL: CONVERSATION_CACHE_TTL
+      }
+    );
+  },
 
   // Create different types of conversations
   createConversation: async (data: ConversationData) => {
@@ -122,14 +176,12 @@ export const conversationApi = {
         data = { ...data, encryptionKey };
       }
       
-      // Initialize socket first to ensure connection is ready
-      const socket = await initializeChatSocket();
+      const socket = await ensureSocketConnection();
       if (!socket) {
         throw new Error('Unable to establish socket connection');
       }
 
-      // Create conversation via socket instead of REST
-      return new Promise((resolve, reject) => {
+      const result = await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Create conversation timeout'));
         }, 10000);
@@ -140,12 +192,16 @@ export const conversationApi = {
             reject(new Error(response.error));
           } else if (response.conversation) {
             socket.emit('joinConversation', response.conversation._id);
+            // Clear conversation cache when creating new one
+            clearCache('conversations');
             resolve(response.conversation);
           } else {
             reject(new Error('Invalid server response'));
           }
         });
       });
+
+      return result;
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to create conversation';
       toast.error(errorMessage);
@@ -153,43 +209,83 @@ export const conversationApi = {
     }
   },
 
-  // Get all conversations
-  getAllConversations: () => chatApi.get('/chat/conversations'),
+  // Get all conversations with caching
+  getAllConversations: () => 
+    fetchData('/chat/conversations', { cacheTTL: CONVERSATION_CACHE_TTL }),
 
-  // Get single conversation
-  getConversation: (id: string) => chatApi.get(`/chat/conversations/${id}`),
+  // Get single conversation with caching
+  getConversation: (id: string) =>
+    fetchData(`/chat/conversations/${id}`, { cacheTTL: CONVERSATION_CACHE_TTL }),
 
-  // Channel specific operations
+  // Channel specific operations with cache invalidation
   channelOperations: {
-    join: (channelId: string) => chatApi.post(`/chat/conversations/channel/${channelId}/join`),
-    leave: (channelId: string) => chatApi.post(`/chat/conversations/channel/${channelId}/leave`),
-    addAdmin: (channelId: string, userId: string) => 
-      chatApi.post(`/chat/conversations/channel/${channelId}/admin`, { userId }),
-    removeAdmin: (channelId: string, userId: string) => 
-      chatApi.delete(`/chat/conversations/channel/${channelId}/admin/${userId}`),
-    updatePermissions: (channelId: string, permissions: any) =>
-      chatApi.put(`/chat/conversations/channel/${channelId}/permissions`, permissions),
+    join: async (channelId: string) => {
+      const result = await api.post(`/chat/conversations/channel/${channelId}/join`);
+      clearCache(`conversations/${channelId}`);
+      return result.data;
+    },
+    
+    leave: async (channelId: string) => {
+      const result = await api.post(`/chat/conversations/channel/${channelId}/leave`);
+      clearCache(`conversations/${channelId}`);
+      return result.data;
+    },
+    
+    addAdmin: async (channelId: string, userId: string) => {
+      const result = await api.post(`/chat/conversations/channel/${channelId}/admin`, { userId });
+      clearCache(`conversations/${channelId}`);
+      return result.data;
+    },
+    
+    removeAdmin: async (channelId: string, userId: string) => {
+      const result = await api.delete(`/chat/conversations/channel/${channelId}/admin/${userId}`);
+      clearCache(`conversations/${channelId}`);
+      return result.data;
+    },
+    
+    updatePermissions: async (channelId: string, permissions: any) => {
+      const result = await api.put(`/chat/conversations/channel/${channelId}/permissions`, permissions);
+      clearCache(`conversations/${channelId}`);
+      return result.data;
+    }
   },
 
-  // Group operations
+  // Group operations with cache invalidation
   groupOperations: {
-    addMember: (groupId: string, userId: string) => 
-      chatApi.post(`/chat/conversations/group/${groupId}/member`, { userId }),
-    removeMember: (groupId: string, userId: string) => 
-      chatApi.delete(`/chat/conversations/group/${groupId}/member/${userId}`),
-    makeAdmin: (groupId: string, userId: string) => 
-      chatApi.post(`/chat/conversations/group/${groupId}/admin`, { userId }),
-    updateSettings: (groupId: string, settings: any) =>
-      chatApi.put(`/chat/conversations/group/${groupId}/settings`, settings),
+    addMember: async (groupId: string, userId: string) => {
+      const result = await api.post(`/chat/conversations/group/${groupId}/member`, { userId });
+      clearCache(`conversations/${groupId}`);
+      return result.data;
+    },
+    
+    removeMember: async (groupId: string, userId: string) => {
+      const result = await api.delete(`/chat/conversations/group/${groupId}/member/${userId}`);
+      clearCache(`conversations/${groupId}`);
+      return result.data;
+    },
+    
+    makeAdmin: async (groupId: string, userId: string) => {
+      const result = await api.post(`/chat/conversations/group/${groupId}/admin`, { userId });
+      clearCache(`conversations/${groupId}`);
+      return result.data;
+    },
+    
+    updateSettings: async (groupId: string, settings: any) => {
+      const result = await api.put(`/chat/conversations/group/${groupId}/settings`, settings);
+      clearCache(`conversations/${groupId}`);
+      return result.data;
+    }
   }
 };
 
 export const messageApi = {
-  // Get messages for a conversation
+  // Get messages for a conversation with caching
   getMessages: (conversationId: string) => 
-    chatApi.get(`/chat/messages/${conversationId}`),
+    fetchData(`/chat/messages/${conversationId}`, {
+      cacheTTL: MESSAGE_CACHE_TTL
+    }),
 
-  // Send regular message
+  // Send regular message through socket
   sendMessage: async (data: { 
     conversationId: string; 
     content: string; 
@@ -219,6 +315,8 @@ export const messageApi = {
           toast.error(response.error);
           reject(new Error(response.error));
         } else {
+          // Clear message cache for this conversation
+          clearCache(`messages/${data.conversationId}`);
           resolve(response.message);
         }
       });
@@ -231,20 +329,23 @@ export const messageApi = {
     content: string;
     encryptionKey: string;
   }) => {
-    await ensureSocketConnection();
-    const socket = getChatSocket();
+    const socket = await ensureSocketConnection();
+    if (!socket) {
+      throw new Error('Socket connection not available');
+    }
+    
     const encryptedContent = encryption.encrypt(data.content, data.encryptionKey);
     
     return new Promise((resolve, reject) => {
       if (!socket?.connected) {
-        toast.error('Not connected to chat server');
+        toast.error(i18next.t('error.socket.not_connected'));
         reject(new Error('Socket connection not available'));
         return;
       }
 
       const timeout = setTimeout(() => {
         reject(new Error('Message send timeout'));
-        toast.error('Message send timeout. Please try again.');
+        toast.error(i18next.t('error.message.send_timeout'));
       }, 5000);
 
       socket.emit('sendSecureMessage', {
@@ -256,6 +357,8 @@ export const messageApi = {
           toast.error(response.error);
           reject(new Error(response.error));
         } else {
+          // Clear message cache for this conversation
+          clearCache(`messages/${data.conversationId}`);
           resolve(response.message);
         }
       });
