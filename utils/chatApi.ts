@@ -6,6 +6,10 @@ import { getChatSocket, initializeChatSocket, ChatSocket } from './chatSocket';
 import { toast } from 'sonner';
 import { useTranslation } from "react-i18next";
 import i18next from 'i18next';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
+import { useContext } from 'react';
+import { showAuthBottomSheet } from './auth';
 
 // Chat types and interfaces
 export type ChatType = 'private' | 'secret' | 'group' | 'channel';
@@ -54,6 +58,7 @@ chatApi.interceptors.response.use(
     if (error.response?.status === 401) {
       // Handle unauthorized error
       toast.error('Session expired. Please log in again.');
+      showAuthBottomSheet();
     } else if (!error.response) {
       // Network error
       toast.error('Network error. Please check your connection.');

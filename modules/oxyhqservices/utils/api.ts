@@ -120,9 +120,17 @@ api.interceptors.request.use(
     const accessToken = await getData('accessToken');
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
-      console.debug('[API] Request with auth token:', config.url);
+      console.debug('[API] Request with auth token:', {
+        url: config.url,
+        tokenPresent: true,
+        tokenType: typeof accessToken,
+        tokenLength: typeof accessToken === 'string' ? accessToken.length : 'N/A'
+      });
     } else {
-      console.warn('[API] No auth token available for request:', config.url);
+      console.warn('[API] No auth token available for request:', {
+        url: config.url,
+        headers: config.headers
+      });
     }
     return config;
   },
@@ -496,6 +504,11 @@ export const validateSession = async (): Promise<boolean> => {
       return false;
     }
 
+    console.debug('[API] Validating token:', {
+      tokenType: typeof accessToken,
+      tokenLength: typeof accessToken === 'string' ? accessToken.length : 'N/A'
+    });
+
     // Create a new axios instance for validation to avoid interceptors
     const validateApi = axios.create({
       baseURL: API_URL,
@@ -506,9 +519,13 @@ export const validateSession = async (): Promise<boolean> => {
     });
 
     const response = await validateApi.get('/auth/validate');
+    console.debug('[API] Token validation response:', response.data);
     return response.data.valid === true;
   } catch (error: any) {
-    console.error('[API] Session validation failed:', error.response?.data || error.message);
+    console.error('[API] Session validation failed:', {
+      error: error?.response?.data || error.message,
+      status: error?.response?.status
+    });
     if (error.response?.status === 401) {
       throw new Error('Session expired');
     }

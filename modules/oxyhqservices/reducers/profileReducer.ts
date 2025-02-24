@@ -1,9 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import type { Profile } from '../types';
+import type { OxyProfile } from '../types';
 import { fetchData, patchData } from '../utils/api';
 
 interface ProfileState {
-  profile: Profile | null;
+  profile: OxyProfile | null;
   loading: boolean;
   error: string | null;
 }
@@ -15,16 +15,11 @@ const initialState: ProfileState = {
 };
 
 export const getUsernameToId = async ({ username }: { username: string }): Promise<string | null> => {
-  const cleanUsername = username.startsWith('@') ? username.substring(1) : username;
   try {
-    const response = await fetchData(`users/username-to-id/${cleanUsername}`);
-    if (!response?.id || typeof response.id !== 'string') {
-      console.error('Invalid ID format received:', response);
-      return null;
-    }
-    return response.id;
+    const response = await fetchData(`profiles/username/${username}`);
+    return response?._id || null;
   } catch (error) {
-    console.error('Error converting username to ID:', error);
+    console.error('Error in getUsernameToId:', error);
     return null;
   }
 };
@@ -38,7 +33,7 @@ export const fetchProfile = createAsyncThunk(
         return rejectWithValue(`User not found: ${username}`);
       }
       
-      const response = await fetchData(`profiles/${userId}`);
+      const response = await fetchData(`users/${userId}`);
       if (!response) {
         return rejectWithValue('No profile data received');
       }
@@ -52,10 +47,10 @@ export const fetchProfile = createAsyncThunk(
 
 export const updateProfileData = createAsyncThunk(
   'profile/updateProfileData',
-  async ({ id, data }: { id: string; data: Partial<Profile> }, { rejectWithValue }) => {
+  async ({ id, data }: { id: string; data: Partial<OxyProfile> }, { rejectWithValue }) => {
     try {
-      const response = await patchData(`profiles/${id}`, data);
-      return response as Profile;
+      const response = await patchData(`users/${id}`, data);
+      return response as OxyProfile;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update profile');
     }

@@ -94,14 +94,11 @@ class UserService {
       ]);
 
       // Then fetch user data with new token
-      const [userResponse, profileResponse] = await Promise.all([
-        apiService.get<{ user: User }>(`/users/${userId}`),
-        apiService.get<{ profile: OxyProfile }>(`/profiles/${userId}`),
-      ]);
+      const userResponse = await apiService.get<{ user: User }>(`/users/${userId}`);
 
       return {
         user: userResponse.data.user,
-        profile: profileResponse.data.profile,
+        profile: userResponse.data.user,
         accessToken: tokenResponse.data.accessToken
       };
     } catch (error) {

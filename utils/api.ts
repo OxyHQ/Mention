@@ -3,6 +3,10 @@ import { router } from 'expo-router';
 import { toast } from 'sonner';
 import { getData, storeData } from './storage';
 import { disconnectSocket } from './socket';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
+import { useContext } from 'react';
+import { showAuthBottomSheet } from './auth';
 
 const API_URL = process.env.API_URL || 'http://localhost:3000/api';
 
@@ -184,12 +188,10 @@ export const forceLogout = async () => {
     // Disconnect socket
     disconnectSocket();
     
-    // Force redirect to login
-    router.replace('/login');
+    // Show auth bottom sheet
+    showAuthBottomSheet();
   } catch (error) {
     console.error('[API] Force logout error:', error);
-    // Still try to redirect
-    router.replace('/login');
   }
 };
 

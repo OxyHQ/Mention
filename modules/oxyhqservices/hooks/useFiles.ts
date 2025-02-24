@@ -4,9 +4,19 @@ import { toast } from '@/lib/sonner';
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from 'expo-document-picker';
 import { Platform } from 'react-native';
-import api from '@/utils/api';
+import api, { validateSession } from '@/utils/api';
+import { getData } from '@/utils/storage';
 import { DocumentPickerAsset } from 'expo-document-picker';
 import { ImagePickerAsset } from 'expo-image-picker';
+import { jwtDecode } from 'jwt-decode';
+import { refreshAccessToken } from '@/modules/oxyhqservices/utils/api';
+
+interface JwtPayload {
+    id: string;
+    username: string;
+    iat: number;
+    exp: number;
+}
 
 interface FileType {
     _id: string;
@@ -39,8 +49,30 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
         }
 
         try {
+            console.log('[Files] Fetching files for user:', userId);
             setLoading(true);
+
+            // Validate session and refresh token if needed
+            const isValid = await validateSession().catch(() => false);
+            if (!isValid) {
+                console.log('[Files] Session invalid, attempting token refresh');
+                await refreshAccessToken();
+            }
+
+            const accessToken = await getData('accessToken');
+            console.log('[Files] Using access token:', accessToken ? 'Present' : 'Missing');
+            
+            if (accessToken && typeof accessToken === 'string') {
+                try {
+                    const decoded = jwtDecode<JwtPayload>(accessToken);
+                    console.log('[Files] Token contents:', decoded);
+                } catch (e) {
+                    console.warn('[Files] Could not decode token:', e);
+                }
+            }
+            
             const response = await api.get(`/files/list/${userId}`);
+            console.log('[Files] API Response:', response.data);
             let fetchedFiles = response.data;
             
             if (fileTypeFilter.length > 0) {
@@ -51,7 +83,11 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
             
             setFiles(fetchedFiles);
         } catch (error: any) {
-            console.error("Fetch error:", error);
+            console.error("[Files] Fetch error:", {
+                userId,
+                error: error?.response?.data || error.message,
+                status: error?.response?.status
+            });
             toast.error(error?.response?.data?.message || t("Error fetching files"));
         } finally {
             setLoading(false);

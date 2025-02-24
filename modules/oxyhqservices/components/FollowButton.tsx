@@ -3,12 +3,13 @@ import { TouchableOpacity, ActivityIndicator, Text, StyleSheet, Animated, Gestur
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/modules/oxyhqservices/hooks/useProfile';
 import { useDispatch, useSelector } from 'react-redux';
-import { addFollowing, removeFollowing } from '@/store/reducers/followReducer';
-import type { RootState } from '@/store/store';
+import { followUser as followUserAction, unfollowUser as unfollowUserAction, checkFollowStatus } from '@/store/reducers/followReducer';
+import type { RootState, AppDispatch } from '@/store/store';
+import { colors } from '@/styles/colors';
+import { toast } from 'sonner';
 
 interface FollowButtonProps {
   userId: string;
-  initialIsFollowing?: boolean;
   onFollowStatusChange?: (isFollowing: boolean) => void;
 }
 
@@ -16,34 +17,46 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
   userId,
   onFollowStatusChange
 }) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const { user: currentUser } = useAuth();
-  const { followUser, unfollowUser, getFollowingStatus, loading, error } = useProfile();
+  const [isLoading, setIsLoading] = useState(false);
+  const { user: currentUser, isAuthenticated, isInitializing } = useAuth();
   const buttonWidth = useRef(new Animated.Value(100)).current;
-  const dispatch = useDispatch();
-  
-  const isFollowing = useSelector((state: RootState) => 
+  const dispatch = useDispatch<AppDispatch>();
+
+  const isFollowing = useSelector((state: RootState) =>
     state.follow.followingIds.includes(userId)
   );
 
+  const followLoading = useSelector((state: RootState) =>
+    state.follow.loading.follow || state.follow.loading.status
+  );
+
   useEffect(() => {
-    const checkFollowStatus = async () => {
-      if (currentUser?.id === userId) return;
-      const status = await getFollowingStatus(userId);
-      if (status) {
-        dispatch(addFollowing(userId));
+    const checkStatus = async () => {
+      if (!isAuthenticated || !currentUser || currentUser.id === userId || isInitializing) return;
+
+      try {
+        setIsLoading(true);
+        await dispatch(checkFollowStatus(userId)).unwrap();
+      } catch (error) {
+        console.error('Error checking follow status:', error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
-      animateButton(status ? 'following' : 'follow');
     };
 
-    checkFollowStatus();
-  }, [userId, currentUser?.id, dispatch]);
+    checkStatus();
+  }, [userId, currentUser?.id, isAuthenticated, dispatch, isInitializing]);
+
+  useEffect(() => {
+    if (!isLoading && !followLoading && !isInitializing) {
+      animateButton(isFollowing ? 'following' : 'follow');
+    }
+  }, [isFollowing, isLoading, followLoading, isInitializing]);
 
   const animateButton = (state: 'follow' | 'following' | 'loading') => {
-    const widthValue = state === 'loading' ? 40 : 
-                      state === 'following' ? 100 : 
-                      80;
+    const widthValue = state === 'loading' ? 40 :
+      state === 'following' ? 100 :
+        80;
 
     Animated.spring(buttonWidth, {
       toValue: widthValue,
@@ -56,48 +69,60 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
   const handlePress = async (event: GestureResponderEvent) => {
     event.stopPropagation();
     event.preventDefault();
-    if (!currentUser || isLoading || currentUser.id === userId) return;
 
-    setIsLoading(true);
-    animateButton('loading');
+    if (!isAuthenticated || !currentUser || isLoading || currentUser.id === userId || isInitializing) {
+      return;
+    }
 
     try {
-      const success = isFollowing
-        ? await unfollowUser(userId)
-        : await followUser(userId);
+      setIsLoading(true);
+      animateButton('loading');
 
-      if (success) {
-        const newState = !isFollowing;
-        if (newState) {
-          dispatch(addFollowing(userId));
-        } else {
-          dispatch(removeFollowing(userId));
-        }
-        animateButton(newState ? 'following' : 'follow');
-        onFollowStatusChange?.(newState);
-      }
+      const result = await dispatch(followUserAction(userId)).unwrap();
+      const newFollowState = result.action === 'follow';
+
+      // Update parent component
+      onFollowStatusChange?.(newFollowState);
+
+      // Animate after state update
+      animateButton(newFollowState ? 'following' : 'follow');
+    } catch (error) {
+      console.error('Error toggling follow status:', error);
+      // Revert animation on error
+      animateButton(isFollowing ? 'following' : 'follow');
+      toast.error('Failed to update follow status. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (currentUser?.id === userId) return null;
+  const buttonDisabled = isLoading || followLoading || !isAuthenticated || currentUser?.id === userId || isInitializing;
+
+  if (!isAuthenticated || currentUser?.id === userId) return null;
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.container}
       onPress={handlePress}
-      disabled={isLoading}
+      disabled={buttonDisabled}
     >
       <Animated.View style={[
         styles.defaultFollowButton,
         isFollowing ? styles.followingButton : styles.followButton,
+        buttonDisabled && styles.disabledButton,
         { width: buttonWidth }
       ]}>
-        {isLoading ? (
-          <ActivityIndicator size="small" color="#ffffff" />
+        {(isLoading || followLoading || isInitializing) ? (
+          <ActivityIndicator
+            size="small"
+            color={isFollowing ? colors.COLOR_BLACK_LIGHT_4 : "#ffffff"}
+          />
         ) : (
-          <Text style={styles.followButtonText}>
+          <Text style={[
+            styles.followButtonText,
+            isFollowing ? styles.followingButtonText : null,
+            buttonDisabled && styles.disabledText
+          ]}>
             {isFollowing ? 'Following' : 'Follow'}
           </Text>
         )}
@@ -112,26 +137,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   defaultFollowButton: {
-    paddingVertical: 4,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: "black",
+    backgroundColor: colors.primaryColor,
     overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "black",
+    borderWidth: 1,
+    borderColor: colors.primaryColor,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 36,
   },
   followButton: {
+    backgroundColor: colors.primaryColor,
   },
   followingButton: {
+    backgroundColor: 'transparent',
+    borderColor: colors.COLOR_BLACK_LIGHT_4,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   followButtonText: {
     color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+    fontWeight: "600",
+    fontSize: 14,
+  } as any,
   followingButtonText: {
-    color: "white",
-  },
+    color: colors.COLOR_BLACK_LIGHT_4,
+  } as any,
+  disabledText: {
+    opacity: 0.6,
+  } as any,
 });

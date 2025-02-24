@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react'
-import { View, StyleSheet, Text, Platform, TouchableOpacity, GestureResponderEvent } from "react-native";
+import React, { useEffect, useState } from 'react'
+import { View, StyleSheet, Text, Platform, TouchableOpacity, GestureResponderEvent, ActivityIndicator } from "react-native";
 import { Link } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useMediaQuery } from 'react-responsive'
@@ -21,11 +21,18 @@ export function RightBar() {
     const isExplorePage = pathname === '/explore';
     const dispatch = useDispatch<AppDispatch>();
     const followRecData = useSelector((state: RootState) => state.follow.profiles);
-    const loading = useSelector((state: RootState) => state.follow.loading);
+    const recommendationsLoading = useSelector((state: RootState) => state.follow.loading.recommendations);
+    const error = useSelector((state: RootState) => state.follow.error);
+    const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
 
     useEffect(() => {
-        dispatch(fetchFollowRecommendations());
-    }, [dispatch]);
+        if (!hasAttemptedFetch) {
+            setHasAttemptedFetch(true);
+            dispatch(fetchFollowRecommendations())
+                .unwrap()
+                .catch((err) => console.error('Error fetching recommendations:', err));
+        }
+    }, [dispatch, hasAttemptedFetch]);
 
     if (!isRightBarVisible) return null;
 
@@ -33,7 +40,22 @@ export function RightBar() {
         <View style={styles.container}>
             <SearchBar />
             {!isExplorePage && (<Trends />)}
-            <SuggestedFriends followRecData={followRecData} />
+            {!hasAttemptedFetch || recommendationsLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color={colors.primaryColor} />
+                    <Text style={styles.loadingText}>Loading recommendations...</Text>
+                </View>
+            ) : error ? (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>Error: {error}</Text>
+                </View>
+            ) : followRecData?.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <Text>No recommendations available</Text>
+                </View>
+            ) : (
+                <SuggestedFriends followRecData={followRecData} />
+            )}
         </View>
     )
 }
@@ -41,7 +63,7 @@ export function RightBar() {
 function SuggestedFriends({ followRecData }: { followRecData: Partial<OxyProfile>[] }) {
     const router = useRouter();
     const { t } = useTranslation();
-    
+
     return (
         <View
             style={{
@@ -65,7 +87,7 @@ function SuggestedFriends({ followRecData }: { followRecData: Partial<OxyProfile
             </View>
             <View>
                 {followRecData?.map((data, index) => (
-                    <FollowRowComponent key={data.userID || index} profileData={data} />
+                    <FollowRowComponent key={data._id || index} profileData={data} />
                 ))}
             </View>
             <TouchableOpacity
@@ -95,14 +117,14 @@ const FollowRowComponent = ({ profileData }: { profileData: Partial<OxyProfile> 
         e.stopPropagation();
     };
 
-    // Skip rendering if no userID
-    if (!profileData.userID) return null;
+    // Skip rendering if no _id (using _id instead of userID since that's what the API returns)
+    if (!profileData._id) return null;
 
     const displayName = profileData.name?.first
-        ? `${profileData.name.first} ${profileData.name.last || ''}`
+        ? `${profileData.name.first} ${profileData.name.last || ''}`.trim()
         : profileData.username || 'Unknown User';
 
-    const username = profileData.username || profileData.userID;
+    const username = profileData.username || profileData._id;
 
     return (
         <Link href={`/@${username}`} asChild>
@@ -130,10 +152,22 @@ const FollowRowComponent = ({ profileData }: { profileData: Partial<OxyProfile> 
                         <Text style={{ color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 }}>
                             @{username}
                         </Text>
+                        {profileData.description && (
+                            <Text
+                                style={{
+                                    color: colors.COLOR_BLACK_LIGHT_4,
+                                    paddingTop: 4,
+                                    fontSize: 13
+                                }}
+                                numberOfLines={2}
+                            >
+                                {profileData.description}
+                            </Text>
+                        )}
                     </View>
                 </View>
                 <TouchableOpacity onPress={handleFollowClick}>
-                    <FollowButton userId={profileData.userID} />
+                    <FollowButton userId={profileData._id} />
                 </TouchableOpacity>
             </View>
         </Link>
@@ -153,5 +187,29 @@ const styles = StyleSheet.create({
                 bottom: 20,
             },
         }),
+    },
+    loadingContainer: {
+        padding: 20,
+        alignItems: 'center',
+        backgroundColor: colors.primaryLight,
+        borderRadius: 15,
+        gap: 10,
+    },
+    loadingText: {
+        color: colors.COLOR_BLACK_LIGHT_4,
+    } as any,
+    errorContainer: {
+        padding: 20,
+        backgroundColor: colors.primaryLight,
+        borderRadius: 15,
+    },
+    errorText: {
+        color: 'red',
+    },
+    emptyContainer: {
+        padding: 20,
+        alignItems: 'center',
+        backgroundColor: colors.primaryLight,
+        borderRadius: 15,
     },
 });

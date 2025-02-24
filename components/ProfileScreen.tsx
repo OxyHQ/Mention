@@ -48,7 +48,7 @@ export default function ProfileScreen() {
 
   const handleUpdateProfile = async (updateData: Partial<OxyProfile>) => {
     if (!profile?.userID || !currentUserId) return;
-    
+
     setIsUpdating(true);
     try {
       const updatedProfile = await profileService.updateProfile({
@@ -82,22 +82,22 @@ export default function ProfileScreen() {
   useEffect(() => {
     const fetchProfileData = async () => {
       if (!localUsername) return;
-      
+
       try {
         setLoading(true);
         setError(null);
         const username = localUsername.replace('@', '');
         const userId = await getUsernameToId({ username });
-        
+
         if (!userId) {
           throw new Error(`User not found: ${username}`);
         }
-        
+
         const profileData = await profileService.getProfileById(userId);
         if (!profileData) {
           throw new Error('Failed to load profile data');
         }
-        
+
         setProfile(profileData);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load profile';
@@ -133,8 +133,8 @@ export default function ProfileScreen() {
     );
   }
 
-  const isOwnProfile = currentUserId === profile?.userID;
-  
+  const isOwnProfile = currentUserId === profile?._id;
+
   return (
     <SafeAreaView>
       <View>
@@ -146,7 +146,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           )}
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => isOwnProfile && setIsCoverModalVisible(true)}
             disabled={!isOwnProfile || isUpdating}
             style={styles.coverPhotoButton}
@@ -164,7 +164,7 @@ export default function ProfileScreen() {
               </View>
             )}
           </TouchableOpacity>
-          
+
           <View style={styles.profileInfo}>
             <TouchableOpacity
               onPress={() => isOwnProfile && setIsAvatarModalVisible(true)}
@@ -173,15 +173,15 @@ export default function ProfileScreen() {
               <Avatar style={styles.avatar} id={profile.avatar} size={100} />
             </TouchableOpacity>
             <View style={styles.profileButtons}>
-              {!isOwnProfile && (
+              {!isOwnProfile && profile._id && (
                 <>
                   <TouchableOpacity style={styles.ProfileButton} onPress={() => {
                     console.log("Chat button pressed");
                   }}>
                     <ChatIcon size={20} color={colors.primaryColor} />
                   </TouchableOpacity>
-                  <FollowButton 
-                    userId={profile.userID}
+                  <FollowButton
+                    userId={profile._id}
                     onFollowStatusChange={handleFollowStatusChange}
                   />
                 </>
@@ -272,7 +272,6 @@ export default function ProfileScreen() {
           maxFiles: 1
         }}
       />
-      
       <FileSelectorModal
         visible={isCoverModalVisible}
         onClose={() => setIsCoverModalVisible(false)}

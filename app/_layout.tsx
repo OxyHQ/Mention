@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useContext } from "react";
 import { ScrollView, Keyboard, LogBox, Platform } from "react-native";
 import * as SplashScreen from 'expo-splash-screen';
 import { Provider } from 'react-redux';
@@ -35,6 +35,9 @@ import WebSplashScreen from "@/components/WebSplashScreen";
 import LoadingTopSpinner from "@/components/LoadingTopSpinner";
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { setBottomSheetContextRef, setAuthBottomSheetFactory } from '@/utils/auth';
+import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
 
 import "../styles/global.css";
 
@@ -74,6 +77,7 @@ export default function RootLayout() {
   });
 
   const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const bottomSheetContext = useContext(BottomSheetContext);
 
   const handleSheetChanges = useCallback((index: number) => {
     console.log('handleSheetChanges', index);
@@ -120,6 +124,13 @@ export default function RootLayout() {
       document.body.style.backgroundColor = colors.COLOR_BACKGROUND;
     }
   }, [loaded]);
+
+  useEffect(() => {
+    if (bottomSheetContext) {
+      setBottomSheetContextRef(bottomSheetContext);
+      setAuthBottomSheetFactory(() => <AuthBottomSheet />);
+    }
+  }, [bottomSheetContext]);
 
   const isScreenNotMobile = useMediaQuery({ minWidth: 500 })
 

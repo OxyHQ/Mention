@@ -6,6 +6,8 @@ import React, { useState, useContext, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, TextInput, ScrollView } from 'react-native';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
+import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
+import { showAuthBottomSheet } from '@/utils/auth';
 
 interface SessionOwnerButtonProps {
   collapsed?: boolean;
@@ -29,10 +31,10 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
       const firstName = session.name?.first?.toLowerCase() || '';
       const lastName = session.name?.last?.toLowerCase() || '';
       const username = session.username?.toLowerCase() || '';
-      
-      return firstName.includes(searchLower) || 
-             lastName.includes(searchLower) || 
-             username.includes(searchLower);
+
+      return firstName.includes(searchLower) ||
+        lastName.includes(searchLower) ||
+        username.includes(searchLower);
     });
 
     return (
@@ -81,18 +83,18 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
       if (!sessions[index]?.id) {
         throw new Error('Invalid session selected');
       }
-      
+
       await switchSession(sessions[index].id);
       setCurrentUserIndex(index);
       openBottomSheet(false);
       setIsSheetOpen(false);
     } catch (error) {
-      const errorMessage = error instanceof Error ? 
-        error.message : 
+      const errorMessage = error instanceof Error ?
+        error.message :
         'Failed to switch session. Please try logging in again.';
-      
+
       console.error('Session switch failed:', errorMessage);
-      
+
       setBottomSheetContent(
         <View style={styles.bottomSheetContainer}>
           <View style={styles.header}>
@@ -103,17 +105,17 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
           </View>
           <Text style={{ color: 'red', marginTop: 10, marginBottom: 20 }}>{errorMessage}</Text>
           <View style={styles.buttonRow}>
-            <TouchableOpacity 
-              style={[styles.button, styles.retryButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.retryButton]}
               onPress={() => setBottomSheetContent(getBottomSheetContent())}>
               <Text style={styles.buttonText}>Try Again</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.button, styles.loginButton]}
               onPress={() => {
                 openBottomSheet(false);
                 setIsSheetOpen(false);
-                router.push('/login');
+                showAuthBottomSheet();
               }}>
               <Text style={[styles.buttonText, { color: colors.primaryLight }]}>Login Again</Text>
             </TouchableOpacity>
@@ -221,12 +223,12 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.button} onPress={handleOpenBottomSheet}>
-        <Image 
-          style={styles.avatar} 
-          source={sessions[currentUserIndex].avatar ? 
-            { uri: sessions[currentUserIndex].avatar } : 
+        <Image
+          style={styles.avatar}
+          source={sessions[currentUserIndex].avatar ?
+            { uri: sessions[currentUserIndex].avatar } :
             require('@/assets/images/default-avatar.jpg')
-          } 
+          }
         />
         {!collapsed && (
           <>

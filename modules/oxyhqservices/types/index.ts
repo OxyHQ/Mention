@@ -1,5 +1,3 @@
-export * from './Profile';
-
 export interface UserSession {
   id: string;
   username: string;
@@ -9,6 +7,7 @@ export interface UserSession {
 }
 
 export interface OxyProfile {
+  _id?: string;
   userID: string;
   name?: {
     first?: string;
@@ -16,12 +15,46 @@ export interface OxyProfile {
   };
   username: string;
   email: string;
-  privacySettings?: PrivacySettings;
+  privacySettings?: {
+    isPrivateAccount: boolean;
+    hideOnlineStatus: boolean;
+    hideLastSeen: boolean;
+    profileVisibility: boolean;
+    postVisibility: boolean;
+    twoFactorEnabled: boolean;
+    loginAlerts: boolean;
+    blockScreenshots: boolean;
+    secureLogin: boolean;
+    biometricLogin: boolean;
+    showActivity: boolean;
+    allowTagging: boolean;
+    allowMentions: boolean;
+    hideReadReceipts: boolean;
+    allowComments: boolean;
+    allowDirectMessages: boolean;
+    dataSharing: boolean;
+    locationSharing: boolean;
+    analyticsSharing: boolean;
+    sensitiveContent: boolean;
+    autoFilter: boolean;
+    muteKeywords: boolean;
+  };
   avatar?: string;
+  associated?: {
+    lists?: number;
+    feedgens?: number;
+    starterPacks?: number;
+    labeler?: boolean;
+  };
+  labels?: string[];
+  description?: string;
   coverPhoto?: string;
   location?: string;
   website?: string;
-  description?: string;
+  pinnedPost?: {
+    cid?: string;
+    uri?: string;
+  };
   _count?: {
     followers: number;
     following: number;
@@ -29,29 +62,5 @@ export interface OxyProfile {
     karma: number;
   };
   createdAt?: string;
-}
-
-export interface PrivacySettings {
-  isPrivateAccount: boolean;
-  hideOnlineStatus: boolean;
-  hideLastSeen: boolean;
-  profileVisibility: boolean;
-  postVisibility: boolean;
-  twoFactorEnabled: boolean;
-  loginAlerts: boolean;
-  blockScreenshots: boolean;
-  secureLogin: boolean;
-  biometricLogin: boolean;
-  showActivity: boolean;
-  allowTagging: boolean;
-  allowMentions: boolean;
-  hideReadReceipts: boolean;
-  allowComments: boolean;
-  allowDirectMessages: boolean;
-  dataSharing: boolean;
-  locationSharing: boolean;
-  analyticsSharing: boolean;
-  sensitiveContent: boolean;
-  autoFilter: boolean;
-  muteKeywords: boolean;
+  updatedAt?: string;
 }
