@@ -9,10 +9,6 @@ import { logger } from '@/utils/logger';
 import type { User } from '../services/auth.service';
 import type { OxyProfile } from '../types';
 
-// The session management is refactored to rely solely on oxyhqservices.
-// Session tokens and session IDs are handled by the backend and stored in the database.
-// User details (name, username, email, avatar) are fetched dynamically using profileService.
-
 interface SessionState {
   userId: string | null;
   loading: boolean;
@@ -49,21 +45,35 @@ const initialState: SessionState = {
 };
 
 type Action =
-  | { type: 'LOGIN'; payload: string }  // payload is userId
+  | { type: 'LOGIN'; payload: { userId: string; user: User | null } }
   | { type: 'LOGOUT' }
   | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_ERROR'; payload: string };
+  | { type: 'SET_ERROR'; payload: string }
+  | { type: 'SET_SESSIONS'; payload: UserSession[] };
 
 const sessionReducer = (state: SessionState, action: Action): SessionState => {
   switch (action.type) {
     case 'LOGIN':
-      return { ...state, userId: action.payload, error: null };
+      return {
+        ...state,
+        userId: action.payload.userId,
+        user: action.payload.user,
+        error: null
+      };
     case 'LOGOUT':
-      return { ...state, userId: null, error: null };
+      return {
+        ...state,
+        userId: null,
+        user: null,
+        sessions: [],
+        error: null
+      };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
     case 'SET_ERROR':
       return { ...state, error: action.payload };
+    case 'SET_SESSIONS':
+      return { ...state, sessions: action.payload };
     default:
       return state;
   }
@@ -73,7 +83,6 @@ export const SessionContext = createContext<SessionContextType | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
-  const [sessions, setSessions] = useState<UserSession[]>([]);
   const reduxDispatch = useDispatch();
 
   useEffect(() => {
@@ -81,7 +90,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       try {
         // Fetch sessions from the backend
         const response = await userService.getSessions();
-        setSessions(response.data || []);
+        dispatch({ type: 'SET_SESSIONS', payload: response.data || [] });
       } catch (error) {
         logger.error('Failed to load sessions:', error);
       }
@@ -103,7 +112,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           // Assume authService exposes the current session's user ID.
           const currentUserId = await authService.getCurrentSessionUserId();
           if (currentUserId) {
-            dispatch({ type: 'LOGIN', payload: currentUserId });
+            dispatch({ type: 'LOGIN', payload: { userId: currentUserId, user: null } });
             reduxDispatch(login({ user: { id: currentUserId } as User, accessToken: 'secured' }));
             // Dynamically fetch fresh user profile
             const profile = await profileService.getProfileById(currentUserId);
@@ -137,8 +146,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!user || !user.id) {
         throw new Error('Login failed: Missing user session data');
       }
-      dispatch({ type: 'LOGIN', payload: user.id });
-      reduxDispatch(login({ user: { id: user.id } as User, accessToken }));
 
       // Dynamically fetch user profile details
       const profile = await profileService.getProfileById(user.id);
@@ -153,9 +160,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         avatar: profile.avatar
       });
 
-      // Refresh sessions list
+      // Refresh sessions list and update state
       const response = await userService.getSessions();
-      setSessions(response.data || []);
+      dispatch({ type: 'SET_SESSIONS', payload: response.data || [] });
+      dispatch({ type: 'LOGIN', payload: { userId: user.id, user } });
+      reduxDispatch(login({ user, accessToken }));
     } catch (error) {
       logger.error('Login error:', error);
       dispatch({ type: 'SET_ERROR', payload: 'Login failed' });
@@ -170,9 +179,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       if (currentUserId) {
         await userService.removeUserSession(currentUserId);
-        // Refresh sessions list
-        const response = await userService.getSessions();
-        setSessions(response.data || []);
       }
 
       dispatch({ type: 'LOGOUT' });
@@ -195,11 +201,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Get user data
       const { user, accessToken } = await userService.refreshUserData(userId);
 
-      // Update session state
-      dispatch({ type: 'LOGIN', payload: profile.userID });
-      reduxDispatch(login({ user: { id: profile.userID } as User, accessToken }));
-      reduxDispatch(setProfile(profile));
-
       // Add or update session
       await userService.addUserSession({
         id: user.id,
@@ -209,9 +210,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         avatar: profile.avatar
       });
 
-      // Refresh sessions list
+      // Refresh sessions list and update state
       const response = await userService.getSessions();
-      setSessions(response.data || []);
+      dispatch({ type: 'SET_SESSIONS', payload: response.data || [] });
+      dispatch({ type: 'LOGIN', payload: { userId: profile.userID, user } });
+      reduxDispatch(login({ user, accessToken }));
+      reduxDispatch(setProfile(profile));
     } catch (error) {
       logger.error('Session switch error:', error);
       throw error;
@@ -226,7 +230,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     logoutUser,
     getCurrentUserId,
     switchSession,
-    sessions,
+    sessions: state.sessions,
   };
 
   if (state.loading) {

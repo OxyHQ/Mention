@@ -10,6 +10,8 @@ import Avatar from "@/components/Avatar";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "@/store/store";
 import { fetchProfile } from "@/modules/oxyhqservices/reducers/profileReducer";
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
 
 export default function AccountSettings() {
     const { t } = useTranslation();
@@ -19,6 +21,7 @@ export default function AccountSettings() {
     const router = useRouter();
     const dispatch = useDispatch<AppDispatch>();
     const { profile, loading } = useSelector((state: RootState) => state.profile);
+    const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
 
     useEffect(() => {
         if (currentUserId) {
@@ -30,7 +33,11 @@ export default function AccountSettings() {
         if (logoutUser) {
             logoutUser();
         }
-        router.push('/login');
+    };
+
+    const handleAuthClick = () => {
+        setBottomSheetContent(<AuthBottomSheet />);
+        openBottomSheet(true);
     };
 
     if (!currentUserId || loading) {
@@ -44,7 +51,12 @@ export default function AccountSettings() {
                     {loading ? (
                         <ActivityIndicator color={colors.primaryColor} />
                     ) : (
-                        <Text>{t("Please log in to view your account settings")}</Text>
+                        <>
+                            <Text style={styles.message}>{t("Please log in to view your account settings")}</Text>
+                            <TouchableOpacity style={styles.loginButton} onPress={handleAuthClick}>
+                                <Text style={styles.loginButtonText}>{t("Sign In")}</Text>
+                            </TouchableOpacity>
+                        </>
                     )}
                 </View>
             </SafeAreaView>
@@ -57,66 +69,16 @@ export default function AccountSettings() {
                 title: t("Account Settings"),
                 showBackButton: true,
             }} />
-            
             <View style={styles.content}>
                 <View style={styles.profileSection}>
-                    <Avatar size={80} id={profile?.avatar} />
+                    <Avatar size={80} id={currentUserId} />
                     <View style={styles.profileInfo}>
-                        <Text style={styles.name}>
-                        {profile?.name?.first} {profile?.name?.last ? ` ${profile.name.last}` : ''}
-                        </Text>
-                        <Text style={styles.username}>{profile?.username ? `@${profile.username}` : ''}</Text>
-                        {profile?.description && (
-                            <Text style={styles.bio} numberOfLines={2}>{profile.description}</Text>
-                        )}
+                        <Text style={styles.name}>{profile?.name?.first || profile?.username}</Text>
+                        <Text style={styles.username}>@{profile?.username}</Text>
                     </View>
                 </View>
-
-                <TouchableOpacity 
-                    style={styles.editButton}
-                    onPress={() => router.push('/settings/profile/edit')}
-                >
-                    <Ionicons name="pencil" size={20} color={colors.primaryColor} />
-                    <Text style={styles.editButtonText}>{t("Edit Profile")}</Text>
-                </TouchableOpacity>
-
-                <View style={styles.statsSection}>
-                    <View style={styles.stat}>
-                        <Text style={styles.statNumber}>{profile?._count?.posts || 0}</Text>
-                        <Text style={styles.statLabel}>{t("Posts")}</Text>
-                    </View>
-                    <View style={styles.stat}>
-                        <Text style={styles.statNumber}>{profile?._count?.followers || 0}</Text>
-                        <Text style={styles.statLabel}>{t("Followers")}</Text>
-                    </View>
-                    <View style={styles.stat}>
-                        <Text style={styles.statNumber}>{profile?._count?.following || 0}</Text>
-                        <Text style={styles.statLabel}>{t("Following")}</Text>
-                    </View>
-                </View>
-
-                <View style={styles.section}>
-                    <TouchableOpacity style={styles.menuItem}>
-                        <Ionicons name="key-outline" size={24} color={colors.COLOR_BLACK} />
-                        <Text style={styles.menuItemText}>{t("Change Password")}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.menuItem}>
-                        <Ionicons name="mail-outline" size={24} color={colors.COLOR_BLACK} />
-                        <Text style={styles.menuItemText}>{t("Update Email")}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.menuItem}>
-                        <Ionicons name="shield-outline" size={24} color={colors.COLOR_BLACK} />
-                        <Text style={styles.menuItemText}>{t("Two-Factor Authentication")}</Text>
-                    </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity 
-                    style={styles.logoutButton} 
-                    onPress={handleLogout}
-                >
-                    <Ionicons name="log-out-outline" size={24} />
+                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                    <Ionicons name="log-out-outline" size={24} color={colors.primaryColor} />
                     <Text style={styles.logoutText}>{t("Logout")}</Text>
                 </TouchableOpacity>
             </View>
@@ -127,17 +89,41 @@ export default function AccountSettings() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: colors.primaryLight,
+    },
+    centered: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    message: {
+        fontSize: 16,
+        color: colors.COLOR_BLACK,
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    loginButton: {
+        backgroundColor: colors.primaryColor,
+        paddingHorizontal: 30,
+        paddingVertical: 12,
+        borderRadius: 25,
+    },
+    loginButtonText: {
+        color: colors.primaryLight,
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     content: {
-        padding: 16,
+        padding: 20,
     },
     profileSection: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 24,
+        marginBottom: 30,
     },
     profileInfo: {
-        marginLeft: 16,
+        marginLeft: 15,
     },
     name: {
         fontSize: 20,
@@ -148,81 +134,16 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: colors.COLOR_BLACK_LIGHT_4,
     },
-    editButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        padding: 12,
-        borderRadius: 35,
-        marginBottom: 24,
-        borderWidth: 1,
-        borderColor: colors.primaryColor,
-    },
-    editButtonText: {
-        color: colors.primaryColor,
-        fontSize: 16,
-        fontWeight: '600',
-        marginLeft: 8,
-    },
-    section: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        marginBottom: 24,
-    },
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-    },
-    menuItemText: {
-        marginLeft: 12,
-        fontSize: 16,
-        color: colors.COLOR_BLACK,
-    },
     logoutButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#fff',
-        padding: 16,
-        borderRadius: 16,
+        paddingVertical: 15,
+        borderTopWidth: 1,
+        borderTopColor: colors.COLOR_BLACK_LIGHT_6,
     },
     logoutText: {
-        marginLeft: 12,
+        marginLeft: 10,
         fontSize: 16,
-        color: colors.COLOR_BLACK,
-        fontWeight: '600',
-    },
-    centered: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    bio: {
-        fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_4,
-        marginTop: 4,
-    },
-    statsSection: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        backgroundColor: '#fff',
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 24,
-    },
-    stat: {
-        alignItems: 'center',
-    },
-    statNumber: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: colors.COLOR_BLACK,
-    },
-    statLabel: {
-        fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_4,
-        marginTop: 4,
+        color: colors.primaryColor,
     },
 });

@@ -17,13 +17,16 @@ import { fetchPosts } from '@/store/reducers/postsReducer';
 import { ScrollView } from "react-native-gesture-handler";
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { colors } from "@/styles/colors";
-import { router } from 'expo-router';
+import { router, useRouter } from 'expo-router';
 import { useMediaQuery } from "react-responsive";
 import { Ionicons } from "@expo/vector-icons";
 import { Post as IPost } from "@/interfaces/Post";
 import { RootState, AppDispatch } from '@/store/store';
 import { Video, ResizeMode } from 'expo-av';
 import { StatusBar } from 'expo-status-bar';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get("window");
 
@@ -38,6 +41,9 @@ const VideoFeed: React.FC = () => {
     const scrollViewRef = useRef<ScrollView>(null);
     const isScreenNotMobileResult = useMediaQuery({ minWidth: 500 });
     const session = useContext(SessionContext);
+    const router = useRouter();
+    const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
+    const { t } = useTranslation();
 
     const styles = StyleSheet.create({
         container: {
@@ -132,10 +138,10 @@ const VideoFeed: React.FC = () => {
             paddingHorizontal: 10,
             flexDirection: "column"
         },
-        description: { 
-            color: "white", 
-            marginTop: 2, 
-            fontSize: 15 
+        description: {
+            color: "white",
+            marginTop: 2,
+            fontSize: 15
         },
         likeIcon: {
             position: 'absolute',
@@ -145,11 +151,43 @@ const VideoFeed: React.FC = () => {
             marginTop: -50,
             zIndex: 3,
         },
+        loadingContainer: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        authContainer: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20,
+        },
+        authMessage: {
+            fontSize: 16,
+            color: colors.COLOR_BLACK,
+            textAlign: 'center',
+            marginBottom: 20,
+        },
+        authButton: {
+            backgroundColor: colors.primaryColor,
+            paddingHorizontal: 30,
+            paddingVertical: 12,
+            borderRadius: 25,
+        },
+        authButtonText: {
+            color: colors.primaryLight,
+            fontSize: 16,
+            fontWeight: 'bold',
+        },
     });
+
+    const handleAuthClick = () => {
+        setBottomSheetContent(<AuthBottomSheet />);
+        openBottomSheet(true);
+    };
 
     useEffect(() => {
         if (!session?.state.userId) {
-            router.push('/login');
             return;
         }
         dispatch(fetchPosts());
@@ -161,18 +199,21 @@ const VideoFeed: React.FC = () => {
         }
     }, [posts]);
 
-    if (loading) {
+    if (!session?.state.userId) {
         return (
-            <View style={[styles.container, styles.centered]}>
-                <ActivityIndicator size="large" color={colors.primaryColor} />
+            <View style={styles.authContainer}>
+                <Text style={styles.authMessage}>{t("Please sign in to view videos")}</Text>
+                <TouchableOpacity style={styles.authButton} onPress={handleAuthClick}>
+                    <Text style={styles.authButtonText}>{t("Sign In")}</Text>
+                </TouchableOpacity>
             </View>
         );
     }
 
-    if (error) {
+    if (loading) {
         return (
-            <View style={[styles.container, styles.centered]}>
-                <Text style={styles.errorText}>{error}</Text>
+            <View style={styles.loadingContainer}>
+                <Text>{t("Loading videos...")}</Text>
             </View>
         );
     }
