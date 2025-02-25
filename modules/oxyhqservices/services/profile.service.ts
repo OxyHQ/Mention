@@ -32,6 +32,7 @@ class ProfileService {
       const response = await apiService.put<OxyProfile>(`/users/${userId}`, {
         name: data.name,
         avatar: data.avatar,
+        coverPhoto: data.coverPhoto,
         description: data.description,
         location: data.location,
         website: data.website,
