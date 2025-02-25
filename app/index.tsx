@@ -19,7 +19,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1">
       <Header options={{ title: t('Home') }} />
       <Feed type="home" />
     </View>

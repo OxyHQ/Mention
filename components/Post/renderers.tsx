@@ -22,15 +22,15 @@ export const renderMedia = (mediaIds: string[]) => {
     useEffect(() => {
         const fetchMediaData = async () => {
             if (!mediaIds || mediaIds.length === 0) return;
-            
+
             try {
                 setError(null);
                 const response = await fetchData("files/data/" + mediaIds.filter(Boolean).join(","));
-                
+
                 if (!Array.isArray(response)) {
                     throw new Error("Invalid response format");
                 }
-                
+
                 setMediaData(response);
 
                 const fetchedImages = response
@@ -42,9 +42,9 @@ export const renderMedia = (mediaIds: string[]) => {
                     .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
 
                 const fetchedDocuments = response
-                    .filter((item: { contentType: string; }) => 
-                        item?.contentType && 
-                        !item.contentType.startsWith("image/") && 
+                    .filter((item: { contentType: string; }) =>
+                        item?.contentType &&
+                        !item.contentType.startsWith("image/") &&
                         !item.contentType.startsWith("video/")
                     )
                     .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
@@ -235,11 +235,12 @@ export const renderLocation = (location: string | undefined) => {
 const styles = StyleSheet.create({
     scrollView: {
         flexGrow: 0,
+        paddingLeft: 62,
     },
     contentContainer: {
         flexDirection: "row",
         alignItems: "center",
-        paddingLeft: 52,
+        paddingLeft: 0,
         paddingRight: 10,
         gap: 10,
     },

@@ -442,24 +442,28 @@ export default function Post({ postData, quotedPost, className, style, showActio
                                     {detectHashtags(postData.text)}
                                 </Text>
                             )}
-                            <View className="flex-1">
-                                {postData?.media && renderMedia(postData.media)}
-                                {renderPoll()}
-                                {renderLocation(undefined)}
-                                {!quotedPost && postData.quoted_post && (
-                                    <View className="mt-3 border border-gray-200 rounded-2xl overflow-hidden">
-                                        <Post postData={postData.quoted_post} quotedPost={true} showActions={false} />
-                                    </View>
-                                )}
-                                {!quotedPost && postData.repost_of && (
-                                    <View className="mt-3 border border-gray-200 rounded-2xl overflow-hidden">
-                                        <Post postData={postData.repost_of} quotedPost={true} showActions={false} />
-                                    </View>
-                                )}
-                            </View>
                         </TouchableOpacity>
                     </Link>
                 </View>
+            </View>
+            <View className="flex-1">
+                <TouchableOpacity className="flex-1" activeOpacity={0.7}>
+                    {postData?.media && renderMedia(postData.media)}
+                    <View className="flex-1 px-3 pl-[62px]">
+                        {renderPoll()}
+                        {renderLocation(undefined)}
+                        {!quotedPost && postData.quoted_post && (
+                            <View className="mt-3 border border-gray-200 rounded-2xl overflow-hidden">
+                                <Post postData={postData.quoted_post} quotedPost={true} showActions={false} />
+                            </View>
+                        )}
+                        {!quotedPost && postData.repost_of && (
+                            <View className="mt-3 border border-gray-200 rounded-2xl overflow-hidden">
+                                <Post postData={postData.repost_of} quotedPost={true} showActions={false} />
+                            </View>
+                        )}
+                    </View>
+                </TouchableOpacity>
             </View>
             {showActions && (
                 <View className="flex-row mt-3 justify-between max-w-[400px] pl-[62px]">
