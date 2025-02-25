@@ -401,7 +401,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
     };
 
     return (
-        <View className={`flex flex-col border-b border-gray-200 py-3 ${isDarkMode ? 'bg-black' : 'bg-white'} ${className}`} style={style}>
+        <View className={`flex flex-col py-3 ${isDarkMode ? 'bg-black' : 'bg-white'} ${className}`} style={style}>
             {postData.repost_of && (
                 <View className="flex-row items-center px-3 mb-2">
                     <RepostIcon size={16} color="#536471" />

@@ -14,7 +14,7 @@ export interface FileType {
 }
 
 export interface FileSelectorModalProps {
-    visible: boolean;
+    isVisible: boolean;
     onClose: () => void;
     onSelect: (files: FileType[]) => void;
     options?: {

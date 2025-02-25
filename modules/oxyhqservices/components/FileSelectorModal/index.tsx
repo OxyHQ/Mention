@@ -1,19 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useContext, useMemo } from "react";
 import { Modal, View, FlatList, TouchableOpacity, ActivityIndicator, TextInput, Text, Platform } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { Header } from "../ui/Header";
 import { useFiles } from '../../hooks/useFiles';
-import { useAuth } from '../../hooks';
 import { FileItem } from './FileItem';
 import { modalStyles, gridStyles, controlStyles } from './styles';
 import { FileType, FileSelectorModalProps } from './types';
 import { OXY_CLOUD_URL } from "@/config";
+import { SessionContext } from '../SessionProvider';
+import { FlashList } from "@shopify/flash-list";
 
 const defaultFileTypes = ["image/", "video/", "application/pdf", "image/gif"];
 
 const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
-    visible,
+    isVisible,
     onClose,
     onSelect,
     options = {}
@@ -22,10 +23,22 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
     const [filterText, setFilterText] = useState("");
     const { t } = useTranslation();
-    const { user: currentUser } = useAuth();
+
+    // Use SessionContext instead of useAuth
+    const sessionContext = useContext(SessionContext);
+    const currentUserId = sessionContext?.getCurrentUserId();
+
+    // Cache reference for performance
+    const selectedFilesRef = useRef<string[]>([]);
+
+    // Use a Map for faster lookups instead of array includes
+    const selectedFilesMapRef = useRef<Map<string, boolean>>(new Map());
 
     // Use a ref to track whether files have been fetched
     const hasFetchedRef = useRef(false);
+
+    // Cache for file data to prevent unnecessary re-renders
+    const fileCache = useRef<Map<string, FileType>>(new Map());
 
     const {
         files,
@@ -37,47 +50,84 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     } = useFiles({
         fileTypeFilter,
         maxFiles,
-        userId: currentUser?.id
+        userId: currentUserId || undefined
     });
+
+    // Update the ref when selectedFiles changes
+    useEffect(() => {
+        selectedFilesRef.current = selectedFiles;
+
+        // Update the Map for faster lookups
+        selectedFilesMapRef.current.clear();
+        selectedFiles.forEach(id => selectedFilesMapRef.current.set(id, true));
+    }, [selectedFiles]);
+
+    // Cache files for better performance
+    useEffect(() => {
+        files.forEach(file => {
+            fileCache.current.set(file._id, file);
+        });
+    }, [files]);
 
     // Updated useEffect to fetch only once per modal open using ref
     useEffect(() => {
-        if (visible && currentUser?.id && !hasFetchedRef.current) {
+        if (isVisible && currentUserId && !hasFetchedRef.current) {
             fetchFiles();
             hasFetchedRef.current = true;
-        } else if (!visible) {
+        } else if (!isVisible) {
+            // Reset state when modal closes
+            setSelectedFiles([]);
+            setFilterText("");
             hasFetchedRef.current = false;
+            selectedFilesMapRef.current.clear();
         }
-    }, [visible, currentUser?.id]); // removed fetchFiles from dependency array
+    }, [isVisible, currentUserId, fetchFiles]);
 
     // Wrap handleDone in useCallback to keep its identity stable
     const handleDone = useCallback(() => {
-        const selectedFileObjects = files.filter(file => selectedFiles.includes(file._id));
+        const selectedFileObjects = files.filter(file => selectedFilesMapRef.current.has(file._id));
         onSelect(selectedFileObjects);
         onClose();
-    }, [files, selectedFiles, onSelect, onClose]);
+    }, [files, onSelect, onClose]);
 
-    const handleSelectFile = (file: FileType) => {
+    const handleSelectFile = useCallback((file: FileType) => {
         setSelectedFiles(prev => {
-            if (prev.includes(file._id)) {
+            // Use the Map for faster lookups
+            const isSelected = selectedFilesMapRef.current.has(file._id);
+
+            if (isSelected) {
+                // Remove from selection
+                selectedFilesMapRef.current.delete(file._id);
                 return prev.filter(id => id !== file._id);
             }
+
             if (prev.length >= maxFiles) {
                 return prev;
             }
+
+            // Add to selection
+            selectedFilesMapRef.current.set(file._id, true);
             return [...prev, file._id];
         });
-    };
+    }, [maxFiles]);
 
-    const handleDeleteFile = async (fileId: string) => {
+    const handleDeleteFile = useCallback(async (fileId: string) => {
         if (window.confirm(t('Are you sure you want to delete this file?'))) {
             await deleteFile(fileId);
-            setSelectedFiles(prev => prev.filter(id => id !== fileId));
-        }
-    };
 
-    // Memoize filtered files
-    const filteredFiles = React.useMemo(() =>
+            // Remove from selection if selected
+            if (selectedFilesMapRef.current.has(fileId)) {
+                selectedFilesMapRef.current.delete(fileId);
+                setSelectedFiles(prev => prev.filter(id => id !== fileId));
+            }
+
+            // Remove from cache
+            fileCache.current.delete(fileId);
+        }
+    }, [t, deleteFile]);
+
+    // Memoize filtered files with useMemo for better performance
+    const filteredFiles = useMemo(() =>
         files.filter(file =>
             file.filename.toLowerCase().includes(filterText.toLowerCase()) ||
             file.metadata?.originalname?.toLowerCase().includes(filterText.toLowerCase())
@@ -85,17 +135,17 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
         [files, filterText]
     );
 
-    const renderEmptyState = () => (
+    const renderEmptyState = useCallback(() => (
         <View style={gridStyles.empty}>
             <Ionicons name="cloud-upload-outline" size={64} color="#999" />
             <Text style={gridStyles.emptyText}>
                 {t("No files found. Upload some files to get started!")}
             </Text>
         </View>
-    );
+    ), [t]);
 
     // Memoize Header options to avoid unnecessary re-creations
-    const headerOptions = React.useMemo(() => ({
+    const headerOptions = useMemo(() => ({
         title: t("File Manager"),
         leftComponents: [
             <TouchableOpacity key="back" onPress={onClose}>
@@ -111,26 +161,27 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
 
     // Handle keyboard shortcuts
     const handleKeyPress = useCallback((event: KeyboardEvent) => {
-        if (!visible) return;
+        if (!isVisible) return;
 
         if (event.key === 'Escape') {
             onClose();
         } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-            if (selectedFiles.length > 0) {
+            if (selectedFilesRef.current.length > 0) {
                 handleDone();
             }
         } else if (event.key === 'a' && (event.ctrlKey || event.metaKey)) {
             event.preventDefault();
-            const remainingSlots = maxFiles - selectedFiles.length;
+            const remainingSlots = maxFiles - selectedFilesRef.current.length;
             if (remainingSlots > 0) {
                 const newFiles = files
-                    .filter(file => !selectedFiles.includes(file._id))
+                    .filter(file => !selectedFilesMapRef.current.has(file._id))
                     .slice(0, remainingSlots)
                     .map(file => file._id);
+
                 setSelectedFiles(prev => [...prev, ...newFiles]);
             }
         }
-    }, [visible, selectedFiles, files, maxFiles, handleDone, onClose]);
+    }, [isVisible, files, maxFiles, handleDone, onClose]);
 
     // Add keyboard event listeners for web platform
     useEffect(() => {
@@ -142,17 +193,83 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
 
     // Prevent scrolling of background content when modal is open
     useEffect(() => {
-        if (Platform.OS === 'web' && visible) {
+        if (Platform.OS === 'web' && isVisible) {
             document.body.style.overflow = 'hidden';
             return () => {
                 document.body.style.overflow = 'unset';
             };
         }
-    }, [visible]);
+    }, [isVisible]);
+
+    // Memoize the file item renderer for better performance
+    const renderFileItem = useCallback(({ item }: { item: FileType }) => {
+        const isItemSelected = selectedFilesMapRef.current.has(item._id);
+
+        return (
+            <FileItem
+                file={item}
+                isSelected={isItemSelected}
+                onSelect={handleSelectFile}
+                onDelete={handleDeleteFile}
+                baseUrl={OXY_CLOUD_URL}
+            />
+        );
+    }, [handleSelectFile, handleDeleteFile]);
+
+    // Memoize the key extractor for better performance
+    const keyExtractor = useCallback((item: FileType) => item._id, []);
+
+    // Memoize the FlatList component for better performance
+    const FilesList = useMemo(() => {
+        if (loading || uploading) {
+            return (
+                <View style={gridStyles.empty}>
+                    <ActivityIndicator size="large" color="#0066FF" />
+                    <Text style={gridStyles.emptyText}>
+                        {uploading ? t("Uploading files...") : t("Loading files...")}
+                    </Text>
+                </View>
+            );
+        }
+
+        if (Platform.OS === 'web') {
+            return (
+                <FlatList
+                    data={filteredFiles}
+                    renderItem={renderFileItem}
+                    keyExtractor={keyExtractor}
+                    numColumns={2}
+                    contentContainerStyle={gridStyles.container}
+                    ListEmptyComponent={renderEmptyState}
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={10}
+                    windowSize={5}
+                    removeClippedSubviews={true}
+                    getItemLayout={(data, index) => ({
+                        length: 200, // Approximate height of each item
+                        offset: 200 * Math.floor(index / 2), // Calculate offset based on row
+                        index,
+                    })}
+                />
+            );
+        }
+
+        return (
+            <FlashList
+                data={filteredFiles}
+                renderItem={renderFileItem}
+                keyExtractor={keyExtractor}
+                numColumns={2}
+                contentContainerStyle={gridStyles.container}
+                ListEmptyComponent={renderEmptyState}
+                estimatedItemSize={200}
+            />
+        );
+    }, [filteredFiles, loading, uploading, renderFileItem, keyExtractor, renderEmptyState, t]);
 
     return (
         <Modal
-            visible={visible}
+            visible={isVisible}
             transparent
             animationType="fade"
             onRequestClose={onClose} // Handle back button on Android
@@ -186,31 +303,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                         )}
                     </View>
 
-                    {(loading || uploading) ? (
-                        <View style={gridStyles.empty}>
-                            <ActivityIndicator size="large" color="#0066FF" />
-                            <Text style={gridStyles.emptyText}>
-                                {uploading ? t("Uploading files...") : t("Loading files...")}
-                            </Text>
-                        </View>
-                    ) : (
-                        <FlatList
-                            data={filteredFiles}
-                            renderItem={({ item }) => (
-                                <FileItem
-                                    file={item}
-                                    isSelected={selectedFiles.includes(item._id)}
-                                    onSelect={handleSelectFile}
-                                    onDelete={handleDeleteFile}
-                                    baseUrl={OXY_CLOUD_URL}
-                                />
-                            )}
-                            keyExtractor={(item) => item._id}
-                            numColumns={2}
-                            contentContainerStyle={gridStyles.container}
-                            ListEmptyComponent={renderEmptyState}
-                        />
-                    )}
+                    {FilesList}
 
                     <View style={controlStyles.buttonsContainer}>
                         <TouchableOpacity

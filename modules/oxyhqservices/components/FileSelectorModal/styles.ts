@@ -1,6 +1,7 @@
-import { StyleSheet, Platform } from 'react-native';
+import { StyleSheet, Platform, ViewStyle } from 'react-native';
 import { colors } from '@/styles/colors';
 
+// Memoize styles to prevent recalculation
 export const fileItemStyles = StyleSheet.create({
     container: {
         width: '48%',
@@ -35,11 +36,6 @@ export const fileItemStyles = StyleSheet.create({
         right: 0,
         backgroundColor: 'rgba(0,0,0,0.7)',
         padding: 8,
-        ...Platform.select({
-            web: {
-                backdropFilter: 'blur(5px)',
-            },
-        }),
     },
     fileName: {
         color: "white",
@@ -100,16 +96,6 @@ export const modalStyles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
-        ...Platform.select({
-            web: {
-                maxHeight: '90%',
-                transition: 'transform 0.2s ease-out',
-                transform: [{scale: 1}],
-                ':enter': {
-                    transform: [{scale: 0.95}]
-                }
-            }
-        })
     },
 });
 
@@ -146,11 +132,6 @@ export const controlStyles = StyleSheet.create({
         marginBottom: 8,
         borderWidth: 1,
         borderColor: colors.COLOR_BLACK_LIGHT_6,
-        ...Platform.select({
-            web: {
-                outlineColor: colors.primaryColor,
-            }
-        })
     },
     buttonsContainer: {
         flexDirection: 'row',
@@ -166,15 +147,6 @@ export const controlStyles = StyleSheet.create({
         borderRadius: 20,
         minWidth: 100,
         alignItems: 'center',
-        ...Platform.select({
-            web: {
-                cursor: 'pointer',
-                transition: 'opacity 0.2s ease',
-                ':hover': {
-                    opacity: 0.8
-                }
-            }
-        })
     },
     buttonCancel: {
         backgroundColor: colors.COLOR_BLACK_LIGHT_8,
@@ -184,11 +156,6 @@ export const controlStyles = StyleSheet.create({
     },
     buttonDisabled: {
         opacity: 0.5,
-        ...Platform.select({
-            web: {
-                cursor: 'not-allowed' as any,
-            },
-        })
     },
     buttonText: {
         fontWeight: '600',
@@ -214,26 +181,11 @@ export const controlStyles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
-        ...Platform.select({
-            web: {
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease, opacity 0.2s ease',
-                ':hover': {
-                    transform: [{scale: 1.05}],
-                    opacity: 0.9
-                }
-            }
-        })
     },
     shortcutHint: {
         fontSize: 12,
         color: colors.COLOR_BLACK_LIGHT_4,
         textAlign: 'center',
         marginTop: 4,
-        ...Platform.select({
-            web: {
-                userSelect: 'none',
-            }
-        })
     },
 });

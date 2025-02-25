@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import Avatar from "@/components/Avatar";
 import type { AppDispatch } from '@/store/store';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
+import { OXY_CLOUD_URL } from "@/config";
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
@@ -44,12 +45,12 @@ export default function ProfileScreen() {
   };
 
   const handleUpdateProfile = async (updateData: Partial<OxyProfile>) => {
-    if (!profile?.userID || !currentUserId) return;
+    if (!profile?._id || !currentUserId) return;
 
     setIsUpdating(true);
     try {
       const updatedProfile = await profileService.updateProfile({
-        userID: profile.userID,
+        _id: profile._id,
         ...updateData
       });
       setProfile(updatedProfile);
@@ -148,7 +149,7 @@ export default function ProfileScreen() {
             style={styles.coverPhotoButton}
           >
             {profile.coverPhoto ? (
-              <Image source={{ uri: profile.coverPhoto }} style={styles.coverPhoto} />
+              <Image source={{ uri: `${OXY_CLOUD_URL}${profile.coverPhoto}` }} style={styles.coverPhoto} />
             ) : (
               <View className="w-full h-40 rounded-[35px] bg-black flex justify-center items-center">
                 {isOwnProfile && (
@@ -255,7 +256,7 @@ export default function ProfileScreen() {
       </View>
       <Feed type={'profile'} userId={profile._id} />
       <FileSelectorModal
-        visible={isAvatarModalVisible}
+        isVisible={isAvatarModalVisible}
         onClose={() => setIsAvatarModalVisible(false)}
         onSelect={handleAvatarSelect}
         options={{
@@ -264,7 +265,7 @@ export default function ProfileScreen() {
         }}
       />
       <FileSelectorModal
-        visible={isCoverModalVisible}
+        isVisible={isCoverModalVisible}
         onClose={() => setIsCoverModalVisible(false)}
         onSelect={handleCoverSelect}
         options={{
