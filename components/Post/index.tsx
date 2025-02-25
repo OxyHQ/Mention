@@ -27,6 +27,7 @@ import { SOCKET_URL } from "@/config";
 import io from 'socket.io-client';
 import api from "@/utils/api";
 import { getData } from '@/utils/storage';
+import { toast } from "sonner";
 
 interface PostProps {
     postData: PostType;
@@ -78,6 +79,24 @@ export default function Post({ postData, quotedPost, className, style, showActio
     const isDarkMode = colorScheme === 'dark';
     const [isBookmarked, setIsBookmarked] = useState(postData.isBookmarked || false);
     const [bookmarksCount, setBookmarksCount] = useState(postData._count?.bookmarks || 0);
+
+    // Debug post data structure
+    useEffect(() => {
+        if (__DEV__ && !quotedPost) {
+            // Only log for main posts, not quoted posts to avoid excessive logging
+            console.log(`Post component received data for post ${postData.id}:`, {
+                hasAuthor: !!postData.author,
+                authorType: postData.author ? typeof postData.author : 'undefined',
+                authorFields: postData.author ? Object.keys(postData.author) : [],
+                authorName: postData.author?.name,
+                authorUsername: postData.author?.username,
+                hasQuotedPost: !!postData.quoted_post,
+                hasRepostOf: !!postData.repost_of,
+                quotedPostAuthor: postData.quoted_post?.author?.username,
+                repostOfAuthor: postData.repost_of?.author?.username
+            });
+        }
+    }, [postData.id, quotedPost]);
 
     useEffect(() => {
         if (postData.metadata) {
@@ -305,13 +324,30 @@ export default function Post({ postData, quotedPost, className, style, showActio
                 }),
             ]).start();
 
+            // Get the current access token to ensure it's fresh
+            const accessToken = await getData('accessToken');
+            if (!accessToken) {
+                throw new Error('Authentication required');
+            }
+
+            // Make sure we're using the configured API with proper auth headers
             if (newIsBookmarked) {
-                await api.post(`posts/${postData.id}/bookmark`, { text: "" });
+                await api.post(`posts/${postData.id}/bookmark`);
+                console.log('Successfully bookmarked post:', postData.id);
             } else {
                 await api.delete(`posts/${postData.id}/bookmark`);
+                console.log('Successfully removed bookmark from post:', postData.id);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error bookmarking post:', error);
+
+            // Show error message to user
+            if (error.response?.data?.message) {
+                toast.error(`Bookmark failed: ${error.response.data.message}`);
+            } else {
+                toast.error('Failed to bookmark post. Please try again.');
+            }
+
             // Revert the optimistic update if the API call fails
             setIsBookmarked(prev => !prev);
             setBookmarksCount(prev => prev + (isBookmarked ? 1 : -1));

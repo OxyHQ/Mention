@@ -73,7 +73,6 @@ export default function PostScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.primaryLight,
   },
   notFoundText: {
     textAlign: 'center',

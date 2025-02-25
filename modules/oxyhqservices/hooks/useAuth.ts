@@ -1,19 +1,16 @@
-import { useSelector } from 'react-redux';
-import { RootState } from '@/store/store';
+import { useContext } from 'react';
+import { SessionContext } from '../components/SessionProvider';
 import type { User } from '../services/auth.service';
 
-interface SessionState {
-  user: User | null;
-  accessToken: string | null;
-  isAuthenticated: boolean;
-}
-
 export function useAuth() {
-  const session = useSelector((state: RootState) => state.session) as SessionState;
+  const context = useContext(SessionContext);
+  if (!context) {
+    throw new Error('useAuth must be used within a SessionProvider');
+  }
   
   return {
-    token: session?.accessToken,
-    user: session?.user,
-    isAuthenticated: !!session?.accessToken && !!session?.user,
+    token: context.state.user?.id ? 'secured' : null,
+    user: context.state.user,
+    isAuthenticated: !!context.state.user,
   };
 }

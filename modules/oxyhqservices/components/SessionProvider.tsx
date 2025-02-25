@@ -1,5 +1,4 @@
 import React, { createContext, useReducer, useEffect, ReactNode } from 'react';
-import { setProfile, clearProfile } from '@/modules/oxyhqservices/reducers/profileReducer';
 import { authService } from '../services/auth.service';
 import { userService } from '../services/user.service';
 import { profileService } from '../services/profile.service';
@@ -98,7 +97,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [state.userId]);
 
-  // On initialization, validate session using oxyhqservices
   useEffect(() => {
     const initializeSession = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
