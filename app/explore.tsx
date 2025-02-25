@@ -9,21 +9,14 @@ import {
   TouchableOpacity,
   Switch,
 } from "react-native";
-import { Header } from '@/components/Header'
-import { ThemedView } from "@/components/ThemedView";
+import { Header } from '@/components/Header';
 import { ThemedText } from "@/components/ThemedText";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import Post from "@/components/Post";
-import { useSelector, useDispatch } from 'react-redux';
-import { fetchPosts } from '@/store/reducers/postsReducer';
 import { Trends } from "@/features/trends/Trends";
-import { Post as PostInterface } from "@/interfaces/Post";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-// Removed unresolved import; added inline types:
-type RootState = { posts: { posts: PostInterface[] } };
-type AppDispatch = any;
+import Feed from "@/components/Feed";
 
 interface FilterChipProps {
   label: string;
@@ -31,139 +24,73 @@ interface FilterChipProps {
   onPress: () => void;
 }
 
-export default function SearchScreen() {
+const FilterChip: React.FC<FilterChipProps> = ({ label, active, onPress }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    className={`px-4 py-2 rounded-full mr-2 ${active ? 'bg-primary' : 'bg-gray-200'}`}
+  >
+    <ThemedText className={active ? 'text-white' : 'text-gray-700'}>
+      {label}
+    </ThemedText>
+  </TouchableOpacity>
+);
+
+export default function ExploreScreen() {
   const { t } = useTranslation();
-  const [isPremium, setIsPremium] = useState(false);
-  const [filters, setFilters] = useState({
-    showImages: true,
-    showVideos: true,
-    showText: true,
-  });
-  const [advancedFilters, setAdvancedFilters] = useState({
-    sortByDate: false,
-    sortByRelevance: false,
-  });
-  const posts: PostInterface[] = useSelector((state: RootState) => state.posts.posts);
-  const dispatch = useDispatch<AppDispatch>();
-
-  useEffect(() => {
-    dispatch(fetchPosts());
-  }, [dispatch]);
-
-  interface Filters {
-    showImages: boolean;
-    showVideos: boolean;
-    showText: boolean;
-  }
-
-  interface AdvancedFilters {
-    sortByDate: boolean;
-    sortByRelevance: boolean;
-  }
-
-  const handleFilterChange = (filter: keyof Filters, value: boolean) => {
-    setFilters((prevFilters) => ({ ...prevFilters, [filter]: value }));
-  };
-
-  interface AdvancedFilterChange {
-    filter: keyof AdvancedFilters;
-    value: boolean;
-  }
-
-  const handleAdvancedFilterChange = ({ filter, value }: AdvancedFilterChange) => {
-    setAdvancedFilters((prevFilters) => ({ ...prevFilters, [filter]: value }));
-  };
-
-  const filteredResults = posts.filter((result) => {
-    // Safely check if post has content property
-    const postContent = result.text || ''; // Assuming 'text' is the content field in your Post interface
-    if (!filters.showImages && postContent.includes("image")) return false;
-    if (!filters.showVideos && postContent.includes("video")) return false;
-    if (!filters.showText && postContent.includes("text")) return false;
-    return true;
-  });
-
-  const FilterChip: React.FC<FilterChipProps> = ({ label, active, onPress }) => {
-    const [isPressed, setIsPressed] = useState(false);
-    
-    return (
-      <TouchableOpacity 
-        style={[
-          styles.filterChip, 
-          active && styles.filterChipActive,
-          isPressed && styles.filterChipPressed
-        ]} 
-        onPress={onPress}
-        onPressIn={() => setIsPressed(true)}
-        onPressOut={() => setIsPressed(false)}
-      >
-        <ThemedText style={[
-          styles.filterChipText, 
-          active && styles.filterChipTextActive
-        ]}>
-          {label}
-        </ThemedText>
-      </TouchableOpacity>
-    );
-  };
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("trending");
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Header options={{ title: "Explore" }} />
-      <View style={styles.searchContainer}>
-        <Ionicons
-          name="search"
-          size={20}
-          color="#666"
-          style={styles.searchIcon}
-        />
-        <TextInput 
-          placeholder={t("Search posts, people, and more...")} 
-          style={styles.searchInput}
-          placeholderTextColor="#666"
-        />
+    <SafeAreaView className="flex-1 bg-white">
+      <Header options={{ title: t('Explore') }} />
+      <View className="px-4 py-2">
+        <View className="flex-row items-center bg-gray-100 rounded-full px-4 py-2">
+          <Ionicons name="search" size={20} color="#666" />
+          <TextInput
+            className="flex-1 ml-2"
+            placeholder={t('Search Mention')}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterChipsContainer}>
-        <FilterChip 
-          label={t("Images")} 
-          active={filters.showImages} 
-          onPress={() => handleFilterChange("showImages", !filters.showImages)} 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        className="px-4 py-2"
+      >
+        <FilterChip
+          label={t('Trending')}
+          active={activeFilter === 'trending'}
+          onPress={() => setActiveFilter('trending')}
         />
-        <FilterChip 
-          label={t("Videos")} 
-          active={filters.showVideos} 
-          onPress={() => handleFilterChange("showVideos", !filters.showVideos)} 
+        <FilterChip
+          label={t('Latest')}
+          active={activeFilter === 'latest'}
+          onPress={() => setActiveFilter('latest')}
         />
-        <FilterChip 
-          label={t("Text")} 
-          active={filters.showText} 
-          onPress={() => handleFilterChange("showText", !filters.showText)} 
+        <FilterChip
+          label={t('Media')}
+          active={activeFilter === 'media'}
+          onPress={() => setActiveFilter('media')}
         />
-        {isPremium && (
-          <>
-            <FilterChip 
-              label={t("Latest")} 
-              active={advancedFilters.sortByDate} 
-              onPress={() => handleAdvancedFilterChange({ filter: "sortByDate", value: !advancedFilters.sortByDate })} 
-            />
-            <FilterChip 
-              label={t("Relevant")} 
-              active={advancedFilters.sortByRelevance} 
-              onPress={() => handleAdvancedFilterChange({ filter: "sortByRelevance", value: !advancedFilters.sortByRelevance })} 
-            />
-          </>
-        )}
+        <FilterChip
+          label={t('People')}
+          active={activeFilter === 'people'}
+          onPress={() => setActiveFilter('people')}
+        />
       </ScrollView>
 
-      <Trends />
-      
-      <FlatList
-        data={filteredResults}
-        renderItem={({ item }) => <Post postData={item} />}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.postList}
-      />
+      <View className="flex-1">
+        {activeFilter === 'trending' && <Trends />}
+        {(activeFilter === 'latest' || activeFilter === 'media') && (
+          <Feed
+            type="explore"
+            showCreatePost={false}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -230,3 +157,4 @@ const styles = StyleSheet.create({
   postList: {
   },
 });
+

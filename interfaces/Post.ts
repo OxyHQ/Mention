@@ -26,10 +26,14 @@ export interface Post {
   author?: Author | null;
   media: any[];
   quoted_post: any | null;
+  repost_of: any | null;
   isLiked?: boolean;
+  isReposted?: boolean;
   isBookmarked?: boolean;
   location?: { type: string; coordinates: [number, number] } | string;
   metadata?: string;
+  mentions?: string[];
+  hashtags?: string[];
   _count?: {
     comments: number;
     likes: number;

@@ -13,7 +13,6 @@ import {
 import axios from "axios";
 import Post from "@/components/Post";
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchPosts } from '@/store/reducers/postsReducer';
 import { ScrollView } from "react-native-gesture-handler";
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { colors } from "@/styles/colors";
@@ -31,8 +30,6 @@ import { useTranslation } from 'react-i18next';
 const { width, height } = Dimensions.get("window");
 
 const VideoFeed: React.FC = () => {
-    const posts = useSelector((state: RootState) => state.posts.posts);
-    const error = useSelector((state: RootState) => state.posts.error);
     const dispatch = useDispatch<AppDispatch>();
     const [loading, setLoading] = useState(true);
     const [liked, setLiked] = useState(false);
@@ -180,35 +177,6 @@ const VideoFeed: React.FC = () => {
             fontWeight: 'bold',
         },
     });
-
-    const handleAuthClick = () => {
-        setBottomSheetContent(<AuthBottomSheet />);
-        openBottomSheet(true);
-    };
-
-    useEffect(() => {
-        if (!session?.state.userId) {
-            return;
-        }
-        dispatch(fetchPosts());
-    }, [dispatch, session]);
-
-    useEffect(() => {
-        if (Array.isArray(posts) && posts.length > 0) {
-            setLoading(false);
-        }
-    }, [posts]);
-
-    if (!session?.state.userId) {
-        return (
-            <View style={styles.authContainer}>
-                <Text style={styles.authMessage}>{t("Please sign in to view videos")}</Text>
-                <TouchableOpacity style={styles.authButton} onPress={handleAuthClick}>
-                    <Text style={styles.authButtonText}>{t("Sign In")}</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
 
     if (loading) {
         return (

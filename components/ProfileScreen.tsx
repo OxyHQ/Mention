@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { View, Image, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Platform, ViewStyle } from 'react-native';
 import { router, useLocalSearchParams, Link } from "expo-router";
-import { FlashList } from "@shopify/flash-list";
+import Feed from '@/components/Feed';
 import { colors } from "@/styles/colors";
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchPosts } from '@/store/reducers/postsReducer';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { profileService, FollowButton } from '@/modules/oxyhqservices';
@@ -15,7 +14,6 @@ import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
 import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import Avatar from "@/components/Avatar";
-import Post from "@/components/Post";
 import type { AppDispatch } from '@/store/store';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
 
@@ -26,7 +24,6 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<OxyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const posts = useSelector((state: { posts: { posts: any[] } }) => state.posts.posts);
   const sessionContext = useContext(SessionContext);
   const currentUserId = sessionContext?.getCurrentUserId();
   const { t } = useTranslation();
@@ -110,7 +107,6 @@ export default function ProfileScreen() {
     };
 
     fetchProfileData();
-    dispatch(fetchPosts());
   }, [dispatch, localUsername, t]);
 
   if (loading) {
@@ -257,12 +253,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      <FlashList
-        style={styles.container}
-        data={posts}
-        renderItem={({ item }) => <Post postData={item} />}
-        keyExtractor={(item) => item.id}
-      />
+      <Feed type={'profile'} userId={profile._id} />
       <FileSelectorModal
         visible={isAvatarModalVisible}
         onClose={() => setIsAvatarModalVisible(false)}

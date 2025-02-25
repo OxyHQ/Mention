@@ -1,84 +1,32 @@
-import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
-import { View, FlatList, StyleSheet, ActivityIndicator, Text } from 'react-native';
+import React, { useContext } from 'react';
+import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import Post from '@/components/Post';
 import { Header } from '@/components/Header';
-import { useSelector, useDispatch } from 'react-redux';
-import { fetchBookmarkedPosts } from '@/store/reducers/postsReducer';
+import { ThemedText } from '@/components/ThemedText';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
-import { AppDispatch } from '@/store/store';
-import type { Post as PostType } from '@/interfaces/Post';
+import Feed from '@/components/Feed';
+import { router } from 'expo-router';
 
-const BookmarksScreen = () => {
-    const posts = useSelector((state: any) => state.posts.bookmarkedPosts);
-    const loading = useSelector((state: any) => state.posts.loading);
-    const dispatch = useDispatch<AppDispatch>();
-    const session = useContext(SessionContext);
+export default function BookmarksScreen() {
     const { t } = useTranslation();
+    const session = useContext(SessionContext);
 
-    const currentUserId = session?.getCurrentUserId();
-
-    // Memoize posts to prevent unnecessary re-renders
-    const memoizedPosts = useMemo(() => posts, [posts]);
-
-    const fetchBookmarkedPostsHandler = useCallback(async () => {
-        if (currentUserId) {
-            await dispatch(fetchBookmarkedPosts());
-        }
-    }, [currentUserId, dispatch]);
-
-    useEffect(() => {
-        if (!posts?.length) {
-            fetchBookmarkedPostsHandler();
-        }
-    }, [fetchBookmarkedPostsHandler, posts?.length]);
-
-    if (!session) {
-        return (
-            <View style={styles.container}>
-                <Text>{t('Please log in to view bookmarks')}</Text>
-            </View>
-        );
+    if (!session?.getCurrentUserId()) {
+        router.replace('/auth');
+        return null;
     }
 
-    const renderPost = useCallback(({ item }: { item: PostType }) => (
-        <Post postData={item} />
-    ), []);
-
-    const keyExtractor = useCallback((item: PostType) => 
-        item.id.toString()
-    , []);
-
     return (
-        <>
-            <Header options={{ title: t('Bookmarks') }} />
-            {loading && !posts?.length ? (
-                <ActivityIndicator size="large" color="#1DA1F2" />
-            ) : memoizedPosts && memoizedPosts.length > 0 ? (
-                <FlatList
-                    data={memoizedPosts}
-                    renderItem={renderPost}
-                    keyExtractor={keyExtractor}
-                    maxToRenderPerBatch={10}
-                    windowSize={5}
-                    removeClippedSubviews={true}
-                />
-            ) : (
-                <View style={styles.container}>
-                    <Text>{t('No bookmarks found')}</Text>
-                </View>
-            )}
-        </>
+        <View className="flex-1 bg-white">
+            <Header options={{
+                title: t('Bookmarks'),
+                subtitle: t('Your saved posts')
+            }} />
+            <Feed
+                type="bookmarks"
+                showCreatePost={false}
+                className="pt-2"
+            />
+        </View>
     );
-};
-
-const styles = StyleSheet.create({
-    container: {
-        padding: 16,
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-});
-
-export default BookmarksScreen;
+}

@@ -7,8 +7,8 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
 import { useContext } from 'react';
 import { showAuthBottomSheet } from './auth';
+import { API_URL } from '@/config';
 
-const API_URL = process.env.API_URL || 'http://localhost:3000/api';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const BATCH_DELAY = 50; // ms to wait before processing batch
 const MAX_BATCH_SIZE = 10;
@@ -330,6 +330,18 @@ export const forceLogout = async () => {
     showAuthBottomSheet();
   } catch (error) {
     console.error('[API] Force logout error:', error);
+  }
+};
+
+export const postData = async (endpoint: string, data: any) => {
+  try {
+    const response = await api.post(endpoint, data);
+    clearCache(endpoint);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.message || error.message;
+    toast.error(`Error posting data: ${errorMessage}`);
+    throw error;
   }
 };
 

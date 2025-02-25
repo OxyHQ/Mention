@@ -18,7 +18,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchPosts, createPost } from '@/store/reducers/postsReducer';
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
 import Avatar from '../Avatar';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
@@ -26,19 +25,40 @@ import { profileService } from '@/modules/oxyhqservices';
 import { AppDispatch } from '@/store/store';
 import type { Post } from '@/interfaces/Post';
 import { OXY_CLOUD_URL } from '@/config';
+import { postData } from '@/utils/api';
 
 interface Props {
     style?: ViewStyle
     onClose?: () => void
     onPress?: () => void
     replyToPostId?: string
+    repostPostId?: string
+    replyToPost?: Post
+    repostPost?: Post
+    onPostCreated?: () => void
 }
 
-export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPostId }) => {
-    const [data, setData] = useState('')
+export const CreatePost: React.FC<Props> = ({
+    style,
+    onClose,
+    onPress,
+    replyToPostId,
+    repostPostId,
+    replyToPost,
+    repostPost,
+    onPostCreated
+}) => {
+    const [text, setText] = useState('')
     const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video', id: string }[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isModalVisible, setModalVisible] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState('');
+    const [hashtagQuery, setHashtagQuery] = useState('');
+    const [mentionResults, setMentionResults] = useState<any[]>([]);
+    const [hashtagResults, setHashtagResults] = useState<string[]>([]);
+    const [cursorPosition, setCursorPosition] = useState(0);
+    const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
+    const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false);
     const dispatch = useDispatch<AppDispatch>();
     const sessionContext = useContext(SessionContext);
     const currentUserId = sessionContext?.getCurrentUserId();
@@ -58,42 +78,108 @@ export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPo
         }
     }, [currentUserId]);
 
-    useEffect(() => {
-        dispatch(fetchPosts());
-    }, [dispatch]);
+    const extractMentionsAndHashtags = (text: string) => {
+        const mentions = text.match(/@[\w]+/g) || [];
+        const hashtags = text.match(/#[\w]+/g) || [];
+        return {
+            mentions: mentions.map(m => m.slice(1)), // Remove @ symbol
+            hashtags: hashtags.map(h => h.slice(1)) // Remove # symbol
+        };
+    };
 
-    const onChange = (text: string) => {
-        setData(text)
-    }
-    
-    const post = () => {
-        if (data && currentUserId) {
-            const newPost: Partial<Post> = {
-                userID: currentUserId,
-                text: data,
-                media: selectedMedia.map(media => media.id),
-                created_at: new Date().toISOString(),
-                source: 'web',
-                in_reply_to_status_id: replyToPostId || null,
-                lang: 'en',
-                _count: {
-                    comments: 0,
-                    likes: 0,
-                    quotes: 0,
-                    reposts: 0,
-                    bookmarks: 0,
-                    replies: 0
-                }
-            };
-            dispatch(createPost(newPost as Post));
-            setData('');
-            setSelectedMedia([]);
-            if (onClose) onClose();
+    const handleTextChange = async (newText: string) => {
+        setText(newText);
+        const lastWord = newText.slice(0, cursorPosition).split(/\s/).pop() || '';
+
+        if (lastWord.startsWith('@')) {
+            setMentionQuery(lastWord.slice(1));
+            setShowMentionSuggestions(true);
+            setShowHashtagSuggestions(false);
+            // Fetch mention suggestions
+            try {
+                const response = await postData('users/search', { query: lastWord.slice(1) });
+                setMentionResults(response.data);
+            } catch (error) {
+                console.error('Error fetching mentions:', error);
+            }
+        } else if (lastWord.startsWith('#')) {
+            setHashtagQuery(lastWord.slice(1));
+            setShowHashtagSuggestions(true);
+            setShowMentionSuggestions(false);
+            // Fetch hashtag suggestions
+            try {
+                const response = await postData('hashtags/search', { query: lastWord.slice(1) });
+                setHashtagResults(response.data);
+            } catch (error) {
+                console.error('Error fetching hashtags:', error);
+            }
+        } else {
+            setShowMentionSuggestions(false);
+            setShowHashtagSuggestions(false);
         }
-    }
+    };
+
+    const handleSelectionChange = (event: any) => {
+        setCursorPosition(event.nativeEvent.selection.start);
+    };
+
+    const insertMention = (username: string) => {
+        const textBeforeCursor = text.slice(0, cursorPosition);
+        const textAfterCursor = text.slice(cursorPosition);
+        const lastWordStart = textBeforeCursor.lastIndexOf('@');
+        const newText = textBeforeCursor.slice(0, lastWordStart) + `@${username} ` + textAfterCursor;
+        setText(newText);
+        setShowMentionSuggestions(false);
+    };
+
+    const insertHashtag = (hashtag: string) => {
+        const textBeforeCursor = text.slice(0, cursorPosition);
+        const textAfterCursor = text.slice(cursorPosition);
+        const lastWordStart = textBeforeCursor.lastIndexOf('#');
+        const newText = textBeforeCursor.slice(0, lastWordStart) + `#${hashtag} ` + textAfterCursor;
+        setText(newText);
+        setShowHashtagSuggestions(false);
+    };
+
+    const post = async () => {
+        if (text && currentUserId) {
+            try {
+                const { mentions, hashtags } = extractMentionsAndHashtags(text);
+
+                const newPost: Partial<Post> = {
+                    userID: currentUserId,
+                    text: text,
+                    media: selectedMedia.map(media => media.id),
+                    created_at: new Date().toISOString(),
+                    source: 'web',
+                    in_reply_to_status_id: replyToPostId || null,
+                    quoted_post_id: repostPostId || null,
+                    lang: 'en',
+                    mentions: mentions,
+                    hashtags: hashtags,
+                    _count: {
+                        comments: 0,
+                        likes: 0,
+                        quotes: 0,
+                        reposts: 0,
+                        bookmarks: 0,
+                        replies: 0
+                    }
+                };
+
+                const response = await postData('posts', newPost);
+                setText('');
+                setSelectedMedia([]);
+                if (onPostCreated) onPostCreated();
+                if (onClose) onClose();
+            } catch (error) {
+                console.error('Error creating post:', error);
+            }
+        }
+    };
 
     const onEmojiClick = (emojiData: EmojiClickData) => {
-        setData(data + emojiData.emoji);
+        setText(text + emojiData.emoji);
         setShowEmojiPicker(false);
     };
 
@@ -120,16 +206,33 @@ export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPo
                 {onClose && (
                     <Pressable
                         onPress={onClose}
-                        style={data ? styles.button : styles.buttonDisabled}>
+                        style={text ? styles.button : styles.buttonDisabled}>
                         <Text style={styles.buttonText}>Cancel</Text>
                     </Pressable>
                 )}
                 <Pressable
                     onPress={post}
-                    style={data ? styles.button : styles.buttonDisabled}>
-                    <Text style={styles.buttonText}>{replyToPostId ? 'Reply' : 'Post'}</Text>
+                    style={text ? styles.button : styles.buttonDisabled}>
+                    <Text style={styles.buttonText}>{replyToPostId ? 'Reply' : repostPostId ? 'Quote' : 'Post'}</Text>
                 </Pressable>
             </View>
+            {replyToPost && (
+                <View style={styles.replyingContainer}>
+                    <Text style={styles.replyingText}>
+                        Replying to <Text style={styles.replyingUsername}>@{replyToPost.author?.username}</Text>
+                    </Text>
+                </View>
+            )}
+            {repostPost && (
+                <View style={styles.repostingContainer}>
+                    <Text style={styles.repostingText}>
+                        Quoting post from <Text style={styles.repostingUsername}>@{repostPost.author?.username}</Text>
+                    </Text>
+                    <View style={styles.quotedPostPreview}>
+                        <Text numberOfLines={2} style={styles.quotedPostText}>{repostPost.text}</Text>
+                    </View>
+                </View>
+            )}
             {replyToPostId && (
                 <Text style={styles.replyingText}>
                     Replying to post
@@ -142,12 +245,41 @@ export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPo
                 />
                 <TextInput
                     style={styles.middleRowText}
-                    placeholder={replyToPostId ? "Post your reply" : "What's happening?"}
-                    value={data}
+                    placeholder={replyToPostId ? "Post your reply" : repostPostId ? "Add a quote" : "What's happening?"}
+                    value={text}
                     multiline={true}
-                    onChangeText={onChange}
+                    onChangeText={handleTextChange}
+                    onSelectionChange={handleSelectionChange}
                 />
             </View>
+            {showMentionSuggestions && mentionResults.length > 0 && (
+                <View style={styles.suggestionsContainer}>
+                    {mentionResults.map((user) => (
+                        <Pressable
+                            key={user.id}
+                            style={styles.suggestionItem}
+                            onPress={() => insertMention(user.username)}>
+                            <Avatar id={user.avatar} style={styles.suggestionAvatar} />
+                            <View>
+                                <Text style={styles.suggestionName}>{user.name.first} {user.name.last}</Text>
+                                <Text style={styles.suggestionUsername}>@{user.username}</Text>
+                            </View>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
+            {showHashtagSuggestions && hashtagResults.length > 0 && (
+                <View style={styles.suggestionsContainer}>
+                    {hashtagResults.map((hashtag) => (
+                        <Pressable
+                            key={hashtag}
+                            style={styles.suggestionItem}
+                            onPress={() => insertHashtag(hashtag)}>
+                            <Text style={styles.suggestionHashtag}>#{hashtag}</Text>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
             <View style={styles.bottomRow}>
                 <View style={styles.iconsContainer}>
                     <Pressable
@@ -218,8 +350,8 @@ export const CreatePost: React.FC<Props> = ({ style, onClose, onPress, replyToPo
                 />
             )}
         </View>
-    )
-}
+    );
+};
 
 const styles = StyleSheet.create({
     container: {
@@ -334,4 +466,81 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         paddingHorizontal: 12,
     },
-})
+    replyingContainer: {
+        padding: 10,
+        backgroundColor: '#fff',
+        borderRadius: 10,
+        marginBottom: 10,
+    },
+    replyingUsername: {
+        fontWeight: 'bold',
+        color: colors.primaryColor,
+    },
+    repostingContainer: {
+        padding: 10,
+        backgroundColor: '#fff',
+        borderRadius: 10,
+        marginBottom: 10,
+    },
+    repostingText: {
+        fontSize: 14,
+        color: colors.COLOR_BLACK_LIGHT_3,
+        marginBottom: 8,
+        paddingHorizontal: 12,
+    },
+    repostingUsername: {
+        fontWeight: 'bold',
+        color: colors.primaryColor,
+    },
+    quotedPostPreview: {
+        marginTop: 10,
+        padding: 10,
+        backgroundColor: '#fff',
+        borderRadius: 10,
+    },
+    quotedPostText: {
+        fontSize: 14,
+        color: colors.COLOR_BLACK_LIGHT_3,
+    },
+    suggestionsContainer: {
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        right: 0,
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        zIndex: 1000,
+        maxHeight: 200,
+        overflow: 'scroll',
+    },
+    suggestionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    suggestionAvatar: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        marginRight: 10,
+    },
+    suggestionName: {
+        fontWeight: 'bold',
+        fontSize: 14,
+    },
+    suggestionUsername: {
+        color: colors.COLOR_BLACK_LIGHT_3,
+        fontSize: 12,
+    },
+    suggestionHashtag: {
+        fontSize: 14,
+        color: colors.primaryColor,
+    },
+});
