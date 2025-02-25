@@ -1,6 +1,4 @@
-import React, { createContext, useReducer, useEffect, ReactNode, useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { login, logout, loadSession } from '@/store/reducers/sessionReducer';
+import React, { createContext, useReducer, useEffect, ReactNode } from 'react';
 import { setProfile, clearProfile } from '@/modules/oxyhqservices/reducers/profileReducer';
 import { authService } from '../services/auth.service';
 import { userService } from '../services/user.service';
@@ -47,7 +45,8 @@ type Action =
   | { type: 'LOGOUT' }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string }
-  | { type: 'SET_SESSIONS'; payload: UserSession[] };
+  | { type: 'SET_SESSIONS'; payload: UserSession[] }
+  | { type: 'SET_PROFILE'; payload: OxyProfile };
 
 const sessionReducer = (state: SessionState, action: Action): SessionState => {
   switch (action.type) {
@@ -72,6 +71,8 @@ const sessionReducer = (state: SessionState, action: Action): SessionState => {
       return { ...state, error: action.payload };
     case 'SET_SESSIONS':
       return { ...state, sessions: action.payload };
+    case 'SET_PROFILE':
+      return { ...state, sessions: [...state.sessions, { id: action.payload.userID, accessToken: 'secured', lastRefresh: Date.now() }] };
     default:
       return state;
   }
@@ -81,12 +82,10 @@ export const SessionContext = createContext<SessionContextType | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
-  const reduxDispatch = useDispatch();
 
   useEffect(() => {
     const loadSessions = async () => {
       try {
-        // Fetch sessions from the backend
         const response = await userService.getSessions();
         dispatch({ type: 'SET_SESSIONS', payload: response.data || [] });
       } catch (error) {
@@ -104,59 +103,46 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const initializeSession = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
       try {
-        // Validate current session via oxyhqservices. This call only validates the token stored in memory (managed by authService).
         const isValid = await authService.validateCurrentSession();
         if (isValid) {
-          // Assume authService exposes the current session's user ID.
           const currentUserId = await authService.getCurrentSessionUserId();
           if (currentUserId) {
-            dispatch({ type: 'LOGIN', payload: { userId: currentUserId, user: null } });
-            reduxDispatch(login({ user: { id: currentUserId } as User, accessToken: 'secured' }));
-            // Dynamically fetch fresh user profile
             const profile = await profileService.getProfileById(currentUserId);
-            reduxDispatch(setProfile(profile));
+            dispatch({ type: 'LOGIN', payload: { userId: currentUserId, user: { id: currentUserId } as User } });
+            dispatch({ type: 'SET_PROFILE', payload: profile });
           } else {
             dispatch({ type: 'LOGOUT' });
-            reduxDispatch(logout());
           }
         } else {
           dispatch({ type: 'LOGOUT' });
-          reduxDispatch(logout());
         }
       } catch (error) {
         logger.error('Session initialization error:', error);
         dispatch({ type: 'SET_ERROR', payload: 'Session initialization failed' });
         dispatch({ type: 'LOGOUT' });
-        reduxDispatch(logout());
       } finally {
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
 
     initializeSession();
-  }, [reduxDispatch]);
+  }, []);
 
   const loginUser = async (username: string, password: string) => {
     try {
       logger.info(`Login attempt for user: ${username}`);
-      // Call oxyhqservices auth to login. This returns session tokens and user ID only.
       const { user, accessToken } = await authService.login(username, password);
       if (!user || !user.id) {
         throw new Error('Login failed: Missing user session data');
       }
 
-      // Dynamically fetch user profile details
       const profile = await profileService.getProfileById(user.id);
-      reduxDispatch(setProfile(profile));
-
-      // Add user to sessions with only essential data
       await userService.addUserSession(user, accessToken);
 
-      // Refresh sessions list and update state
       const response = await userService.getSessions();
       dispatch({ type: 'SET_SESSIONS', payload: response.data || [] });
       dispatch({ type: 'LOGIN', payload: { userId: user.id, user } });
-      reduxDispatch(login({ user, accessToken }));
+      dispatch({ type: 'SET_PROFILE', payload: profile });
     } catch (error) {
       logger.error('Login error:', error);
       dispatch({ type: 'SET_ERROR', payload: 'Login failed' });
@@ -174,8 +160,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
 
       dispatch({ type: 'LOGOUT' });
-      reduxDispatch(logout());
-      reduxDispatch(clearProfile());
     } catch (error) {
       logger.error('Logout error:', error);
       throw error;
@@ -184,24 +168,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const switchSession = async (userId: string) => {
     try {
-      // Fetch fresh profile data for the user
       const profile = await profileService.getProfileById(userId);
       if (!profile || !profile.userID) {
         throw new Error('Session switch failed: Invalid profile data');
       }
 
-      // Get user data and tokens
       const { user, accessToken } = await userService.refreshUserData(userId);
-
-      // Add or update session with only essential data
       await userService.addUserSession(user, accessToken);
 
-      // Refresh sessions list and update state
       const response = await userService.getSessions();
       dispatch({ type: 'SET_SESSIONS', payload: response.data || [] });
       dispatch({ type: 'LOGIN', payload: { userId: profile.userID, user } });
-      reduxDispatch(login({ user, accessToken }));
-      reduxDispatch(setProfile(profile));
+      dispatch({ type: 'SET_PROFILE', payload: profile });
     } catch (error) {
       logger.error('Session switch error:', error);
       throw error;
@@ -220,7 +198,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   if (state.loading) {
-    return null; // or a loading indicator
+    return null;
   }
 
   return (

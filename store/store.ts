@@ -1,12 +1,10 @@
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
-import sessionReducer from "./reducers/sessionReducer";
 import trendsReducer from "./reducers/trendsReducer";
 import followReducer from './reducers/followReducer';
 import analyticsReducer from "./reducers/analyticsReducer";
 import profileReducer from "@/modules/oxyhqservices/reducers/profileReducer";
 
 const rootReducer = combineReducers({
-  session: sessionReducer,
   profile: profileReducer,
   trends: trendsReducer,
   follow: followReducer,

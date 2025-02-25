@@ -3,7 +3,7 @@ import { View, ActivityIndicator, ScrollView, Alert, TouchableOpacity } from 're
 import { ThemedView } from '../components/ThemedView';
 import { ThemedText } from '../components/ThemedText';
 import { fetchData } from '../utils/api';
-import useAuth from '../hooks/useAuth';
+import { useAuth } from '@/modules/oxyhqservices/hooks';
 import { LineChart } from 'react-native-chart-kit';
 import { useWindowDimensions } from 'react-native';
 import Avatar from '../components/Avatar';
@@ -138,13 +138,13 @@ export default function AnalyticsScreen() {
       try {
         setLoading(true);
         const [overviewData, viewersData, interactionsData, topPostsData, followerData] = await Promise.all([
-          fetchData(`analytics?userID=${user?.id}&period=${period}`),
-          fetchData(`analytics/viewers?userID=${user?.id}&period=${period}`),
-          fetchData(`analytics/interactions?userID=${user?.id}&period=${period}`),
-          fetchData(`analytics/top-posts?userID=${user?.id}&period=${period}`),
-          fetchData(`analytics/followers?userID=${user?.id}&period=${period}`)
+          fetchData(`analytics?userID=${user?.id}&period=${period}`) as Promise<Omit<AnalyticsData, 'viewers' | 'interactions' | 'topPosts' | 'followerStats'>>,
+          fetchData(`analytics/viewers?userID=${user?.id}&period=${period}`) as Promise<ViewerData[]>,
+          fetchData(`analytics/interactions?userID=${user?.id}&period=${period}`) as Promise<InteractionData[]>,
+          fetchData(`analytics/top-posts?userID=${user?.id}&period=${period}`) as Promise<TopPost[]>,
+          fetchData(`analytics/followers?userID=${user?.id}&period=${period}`) as Promise<FollowerStats>
         ]);
-        
+
         setAnalytics({
           ...overviewData,
           viewers: viewersData,
@@ -222,7 +222,7 @@ export default function AnalyticsScreen() {
         return (
           <View style={{ padding: 16 }}>
             <ThemedText style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 16 }}>Analytics Overview</ThemedText>
-            
+
             {/* Engagement Stats */}
             <View style={{ marginBottom: 24 }}>
               <ThemedText style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>Engagement</ThemedText>
@@ -351,9 +351,9 @@ export default function AnalyticsScreen() {
 
 function StatBox({ label, value }: { label: string; value: number }) {
   return (
-    <View style={{ 
-      backgroundColor: '#f0f0f0', 
-      padding: 16, 
+    <View style={{
+      backgroundColor: '#f0f0f0',
+      padding: 16,
       borderRadius: 8,
       marginBottom: 8,
       width: '48%'

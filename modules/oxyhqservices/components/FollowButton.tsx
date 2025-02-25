@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TouchableOpacity, ActivityIndicator, Text, StyleSheet, Animated, GestureResponderEvent } from 'react-native';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/modules/oxyhqservices/hooks';
 import { useProfile } from '@/modules/oxyhqservices/hooks/useProfile';
 import { useDispatch, useSelector } from 'react-redux';
 import { followUser as followUserAction, unfollowUser as unfollowUserAction, checkFollowStatus } from '@/store/reducers/followReducer';
@@ -18,7 +18,7 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
   onFollowStatusChange
 }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { user: currentUser, isAuthenticated, isInitializing } = useAuth();
+  const { user: currentUser, isAuthenticated } = useAuth();
   const buttonWidth = useRef(new Animated.Value(100)).current;
   const dispatch = useDispatch<AppDispatch>();
 
@@ -32,7 +32,7 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
 
   useEffect(() => {
     const checkStatus = async () => {
-      if (!isAuthenticated || !currentUser || currentUser.id === userId || isInitializing) return;
+      if (!isAuthenticated || !currentUser || currentUser.id === userId) return;
 
       try {
         setIsLoading(true);
@@ -45,13 +45,13 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
     };
 
     checkStatus();
-  }, [userId, currentUser?.id, isAuthenticated, dispatch, isInitializing]);
+  }, [userId, currentUser?.id, isAuthenticated, dispatch]);
 
   useEffect(() => {
-    if (!isLoading && !followLoading && !isInitializing) {
+    if (!isLoading && !followLoading) {
       animateButton(isFollowing ? 'following' : 'follow');
     }
-  }, [isFollowing, isLoading, followLoading, isInitializing]);
+  }, [isFollowing, isLoading, followLoading]);
 
   const animateButton = (state: 'follow' | 'following' | 'loading') => {
     const widthValue = state === 'loading' ? 40 :
@@ -70,7 +70,7 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
     event.stopPropagation();
     event.preventDefault();
 
-    if (!isAuthenticated || !currentUser || isLoading || currentUser.id === userId || isInitializing) {
+    if (!isAuthenticated || !currentUser || isLoading || currentUser.id === userId) {
       return;
     }
 
@@ -96,7 +96,7 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
     }
   };
 
-  const buttonDisabled = isLoading || followLoading || !isAuthenticated || currentUser?.id === userId || isInitializing;
+  const buttonDisabled = isLoading || followLoading || !isAuthenticated || currentUser?.id === userId;
 
   if (!isAuthenticated || currentUser?.id === userId) return null;
 
@@ -112,7 +112,7 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
         buttonDisabled && styles.disabledButton,
         { width: buttonWidth }
       ]}>
-        {(isLoading || followLoading || isInitializing) ? (
+        {(isLoading || followLoading) ? (
           <ActivityIndicator
             size="small"
             color={isFollowing ? colors.COLOR_BLACK_LIGHT_4 : "#ffffff"}

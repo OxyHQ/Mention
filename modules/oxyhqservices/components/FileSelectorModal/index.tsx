@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Modal, View, FlatList, TouchableOpacity, ActivityIndicator, TextInput, Text, Platform } from "react-native";
 import { useTranslation } from "react-i18next";
-import { useSelector } from "react-redux";
 import { Ionicons } from "@expo/vector-icons";
 import { Header } from "../ui/Header";
 import { useFiles } from '../../hooks/useFiles';
+import { useAuth } from '../../hooks';
 import { FileItem } from './FileItem';
 import { modalStyles, gridStyles, controlStyles } from './styles';
 import { FileType, FileSelectorModalProps } from './types';
@@ -12,17 +12,17 @@ import { OXY_CLOUD_URL } from "@/config";
 
 const defaultFileTypes = ["image/", "video/", "application/pdf", "image/gif"];
 
-const FileSelectorModal: React.FC<FileSelectorModalProps> = ({ 
-    visible, 
-    onClose, 
-    onSelect, 
-    options = {} 
+const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
+    visible,
+    onClose,
+    onSelect,
+    options = {}
 }) => {
     const { fileTypeFilter = defaultFileTypes, maxFiles = 5 } = options;
     const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
     const [filterText, setFilterText] = useState("");
     const { t } = useTranslation();
-    const currentUser = useSelector((state: any) => state.session?.user);
+    const { user: currentUser } = useAuth();
 
     // Use a ref to track whether files have been fetched
     const hasFetchedRef = useRef(false);
@@ -77,7 +77,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     };
 
     // Memoize filtered files
-    const filteredFiles = React.useMemo(() => 
+    const filteredFiles = React.useMemo(() =>
         files.filter(file =>
             file.filename.toLowerCase().includes(filterText.toLowerCase()) ||
             file.metadata?.originalname?.toLowerCase().includes(filterText.toLowerCase())
@@ -151,13 +151,13 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
     }, [visible]);
 
     return (
-        <Modal 
-            visible={visible} 
-            transparent 
+        <Modal
+            visible={visible}
+            transparent
             animationType="fade"
             onRequestClose={onClose} // Handle back button on Android
         >
-            <View 
+            <View
                 style={modalStyles.background}
                 onTouchEnd={(e) => {
                     if (e.target === e.currentTarget) {
@@ -170,7 +170,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                     Platform.OS === 'web' && { maxHeight: '90vh' as any }
                 ]}>
                     <Header options={headerOptions} />
-                    
+
                     <View style={controlStyles.filterContainer}>
                         <TextInput
                             style={controlStyles.input}
@@ -213,7 +213,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                     )}
 
                     <View style={controlStyles.buttonsContainer}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={onClose}
                             style={[controlStyles.button, controlStyles.buttonCancel]}
                         >
@@ -221,13 +221,13 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                                 {t("Cancel")}
                             </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={handleDone}
                             style={[
-                                controlStyles.button, 
+                                controlStyles.button,
                                 controlStyles.buttonDone,
                                 selectedFiles.length === 0 && controlStyles.buttonDisabled
-                            ]} 
+                            ]}
                             disabled={selectedFiles.length === 0}
                         >
                             <Text style={[controlStyles.buttonText, controlStyles.buttonTextDone]}>
@@ -236,7 +236,7 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                         </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={[
                             controlStyles.uploadButton,
                             uploading && controlStyles.buttonDisabled
@@ -244,10 +244,10 @@ const FileSelectorModal: React.FC<FileSelectorModalProps> = ({
                         onPress={uploadFiles}
                         disabled={uploading}
                     >
-                        <Ionicons 
-                            name={uploading ? "hourglass" : "cloud-upload"} 
-                            size={24} 
-                            color="white" 
+                        <Ionicons
+                            name={uploading ? "hourglass" : "cloud-upload"}
+                            size={24}
+                            color="white"
                         />
                     </TouchableOpacity>
                 </View>
