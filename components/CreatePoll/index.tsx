@@ -1,52 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// Using a conditional import for DateTimePicker to avoid build errors
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { postData } from '@/utils/api';
 import { colors } from '@/styles/colors';
-
-// Mock DateTimePicker for web or when the module is not available
-const DateTimePickerComponent = ({ value, onChange, mode, display, minimumDate, maximumDate }: any) => {
-    if (Platform.OS === 'web') {
-        return (
-            <input
-                type="date"
-                value={value.toISOString().split('T')[0]}
-                onChange={(e) => {
-                    const date = new Date(e.target.value);
-                    onChange({ type: 'set' }, date);
-                }}
-                min={minimumDate?.toISOString().split('T')[0]}
-                max={maximumDate?.toISOString().split('T')[0]}
-                style={{
-                    padding: 10,
-                    borderWidth: 1,
-                    borderColor: colors.COLOR_BLACK_LIGHT_6,
-                    borderRadius: 8,
-                    marginBottom: 16
-                }}
-            />
-        );
-    }
-
-    // For native platforms, try to use the actual DateTimePicker
-    try {
-        const DateTimePicker = require('@react-native-community/datetimepicker').default;
-        return (
-            <DateTimePicker
-                value={value}
-                mode={mode}
-                display={display}
-                onChange={onChange}
-                minimumDate={minimumDate}
-                maximumDate={maximumDate}
-            />
-        );
-    } catch (error) {
-        console.warn('DateTimePicker not available:', error);
-        return null;
-    }
-};
 
 interface CreatePollProps {
     postId: string;
@@ -88,7 +45,7 @@ export const CreatePoll: React.FC<CreatePollProps> = ({ postId, onPollCreated, o
     };
 
     const onDateChange = (event: any, selectedDate?: Date) => {
-        setShowDatePicker(false);
+        setShowDatePicker(Platform.OS === 'ios');
         if (selectedDate) {
             setEndDate(selectedDate);
         }
@@ -208,13 +165,14 @@ export const CreatePoll: React.FC<CreatePollProps> = ({ postId, onPollCreated, o
                 </TouchableOpacity>
 
                 {showDatePicker && (
-                    <DateTimePickerComponent
+                    <DateTimePicker
+                        testID="pollDatePicker"
                         value={endDate}
                         mode="date"
-                        display="default"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                         onChange={onDateChange}
-                        minimumDate={new Date(Date.now() + 24 * 60 * 60 * 1000)} // Minimum 1 day
-                        maximumDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)} // Maximum 7 days
+                        minimumDate={new Date(Date.now() + 24 * 60 * 60 * 1000)}
+                        maximumDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
                     />
                 )}
 
