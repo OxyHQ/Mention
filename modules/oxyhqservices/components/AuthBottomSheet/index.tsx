@@ -42,7 +42,7 @@ export function AuthBottomSheet({ initialMode = 'signin' }: AuthBottomSheetProps
     const slideAnim = useRef(new Animated.Value(0)).current;
     const router = useRouter();
     const { t } = useTranslation();
-    const { openBottomSheet } = useContext(BottomSheetContext);
+    const { openBottomSheet, setBottomSheetContent, bottomSheetRef } = useContext(BottomSheetContext);
     const { loginUser } = useSession();
     const sessionContext = useContext(SessionContext);
     const availableSessions = (sessionContext as any)?.sessions as UserSession[] || [];
@@ -114,9 +114,12 @@ export function AuthBottomSheet({ initialMode = 'signin' }: AuthBottomSheetProps
 
         try {
             await loginUser(username, password);
-            toast.success(t('Login successful'));
-            openBottomSheet(false);
-            router.push('/');
+            bottomSheetRef.current?.dismiss();
+            setTimeout(() => {
+                setBottomSheetContent(null);
+                toast.success(t('Login successful'));
+                router.push('/');
+            }, 500);
         } catch (error: any) {
             const errorMessage = error?.response?.data?.message ||
                 error?.message ||
@@ -151,9 +154,12 @@ export function AuthBottomSheet({ initialMode = 'signin' }: AuthBottomSheetProps
 
             if (response.success && response.accessToken && response.user) {
                 await loginUser(username, password);
-                toast.success(t('success.signup'));
-                openBottomSheet(false);
-                router.push('/');
+                bottomSheetRef.current?.dismiss();
+                setTimeout(() => {
+                    setBottomSheetContent(null);
+                    toast.success(t('success.signup'));
+                    router.push('/');
+                }, 500);
             } else {
                 toast.error(response.message || t('error.signup.failed'));
             }
@@ -174,9 +180,12 @@ export function AuthBottomSheet({ initialMode = 'signin' }: AuthBottomSheetProps
     const handleSessionSwitch = async (userId: string) => {
         try {
             await sessionContext?.switchSession(userId);
-            toast.success(t('Session switched successfully'));
-            openBottomSheet(false);
-            router.push('/');
+            bottomSheetRef.current?.dismiss();
+            setTimeout(() => {
+                setBottomSheetContent(null);
+                toast.success(t('Session switched successfully'));
+                router.push('/');
+            }, 500);
         } catch (error) {
             toast.error(t('Failed to switch session'));
         }
@@ -633,13 +642,6 @@ const styles = StyleSheet.create({
         marginHorizontal: 8,
         color: colors.COLOR_BLACK_LIGHT_4,
     },
-    closeButton: {
-        position: 'absolute',
-        top: 16,
-        right: 16,
-        padding: 8,
-        zIndex: 1,
-    },
     currentSessionContainer: {
         flexDirection: 'column',
         alignItems: 'center',
@@ -669,6 +671,10 @@ const styles = StyleSheet.create({
     },
     manageAccountButton: {
         alignSelf: 'flex-start',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        backgroundColor: colors.primaryLight,
+        borderRadius: 35,
     },
     manageAccountText: {
         color: colors.primaryColor,

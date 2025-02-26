@@ -28,7 +28,7 @@ export interface Post {
   author?: User;
   media: string[];
   quoted_post: Post | null;
-  repost_of: string | null;
+  repost_of: Post | null;
   isLiked?: boolean;
   isReposted?: boolean;
   isBookmarked?: boolean;

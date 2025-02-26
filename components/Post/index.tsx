@@ -362,7 +362,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
         const showResults = selectedOption !== null || isPollEnded;
 
         return (
-            <View className="mt-4 bg-gray-50 rounded-lg p-4">
+            <View className=" bg-gray-50 rounded-lg p-4">
                 <Text className="font-medium mb-2">{poll.question}</Text>
                 {poll.options.map(option => {
                     const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
@@ -401,7 +401,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
     };
 
     return (
-        <View className={`flex flex-col py-3 ${isDarkMode ? 'bg-black' : 'bg-white'} ${className}`} style={style}>
+        <View className={`flex flex-col gap-1 border-t-gray-200 py-3 ${isDarkMode ? 'bg-black' : 'bg-white'} ${className}`} style={style}>
             {postData.repost_of && (
                 <View className="flex-row items-center px-3 mb-2">
                     <RepostIcon size={16} color="#536471" />
@@ -453,20 +453,16 @@ export default function Post({ postData, quotedPost, className, style, showActio
                         {renderPoll()}
                         {renderLocation(undefined)}
                         {!quotedPost && postData.quoted_post && (
-                            <View className="mt-3 border border-gray-200 rounded-2xl overflow-hidden">
-                                <Post postData={postData.quoted_post} quotedPost={true} showActions={false} />
-                            </View>
+                            <Post postData={postData.quoted_post} quotedPost={true} showActions={false} className="border border-gray-200 rounded-2xl" />
                         )}
                         {!quotedPost && postData.repost_of && (
-                            <View className="mt-3 border border-gray-200 rounded-2xl overflow-hidden">
-                                <Post postData={postData.repost_of} quotedPost={true} showActions={false} />
-                            </View>
+                            <Post postData={postData.repost_of} quotedPost={true} showActions={false} className="border border-gray-200 rounded-2xl" />
                         )}
                     </View>
                 </TouchableOpacity>
             </View>
             {showActions && (
-                <View className="flex-row mt-3 justify-between max-w-[400px] pl-[62px]">
+                <View className="flex-row mt-2 justify-between max-w-[400px] pl-[62px]">
                     <TouchableOpacity
                         className="flex-row items-center mr-4 gap-1"
                         onPress={(e) => {

@@ -31,43 +31,38 @@ export function BaseBottomSheet({
 }: BaseBottomSheetProps) {
     return (
         <View style={styles.container}>
-            <LinearGradient
-                colors={[colors.primaryLight, colors.primaryLight_1]}
-                style={styles.gradientBackground}
-            >
-                <View style={styles.header}>
-                    <View style={styles.headerLeft}>
-                        {showBackButton ? (
-                            <TouchableOpacity
-                                onPress={onBack}
-                                style={styles.closeButton}
-                            >
-                                <Ionicons name="arrow-back" size={24} color={colors.primaryColor} />
-                            </TouchableOpacity>
-                        ) : (
-                            <TouchableOpacity
-                                onPress={onClose}
-                                style={styles.closeButton}
-                            >
-                                <Ionicons name="close" size={24} color={colors.primaryColor} />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                    <View style={styles.headerCenter}>
-                        {showLogo ? (
-                            <OxyLogo size={53} style={styles.logo} />
-                        ) : title ? (
-                            <ThemedText style={styles.title}>{title}</ThemedText>
-                        ) : null}
-                    </View>
-                    <View style={styles.headerRight}>
-                        {rightComponent}
-                    </View>
+            <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                    {showBackButton ? (
+                        <TouchableOpacity
+                            onPress={onBack}
+                            style={styles.closeButton}
+                        >
+                            <Ionicons name="arrow-back" size={24} color={colors.primaryColor} />
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            onPress={onClose}
+                            style={styles.closeButton}
+                        >
+                            <Ionicons name="close" size={24} color={colors.primaryColor} />
+                        </TouchableOpacity>
+                    )}
                 </View>
-                <View style={[styles.content, contentStyle]}>
-                    {children}
+                <View style={styles.headerCenter}>
+                    {showLogo ? (
+                        <OxyLogo size={53} style={styles.logo} />
+                    ) : title ? (
+                        <ThemedText style={styles.title}>{title}</ThemedText>
+                    ) : null}
                 </View>
-            </LinearGradient>
+                <View style={styles.headerRight}>
+                    {rightComponent}
+                </View>
+            </View>
+            <View style={[styles.content, contentStyle]}>
+                {children}
+            </View>
         </View>
     );
 }
@@ -75,12 +70,8 @@ export function BaseBottomSheet({
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.primaryLight,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        maxHeight: '90%',
-        minHeight: 500,
-        overflow: 'hidden',
     },
     gradientBackground: {
         flex: 1,

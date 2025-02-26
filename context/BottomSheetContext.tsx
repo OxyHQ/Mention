@@ -1,15 +1,18 @@
 import React, { createContext, useState, ReactNode, useRef, useCallback } from 'react';
 import { StyleSheet, ScrollView, View } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import CustomBackground from '@/components/BottomSheet/CustomBackground';
 
 interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
     setBottomSheetContent: (content: ReactNode) => void;
+    bottomSheetRef: React.RefObject<BottomSheetModal>;
 }
 
 export const BottomSheetContext = createContext<BottomSheetContextProps>({
     openBottomSheet: () => { },
     setBottomSheetContent: () => { },
+    bottomSheetRef: { current: null },
 });
 
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -37,7 +40,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
     };
 
     return (
-        <BottomSheetContext.Provider value={{ openBottomSheet, setBottomSheetContent }}>
+        <BottomSheetContext.Provider value={{ openBottomSheet, setBottomSheetContent, bottomSheetRef: bottomSheetModalRef }}>
             {children}
             <BottomSheetModal
                 ref={bottomSheetModalRef}
@@ -47,7 +50,6 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
                 keyboardBehavior="extend"
                 style={styles.contentContainer}
                 handleIndicatorStyle={{ backgroundColor: '#000', width: 40 }}
-                backgroundStyle={{ backgroundColor: 'white' }}
                 backdropComponent={renderBackdrop}
             >
                 <BottomSheetView style={styles.contentView}>
