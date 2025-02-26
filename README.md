@@ -11,7 +11,7 @@
   
   <br />
   <figure>
-    <img src="https://raw.githubusercontent.com/OxyHQ/Mention/main/assets/images/MentionBanner.png" alt="Mention" />
+    <img src="https://raw.githubusercontent.com/OxyHQ/Mention/refs/heads/master/assets/images/MentionBanner.png" alt="Mention" />
   </figure>
 </div>
 

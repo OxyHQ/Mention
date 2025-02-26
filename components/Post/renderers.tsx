@@ -236,6 +236,7 @@ const styles = StyleSheet.create({
     scrollView: {
         flexGrow: 0,
         paddingLeft: 62,
+        paddingRight: 10,
     },
     contentContainer: {
         flexDirection: "row",

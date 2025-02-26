@@ -4,6 +4,7 @@ import { getData, storeData } from './storage';
 import { router } from 'expo-router';
 import { getSocket, disconnectSocket } from './socket';
 import { API_URL } from "@/config";
+import { showAuthBottomSheet } from '@/utils/auth';
 
 // Retry configuration
 const MAX_RETRIES = 3;
@@ -114,6 +115,25 @@ const clearCache = (pattern?: string) => {
   }
 };
 
+// Event system for auth state changes
+type AuthEventListener = () => void;
+const authEventListeners: AuthEventListener[] = [];
+
+export const addAuthEventListener = (listener: AuthEventListener) => {
+  authEventListeners.push(listener);
+};
+
+export const removeAuthEventListener = (listener: AuthEventListener) => {
+  const index = authEventListeners.indexOf(listener);
+  if (index > -1) {
+    authEventListeners.splice(index, 1);
+  }
+};
+
+const notifyAuthEvent = () => {
+  authEventListeners.forEach(listener => listener());
+};
+
 // Enhanced request interceptor without unsafe headers
 api.interceptors.request.use(
   async (config) => {
@@ -221,7 +241,7 @@ api.interceptors.response.use(
         storeData('session', null)
       ]);
       toast.error("Session expired. Please log in again.");
-      router.push('/login');
+      notifyAuthEvent();
       return Promise.reject(error);
     } finally {
       isRefreshing = false;
@@ -450,7 +470,7 @@ export const refreshAccessToken = async () => {
         storeData('session', null),
         storeData('user', null)
       ]);
-      router.replace('/login');
+      notifyAuthEvent();
       throw new Error('Session expired. Please log in again.');
     }
     throw error;
@@ -481,8 +501,8 @@ export const logout = async () => {
     
     disconnectSocket();
     
-    // Force navigation to login
-    router.replace('/login');
+    // Notify auth event listeners
+    notifyAuthEvent();
   } catch (error) {
     console.error('Logout error:', error);
     // Still clear local data even if server request fails
@@ -492,7 +512,7 @@ export const logout = async () => {
       storeData('session', null),
       storeData('user', null)
     ]);
-    router.replace('/login');
+    notifyAuthEvent();
   }
 };
 
@@ -575,12 +595,12 @@ export const forceLogout = async () => {
     // Disconnect socket
     disconnectSocket();
     
-    // Force redirect to login
-    router.replace('/login');
+    // Notify auth event listeners
+    notifyAuthEvent();
   } catch (error) {
     console.error('[API] Force logout error:', error);
-    // Still try to redirect
-    router.replace('/login');
+    // Still try to notify auth event listeners
+    notifyAuthEvent();
   }
 };
 

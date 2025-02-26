@@ -30,7 +30,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics } from 'react-native-safe-area-context';
 import { SessionProvider } from '@/modules/oxyhqservices/components/SessionProvider';
 import { MenuProvider } from 'react-native-popup-menu';
-import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import WebSplashScreen from "@/components/WebSplashScreen";
 import LoadingTopSpinner from "@/components/LoadingTopSpinner";
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -38,6 +38,7 @@ import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { setBottomSheetContextRef, setAuthBottomSheetFactory } from '@/utils/auth';
 import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
+import { AuthModalListener } from '@/modules/oxyhqservices/components/AuthModalListener';
 
 import "../styles/global.css";
 
@@ -161,8 +162,6 @@ export default function RootLayout() {
       flex: isScreenNotMobile ? 2.2 : 1,
       backgroundColor: colors.primaryLight,
       borderRadius: isScreenNotMobile ? 35 : 0,
-      //borderWidth: isScreenNotMobile ? 1 : 0,
-      //borderColor: colors.primaryColor,
     },
     contentContainer: {
       flex: 1,
@@ -176,25 +175,28 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <GestureHandlerRootView>
+      <GestureHandlerRootView style={{ flex: 1 }}>
         <Provider store={store}>
           <I18nextProvider i18n={i18n}>
             <SessionProvider>
               <MenuProvider>
                 <ErrorBoundary>
-                  <BottomSheetProvider>
-                    <View style={styles.container}>
-                      <SideBar />
-                      <View style={styles.mainContentWrapper}>
-                        <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0, }} />
-                        <Slot />
+                  <BottomSheetModalProvider>
+                    <BottomSheetProvider>
+                      <AuthModalListener />
+                      <View style={styles.container}>
+                        <SideBar />
+                        <View style={styles.mainContentWrapper}>
+                          <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0, }} />
+                          <Slot />
+                        </View>
+                        <RightBar />
                       </View>
-                      <RightBar />
-                    </View>
-                    <StatusBar style="auto" />
-                    <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
-                    {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
-                  </BottomSheetProvider>
+                      <StatusBar style="auto" />
+                      <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
+                      {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                    </BottomSheetProvider>
+                  </BottomSheetModalProvider>
                 </ErrorBoundary>
               </MenuProvider>
             </SessionProvider>
