@@ -41,7 +41,6 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
             {children}
             <BottomSheetModal
                 ref={bottomSheetModalRef}
-                snapPoints={['90%']}
                 enablePanDownToClose={true}
                 enableDismissOnClose={true}
                 android_keyboardInputMode="adjustResize"
