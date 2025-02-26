@@ -2,18 +2,23 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
   TextInput,
   Alert,
   ActivityIndicator,
   Platform,
+  TouchableOpacity,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
 } from 'react-native';
 import { colors } from '@/styles/colors';
 import { paymentService } from '../services/payment.service';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { BaseBottomSheet } from './BaseBottomSheet';
+import { sharedStyles } from '../styles/shared';
+import { ThemedText } from '@/components/ThemedText';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface PaymentModalProps {
   visible: boolean;
@@ -24,7 +29,7 @@ interface PaymentModalProps {
   userId: string;
 }
 
-export function PaymentModal({ visible, onClose, onSuccess, plan, price, userId }: PaymentModalProps) {
+export function PaymentModal({ onClose, onSuccess, plan, price, userId }: PaymentModalProps) {
   const { t } = useTranslation();
   const [cardNumber, setCardNumber] = useState('');
   const [expiryMonth, setExpiryMonth] = useState('');
@@ -36,30 +41,27 @@ export function PaymentModal({ visible, onClose, onSuccess, plan, price, userId 
     try {
       setLoading(true);
 
-      // Basic validation
       if (!cardNumber || !expiryMonth || !expiryYear || !cvc) {
         Alert.alert(t('Error'), t('Please fill in all payment details'));
         return;
       }
 
       const paymentMethod = {
-        type: 'card',
+        type: 'card' as const,
         cardNumber,
         expiryMonth,
         expiryYear,
         cvc,
       };
 
-      // Validate payment method first
       const isValid = await paymentService.validatePaymentMethod(paymentMethod);
       if (!isValid) {
         Alert.alert(t('Error'), t('Invalid payment details'));
         return;
       }
 
-      // Process payment
       const response = await paymentService.processPayment(userId, plan, paymentMethod);
-      
+
       if (response.success) {
         Alert.alert(
           t('Success'),
@@ -78,24 +80,16 @@ export function PaymentModal({ visible, onClose, onSuccess, plan, price, userId 
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
+    <BaseBottomSheet
+      onClose={onClose}
+      title={t('Payment Details')}
+      showLogo={false}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('Payment Details')}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={colors.COLOR_BLACK} />
-            </TouchableOpacity>
-          </View>
-
+      <View style={sharedStyles.container}>
+        <View style={sharedStyles.content}>
           <View style={styles.planInfo}>
-            <Text style={styles.planName}>{t('Plan')}: {plan}</Text>
-            <Text style={styles.price}>{price}</Text>
+            <ThemedText style={sharedStyles.title}>{plan}</ThemedText>
+            <ThemedText style={styles.price}>{price}</ThemedText>
           </View>
 
           {Platform.OS === 'ios' && (
@@ -119,106 +113,89 @@ export function PaymentModal({ visible, onClose, onSuccess, plan, price, userId 
           </View>
 
           <View style={styles.form}>
-            <TextInput
-              style={styles.input}
-              placeholder={t('Card number')}
-              value={cardNumber}
-              onChangeText={setCardNumber}
-              keyboardType="number-pad"
-              maxLength={16}
-            />
+            <View style={sharedStyles.inputWrapper}>
+              <TextInput
+                style={sharedStyles.input}
+                placeholder={t('Card number')}
+                value={cardNumber}
+                onChangeText={setCardNumber}
+                keyboardType="number-pad"
+                maxLength={16}
+                placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
+              />
+            </View>
             <View style={styles.row}>
               <TextInput
-                style={[styles.input, styles.smallInput]}
+                style={[sharedStyles.input, styles.smallInput]}
                 placeholder={t('MM')}
                 value={expiryMonth}
                 onChangeText={setExpiryMonth}
                 keyboardType="number-pad"
                 maxLength={2}
+                placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
               />
-              <Text style={styles.separator}>/</Text>
+              <Text style={styles.separatorText}>/</Text>
               <TextInput
-                style={[styles.input, styles.smallInput]}
+                style={[sharedStyles.input, styles.smallInput]}
                 placeholder={t('YY')}
                 value={expiryYear}
                 onChangeText={setExpiryYear}
                 keyboardType="number-pad"
                 maxLength={2}
+                placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
               />
               <TextInput
-                style={[styles.input, styles.cvcInput]}
+                style={[sharedStyles.input, styles.cvcInput]}
                 placeholder={t('CVC')}
                 value={cvc}
                 onChangeText={setCvc}
                 keyboardType="number-pad"
                 maxLength={4}
+                placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
               />
             </View>
           </View>
 
           <TouchableOpacity
-            style={[styles.payButton, loading && styles.payButtonDisabled]}
+            style={[sharedStyles.button, loading && styles.payButtonDisabled]}
             onPress={handlePayment}
             disabled={loading}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.payButtonText}>
-                {t('Pay')} {price}
-              </Text>
-            )}
+            <LinearGradient
+              colors={[colors.primaryColor, colors.primaryDark]}
+              style={sharedStyles.buttonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <ThemedText style={sharedStyles.buttonText}>
+                  {t('Pay')} {price}
+                </ThemedText>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </BaseBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    maxHeight: '90%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.COLOR_BLACK,
-  },
-  closeButton: {
-    padding: 8,
-  },
   planInfo: {
     marginBottom: 24,
   },
-  planName: {
-    fontSize: 18,
-    color: colors.COLOR_BLACK,
-    marginBottom: 4,
-  },
   price: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: colors.COLOR_BLACK,
+    textAlign: 'center',
   },
   applePayButton: {
     backgroundColor: '#000',
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'center' as const,
     justifyContent: 'center',
     padding: 16,
     borderRadius: 12,
@@ -233,7 +210,7 @@ const styles = StyleSheet.create({
   googlePayButton: {
     backgroundColor: '#4285F4',
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'center' as const,
     justifyContent: 'center',
     padding: 16,
     borderRadius: 12,
@@ -247,7 +224,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'center' as const,
     marginVertical: 24,
   },
   line: {
@@ -262,39 +239,26 @@ const styles = StyleSheet.create({
   form: {
     marginBottom: 24,
   },
-  input: {
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 16,
-  },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'center' as const,
   },
   smallInput: {
     width: 60,
     marginRight: 8,
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
   cvcInput: {
     width: 80,
     marginLeft: 16,
-    textAlign: 'center',
-  },
-  payButton: {
-    backgroundColor: colors.primaryColor,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
+    textAlign: 'center' as const,
   },
   payButtonDisabled: {
     opacity: 0.7,
   },
-  payButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+  separatorText: {
+    marginHorizontal: 4,
+    color: colors.COLOR_BLACK_LIGHT_4,
+    fontSize: 16,
   },
 });

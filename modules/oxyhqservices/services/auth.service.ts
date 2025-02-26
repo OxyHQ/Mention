@@ -24,6 +24,14 @@ interface LoginResponse {
   user: User;
 }
 
+interface RegisterResponse {
+  success: boolean;
+  message: string;
+  accessToken: string;
+  refreshToken: string;
+  user: User;
+}
+
 interface ValidateResponse {
   valid: boolean;
   message?: string;
@@ -35,11 +43,24 @@ interface RefreshResponse {
 }
 
 class AuthService {
-  async register(user: { username: string; email: string; password: string }) {
+  async register(user: { username: string; email: string; password: string }): Promise<RegisterResponse> {
     try {
-      const response = await apiService.post('/auth/signup', user);
+      const response = await apiService.post<RegisterResponse>('/auth/register', user);
+      
+      if (response.data.success && response.data.accessToken && response.data.refreshToken) {
+        // Store tokens and user data
+        await Promise.all([
+          storeData('accessToken', response.data.accessToken),
+          storeData('refreshToken', response.data.refreshToken),
+          storeData('user', response.data.user)
+        ]);
+      }
+      
       return response.data;
     } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.data) {
+        throw error.response.data;
+      }
       throw error;
     }
   }

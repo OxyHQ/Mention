@@ -38,6 +38,7 @@ import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { setBottomSheetContextRef, setAuthBottomSheetFactory } from '@/utils/auth';
 import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
+import { AuthModalListener } from '@/modules/oxyhqservices/components/AuthModalListener';
 
 import "../styles/global.css";
 
@@ -161,8 +162,6 @@ export default function RootLayout() {
       flex: isScreenNotMobile ? 2.2 : 1,
       backgroundColor: colors.primaryLight,
       borderRadius: isScreenNotMobile ? 35 : 0,
-      //borderWidth: isScreenNotMobile ? 1 : 0,
-      //borderColor: colors.primaryColor,
     },
     contentContainer: {
       flex: 1,
@@ -183,6 +182,7 @@ export default function RootLayout() {
               <MenuProvider>
                 <ErrorBoundary>
                   <BottomSheetProvider>
+                    <AuthModalListener />
                     <View style={styles.container}>
                       <SideBar />
                       <View style={styles.mainContentWrapper}>

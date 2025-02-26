@@ -7,6 +7,7 @@ import {
     ViewStyle,
     TextInput,
     Platform,
+    Alert,
 } from 'react-native'
 import { Pressable, PressableStateCallbackType } from 'react-native'
 import { colors } from '@/styles/colors'
@@ -14,6 +15,7 @@ import { EmojiIcon } from '@/assets/icons/emoji-icon';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
 import { HandleIcon } from '@/assets/icons/handle-icon';
+import { PollIcon } from '@/assets/icons/poll-icon';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
@@ -26,6 +28,8 @@ import { AppDispatch } from '@/store/store';
 import type { Post } from '@/interfaces/Post';
 import { OXY_CLOUD_URL } from '@/config';
 import { postData } from '@/utils/api';
+import CreatePoll from '@/components/CreatePoll';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface Props {
     style?: ViewStyle
@@ -36,6 +40,11 @@ interface Props {
     replyToPost?: Post
     repostPost?: Post
     onPostCreated?: () => void
+    initialText?: string
+    initialMedia?: string[]
+    postId?: string
+    isDraft?: boolean
+    scheduledFor?: string | null
 }
 
 export const CreatePost: React.FC<Props> = ({
@@ -46,10 +55,17 @@ export const CreatePost: React.FC<Props> = ({
     repostPostId,
     replyToPost,
     repostPost,
-    onPostCreated
+    onPostCreated,
+    initialText,
+    initialMedia,
+    postId,
+    isDraft: initialIsDraft,
+    scheduledFor: initialScheduledFor
 }) => {
-    const [text, setText] = useState('')
-    const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video', id: string }[]>([]);
+    const [text, setText] = useState(initialText || '')
+    const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video', id: string }[]>(
+        initialMedia?.map(id => ({ uri: `${OXY_CLOUD_URL}${id}`, type: id.startsWith('image') ? 'image' : 'video', id })) || []
+    );
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isModalVisible, setModalVisible] = useState(false);
     const [mentionQuery, setMentionQuery] = useState('');
@@ -59,10 +75,18 @@ export const CreatePost: React.FC<Props> = ({
     const [cursorPosition, setCursorPosition] = useState(0);
     const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
     const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false);
+    const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+    const [isDraftState, setIsDraftState] = useState(initialIsDraft || false);
+    const [scheduledForState, setScheduledForState] = useState<Date | null>(
+        initialScheduledFor ? new Date(initialScheduledFor) : null
+    );
     const dispatch = useDispatch<AppDispatch>();
     const sessionContext = useContext(SessionContext);
     const currentUserId = sessionContext?.getCurrentUserId();
     const [avatarId, setAvatarId] = useState<string | undefined>();
+    const [showPollCreator, setShowPollCreator] = useState(false);
+    const [pollId, setPollId] = useState<string | null>(null);
+    const [tempPostId, setTempPostId] = useState<string | null>(null);
 
     useEffect(() => {
         if (currentUserId) {
@@ -77,6 +101,12 @@ export const CreatePost: React.FC<Props> = ({
             fetchProfile();
         }
     }, [currentUserId]);
+
+    useEffect(() => {
+        if (showPollCreator && !tempPostId) {
+            setTempPostId(`temp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
+        }
+    }, [showPollCreator]);
 
     const extractMentionsAndHashtags = (text: string) => {
         const mentions = text.match(/@[\w]+/g) || [];
@@ -146,35 +176,42 @@ export const CreatePost: React.FC<Props> = ({
             try {
                 const { mentions, hashtags } = extractMentionsAndHashtags(text);
 
-                const newPost: Partial<Post> = {
-                    userID: currentUserId,
-                    text: text,
+                const newPost = {
+                    text,
                     media: selectedMedia.map(media => media.id),
-                    created_at: new Date().toISOString(),
-                    source: 'web',
+                    mentions,
+                    hashtags,
                     in_reply_to_status_id: replyToPostId || null,
                     quoted_post_id: repostPostId || null,
-                    lang: 'en',
-                    mentions: mentions,
-                    hashtags: hashtags,
+                    isDraft: isDraftState,
+                    scheduledFor: scheduledForState?.toISOString() || null,
                     _count: {
-                        comments: 0,
+                        replies: 0,
                         likes: 0,
                         quotes: 0,
                         reposts: 0,
-                        bookmarks: 0,
-                        replies: 0
+                        bookmarks: 0
                     }
                 };
 
-                const response = await postData('posts', newPost);
+                if (postId) {
+                    await postData(`posts/${postId}`, newPost);
+                } else {
+                    await postData('posts', newPost);
+                }
+
                 setText('');
                 setSelectedMedia([]);
+                setPollId(null);
+                setTempPostId(null);
                 if (onPostCreated) onPostCreated();
                 if (onClose) onClose();
             } catch (error) {
                 console.error('Error creating post:', error);
+                Alert.alert('Error', 'Failed to create post. Please try again.');
             }
+        } else {
+            Alert.alert('Error', 'Please enter some text for your post.');
         }
     };
 
@@ -200,6 +237,72 @@ export const CreatePost: React.FC<Props> = ({
         setSelectedMedia([...selectedMedia, ...media]);
     };
 
+    const handlePollCreated = (createdPollId: string) => {
+        setPollId(createdPollId);
+        setShowPollCreator(false);
+    };
+
+    const saveDraft = async () => {
+        if (text && currentUserId) {
+            try {
+                const { mentions, hashtags } = extractMentionsAndHashtags(text);
+
+                const newPost = {
+                    text,
+                    media: selectedMedia.map(media => media.id),
+                    mentions,
+                    hashtags,
+                    in_reply_to_status_id: replyToPostId || null,
+                    quoted_post_id: repostPostId || null,
+                    isDraft: true,
+                    scheduledFor: null
+                };
+
+                await postData('posts', newPost);
+                setText('');
+                setSelectedMedia([]);
+                setPollId(null);
+                setTempPostId(null);
+                if (onPostCreated) onPostCreated();
+                if (onClose) onClose();
+            } catch (error) {
+                console.error('Error saving draft:', error);
+                Alert.alert('Error', 'Failed to save draft. Please try again.');
+            }
+        }
+    };
+
+    const schedulePost = async () => {
+        if (text && currentUserId && scheduledForState) {
+            try {
+                const { mentions, hashtags } = extractMentionsAndHashtags(text);
+
+                const newPost = {
+                    text,
+                    media: selectedMedia.map(media => media.id),
+                    mentions,
+                    hashtags,
+                    in_reply_to_status_id: replyToPostId || null,
+                    quoted_post_id: repostPostId || null,
+                    isDraft: false,
+                    scheduledFor: scheduledForState.toISOString()
+                };
+
+                await postData('posts', newPost);
+                setText('');
+                setSelectedMedia([]);
+                setPollId(null);
+                setTempPostId(null);
+                setScheduledForState(null);
+                if (onPostCreated) onPostCreated();
+                if (onClose) onClose();
+            } catch (error) {
+                console.error('Error scheduling post:', error);
+                Alert.alert('Error', 'Failed to schedule post. Please try again.');
+            }
+        }
+    };
+
     return (
         <View style={[styles.container, style]}>
             <View style={styles.topRow}>
@@ -210,11 +313,23 @@ export const CreatePost: React.FC<Props> = ({
                         <Text style={styles.buttonText}>Cancel</Text>
                     </Pressable>
                 )}
-                <Pressable
-                    onPress={post}
-                    style={text ? styles.button : styles.buttonDisabled}>
-                    <Text style={styles.buttonText}>{replyToPostId ? 'Reply' : repostPostId ? 'Quote' : 'Post'}</Text>
-                </Pressable>
+                <View style={styles.actionButtons}>
+                    <Pressable
+                        onPress={saveDraft}
+                        style={text ? styles.button : styles.buttonDisabled}>
+                        <Text style={styles.buttonText}>Save Draft</Text>
+                    </Pressable>
+                    <Pressable
+                        onPress={() => setShowSchedulePicker(true)}
+                        style={text ? styles.button : styles.buttonDisabled}>
+                        <Text style={styles.buttonText}>Schedule</Text>
+                    </Pressable>
+                    <Pressable
+                        onPress={post}
+                        style={text ? styles.button : styles.buttonDisabled}>
+                        <Text style={styles.buttonText}>{replyToPostId ? 'Reply' : repostPostId ? 'Quote' : 'Post'}</Text>
+                    </Pressable>
+                </View>
             </View>
             {replyToPost && (
                 <View style={styles.replyingContainer}>
@@ -281,35 +396,20 @@ export const CreatePost: React.FC<Props> = ({
                 </View>
             )}
             <View style={styles.bottomRow}>
-                <View style={styles.iconsContainer}>
-                    <Pressable
-                        onPress={openModal}
-                        style={({ pressed }) => [
-                            styles.svgWrapper,
-                            pressed && { backgroundColor: colors.primaryLight_1 }
-                        ]}>
-                        <MediaIcon size={20} />
+                <View style={styles.iconRow}>
+                    <Pressable onPress={openModal} style={styles.icon}>
+                        <MediaIcon size={18} />
                     </Pressable>
-                    <Pressable
-                        onPress={() => setShowEmojiPicker(!showEmojiPicker)}
-                        style={({ pressed }) => [
-                            styles.svgWrapper,
-                            pressed && { backgroundColor: colors.primaryLight_1 }
-                        ]}>
-                        <EmojiIcon size={20} />
+                    <Pressable onPress={() => setShowEmojiPicker(!showEmojiPicker)} style={styles.icon}>
+                        <EmojiIcon size={18} />
                     </Pressable>
-                    <Pressable
-                        style={({ pressed }) => [
-                            styles.svgWrapper,
-                            pressed && { backgroundColor: colors.primaryLight_1 }
-                        ]}>
-                        <LocationIcon size={20} />
+                    <Pressable onPress={() => setShowPollCreator(true)} style={styles.icon}>
+                        <PollIcon size={18} />
                     </Pressable>
-                    <Pressable
-                        style={({ pressed }) => [
-                            styles.svgWrapper,
-                            pressed && { backgroundColor: colors.primaryLight_1 }
-                        ]}>
+                    <Pressable style={styles.icon}>
+                        <LocationIcon size={18} />
+                    </Pressable>
+                    <Pressable style={styles.icon}>
                         <HandleIcon size={18} />
                     </Pressable>
                 </View>
@@ -320,32 +420,55 @@ export const CreatePost: React.FC<Props> = ({
                     onEmojiClick={onEmojiClick}
                 />
             )}
-            <View style={styles.mediaPreviewContainer}>
-                {selectedMedia.map((asset, index) => (
-                    asset.type === "image" ? (
-                        <Image key={index} source={{ uri: asset.uri }} style={styles.mediaPreview} />
-                    ) : (
-                        <Video
-                            key={index}
-                            source={{ uri: asset.uri }}
-                            style={styles.mediaPreview}
-                            useNativeControls
-                            resizeMode={ResizeMode.CONTAIN}
-                            shouldPlay
-                            isLooping
-                            isMuted
-                        />
-                    )
-                ))}
-            </View>
+            {showPollCreator ? (
+                <CreatePoll
+                    postId={tempPostId || ''}
+                    onPollCreated={handlePollCreated}
+                    onCancel={() => setShowPollCreator(false)}
+                />
+            ) : (
+                <View style={styles.mediaPreviewContainer}>
+                    {selectedMedia.map((asset, index) => (
+                        asset.type === "image" ? (
+                            <Image key={index} source={{ uri: asset.uri }} style={styles.mediaPreview} />
+                        ) : (
+                            <Video
+                                key={index}
+                                source={{ uri: asset.uri }}
+                                style={styles.mediaPreview}
+                                useNativeControls
+                                resizeMode={ResizeMode.CONTAIN}
+                                shouldPlay
+                                isLooping
+                                isMuted
+                            />
+                        )
+                    ))}
+                </View>
+            )}
             {isModalVisible && (
                 <FileSelectorModal
-                    visible={isModalVisible}
+                    isVisible={isModalVisible}
                     onClose={closeModal}
                     onSelect={onSelect}
                     options={{
-                        fileTypeFilter: ["image/", "video/"],
-                        maxFiles: 5,
+                        fileTypeFilter: ['image/*', 'video/*'],
+                        maxFiles: 4
+                    }}
+                />
+            )}
+            {showSchedulePicker && (
+                <DateTimePicker
+                    value={scheduledForState || new Date()}
+                    mode="datetime"
+                    display="default"
+                    minimumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                        setShowSchedulePicker(false);
+                        if (selectedDate) {
+                            setScheduledForState(selectedDate);
+                            schedulePost();
+                        }
                     }}
                 />
             )}
@@ -401,7 +524,7 @@ const styles = StyleSheet.create({
         borderRadius: 100,
         marginEnd: 15,
     },
-    iconsContainer: {
+    iconRow: {
         flexDirection: 'row',
         paddingStart: 65,
         justifyContent: 'space-around',
@@ -437,7 +560,7 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
     },
-    svgWrapper: {
+    icon: {
         borderRadius: 100,
         justifyContent: 'center',
         alignItems: 'center',
@@ -542,5 +665,9 @@ const styles = StyleSheet.create({
     suggestionHashtag: {
         fontSize: 14,
         color: colors.primaryColor,
+    },
+    actionButtons: {
+        flexDirection: 'row',
+        gap: 10,
     },
 });

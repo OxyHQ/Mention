@@ -1,3 +1,5 @@
+import { User } from './User';
+
 interface Author {
   id: string;
   name: {
@@ -23,19 +25,26 @@ export interface Post {
   quoted_post_id: string | null;
   in_reply_to_status_id: string | null;
   userID: string;
-  author?: Author | null;
-  media: any[];
-  quoted_post: any | null;
-  repost_of: any | null;
+  author?: User;
+  media: string[];
+  quoted_post: Post | null;
+  repost_of: string | null;
   isLiked?: boolean;
   isReposted?: boolean;
   isBookmarked?: boolean;
   location?: { type: string; coordinates: [number, number] } | string;
   metadata?: string;
-  mentions?: string[];
-  hashtags?: string[];
+  mentions: string[];
+  hashtags: string[];
+  replies: string[];
+  likes: string[];
+  reposts: string[];
+  bookmarks: string[];
+  isDraft: boolean;
+  scheduledFor: string | null;
+  status: 'draft' | 'scheduled' | 'published';
   _count?: {
-    comments: number;
+    replies: number;
     likes: number;
     quotes: number;
     reposts: number;
