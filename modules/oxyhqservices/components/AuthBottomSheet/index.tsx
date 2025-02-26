@@ -1,6 +1,6 @@
 import React, { useState, useRef, useContext, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Animated, ScrollView, Dimensions, Image, Text } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { toast } from 'sonner';
 import { ThemedText } from '@/components/ThemedText';
 import { useTranslation } from 'react-i18next';
@@ -492,13 +492,13 @@ export function AuthBottomSheet({ initialMode = 'signin' }: AuthBottomSheetProps
                 </View>
 
                 <View style={styles.footer}>
-                    <TouchableOpacity onPress={() => router.push('/privacy')}>
+                    <Link href="https://oxy.so/company/transparency/policies/privacy" target="_blank">
                         <ThemedText style={styles.footerText}>Privacy Policy</ThemedText>
-                    </TouchableOpacity>
+                    </Link>
                     <Text style={styles.footerDot}>•</Text>
-                    <TouchableOpacity onPress={() => router.push('/terms')}>
+                    <Link href="https://oxy.so/company/transparency/policies/terms-of-service" target="_blank">
                         <ThemedText style={styles.footerText}>Terms of Service</ThemedText>
-                    </TouchableOpacity>
+                    </Link>
                 </View>
             </View>
         );
