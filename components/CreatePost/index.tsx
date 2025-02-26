@@ -459,12 +459,13 @@ export const CreatePost: React.FC<Props> = ({
             )}
             {showSchedulePicker && (
                 <DateTimePicker
+                    testID="postSchedulePicker"
                     value={scheduledForState || new Date()}
                     mode="datetime"
-                    display="default"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                     minimumDate={new Date()}
                     onChange={(event, selectedDate) => {
-                        setShowSchedulePicker(false);
+                        setShowSchedulePicker(Platform.OS === 'ios');
                         if (selectedDate) {
                             setScheduledForState(selectedDate);
                             schedulePost();
