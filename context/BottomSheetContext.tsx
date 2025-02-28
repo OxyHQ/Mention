@@ -44,6 +44,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
             {children}
             <BottomSheetModal
                 ref={bottomSheetModalRef}
+                enableDynamicSizing
                 enablePanDownToClose={true}
                 enableDismissOnClose={true}
                 android_keyboardInputMode="adjustResize"
@@ -51,6 +52,9 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
                 style={styles.contentContainer}
                 handleIndicatorStyle={{ backgroundColor: '#000', width: 40 }}
                 backdropComponent={renderBackdrop}
+                enableContentPanningGesture={true}
+                enableHandlePanningGesture={true}
+                index={0}
             >
                 <BottomSheetView style={styles.contentView}>
                     {bottomSheetContent}
