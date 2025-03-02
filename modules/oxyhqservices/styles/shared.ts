@@ -13,10 +13,7 @@ export const sharedStyles = StyleSheet.create({
         color: colors.COLOR_BLACK,
         backgroundColor: colors.primaryLight_1,
         fontSize: 16,
-        shadowColor: colors.COLOR_BLACK,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
         elevation: 2,
     },
     inputWrapper: {
@@ -30,10 +27,7 @@ export const sharedStyles = StyleSheet.create({
         height: 56,
         borderRadius: 28,
         overflow: 'hidden',
-        shadowColor: colors.primaryColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
+        boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
         elevation: 4,
     },
     buttonGradient: {
@@ -145,4 +139,4 @@ export const sharedStyles = StyleSheet.create({
     progressLineCompleted: {
         backgroundColor: colors.primaryColor,
     },
-}); 
+});
