@@ -6,7 +6,7 @@ class ApiService {
 
   constructor() {
     this.api = axios.create({
-      baseURL: process.env.API_URL || 'http://localhost:3000',
+      baseURL: process.env.API_URL || 'https://api.mention.earth',
     });
 
     this.api.interceptors.request.use(async (config) => {
