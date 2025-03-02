@@ -1,12 +1,13 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { getData } from '@/utils/storage';
+import { API_URL_OXY } from '../config';
 
 class ApiService {
   private api: AxiosInstance;
 
   constructor() {
     this.api = axios.create({
-      baseURL: process.env.API_URL || 'https://api.mention.earth',
+      baseURL: API_URL_OXY,
     });
 
     this.api.interceptors.request.use(async (config) => {
