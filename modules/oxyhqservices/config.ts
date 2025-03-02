@@ -1,0 +1,1 @@
+export const API_URL_OXY = process.env.API_URL_OXY || "http://api.oxy.so";
