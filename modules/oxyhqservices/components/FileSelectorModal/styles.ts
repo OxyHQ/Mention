@@ -16,10 +16,7 @@ export const fileItemStyles = StyleSheet.create({
     },
     selected: {
         borderColor: colors.primaryColor,
-        shadowColor: colors.primaryColor,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        boxShadow: '0px 0px 8px rgba(0, 0, 0, 0.3)',
         elevation: 5,
     },
     preview: {
@@ -92,10 +89,7 @@ export const modalStyles = StyleSheet.create({
         borderRadius: 35,
         overflow: "hidden",
         elevation: 5,
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
+        boxShadow: '0px 2px 3.84px rgba(0, 0, 0, 0.25)',
     },
 });
 
@@ -177,10 +171,7 @@ export const controlStyles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 5,
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
+        boxShadow: '0px 2px 3.84px rgba(0, 0, 0, 0.25)',
     },
     shortcutHint: {
         fontSize: 12,
