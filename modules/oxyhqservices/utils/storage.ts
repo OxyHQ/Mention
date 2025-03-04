@@ -1,6 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
+// Check if running on web where SecureStore doesn't work
+const isWeb = Platform.OS === 'web';
+
+/**
+ * Store data in storage
+ */
 export const storeData = async (key: string, value: any): Promise<boolean> => {
     try {
         if (value === null || value === undefined) {
@@ -16,6 +23,9 @@ export const storeData = async (key: string, value: any): Promise<boolean> => {
     }
 };
 
+/**
+ * Retrieve data from storage
+ */
 export const getData = async <T>(key: string): Promise<T | null> => {
     try {
         const jsonValue = await AsyncStorage.getItem(key);
@@ -27,6 +37,9 @@ export const getData = async <T>(key: string): Promise<T | null> => {
     }
 };
 
+/**
+ * Remove data from storage
+ */
 export const removeData = async (key: string): Promise<boolean> => {
     try {
         await AsyncStorage.removeItem(key);
@@ -37,6 +50,9 @@ export const removeData = async (key: string): Promise<boolean> => {
     }
 };
 
+/**
+ * Clear all data from storage
+ */
 export const clearAll = async (): Promise<boolean> => {
     try {
         await AsyncStorage.clear();
@@ -47,14 +63,29 @@ export const clearAll = async (): Promise<boolean> => {
     }
 };
 
+/**
+ * Store secure data - falls back to regular storage on web
+ */
 export const storeSecureData = async (key: string, value: any): Promise<boolean> => {
     try {
         if (value === null || value === undefined) {
-            await SecureStore.deleteItemAsync(key);
+            if (isWeb) {
+                // On web, use AsyncStorage with a prefix for "secure" data
+                await AsyncStorage.removeItem(`secure_${key}`);
+            } else {
+                await SecureStore.deleteItemAsync(key);
+            }
             return true;
         }
+        
         const jsonValue = JSON.stringify(value);
-        await SecureStore.setItemAsync(key, jsonValue);
+        
+        if (isWeb) {
+            // On web, use AsyncStorage with a prefix for "secure" data
+            await AsyncStorage.setItem(`secure_${key}`, jsonValue);
+        } else {
+            await SecureStore.setItemAsync(key, jsonValue);
+        }
         return true;
     } catch (error) {
         console.error(`Error storing secure data for key ${key}:`, error);
@@ -62,9 +93,20 @@ export const storeSecureData = async (key: string, value: any): Promise<boolean>
     }
 };
 
+/**
+ * Get secure data - falls back to regular storage on web
+ */
 export const getSecureData = async <T>(key: string): Promise<T | null> => {
     try {
-        const jsonValue = await SecureStore.getItemAsync(key);
+        let jsonValue;
+        
+        if (isWeb) {
+            // On web, use AsyncStorage with a prefix for "secure" data
+            jsonValue = await AsyncStorage.getItem(`secure_${key}`);
+        } else {
+            jsonValue = await SecureStore.getItemAsync(key);
+        }
+        
         if (jsonValue === null) return null;
         return JSON.parse(jsonValue) as T;
     } catch (error) {
@@ -73,9 +115,17 @@ export const getSecureData = async <T>(key: string): Promise<T | null> => {
     }
 };
 
+/**
+ * Remove secure data - falls back to regular storage on web
+ */
 export const removeSecureData = async (key: string): Promise<boolean> => {
     try {
-        await SecureStore.deleteItemAsync(key);
+        if (isWeb) {
+            // On web, use AsyncStorage with a prefix for "secure" data
+            await AsyncStorage.removeItem(`secure_${key}`);
+        } else {
+            await SecureStore.deleteItemAsync(key);
+        }
         return true;
     } catch (error) {
         console.error(`Error removing secure data for key ${key}:`, error);

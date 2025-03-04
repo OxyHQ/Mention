@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { apiService } from './api.service';
-import { storeData, getData } from '@/utils/storage';
+import { storeData, getData, storeSecureData, getSecureData } from '../utils/storage';
 
 export interface User {
   id: string;
@@ -50,9 +50,10 @@ class AuthService {
       if (response.data.success && response.data.accessToken && response.data.refreshToken) {
         // Store tokens and user data
         await Promise.all([
-          storeData('accessToken', response.data.accessToken),
-          storeData('refreshToken', response.data.refreshToken),
-          storeData('user', response.data.user)
+          storeSecureData('accessToken', response.data.accessToken),
+          storeSecureData('refreshToken', response.data.refreshToken),
+          storeData('user', response.data.user),
+          storeData('userId', response.data.user.id)
         ]);
       }
       
@@ -76,10 +77,12 @@ class AuthService {
         throw new Error(response.data.message || 'Login failed');
       }
 
-      // Store tokens
+      // Store tokens securely
       await Promise.all([
-        storeData('accessToken', response.data.accessToken),
-        storeData('refreshToken', response.data.refreshToken)
+        storeSecureData('accessToken', response.data.accessToken),
+        storeSecureData('refreshToken', response.data.refreshToken),
+        storeData('user', response.data.user),
+        storeData('userId', response.data.user.id)
       ]);
 
       return response.data;
@@ -93,6 +96,9 @@ class AuthService {
 
   async validateCurrentSession() {
     try {
+      const accessToken = await getSecureData<string>('accessToken');
+      if (!accessToken) return false;
+      
       const response = await apiService.get<ValidateResponse>('/auth/validate');
       return response.data.valid;
     } catch (error) {
@@ -102,7 +108,7 @@ class AuthService {
 
   async refreshToken(): Promise<{ accessToken: string; refreshToken: string } | false> {
     try {
-      const currentRefreshToken = await getData('refreshToken');
+      const currentRefreshToken = await getSecureData<string>('refreshToken');
       if (!currentRefreshToken) {
         return false;
       }
@@ -111,14 +117,15 @@ class AuthService {
         refreshToken: currentRefreshToken
       });
 
-      const { accessToken, refreshToken } = response.data;
-      if (!accessToken || !refreshToken) {
+      const { accessToken, refreshToken = currentRefreshToken } = response.data;
+      if (!accessToken) {
         throw new Error('Invalid refresh response');
       }
 
+      // Store tokens securely
       await Promise.all([
-        storeData('accessToken', accessToken),
-        storeData('refreshToken', refreshToken)
+        storeSecureData('accessToken', accessToken),
+        storeSecureData('refreshToken', refreshToken)
       ]);
 
       return { accessToken, refreshToken };
@@ -131,12 +138,16 @@ class AuthService {
 
   async logout() {
     try {
+      // Clear all stored auth data
       await Promise.all([
-        storeData('accessToken', null),
-        storeData('refreshToken', null),
+        storeSecureData('accessToken', null),
+        storeSecureData('refreshToken', null),
         storeData('session', null),
         storeData('user', null),
-        storeData('profile', null)
+        storeData('profile', null),
+        storeData('userId', null),
+        storeData('sessions', null),
+        storeData('lastTokenRefresh', null)
       ]);
     } catch (error) {
       console.error('Logout error:', error);
@@ -144,13 +155,20 @@ class AuthService {
     }
   }
 
-  // New method to decode JWT and extract user ID
+  // Decode JWT and extract user ID
   async getCurrentSessionUserId(): Promise<string | null> {
     try {
-      const token = await getData<string>('accessToken');
+      // First try to get the stored userId
+      const userId = await getData<string>('userId');
+      if (userId) return userId;
+      
+      // If not available, try to decode from token
+      const token = await getSecureData<string>('accessToken');
       if (!token) return null;
+      
       const parts = token.split('.');
       if (parts.length !== 3) return null;
+      
       const payload = parts[1];
       // Replace '-' with '+' and '_' with '/' for base64url decode
       const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
@@ -162,6 +180,7 @@ class AuthService {
           })
           .join('')
       );
+      
       const obj = JSON.parse(jsonPayload);
       return obj.id || null;
     } catch (error) {
