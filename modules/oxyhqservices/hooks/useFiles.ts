@@ -4,7 +4,7 @@ import { toast } from '@/lib/sonner';
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from 'expo-document-picker';
 import { Platform } from 'react-native';
-import api, { validateSession } from '@/utils/api';
+import api, { validateSession } from '../utils/api';
 import { getData } from '@/utils/storage';
 import { DocumentPickerAsset } from 'expo-document-picker';
 import { ImagePickerAsset } from 'expo-image-picker';
@@ -58,27 +58,39 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
     }, []);
 
     const fetchFiles = useCallback(async (forceRefresh = false) => {
-        if (!userId) {
-            console.warn('[Files] No user ID provided');
-            setFiles([]);
-            setLoading(false);
-            return;
-        }
-
-        // Check if we have a valid cache entry
-        const cacheKey = `${userId}-${fileTypeFilter.join(',')}`;
-        const cachedData = globalFileCache.get(cacheKey);
-        const now = Date.now();
-        
-        if (!forceRefresh && cachedData && (now - cachedData.timestamp < CACHE_EXPIRATION)) {
-            console.log('[Files] Using cached files data');
-            setFiles(cachedData.files);
-            setLoading(false);
-            return;
-        }
-
         try {
-            console.log('[Files] Fetching files for user:', userId);
+            const accessToken = await getData('accessToken');
+            const refreshToken = await getData('refreshToken');
+            
+            if (!accessToken || !refreshToken) {
+                console.warn('[Files] Missing auth tokens');
+                setFiles([]);
+                setLoading(false);
+                return;
+            }
+
+            // Get current user ID from session context if not provided
+            const effectiveUserId = userId || sessionContext?.getCurrentUserId();
+            if (!effectiveUserId) {
+                console.warn('[Files] No user ID available');
+                setFiles([]);
+                setLoading(false);
+                return;
+            }
+
+            // Check cache first
+            const cacheKey = `${effectiveUserId}-${fileTypeFilter.join(',')}`;
+            const cachedData = globalFileCache.get(cacheKey);
+            const now = Date.now();
+            
+            if (!forceRefresh && cachedData && (now - cachedData.timestamp < CACHE_EXPIRATION)) {
+                console.log('[Files] Using cached files data');
+                setFiles(cachedData.files);
+                setLoading(false);
+                return;
+            }
+
+            console.log('[Files] Fetching files for user:', effectiveUserId);
             setLoading(true);
             
             // Cancel any in-progress requests
@@ -86,26 +98,25 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                 abortControllerRef.current.abort();
             }
             
-            // Create a new abort controller
             abortControllerRef.current = new AbortController();
             const signal = abortControllerRef.current.signal;
 
-            // Validate session and refresh token if needed
+            // Attempt token refresh only if needed
             const isValid = await validateSession().catch(() => false);
             if (!isValid) {
-                console.log('[Files] Session invalid, attempting token refresh');
-                await refreshAccessToken();
+                console.log('[Files] Session invalid, refreshing token');
+                try {
+                    await refreshAccessToken();
+                } catch (refreshError) {
+                    console.error('[Files] Token refresh failed:', refreshError);
+                    setFiles([]);
+                    setLoading(false);
+                    return;
+                }
             }
-            
-            // Get current user ID from session context if not provided
-            const effectiveUserId = userId || sessionContext?.getCurrentUserId() || undefined;
-            if (!effectiveUserId) {
-                throw new Error('User not authenticated');
-            }
-            
+
             const response = await api.get(`/files/list/${effectiveUserId}`, {
                 signal,
-                // Add cache busting parameter for forced refreshes
                 params: forceRefresh ? { _t: Date.now() } : undefined
             });
             
@@ -117,19 +128,16 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                 );
             }
             
-            // Update the cache
             globalFileCache.set(cacheKey, {
                 files: fetchedFiles,
                 timestamp: now,
                 userId: effectiveUserId
             });
             
-            // Only update state if the component is still mounted and the user ID hasn't changed
             if (currentUserIdRef.current === effectiveUserId) {
                 setFiles(fetchedFiles);
             }
         } catch (error: any) {
-            // Don't report errors if the request was aborted
             if (error.name === 'AbortError') {
                 console.log('[Files] Fetch aborted');
                 return;
@@ -141,10 +149,9 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                 status: error?.response?.status
             });
             
-            // Only show error toast if not aborted
+            setFiles([]);
             toast.error(error?.response?.data?.message || t("Error fetching files"));
         } finally {
-            // Only update loading state if the component is still mounted
             if (currentUserIdRef.current === userId) {
                 setLoading(false);
             }
@@ -161,6 +168,12 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
         }
 
         try {
+            const accessToken = await getData('accessToken');
+            if (!accessToken) {
+                toast.error(t("Authentication required"));
+                return;
+            }
+
             let result;
             if (fileTypeFilter.includes("image/") || fileTypeFilter.includes("video/")) {
                 result = await ImagePicker.launchImageLibraryAsync({
@@ -168,14 +181,14 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                         ImagePicker.MediaTypeOptions.All : 
                         ImagePicker.MediaTypeOptions.Images,
                     allowsMultipleSelection: true,
-                    quality: 0.8, // Reduced quality for better performance
-                    exif: false, // Don't include EXIF data for better performance
+                    quality: 0.8,
+                    exif: false
                 });
             } else {
                 result = await DocumentPicker.getDocumentAsync({
                     type: fileTypeFilter.length > 0 ? fileTypeFilter.map(type => `${type}*`).join(",") : "*/*",
                     multiple: true,
-                    copyToCacheDirectory: true, // Improve performance by using cache
+                    copyToCacheDirectory: true
                 });
             }
 
@@ -218,9 +231,9 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                     headers: {
                         'Accept': 'application/json',
                         'Content-Type': 'multipart/form-data',
+                        'Authorization': `Bearer ${accessToken}`
                     },
                     transformRequest: [(data) => data],
-                    // Add progress tracking for better UX
                     onUploadProgress: (progressEvent) => {
                         const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
                         console.log(`Upload progress: ${percentCompleted}%`);

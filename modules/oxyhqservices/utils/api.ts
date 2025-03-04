@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { getData, storeData } from './storage';
 import { router } from 'expo-router';
 import { getSocket, disconnectSocket } from './socket';
-import { API_URL } from "@/config";
+import { API_URL_OXY } from "../config";
 import { showAuthBottomSheet } from '@/utils/auth';
 
 // Retry configuration
@@ -30,24 +30,12 @@ const BATCH_DELAY = 50; // ms to wait before processing batch
 
 // Create axios instance with default config and timeout
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_URL_OXY,
   withCredentials: true, // Important for sending cookies/session
   timeout: 10000, // 10 second timeout
   headers: {
     'Content-Type': 'application/json'
-  },
-  transformRequest: [(data, headers) => {
-    // Don't transform FormData
-    if (data instanceof FormData) {
-      // Remove the JSON Content-Type header to allow proper handling of FormData (files)
-      if (headers && headers['Content-Type']) {
-        delete headers['Content-Type'];
-      }
-      return data;
-    }
-    // For other data types, use default transformation
-    return JSON.stringify(data);
-  }]
+  }
 });
 
 // Retry logic with exponential backoff
@@ -139,19 +127,22 @@ api.interceptors.request.use(
   async (config) => {
     const accessToken = await getData('accessToken');
     if (accessToken) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${accessToken}`;
-      console.debug('[API] Request with auth token:', {
-        url: config.url,
-        tokenPresent: true,
-        tokenType: typeof accessToken,
-        tokenLength: typeof accessToken === 'string' ? accessToken.length : 'N/A'
-      });
-    } else {
-      console.warn('[API] No auth token available for request:', {
-        url: config.url,
-        headers: config.headers
-      });
     }
+
+    // Don't transform FormData
+    if (config.data instanceof FormData) {
+      config.headers['Content-Type'] = 'multipart/form-data';
+    }
+
+    console.debug('[API] Request configuration:', {
+      url: config.url,
+      method: config.method,
+      contentType: config.headers['Content-Type'],
+      hasToken: !!accessToken
+    });
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -216,7 +207,7 @@ api.interceptors.response.use(
       }
       
       // Use a direct axios call to avoid interceptors
-      const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+      const response = await axios.post(`${API_URL_OXY}/auth/refresh`, { refreshToken });
 
       if (response.data.accessToken && response.data.refreshToken) {
         await Promise.all([
@@ -290,7 +281,7 @@ export const fetchData = async (endpoint: string, options: { params?: Record<str
     // Handle query parameters
     const { params, ...fetchOptions } = options;
     const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
-    const url = `${API_URL}/${endpoint}${queryString}`;
+    const url = `${API_URL_OXY}/${endpoint}${queryString}`;
 
     // Check cache before making request
     const cacheKey = getCacheKey(endpoint, options);
@@ -441,7 +432,7 @@ export const refreshAccessToken = async () => {
     
     // Create a new axios instance for refresh to avoid interceptors
     const refreshApi = axios.create({
-      baseURL: API_URL,
+      baseURL: API_URL_OXY,
       headers: {
         'Content-Type': 'application/json'
       }
@@ -531,7 +522,7 @@ export const validateSession = async (): Promise<boolean> => {
 
     // Create a new axios instance for validation to avoid interceptors
     const validateApi = axios.create({
-      baseURL: API_URL,
+      baseURL: API_URL_OXY,
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'

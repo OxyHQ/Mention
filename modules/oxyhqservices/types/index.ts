@@ -40,12 +40,6 @@ export interface OxyProfile {
     muteKeywords: boolean;
   };
   avatar?: string;
-  associated?: {
-    lists?: number;
-    feedgens?: number;
-    starterPacks?: number;
-    labeler?: boolean;
-  };
   labels?: string[];
   description?: string;
   coverPhoto?: string;

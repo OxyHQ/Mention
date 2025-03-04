@@ -7,7 +7,7 @@ import { useFiles } from '../../hooks/useFiles';
 import { FileItem } from './FileItem';
 import { modalStyles, gridStyles, controlStyles } from './styles';
 import { FileType, FileSelectorModalProps } from './types';
-import { OXY_CLOUD_URL } from "@/config";
+import { OXY_CLOUD_URL } from "../../config";
 import { SessionContext } from '../SessionProvider';
 import { FlashList } from "@shopify/flash-list";
 

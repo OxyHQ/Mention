@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { apiService } from './api.service';
-import { storeData, getData, storeSecureData, getSecureData, clearSecureData } from '../utils/storage';
+import { storeData, getSecureData, storeSecureData, clearSecureData } from '../utils/storage';
 import { userService } from './user.service';
 
 export interface User {
@@ -49,7 +49,7 @@ class AuthService {
       const response = await apiService.post<RegisterResponse>('/auth/register', user);
       
       if (response.data.success && response.data.accessToken && response.data.refreshToken) {
-        // Store tokens and user data
+        // Store tokens and user data securely
         await Promise.all([
           storeSecureData('accessToken', response.data.accessToken),
           storeSecureData('refreshToken', response.data.refreshToken),
@@ -86,7 +86,7 @@ class AuthService {
       const response = await apiService.post<LoginResponse>('/auth/login', credentials);
       const { user, accessToken, refreshToken } = response.data;
       
-      // Store tokens and user data consistently with register method
+      // Store tokens and user data securely
       await Promise.all([
         storeSecureData('accessToken', accessToken),
         storeSecureData('refreshToken', refreshToken),
@@ -180,6 +180,8 @@ class AuthService {
       if (session?.id) {
         await userService.removeUserSession(session.id);
       }
+
+      // Clear all secure data
       await Promise.all([
         clearSecureData('accessToken'),
         clearSecureData('refreshToken')
@@ -204,7 +206,7 @@ class AuthService {
   async getCurrentSessionUserId(): Promise<string | null> {
     try {
       // First try to get the stored userId
-      const userId = await getData<string>('userId');
+      const userId = await getSecureData<string>('userId');
       if (userId) return userId;
       
       // If not available, try to decode from token
@@ -214,20 +216,8 @@ class AuthService {
       const parts = token.split('.');
       if (parts.length !== 3) return null;
       
-      const payload = parts[1];
-      // Replace '-' with '+' and '_' with '/' for base64url decode
-      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-          })
-          .join('')
-      );
-      
-      const obj = JSON.parse(jsonPayload);
-      return obj.id || null;
+      const payload = JSON.parse(atob(parts[1]));
+      return payload.id || null;
     } catch (error) {
       console.error('Error decoding token:', error);
       return null;
