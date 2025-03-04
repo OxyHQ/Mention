@@ -11,9 +11,8 @@ interface UserDataResponse {
   refreshToken: string;
 }
 
-interface UserSession {
+export interface UserSession {
   id: string;
-  lastRefresh: number;
   profile?: OxyProfile;
 }
 
@@ -53,8 +52,7 @@ class UserService {
     try {
       const sessions = await this.getUserSessions();
       const sessionData: UserSession = {
-        id: user.id,
-        lastRefresh: Date.now()
+        id: user.id
       };
       
       const existingIndex = sessions.findIndex(s => s.id === user.id);
@@ -69,8 +67,7 @@ class UserService {
       await Promise.all([
         storeSecureData('accessToken', accessToken),
         refreshToken ? storeSecureData('refreshToken', refreshToken) : Promise.resolve(),
-        storeData('sessions', sessions),
-        storeData('userId', user.id)
+        storeData('sessions', sessions)
       ]);
     } catch (error) {
       console.error('Error adding user session:', error);
@@ -91,38 +88,8 @@ class UserService {
 
   async refreshUserData(userId: string): Promise<UserDataResponse> {
     try {
-      // Get current refresh token
-      const refreshToken = await getSecureData<string>('refreshToken');
-      
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
-      
-      // First refresh the tokens
-      const tokenResponse = await apiService.post<{ accessToken: string; refreshToken: string }>('/auth/refresh', { refreshToken });
-      
-      // Store new tokens securely
-      const newAccessToken = tokenResponse.data.accessToken;
-      const newRefreshToken = tokenResponse.data.refreshToken || refreshToken;
-      
-      await Promise.all([
-        storeSecureData('accessToken', newAccessToken),
-        storeSecureData('refreshToken', newRefreshToken),
-        storeData('lastTokenRefresh', Date.now())
-      ]);
-      
-      // Update session
-      await this.addUserSession({ id: userId } as User, newAccessToken, newRefreshToken);
-      
-      // Then fetch user data with new token
-      const userResponse = await apiService.get<{ user: User }>(`/users/${userId}`);
-      
-      return {
-        user: userResponse.data.user,
-        profile: userResponse.data.user as unknown as OxyProfile,
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken
-      };
+      const response = await apiService.get<UserDataResponse>(`/users/${userId}/refresh`);
+      return response.data;
     } catch (error) {
       console.error('Error refreshing user data:', error);
       throw error;
@@ -131,11 +98,9 @@ class UserService {
   
   async getActiveSession(): Promise<UserSession | null> {
     try {
-      const userId = await getData<string>('userId');
-      if (!userId) return null;
-      
       const sessions = await this.getUserSessions();
-      return sessions.find(s => s.id === userId) || null;
+      // Return the last session as the active one
+      return sessions.length > 0 ? sessions[sessions.length - 1] : null;
     } catch (error) {
       console.error('Error getting active session:', error);
       return null;

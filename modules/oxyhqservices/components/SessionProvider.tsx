@@ -3,9 +3,10 @@ import { authService } from '../services/auth.service';
 import { userService } from '../services/user.service';
 import { profileService } from '../services/profile.service';
 import { logger } from '@/utils/logger';
-import { getData, storeData, getSecureData } from '../utils/storage';
+import { getData, storeData, getSecureData, cleanupLegacyStorage } from '../utils/storage';
 import type { User } from '../services/auth.service';
 import type { OxyProfile } from '../types';
+import type { UserSession } from '../services/user.service';
 
 interface SessionState {
   userId: string | null;
@@ -13,13 +14,6 @@ interface SessionState {
   error: string | null;
   user: User | null;
   sessions: UserSession[];
-  lastTokenRefresh: number;
-}
-
-interface UserSession {
-  id: string;
-  lastRefresh: number;
-  profile?: OxyProfile;
 }
 
 interface SessionContextType {
@@ -37,8 +31,7 @@ const initialState: SessionState = {
   loading: true,
   error: null,
   user: null,
-  sessions: [],
-  lastTokenRefresh: 0
+  sessions: []
 };
 
 type Action =
@@ -47,8 +40,7 @@ type Action =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string }
   | { type: 'SET_SESSIONS'; payload: UserSession[] }
-  | { type: 'SET_PROFILE'; payload: { profile: OxyProfile } }
-  | { type: 'TOKEN_REFRESHED'; payload: { timestamp: number } };
+  | { type: 'SET_PROFILE'; payload: { profile: OxyProfile } };
 
 const sessionReducer = (state: SessionState, action: Action): SessionState => {
   switch (action.type) {
@@ -57,7 +49,6 @@ const sessionReducer = (state: SessionState, action: Action): SessionState => {
         ...state,
         userId: action.payload.userId,
         user: action.payload.user,
-        lastTokenRefresh: Date.now(),
         error: null
       };
     case 'LOGOUT':
@@ -66,7 +57,6 @@ const sessionReducer = (state: SessionState, action: Action): SessionState => {
         userId: null,
         user: null,
         sessions: [],
-        lastTokenRefresh: 0,
         error: null
       };
     case 'SET_LOADING':
@@ -80,28 +70,21 @@ const sessionReducer = (state: SessionState, action: Action): SessionState => {
       const existingSessionIndex = updatedSessions.findIndex(s => s.id === action.payload.profile.userID);
       
       if (existingSessionIndex >= 0) {
-        // Update existing session
+        // Update existing session with profile
         updatedSessions[existingSessionIndex] = {
           ...updatedSessions[existingSessionIndex],
-          lastRefresh: Date.now(),
           profile: action.payload.profile
         };
       } else {
         // Add new session
         updatedSessions.push({
           id: action.payload.profile.userID,
-          lastRefresh: Date.now(),
           profile: action.payload.profile
         });
       }
       
       return { ...state, sessions: updatedSessions };
     }
-    case 'TOKEN_REFRESHED':
-      return { 
-        ...state,
-        lastTokenRefresh: action.payload.timestamp
-      };
     default:
       return state;
   }
@@ -112,38 +95,26 @@ export const SessionContext = createContext<SessionContextType | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
 
-  // Token refresh check interval (every minute)
-  const TOKEN_REFRESH_INTERVAL = 60 * 1000; 
-  
-  const refreshTokenIfNeeded = useCallback(async () => {
-    // Check if token refresh is needed based on last refresh time
-    const timeSinceLastRefresh = Date.now() - state.lastTokenRefresh;
-    
-    if (timeSinceLastRefresh < TOKEN_REFRESH_INTERVAL) {
-      return false; // Too soon to refresh
-    }
+  // Refresh check interval (every minute)
+  const TOKEN_REFRESH_INTERVAL = 60 * 1000;
 
+  const refreshTokenIfNeeded = useCallback(async () => {
     try {
-      const result = await authService.refreshToken();
-      if (!result) return false;
-      
-      // Update timestamp in the state
-      dispatch({ 
-        type: 'TOKEN_REFRESHED', 
-        payload: { 
-          timestamp: Date.now() 
-        } 
-      });
-      
-      // Also store timestamp in storage for persistence
-      await storeData('lastTokenRefresh', Date.now());
+      const accessToken = await getSecureData<string>('accessToken');
+      if (!accessToken) return false;
+
+      // Check if token needs refresh using authService
+      if (authService.shouldRefreshToken(accessToken)) {
+        const result = await authService.refreshToken();
+        return !!result;
+      }
       
       return true;
     } catch (error) {
-      logger.error('Token refresh failed:', error);
+      logger.error('Token refresh check failed:', error);
       return false;
     }
-  }, [state.lastTokenRefresh]);
+  }, []);
 
   useEffect(() => {
     // Set up periodic token refresh
@@ -175,20 +146,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const initializeSession = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
       try {
+        // Clean up legacy storage items
+        await cleanupLegacyStorage();
+
         // Get token and userId from storage
-        const [accessToken, userId, lastRefreshTime] = await Promise.all([
+        const [accessToken, userId] = await Promise.all([
           getSecureData('accessToken'),
-          getData('userId'),
-          getData('lastTokenRefresh')
+          getData('userId')
         ]);
-        
-        // Set last refresh time if available
-        if (lastRefreshTime) {
-          dispatch({ 
-            type: 'TOKEN_REFRESHED', 
-            payload: { timestamp: lastRefreshTime as number } 
-          });
-        }
 
         const isValid = await authService.validateCurrentSession();
         
@@ -225,37 +190,52 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const loginUser = async (username: string, password: string) => {
     try {
       logger.info(`Login attempt for user: ${username}`);
-      const { user, accessToken, refreshToken } = await authService.login(username, password);
-      
-      if (!user || !user.id) {
-        throw new Error('Login failed: Missing user session data');
+      try {
+        await authService.login({ username, password });
+      } catch (error: any) {
+        if (error?.details) {
+          throw error; // Preserve validation error structure
+        }
+        throw new Error(error?.message || 'Login failed');
       }
+
+      // Get the userId after login
+      const userId = await authService.getCurrentSessionUserId();
+      if (!userId) {
+        throw new Error('Login failed: Unable to get user ID');
+      }
+
+      const profile = await profileService.getProfileById(userId);
       
-      const profile = await profileService.getProfileById(user.id);
-      
-      // Store last token refresh time
-      await storeData('lastTokenRefresh', Date.now());
-      
-      // Add user session
-      await userService.addUserSession(user, accessToken, refreshToken);
-      const response = await userService.getSessions();
-      
-      dispatch({ type: 'SET_SESSIONS', payload: response.data || [] });
+      // Update state with user info
       dispatch({ 
         type: 'LOGIN', 
         payload: { 
-          userId: user.id, 
-          user
+          userId,
+          user: { 
+            id: userId,
+            username: username,  // Use the username from login attempt
+            email: ''  // We'll update this when we get the profile
+          }
         } 
       });
-      
+
+      // Set profile after login
       dispatch({ 
         type: 'SET_PROFILE', 
         payload: { profile }
       });
-    } catch (error) {
+      
+      // Refresh sessions
+      const response = await userService.getSessions();
+      dispatch({ type: 'SET_SESSIONS', payload: response.data || [] });
+
+    } catch (error: any) {
       logger.error('Login error:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'Login failed' });
+      if (error?.details) {
+        throw error; // Re-throw validation errors with details
+      }
+      dispatch({ type: 'SET_ERROR', payload: error?.message || 'Login failed' });
       throw error;
     }
   };
@@ -285,9 +265,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       
       const { user, accessToken, refreshToken } = await userService.refreshUserData(userId);
-      
-      // Store last token refresh time
-      await storeData('lastTokenRefresh', Date.now());
       
       // Add user session with updated tokens
       await userService.addUserSession(user, accessToken, refreshToken);

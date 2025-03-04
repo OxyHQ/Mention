@@ -108,7 +108,14 @@ export function AuthBottomSheet({ initialMode = 'signin' }: AuthBottomSheetProps
 
     const handleSignin = async () => {
         if (!username || !password) {
-            toast.error(t('Please enter both username and password'));
+            const validationErrors = {
+                username: !username ? t('Username is required') : null,
+                password: !password ? t('Password is required') : null
+            };
+
+            Object.entries(validationErrors)
+                .filter(([_, message]) => message !== null)
+                .forEach(([_, message]) => toast.error(t(message as string)));
             return;
         }
 
@@ -121,17 +128,21 @@ export function AuthBottomSheet({ initialMode = 'signin' }: AuthBottomSheetProps
                 router.push('/');
             }, 500);
         } catch (error: any) {
-            const errorMessage = error?.response?.data?.message ||
-                error?.message ||
-                t('Login failed');
-
-            const details = error?.response?.data?.details;
+            const details = error?.details;
             if (details) {
-                Object.values(details)
-                    .filter(Boolean)
-                    .forEach(detail => toast.error(t(detail as string)));
+                // Handle validation errors with structured details
+                Object.entries(details)
+                    .filter(([_, message]) => message !== null)
+                    .forEach(([field, message]) => {
+                        toast.error(t(message as string));
+                        // Focus the relevant input if available
+                        if (inputRefs[field as keyof typeof inputRefs]?.current) {
+                            inputRefs[field as keyof typeof inputRefs].current?.focus();
+                        }
+                    });
             } else {
-                toast.error(t(errorMessage));
+                // Handle generic errors
+                toast.error(t(error?.message || 'Login failed'));
             }
         }
     };
@@ -686,4 +697,4 @@ const styles = StyleSheet.create({
         maxWidth: 400,
         alignSelf: 'center',
     },
-}); 
+});

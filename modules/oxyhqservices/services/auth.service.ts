@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { apiService } from './api.service';
-import { storeData, getData, storeSecureData, getSecureData } from '../utils/storage';
+import { storeData, getData, storeSecureData, getSecureData, clearSecureData } from '../utils/storage';
+import { userService } from './user.service';
 
 export interface User {
   id: string;
@@ -66,38 +67,58 @@ class AuthService {
     }
   }
 
-  async login(username: string, password: string): Promise<LoginResponse> {
+  async login(credentials: { username: string; password: string }): Promise<void> {
+    // Validate credentials before making the request
+    const validationErrors: { [key: string]: string | null } = {
+      username: !credentials.username ? "Username is required" : null,
+      password: !credentials.password ? "Password is required" : null
+    };
+
+    const hasErrors = Object.values(validationErrors).some(error => error !== null);
+    if (hasErrors) {
+      throw {
+        message: "Username and password are required",
+        details: validationErrors
+      };
+    }
+
     try {
-      const response = await apiService.post<LoginResponse>('/auth/login', {
-        username,
-        password
-      });
-
-      if (!response.data.success || !response.data.accessToken || !response.data.refreshToken) {
-        throw new Error(response.data.message || 'Login failed');
-      }
-
-      // Store tokens securely
+      const response = await apiService.post<LoginResponse>('/auth/login', credentials);
+      const { user, accessToken, refreshToken } = response.data;
+      
+      // Store tokens and user data consistently with register method
       await Promise.all([
-        storeSecureData('accessToken', response.data.accessToken),
-        storeSecureData('refreshToken', response.data.refreshToken),
-        storeData('user', response.data.user),
-        storeData('userId', response.data.user.id)
+        storeSecureData('accessToken', accessToken),
+        storeSecureData('refreshToken', refreshToken),
+        storeData('user', user),
+        storeData('userId', user.id),
+        userService.addUserSession(user, accessToken, refreshToken)
       ]);
-
-      return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.data) {
-        throw error;
+        if (error.response.data.details) {
+          throw {
+            message: error.response.data.message,
+            details: error.response.data.details
+          };
+        }
+        throw error.response.data;
       }
-      throw new Error('Network error during login');
+      console.error('Login error:', error);
+      throw error;
     }
   }
 
-  async validateCurrentSession() {
+  async validateCurrentSession(): Promise<boolean> {
     try {
       const accessToken = await getSecureData<string>('accessToken');
       if (!accessToken) return false;
+      
+      // Check if token needs refresh
+      if (this.shouldRefreshToken(accessToken)) {
+        const refreshResult = await this.refreshToken();
+        if (!refreshResult) return false;
+      }
       
       const response = await apiService.get<ValidateResponse>('/auth/validate');
       return response.data.valid;
@@ -136,22 +157,46 @@ class AuthService {
     }
   }
 
-  async logout() {
+  public shouldRefreshToken(token: string): boolean {
     try {
-      // Clear all stored auth data
+      const parts = token.split('.');
+      if (parts.length !== 3) return true;
+      
+      const payload = JSON.parse(atob(parts[1]));
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      const now = Date.now();
+      
+      // Refresh if token expires in less than 5 minutes
+      return exp - now < 5 * 60 * 1000;
+    } catch (error) {
+      console.error('Error checking token expiration:', error);
+      return true;
+    }
+  }
+
+  async logout(): Promise<void> {
+    try {
+      const session = await userService.getActiveSession();
+      if (session?.id) {
+        await userService.removeUserSession(session.id);
+      }
       await Promise.all([
-        storeSecureData('accessToken', null),
-        storeSecureData('refreshToken', null),
-        storeData('session', null),
-        storeData('user', null),
-        storeData('profile', null),
-        storeData('userId', null),
-        storeData('sessions', null),
-        storeData('lastTokenRefresh', null)
+        clearSecureData('accessToken'),
+        clearSecureData('refreshToken')
       ]);
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
+    }
+  }
+
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      const session = await userService.getActiveSession();
+      const accessToken = await getSecureData<string>('accessToken');
+      return !!(session && accessToken);
+    } catch {
+      return false;
     }
   }
 

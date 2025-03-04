@@ -132,3 +132,16 @@ export const removeSecureData = async (key: string): Promise<boolean> => {
         return false;
     }
 };
+
+export const clearSecureData = removeSecureData;
+
+/**
+ * Clean up legacy storage items that are no longer needed
+ */
+export const cleanupLegacyStorage = async (): Promise<void> => {
+    try {
+        await AsyncStorage.removeItem('lastTokenRefresh');
+    } catch (error) {
+        console.error('Error cleaning up legacy storage:', error);
+    }
+};

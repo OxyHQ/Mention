@@ -3,11 +3,21 @@ import type { OxyProfile } from '../types';
 
 class ProfileService {
   async getProfileById(userId: string): Promise<OxyProfile> {
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('Invalid user ID');
+    }
+
     try {
       const response = await apiService.get<OxyProfile>(`/users/${userId}`);
+      if (!response.data) {
+        throw new Error('Profile not found');
+      }
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching profile:', error);
+      if (error.response?.status === 404) {
+        throw new Error('Profile not found');
+      }
       throw error;
     }
   }
