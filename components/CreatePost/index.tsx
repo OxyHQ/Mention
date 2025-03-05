@@ -26,10 +26,13 @@ import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvid
 import { profileService } from '@/modules/oxyhqservices';
 import { AppDispatch } from '@/store/store';
 import type { Post } from '@/interfaces/Post';
-import { OXY_CLOUD_URL } from '@/config';
+import { OXY_CLOUD_URL } from '@/modules/oxyhqservices/config';
 import { postData } from '@/utils/api';
 import CreatePoll from '@/components/CreatePoll';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useTranslation } from 'react-i18next';
+import { oxyClient } from '@/modules/oxyhqservices/services/OxyClient';
+import type { OxyProfile } from '@/modules/oxyhqservices/types';
 
 interface Props {
     style?: ViewStyle
@@ -87,19 +90,20 @@ export const CreatePost: React.FC<Props> = ({
     const [showPollCreator, setShowPollCreator] = useState(false);
     const [pollId, setPollId] = useState<string | null>(null);
     const [tempPostId, setTempPostId] = useState<string | null>(null);
+    const [profile, setProfile] = useState<OxyProfile | null>(null);
+    const { t } = useTranslation();
 
     useEffect(() => {
-        if (currentUserId) {
-            const fetchProfile = async () => {
-                try {
-                    const profileData = await profileService.getProfileById(currentUserId);
-                    setAvatarId(profileData.avatar);
-                } catch (error) {
-                    console.error('Error fetching profile:', error);
-                }
-            };
-            fetchProfile();
-        }
+        const loadProfile = async () => {
+            if (!currentUserId) return;
+            try {
+                const profileData = await oxyClient.getProfile(currentUserId);
+                setProfile(profileData);
+            } catch (error) {
+                console.error('Error loading profile:', error);
+            }
+        };
+        loadProfile();
     }, [currentUserId]);
 
     useEffect(() => {
@@ -356,11 +360,11 @@ export const CreatePost: React.FC<Props> = ({
             <View style={styles.middleRow}>
                 <Avatar
                     style={styles.profileImage}
-                    id={avatarId}
+                    id={profile?.avatar}
                 />
                 <TextInput
                     style={styles.middleRowText}
-                    placeholder={replyToPostId ? "Post your reply" : repostPostId ? "Add a quote" : "What's happening?"}
+                    placeholder={replyToPostId ? t("Post your reply") : repostPostId ? t("Add a quote") : t("What's happening?")}
                     value={text}
                     multiline={true}
                     onChangeText={handleTextChange}

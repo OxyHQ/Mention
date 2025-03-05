@@ -10,6 +10,17 @@ import { FlashList } from "@shopify/flash-list";
 import { feedService, FeedType } from "@/services/feedService";
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { SOCKET_URL } from "@/config";
+import { oxyClient } from '@/modules/oxyhqservices/services/OxyClient';
+import type { OxyProfile } from '@/modules/oxyhqservices/types';
+
+// Use the same profile cache across components
+declare global {
+    var profileCache: Map<string, OxyProfile>;
+}
+
+if (!global.profileCache) {
+    global.profileCache = new Map<string, OxyProfile>();
+}
 
 interface FeedProps {
     type: FeedType;
@@ -54,19 +65,29 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
             console.error('Socket connection error:', error);
         });
 
-        socket.current.on('newPost', (data: { post: IPost }) => {
+        socket.current.on('newPost', async (data: { post: IPost }) => {
             console.log('Received new post:', data);
-            setPosts(prevPosts => {
-                // Only add the post if it's not already in the list
-                const exists = prevPosts.some(post => post.id === data.post.id);
-                if (!exists) {
-                    return [data.post, ...prevPosts];
+            try {
+                if (data.post.author?.id) {
+                    const profile = await oxyClient.getProfile(data.post.author.id);
+                    data.post.author = {
+                        ...data.post.author,
+                        ...profile
+                    };
                 }
-                return prevPosts;
-            });
+                setPosts(prevPosts => {
+                    const exists = prevPosts.some(post => post.id === data.post.id);
+                    if (!exists) {
+                        return [data.post, ...prevPosts];
+                    }
+                    return prevPosts;
+                });
+            } catch (error) {
+                console.error('Error fetching post author profile:', error);
+            }
         });
 
-        socket.current.on('postUpdate', (data: { type: string; postId: string; userId: string; _count: { comments: number; likes: number; quotes: number; reposts: number; replies: number; bookmarks: number; } }) => {
+        socket.current.on('postUpdate', async (data: { type: string; postId: string; userId: string; _count: any }) => {
             setPosts(prevPosts =>
                 prevPosts.map(post => {
                     if (post.id === data.postId) {
@@ -137,12 +158,43 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
                 cursor: isInitial ? undefined : nextCursor || undefined
             });
 
+            // Fetch and cache author profiles for each post
+            const postsWithProfiles = await Promise.all(
+                response.posts.map(async (post) => {
+                    if (post.author?.id) {
+                        try {
+                            // Check cache first
+                            let profile = global.profileCache.get(post.author.id);
+                            
+                            if (!profile) {
+                                profile = await oxyClient.getProfile(post.author.id);
+                                // Update cache
+                                global.profileCache.set(post.author.id, profile);
+                            }
+                            
+                            return {
+                                ...post,
+                                author: {
+                                    ...post.author,
+                                    ...profile
+                                }
+                            };
+                        } catch (error) {
+                            console.error('Error fetching post author profile:', error);
+                            return post;
+                        }
+                    }
+                    return post;
+                })
+            );
+
             setPosts(prevPosts =>
-                isInitial ? response.posts : [...prevPosts, ...response.posts]
+                isInitial ? postsWithProfiles : [...prevPosts, ...postsWithProfiles]
             );
             setNextCursor(response.nextCursor);
             setHasMore(response.hasMore);
         } catch (err) {
+            console.error('Error loading posts:', err);
             setError(err instanceof Error ? err.message : 'Failed to load posts');
         } finally {
             if (isInitial) {

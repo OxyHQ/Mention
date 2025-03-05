@@ -10,6 +10,7 @@ export * from './services/profile.service';
 export * from './services/api.service';
 export * from './services/user.service';
 export * from './services/privacy.service';
+export * from './services/OxyClient';
 
 // Types
 export * from './types';

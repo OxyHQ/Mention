@@ -1,14 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, Image as RNImage, StyleSheet, Modal, ScrollView, PanResponder, Platform, ImageStyle } from "react-native";
-import { useSelector, useDispatch } from "react-redux";
-import { fetchPosts } from "@/store/reducers/postsReducer";
 import { Ionicons } from "@expo/vector-icons";
-import Post from ".";
 import { colors } from "@/styles/colors";
-import { fetchData } from "@/utils/api";
 import AutoWidthImage from "./components/AutoWidthImage ";
-import { Video, ResizeMode } from 'expo-av'; // Using expo-av for video playback
-import { OXY_CLOUD_URL } from "@/config";
+import { Video, ResizeMode } from 'expo-av';
+import { oxyClient } from "@/modules/oxyhqservices/services/OxyClient";
 
 export const renderMedia = (mediaIds: string[]) => {
     const [mediaData, setMediaData] = useState<any[]>([]);
@@ -25,33 +21,44 @@ export const renderMedia = (mediaIds: string[]) => {
 
             try {
                 setError(null);
-                const response = await fetchData("files/data/" + mediaIds.filter(Boolean).join(","));
-
-                if (!Array.isArray(response)) {
-                    throw new Error("Invalid response format");
-                }
-
+                const response = await oxyClient.getFilesData(mediaIds);
                 setMediaData(response);
 
-                const fetchedImages = response
-                    .filter((item: { contentType: string; }) => item?.contentType?.startsWith("image/"))
-                    .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
+                // Process images
+                const imageItems = response.filter((item: { contentType: string; }) => 
+                    item?.contentType?.startsWith("image/"));
+                const imageUrls = await Promise.all(
+                    imageItems.map(async (item: { id: string; }) => ({
+                        id: item.id,
+                        uri: await oxyClient.getFileUrl(item.id)
+                    }))
+                );
+                setImages(imageUrls);
 
-                const fetchedVideos = response
-                    .filter((item: { contentType: string; }) => item?.contentType?.startsWith("video/"))
-                    .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
+                // Process videos
+                const videoItems = response.filter((item: { contentType: string; }) => 
+                    item?.contentType?.startsWith("video/"));
+                const videoUrls = await Promise.all(
+                    videoItems.map(async (item: { id: string; }) => ({
+                        id: item.id,
+                        uri: await oxyClient.getFileUrl(item.id)
+                    }))
+                );
+                setVideos(videoUrls);
 
-                const fetchedDocuments = response
-                    .filter((item: { contentType: string; }) =>
-                        item?.contentType &&
-                        !item.contentType.startsWith("image/") &&
-                        !item.contentType.startsWith("video/")
-                    )
-                    .map((item: { id: any; }) => ({ id: item.id, uri: `${OXY_CLOUD_URL}${item.id}` }));
-
-                setImages(fetchedImages);
-                setVideos(fetchedVideos);
-                setDocuments(fetchedDocuments);
+                // Process documents
+                const documentItems = response.filter((item: { contentType: string; }) =>
+                    item?.contentType &&
+                    !item.contentType.startsWith("image/") &&
+                    !item.contentType.startsWith("video/")
+                );
+                const documentUrls = await Promise.all(
+                    documentItems.map(async (item: { id: string; }) => ({
+                        id: item.id,
+                        uri: await oxyClient.getFileUrl(item.id)
+                    }))
+                );
+                setDocuments(documentUrls);
             } catch (error: any) {
                 console.error("Error fetching media data:", error);
                 setError(error?.response?.data?.message || "Error loading media");

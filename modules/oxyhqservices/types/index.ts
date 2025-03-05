@@ -1,4 +1,4 @@
-export interface UserSession {
+export interface ExtendedUserSession {
   id: string;
   accessToken: string;
   refreshToken?: string;

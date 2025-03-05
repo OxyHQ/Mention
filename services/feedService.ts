@@ -1,5 +1,9 @@
-import { fetchData } from '@/utils/api';
+import { apiService } from '@/modules/oxyhqservices/services/api.service';
+import { authService } from '@/modules/oxyhqservices/services/auth.service';
+import { API_URL } from '@/config';
+import axios, { AxiosInstance } from 'axios';
 import { Post } from '@/interfaces/Post';
+import { getSecureData } from '@/modules/oxyhqservices/utils/storage';
 
 export type FeedType = 'home' | 'profile' | 'explore' | 'hashtag' | 'bookmarks' | 'replies';
 
@@ -12,16 +16,35 @@ interface FeedParams {
 }
 
 interface FeedResponse {
-  posts: Post[];
-  nextCursor: string | null;
-  hasMore: boolean;
+  data: {
+    posts: Post[];
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
 }
 
 class FeedService {
   private static instance: FeedService;
   private readonly DEFAULT_LIMIT = 20;
+  private readonly socialApi: AxiosInstance;
 
-  private constructor() {}
+  private constructor() {
+    // Create a dedicated axios instance for social network API
+    this.socialApi = axios.create({
+      baseURL: API_URL
+    });
+
+    // Add auth token interceptor
+    this.socialApi.interceptors.request.use(async (config) => {
+      // Get auth token from secure storage
+      const accessToken = await getSecureData<string>('accessToken');
+      if (accessToken) {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${accessToken}`;
+      }
+      return config;
+    });
+  }
 
   public static getInstance(): FeedService {
     if (!FeedService.instance) {
@@ -30,7 +53,7 @@ class FeedService {
     return FeedService.instance;
   }
 
-  async fetchFeed(type: FeedType, params: FeedParams = {}): Promise<FeedResponse> {
+  async fetchFeed(type: FeedType, params: FeedParams = {}): Promise<FeedResponse["data"]> {
     const { userId, hashtag, parentId, limit = this.DEFAULT_LIMIT, cursor } = params;
     let endpoint = '';
     const queryParams: any = { limit, cursor };
@@ -62,17 +85,12 @@ class FeedService {
     }
 
     try {
-      const response = await fetchData<{ data: FeedResponse }>(endpoint, {
-        params: queryParams,
-        skipCache: type === 'replies' || type === 'bookmarks', // Don't cache replies or bookmarks as they change frequently
-        cacheTTL: 300000, // 5 minutes cache for other feeds
+      // Make the request using the social network API instance
+      const response = await this.socialApi.get<FeedResponse>(endpoint, {
+        params: queryParams
       });
 
-      return {
-        posts: response.data.posts || [],
-        nextCursor: response.data.nextCursor || null,
-        hasMore: response.data.hasMore || false,
-      };
+      return response.data.data;
     } catch (error) {
       console.error(`Error fetching ${type} feed:`, error);
       throw error;
@@ -80,4 +98,4 @@ class FeedService {
   }
 }
 
-export const feedService = FeedService.getInstance(); 
+export const feedService = FeedService.getInstance();

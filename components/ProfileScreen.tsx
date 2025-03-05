@@ -3,25 +3,22 @@ import { View, Image, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Pla
 import { router, useLocalSearchParams, Link } from "expo-router";
 import Feed from '@/components/Feed';
 import { colors } from "@/styles/colors";
-import { useSelector, useDispatch } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
-import { profileService, FollowButton } from '@/modules/oxyhqservices';
-import { getUsernameToId } from '@/modules/oxyhqservices/reducers/profileReducer';
+import { FollowButton, profileService } from '@/modules/oxyhqservices';
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
 import { Ionicons } from "@expo/vector-icons";
 import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
 import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import Avatar from "@/components/Avatar";
-import type { AppDispatch } from '@/store/store';
+import { oxyClient } from '@/modules/oxyhqservices/services/OxyClient';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
-import { OXY_CLOUD_URL } from "@/config";
+import { OXY_CLOUD_URL } from '@/modules/oxyhqservices/config';
 
 export default function ProfileScreen() {
   const { username: localUsername } = useLocalSearchParams<{ username: string }>();
   const [activeTab, setActiveTab] = useState("Posts");
-  const dispatch = useDispatch<AppDispatch>();
   const [profile, setProfile] = useState<OxyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,18 +82,13 @@ export default function ProfileScreen() {
         setLoading(true);
         setError(null);
         const username = localUsername.replace('@', '');
-        const userId = await getUsernameToId({ username });
+        const profile = await oxyClient.getProfileByUsername(username);
 
-        if (!userId) {
+        if (!profile) {
           throw new Error(`User not found: ${username}`);
         }
 
-        const profileData = await profileService.getProfileById(userId);
-        if (!profileData) {
-          throw new Error('Failed to load profile data');
-        }
-
-        setProfile(profileData);
+        setProfile(profile);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load profile';
         setError(errorMessage);
@@ -108,7 +100,7 @@ export default function ProfileScreen() {
     };
 
     fetchProfileData();
-  }, [dispatch, localUsername, t]);
+  }, [localUsername, t]);
 
   if (loading) {
     return (
@@ -187,7 +179,7 @@ export default function ProfileScreen() {
                 <TouchableOpacity style={styles.ProfileButton} onPress={() => {
                   router.push('/settings/profile/edit');
                 }}>
-                  <Text style={styles.ProfileButtonText}>Edit profile</Text>
+                  <Text style={styles.ProfileButtonText}>{t('Edit profile')}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={styles.ProfileButton} onPress={() => {
