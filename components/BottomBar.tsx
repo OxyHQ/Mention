@@ -5,19 +5,15 @@ import React from 'react';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Video, VideoActive } from '@/assets/icons/video-icon';
+import { SessionOwnerButton } from '@/modules/oxyhqservices';
 
 export const BottomBar = () => {
     const router = useRouter();
     const [activeRoute, setActiveRoute] = React.useState('/');
     const pathname = usePathname();
 
-    interface HandlePressProps {
-        route: string;
-    }
-
-    const handlePress = (route: '/' | '/compose' | '/explore' | '/notifications' | '/chat' | '/videos') => {
+    const handlePress = (route: '/' | '/compose' | '/explore' | '/notifications' | '/videos') => {
         setActiveRoute(route);
         router.push(route);
     };
@@ -66,9 +62,9 @@ export const BottomBar = () => {
             <Pressable onPress={() => handlePress('/notifications')} style={[styles.tab, activeRoute === '/notifications' && styles.active]}>
                 {activeRoute === '/notifications' ? <BellActive size={28} /> : <Bell size={28} />}
             </Pressable>
-            <Pressable onPress={() => handlePress('/chat')} style={[styles.tab, activeRoute === '/messages' && styles.active]}>
-                {activeRoute === '/chat' ? <ChatActive size={28} /> : <Chat size={28} />}
-            </Pressable>
+            <View style={styles.tab}>
+                <SessionOwnerButton collapsed={true} />
+            </View>
         </View>
     );
 };
