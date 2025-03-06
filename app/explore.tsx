@@ -58,7 +58,7 @@ export default function ExploreScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        className="px-4 py-2"
+        className="px-4 py-2 flex-initial"
       >
         <FilterChip
           label={t('Trending')}
