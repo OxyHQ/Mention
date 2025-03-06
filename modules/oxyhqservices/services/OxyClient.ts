@@ -6,7 +6,7 @@
  */
 
 import { apiService } from './api.service';
-import { API_CONFIG } from '../config';
+import { OXY_API_CONFIG } from '../config';
 import { OxyProfile } from '../types';
 import { getData, storeData } from '../utils/storage';
 import { User } from './auth.service';
@@ -39,7 +39,7 @@ export class OxyClient {
   private baseUrl: string;
   
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl || API_CONFIG.CLOUD_URL;
+    this.baseUrl = baseUrl || OXY_API_CONFIG.CLOUD_URL;
   }
   
   /**
