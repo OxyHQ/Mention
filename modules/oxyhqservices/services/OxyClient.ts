@@ -151,6 +151,22 @@ export class OxyClient {
       throw new Error(ERROR_MESSAGES.DEFAULT);
     }
   }
+
+  /**
+   * Get recommended profiles to follow
+   * @param limit Optional number of recommendations to return
+   * @returns Promise resolving to array of recommended profiles
+   */
+  async getRecommendations(limit?: number): Promise<OxyProfile[]> {
+    try {
+      const params = limit ? { limit: limit.toString() } : undefined;
+      const response = await apiService.get<OxyProfile[]>('/profiles/recommendations', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+      throw new Error(ERROR_MESSAGES.DEFAULT);
+    }
+  }
 }
 
 // Export singleton instance
