@@ -1,12 +1,12 @@
-import { colors } from '@/styles/colors';
+import { colors } from '../../styles/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState, useContext } from 'react';
+import React, { useContext } from 'react';
 import { View, TouchableOpacity, StyleSheet, Image, Text } from 'react-native';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
-import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
-import { UserSession } from '../../types';
+import { BottomSheetContext } from '../context/BottomSheetContext';
+import { SessionContext } from '../SessionProvider';
+import { AuthBottomSheet } from '../AuthBottomSheet';
+import type { Session } from '../AuthBottomSheet/types';
 
 interface SessionOwnerButtonProps {
   collapsed?: boolean;
