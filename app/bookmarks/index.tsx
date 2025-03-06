@@ -14,12 +14,6 @@ export default function BookmarksScreen() {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    // Check if the user is authenticated
-    if (!session?.getCurrentUserId()) {
-        router.replace('/auth');
-        return null;
-    }
-
     // Add effect to check if the bookmarks API is working
     useEffect(() => {
         const checkBookmarksApi = async () => {
