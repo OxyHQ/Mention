@@ -1,26 +1,43 @@
 import { colors } from '../../styles/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, Image, Text } from 'react-native';
 import { BottomSheetContext } from '../context/BottomSheetContext';
-import { useSession } from '../../hooks/useSession';
 import { AuthBottomSheet } from '../AuthBottomSheet';
+import { oxyClient } from '../../services/OxyClient';
+import { SessionContext } from '../SessionProvider';
+import { profileService } from '../../services/profile.service';
 import type { Session } from '../AuthBottomSheet/types';
+import type { OxyProfile } from '../../types';
 
 interface SessionOwnerButtonProps {
   collapsed?: boolean;
 }
 
 export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProps) {
-  const { sessions, state } = useSession();
+  const [currentProfile, setCurrentProfile] = useState<OxyProfile | null>(null);
   const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
-  const router = useRouter();
+  const sessionContext = useContext(SessionContext);
+  const isAuthenticated = !!sessionContext?.state.userId;
+  const userId = sessionContext?.state.userId;
 
-  const currentSession = sessions.find(session => session.id === state.userId);
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!userId) return;
+      
+      try {
+        const profile = await profileService.getProfileById(userId);
+        setCurrentProfile(profile);
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      }
+    };
+
+    loadProfile();
+  }, [userId]);
 
   const handleOpenSessionSwitcher = () => {
-    setBottomSheetContent(<AuthBottomSheet initialMode="session" />);
+    setBottomSheetContent(<AuthBottomSheet initialMode={isAuthenticated ? "session" : "signin"} />);
     openBottomSheet(true);
   };
 
@@ -57,7 +74,7 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
     },
   });
 
-  if (!state.user || !currentSession || !currentSession.profile) {
+  if (!isAuthenticated || !currentProfile) {
     return (
       <View style={styles.container}>
         <TouchableOpacity style={styles.button} onPress={handleOpenSessionSwitcher}>
@@ -70,8 +87,6 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
       </View>
     );
   }
-
-  const currentProfile = currentSession.profile;
 
   return (
     <View style={styles.container}>
