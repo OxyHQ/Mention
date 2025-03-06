@@ -10,29 +10,34 @@ import { useRouter, usePathname } from "expo-router";
 import Avatar from '@/components/Avatar'
 import { Trends } from "@/features/trends/Trends"
 import type { OxyProfile } from '@/modules/oxyhqservices/types'
-import { useSelector, useDispatch } from 'react-redux'
-import { AppDispatch, RootState } from '@/store/store'
-import { fetchFollowRecommendations } from '@/store/reducers/followReducer'
+import { oxyClient } from '@/modules/oxyhqservices'
 
 export function RightBar() {
     const isRightBarVisible = useMediaQuery({ minWidth: 990 })
     const router = useRouter();
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
-    const dispatch = useDispatch<AppDispatch>();
-    const followRecData = useSelector((state: RootState) => state.follow.profiles);
-    const recommendationsLoading = useSelector((state: RootState) => state.follow.loading.recommendations);
-    const error = useSelector((state: RootState) => state.follow.error);
-    const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [recommendations, setRecommendations] = useState<OxyProfile[]>([]);
 
     useEffect(() => {
-        if (!hasAttemptedFetch) {
-            setHasAttemptedFetch(true);
-            dispatch(fetchFollowRecommendations())
-                .unwrap()
-                .catch((err) => console.error('Error fetching recommendations:', err));
-        }
-    }, [dispatch, hasAttemptedFetch]);
+        const fetchRecommendations = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const response = await oxyClient.getRecommendations(5); // Limit to 5 recommendations
+                setRecommendations(response);
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
+                console.error('Error fetching recommendations:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchRecommendations();
+    }, []);
 
     if (!isRightBarVisible) return null;
 
@@ -40,7 +45,7 @@ export function RightBar() {
         <View style={styles.container}>
             <SearchBar />
             {!isExplorePage && (<Trends />)}
-            {!hasAttemptedFetch || recommendationsLoading ? (
+            {loading ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color={colors.primaryColor} />
                     <Text style={styles.loadingText}>Loading recommendations...</Text>
@@ -49,12 +54,12 @@ export function RightBar() {
                 <View style={styles.errorContainer}>
                     <Text style={styles.errorText}>Error: {error}</Text>
                 </View>
-            ) : followRecData?.length === 0 ? (
+            ) : recommendations?.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <Text>No recommendations available</Text>
                 </View>
             ) : (
-                <SuggestedFriends followRecData={followRecData} />
+                <SuggestedFriends followRecData={recommendations} />
             )}
         </View>
     )
