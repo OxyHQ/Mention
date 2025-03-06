@@ -11,9 +11,8 @@ export const Logo = () => {
   return (
     <Pressable
       onPress={() => router.push("/")}
-      style={({ pressed, hovered }) => [
+      style={({ pressed }) => [
         pressed ? { backgroundColor: `${colors.primaryColor}33`, } : {},
-        hovered ? { backgroundColor: `${colors.primaryColor}22`, } : {},
         styles.container,
       ]}>
       <View style={styles.logo}>
