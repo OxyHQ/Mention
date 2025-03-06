@@ -48,7 +48,7 @@ export default function PremiumSettingsScreen() {
     },
     {
       name: 'Mention+',
-      price: '$2.99',
+      price: '⊜2.99',
       period: '/month',
       features: [
         {
@@ -75,7 +75,7 @@ export default function PremiumSettingsScreen() {
     },
     {
       name: 'Oxy+ Insider',
-      price: '$4.99',
+      price: '⊜4.99',
       period: '/month',
       features: [
         {
@@ -97,7 +97,7 @@ export default function PremiumSettingsScreen() {
     },
     {
       name: 'Oxy+ Connect',
-      price: '$6.99',
+      price: '⊜6.99',
       period: '/month',
       features: [
         {
@@ -119,7 +119,7 @@ export default function PremiumSettingsScreen() {
     },
     {
       name: 'Oxy+ Premium',
-      price: '$9.99',
+      price: '⊜9.99',
       period: '/month',
       features: [
         {
@@ -136,7 +136,7 @@ export default function PremiumSettingsScreen() {
     },
     {
       name: 'Oxy+ Creator',
-      price: '$14.99',
+      price: '⊜14.99',
       period: '/month',
       features: [
         {
@@ -161,7 +161,7 @@ export default function PremiumSettingsScreen() {
   const singleFeatures: Plan[] = [
     {
       name: 'Analytics',
-      price: '$1.99',
+      price: '⊜1.99',
       period: '/month',
       features: [
         {
@@ -173,7 +173,7 @@ export default function PremiumSettingsScreen() {
     },
     {
       name: 'Undo Posts',
-      price: '$0.99',
+      price: '⊜0.99',
       period: '/month',
       features: [
         {
@@ -185,7 +185,7 @@ export default function PremiumSettingsScreen() {
     },
     {
       name: 'Improved Reading Mode',
-      price: '$0.99',
+      price: '⊜0.99',
       period: '/month',
       features: [
         {
@@ -197,7 +197,7 @@ export default function PremiumSettingsScreen() {
     },
     {
       name: 'Organize Bookmarks',
-      price: '$0.99',
+      price: '⊜0.99',
       period: '/month',
       features: [
         {
@@ -209,7 +209,7 @@ export default function PremiumSettingsScreen() {
     },
     {
       name: 'Early Access',
-      price: '$1.49',
+      price: '⊜1.49',
       period: '/month',
       features: [
         {
