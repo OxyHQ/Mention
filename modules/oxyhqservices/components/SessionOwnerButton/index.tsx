@@ -1,7 +1,7 @@
 import { colors } from '../../styles/colors';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useContext, useEffect, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, Image, Text } from 'react-native';
+import { View, Pressable, StyleSheet, Image, Text } from 'react-native';
 import { BottomSheetContext } from '../context/BottomSheetContext';
 import { AuthBottomSheet } from '../AuthBottomSheet';
 import { oxyClient } from '../../services/OxyClient';
@@ -9,6 +9,8 @@ import { SessionContext } from '../SessionProvider';
 import { profileService } from '../../services/profile.service';
 import type { Session } from '../AuthBottomSheet/types';
 import type { OxyProfile } from '../../types';
+import { Logo } from '@/components/Logo';
+import { OxyLogo } from '../OxyLogo';
 
 interface SessionOwnerButtonProps {
   collapsed?: boolean;
@@ -55,6 +57,8 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
       width: !collapsed ? '100%' : 40,
       alignItems: 'center',
       justifyContent: collapsed ? 'center' : 'flex-start',
+      borderWidth: 1,
+      borderColor: colors.COLOR_BLACK,
     },
     avatar: {
       width: 35,
@@ -77,20 +81,23 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
   if (!isAuthenticated || !currentProfile) {
     return (
       <View style={styles.container}>
-        <TouchableOpacity style={styles.button} onPress={handleOpenSessionSwitcher}>
+        <Pressable style={styles.button} onPress={handleOpenSessionSwitcher}>
           {collapsed ? (
             <Image style={styles.avatar} source={require('@/assets/images/default-avatar.jpg')} />
           ) : (
-            <Text style={styles.name}>Sign in with Oxy</Text>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 5, gap: 10 }}>
+              <OxyLogo />
+                <Text style={[styles.name, { fontSize: 18 }]}>Continue with Oxy</Text>
+            </View>
           )}
-        </TouchableOpacity>
+        </Pressable>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.button} onPress={handleOpenSessionSwitcher}>
+      <Pressable style={styles.button} onPress={handleOpenSessionSwitcher}>
         <Image
           style={styles.avatar}
           source={
@@ -111,7 +118,7 @@ export function SessionOwnerButton({ collapsed = false }: SessionOwnerButtonProp
             <Ionicons name="chevron-down" size={24} color={colors.primaryColor} />
           </>
         )}
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
 }
