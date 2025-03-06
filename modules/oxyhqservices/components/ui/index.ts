@@ -6,3 +6,4 @@
 
 export * from './Header';
 export * from './ThemedText';
+export * from './LoadingTopSpinner';

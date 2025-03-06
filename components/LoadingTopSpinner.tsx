@@ -11,43 +11,58 @@ interface AvatarProps {
 }
 
 const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, style, showLoading }) => {
-    const heightAnim = useRef(new Animated.Value(0)).current;
+    const translateYAnim = useRef(new Animated.Value(0)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
+    const containerHeight = iconSize + size;
 
     useEffect(() => {
-        // Use opacity for native driver animation
-        Animated.timing(opacityAnim, {
-            toValue: showLoading ? 1 : 0,
-            duration: 300,
-            useNativeDriver: true,
-        }).start();
-
-        // Use height without native driver since layout properties can't use it
-        Animated.timing(heightAnim, {
-            toValue: showLoading ? iconSize + size : 0,
-            duration: 300,
-            useNativeDriver: false,
-        }).start();
-    }, [showLoading, size, iconSize]);
+        Animated.parallel([
+            Animated.timing(opacityAnim, {
+                toValue: showLoading ? 1 : 0,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+            Animated.timing(translateYAnim, {
+                toValue: showLoading ? 0 : -containerHeight,
+                duration: 300,
+                useNativeDriver: true,
+            })
+        ]).start();
+    }, [showLoading, size, iconSize, containerHeight]);
 
     const styles = StyleSheet.create({
+        container: {
+            width: '100%',
+            height: containerHeight,
+            position: 'relative',
+            overflow: 'hidden',
+        },
         loadingView: {
             width: '100%',
+            height: containerHeight,
             alignItems: 'center',
             justifyContent: 'center',
-            overflow: 'hidden',
-            height: heightAnim as any,
-            paddingVertical: heightAnim.interpolate({
-                inputRange: [0, iconSize],
-                outputRange: [0, iconSize / 2],
-            }),
+            position: 'absolute',
+            top: 0,
+            left: 0,
         },
     });
 
     return (
-        <Animated.View style={[styles.loadingView, { opacity: opacityAnim }, style]}>
-            <Loading size={iconSize} />
-        </Animated.View>
+        <View style={styles.container}>
+            <Animated.View 
+                style={[
+                    styles.loadingView, 
+                    { 
+                        opacity: opacityAnim,
+                        transform: [{ translateY: translateYAnim }]
+                    },
+                    style
+                ]}
+            >
+                <Loading size={iconSize} />
+            </Animated.View>
+        </View>
     );
 };
 
