@@ -13,10 +13,9 @@ export const Loading = ({ color = colors.primaryColor, size = 26, style }: { col
                 toValue: 1,
                 duration: 500,
                 easing: Easing.linear,
-                useNativeDriver: false,
+                useNativeDriver: true, // Enable native driver for rotation
             })
         );
-        rotateAnim.setValue(0); // Reset the animation value
         animation.start();
         return () => animation.stop();
     }, [rotateAnim]);

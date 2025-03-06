@@ -19,7 +19,8 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const { user: currentUser, isAuthenticated } = useAuth();
-  const buttonWidth = useRef(new Animated.Value(100)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
   const dispatch = useDispatch<AppDispatch>();
 
   const isFollowing = useSelector((state: RootState) =>
@@ -54,16 +55,24 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
   }, [isFollowing, isLoading, followLoading]);
 
   const animateButton = (state: 'follow' | 'following' | 'loading') => {
-    const widthValue = state === 'loading' ? 40 :
-      state === 'following' ? 100 :
-        80;
+    // Use width animation without native driver (layout property)
+    const widthValue = state === 'loading' ? 40 : state === 'following' ? 100 : 80;
 
-    Animated.spring(buttonWidth, {
-      toValue: widthValue,
-      useNativeDriver: false,
-      friction: 7,
-      tension: 40
-    }).start();
+    // Use scale and opacity with native driver
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: state === 'loading' ? 0.95 : 1,
+        useNativeDriver: true,
+        friction: 7,
+        tension: 40
+      }),
+      Animated.spring(opacityAnim, {
+        toValue: state === 'loading' ? 0.8 : 1,
+        useNativeDriver: true,
+        friction: 7,
+        tension: 40
+      })
+    ]).start();
   };
 
   const handlePress = async (event: GestureResponderEvent) => {
@@ -81,48 +90,42 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
       const result = await dispatch(followUserAction(userId)).unwrap();
       const newFollowState = result.action === 'follow';
 
-      // Update parent component
       onFollowStatusChange?.(newFollowState);
-
-      // Animate after state update
       animateButton(newFollowState ? 'following' : 'follow');
     } catch (error) {
       console.error('Error toggling follow status:', error);
-      // Revert animation on error
       animateButton(isFollowing ? 'following' : 'follow');
-      toast.error('Failed to update follow status. Please try again.');
+      toast.error('Failed to update follow status');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const buttonDisabled = isLoading || followLoading || !isAuthenticated || currentUser?.id === userId;
-
-  if (!isAuthenticated || currentUser?.id === userId) return null;
-
   return (
     <TouchableOpacity
-      style={styles.container}
       onPress={handlePress}
-      disabled={buttonDisabled}
+      disabled={!isAuthenticated || isLoading || currentUser?.id === userId}
+      style={styles.container}
     >
-      <Animated.View style={[
-        styles.defaultFollowButton,
-        isFollowing ? styles.followingButton : styles.followButton,
-        buttonDisabled && styles.disabledButton,
-        { width: buttonWidth }
-      ]}>
-        {(isLoading || followLoading) ? (
-          <ActivityIndicator
-            size="small"
-            color={isFollowing ? colors.COLOR_BLACK_LIGHT_4 : "#ffffff"}
-          />
+      <Animated.View
+        style={[
+          styles.defaultFollowButton,
+          isFollowing ? styles.followingButton : styles.followButton,
+          {
+            opacity: opacityAnim,
+            transform: [{ scale: scaleAnim }]
+          }
+        ]}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={isFollowing ? colors.COLOR_BLACK_LIGHT_4 : '#fff'} />
         ) : (
-          <Text style={[
-            styles.followButtonText,
-            isFollowing ? styles.followingButtonText : null,
-            buttonDisabled && styles.disabledText
-          ]}>
+          <Text
+            style={[
+              styles.followButtonText,
+              isFollowing && styles.followingButtonText
+            ]}
+          >
             {isFollowing ? 'Following' : 'Follow'}
           </Text>
         )}
@@ -162,11 +165,8 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "600",
     fontSize: 14,
-  } as any,
+  },
   followingButtonText: {
     color: colors.COLOR_BLACK_LIGHT_4,
-  } as any,
-  disabledText: {
-    opacity: 0.6,
-  } as any,
+  }
 });

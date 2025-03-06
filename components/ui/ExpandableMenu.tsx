@@ -44,15 +44,25 @@ const ExpandedHeader = () => {
 
 export default function ExpandableMenu({ isOpen, onToggle }: ExpandableMenuProps) {
   const animatedValue = useRef(new Animated.Value(0)).current
+  const scaleAnim = useRef(new Animated.Value(1)).current
 
   useEffect(() => {
+    // Use spring animation with native driver for scale
+    Animated.spring(scaleAnim, {
+      toValue: isOpen ? 1.05 : 1,
+      tension: 50,
+      friction: 9,
+      useNativeDriver: true,
+    }).start()
+
+    // Use timing for layout animations that can't use native driver
     Animated.spring(animatedValue, {
       toValue: isOpen ? 1 : 0,
       tension: 50,
       friction: 9,
       useNativeDriver: false,
     }).start()
-  }, [isOpen, animatedValue]) // Added animatedValue to dependencies
+  }, [isOpen, animatedValue])
 
   const height = animatedValue.interpolate({
     inputRange: [0, 1],
@@ -85,6 +95,7 @@ export default function ExpandableMenu({ isOpen, onToggle }: ExpandableMenuProps
           style={{
             height,
             width,
+            transform: [{ scale: scaleAnim }],
           }}
         >
           <BlurView intensity={isOpen ? 90 : 20} tint="dark" className="rounded-[30px] overflow-hidden border border-white/10 h-full">
@@ -108,12 +119,6 @@ export default function ExpandableMenu({ isOpen, onToggle }: ExpandableMenuProps
                           inputRange: [0, 0],
                           outputRange: [36, 0]
                         }),
-                        // transform: [{
-                        //   scale: animatedValue.interpolate({
-                        //     inputRange: [0, 0.5],
-                        //     outputRange: [1, 0]
-                        //   })
-                        // }]
                       }}>
                         {!isOpen && (<View className="px-2 py-1 flex-row items-center justify-between">
                       <Ionicons name="search-outline" size={20} color="white" />
@@ -136,7 +141,6 @@ export default function ExpandableMenu({ isOpen, onToggle }: ExpandableMenuProps
                       alwaysBounceVertical={true}
                       showsVerticalScrollIndicator={false}
                       overScrollMode="always"
-                    //   stickyHeaderIndices={[0]}
                     >
                                   
                       <View style={{ minHeight: "100%" }}>

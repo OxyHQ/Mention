@@ -8,7 +8,7 @@ import {
 } from 'react-native'
 import { Pressable } from 'react-native'
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from '@/styles/colors'
+import { colors } from '../../styles/colors'
 import { useRouter } from 'expo-router'
 import { ReactNode } from 'react'
 

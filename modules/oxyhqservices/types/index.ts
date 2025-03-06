@@ -1,3 +1,12 @@
+/**
+ * OxyHQ Services Types
+ * 
+ * Core type definitions used throughout the OxyHQ services module.
+ */
+
+/**
+ * Extended user session with authentication tokens and profile data
+ */
 export interface ExtendedUserSession {
   id: string;
   accessToken: string;
@@ -6,6 +15,37 @@ export interface ExtendedUserSession {
   profile?: OxyProfile;
 }
 
+/**
+ * Privacy settings for a user profile
+ */
+export interface PrivacySettings {
+  isPrivateAccount: boolean;
+  hideOnlineStatus: boolean;
+  hideLastSeen: boolean;
+  profileVisibility: boolean;
+  postVisibility: boolean;
+  twoFactorEnabled: boolean;
+  loginAlerts: boolean;
+  blockScreenshots: boolean;
+  secureLogin: boolean;
+  biometricLogin: boolean;
+  showActivity: boolean;
+  allowTagging: boolean;
+  allowMentions: boolean;
+  hideReadReceipts: boolean;
+  allowComments: boolean;
+  allowDirectMessages: boolean;
+  dataSharing: boolean;
+  locationSharing: boolean;
+  analyticsSharing: boolean;
+  sensitiveContent: boolean;
+  autoFilter: boolean;
+  muteKeywords: boolean;
+}
+
+/**
+ * Full user profile from the OxyHQ platform
+ */
 export interface OxyProfile {
   _id?: string;
   userID: string;
@@ -15,30 +55,7 @@ export interface OxyProfile {
   };
   username: string;
   email: string;
-  privacySettings?: {
-    isPrivateAccount: boolean;
-    hideOnlineStatus: boolean;
-    hideLastSeen: boolean;
-    profileVisibility: boolean;
-    postVisibility: boolean;
-    twoFactorEnabled: boolean;
-    loginAlerts: boolean;
-    blockScreenshots: boolean;
-    secureLogin: boolean;
-    biometricLogin: boolean;
-    showActivity: boolean;
-    allowTagging: boolean;
-    allowMentions: boolean;
-    hideReadReceipts: boolean;
-    allowComments: boolean;
-    allowDirectMessages: boolean;
-    dataSharing: boolean;
-    locationSharing: boolean;
-    analyticsSharing: boolean;
-    sensitiveContent: boolean;
-    autoFilter: boolean;
-    muteKeywords: boolean;
-  };
+  privacySettings?: PrivacySettings;
   avatar?: string;
   labels?: string[];
   description?: string;
@@ -57,4 +74,29 @@ export interface OxyProfile {
   };
   createdAt?: string;
   updatedAt?: string;
+}
+
+/**
+ * Subscription plan types
+ */
+export type SubscriptionPlan = 'basic' | 'pro' | 'business';
+
+/**
+ * Subscription features
+ */
+export interface SubscriptionFeatures {
+  analytics: boolean;
+  premiumBadge: boolean;
+  unlimitedFollowing: boolean;
+  higherUploadLimits: boolean;
+  promotedPosts: boolean;
+  businessTools: boolean;
+}
+
+/**
+ * Authentication response error with field-specific validation details
+ */
+export interface AuthError {
+  message: string;
+  details?: Record<string, string>;
 }

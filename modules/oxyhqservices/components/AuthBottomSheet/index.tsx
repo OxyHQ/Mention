@@ -1,79 +1,258 @@
-import React, { useState, useRef, useContext, useEffect } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Animated, ScrollView, Dimensions, Image, Text } from 'react-native';
-import { Link, useRouter } from 'expo-router';
-import { toast } from 'sonner';
-import { ThemedText } from '@/components/ThemedText';
+/**
+ * AuthBottomSheet Component
+ * 
+ * A modal sheet for handling authentication flows including sign in,
+ * sign up, and session switching.
+ */
+
+import React, { useState, useRef, useCallback, useEffect, useContext } from 'react';
+import { View, Animated } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { authService } from '@/modules/oxyhqservices';
-import { colors } from '@/styles/colors';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { Ionicons } from '@expo/vector-icons';
-import { useSession } from '@/modules/oxyhqservices/hooks';
-import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
-import { LinearGradient } from 'expo-linear-gradient';
+import { SignInForm } from './components/SignInForm';
+import { SignUpForm } from './components/SignUpForm';
+import { SessionList } from './components/SessionList';
+import { ProgressIndicator } from './components/ProgressIndicator';
+import { useSessions } from './hooks/useSessions';
+import { sharedStyles } from './components/sharedStyles';
+import { AuthBottomSheetProps, AuthMode } from './types';
+import { useSession } from '../../hooks';
+import { authService } from '../../services/auth.service';
 import { BaseBottomSheet } from '../BaseBottomSheet';
-import { sharedStyles } from '../../styles/shared';
+import { BottomSheetContext } from '../context/BottomSheetContext';
+import { toast } from 'sonner';
+import debounce from 'lodash.debounce';
 
-const { width } = Dimensions.get('window');
-
-type AuthMode = 'signin' | 'signup' | 'session';
-
-interface AuthBottomSheetProps {
-    initialMode?: AuthMode;
+interface AuthError {
+    message?: string;
+    details?: Record<string, string | null>;
 }
 
-interface UserSession {
-    id: string;
-    username: string;
-    name?: {
-        first?: string;
-        last?: string;
-    };
-    avatar?: string;
+interface ValidationErrors {
+    username?: string;
+    email?: string;
+    password?: string;
 }
 
-export function AuthBottomSheet({ initialMode = 'signin' }: AuthBottomSheetProps) {
+export function AuthBottomSheet({ 
+    initialMode = 'signin',
+    showLogo = true
+}: AuthBottomSheetProps) {
     const [mode, setMode] = useState<AuthMode>(initialMode);
     const [step, setStep] = useState(1);
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [searchText, setSearchText] = useState('');
-    const slideAnim = useRef(new Animated.Value(0)).current;
-    const router = useRouter();
+    const [errors, setErrors] = useState<ValidationErrors>({});
+    const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+    
     const { t } = useTranslation();
-    const { openBottomSheet, setBottomSheetContent, bottomSheetRef } = useContext(BottomSheetContext);
-    const { loginUser } = useSession();
-    const sessionContext = useContext(SessionContext);
-    const availableSessions = (sessionContext as any)?.sessions as UserSession[] || [];
+    const { sessions, isLoadingSessions } = useSessions(mode);
+    const { loginUser, switchSession } = useSession();
+    const { openBottomSheet } = useContext(BottomSheetContext);
+    
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const scaleAnim = useRef(new Animated.Value(1)).current;
-    const inputRefs = {
-        username: useRef<TextInput>(null),
-        email: useRef<TextInput>(null),
-        password: useRef<TextInput>(null),
+    const slideAnim = useRef(new Animated.Value(0)).current;
+
+    const validateUsername = (username: string): string | undefined => {
+        if (!username) {
+            return t('Username is required');
+        }
+        if (username.length < 3) {
+            return t('Username must be at least 3 characters');
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+            return t('Username can only contain letters, numbers, and underscores');
+        }
+        return undefined;
     };
 
-    // Animation functions
-    const animateStepChange = (newStep: number, direction: number) => {
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 0,
-                duration: 150,
-                useNativeDriver: true,
-            }),
-            Animated.timing(scaleAnim, {
-                toValue: direction > 0 ? 0.95 : 1.05,
-                duration: 150,
-                useNativeDriver: true,
-            }),
-            Animated.timing(slideAnim, {
-                toValue: -(newStep - 1),
-                duration: 300,
-                useNativeDriver: true,
-            })
-        ]).start(() => {
-            setStep(newStep);
+    const validateEmail = (email: string): string | undefined => {
+        if (!email) {
+            return t('Email is required');
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return t('Please enter a valid email address');
+        }
+        return undefined;
+    };
+
+    const validatePassword = (password: string): string | undefined => {
+        if (!password) {
+            return t('Password is required');
+        }
+        if (password.length < 8) {
+            return t('Password must be at least 8 characters');
+        }
+        return undefined;
+    };
+
+    const debouncedUsernameCheck = useCallback(
+        debounce(async (username: string) => {
+            if (username.length >= 3) {
+                try {
+                    setIsCheckingUsername(true);
+                    const result = await authService.checkUsernameAvailability(username);
+                    if (!result.available) {
+                        setErrors(prev => ({ ...prev, username: result.message || t('Username is not available') }));
+                    } else {
+                        setErrors(prev => ({ ...prev, username: undefined }));
+                    }
+                } catch (error) {
+                    // On API error, fall back to local validation only
+                    console.error('Error checking username:', error);
+                    const localValidationError = validateUsername(username);
+                    if (!localValidationError) {
+                        setErrors(prev => ({ ...prev, username: undefined }));
+                    } else {
+                        setErrors(prev => ({ ...prev, username: localValidationError }));
+                    }
+                } finally {
+                    setIsCheckingUsername(false);
+                }
+            }
+        }, 500),
+        [validateUsername, t]
+    );
+
+    useEffect(() => {
+        if (step === 1 && username) {
+            debouncedUsernameCheck(username);
+        }
+    }, [username, step]);
+
+    const handleSignin = async () => {
+        try {
+            await loginUser(username, password);
+            toast.success(t('Signed in successfully'));
+            openBottomSheet(false);
+        } catch (error) {
+            const authError = error as AuthError;
+            const errorMessage = authError.message || t('Failed to sign in');
+            toast.error(errorMessage);
+            console.error('Sign in error:', error);
+        }
+    };
+
+    const handleBack = () => {
+        if (step > 1) {
+            setStep(step - 1);
+            Animated.sequence([
+                Animated.timing(slideAnim, {
+                    toValue: 20,
+                    duration: 200,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(slideAnim, {
+                    toValue: 0,
+                    duration: 200,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        }
+    };
+
+    const handleSignup = async () => {
+        let validationError: string | undefined;
+
+        switch (step) {
+            case 1:
+                validationError = validateUsername(username);
+                if (validationError) {
+                    setErrors({ username: validationError });
+                    toast.error(validationError);
+                    return;
+                }
+                // Check for username availability error
+                if (errors.username) {
+                    toast.error(errors.username);
+                    return;
+                }
+                if (isCheckingUsername) {
+                    toast.error(t('Please wait while we check username availability'));
+                    return;
+                }
+                break;
+            case 2:
+                validationError = validateEmail(email);
+                if (validationError) {
+                    setErrors({ email: validationError });
+                    toast.error(validationError);
+                    return;
+                }
+                break;
+            case 3:
+                validationError = validatePassword(password);
+                if (validationError) {
+                    setErrors({ password: validationError });
+                    toast.error(validationError);
+                    return;
+                }
+                break;
+        }
+
+        setErrors({});
+
+        if (step < 3) {
+            setStep(step + 1);
+            Animated.sequence([
+                Animated.timing(slideAnim, {
+                    toValue: -20,
+                    duration: 200,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(slideAnim, {
+                    toValue: 0,
+                    duration: 200,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        } else {
+            try {
+                await authService.register({ username, email, password });
+                toast.success(t('Account created successfully'));
+                switchMode('signin');
+            } catch (error) {
+                const authError = error as AuthError;
+                const errorMessage = authError.message || t('Failed to create account');
+                toast.error(errorMessage);
+                console.error('Sign up error:', error);
+
+                // Handle specific field errors if they exist
+                if (authError.details) {
+                    setErrors(authError.details as ValidationErrors);
+                }
+            }
+        }
+    };
+
+    const handleSessionSwitch = async (sessionId: string) => {
+        try {
+            await switchSession(sessionId);
+            toast.success(t('Session switched successfully'));
+            openBottomSheet(false);
+        } catch (error) {
+            const authError = error as AuthError;
+            const errorMessage = authError.message || t('Failed to switch session');
+            toast.error(errorMessage);
+            console.error('Session switch error:', error);
+        }
+    };
+
+    const switchMode = (newMode: AuthMode) => {
+        Animated.sequence([
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 0,
+                    duration: 150,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(scaleAnim, {
+                    toValue: 0.95,
+                    duration: 150,
+                    useNativeDriver: true,
+                }),
+            ]),
             Animated.parallel([
                 Animated.timing(fadeAnim, {
                     toValue: 1,
@@ -84,617 +263,99 @@ export function AuthBottomSheet({ initialMode = 'signin' }: AuthBottomSheetProps
                     toValue: 1,
                     duration: 150,
                     useNativeDriver: true,
-                })
-            ]).start(() => {
-                if (newStep === 2) inputRefs.username.current?.focus();
-                if (newStep === 3) inputRefs.email.current?.focus();
-                if (newStep === 4) inputRefs.password.current?.focus();
-            });
+                }),
+            ]),
+        ]).start(() => {
+            setMode(newMode);
+            setStep(1);
+            setUsername('');
+            setEmail('');
+            setPassword('');
         });
     };
 
-    // Event handlers
-    const handleNextStep = () => {
-        if (step < 4) {
-            animateStepChange(step + 1, width);
-        }
-    };
-
-    const handleBackStep = () => {
-        if (step > 1) {
-            animateStepChange(step - 1, width);
-        }
-    };
-
-    const handleSignin = async () => {
-        if (!username || !password) {
-            const validationErrors = {
-                username: !username ? t('Username is required') : null,
-                password: !password ? t('Password is required') : null
-            };
-
-            Object.entries(validationErrors)
-                .filter(([_, message]) => message !== null)
-                .forEach(([_, message]) => toast.error(t(message as string)));
-            return;
-        }
-
-        try {
-            await loginUser(username, password);
-            bottomSheetRef.current?.dismiss();
-            setTimeout(() => {
-                setBottomSheetContent(null);
-                toast.success(t('Login successful'));
-                router.push('/');
-            }, 500);
-        } catch (error: any) {
-            const details = error?.details;
-            if (details) {
-                // Handle validation errors with structured details
-                Object.entries(details)
-                    .filter(([_, message]) => message !== null)
-                    .forEach(([field, message]) => {
-                        toast.error(t(message as string));
-                        // Focus the relevant input if available
-                        if (inputRefs[field as keyof typeof inputRefs]?.current) {
-                            inputRefs[field as keyof typeof inputRefs].current?.focus();
-                        }
-                    });
-            } else {
-                // Handle generic errors
-                toast.error(t(error?.message || 'Login failed'));
-            }
-        }
-    };
-
-    const handleSignup = async () => {
-        if (!username || !email || !password) {
-            toast.error(t('error.signup.missing_fields'));
-            return;
-        }
-
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            toast.error(t('error.signup.invalid_email'));
-            return;
-        }
-
-        try {
-            const user = { username, email, password };
-            const response = await authService.register(user);
-
-            if (response.success && response.accessToken && response.user) {
-                await loginUser(username, password);
-                bottomSheetRef.current?.dismiss();
-                setTimeout(() => {
-                    setBottomSheetContent(null);
-                    toast.success(t('success.signup'));
-                    router.push('/');
-                }, 500);
-            } else {
-                toast.error(response.message || t('error.signup.failed'));
-            }
-        } catch (error: any) {
-            if (error.response?.status === 409) {
-                toast.error(t('error.signup.user_exists'));
-            } else if (error.details) {
-                Object.values(error.details)
-                    .filter(Boolean)
-                    .forEach(detail => toast.error(t(detail as string)));
-            } else {
-                const errorMessage = error?.message || t('error.signup.failed');
-                toast.error(errorMessage);
-            }
-        }
-    };
-
-    const handleSessionSwitch = async (userId: string) => {
-        try {
-            await sessionContext?.switchSession(userId);
-            bottomSheetRef.current?.dismiss();
-            setTimeout(() => {
-                setBottomSheetContent(null);
-                toast.success(t('Session switched successfully'));
-                router.push('/');
-            }, 500);
-        } catch (error) {
-            toast.error(t('Failed to switch session'));
-        }
-    };
-
-    const resetForm = () => {
-        setUsername('');
-        setEmail('');
-        setPassword('');
-        setStep(1);
-        slideAnim.setValue(0);
-    };
-
-    const switchToSignup = () => {
-        resetForm();
-        setMode('signup');
-    };
-
-    const switchToSignin = () => {
-        resetForm();
-        setMode('signin');
-    };
-
-    // Render functions
-    const renderProgressIndicator = () => (
-        <View style={sharedStyles.progressContainer}>
-            {[1, 2, 3, 4].map((stepNum) => (
-                <View key={stepNum} style={styles.progressWrapper}>
-                    <View
-                        style={[
-                            sharedStyles.progressDot,
-                            stepNum === step && sharedStyles.progressDotActive,
-                            stepNum < step && sharedStyles.progressDotCompleted,
-                        ]}
+    const renderContent = () => {
+        switch (mode) {
+            case 'signin':
+                return (
+                    <SignInForm
+                        username={username}
+                        password={password}
+                        setUsername={setUsername}
+                        setPassword={setPassword}
+                        handleSignin={handleSignin}
+                        switchToSignup={() => switchMode('signup')}
+                        fadeAnim={fadeAnim}
+                        scaleAnim={scaleAnim}
                     />
-                    {stepNum < 4 && (
-                        <View
-                            style={[
-                                sharedStyles.progressLine,
-                                stepNum < step && sharedStyles.progressLineCompleted,
-                            ]}
+                );
+            case 'signup':
+                return (
+                    <>
+                        <ProgressIndicator currentStep={step} />
+                        <SignUpForm
+                            username={username}
+                            email={email}
+                            password={password}
+                            step={step}
+                            setUsername={setUsername}
+                            setEmail={setEmail}
+                            setPassword={setPassword}
+                            handleSignup={handleSignup}
+                            switchToSignin={() => switchMode('signin')}
+                            slideAnim={slideAnim}
+                            errors={errors}
+                            handleBack={handleBack}
                         />
-                    )}
-                </View>
-            ))}
-        </View>
-    );
-
-    const renderSignin = () => (
-        <View style={sharedStyles.container}>
-            <Animated.View
-                style={[
-                    styles.formWrapper,
-                    {
-                        opacity: fadeAnim,
-                        transform: [{ scale: scaleAnim }]
-                    }
-                ]}
-            >
-                <View style={sharedStyles.content}>
-                    <ThemedText style={sharedStyles.title}>{t('Welcome back')}</ThemedText>
-                    <ThemedText style={sharedStyles.subtitle}>{t('Sign in to your Oxy Account')}</ThemedText>
-                    <View style={sharedStyles.inputWrapper}>
-                        <TextInput
-                            ref={inputRefs.username}
-                            style={sharedStyles.input}
-                            placeholder={t('Enter your username')}
-                            value={username}
-                            onChangeText={setUsername}
-                            placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
-                            autoCapitalize="none"
-                            returnKeyType="next"
-                            onSubmitEditing={() => inputRefs.password?.current?.focus()}
-                        />
-                    </View>
-                    <View style={sharedStyles.inputWrapper}>
-                        <TextInput
-                            ref={inputRefs.password}
-                            style={sharedStyles.input}
-                            placeholder={t('Enter your password')}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                            placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
-                            returnKeyType="go"
-                            onSubmitEditing={handleSignin}
-                        />
-                    </View>
-                </View>
-            </Animated.View>
-
-            <View style={styles.buttonContainer}>
-                <TouchableOpacity
-                    style={[sharedStyles.button, styles.fullWidthButton]}
-                    onPress={handleSignin}
-                    activeOpacity={0.8}
-                >
-                    <LinearGradient
-                        colors={[colors.primaryColor, colors.primaryDark]}
-                        style={sharedStyles.buttonGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                    >
-                        <ThemedText style={sharedStyles.buttonText}>{t('Sign In')}</ThemedText>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity onPress={switchToSignup} style={styles.switchModeButton}>
-                <ThemedText style={styles.switchModeText}>{t("Don't have an account? Sign up")}</ThemedText>
-            </TouchableOpacity>
-        </View>
-    );
-
-    const renderSignup = () => (
-        <View style={sharedStyles.container}>
-            {renderProgressIndicator()}
-            <Animated.View
-                style={[
-                    styles.formWrapper,
-                    {
-                        opacity: fadeAnim,
-                        transform: [
-                            { scale: scaleAnim },
-                            { translateX: Animated.multiply(slideAnim, width) }
-                        ]
-                    }
-                ]}
-            >
-                {step === 1 && (
-                    <View style={sharedStyles.content}>
-                        <ThemedText style={sharedStyles.title}>{t('Welcome to Mention by Oxy')}</ThemedText>
-                        <ThemedText style={sharedStyles.subtitle}>{t('Create your Oxy Account to get started')}</ThemedText>
-                    </View>
-                )}
-                {step === 2 && (
-                    <View style={sharedStyles.content}>
-                        <ThemedText style={sharedStyles.title}>{t('Choose a Username')}</ThemedText>
-                        <View style={sharedStyles.inputWrapper}>
-                            <TextInput
-                                style={sharedStyles.input}
-                                placeholder={t('Choose a username for your account')}
-                                value={username}
-                                onChangeText={setUsername}
-                                placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
-                                autoCapitalize="none"
-                            />
-                        </View>
-                    </View>
-                )}
-                {step === 3 && (
-                    <View style={sharedStyles.content}>
-                        <ThemedText style={sharedStyles.title}>{t('Enter your Email')}</ThemedText>
-                        <View style={sharedStyles.inputWrapper}>
-                            <TextInput
-                                style={sharedStyles.input}
-                                placeholder={t('Enter your email address')}
-                                value={email}
-                                onChangeText={setEmail}
-                                placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
-                                autoCapitalize="none"
-                                keyboardType="email-address"
-                            />
-                        </View>
-                    </View>
-                )}
-                {step === 4 && (
-                    <View style={sharedStyles.content}>
-                        <ThemedText style={sharedStyles.title}>{t('Create a Password')}</ThemedText>
-                        <View style={sharedStyles.inputWrapper}>
-                            <TextInput
-                                style={sharedStyles.input}
-                                placeholder={t('Create a strong password')}
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry
-                                placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
-                            />
-                        </View>
-                    </View>
-                )}
-            </Animated.View>
-
-            <View style={styles.buttonContainer}>
-                {step > 1 && (
-                    <TouchableOpacity
-                        style={sharedStyles.buttonOutline}
-                        onPress={handleBackStep}
-                        activeOpacity={0.8}
-                    >
-                        <ThemedText style={sharedStyles.buttonOutlineText}>{t('Back')}</ThemedText>
-                    </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                    style={[sharedStyles.button, step === 4 && styles.finalButton]}
-                    onPress={step === 4 ? handleSignup : handleNextStep}
-                    activeOpacity={0.8}
-                >
-                    <LinearGradient
-                        colors={[colors.primaryColor, colors.primaryDark]}
-                        style={sharedStyles.buttonGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                    >
-                        <ThemedText style={sharedStyles.buttonText}>
-                            {step === 4 ? t('Sign Up') : t('Next')}
-                        </ThemedText>
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity onPress={switchToSignin} style={styles.switchModeButton}>
-                <ThemedText style={styles.switchModeText}>{t('Already have an account? Log in')}</ThemedText>
-            </TouchableOpacity>
-        </View>
-    );
-
-    const renderSessionList = () => {
-        const currentSession = availableSessions.find(session => session.id === sessionContext?.state.userId);
-        const otherSessions = availableSessions.filter(session => session.id !== sessionContext?.state.userId);
-
-        return (
-            <View style={sharedStyles.container}>
-                {currentSession && (
-                    <View style={styles.currentSessionContainer}>
-                        <Image
-                            style={styles.currentAvatar}
-                            source={
-                                currentSession.avatar
-                                    ? { uri: currentSession.avatar }
-                                    : require('@/assets/images/default-avatar.jpg')
-                            }
-                        />
-                        <View style={styles.currentSessionInfo}>
-                            <ThemedText style={styles.currentSessionName}>
-                                {currentSession.name?.first || currentSession.username || 'Unknown'} {currentSession.name?.last || ''}
-                            </ThemedText>
-                            {currentSession.username && (
-                                <ThemedText style={styles.currentSessionEmail}>@{currentSession.username}</ThemedText>
-                            )}
-                            <TouchableOpacity
-                                style={styles.manageAccountButton}
-                                onPress={() => router.push('/settings')}
-                            >
-                                <ThemedText style={styles.manageAccountText}>Manage your Oxy Account</ThemedText>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-
-                <View style={styles.sessionListContainer}>
-                    <TouchableOpacity
-                        style={styles.showMoreButton}
-                        onPress={() => { }}
-                    >
-                        <View style={styles.showMoreLeft}>
-                            <Ionicons name="people" size={20} color={colors.COLOR_BLACK} />
-                            <ThemedText style={styles.showMoreText}>Show all accounts</ThemedText>
-                        </View>
-                        <Ionicons name="chevron-down" size={20} color={colors.COLOR_BLACK} />
-                    </TouchableOpacity>
-
-                    {otherSessions.map((session) => (
-                        <TouchableOpacity
-                            key={session.id}
-                            style={styles.sessionItem}
-                            onPress={() => handleSessionSwitch(session.id)}
-                        >
-                            <Image
-                                style={styles.avatar}
-                                source={
-                                    session.avatar
-                                        ? { uri: session.avatar }
-                                        : require('@/assets/images/default-avatar.jpg')
-                                }
-                            />
-                            <View style={styles.sessionInfo}>
-                                <ThemedText style={styles.sessionName}>
-                                    {session.name?.first || session.username || 'Unknown'} {session.name?.last || ''}
-                                </ThemedText>
-                                {session.username && (
-                                    <ThemedText style={styles.sessionEmail}>@{session.username}</ThemedText>
-                                )}
-                            </View>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                <View style={styles.bottomButtons}>
-                    <TouchableOpacity
-                        style={styles.addAccountButton}
-                        onPress={() => { resetForm(); setMode('signin'); }}
-                    >
-                        <Ionicons name="add-circle-outline" size={24} color={colors.COLOR_BLACK} />
-                        <ThemedText style={styles.addAccountText}>Add another account</ThemedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.signOutButton}
-                        onPress={() => router.push('/settings/accounts')}
-                    >
-                        <Ionicons name="log-out-outline" size={24} color={colors.COLOR_BLACK} />
-                        <ThemedText style={styles.signOutText}>Sign out</ThemedText>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.footer}>
-                    <Link href="https://oxy.so/company/transparency/policies/privacy" target="_blank">
-                        <ThemedText style={styles.footerText}>Privacy Policy</ThemedText>
-                    </Link>
-                    <Text style={styles.footerDot}>•</Text>
-                    <Link href="https://oxy.so/company/transparency/policies/terms-of-service" target="_blank">
-                        <ThemedText style={styles.footerText}>Terms of Service</ThemedText>
-                    </Link>
-                </View>
-            </View>
-        );
+                    </>
+                );
+            case 'session':
+                return (
+                    <SessionList
+                        sessions={sessions}
+                        isLoadingSessions={isLoadingSessions}
+                        handleSessionSwitch={handleSessionSwitch}
+                        switchToSignin={() => switchMode('signin')}
+                    />
+                );
+            default:
+                return null;
+        }
     };
+
+    // Get the appropriate title based on the current mode and step
+    const getTitle = () => {
+        if (!showLogo) {
+            switch (mode) {
+                case 'signin':
+                    return t('Sign In');
+                case 'signup':
+                    return `${t('Sign Up')} (${step}/3)`;
+                case 'session':
+                    return t('Choose Session');
+                default:
+                    return '';
+            }
+        }
+        return '';
+    };
+
+    // Handle close action
+    const handleClose = useCallback(() => {
+        openBottomSheet(false);
+    }, [openBottomSheet]);
 
     return (
         <BaseBottomSheet
-            onClose={() => openBottomSheet(false)}
+            showLogo={showLogo}
+            title={getTitle()}
             showBackButton={mode === 'signup' && step > 1}
-            onBack={handleBackStep}
-            showLogo={true}
+            onBack={mode === 'signup' ? handleBack : undefined}
+            onClose={handleClose}
         >
-            {mode === 'signin' && renderSignin()}
-            {mode === 'signup' && renderSignup()}
-            {mode === 'session' && renderSessionList()}
+            <View style={sharedStyles.container}>
+                {renderContent()}
+            </View>
         </BaseBottomSheet>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        gap: 16,
-    },
-    formWrapper: {
-        flex: 1,
-        width: '100%',
-        alignItems: 'center',
-    },
-    progressWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    buttonContainer: {
-        width: '100%',
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 24,
-        paddingHorizontal: 8,
-    },
-    finalButton: {
-        backgroundColor: colors.primaryColor,
-    },
-    switchModeButton: {
-        marginTop: 16,
-        marginBottom: 8,
-        paddingVertical: 8,
-        alignItems: 'center',
-    },
-    switchModeText: {
-        color: colors.primaryColor,
-        textAlign: 'center',
-    },
-    sessionListContainer: {
-        borderRadius: 16,
-        marginBottom: 8,
-        overflow: 'hidden',
-    },
-    showMoreButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 16,
-        borderRadius: 35,
-        backgroundColor: colors.primaryLight,
-    },
-    showMoreLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    showMoreText: {
-        marginLeft: 12,
-        fontSize: 16,
-        color: colors.COLOR_BLACK,
-    },
-    sessionItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-    },
-    avatar: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-    },
-    sessionInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    sessionName: {
-        fontSize: 14,
-        color: colors.COLOR_BLACK,
-        fontWeight: '500',
-    },
-    sessionEmail: {
-        fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_4,
-    },
-    bottomButtons: {
-        borderRadius: 16,
-        overflow: 'hidden',
-        gap: 4,
-    },
-    addAccountButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_8,
-        backgroundColor: colors.primaryLight,
-    },
-    addAccountText: {
-        marginLeft: 12,
-        fontSize: 16,
-        color: colors.COLOR_BLACK,
-    },
-    signOutButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        backgroundColor: colors.primaryLight,
-    },
-    signOutText: {
-        marginLeft: 12,
-        fontSize: 16,
-        color: colors.COLOR_BLACK,
-    },
-    footer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 16,
-        paddingBottom: 8,
-    },
-    footerText: {
-        fontSize: 12,
-        color: colors.COLOR_BLACK_LIGHT_4,
-    },
-    footerDot: {
-        marginHorizontal: 8,
-        color: colors.COLOR_BLACK_LIGHT_4,
-    },
-    currentSessionContainer: {
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 12,
-    },
-    currentAvatar: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-    },
-    currentSessionInfo: {
-        flex: 1,
-        textAlign: 'center',
-    },
-    currentSessionName: {
-        fontSize: 20,
-        fontWeight: '500',
-        color: colors.COLOR_BLACK,
-        marginBottom: 4,
-        textAlign: 'center',
-    },
-    currentSessionEmail: {
-        fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_4,
-        marginBottom: 16,
-        textAlign: 'center',
-    },
-    manageAccountButton: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        backgroundColor: colors.primaryLight,
-        borderRadius: 35,
-    },
-    manageAccountText: {
-        color: colors.primaryColor,
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    fullWidthButton: {
-        flex: 1,
-        maxWidth: 400,
-        alignSelf: 'center',
-    },
-});

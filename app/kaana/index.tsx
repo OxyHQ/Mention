@@ -17,18 +17,31 @@ const KaanaClientPage = () => {
 
     const [currentPlaceholder, setCurrentPlaceholder] = useState(0);
     const [inputText, setInputText] = useState("");
+    const [inputHeight, setInputHeight] = useState(40);
+
+    // Use Reanimated shared values for better performance
     const opacity = useSharedValue(1);
     const translateY = useSharedValue(0);
-    const [inputHeight, setInputHeight] = useState(40); // Initial height
 
     useEffect(() => {
         const interval = setInterval(() => {
-            opacity.value = withTiming(0, { duration: 1000, easing: Easing.out(Easing.ease) }, () => {
-                translateY.value = withTiming(-20, { duration: 1000, easing: Easing.out(Easing.ease) }, () => {
-                    setCurrentPlaceholder((prev) => (prev + 1) % placeholders.length);
-                    translateY.value = 20;
-                    opacity.value = withTiming(1, { duration: 1000, easing: Easing.out(Easing.ease) });
-                    translateY.value = withTiming(0, { duration: 1000, easing: Easing.out(Easing.ease) });
+            opacity.value = withTiming(0, {
+                duration: 1000,
+                easing: Easing.out(Easing.ease),
+            });
+            translateY.value = withTiming(-20, {
+                duration: 1000,
+                easing: Easing.out(Easing.ease),
+            }, () => {
+                setCurrentPlaceholder((prev) => (prev + 1) % placeholders.length);
+                translateY.value = 20;
+                opacity.value = withTiming(1, {
+                    duration: 1000,
+                    easing: Easing.out(Easing.ease),
+                });
+                translateY.value = withTiming(0, {
+                    duration: 1000,
+                    easing: Easing.out(Easing.ease),
                 });
             });
         }, 5000);
@@ -36,14 +49,12 @@ const KaanaClientPage = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const animatedStyle = useAnimatedStyle(() => {
-        return {
-            opacity: opacity.value,
-            transform: [{ translateY: translateY.value }],
-        };
-    });
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+        transform: [{ translateY: translateY.value }],
+    }));
 
-    const handleTextChange = (text: React.SetStateAction<string>) => {
+    const handleTextChange = (text: string) => {
         setInputText(text);
     };
 

@@ -1,5 +1,14 @@
+/**
+ * Socket.IO Configuration
+ * 
+ * This file contains configuration and helper functions for WebSocket connections.
+ */
+
 import { ManagerOptions, SocketOptions } from 'socket.io-client';
 
+/**
+ * Default socket connection configuration
+ */
 export const SOCKET_CONFIG: Partial<ManagerOptions & SocketOptions> = {
     transports: ['websocket', 'polling'], // Try both WebSocket and polling
     upgrade: true, // Allow transport upgrade
@@ -20,11 +29,17 @@ export const SOCKET_CONFIG: Partial<ManagerOptions & SocketOptions> = {
     }
 };
 
+/**
+ * Socket error interface
+ */
 export interface SocketError extends Error {
     data?: any;
     type?: string;
 }
 
+/**
+ * Checks if an error is authentication-related
+ */
 export const isAuthError = (error: any): boolean => {
     if (!error) return false;
     const message = error.message || error.toString();
@@ -37,6 +52,9 @@ export const isAuthError = (error: any): boolean => {
     );
 };
 
+/**
+ * Calculates exponential backoff delay for reconnection attempts
+ */
 export const getReconnectDelay = (retryCount: number): number => {
     const base = SOCKET_CONFIG.reconnectionDelay || 1000;
     const max = SOCKET_CONFIG.reconnectionDelayMax || 5000;
@@ -44,13 +62,16 @@ export const getReconnectDelay = (retryCount: number): number => {
     return delay;
 };
 
+/**
+ * Debug logger for socket operations
+ */
 export const debug = {
-    log: (...args: any[]) => {
+    log: (...args: any[]): void => {
         if (process.env.NODE_ENV !== 'production') {
             console.log('[Socket]', ...args);
         }
     },
-    error: (...args: any[]) => {
+    error: (...args: any[]): void => {
         console.error('[Socket]', ...args);
     }
 };

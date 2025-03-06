@@ -189,7 +189,7 @@ const VideoFeed: React.FC = () => {
     const handleDoubleTap = () => {
         const now = Date.now();
         if (lastTap && (now - lastTap) < 300) {
-            // Double tap detected
+            // Double tap detected - use native driver for scale animation
             Animated.sequence([
                 Animated.spring(scaleValue, {
                     toValue: 1,
@@ -198,6 +198,7 @@ const VideoFeed: React.FC = () => {
                 Animated.spring(scaleValue, {
                     toValue: 0,
                     useNativeDriver: true,
+                    delay: 500, // Add delay before scaling back down
                 }),
             ]).start();
             setLiked(true);

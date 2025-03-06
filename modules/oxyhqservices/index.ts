@@ -1,19 +1,30 @@
-// Components
-export * from './components/SessionProvider';
-export * from './components/SessionOwnerButton';
-export * from './components/FileSelectorModal';
-export * from './components/FollowButton';
+/**
+ * OxyHQ Services Module
+ * 
+ * This module provides authentication, profile management, file handling, and other
+ * services for interacting with the OxyHQ API.
+ */
 
-// Services
-export * from './services/auth.service';
-export * from './services/profile.service';
-export * from './services/api.service';
-export * from './services/user.service';
-export * from './services/privacy.service';
-export * from './services/OxyClient';
+// Configuration
+export * from './config';
+
+// Constants
+export * from './constants';
+
+// Core Services
+export * from './services';
+
+// Components
+export * from './components';
+
+// Hooks
+export * from './hooks';
 
 // Types
 export * from './types';
 
-// Hooks
-export * from './hooks';
+// Redux Reducers
+export * from './reducers';
+
+// Shared styles
+export * from './styles/shared';

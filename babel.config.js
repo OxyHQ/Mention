@@ -15,7 +15,7 @@ module.exports = function(api) {
         extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       }],
       '@babel/plugin-proposal-export-namespace-from',
-      'react-native-reanimated/plugin',
+      'react-native-reanimated/plugin', // Ensure this is the last plugin
     ],
   };
 };
