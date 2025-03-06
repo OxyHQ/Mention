@@ -4,12 +4,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import api from "@/utils/api";
 import { Loading } from "@/assets/icons/loading-icon";
 import { useTranslation } from "react-i18next";
-import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import Post from "@/components/Post";
 import Avatar from "@/components/Avatar";
 import { colors } from "@/styles/colors";
 import { SafeAreaView } from "react-native-safe-area-context";
+import EmptySearchResultsSvg from '@/assets/images/illustrations/empty_search_results.svg';
 
 type SearchResultType = "all" | "users" | "posts";
 
@@ -127,6 +127,7 @@ const SearchResultsScreen = () => {
 
     const renderEmpty = () => (
         <View style={styles.noResults}>
+            <EmptySearchResultsSvg width={200} height={200} />
             <ThemedText>{t("No results found")}</ThemedText>
         </View>
     );
