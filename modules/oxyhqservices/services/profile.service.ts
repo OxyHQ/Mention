@@ -24,7 +24,7 @@ class ProfileService {
 
   async getProfileByUsername(username: string): Promise<OxyProfile> {
     try {
-      const response = await apiService.get<OxyProfile>(`/users/username/${username}`);
+      const response = await apiService.get<OxyProfile>(`/profiles/username/${username}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching profile by username:', error);

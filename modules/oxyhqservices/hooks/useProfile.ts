@@ -6,11 +6,11 @@ export const useProfile = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getProfile = useCallback(async (username: string) => {
+  const getProfile = useCallback(async (id: string) => {
     try {
       setLoading(true);
       setError(null);
-      return await profileService.getProfileByUsername(username);
+      return await profileService.getProfileById(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch profile');
       return null;
@@ -99,6 +99,20 @@ export const useProfile = () => {
     }
   }, []);
 
+  const getIdByUsername = useCallback(async (username: string): Promise<string | null> => {
+    try {
+      setLoading(true);
+      setError(null);
+      const profile = await profileService.getProfileByUsername(username);
+      return profile?._id || profile?.userID || null;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch user ID by username');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -108,6 +122,7 @@ export const useProfile = () => {
     getFollowing,
     followUser,
     unfollowUser,
-    getFollowingStatus
+    getFollowingStatus,
+    getIdByUsername
   };
 };
