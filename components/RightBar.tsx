@@ -13,8 +13,7 @@ import type { OxyProfile } from '@/modules/oxyhqservices/types'
 import { oxyClient } from '@/modules/oxyhqservices'
 
 export function RightBar() {
-    const isRightBarVisible = useMediaQuery({ minWidth: 990 })
-    const router = useRouter();
+    const isRightBarVisible = useMediaQuery({ minWidth: 990 });
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
     const [loading, setLoading] = useState(false);
