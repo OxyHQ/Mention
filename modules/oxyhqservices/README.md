@@ -28,6 +28,8 @@ This module provides authentication, profile management, file handling, and othe
 - Implemented user activity tracking to prevent premature session expiration
 - Enhanced session restoration with better error recovery
 - Added isAuthenticated flag for easier auth state checking
+- **New SessionSwitcher component for better multi-account support**
+- **Improved SessionOwnerButton with visual indicators for multiple accounts**
 
 ### 4. File Management Enhancements
 - Improved file caching for better performance
@@ -40,6 +42,7 @@ This module provides authentication, profile management, file handling, and othe
 - Improved code organization and modularity
 - Better documentation and comments
 - More consistent coding patterns
+- **Added accessibility attributes to interactive components**
 
 ## Installation
 
@@ -248,3 +251,42 @@ When adding to this module, follow these guidelines:
 ## License
 
 This module is proprietary and part of the Mention application.
+
+### Multi-Account Management
+
+The module now supports multiple active sessions with an improved user interface:
+
+```tsx
+import { SessionOwnerButton, SessionSwitcher } from '@/modules/oxyhqservices';
+
+function Header() {
+  return (
+    <View style={styles.header}>
+      <Logo />
+      <SessionOwnerButton 
+        onSessionChange={() => console.log('Session changed')}
+      />
+    </View>
+  );
+}
+
+// The SessionSwitcher can also be used independently
+function AccountSettings() {
+  const { openBottomSheet, setBottomSheetContent } = useBottomSheet();
+  
+  const handleManageAccounts = () => {
+    setBottomSheetContent(
+      <SessionSwitcher onClose={() => openBottomSheet(false)} />
+    );
+    openBottomSheet(true);
+  };
+  
+  return (
+    <View>
+      <Button onPress={handleManageAccounts}>
+        Manage Accounts
+      </Button>
+    </View>
+  );
+}
+```
