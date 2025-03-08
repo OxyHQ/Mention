@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, Platform, ViewStyle } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, Platform, ViewStyle, ActivityIndicator } from 'react-native';
 import { router, Link } from "expo-router";
 import api from '@/utils/api';
 import { renderMedia, renderPoll, renderLocation } from './renderers';
@@ -17,6 +17,7 @@ import { oxyClient } from '@/modules/oxyhqservices/services/OxyClient';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
 import { Share } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
+import { profileService } from '@/modules/oxyhqservices/services';
 
 interface PollData {
     id: string;
@@ -34,7 +35,7 @@ interface PostProps {
     showActions?: boolean;
 }
 
-// Cache for profile data to avoid unnecessary API calls
+// Global cache for profile data to avoid unnecessary API calls
 const profileCache = new Map<string, OxyProfile>();
 
 export default function Post({ postData, quotedPost, className, style, showActions = true }: PostProps) {
@@ -50,28 +51,62 @@ export default function Post({ postData, quotedPost, className, style, showActio
         // Initialize from cache if available
         return postData.author?.id ? profileCache.get(postData.author.id) || null : null;
     });
+    const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(!authorProfile);
+    const [profileError, setProfileError] = useState<string | null>(null);
     const session = useContext(SessionContext);
 
     const animatedScale = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
         const fetchAuthorProfile = async () => {
-            if (!postData.author?.id) return;
+            // Get author ID from different possible properties
+            const authorId = postData.author?.id || postData.author?._id || postData.author?.userID || postData.userID;
 
-            // Check cache first
-            const cachedProfile = profileCache.get(postData.author.id);
-            if (cachedProfile) {
-                setAuthorProfile(cachedProfile);
+            if (!authorId) {
+                console.error("No author ID available for post:", postData.id);
+                setProfileError("No author ID available");
+                setIsLoadingProfile(false);
                 return;
             }
 
+            // Check cache first
+            const cachedProfile = profileCache.get(authorId);
+            if (cachedProfile) {
+                setAuthorProfile(cachedProfile);
+                setIsLoadingProfile(false);
+                return;
+            }
+
+            setIsLoadingProfile(true);
+            setProfileError(null);
+
             try {
-                const profile = await oxyClient.getProfile(postData.author.id);
+                // Use profileService for more comprehensive profile data
+                const profile = await profileService.getProfileById(authorId);
+
                 // Update cache
-                profileCache.set(postData.author.id, profile);
+                profileCache.set(authorId, profile);
                 setAuthorProfile(profile);
             } catch (error) {
                 console.error('Error fetching author profile:', error);
+                setProfileError("Failed to load profile");
+
+                // Create a fallback profile from available author data
+                if (postData.author) {
+                    const fallbackProfile: OxyProfile = {
+                        userID: authorId,
+                        username: postData.author.username || 'unknown',
+                        email: postData.author.email || '',
+                        name: postData.author.name || undefined,
+                        avatar: postData.author.avatar || undefined
+                    };
+                    setAuthorProfile(fallbackProfile);
+
+                    // Also cache the fallback profile to avoid repeated failed requests
+                    profileCache.set(authorId, fallbackProfile);
+                }
+            } finally {
+                setIsLoadingProfile(false);
             }
         };
 
@@ -79,7 +114,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
         if (!authorProfile) {
             fetchAuthorProfile();
         }
-    }, [postData.author?.id, authorProfile]);
+    }, [postData, authorProfile]);
 
     const handleLike = async () => {
         try {
@@ -204,18 +239,68 @@ export default function Post({ postData, quotedPost, className, style, showActio
         return format(postDate, 'MMM d');
     };
 
+    // Format the author's full name
+    const getAuthorDisplayName = () => {
+        if (!authorProfile) {
+            // Try to get name from postData.author if authorProfile is not available
+            if (postData.author?.name?.first) {
+                return `${postData.author.name.first} ${postData.author.name.last || ''}`.trim();
+            }
+            if (postData.author?.username) {
+                return postData.author.username;
+            }
+            return 'Unknown';
+        }
+
+        if (authorProfile.name?.first) {
+            return `${authorProfile.name.first} ${authorProfile.name.last || ''}`.trim();
+        }
+
+        return authorProfile.username;
+    };
+
+    // Get author's username for profile links
+    const getAuthorUsername = () => {
+        if (authorProfile?.username) {
+            return authorProfile.username;
+        }
+
+        // Try to get username from postData.author if authorProfile is not available
+        if (postData.author?.username) {
+            return postData.author.username;
+        }
+
+        return 'unknown';
+    };
+
+    // Check if user has premium status
+    const isPremiumUser = () => {
+        return authorProfile?.premium?.isPremium || false;
+    };
+
+    // Get premium tier if available
+    const getPremiumTier = () => {
+        return authorProfile?.premium?.subscriptionTier || null;
+    };
+
     return (
         <View className={`bg-white border-b border-gray-100 ${className}`} style={style}>
             {postData.repost_of && (
                 <View className="flex-row items-center px-3 mb-2">
                     <RepostIcon size={16} color="#536471" />
-                    <Text className="text-gray-500 ml-2">{authorProfile?.name?.first || authorProfile?.username} Reposted</Text>
+                    <Text className="text-gray-500 ml-2">{getAuthorDisplayName()} Reposted</Text>
                 </View>
             )}
             <View className="flex-row gap-2.5 px-3 items-start">
-                <Link href={`/@${authorProfile?.username}`} asChild>
+                <Link href={`/@${getAuthorUsername()}`} asChild>
                     <TouchableOpacity onPress={(e) => e.stopPropagation()}>
-                        <Avatar id={authorProfile?.avatar} size={40} />
+                        {isLoadingProfile ? (
+                            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }}>
+                                <ActivityIndicator size="small" color={colors.primaryColor} />
+                            </View>
+                        ) : (
+                            <Avatar id={authorProfile?.avatar} size={40} />
+                        )}
                     </TouchableOpacity>
                 </Link>
                 <View className="flex-1">
@@ -223,26 +308,38 @@ export default function Post({ postData, quotedPost, className, style, showActio
                         <TouchableOpacity className="flex-1" activeOpacity={0.7}>
                             <View className="flex-row items-center">
                                 <View className="flex-row items-center flex-1 gap-1">
-                                    <Link href={`/@${authorProfile?.username}`} asChild>
+                                    <Link href={`/@${getAuthorUsername()}`} asChild>
                                         <TouchableOpacity>
                                             <Text className="font-bold">
-                                                {authorProfile?.name?.first 
-                                                    ? `${authorProfile.name.first} ${authorProfile.name.last || ''}`
-                                                    : authorProfile?.username}
+                                                {isLoadingProfile ? 'Loading...' : getAuthorDisplayName()}
                                             </Text>
                                         </TouchableOpacity>
                                     </Link>
+                                    {authorProfile?.labels && authorProfile.labels.includes('verified') && (
+                                        <Ionicons name="checkmark-circle" size={16} color={colors.primaryColor} />
+                                    )}
+                                    {isPremiumUser() && (
+                                        <Ionicons name="star" size={14} color="#FFD700" />
+                                    )}
                                     <Text className="text-gray-500">·</Text>
                                     <Text className="text-gray-500">{formatTimeAgo(postData.created_at)}</Text>
                                 </View>
                             </View>
+                            {!isLoadingProfile && authorProfile?.username && (
+                                <View className="flex-row items-center">
+                                    <Text className="text-gray-500 text-sm">@{authorProfile.username}</Text>
+                                    {authorProfile.location && (
+                                        <Text className="text-gray-500 text-sm ml-2">· {authorProfile.location}</Text>
+                                    )}
+                                </View>
+                            )}
                             <Text className="text-black text-base mt-1">{postData.text}</Text>
                             {postData.media && renderMedia(postData.media)}
                             {poll && renderPoll(poll, selectedOption, handlePollOptionPress)}
                             {typeof postData.location === 'string' && renderLocation(postData.location)}
                             {quotedPost && (
                                 <View className="mt-3 border border-gray-200 rounded-xl p-3">
-                                    <Post postData={quotedPost} showActions={false} />
+                                    {quotedPost && <Post postData={quotedPost} showActions={false} />}
                                 </View>
                             )}
                         </TouchableOpacity>

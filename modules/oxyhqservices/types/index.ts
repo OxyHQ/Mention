@@ -74,6 +74,46 @@ export interface OxyProfile {
   };
   createdAt?: string;
   updatedAt?: string;
+  premium?: {
+    isPremium: boolean;
+    subscriptionStatus?: string;
+    subscriptionTier?: string;
+    startDate?: string;
+    endDate?: string;
+    features?: {
+      analyticsSharing?: boolean;
+      customThemes?: boolean;
+      prioritySupport?: boolean;
+      maxProjects?: number;
+      storageLimit?: number;
+      [key: string]: any;
+    };
+    paymentHistory?: Array<{
+      transactionId: string;
+      amount: number;
+      date: string;
+      status: string;
+      provider: string;
+      plan: string;
+    }>;
+  };
+  stats?: {
+    followers: number;
+    following: number;
+    posts: number;
+    karma: number;
+  };
+  associated?: {
+    feedgens?: number;
+    labeler?: boolean;
+    lists?: number;
+    starterPacks?: number;
+    [key: string]: any;
+  };
+  bookmarks?: string[];
+  followers?: any[];
+  following?: any[];
+  pinnedPosts?: any[];
 }
 
 /**

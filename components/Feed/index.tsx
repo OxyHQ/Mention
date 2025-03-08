@@ -10,7 +10,7 @@ import { FlashList } from "@shopify/flash-list";
 import { feedService, FeedType } from "@/services/feedService";
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { SOCKET_URL } from "@/config";
-import { oxyClient } from '@/modules/oxyhqservices/services/OxyClient';
+import { profileService } from '@/modules/oxyhqservices/services';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
 
 // Use the same profile cache across components
@@ -68,13 +68,45 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
         socket.current.on('newPost', async (data: { post: IPost }) => {
             console.log('Received new post:', data);
             try {
-                if (data.post.author?.id) {
-                    const profile = await oxyClient.getProfile(data.post.author.id);
-                    data.post.author = {
-                        ...data.post.author,
-                        ...profile
-                    };
+                // Get author ID from different possible properties
+                const authorId = data.post.author?.id || data.post.author?._id || data.post.author?.userID || data.post.userID;
+
+                if (authorId) {
+                    // Check cache first
+                    let profile = global.profileCache.get(authorId);
+
+                    if (!profile) {
+                        try {
+                            // Use profileService for more comprehensive profile data
+                            profile = await profileService.getProfileById(authorId);
+                            // Update cache
+                            global.profileCache.set(authorId, profile);
+                        } catch (error) {
+                            console.error('Error fetching post author profile:', error);
+
+                            // Create a fallback profile from available author data
+                            if (data.post.author) {
+                                profile = {
+                                    userID: authorId,
+                                    username: data.post.author.username || 'unknown',
+                                    email: data.post.author.email || '',
+                                    name: data.post.author.name || undefined,
+                                    avatar: data.post.author.avatar || undefined
+                                };
+                                // Cache the fallback profile
+                                global.profileCache.set(authorId, profile);
+                            }
+                        }
+                    }
+
+                    if (profile) {
+                        data.post.author = {
+                            ...data.post.author,
+                            ...profile
+                        };
+                    }
                 }
+
                 setPosts(prevPosts => {
                     const exists = prevPosts.some(post => post.id === data.post.id);
                     if (!exists) {
@@ -83,7 +115,7 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
                     return prevPosts;
                 });
             } catch (error) {
-                console.error('Error fetching post author profile:', error);
+                console.error('Error processing new post:', error);
             }
         });
 
@@ -161,27 +193,49 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
             // Fetch and cache author profiles for each post
             const postsWithProfiles = await Promise.all(
                 response.posts.map(async (post) => {
-                    if (post.author?.id) {
+                    // Get author ID from different possible properties
+                    const authorId = post.author?.id || post.author?._id || post.author?.userID || post.userID;
+
+                    if (authorId) {
                         try {
                             // Check cache first
-                            let profile = global.profileCache.get(post.author.id);
-                            
+                            let profile = global.profileCache.get(authorId);
+
                             if (!profile) {
-                                profile = await oxyClient.getProfile(post.author.id);
-                                // Update cache
-                                global.profileCache.set(post.author.id, profile);
-                            }
-                            
-                            return {
-                                ...post,
-                                author: {
-                                    ...post.author,
-                                    ...profile
+                                // Use profileService for more comprehensive profile data
+                                try {
+                                    profile = await profileService.getProfileById(authorId);
+                                    // Update cache
+                                    global.profileCache.set(authorId, profile);
+                                } catch (error) {
+                                    console.error('Error fetching post author profile:', error);
+
+                                    // Create a fallback profile from available author data
+                                    if (post.author) {
+                                        profile = {
+                                            userID: authorId,
+                                            username: post.author.username || 'unknown',
+                                            email: post.author.email || '',
+                                            name: post.author.name || undefined,
+                                            avatar: post.author.avatar || undefined
+                                        };
+                                        // Cache the fallback profile
+                                        global.profileCache.set(authorId, profile);
+                                    }
                                 }
-                            };
+                            }
+
+                            if (profile) {
+                                return {
+                                    ...post,
+                                    author: {
+                                        ...post.author,
+                                        ...profile
+                                    }
+                                };
+                            }
                         } catch (error) {
-                            console.error('Error fetching post author profile:', error);
-                            return post;
+                            console.error('Error processing post author profile:', error);
                         }
                     }
                     return post;

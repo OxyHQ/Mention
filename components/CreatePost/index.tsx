@@ -23,7 +23,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
 import Avatar from '../Avatar';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
-import { profileService } from '@/modules/oxyhqservices';
+import { profileService } from '@/modules/oxyhqservices/services';
 import { AppDispatch } from '@/store/store';
 import type { Post } from '@/interfaces/Post';
 import { OXY_CLOUD_URL } from '@/modules/oxyhqservices/config';
@@ -97,7 +97,7 @@ export const CreatePost: React.FC<Props> = ({
         const loadProfile = async () => {
             if (!currentUserId) return;
             try {
-                const profileData = await oxyClient.getProfile(currentUserId);
+                const profileData = await profileService.getProfileById(currentUserId);
                 setProfile(profileData);
             } catch (error) {
                 console.error('Error loading profile:', error);
