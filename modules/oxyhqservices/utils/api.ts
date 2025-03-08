@@ -405,6 +405,49 @@ export const login = async (username: string, password: string) => {
   }
 };
 
+// Centralized error handling
+const handleApiError = (error: any, context: string): Error => {
+  let errorMessage = 'An unknown error occurred';
+  let statusCode = 0;
+  let errorData: any = null;
+  
+  if (axios.isAxiosError(error)) {
+    statusCode = error.response?.status || 0;
+    errorData = error.response?.data;
+    
+    if (errorData && typeof errorData === 'object' && 'message' in errorData) {
+      errorMessage = errorData.message as string;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // Log detailed error information
+    console.error(`[API Error][${context}]`, {
+      status: statusCode,
+      message: errorMessage,
+      data: errorData,
+      url: error.config?.url,
+      method: error.config?.method
+    });
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+    console.error(`[API Error][${context}]`, {
+      message: errorMessage,
+      stack: error.stack
+    });
+  } else {
+    console.error(`[API Error][${context}]`, error);
+  }
+  
+  // Create a standardized error object
+  const enhancedError = new Error(errorMessage);
+  (enhancedError as any).statusCode = statusCode;
+  (enhancedError as any).data = errorData;
+  (enhancedError as any).context = context;
+  
+  return enhancedError;
+};
+
 export const refreshAccessToken = async () => {
   try {
     const refreshToken = await getSecureData<string>(STORAGE_KEYS.REFRESH_TOKEN);
@@ -434,15 +477,7 @@ export const refreshAccessToken = async () => {
       throw new Error('Invalid token refresh response');
     }
   } catch (error) {
-    console.error('[API] Token refresh failed:', error);
-    
-    // Clear tokens on refresh failure
-    await Promise.all([
-      storeSecureData(STORAGE_KEYS.ACCESS_TOKEN, null),
-      storeSecureData(STORAGE_KEYS.REFRESH_TOKEN, null)
-    ]);
-    
-    throw error;
+    throw handleApiError(error, 'refreshAccessToken');
   }
 };
 

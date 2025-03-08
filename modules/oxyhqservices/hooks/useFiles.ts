@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useContext } from 'react';
+import { useState, useCallback, useRef, useEffect, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import * as ImagePicker from "expo-image-picker";
@@ -31,10 +31,26 @@ const globalFileCache = new Map<string, {
 // Cache expiration time (5 minutes)
 const CACHE_EXPIRATION = 5 * 60 * 1000;
 
+// Error handling utility
+const handleFileError = (error: any, t: any, context: string): void => {
+  console.error(`[Files][${context}] Error:`, error);
+  
+  let errorMessage = t("An error occurred");
+  
+  if (error?.response?.data?.message) {
+    errorMessage = error.response.data.message;
+  } else if (error?.message) {
+    errorMessage = error.message;
+  }
+  
+  toast.error(errorMessage);
+};
+
 export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFilesOptions = {}) {
     const [files, setFiles] = useState<FileType[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const { t } = useTranslation();
     const sessionContext = useContext(SessionContext);
     
@@ -43,6 +59,12 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
     
     // Use a ref to track the current user ID for cleanup
     const currentUserIdRef = useRef<string | undefined>(userId);
+    
+    // Memoize the effective user ID
+    const effectiveUserId = useMemo(() => 
+      userId || sessionContext?.getCurrentUserId() || undefined, 
+      [userId, sessionContext]
+    );
     
     // Update the ref when userId changes
     useEffect(() => {
@@ -58,8 +80,23 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
         };
     }, []);
 
+    // Generate cache key based on user ID and file type filter
+    const getCacheKey = useCallback((uid: string) => 
+      `${uid}-${fileTypeFilter.join(',')}`, 
+      [fileTypeFilter]
+    );
+
     const fetchFiles = useCallback(async (forceRefresh = false) => {
+        if (!effectiveUserId) {
+            console.warn('[Files] No user ID available');
+            setFiles([]);
+            setLoading(false);
+            setError("User not authenticated");
+            return;
+        }
+
         try {
+            setError(null);
             const accessToken = await getSecureData<string>(STORAGE_KEYS.ACCESS_TOKEN);
             const refreshToken = await getSecureData<string>(STORAGE_KEYS.REFRESH_TOKEN);
             
@@ -67,20 +104,12 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                 console.warn('[Files] Missing auth tokens');
                 setFiles([]);
                 setLoading(false);
-                return;
-            }
-
-            // Get current user ID from session context if not provided
-            const effectiveUserId = userId || sessionContext?.getCurrentUserId();
-            if (!effectiveUserId) {
-                console.warn('[Files] No user ID available');
-                setFiles([]);
-                setLoading(false);
+                setError("Authentication required");
                 return;
             }
 
             // Check cache first
-            const cacheKey = `${effectiveUserId}-${fileTypeFilter.join(',')}`;
+            const cacheKey = getCacheKey(effectiveUserId);
             const cachedData = globalFileCache.get(cacheKey);
             const now = Date.now();
             
@@ -112,6 +141,7 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                     console.error('[Files] Token refresh failed:', refreshError);
                     setFiles([]);
                     setLoading(false);
+                    setError("Session expired");
                     return;
                 }
             }
@@ -129,14 +159,22 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                 );
             }
             
+            // Sort files by upload date (newest first)
+            fetchedFiles.sort((a: FileType, b: FileType) => {
+                const dateA = a.uploadDate || '';
+                const dateB = b.uploadDate || '';
+                return new Date(dateB).getTime() - new Date(dateA).getTime();
+            });
+            
             globalFileCache.set(cacheKey, {
                 files: fetchedFiles,
                 timestamp: now,
                 userId: effectiveUserId
             });
             
-            if (currentUserIdRef.current === effectiveUserId) {
+            if (currentUserIdRef.current === userId) {
                 setFiles(fetchedFiles);
+                setError(null);
             }
         } catch (error: any) {
             if (error.name === 'AbortError') {
@@ -144,34 +182,29 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                 return;
             }
             
-            console.error("[Files] Fetch error:", {
-                userId,
-                error: error?.response?.data || error.message,
-                status: error?.response?.status
-            });
-            
+            handleFileError(error, t, 'fetchFiles');
             setFiles([]);
-            toast.error(error?.response?.data?.message || t("Error fetching files"));
+            setError(error?.response?.data?.message || t("Error fetching files"));
         } finally {
             if (currentUserIdRef.current === userId) {
                 setLoading(false);
             }
         }
-    }, [userId, fileTypeFilter, t, sessionContext]);
+    }, [effectiveUserId, fileTypeFilter, t, getCacheKey, userId]);
 
     const uploadFiles = useCallback(async () => {
-        // Get current user ID from session context if not provided
-        const effectiveUserId = userId || sessionContext?.getCurrentUserId() || undefined;
-        
         if (!effectiveUserId) {
             toast.error(t("User not authenticated"));
+            setError("User not authenticated");
             return;
         }
 
         try {
+            setError(null);
             const accessToken = await getSecureData<string>(STORAGE_KEYS.ACCESS_TOKEN);
             if (!accessToken) {
                 toast.error(t("Authentication required"));
+                setError("Authentication required");
                 return;
             }
 
@@ -224,6 +257,7 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                         console.error('Error processing file:', error);
                         toast.error(t("Error processing file"));
                         setUploading(false);
+                        setError("Error processing file");
                         return;
                     }
                 }
@@ -245,51 +279,62 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
                     toast.success(t("Files uploaded successfully"));
                     
                     // Invalidate cache for this user
-                    const cacheKeysToInvalidate = Array.from(globalFileCache.keys())
-                        .filter(key => key.startsWith(`${effectiveUserId}-`));
+                    const cacheKey = getCacheKey(effectiveUserId);
+                    globalFileCache.delete(cacheKey);
                     
-                    cacheKeysToInvalidate.forEach(key => globalFileCache.delete(key));
-                    
-                    // Force refresh files
+                    // Refresh files list
                     await fetchFiles(true);
+                    setError(null);
                 }
             }
-        } catch (error: any) {
-            console.error("Upload error:", error);
-            toast.error(error?.response?.data?.message || t("Error uploading files"));
+        } catch (error) {
+            handleFileError(error, t, 'uploadFiles');
+            setError(error?.response?.data?.message || t("Error uploading files"));
         } finally {
             setUploading(false);
         }
-    }, [userId, fileTypeFilter, t, fetchFiles, maxFiles, sessionContext]);
+    }, [effectiveUserId, fileTypeFilter, maxFiles, t, fetchFiles, getCacheKey]);
 
     const deleteFile = useCallback(async (fileId: string) => {
-        try {
-            await api.delete(`/files/${fileId}`);
-            toast.success(t("File deleted successfully"));
-            
-            // Update all caches that might contain this file
-            globalFileCache.forEach((cacheEntry, key) => {
-                const updatedFiles = cacheEntry.files.filter(file => file._id !== fileId);
-                if (updatedFiles.length !== cacheEntry.files.length) {
-                    globalFileCache.set(key, {
-                        ...cacheEntry,
-                        files: updatedFiles
-                    });
-                }
-            });
-            
-            // Update local state
-            setFiles(prevFiles => prevFiles.filter(file => file._id !== fileId));
-        } catch (error: any) {
-            console.error("Delete error:", error);
-            toast.error(error?.response?.data?.message || t("Error deleting file"));
+        if (!fileId) {
+            toast.error(t("Invalid file ID"));
+            return;
         }
-    }, [t]);
+
+        try {
+            setError(null);
+            const response = await api.delete(`/files/${fileId}`);
+            
+            if (response.data?.success) {
+                toast.success(t("File deleted successfully"));
+                
+                // Update local state
+                setFiles(prevFiles => prevFiles.filter(file => file._id !== fileId));
+                
+                // Invalidate cache for this user
+                if (effectiveUserId) {
+                    const cacheKey = getCacheKey(effectiveUserId);
+                    globalFileCache.delete(cacheKey);
+                }
+            }
+        } catch (error) {
+            handleFileError(error, t, 'deleteFile');
+            setError(error?.response?.data?.message || t("Error deleting file"));
+        }
+    }, [effectiveUserId, t, getCacheKey]);
+
+    // Load files on mount and when dependencies change
+    useEffect(() => {
+        if (effectiveUserId) {
+            fetchFiles();
+        }
+    }, [effectiveUserId, fetchFiles]);
 
     return {
         files,
         loading,
         uploading,
+        error,
         fetchFiles,
         uploadFiles,
         deleteFile
