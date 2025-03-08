@@ -1,10 +1,11 @@
 import { io, Socket } from 'socket.io-client';
-import { getData } from './storage';
-import { API_URL_SOCKET } from "@/config";
+import { getData, getSecureData } from './storage';
+import { OXY_API_CONFIG } from "../config";
 import { toast } from 'sonner';
 import { SOCKET_CONFIG, getReconnectDelay, debug, isAuthError } from './socketConfig';
+import { STORAGE_KEYS } from '../constants';
 
-const SOCKET_URL = API_URL_SOCKET || "ws://localhost:3000";
+const SOCKET_URL = OXY_API_CONFIG.BASE_URL || "ws://localhost:3000";
 let socket: Socket | null = null;
 let retryCount = 0;
 let tokenRefreshTimeout: NodeJS.Timeout | null = null;
@@ -12,7 +13,7 @@ let transportFallbackAttempted = false;
 
 const refreshSocketToken = async (socket: Socket) => {
   try {
-    const newToken = await getData('accessToken');
+    const newToken = await getSecureData<string>(STORAGE_KEYS.ACCESS_TOKEN);
     if (!newToken) throw new Error('No access token available');
     
     if (socket) {
@@ -49,7 +50,7 @@ const attemptTransportFallback = (socket: Socket | null) => {
 export const getSocket = async (namespace?: string) => {
   if (!socket) {
     try {
-      const accessToken = await getData('accessToken');
+      const accessToken = await getSecureData<string>(STORAGE_KEYS.ACCESS_TOKEN);
       if (!accessToken) {
         debug.error('No access token available for socket connection');
         return null;

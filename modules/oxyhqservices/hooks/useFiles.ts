@@ -1,17 +1,18 @@
 import { useState, useCallback, useRef, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from '@/lib/sonner';
+import { toast } from 'sonner';
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from 'expo-document-picker';
 import { Platform } from 'react-native';
 import api, { validateSession } from '../utils/api';
-import { getData } from '@/utils/storage';
+import { getData, getSecureData } from '../utils/storage';
 import { DocumentPickerAsset } from 'expo-document-picker';
 import { ImagePickerAsset } from 'expo-image-picker';
 import { jwtDecode } from 'jwt-decode';
-import { refreshAccessToken } from '@/modules/oxyhqservices/utils/api';
+import { refreshAccessToken } from '../utils/api';
 import { SessionContext } from '../components/SessionProvider';
 import { FileType, UseFilesOptions } from '../components/FileSelectorModal/types';
+import { STORAGE_KEYS } from '../constants';
 
 interface JwtPayload {
     id: string;
@@ -59,8 +60,8 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
 
     const fetchFiles = useCallback(async (forceRefresh = false) => {
         try {
-            const accessToken = await getData('accessToken');
-            const refreshToken = await getData('refreshToken');
+            const accessToken = await getSecureData<string>(STORAGE_KEYS.ACCESS_TOKEN);
+            const refreshToken = await getSecureData<string>(STORAGE_KEYS.REFRESH_TOKEN);
             
             if (!accessToken || !refreshToken) {
                 console.warn('[Files] Missing auth tokens');
@@ -168,7 +169,7 @@ export function useFiles({ fileTypeFilter = [], maxFiles = 5, userId }: UseFiles
         }
 
         try {
-            const accessToken = await getData('accessToken');
+            const accessToken = await getSecureData<string>(STORAGE_KEYS.ACCESS_TOKEN);
             if (!accessToken) {
                 toast.error(t("Authentication required"));
                 return;

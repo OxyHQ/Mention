@@ -68,45 +68,22 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
         socket.current.on('newPost', async (data: { post: IPost }) => {
             console.log('Received new post:', data);
             try {
-                // Get author ID from different possible properties
-                const authorId = data.post.author?.id || data.post.author?._id || data.post.author?.userID || data.post.userID;
-
-                if (authorId) {
+                if (data.post.author?.id) {
                     // Check cache first
-                    let profile = global.profileCache.get(authorId);
+                    let profile = global.profileCache.get(data.post.author.id);
 
                     if (!profile) {
-                        try {
-                            // Use profileService for more comprehensive profile data
-                            profile = await profileService.getProfileById(authorId);
-                            // Update cache
-                            global.profileCache.set(authorId, profile);
-                        } catch (error) {
-                            console.error('Error fetching post author profile:', error);
-
-                            // Create a fallback profile from available author data
-                            if (data.post.author) {
-                                profile = {
-                                    userID: authorId,
-                                    username: data.post.author.username || 'unknown',
-                                    email: data.post.author.email || '',
-                                    name: data.post.author.name || undefined,
-                                    avatar: data.post.author.avatar || undefined
-                                };
-                                // Cache the fallback profile
-                                global.profileCache.set(authorId, profile);
-                            }
-                        }
+                        // Use profileService for more comprehensive profile data
+                        profile = await profileService.getProfileById(data.post.author.id);
+                        // Update cache
+                        global.profileCache.set(data.post.author.id, profile);
                     }
 
-                    if (profile) {
-                        data.post.author = {
-                            ...data.post.author,
-                            ...profile
-                        };
-                    }
+                    data.post.author = {
+                        ...data.post.author,
+                        ...profile
+                    };
                 }
-
                 setPosts(prevPosts => {
                     const exists = prevPosts.some(post => post.id === data.post.id);
                     if (!exists) {
@@ -115,7 +92,7 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
                     return prevPosts;
                 });
             } catch (error) {
-                console.error('Error processing new post:', error);
+                console.error('Error fetching post author profile:', error);
             }
         });
 
@@ -193,49 +170,28 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
             // Fetch and cache author profiles for each post
             const postsWithProfiles = await Promise.all(
                 response.posts.map(async (post) => {
-                    // Get author ID from different possible properties
-                    const authorId = post.author?.id || post.author?._id || post.author?.userID || post.userID;
-
-                    if (authorId) {
+                    if (post.author?.id) {
                         try {
                             // Check cache first
-                            let profile = global.profileCache.get(authorId);
+                            let profile = global.profileCache.get(post.author.id);
 
                             if (!profile) {
                                 // Use profileService for more comprehensive profile data
-                                try {
-                                    profile = await profileService.getProfileById(authorId);
-                                    // Update cache
-                                    global.profileCache.set(authorId, profile);
-                                } catch (error) {
-                                    console.error('Error fetching post author profile:', error);
+                                profile = await profileService.getProfileById(post.author.id);
+                                // Update cache
+                                global.profileCache.set(post.author.id, profile);
+                            }
 
-                                    // Create a fallback profile from available author data
-                                    if (post.author) {
-                                        profile = {
-                                            userID: authorId,
-                                            username: post.author.username || 'unknown',
-                                            email: post.author.email || '',
-                                            name: post.author.name || undefined,
-                                            avatar: post.author.avatar || undefined
-                                        };
-                                        // Cache the fallback profile
-                                        global.profileCache.set(authorId, profile);
-                                    }
+                            return {
+                                ...post,
+                                author: {
+                                    ...post.author,
+                                    ...profile
                                 }
-                            }
-
-                            if (profile) {
-                                return {
-                                    ...post,
-                                    author: {
-                                        ...post.author,
-                                        ...profile
-                                    }
-                                };
-                            }
+                            };
                         } catch (error) {
-                            console.error('Error processing post author profile:', error);
+                            console.error('Error fetching post author profile:', error);
+                            return post;
                         }
                     }
                     return post;

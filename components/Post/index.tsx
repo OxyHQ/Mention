@@ -59,18 +59,14 @@ export default function Post({ postData, quotedPost, className, style, showActio
 
     useEffect(() => {
         const fetchAuthorProfile = async () => {
-            // Get author ID from different possible properties
-            const authorId = postData.author?.id || postData.author?._id || postData.author?.userID || postData.userID;
-
-            if (!authorId) {
-                console.error("No author ID available for post:", postData.id);
+            if (!postData.author?.id) {
                 setProfileError("No author ID available");
                 setIsLoadingProfile(false);
                 return;
             }
 
             // Check cache first
-            const cachedProfile = profileCache.get(authorId);
+            const cachedProfile = profileCache.get(postData.author.id);
             if (cachedProfile) {
                 setAuthorProfile(cachedProfile);
                 setIsLoadingProfile(false);
@@ -82,29 +78,14 @@ export default function Post({ postData, quotedPost, className, style, showActio
 
             try {
                 // Use profileService for more comprehensive profile data
-                const profile = await profileService.getProfileById(authorId);
+                const profile = await profileService.getProfileById(postData.author.id);
 
                 // Update cache
-                profileCache.set(authorId, profile);
+                profileCache.set(postData.author.id, profile);
                 setAuthorProfile(profile);
             } catch (error) {
                 console.error('Error fetching author profile:', error);
                 setProfileError("Failed to load profile");
-
-                // Create a fallback profile from available author data
-                if (postData.author) {
-                    const fallbackProfile: OxyProfile = {
-                        userID: authorId,
-                        username: postData.author.username || 'unknown',
-                        email: postData.author.email || '',
-                        name: postData.author.name || undefined,
-                        avatar: postData.author.avatar || undefined
-                    };
-                    setAuthorProfile(fallbackProfile);
-
-                    // Also cache the fallback profile to avoid repeated failed requests
-                    profileCache.set(authorId, fallbackProfile);
-                }
             } finally {
                 setIsLoadingProfile(false);
             }
@@ -114,7 +95,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
         if (!authorProfile) {
             fetchAuthorProfile();
         }
-    }, [postData, authorProfile]);
+    }, [postData.author?.id, authorProfile]);
 
     const handleLike = async () => {
         try {
@@ -241,16 +222,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
 
     // Format the author's full name
     const getAuthorDisplayName = () => {
-        if (!authorProfile) {
-            // Try to get name from postData.author if authorProfile is not available
-            if (postData.author?.name?.first) {
-                return `${postData.author.name.first} ${postData.author.name.last || ''}`.trim();
-            }
-            if (postData.author?.username) {
-                return postData.author.username;
-            }
-            return 'Unknown';
-        }
+        if (!authorProfile) return 'Unknown';
 
         if (authorProfile.name?.first) {
             return `${authorProfile.name.first} ${authorProfile.name.last || ''}`.trim();
@@ -261,16 +233,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
 
     // Get author's username for profile links
     const getAuthorUsername = () => {
-        if (authorProfile?.username) {
-            return authorProfile.username;
-        }
-
-        // Try to get username from postData.author if authorProfile is not available
-        if (postData.author?.username) {
-            return postData.author.username;
-        }
-
-        return 'unknown';
+        return authorProfile?.username || 'unknown';
     };
 
     // Check if user has premium status

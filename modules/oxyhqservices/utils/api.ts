@@ -1,10 +1,10 @@
 import axios, { AxiosError } from "axios";
 import { toast } from "sonner";
-import { getData, storeData } from './storage';
+import { getData, storeData, getSecureData, storeSecureData } from './storage';
 import { router } from 'expo-router';
 import { getSocket, disconnectSocket } from './socket';
 import { API_URL_OXY } from "../config";
-import { showAuthBottomSheet } from '@/utils/auth';
+import { STORAGE_KEYS } from '../constants';
 
 // Retry configuration
 const MAX_RETRIES = 3;
@@ -125,7 +125,7 @@ const notifyAuthEvent = () => {
 // Enhanced request interceptor without unsafe headers
 api.interceptors.request.use(
   async (config) => {
-    const accessToken = await getData('accessToken');
+    const accessToken = await getSecureData<string>(STORAGE_KEYS.ACCESS_TOKEN);
     if (accessToken) {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${accessToken}`;
@@ -259,23 +259,15 @@ const processBatchQueue = async () => {
 // Enhanced fetch with caching
 export const fetchData = async (endpoint: string, options: { params?: Record<string, any> } & RequestInit = {}) => {
   try {
-    const accessToken = await getData('accessToken');
-    if (!accessToken) {
-      console.warn('[API] No access token found for:', endpoint);
-      await forceLogout();
-      throw new Error('No access token available');
-    }
+    const cacheKey = getCacheKey(endpoint, options);
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
 
-    // Add token validation before making request
-    const isValid = await validateSession().catch(() => false);
-    if (!isValid) {
-      console.warn('[API] Session invalid, attempting token refresh');
-      try {
-        await refreshAccessToken();
-      } catch (error) {
-        await forceLogout();
-        throw error;
-      }
+    const accessToken = await getSecureData<string>(STORAGE_KEYS.ACCESS_TOKEN);
+    const headers = new Headers(options.headers);
+    
+    if (accessToken) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
     }
 
     // Handle query parameters
@@ -283,19 +275,11 @@ export const fetchData = async (endpoint: string, options: { params?: Record<str
     const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
     const url = `${API_URL_OXY}/${endpoint}${queryString}`;
 
-    // Check cache before making request
-    const cacheKey = getCacheKey(endpoint, options);
-    const cachedData = getCache(cacheKey);
-    if (cachedData) {
-      return cachedData;
-    }
-
     const response = await fetch(url, {
       ...fetchOptions,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-        ...options.headers,
+        ...headers,
       },
     });
 
@@ -423,123 +407,104 @@ export const login = async (username: string, password: string) => {
 
 export const refreshAccessToken = async () => {
   try {
-    const refreshToken = await getData('refreshToken');
+    const refreshToken = await getSecureData<string>(STORAGE_KEYS.REFRESH_TOKEN);
     if (!refreshToken) {
+      console.error('[API] No refresh token available');
       throw new Error('No refresh token available');
     }
-    
-    console.debug('[API] Attempting to refresh token');
-    
-    // Create a new axios instance for refresh to avoid interceptors
-    const refreshApi = axios.create({
-      baseURL: API_URL_OXY,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
 
-    const response = await refreshApi.post('/auth/refresh', { refreshToken });
-
-    if (response.data.accessToken && response.data.refreshToken) {
+    console.debug('[API] Attempting token refresh');
+    
+    // Use a direct axios call to avoid interceptors
+    const response = await axios.post(`${API_URL_OXY}/auth/refresh`, { refreshToken });
+    
+    if (response.data.accessToken) {
       console.debug('[API] Token refresh successful');
+      
+      // Store the new tokens
       await Promise.all([
-        storeData('accessToken', response.data.accessToken),
-        storeData('refreshToken', response.data.refreshToken)
+        storeSecureData(STORAGE_KEYS.ACCESS_TOKEN, response.data.accessToken),
+        response.data.refreshToken ? 
+          storeSecureData(STORAGE_KEYS.REFRESH_TOKEN, response.data.refreshToken) : 
+          Promise.resolve()
       ]);
+      
       return response.data.accessToken;
+    } else {
+      throw new Error('Invalid token refresh response');
     }
-    throw new Error('Invalid token refresh response');
-  } catch (error: any) {
-    console.error('[API] Token refresh failed:', error.response?.data || error.message);
-    // Clear tokens and redirect only on specific errors
-    if (error.response?.status === 401 || 
-        error.response?.data?.message?.includes('invalid') ||
-        error.response?.data?.message?.includes('expired')) {
-      await Promise.all([
-        storeData('accessToken', null),
-        storeData('refreshToken', null),
-        storeData('session', null),
-        storeData('user', null)
-      ]);
-      notifyAuthEvent();
-      throw new Error('Session expired. Please log in again.');
-    }
+  } catch (error) {
+    console.error('[API] Token refresh failed:', error);
+    
+    // Clear tokens on refresh failure
+    await Promise.all([
+      storeSecureData(STORAGE_KEYS.ACCESS_TOKEN, null),
+      storeSecureData(STORAGE_KEYS.REFRESH_TOKEN, null)
+    ]);
+    
     throw error;
   }
 };
 
 export const logout = async () => {
   try {
-    const refreshToken = await getData('refreshToken');
-    if (refreshToken) {
-      // Try to logout on server
-      await api.post(`/auth/logout`, { refreshToken }).catch(console.error);
+    // Try to call the logout endpoint
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.warn('[API] Server logout failed:', error);
+      // Continue with local logout even if server call fails
     }
     
-    // Clear all auth-related data regardless of server response
+    // Clear all tokens and session data
     await Promise.all([
-      storeData('accessToken', null),
-      storeData('refreshToken', null),
-      storeData('session', null),
-      storeData('user', null)
+      storeSecureData(STORAGE_KEYS.ACCESS_TOKEN, null),
+      storeSecureData(STORAGE_KEYS.REFRESH_TOKEN, null),
+      storeData(STORAGE_KEYS.USER, null),
+      storeData(STORAGE_KEYS.USER_ID, null),
+      storeData(STORAGE_KEYS.SESSIONS, null)
     ]);
     
-    // Clear any pending requests
-    if (batchTimeout) {
-      clearTimeout(batchTimeout);
-      batchQueue.length = 0;
-    }
-    
+    // Disconnect socket
     disconnectSocket();
     
     // Notify auth event listeners
     notifyAuthEvent();
+    
+    return true;
   } catch (error) {
-    console.error('Logout error:', error);
-    // Still clear local data even if server request fails
-    await Promise.all([
-      storeData('accessToken', null),
-      storeData('refreshToken', null),
-      storeData('session', null),
-      storeData('user', null)
-    ]);
-    notifyAuthEvent();
+    console.error('[API] Logout error:', error);
+    return false;
   }
 };
 
 export const validateSession = async (): Promise<boolean> => {
   try {
-    const accessToken = await getData('accessToken');
-    if (!accessToken) {
-      console.debug('[API] No access token available for validation');
+    const accessToken = await getSecureData<string>(STORAGE_KEYS.ACCESS_TOKEN);
+    if (!accessToken) return false;
+    
+    // Check token expiration
+    try {
+      const parts = accessToken.split('.');
+      if (parts.length !== 3) return false;
+      
+      const payload = JSON.parse(atob(parts[1]));
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      const now = Date.now();
+      
+      // If token expires in less than 5 minutes, refresh it
+      if (exp - now < 5 * 60 * 1000) {
+        const refreshResult = await refreshAccessToken();
+        return !!refreshResult;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error parsing token:', error);
       return false;
     }
-
-    console.debug('[API] Validating token:', {
-      tokenType: typeof accessToken,
-      tokenLength: typeof accessToken === 'string' ? accessToken.length : 'N/A'
-    });
-
-    // Create a new axios instance for validation to avoid interceptors
-    const validateApi = axios.create({
-      baseURL: API_URL_OXY,
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const response = await validateApi.get('/auth/validate');
-    console.debug('[API] Token validation response:', response.data);
-    return response.data.valid === true;
-  } catch (error: any) {
-    console.error('[API] Session validation failed:', {
-      error: error?.response?.data || error.message,
-      status: error?.response?.status
-    });
-    if (error.response?.status === 401) {
-      throw new Error('Session expired');
-    }
+  } catch (error) {
+    console.error('Session validation error:', error);
     return false;
   }
 };
@@ -562,36 +527,27 @@ export const fetchUsersByUsername = async (username: string) => {
 
 export const forceLogout = async () => {
   try {
-    // Clear all auth-related data
+    // Clear all tokens and session data without calling server
     await Promise.all([
-      storeData('accessToken', null),
-      storeData('refreshToken', null),
-      storeData('session', null),
-      storeData('user', null)
+      storeSecureData(STORAGE_KEYS.ACCESS_TOKEN, null),
+      storeSecureData(STORAGE_KEYS.REFRESH_TOKEN, null),
+      storeData(STORAGE_KEYS.USER, null),
+      storeData(STORAGE_KEYS.USER_ID, null),
+      storeData(STORAGE_KEYS.SESSIONS, null)
     ]);
-    
-    // Clear any pending requests
-    if (batchTimeout) {
-      clearTimeout(batchTimeout);
-      batchQueue.length = 0;
-    }
-    
-    // Clear failed queue
-    failedQueue = [];
-    isRefreshing = false;
-    
-    // Clear cache
-    clearCache();
     
     // Disconnect socket
     disconnectSocket();
     
     // Notify auth event listeners
     notifyAuthEvent();
+    
+    // Redirect to login
+    if (router) {
+      router.replace('/login');
+    }
   } catch (error) {
     console.error('[API] Force logout error:', error);
-    // Still try to notify auth event listeners
-    notifyAuthEvent();
   }
 };
 
