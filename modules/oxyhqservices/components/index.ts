@@ -7,6 +7,8 @@
 // Session and Authentication
 export * from './SessionProvider';
 export * from './SessionOwnerButton';
+export * from './SessionSwitcher';
+export * from './SessionSwitcherButton';
 
 export * from './AuthBottomSheet';
 export * from './AuthModalListener';
