@@ -7,6 +7,8 @@ export interface AuthBottomSheetProps {
     initialMode?: AuthMode;
     /** Whether to show the logo in the header (default: true) */
     showLogo?: boolean;
+    /** Callback when authentication is successful */
+    onSuccess?: () => void;
 }
 
 export interface UserSession {

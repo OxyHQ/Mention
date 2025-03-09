@@ -2,7 +2,7 @@ import { colors } from '../../styles/colors';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useContext, useEffect, useState, useCallback } from 'react';
 import { View, Pressable, StyleSheet, Image, Text, ActivityIndicator } from 'react-native';
-import { BottomSheetContext } from '../context/BottomSheetContext';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { AuthBottomSheet } from '../AuthBottomSheet';
 import { SessionContext } from '../SessionProvider';
 import { profileService } from '../../services/profile.service';
@@ -10,6 +10,7 @@ import type { OxyProfile } from '../../types';
 import { OxyLogo } from '../OxyLogo';
 import errorHandler from '../../utils/errorHandler';
 import { SessionSwitcher } from '../SessionSwitcher';
+import { useTranslation } from 'react-i18next';
 
 interface SessionOwnerButtonProps {
   collapsed?: boolean;
@@ -29,6 +30,7 @@ export function SessionOwnerButton({
   collapsed = false,
   onSessionChange
 }: SessionOwnerButtonProps) {
+  const { t } = useTranslation();
   const [currentProfile, setCurrentProfile] = useState<OxyProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
@@ -53,14 +55,14 @@ export function SessionOwnerButton({
     } catch (error) {
       errorHandler.handleError(error, {
         context: 'SessionOwnerButton',
-        fallbackMessage: 'Failed to load profile',
+        fallbackMessage: t('Failed to load profile'),
         showToast: false
       });
       setCurrentProfile(null);
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, t]);
 
   useEffect(() => {
     loadProfile();
@@ -74,24 +76,26 @@ export function SessionOwnerButton({
         <AuthBottomSheet
           initialMode="signin"
           showLogo={true}
+          onSuccess={() => {
+            openBottomSheet(false);
+            if (onSessionChange) onSessionChange();
+          }}
         />
       );
     } else {
       // If authenticated, show the session switcher
       setBottomSheetContent(
         <SessionSwitcher
-          onClose={() => openBottomSheet(false)}
+          onClose={() => {
+            openBottomSheet(false);
+            if (onSessionChange) onSessionChange();
+          }}
         />
       );
     }
 
     // Open the bottom sheet
     openBottomSheet(true);
-
-    // Call the onSessionChange callback if provided
-    if (onSessionChange) {
-      onSessionChange();
-    }
   }, [isAuthenticated, setBottomSheetContent, openBottomSheet, onSessionChange]);
 
   const styles = StyleSheet.create({
@@ -167,19 +171,19 @@ export function SessionOwnerButton({
         <Pressable
           style={styles.button}
           onPress={handleButtonPress}
-          accessibilityLabel="Sign in"
-          accessibilityHint="Opens the sign in modal"
+          accessibilityLabel={t('Sign in')}
+          accessibilityHint={t('Opens the sign in modal')}
         >
           {collapsed ? (
             <Image
               style={styles.avatar}
               source={require('@/assets/images/default-avatar.jpg')}
-              accessibilityLabel="Default avatar"
+              accessibilityLabel={t('Default avatar')}
             />
           ) : (
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 5, gap: 10 }}>
               <OxyLogo />
-              <Text style={[styles.name, { fontSize: 18 }]}>Continue with Oxy</Text>
+              <Text style={[styles.name, { fontSize: 18 }]}>{t('Continue with Oxy')}</Text>
             </View>
           )}
         </Pressable>
@@ -194,7 +198,7 @@ export function SessionOwnerButton({
         style={styles.button}
         onPress={handleButtonPress}
         accessibilityLabel={`${currentProfile.name?.first || currentProfile.username}'s profile`}
-        accessibilityHint="Opens the session switcher"
+        accessibilityHint={t('Opens the session switcher')}
       >
         <View style={{ position: 'relative' }}>
           <Image

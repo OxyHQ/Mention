@@ -18,7 +18,7 @@ import { AuthBottomSheetProps, AuthMode } from './types';
 import { useSession } from '../../hooks';
 import { authService } from '../../services/auth.service';
 import { BaseBottomSheet } from '../BaseBottomSheet';
-import { BottomSheetContext } from '../context/BottomSheetContext';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { toast } from 'sonner';
 import debounce from 'lodash.debounce';
 
@@ -33,9 +33,10 @@ interface ValidationErrors {
     password?: string;
 }
 
-export function AuthBottomSheet({ 
+export function AuthBottomSheet({
     initialMode = 'signin',
-    showLogo = true
+    showLogo = true,
+    onSuccess
 }: AuthBottomSheetProps) {
     const [mode, setMode] = useState<AuthMode>(initialMode);
     const [step, setStep] = useState(1);
@@ -44,12 +45,12 @@ export function AuthBottomSheet({
     const [password, setPassword] = useState('');
     const [errors, setErrors] = useState<ValidationErrors>({});
     const [isCheckingUsername, setIsCheckingUsername] = useState(false);
-    
+
     const { t } = useTranslation();
     const { sessions, isLoadingSessions } = useSessions(mode);
     const { loginUser, switchSession } = useSession();
     const { openBottomSheet } = useContext(BottomSheetContext);
-    
+
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const slideAnim = useRef(new Animated.Value(0)).current;
@@ -126,6 +127,11 @@ export function AuthBottomSheet({
             await loginUser(username, password);
             toast.success(t('Signed in successfully'));
             openBottomSheet(false);
+
+            // Call onSuccess callback if provided
+            if (onSuccess) {
+                onSuccess();
+            }
         } catch (error) {
             const authError = error as AuthError;
             const errorMessage = authError.message || t('Failed to sign in');
@@ -212,6 +218,11 @@ export function AuthBottomSheet({
                 await authService.register({ username, email, password });
                 toast.success(t('Account created successfully'));
                 switchMode('signin');
+
+                // Call onSuccess callback if provided
+                if (onSuccess) {
+                    onSuccess();
+                }
             } catch (error) {
                 const authError = error as AuthError;
                 const errorMessage = authError.message || t('Failed to create account');
@@ -229,12 +240,15 @@ export function AuthBottomSheet({
     const handleSessionSwitch = async (sessionId: string) => {
         try {
             await switchSession(sessionId);
-            toast.success(t('Session switched successfully'));
+            toast.success(t('Switched session successfully'));
             openBottomSheet(false);
+
+            // Call onSuccess callback if provided
+            if (onSuccess) {
+                onSuccess();
+            }
         } catch (error) {
-            const authError = error as AuthError;
-            const errorMessage = authError.message || t('Failed to switch session');
-            toast.error(errorMessage);
+            toast.error(t('Failed to switch session'));
             console.error('Session switch error:', error);
         }
     };

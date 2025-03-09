@@ -10,12 +10,13 @@ import { View, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Imag
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
 import { SessionContext } from '../SessionProvider';
-import { BottomSheetContext } from '../context/BottomSheetContext';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { AuthBottomSheet } from '../AuthBottomSheet';
 import { OxyLogo } from '../OxyLogo';
 import errorHandler from '../../utils/errorHandler';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { useUserData } from '../context/BottomSheetContainer';
 
 interface SessionSwitcherProps {
     onClose?: () => void;
@@ -29,9 +30,12 @@ export function SessionSwitcher({ onClose }: SessionSwitcherProps) {
     const sessionContext = useContext(SessionContext);
     const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
 
-    const currentUserId = sessionContext?.getCurrentUserId();
-    const sessions = sessionContext?.sessions || [];
-    const isAuthenticated = sessionContext?.isAuthenticated || false;
+    // Get user data from our context
+    const userData = useUserData();
+
+    const currentUserId = userData?.id || sessionContext?.getCurrentUserId();
+    const sessions = userData?.sessions || sessionContext?.sessions || [];
+    const isAuthenticated = userData?.isAuthenticated || sessionContext?.isAuthenticated || false;
 
     // Handle switching to a different session
     const handleSessionSwitch = async (sessionId: string) => {
@@ -110,6 +114,25 @@ export function SessionSwitcher({ onClose }: SessionSwitcherProps) {
         );
     }
 
+    // Add debug info to help troubleshoot
+    console.log('SessionSwitcher - Current User ID:', currentUserId);
+    console.log('SessionSwitcher - Sessions:', sessions);
+    console.log('SessionSwitcher - User Data:', userData);
+
+    // Define the session type
+    interface SessionWithProfile {
+        id: string;
+        profile?: {
+            username?: string;
+            name?: {
+                first?: string;
+                last?: string;
+            };
+            avatar?: string;
+        };
+        lastActive?: Date;
+    }
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -118,7 +141,7 @@ export function SessionSwitcher({ onClose }: SessionSwitcherProps) {
             </View>
 
             <ScrollView style={styles.sessionList}>
-                {sessions.map(session => {
+                {sessions.map((session: SessionWithProfile) => {
                     const isCurrentSession = session.id === currentUserId;
                     const isSwitching = session.id === switchingSessionId;
 

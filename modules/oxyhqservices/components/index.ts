@@ -21,7 +21,6 @@ export * from './ui/ThemedText';
 // Modal Components
 export * from './FileSelectorModal';
 export * from './PaymentModal';
-export * from './context/BottomSheetContext';
 export * from './context/BottomSheetContainer';
 
 // Settings Components

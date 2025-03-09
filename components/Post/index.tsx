@@ -18,6 +18,7 @@ import type { OxyProfile } from '@/modules/oxyhqservices/types';
 import { Share } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
 import { profileService } from '@/modules/oxyhqservices/services';
+import { useTranslation } from 'react-i18next';
 
 interface PollData {
     id: string;
@@ -39,6 +40,7 @@ interface PostProps {
 const profileCache = new Map<string, OxyProfile>();
 
 export default function Post({ postData, quotedPost, className, style, showActions = true }: PostProps) {
+    const { t } = useTranslation();
     const [isLiked, setIsLiked] = useState(postData.isLiked || false);
     const [likesCount, setLikesCount] = useState(postData._count?.likes || 0);
     const [isReposted, setIsReposted] = useState(postData.isReposted || false);
@@ -53,6 +55,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
     });
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(!authorProfile);
     const [profileError, setProfileError] = useState<string | null>(null);
+    const [isFollowing, setIsFollowing] = useState<boolean>(false);
     const session = useContext(SessionContext);
 
     const animatedScale = useRef(new Animated.Value(1)).current;
@@ -83,6 +86,16 @@ export default function Post({ postData, quotedPost, className, style, showActio
                 // Update cache
                 profileCache.set(postData.author.id, profile);
                 setAuthorProfile(profile);
+
+                // Check if the current user is following this author
+                if (session?.isAuthenticated && session.getCurrentUserId() !== postData.author.id) {
+                    try {
+                        const followingStatus = await profileService.getFollowingStatus(postData.author.id);
+                        setIsFollowing(followingStatus);
+                    } catch (error) {
+                        console.error('Error checking following status:', error);
+                    }
+                }
             } catch (error) {
                 console.error('Error fetching author profile:', error);
                 setProfileError("Failed to load profile");
@@ -95,7 +108,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
         if (!authorProfile) {
             fetchAuthorProfile();
         }
-    }, [postData.author?.id, authorProfile]);
+    }, [postData.author?.id, authorProfile, session]);
 
     const handleLike = async () => {
         try {
@@ -222,7 +235,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
 
     // Format the author's full name
     const getAuthorDisplayName = () => {
-        if (!authorProfile) return 'Unknown';
+        if (!authorProfile) return t('Unknown');
 
         if (authorProfile.name?.first) {
             return `${authorProfile.name.first} ${authorProfile.name.last || ''}`.trim();
@@ -246,12 +259,41 @@ export default function Post({ postData, quotedPost, className, style, showActio
         return authorProfile?.premium?.subscriptionTier || null;
     };
 
+    // Handle follow/unfollow
+    const handleFollowToggle = async () => {
+        if (!session?.isAuthenticated) {
+            toast.error(t('Please sign in to follow users'));
+            return;
+        }
+
+        if (!authorProfile) return;
+
+        try {
+            setIsFollowing(prevState => !prevState);
+            const result = await profileService.follow(authorProfile.userID);
+
+            // Update the following status based on the server response
+            setIsFollowing(result.action === 'follow');
+
+            toast.success(
+                result.action === 'follow'
+                    ? t('Now following {{name}}', { name: getAuthorDisplayName() })
+                    : t('Unfollowed {{name}}', { name: getAuthorDisplayName() })
+            );
+        } catch (error) {
+            console.error('Error toggling follow status:', error);
+            // Revert the optimistic update
+            setIsFollowing(prevState => !prevState);
+            toast.error(t('Failed to update follow status'));
+        }
+    };
+
     return (
         <View className={`bg-white border-b border-gray-100 ${className}`} style={style}>
             {postData.repost_of && (
                 <View className="flex-row items-center px-3 mb-2">
                     <RepostIcon size={16} color="#536471" />
-                    <Text className="text-gray-500 ml-2">{getAuthorDisplayName()} Reposted</Text>
+                    <Text className="text-gray-500 ml-2">{getAuthorDisplayName()} {t('Reposted')}</Text>
                 </View>
             )}
             <View className="flex-row gap-2.5 px-3 items-start">
@@ -274,7 +316,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
                                     <Link href={`/@${getAuthorUsername()}`} asChild>
                                         <TouchableOpacity>
                                             <Text className="font-bold">
-                                                {isLoadingProfile ? 'Loading...' : getAuthorDisplayName()}
+                                                {isLoadingProfile ? t('Loading...') : getAuthorDisplayName()}
                                             </Text>
                                         </TouchableOpacity>
                                     </Link>
@@ -287,6 +329,29 @@ export default function Post({ postData, quotedPost, className, style, showActio
                                     <Text className="text-gray-500">·</Text>
                                     <Text className="text-gray-500">{formatTimeAgo(postData.created_at)}</Text>
                                 </View>
+                                {session?.isAuthenticated &&
+                                    session.getCurrentUserId() !== postData.author?.id &&
+                                    !isLoadingProfile && (
+                                        <TouchableOpacity
+                                            onPress={handleFollowToggle}
+                                            style={{
+                                                paddingHorizontal: 10,
+                                                paddingVertical: 4,
+                                                borderRadius: 16,
+                                                backgroundColor: isFollowing ? 'transparent' : colors.primaryColor,
+                                                borderWidth: 1,
+                                                borderColor: colors.primaryColor
+                                            }}
+                                        >
+                                            <Text style={{
+                                                color: isFollowing ? colors.primaryColor : 'white',
+                                                fontWeight: '600',
+                                                fontSize: 12
+                                            }}>
+                                                {isFollowing ? t('Following') : t('Follow')}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
                             </View>
                             {!isLoadingProfile && authorProfile?.username && (
                                 <View className="flex-row items-center">
