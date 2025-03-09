@@ -145,9 +145,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     backgroundColor: colors.primaryLight,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 35,
+    borderTopRightRadius: 35,
     padding: 16,
-    maxHeight: '80%',
   },
 });

@@ -10,8 +10,6 @@ import { View, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Imag
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
 import { SessionContext } from '../SessionProvider';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { AuthBottomSheet } from '../AuthBottomSheet';
 import { OxyLogo } from '../OxyLogo';
 import errorHandler from '../../utils/errorHandler';
 import { toast } from 'sonner';
@@ -40,7 +38,6 @@ export function SessionSwitcher({ onClose }: SessionSwitcherProps) {
     const [isLoadingSessions, setIsLoadingSessions] = useState(true);
 
     const sessionContext = useContext(SessionContext);
-    const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
 
     const currentUserId = sessionContext?.getCurrentUserId();
     const isAuthenticated = sessionContext?.isAuthenticated || false;
@@ -204,7 +201,7 @@ export function SessionSwitcher({ onClose }: SessionSwitcherProps) {
                     <Text style={styles.emptyText}>{t('No accounts found')}</Text>
                 </View>
             ) : (
-                <ScrollView style={styles.sessionList}>
+                <View style={styles.sessionList}>
                     {sessions.map((session: SessionWithProfile) => {
                         const isCurrentSession = session.id === currentUserId;
                         const isSwitching = session.id === switchingSessionId;
@@ -256,7 +253,7 @@ export function SessionSwitcher({ onClose }: SessionSwitcherProps) {
                             </TouchableOpacity>
                         );
                     })}
-                </ScrollView>
+                </View>
             )}
 
             <View style={styles.footer}>
@@ -299,14 +296,13 @@ const styles = StyleSheet.create({
         color: colors.COLOR_BLACK,
     },
     sessionList: {
-        flex: 1,
         marginBottom: 16,
     },
     sessionItem: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 12,
-        borderRadius: 8,
+        borderRadius: 35,
         marginBottom: 8,
         backgroundColor: colors.primaryLight,
     },
@@ -322,6 +318,9 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
+        borderWidth: 1,
+        borderColor: colors.primaryColor,
+        backgroundColor: colors.primaryColor,
     },
     defaultAvatar: {
         backgroundColor: colors.primaryColor,
