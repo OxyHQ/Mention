@@ -12,7 +12,7 @@ import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
 import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import Avatar from "@/components/Avatar";
-import { profileService } from '@/modules/oxyhqservices/services';
+import { getProfileService } from '@/modules/oxyhqservices';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
 import { OXY_CLOUD_URL } from '@/modules/oxyhqservices/config';
 
@@ -46,6 +46,8 @@ export default function ProfileScreen() {
 
     setIsUpdating(true);
     try {
+      // Using the getter function to get the profile service instance
+      const profileService = getProfileService();
       const updatedProfile = await profileService.updateProfile({
         _id: profile._id,
         ...updateData
@@ -81,7 +83,10 @@ export default function ProfileScreen() {
       try {
         setLoading(true);
         setError(null);
+        
         const username = localUsername.replace('@', '');
+        // Using the getter function to get the profile service instance
+        const profileService = getProfileService();
         const profile = await profileService.getProfileByUsername(username);
 
         if (!profile) {
@@ -167,39 +172,6 @@ export default function ProfileScreen() {
         <View className="items-center">
           <Text className="font-bold">{stats.karma}</Text>
           <Text className="text-gray-500 text-sm">Karma</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // Render user's associated content
-  const renderAssociatedContent = () => {
-    if (!profile?.associated) return null;
-
-    return (
-      <View className="px-4 py-2 border-b border-gray-100">
-        <Text className="font-bold mb-2">Associated Content</Text>
-        <View className="flex-row flex-wrap">
-          {profile.associated.feedgens && profile.associated.feedgens > 0 && (
-            <View className="bg-gray-100 rounded-full px-3 py-1 mr-2 mb-2">
-              <Text className="text-xs">{profile.associated.feedgens} Feed Generators</Text>
-            </View>
-          )}
-          {profile.associated.lists && profile.associated.lists > 0 && (
-            <View className="bg-gray-100 rounded-full px-3 py-1 mr-2 mb-2">
-              <Text className="text-xs">{profile.associated.lists} Lists</Text>
-            </View>
-          )}
-          {profile.associated.starterPacks && profile.associated.starterPacks > 0 && (
-            <View className="bg-gray-100 rounded-full px-3 py-1 mr-2 mb-2">
-              <Text className="text-xs">{profile.associated.starterPacks} Starter Packs</Text>
-            </View>
-          )}
-          {profile.associated.labeler && (
-            <View className="bg-gray-100 rounded-full px-3 py-1 mr-2 mb-2">
-              <Text className="text-xs">Labeler</Text>
-            </View>
-          )}
         </View>
       </View>
     );
@@ -315,7 +287,6 @@ export default function ProfileScreen() {
           </View>
 
           {renderStats()}
-          {renderAssociatedContent()}
 
           <View className="flex-1">
             <Feed

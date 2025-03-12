@@ -13,11 +13,11 @@ import { ShareIcon } from '@/assets/icons/share-icon';
 import { toast } from '@/lib/sonner';
 import { format } from 'date-fns';
 import type { Post as IPost } from '@/interfaces/Post';
-import { oxyClient } from '@/modules/oxyhqservices/services/OxyClient';
+import { getOxyClient } from '@/modules/oxyhqservices';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
 import { Share } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
-import { profileService } from '@/modules/oxyhqservices/services';
+import { getProfileService } from '@/modules/oxyhqservices';
 import { useTranslation } from 'react-i18next';
 
 interface PollData {
@@ -36,8 +36,15 @@ interface PostProps {
     showActions?: boolean;
 }
 
-// Global cache for profile data to avoid unnecessary API calls
-const profileCache = new Map<string, OxyProfile>();
+// Global profile cache for API call optimization
+// Each profile is keyed by userId to ensure correct access
+declare global {
+    var profileCacheMap: Map<string, OxyProfile>;
+}
+
+if (!global.profileCacheMap) {
+    global.profileCacheMap = new Map<string, OxyProfile>();
+}
 
 export default function Post({ postData, quotedPost, className, style, showActions = true }: PostProps) {
     const { t } = useTranslation();
@@ -49,66 +56,87 @@ export default function Post({ postData, quotedPost, className, style, showActio
     const [bookmarksCount, setBookmarksCount] = useState(postData._count?.bookmarks || 0);
     const [poll, setPoll] = useState<PollData | null>(null);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
-    const [authorProfile, setAuthorProfile] = useState<OxyProfile | null>(() => {
-        // Initialize from cache if available
-        return postData.author?.id ? profileCache.get(postData.author.id) || null : null;
-    });
-    const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(!authorProfile);
+    const [authorProfile, setAuthorProfile] = useState<OxyProfile | null>(null);
+    const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
     const [profileError, setProfileError] = useState<string | null>(null);
     const [isFollowing, setIsFollowing] = useState<boolean>(false);
     const session = useContext(SessionContext);
-
     const animatedScale = useRef(new Animated.Value(1)).current;
-
+    const authorId = postData.author?.id;
+    
+    // Reset states when post data changes
+    useEffect(() => {
+        setIsLiked(postData.isLiked || false);
+        setLikesCount(postData._count?.likes || 0);
+        setIsReposted(postData.isReposted || false);
+        setRepostsCount(postData._count?.reposts || 0);
+        setIsBookmarked(postData.isBookmarked || false);
+        setBookmarksCount(postData._count?.bookmarks || 0);
+    }, [postData]);
+    
+    // Fetch profile for this specific post
     useEffect(() => {
         const fetchAuthorProfile = async () => {
-            if (!postData.author?.id) {
+            // Reset profile state when author changes
+            setAuthorProfile(null);
+            
+            if (!authorId) {
                 setProfileError("No author ID available");
                 setIsLoadingProfile(false);
                 return;
             }
-
-            // Check cache first
-            const cachedProfile = profileCache.get(postData.author.id);
+            
+            // First try to get from global cache
+            const cachedProfile = global.profileCacheMap.get(authorId);
             if (cachedProfile) {
                 setAuthorProfile(cachedProfile);
                 setIsLoadingProfile(false);
+                
+                // Still check following status if needed
+                if (session?.isAuthenticated && session.getCurrentUserId() !== authorId) {
+                    try {
+                        const profileService = getProfileService();
+                        const followingStatus = await profileService.getFollowingStatus(authorId);
+                        setIsFollowing(followingStatus);
+                    } catch (error) {
+                        console.error('Error checking following status:', error);
+                    }
+                }
                 return;
             }
-
+            
             setIsLoadingProfile(true);
             setProfileError(null);
-
+            
             try {
-                // Use profileService for more comprehensive profile data
-                const profile = await profileService.getProfileById(postData.author.id);
-
-                // Update cache
-                profileCache.set(postData.author.id, profile);
+                const profileService = getProfileService();
+                const profile = await profileService.getProfileById(authorId);
+                
+                // Store in global cache for reuse
+                global.profileCacheMap.set(authorId, profile);
+                
+                // Set for this component instance
                 setAuthorProfile(profile);
-
-                // Check if the current user is following this author
-                if (session?.isAuthenticated && session.getCurrentUserId() !== postData.author.id) {
+                
+                // Check following status
+                if (session?.isAuthenticated && session.getCurrentUserId() !== authorId) {
                     try {
-                        const followingStatus = await profileService.getFollowingStatus(postData.author.id);
+                        const followingStatus = await profileService.getFollowingStatus(authorId);
                         setIsFollowing(followingStatus);
                     } catch (error) {
                         console.error('Error checking following status:', error);
                     }
                 }
             } catch (error) {
-                console.error('Error fetching author profile:', error);
+                console.error(`Error fetching author profile for ID ${authorId}:`, error);
                 setProfileError("Failed to load profile");
             } finally {
                 setIsLoadingProfile(false);
             }
         };
-
-        // Only fetch if we don't have profile data
-        if (!authorProfile) {
-            fetchAuthorProfile();
-        }
-    }, [postData.author?.id, authorProfile, session]);
+        
+        fetchAuthorProfile();
+    }, [authorId, session]);
 
     const handleLike = async () => {
         try {
@@ -270,6 +298,9 @@ export default function Post({ postData, quotedPost, className, style, showActio
 
         try {
             setIsFollowing(prevState => !prevState);
+
+            // Use profileService with the getter function
+            const profileService = getProfileService();
             const result = await profileService.follow(authorProfile.userID);
 
             // Update the following status based on the server response

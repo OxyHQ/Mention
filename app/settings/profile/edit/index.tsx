@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Header } from '@/components/Header';
 import { useAuth } from '@/modules/oxyhqservices/hooks';
-import { profileService } from '@/modules/oxyhqservices';
+import { getProfileService } from '@/modules/oxyhqservices';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
@@ -38,6 +38,8 @@ export default function EditProfileScreen() {
         const loadProfile = async () => {
             if (!currentUser?.id) return;
             try {
+                // Using the getter function to get the profile service instance
+                const profileService = getProfileService();
                 const profileData = await profileService.getProfileById(currentUser.id);
                 setProfile(profileData);
                 setFormData({
@@ -70,6 +72,8 @@ export default function EditProfileScreen() {
 
         setIsSaving(true);
         try {
+            // Using the getter function to get the profile service instance
+            const profileService = getProfileService();
             const updatedProfile = await profileService.updateProfile({
                 _id: profile._id,
                 userID: currentUser.id,

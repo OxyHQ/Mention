@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, Switch, TouchableOpacity, SafeAreaView, T
 import { Header } from '@/components/Header';
 import { colors } from '@/styles/colors';
 import { useTranslation } from 'react-i18next';
-import { privacyService } from '@/modules/oxyhqservices';
+import { getPrivacyService } from '@/modules/oxyhqservices';
 import { useAuth } from '@/modules/oxyhqservices/hooks';
 import { toast } from 'sonner';
 
@@ -44,6 +44,8 @@ export default function PrivacySettingsScreen() {
 
   const loadPrivacySettings = async () => {
     try {
+      // Using the getter function to get the privacy service instance
+      const privacyService = getPrivacyService();
       const userSettings = await privacyService.getPrivacySettings(user!.id);
       setSettings(userSettings);
     } catch (error) {
@@ -60,6 +62,9 @@ export default function PrivacySettingsScreen() {
         [setting]: !settings[setting]
       };
       setSettings(updatedSettings);
+      
+      // Using the getter function to get the privacy service instance
+      const privacyService = getPrivacyService();
       await privacyService.updatePrivacySettings(user!.id, updatedSettings);
     } catch (error) {
       toast.error(t('Error updating setting'));

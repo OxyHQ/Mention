@@ -39,7 +39,8 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { setBottomSheetContextRef, setAuthBottomSheetFactory } from '@/utils/auth';
 import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
 import { AuthModalListener } from '@/modules/oxyhqservices/components/AuthModalListener';
-
+// Import the initialization function from oxyhqservices
+import { initialize as initializeOxyServices } from '@/modules/oxyhqservices';
 import "../styles/global.css";
 
 // Keep the splash screen visible while we fetch resources
@@ -58,6 +59,12 @@ i18n.use(initReactI18next).init({
   },
 }).catch(error => {
   console.error("Failed to initialize i18n:", error);
+});
+
+// Initialize oxyhqservices module with appropriate configuration
+initializeOxyServices({
+  enableLogging: process.env.NODE_ENV !== 'production',
+  logLevel: process.env.NODE_ENV === 'production' ? 'error' : 'debug',
 });
 
 export default function RootLayout() {

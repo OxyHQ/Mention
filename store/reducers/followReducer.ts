@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { toast } from 'sonner';
-import { profileService } from '@/modules/oxyhqservices';
+import { getProfileService } from '@/modules/oxyhqservices';
 import { fetchData } from '@/modules/oxyhqservices/utils/api';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
 
@@ -36,6 +36,7 @@ export const followUser = createAsyncThunk(
   'follow/followUser',
   async (userId: string, { rejectWithValue }) => {
     try {
+      const profileService = getProfileService();
       const response = await profileService.follow(userId);
       return { 
         userId, 
@@ -54,6 +55,7 @@ export const unfollowUser = createAsyncThunk(
   'follow/unfollowUser',
   async (userId: string, { rejectWithValue }) => {
     try {
+      const profileService = getProfileService();
       await profileService.unfollow(userId);
       return { userId, success: true };
     } catch (error: any) {
@@ -68,6 +70,7 @@ export const checkFollowStatus = createAsyncThunk(
   'follow/checkFollowStatus',
   async (userId: string, { rejectWithValue }) => {
     try {
+      const profileService = getProfileService();
       const isFollowing = await profileService.getFollowingStatus(userId);
       return { userId, isFollowing };
     } catch (error: any) {

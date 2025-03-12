@@ -4,7 +4,7 @@ import { Text } from 'react-native';
 import { Header } from '@/components/Header';
 import { colors } from '@/styles/colors';
 import { useTranslation } from 'react-i18next';
-import { privacyService } from '@/modules/oxyhqservices';
+import { getPrivacyService } from '@/modules/oxyhqservices';
 import { useAuth } from '@/modules/oxyhqservices/hooks';
 import { toast } from 'sonner';
 import Avatar from '@/components/Avatar';
@@ -31,6 +31,8 @@ export default function BlockedUsersScreen() {
 
   const loadBlockedUsers = async () => {
     try {
+      // Using the getter function to get the privacy service instance
+      const privacyService = getPrivacyService();
       const users = await privacyService.getBlockedUsers(user!.id);
       setBlockedUsers(users);
     } catch (error) {
@@ -42,6 +44,8 @@ export default function BlockedUsersScreen() {
 
   const handleUnblock = async (targetId: string) => {
     try {
+      // Using the getter function to get the privacy service instance
+      const privacyService = getPrivacyService();
       await privacyService.unblockUser(targetId);
       setBlockedUsers(prev => prev.filter(u => u._id !== targetId));
       toast.success(t('User unblocked successfully'));

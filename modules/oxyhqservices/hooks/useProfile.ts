@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { profileService } from '@/modules/oxyhqservices';
+import { getProfileService } from '../services';
 import { OxyProfile } from '../types';
 
 export const useProfile = () => {
@@ -10,6 +10,7 @@ export const useProfile = () => {
     try {
       setLoading(true);
       setError(null);
+      const profileService = getProfileService();
       return await profileService.getProfileById(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch profile');
@@ -23,6 +24,7 @@ export const useProfile = () => {
     try {
       setLoading(true);
       setError(null);
+      const profileService = getProfileService();
       return await profileService.updateProfile(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update profile');
@@ -36,6 +38,7 @@ export const useProfile = () => {
     try {
       setLoading(true);
       setError(null);
+      const profileService = getProfileService();
       return await profileService.getFollowers(userId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch followers');
@@ -49,6 +52,7 @@ export const useProfile = () => {
     try {
       setLoading(true);
       setError(null);
+      const profileService = getProfileService();
       return await profileService.getFollowing(userId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch following');
@@ -62,6 +66,7 @@ export const useProfile = () => {
     try {
       setLoading(true);
       setError(null);
+      const profileService = getProfileService();
       await profileService.follow(userId);
       return true;
     } catch (err) {
@@ -76,6 +81,7 @@ export const useProfile = () => {
     try {
       setLoading(true);
       setError(null);
+      const profileService = getProfileService();
       await profileService.unfollow(userId);
       return true;
     } catch (err) {
@@ -90,6 +96,7 @@ export const useProfile = () => {
     try {
       setLoading(true);
       setError(null);
+      const profileService = getProfileService();
       return await profileService.getFollowingStatus(userId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to get following status');
@@ -103,6 +110,7 @@ export const useProfile = () => {
     try {
       setLoading(true);
       setError(null);
+      const profileService = getProfileService();
       const profile = await profileService.getProfileByUsername(username);
       return profile?._id || profile?.userID || null;
     } catch (err) {

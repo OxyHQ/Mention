@@ -10,7 +10,7 @@ import { FlashList } from "@shopify/flash-list";
 import { feedService, FeedType } from "@/services/feedService";
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { SOCKET_URL } from "@/config";
-import { profileService } from '@/modules/oxyhqservices/services';
+import { getProfileService } from '@/modules/oxyhqservices';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
 
 // Use the same profile cache across components
@@ -74,6 +74,7 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
 
                     if (!profile) {
                         // Use profileService for more comprehensive profile data
+                        const profileService = getProfileService();
                         profile = await profileService.getProfileById(data.post.author.id);
                         // Update cache
                         global.profileCache.set(data.post.author.id, profile);
@@ -176,7 +177,8 @@ export default function Feed({ type, userId, hashtag, parentId, showCreatePost =
                             let profile = global.profileCache.get(post.author.id);
 
                             if (!profile) {
-                                // Use profileService for more comprehensive profile data
+                                // Use profileService with getter function
+                                const profileService = getProfileService();
                                 profile = await profileService.getProfileById(post.author.id);
                                 // Update cache
                                 global.profileCache.set(post.author.id, profile);

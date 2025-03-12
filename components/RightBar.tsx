@@ -10,7 +10,7 @@ import { useRouter, usePathname } from "expo-router";
 import Avatar from '@/components/Avatar'
 import { Trends } from "@/features/trends/Trends"
 import type { OxyProfile } from '@/modules/oxyhqservices/types'
-import { oxyClient } from '@/modules/oxyhqservices'
+import { getOxyClient } from '@/modules/oxyhqservices'
 
 export function RightBar() {
     const isRightBarVisible = useMediaQuery({ minWidth: 990 });
@@ -25,6 +25,7 @@ export function RightBar() {
             try {
                 setLoading(true);
                 setError(null);
+                const oxyClient = getOxyClient();
                 const response = await oxyClient.getRecommendations(5); // Limit to 5 recommendations
                 setRecommendations(response);
             } catch (err) {
