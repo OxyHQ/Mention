@@ -234,10 +234,22 @@ export class OxyClient {
    */
   async getSessions(): Promise<SessionResponse> {
     try {
-      // First try to get from API
+      // Get the current user ID
+      const userId = await getData(STORAGE_KEYS.USER_ID);
+      
+      if (!userId) {
+        console.warn('No user ID available when fetching sessions');
+        // Return empty sessions if there's no user ID
+        return { sessions: [] };
+      }
+
+      // First try to get from API with the user ID as a query parameter
       const response = await apiService.get<SessionResponse>(
         ENDPOINTS.USERS.SESSIONS,
-        { useCache: true }
+        { 
+          useCache: true,
+          params: { userId } // Include userId as a parameter
+        }
       );
       
       // Store the sessions locally for offline access

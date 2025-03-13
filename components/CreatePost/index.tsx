@@ -23,7 +23,6 @@ import { useSelector, useDispatch } from 'react-redux';
 import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
 import Avatar from '../Avatar';
 import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
-import { profileService } from '@/modules/oxyhqservices/services';
 import { AppDispatch } from '@/store/store';
 import type { Post } from '@/interfaces/Post';
 import { OXY_CLOUD_URL } from '@/modules/oxyhqservices/config';
@@ -31,7 +30,7 @@ import { postData } from '@/utils/api';
 import CreatePoll from '@/components/CreatePoll';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTranslation } from 'react-i18next';
-import { oxyClient } from '@/modules/oxyhqservices/services/OxyClient';
+import { getProfileService } from '@/modules/oxyhqservices';
 import type { OxyProfile } from '@/modules/oxyhqservices/types';
 
 interface Props {
@@ -65,10 +64,8 @@ export const CreatePost: React.FC<Props> = ({
     isDraft: initialIsDraft,
     scheduledFor: initialScheduledFor
 }) => {
-    const [text, setText] = useState(initialText || '')
-    const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video', id: string }[]>(
-        initialMedia?.map(id => ({ uri: `${OXY_CLOUD_URL}${id}`, type: id.startsWith('image') ? 'image' : 'video', id })) || []
-    );
+    const [text, setText] = useState(initialText || '');
+    const [selectedMedia, setSelectedMedia] = useState<{ uri: string, type: 'image' | 'video', id: string }[]>(initialMedia?.map(id => ({ uri: `${OXY_CLOUD_URL}${id}`, type: id.startsWith('image') ? 'image' : 'video', id })) || []);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isModalVisible, setModalVisible] = useState(false);
     const [mentionQuery, setMentionQuery] = useState('');
@@ -80,9 +77,7 @@ export const CreatePost: React.FC<Props> = ({
     const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false);
     const [showSchedulePicker, setShowSchedulePicker] = useState(false);
     const [isDraftState, setIsDraftState] = useState(initialIsDraft || false);
-    const [scheduledForState, setScheduledForState] = useState<Date | null>(
-        initialScheduledFor ? new Date(initialScheduledFor) : null
-    );
+    const [scheduledForState, setScheduledForState] = useState<Date | null>(initialScheduledFor ? new Date(initialScheduledFor) : null);
     const dispatch = useDispatch<AppDispatch>();
     const sessionContext = useContext(SessionContext);
     const currentUserId = sessionContext?.getCurrentUserId();
@@ -97,6 +92,7 @@ export const CreatePost: React.FC<Props> = ({
         const loadProfile = async () => {
             if (!currentUserId) return;
             try {
+                const profileService = getProfileService();
                 const profileData = await profileService.getProfileById(currentUserId);
                 setProfile(profileData);
             } catch (error) {
