@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import { View, Text, StyleSheet, TextInput, ScrollView, SafeAreaView, TouchableOpacity, FlatList } from "react-native";
+import { View, Text, StyleSheet, TextInput, ScrollView, SafeAreaView, TouchableOpacity, FlatList, Linking } from "react-native";
 import { Post as PostType } from "@/interfaces/Post";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,22 +7,30 @@ import { Stack, Link } from "expo-router";
 import { colors } from "@/styles/colors";
 import { Header } from "@/components/Header";
 import { toast } from '@/lib/sonner';
-import Constants from 'expo-constants';
 import * as Clipboard from 'expo-clipboard';
 import { useSession } from '@/modules/oxyhqservices';
+import pkg from '../../package.json';
 
 interface SettingItemProps {
     icon: string;
     title: string;
     subtitle?: string;
-    link?: string;
+    link?: string | { pathname: string; external?: boolean };
     onPress?: () => void;
     content?: string;
 }
 
 const SettingItem: React.FC<SettingItemProps> = ({ icon, title, subtitle, link, onPress, content }) => {
+    const handlePress = async () => {
+        if (typeof link === 'object' && link.external) {
+            await Linking.openURL(link.pathname);
+            return;
+        }
+        onPress?.();
+    };
+
     const contentElement = (
-        <TouchableOpacity style={styles.settingItem} onPress={onPress}>
+        <TouchableOpacity style={styles.settingItem} onPress={handlePress}>
             <View style={styles.iconContainer}>
                 <Ionicons name={icon as any} size={24} color="#333" />
             </View>
@@ -34,27 +42,31 @@ const SettingItem: React.FC<SettingItemProps> = ({ icon, title, subtitle, link, 
         </TouchableOpacity>
     );
 
-    return link ? <Link href={link as any} asChild>{contentElement}</Link> : contentElement;
+    return (typeof link === 'object' && link.external) ? contentElement : 
+           link ? <Link href={link as any} asChild>{contentElement}</Link> : contentElement;
 };
 
 export default function SettingsAboutScreen() {
     const { t } = useTranslation();
     const [appVersion, setAppVersion] = useState('');
+    const [packageInfo, setPackageInfo] = useState('');
 
     const { state } = useSession();
     const username = state.userId;
 
     useEffect(() => {
-        if (Constants.expoConfig && Constants.expoConfig.version) {
-            setAppVersion(Constants.expoConfig.version);
+        if (pkg.version) {
+            setAppVersion(pkg.version);
+            setPackageInfo(`${pkg.name}@${pkg.version}`);
         } else {
             setAppVersion('Undefined'); // Fallback version
+            setPackageInfo('Unknown');
         }
     }, []);
 
     const handleVersionPress = () => {
-        Clipboard.setStringAsync(appVersion);
-        toast(t(`Version ${appVersion} copied to clipboard`));
+        Clipboard.setStringAsync(`${packageInfo} (${appVersion})`);
+        toast(t(`Version info copied to clipboard`));
     };
 
     const handleInviteAppPress = () => {
@@ -81,13 +93,19 @@ export default function SettingsAboutScreen() {
                     icon="document-text"
                     title={t('Terms of Service')}
                     subtitle={t('Read our terms of service')}
-                    link="/"
+                    link={{
+                        pathname: 'https://oxy.so/company/transparency/policies/terms-of-service',
+                        external: true
+                    }}
                 />
                 <SettingItem
                     icon="shield-checkmark"
                     title={t('Privacy Policy')}
                     subtitle={t('Read our privacy policy')}
-                    link="/"
+                    link={{
+                        pathname: 'https://oxy.so/company/transparency/policies/privacy',
+                        external: true
+                    }}
                 />
                 <SettingItem
                     icon="bug"
@@ -98,7 +116,7 @@ export default function SettingsAboutScreen() {
                 <SettingItem
                     icon="information-circle"
                     title={t('Version')}
-                    subtitle={appVersion}
+                    subtitle={packageInfo}
                     content={appVersion}
                     onPress={handleVersionPress}
                 />
