@@ -41,6 +41,20 @@ import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSh
 import { AuthModalListener } from '@/modules/oxyhqservices/components/AuthModalListener';
 import "../styles/global.css";
 
+// Import React Query
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 10, // 10 minutes
+      retry: 1,
+    },
+  },
+});
+
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
@@ -176,30 +190,32 @@ export default function RootLayout() {
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <Provider store={store}>
-          <I18nextProvider i18n={i18n}>
-            <SessionProvider>
-              <MenuProvider>
-                <ErrorBoundary>
-                  <BottomSheetModalProvider>
-                    <BottomSheetProvider>
-                      <AuthModalListener />
-                      <View style={styles.container}>
-                        <SideBar />
-                        <View style={styles.mainContentWrapper}>
-                          <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0, }} />
-                          <Slot />
+          <QueryClientProvider client={queryClient}>
+            <I18nextProvider i18n={i18n}>
+              <SessionProvider>
+                <MenuProvider>
+                  <ErrorBoundary>
+                    <BottomSheetModalProvider>
+                      <BottomSheetProvider>
+                        <AuthModalListener />
+                        <View style={styles.container}>
+                          <SideBar />
+                          <View style={styles.mainContentWrapper}>
+                            <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0, }} />
+                            <Slot />
+                          </View>
+                          <RightBar />
                         </View>
-                        <RightBar />
-                      </View>
-                      <StatusBar style="auto" />
-                      <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
-                      {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
-                    </BottomSheetProvider>
-                  </BottomSheetModalProvider>
-                </ErrorBoundary>
-              </MenuProvider>
-            </SessionProvider>
-          </I18nextProvider>
+                        <StatusBar style="auto" />
+                        <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
+                        {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                      </BottomSheetProvider>
+                    </BottomSheetModalProvider>
+                  </ErrorBoundary>
+                </MenuProvider>
+              </SessionProvider>
+            </I18nextProvider>
+          </QueryClientProvider>
         </Provider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
