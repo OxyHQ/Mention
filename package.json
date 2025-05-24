@@ -36,5 +36,8 @@
   "license": "MIT",
   "dependencies": {
     "expo": "^53.0.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21"
   }
 }
