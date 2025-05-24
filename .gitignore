@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+web-build/
+.expo/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Debug
+logs/
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.metro-health-check*
+
+# Environment variables
+.env
+.env*.local
+.env.development
+.env.test
+.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+*.pem
+Thumbs.db
+
+# Testing and coverage
+coverage/
+.coverage
+lib-cov/
+
+# Caches
+.eslintcache
+.npm
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+
+# Temporary directories
+app-example/
+temp/
+.temp/
+tmp/

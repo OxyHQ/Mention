@@ -1,0 +1,37 @@
+{
+  "name": "mention",
+  "version": "1.0.0",
+  "description": "A modern, cross-platform social app with frontend and backend",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "frontend": "cd packages/frontend && npm run start",
+    "backend": "cd packages/backend && npm run dev",
+    "frontend:build": "cd packages/frontend && npm run build-web",
+    "backend:build": "cd packages/backend && npm run build",
+    "frontend:lint": "cd packages/frontend && npm run lint",
+    "backend:lint": "cd packages/backend && npm run lint",
+    "install:all": "npm install && npm run install:frontend && npm run install:backend",
+    "install:frontend": "cd packages/frontend && npm install",
+    "install:backend": "cd packages/backend && npm install"
+  },
+  "keywords": [
+    "social",
+    "react-native",
+    "expo",
+    "express",
+    "node",
+    "mongodb"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OxyHQ/Mention.git"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "author": "OxyHQ",
+  "license": "MIT"
+}
