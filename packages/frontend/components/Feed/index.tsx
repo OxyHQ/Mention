@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { FlatList, ListRenderItemInfo, RefreshControl, StyleSheet, Text, View, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import Post from '../Post';
 import CreatePost from '../Post/CreatePost';
@@ -7,6 +7,7 @@ import ErrorBoundary from '../ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
 import LoadingSkeleton from './LoadingSkeleton';
+import { useOxy } from '@oxyhq/services';
 
 interface FeedProps {
     type?: FeedType;
@@ -33,9 +34,16 @@ const Feed: React.FC<FeedProps> = ({
 
     const { t } = useTranslation();
     const { width: windowWidth } = useWindowDimensions();
+    const { isAuthenticated } = useOxy();
 
     // Calculate responsive values
     const isTabletOrDesktop = windowWidth >= 768;
+    
+    // Refresh feed when component mounts
+    useEffect(() => {
+        refresh();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [type, parentId]);
 
     // Render each post item
     const renderItem = ({ item, index }: ListRenderItemInfo<any>) => {
@@ -83,13 +91,22 @@ const Feed: React.FC<FeedProps> = ({
                 renderItem={renderItem}
                 onEndReached={fetchMore}
                 onEndReachedThreshold={0.5}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+                refreshControl={<RefreshControl 
+                    refreshing={refreshing} 
+                    onRefresh={refresh}
+                    colors={[colors.primaryColor]} 
+                    tintColor={colors.primaryColor}
+                />}
                 contentContainerStyle={[
                     styles.container,
-                    isTabletOrDesktop && styles.containerTablet
+                    isTabletOrDesktop && styles.containerTablet,
+                    posts.length === 0 && styles.emptyListContainer
                 ]}
-                ListHeaderComponent={showCreatePost ? (
-                    <CreatePost onPress={handleCreatePostPress} />
+                ListHeaderComponent={isAuthenticated && showCreatePost ? (
+                    <CreatePost 
+                        onPress={handleCreatePostPress}
+                        placeholder={t("What's happening?")} 
+                    />
                 ) : null}
                 ListEmptyComponent={
                     !loading ? (
@@ -122,6 +139,7 @@ const styles = StyleSheet.create({
     container: {
         paddingBottom: 20,
         backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+        minHeight: '100%'
     },
     containerTablet: {
         paddingHorizontal: Platform.OS === 'web' ? '10%' : 16,
@@ -148,14 +166,23 @@ const styles = StyleSheet.create({
         padding: 20,
         alignItems: 'center',
         backgroundColor: 'white',
+        borderRadius: 8,
+        margin: 16,
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 1,
     },
     emptyText: {
         fontSize: 16,
         color: colors.COLOR_BLACK_LIGHT_3,
+        textAlign: 'center'
     },
     loadingContainer: {
         flex: 1,
         backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+        padding: 16
     },
     separator: {
         height: 6,
@@ -167,18 +194,21 @@ const styles = StyleSheet.create({
     },
     postItemContainer: {
         backgroundColor: 'white',
-        borderRadius: 4,
+        borderRadius: 8,
         overflow: 'hidden',
         shadowColor: colors.shadow,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.2,
-        shadowRadius: 2,
+        shadowRadius: 3,
         elevation: 2,
     },
     postItemContainerTablet: {
-        borderRadius: 8,
+        borderRadius: 12,
         shadowRadius: 4,
         elevation: 3,
+    },
+    emptyListContainer: {
+        paddingVertical: 16
     }
 });
 

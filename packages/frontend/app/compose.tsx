@@ -13,11 +13,12 @@ import { useOxy } from '@oxyhq/services';
 import { postData } from '@/utils/api';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { clearCache } from '@/utils/api';
 import { router } from 'expo-router';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 const ComposeScreen = () => {
   const [postContent, setPostContent] = useState('');
@@ -30,14 +31,20 @@ const ComposeScreen = () => {
     
     setIsPosting(true);
     try {
-      // Call API to create post (using backend API)
+      // Call API to create post
       await postData('/posts', { text: postContent.trim() });
+      
+      // Clear cache to ensure feed is refreshed with the new post
+      clearCache('feed/');
+      
+      // Show success toast
+      toast.success(t('Post published successfully'));
       
       // Navigate back after posting
       router.back();
     } catch (error) {
       console.error('Error creating post:', error);
-      // Handle error (could show an alert)
+      toast.error(t('Failed to publish post'));
     } finally {
       setIsPosting(false);
     }

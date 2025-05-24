@@ -1,24 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SafeAreaView, StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import Feed from '../components/Feed';
 import { PostProvider } from '../context/PostContext';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
 import { FeedType } from '@/hooks/useFeed';
+import { useOxy } from '@oxyhq/services';
+import { router } from 'expo-router';
 
 const HomeScreen: React.FC = () => {
     const [feedType, setFeedType] = useState<FeedType>('all');
     const { t } = useTranslation();
+    const { isAuthenticated } = useOxy();
+
+    useEffect(() => {
+        // Set default feed type based on authentication
+        if (isAuthenticated) {
+            setFeedType('home');
+        } else {
+            setFeedType('all');
+        }
+    }, [isAuthenticated]);
+
+    const handleCreatePostPress = () => {
+        router.push('/compose');
+    };
 
     return (
         <PostProvider>
             <SafeAreaView style={styles.container}>
                 <View style={styles.feedToggle}>
                     <TouchableOpacity 
-                        style={[styles.toggleButton, feedType === 'all' && styles.activeToggle]} 
-                        onPress={() => setFeedType('all')}
+                        style={[styles.toggleButton, (feedType === 'all' || feedType === 'home') && styles.activeToggle]} 
+                        onPress={() => setFeedType(isAuthenticated ? 'home' : 'all')}
                     >
-                        <Text style={[styles.toggleText, feedType === 'all' && styles.activeToggleText]}>
+                        <Text style={[styles.toggleText, (feedType === 'all' || feedType === 'home') && styles.activeToggleText]}>
                             {t('For You')}
                         </Text>
                     </TouchableOpacity>
@@ -31,7 +47,11 @@ const HomeScreen: React.FC = () => {
                         </Text>
                     </TouchableOpacity>
                 </View>
-                <Feed showCreatePost type={feedType} />
+                <Feed 
+                    showCreatePost 
+                    type={feedType} 
+                    onCreatePostPress={handleCreatePostPress}
+                />
             </SafeAreaView>
         </PostProvider>
     );

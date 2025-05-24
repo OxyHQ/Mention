@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchData } from '@/utils/api';
 import { Post } from '@/interfaces/Post';
 
-export type FeedType = 'all' | 'posts' | 'replies' | 'quotes' | 'reposts' | 'media' | 'following';
+export type FeedType = 'all' | 'posts' | 'replies' | 'quotes' | 'reposts' | 'media' | 'following' | 'home';
 
 interface UseFeedOptions {
   type?: FeedType;
@@ -31,6 +31,7 @@ export function useFeed({ type = 'all', parentId, limit = 20 }: UseFeedOptions) 
     if (type === 'reposts') return 'feed/reposts';
     if (type === 'posts') return 'feed/posts';
     if (type === 'following') return 'feed/following';
+    if (type === 'home') return 'feed/home';
     if (type === 'all') return 'feed/explore';
     return 'feed/explore';
   })();
