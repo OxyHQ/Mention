@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, StyleSheet, View, TouchableOpacity, Text } from 'react-native';
+import { SafeAreaView, StyleSheet, View, TouchableOpacity, Text, Platform } from 'react-native';
 import Feed from '../components/Feed';
 import { PostProvider } from '../context/PostContext';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,9 @@ const HomeScreen: React.FC = () => {
     const [feedType, setFeedType] = useState<FeedType>('all');
     const { t } = useTranslation();
     const { isAuthenticated } = useOxy();
+    
+    // Whether the current tab is the "For You" tab
+    const isForYouTab = feedType === 'all' || feedType === 'home';
 
     useEffect(() => {
         // Set default feed type based on authentication
@@ -31,10 +34,10 @@ const HomeScreen: React.FC = () => {
             <SafeAreaView style={styles.container}>
                 <View style={styles.feedToggle}>
                     <TouchableOpacity 
-                        style={[styles.toggleButton, (feedType === 'all' || feedType === 'home') && styles.activeToggle]} 
+                        style={[styles.toggleButton, isForYouTab && styles.activeToggle]} 
                         onPress={() => setFeedType(isAuthenticated ? 'home' : 'all')}
                     >
-                        <Text style={[styles.toggleText, (feedType === 'all' || feedType === 'home') && styles.activeToggleText]}>
+                        <Text style={[styles.toggleText, isForYouTab && styles.activeToggleText]}>
                             {t('For You')}
                         </Text>
                     </TouchableOpacity>
@@ -56,6 +59,43 @@ const HomeScreen: React.FC = () => {
         </PostProvider>
     );
 };
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+    feedToggle: {
+        flexDirection: 'row',
+        borderBottomWidth: 0.5,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        backgroundColor: 'white',
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: Platform.OS === 'android' ? 2 : 0,
+    },
+    toggleButton: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 15,
+    },
+    activeToggle: {
+        borderBottomWidth: 2,
+        borderBottomColor: colors.primaryColor,
+    },
+    toggleText: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: colors.COLOR_BLACK_LIGHT_3,
+    },
+    activeToggleText: {
+        fontWeight: 'bold',
+        color: colors.primaryColor,
+    },
+});
+
+export default HomeScreen;
 
 const styles = StyleSheet.create({
     container: {
