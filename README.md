@@ -1,50 +1,106 @@
-# Welcome to your Expo app 👋
+# Mention
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> A modern, cross-platform social app built with Expo, React Native, and TypeScript.
 
-## Get started
+---
 
-1. Install dependencies
+## Table of Contents
+- [About](#about)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Development Scripts](#development-scripts)
+- [Contributing](#contributing)
+- [License](#license)
 
+---
+
+## About
+
+**Mention** is a universal social platform inspired by Twitter/X, designed for mobile and web. It features real-time feeds, user profiles, trends, notifications, and more. Built with Expo and React Native, it supports file-based routing, multi-language support, and a modern UI.
+
+## Features
+- Universal app: Android, iOS, and Web
+- Real-time feed with posts, replies, quotes, and reposts
+- User profiles with followers/following
+- Trends and analytics
+- Bookmarks, lists, and media posts
+- Notifications (push and in-app)
+- Multi-language support (English, Spanish, Italian)
+- Responsive design and theming
+- Modern UI with custom icons and animations
+
+## Tech Stack
+- [Expo](https://expo.dev/) & React Native
+- TypeScript
+- NativeWind (Tailwind CSS for React Native)
+- Redux Toolkit & React Query
+- i18next (internationalization)
+- Expo Router (file-based routing)
+- Custom SVG icons
+- Expo Notifications, Secure Store, Camera, Video, Image Picker
+
+## Project Structure
+```
+├── app/                # App entry, screens, and routing
+│   ├── [username]/     # User profile, followers, following
+│   ├── kaana/          # AI assistant or help section
+│   ├── p/[id]/         # Post details, replies, quotes
+│   └── ...
+├── components/         # UI components (Feed, Post, SideBar, etc.)
+├── assets/             # Images, icons, fonts
+├── constants/          # App-wide constants
+├── context/            # React context providers
+├── features/           # Feature modules (e.g., trends)
+├── hooks/              # Custom React hooks
+├── interfaces/         # TypeScript interfaces
+├── lib/                # Library code (e.g., reactQuery)
+├── locales/            # i18n translation files
+├── scripts/            # Utility scripts
+├── store/              # Redux store and reducers
+├── styles/             # Global styles and colors
+├── utils/              # Utility functions
+├── app.config.js       # Expo app configuration
+├── package.json        # Project metadata and dependencies
+└── ...
+```
+
+## Getting Started
+
+1. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. Start the app
-
+2. **Start the app**
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+3. **Open in your preferred environment:**
+   - Expo Go (mobile)
+   - Android/iOS emulator
+   - Web browser
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+4. **Edit code:**
+   - Main screens: `app/`
+   - Components: `components/`
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Development Scripts
 
-## Get a fresh project
+- `npm start` — Start Expo development server
+- `npm run android` — Run on Android device/emulator
+- `npm run ios` — Run on iOS simulator
+- `npm run web` — Run in web browser
+- `npm run build-web` — Build static web output
+- `npm run reset-project` — Reset to a fresh project state
+- `npm run lint` — Lint codebase
 
-When you're ready, run:
+## Contributing
 
-```bash
-npm run reset-project
-```
+Contributions are welcome! Please open issues or pull requests for bug fixes, features, or improvements.
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## License
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+This project is licensed under the MIT License.
