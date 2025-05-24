@@ -1,4 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { toast } from 'sonner';
 import { API_URL } from '@/config';
 
@@ -161,11 +163,32 @@ export const fetchData = async <T>(
 };
 
 // Create axios instance with default config
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
   }
+});
+
+// Attach Oxy auth token to every request if available
+api.interceptors.request.use(async (config) => {
+  // Try SecureStore first, then AsyncStorage
+  let token = null;
+  try {
+    // OxyProvider uses storageKeyPrefix="oxy_example" by default
+    token = await SecureStore.getItemAsync('oxy_example_token');
+    if (!token) {
+      token = await AsyncStorage.getItem('oxy_example_token');
+    }
+  } catch (e) {
+    // ignore
+  }
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export const cleanupPendingRequests = () => {

@@ -10,9 +10,10 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { useOxy } from '@oxyhq/services';
+import { postData } from '@/utils/api';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+
 import { router } from 'expo-router';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
@@ -21,7 +22,7 @@ import { useTranslation } from 'react-i18next';
 const ComposeScreen = () => {
   const [postContent, setPostContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
-  const { user, oxyServices } = useOxy();
+  const { user } = useOxy();
   const { t } = useTranslation();
   
   const handlePost = async () => {
@@ -29,8 +30,8 @@ const ComposeScreen = () => {
     
     setIsPosting(true);
     try {
-      // Call API to create post
-      await oxyServices.createPost({ content: postContent.trim() });
+      // Call API to create post (using backend API)
+      await postData('/posts', { text: postContent.trim() });
       
       // Navigate back after posting
       router.back();
