@@ -96,34 +96,3 @@ const styles = StyleSheet.create({
 });
 
 export default HomeScreen;
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    feedToggle: {
-        flexDirection: 'row',
-        borderBottomWidth: 0.5,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-    },
-    toggleButton: {
-        flex: 1,
-        alignItems: 'center',
-        paddingVertical: 15,
-    },
-    activeToggle: {
-        borderBottomWidth: 2,
-        borderBottomColor: colors.primaryColor,
-    },
-    toggleText: {
-        fontSize: 16,
-        fontWeight: '500',
-        color: colors.COLOR_BLACK_LIGHT_3,
-    },
-    activeToggleText: {
-        fontWeight: 'bold',
-        color: colors.primaryColor,
-    },
-});
-
-export default HomeScreen;
