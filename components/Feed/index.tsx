@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, ListRenderItemInfo, RefreshControl, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { FlatList, ListRenderItemInfo, RefreshControl, StyleSheet, Text, View, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import Post from '../Post';
 import CreatePost from '../Post/CreatePost';
 import { useFeed, FeedType } from '@/hooks/useFeed';
@@ -32,11 +32,18 @@ const Feed: React.FC<FeedProps> = ({
     } = useFeed({ type, parentId });
 
     const { t } = useTranslation();
+    const { width: windowWidth } = useWindowDimensions();
+
+    // Calculate responsive values
+    const isTabletOrDesktop = windowWidth >= 768;
 
     // Render each post item
     const renderItem = ({ item, index }: ListRenderItemInfo<any>) => {
         return (
-            <View style={styles.postItemContainer}>
+            <View style={[
+                styles.postItemContainer,
+                isTabletOrDesktop && styles.postItemContainerTablet
+            ]}>
                 <Post postData={item} />
             </View>
         );
@@ -77,7 +84,10 @@ const Feed: React.FC<FeedProps> = ({
                 onEndReached={fetchMore}
                 onEndReachedThreshold={0.5}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-                contentContainerStyle={styles.container}
+                contentContainerStyle={[
+                    styles.container,
+                    isTabletOrDesktop && styles.containerTablet
+                ]}
                 ListHeaderComponent={showCreatePost ? (
                     <CreatePost onPress={handleCreatePostPress} />
                 ) : null}
@@ -112,6 +122,9 @@ const styles = StyleSheet.create({
     container: {
         paddingBottom: 20,
         backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    },
+    containerTablet: {
+        paddingHorizontal: Platform.OS === 'web' ? '10%' : 16,
     },
     errorContainer: {
         flex: 1,
@@ -161,6 +174,11 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 2,
         elevation: 2,
+    },
+    postItemContainerTablet: {
+        borderRadius: 8,
+        shadowRadius: 4,
+        elevation: 3,
     }
 });
 
