@@ -2,17 +2,15 @@
 
 # dependencies
 node_modules/
-.pnp
-.pnp.js
 
 # Expo
 .expo/
 dist/
 web-build/
 expo-env.d.ts
-.expo-shared/
 
 # Native
+.kotlin/
 *.orig.*
 *.jks
 *.p8
@@ -39,34 +37,3 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
-
-# Android Studio
-android/
-#iOS
-ios/
-
-# Logs
-*.log
-
-#Env
-.env
-.env.local
-.env.development
-.env.test
-.env.production
-
-# Temporary files
-tmp/
-temp/
-.vercel
-
-# testing
-coverage/
-
-# production
-build/
-
-# misc
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*

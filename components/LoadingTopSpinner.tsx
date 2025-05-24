@@ -30,6 +30,11 @@ const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, st
         ]).start();
     }, [showLoading, size, iconSize, containerHeight]);
 
+    // If not showing loading, don't render anything at all
+    if (showLoading === false) {
+        return null;
+    }
+
     const styles = StyleSheet.create({
         container: {
             width: '100%',

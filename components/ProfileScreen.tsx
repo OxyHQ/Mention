@@ -1,487 +1,491 @@
-import React, { useEffect, useState, useContext } from 'react';
-import { View, Image, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Platform, ViewStyle } from 'react-native';
-import { router, useLocalSearchParams, Link } from "expo-router";
-import Feed from '@/components/Feed';
-import { colors } from "@/styles/colors";
+import { Ionicons } from '@expo/vector-icons';
+import { Avatar, FollowButton, Models, useOxy } from '@oxyhq/services';
+import { router, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
-import { FollowButton } from '@/modules/oxyhqservices';
-import FileSelectorModal from '@/modules/oxyhqservices/components/FileSelectorModal';
-import { Ionicons } from "@expo/vector-icons";
-import { Chat as ChatIcon } from '@/assets/icons/chat-icon';
-import { toast } from '@/lib/sonner';
-import { useTranslation } from 'react-i18next';
-import Avatar from "@/components/Avatar";
-import { getProfileService } from '@/modules/oxyhqservices';
-import type { OxyProfile } from '@/modules/oxyhqservices/types';
-import { OXY_CLOUD_URL } from '@/modules/oxyhqservices/config';
 
 export default function ProfileScreen() {
-  const { username: localUsername } = useLocalSearchParams<{ username: string }>();
-  const [activeTab, setActiveTab] = useState("Posts");
-  const [profile, setProfile] = useState<OxyProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const sessionContext = useContext(SessionContext);
-  const currentUserId = sessionContext?.getCurrentUserId();
-  const { t } = useTranslation();
-  const [isAvatarModalVisible, setIsAvatarModalVisible] = useState(false);
-  const [isCoverModalVisible, setIsCoverModalVisible] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
+    const { user: currentUser, logout, oxyServices, showBottomSheet } = useOxy();
+    let { username } = useLocalSearchParams<{ username: string }>();
+    if (username && username.startsWith('@')) {
+      username = username.slice(1);
+    }
 
-  const handleFollowStatusChange = (isFollowing: boolean) => {
-    if (profile && profile._count) {
-      setProfile({
-        ...profile,
-        _count: {
-          ...profile._count,
-          followers: profile._count.followers + (isFollowing ? 1 : -1)
+    const [profileData, setProfileData] = useState<Models.User | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isCurrentUser, setIsCurrentUser] = useState(true);
+    const [activeTab, setActiveTab] = useState('posts'); // For Twitter-like content tabs
+
+    const fetchProfileData = useCallback(async (username: string) => {
+        try {
+            setIsLoading(true);
+            setError(null);
+
+            const data = await oxyServices.getProfileByUsername(username);
+            console.log('Fetched profile data:', data);
+
+            // Transform API data to our ProfileData format
+            const userData = data as any;
+
+            // Format name if available
+            let fullName = '';
+            if (userData.name) {
+                const firstName = userData.name.first || '';
+                const lastName = userData.name.last || '';
+                fullName = [firstName, lastName].filter(Boolean).join(' ');
+            }
+
+            setProfileData({
+                id: userData._id || userData.id,
+                username: userData.username,
+                profilePicture: userData.profilePicture || userData.avatar,
+                coverPhoto: userData.coverPhoto || 'https://pbs.twimg.com/profile_banners/44196397/1576183471/1500x500', // Default cover
+                email: userData.email,
+                createdAt: userData.createdAt,
+                fullName: fullName,
+                description: userData.description || userData.bio,
+                followersCount: userData._count?.followers,
+                followingCount: userData._count?.following,
+                location: userData.location
+            });
+        } catch (err: any) {
+            console.error('Error fetching profile:', err);
+            setError(err.message || 'Failed to load profile');
+        } finally {
+            setIsLoading(false);
         }
-      });
-    }
-  };
+    }, [oxyServices]);
 
-  const handleUpdateProfile = async (updateData: Partial<OxyProfile>) => {
-    if (!profile?._id || !currentUserId) return;
-
-    setIsUpdating(true);
-    try {
-      // Using the getter function to get the profile service instance
-      const profileService = getProfileService();
-      const updatedProfile = await profileService.updateProfile({
-        _id: profile._id,
-        ...updateData
-      });
-      setProfile(updatedProfile);
-      toast.success(t('Profile updated successfully'));
-    } catch (error) {
-      toast.error(t('Failed to update profile'));
-      console.error('Profile update error:', error);
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handleAvatarSelect = async (files: any[]) => {
-    if (files.length > 0) {
-      await handleUpdateProfile({ avatar: files[0]._id });
-    }
-    setIsAvatarModalVisible(false);
-  };
-
-  const handleCoverSelect = async (files: any[]) => {
-    if (files.length > 0) {
-      await handleUpdateProfile({ coverPhoto: files[0]._id });
-    }
-    setIsCoverModalVisible(false);
-  };
-
-  useEffect(() => {
-    const fetchProfileData = async () => {
-      if (!localUsername) return;
-
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const username = localUsername.replace('@', '');
-        // Using the getter function to get the profile service instance
-        const profileService = getProfileService();
-        const profile = await profileService.getProfileByUsername(username);
-
-        if (!profile) {
-          throw new Error(`User not found: ${username}`);
+    // Fetch profile data if viewing another user
+    useEffect(() => {
+        if (username && username !== currentUser?.username) {
+            setIsCurrentUser(false);
+            fetchProfileData(username);
+        } else {
+            // Use current user data
+            setIsCurrentUser(true);
+            if (currentUser) {
+                setProfileData(currentUser);
+            }
         }
+    }, [username, currentUser, fetchProfileData]);
 
-        setProfile(profile);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load profile';
-        setError(errorMessage);
-        setProfile(null);
-        toast.error(t(errorMessage));
-      } finally {
-        setLoading(false);
-      }
+    // Handle tab selection
+    const handleTabPress = (tab: string) => {
+        setActiveTab(tab);
     };
 
-    fetchProfileData();
-  }, [localUsername, t]);
-
-  if (loading) {
-    return (
-      <SafeAreaView>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primaryColor} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error || !profile) {
-    return (
-      <SafeAreaView>
-        <View style={styles.errorContainer}>
-          <Text>{error || 'Profile not found'}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const isOwnProfile = currentUserId === profile?._id;
-
-  // Add premium badge if user has premium status
-  const renderPremiumBadge = () => {
-    if (profile?.premium?.isPremium) {
-      return (
-        <View className="flex-row items-center bg-yellow-100 px-2 py-1 rounded-full ml-2">
-          <Ionicons name="star" size={14} color="#FFD700" />
-          <Text className="text-yellow-800 text-xs ml-1 font-medium">
-            {profile.premium.subscriptionTier?.toUpperCase() || 'PREMIUM'}
-          </Text>
-        </View>
-      );
-    }
-    return null;
-  };
-
-  // Render user stats section
-  const renderStats = () => {
-    if (!profile) return null;
-
-    const stats = {
-      posts: profile._count?.posts || profile.stats?.posts || 0,
-      following: profile._count?.following || profile.stats?.following || 0,
-      followers: profile._count?.followers || profile.stats?.followers || 0,
-      karma: profile._count?.karma || profile.stats?.karma || 0
-    };
-
-    return (
-      <View className="flex-row justify-around py-4 border-b border-gray-100">
-        <View className="items-center">
-          <Text className="font-bold">{stats.posts}</Text>
-          <Text className="text-gray-500 text-sm">Posts</Text>
-        </View>
-        <View className="items-center">
-          <Text className="font-bold">{stats.following}</Text>
-          <Text className="text-gray-500 text-sm">Following</Text>
-        </View>
-        <View className="items-center">
-          <Text className="font-bold">{stats.followers}</Text>
-          <Text className="text-gray-500 text-sm">Followers</Text>
-        </View>
-        <View className="items-center">
-          <Text className="font-bold">{stats.karma}</Text>
-          <Text className="text-gray-500 text-sm">Karma</Text>
-        </View>
-      </View>
-    );
-  };
-
-  return (
-    <SafeAreaView className="flex-1 bg-white">
-      {loading ? (
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color={colors.primaryColor} />
-        </View>
-      ) : error ? (
-        <View className="flex-1 justify-center items-center p-4">
-          <Text className="text-red-500 text-center">{error}</Text>
-        </View>
-      ) : profile ? (
-        <View className="flex-1">
-          <View className="relative">
-            {profile.coverPhoto ? (
-              <Image
-                source={{ uri: `${OXY_CLOUD_URL}/${profile.coverPhoto}` }}
-                className="w-full h-40"
-                style={{ resizeMode: 'cover' }}
-              />
-            ) : (
-              <View className="w-full h-40 bg-gray-200" />
-            )}
-            {isOwnProfile && (
-              <TouchableOpacity
-                className="absolute top-2 right-2 bg-black/30 rounded-full p-2"
-                onPress={() => setIsCoverModalVisible(true)}
-              >
-                <Ionicons name="camera" size={20} color="white" />
-              </TouchableOpacity>
-            )}
-            <View className="absolute -bottom-16 left-4">
-              <View className="relative">
-                <Avatar id={profile.avatar} size={80} />
-                {isOwnProfile && (
-                  <TouchableOpacity
-                    className="absolute bottom-0 right-0 bg-primary rounded-full p-1"
-                    onPress={() => setIsAvatarModalVisible(true)}
-                  >
-                    <Ionicons name="camera" size={16} color="white" />
-                  </TouchableOpacity>
-                )}
-              </View>
+    // Loading state
+    if (isLoading) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#1DA1F2" />
+                <Text style={styles.loadingText}>Loading profile...</Text>
             </View>
-          </View>
+        );
+    }
 
-          <View className="mt-20 px-4">
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center">
-                <Text className="text-xl font-bold">
-                  {profile.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : profile.username}
-                </Text>
-                {renderPremiumBadge()}
-              </View>
-              {!isOwnProfile && profile._id && (
-                <View className="flex-row">
-                  <View style={{ marginRight: 8 }}>
-                    <FollowButton
-                      userId={profile._id}
-                      onFollowStatusChange={handleFollowStatusChange}
-                    />
-                  </View>
-                  <TouchableOpacity
-                    className="bg-gray-100 p-2 rounded-full"
-                    onPress={() => router.push(`/messages/${profile._id}`)}
-                  >
-                    <ChatIcon size={20} color="#000" />
-                  </TouchableOpacity>
-                </View>
-              )}
-              {isOwnProfile && (
+    // Error state
+    if (error) {
+        return (
+            <View style={styles.errorContainer}>
+                <Ionicons name="warning-outline" size={60} color="#ff6b6b" />
+                <Text style={styles.errorText}>{error}</Text>
                 <TouchableOpacity
-                  className="bg-gray-100 py-1 px-4 rounded-full"
-                  onPress={() => router.push('/settings/profile/edit')}
+                    style={styles.backButton}
+                    onPress={() => router.back()}
                 >
-                  <Text>Edit Profile</Text>
+                    <Text style={styles.backButtonText}>Go Back</Text>
                 </TouchableOpacity>
-              )}
+            </View>
+        );
+    }
+
+    return (
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <StatusBar style="dark" />
+            <View style={styles.navigationHeader}>
+                <TouchableOpacity
+                    style={styles.backButtonSmall}
+                    onPress={() => router.back()}
+                >
+                    <Ionicons name="arrow-back" size={22} color="#000" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>
+                    {profileData?.fullName || profileData?.username || 'Profile'}
+                </Text>
             </View>
 
-            <Text className="text-gray-500 mb-2">@{profile.username}</Text>
-
-            {profile.description && (
-              <Text className="mb-2">{profile.description}</Text>
-            )}
-
-            <View className="flex-row flex-wrap mb-2">
-              {profile.location && (
-                <View className="flex-row items-center mr-4">
-                  <Ionicons name="location-outline" size={16} color="gray" />
-                  <Text className="text-gray-500 ml-1">{profile.location}</Text>
+            <ScrollView style={styles.scrollView}>
+                {/* Cover photo banner */}
+                <View style={styles.coverPhotoContainer}>
+                    <Image 
+                        source={{ uri: profileData?.coverPhoto || 'https://pbs.twimg.com/profile_banners/44196397/1576183471/1500x500' }}
+                        style={styles.coverPhoto}
+                    />
                 </View>
-              )}
-              {profile.website && (
-                <View className="flex-row items-center mr-4">
-                  <Ionicons name="link-outline" size={16} color="gray" />
-                  <Text className="text-primary ml-1">{profile.website}</Text>
+
+                {/* Profile section with avatar overlapping the banner */}
+                <View style={styles.profileSection}>
+                    <Avatar
+                        uri={profileData?.profilePicture}
+                        size={100}
+                        style={styles.profileAvatar}
+                    />
+
+                    {/* Follow/Edit Profile button */}
+                    <View style={styles.profileActionContainer}>
+                        {isCurrentUser ? (
+                            <TouchableOpacity style={styles.editProfileButton} onPress={() => showBottomSheet?.('AccountCenter')}>
+                                <Text style={styles.editProfileButtonText}>Edit Profile</Text>
+                            </TouchableOpacity>
+                        ) : profileData?.id ? (
+                            <FollowButton userId={profileData.id} size="small" />
+                        ) : null}
+                    </View>
+
+                    {/* Profile info */}
+                    <View style={styles.profileInfo}>
+                        <Text style={styles.fullName}>{profileData?.fullName || 'User'}</Text>
+                        <Text style={styles.username}>@{profileData?.username}</Text>
+                        
+                        {profileData?.description && (
+                            <Text style={styles.bio}>{profileData.description}</Text>
+                        )}
+
+                        {/* Location and join date */}
+                        <View style={styles.profileMetaInfo}>
+                            {profileData?.location && (
+                                <View style={styles.metaItem}>
+                                    <Ionicons name="location-outline" size={16} color="#657786" />
+                                    <Text style={styles.metaText}>{profileData.location}</Text>
+                                </View>
+                            )}
+                            
+                            {profileData?.createdAt && (
+                                <View style={styles.metaItem}>
+                                    <Ionicons name="calendar-outline" size={16} color="#657786" />
+                                    <Text style={styles.metaText}>
+                                        Joined {new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Followers/Following counts */}
+                        <View style={styles.followStats}>
+                            <TouchableOpacity 
+                                style={styles.statItem}
+                                onPress={() => router.push(`/${profileData?.username}/following`)}
+                            >
+                                <Text style={styles.statValue}>{profileData?.followingCount || 0}</Text>
+                                <Text style={styles.statLabel}>Following</Text>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity 
+                                style={styles.statItem}
+                                onPress={() => router.push(`/${profileData?.username}/followers`)}
+                            >
+                                <Text style={styles.statValue}>{profileData?.followersCount || 0}</Text>
+                                <Text style={styles.statLabel}>Followers</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Twitter-like content tabs */}
+                    <View style={styles.tabsContainer}>
+                        <TouchableOpacity 
+                            style={[styles.tab, activeTab === 'posts' ? styles.activeTab : {}]}
+                            onPress={() => handleTabPress('posts')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'posts' ? styles.activeTabText : {}]}>Posts</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                            style={[styles.tab, activeTab === 'replies' ? styles.activeTab : {}]}
+                            onPress={() => handleTabPress('replies')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'replies' ? styles.activeTabText : {}]}>Replies</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                            style={[styles.tab, activeTab === 'media' ? styles.activeTab : {}]}
+                            onPress={() => handleTabPress('media')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'media' ? styles.activeTabText : {}]}>Media</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                            style={[styles.tab, activeTab === 'likes' ? styles.activeTab : {}]}
+                            onPress={() => handleTabPress('likes')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'likes' ? styles.activeTabText : {}]}>Likes</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
-              )}
-              {profile.createdAt && (
-                <View className="flex-row items-center">
-                  <Ionicons name="calendar-outline" size={16} color="gray" />
-                  <Text className="text-gray-500 ml-1">
-                    Joined {new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                  </Text>
+
+                {/* Content area based on selected tab */}
+                <View style={styles.contentArea}>
+                    {activeTab === 'posts' && (
+                        <View style={styles.emptyStateContainer}>
+                            <Ionicons name="chatbox-outline" size={40} color="#657786" />
+                            <Text style={styles.emptyStateTitle}>No Posts Yet</Text>
+                            <Text style={styles.emptyStateText}>When {isCurrentUser ? 'you' : 'they'} post, it&#39;ll show up here.</Text>
+                        </View>
+                    )}
+
+                    {activeTab === 'replies' && (
+                        <View style={styles.emptyStateContainer}>
+                            <Ionicons name="chatbubble-outline" size={40} color="#657786" />
+                            <Text style={styles.emptyStateTitle}>No Replies Yet</Text>
+                            <Text style={styles.emptyStateText}>When {isCurrentUser ? 'you reply' : 'they reply'} to a post, it&#39;ll show up here.</Text>
+                        </View>
+                    )}
+
+                    {activeTab === 'media' && (
+                        <View style={styles.emptyStateContainer}>
+                            <Ionicons name="image-outline" size={40} color="#657786" />
+                            <Text style={styles.emptyStateTitle}>No Media Yet</Text>
+                            <Text style={styles.emptyStateText}>When {isCurrentUser ? 'you' : 'they'} post photos or videos, they&#39;ll show up here.</Text>
+                        </View>
+                    )}
+
+                    {activeTab === 'likes' && (
+                        <View style={styles.emptyStateContainer}>
+                            <Ionicons name="heart-outline" size={40} color="#657786" />
+                            <Text style={styles.emptyStateTitle}>No Likes Yet</Text>
+                            <Text style={styles.emptyStateText}>Posts {isCurrentUser ? 'you have' : 'they have'} liked will show up here.</Text>
+                        </View>
+                    )}
                 </View>
-              )}
-            </View>
-          </View>
-
-          {renderStats()}
-
-          <View className="flex-1">
-            <Feed
-              type="profile"
-              userId={profile._id}
-              showCreatePost={false}
-            />
-          </View>
-        </View>
-      ) : null}
-
-      <FileSelectorModal
-        isVisible={isAvatarModalVisible}
-        onClose={() => setIsAvatarModalVisible(false)}
-        onSelect={handleAvatarSelect}
-        options={{
-          fileTypeFilter: ["image/"],
-          maxFiles: 1
-        }}
-      />
-
-      <FileSelectorModal
-        isVisible={isCoverModalVisible}
-        onClose={() => setIsCoverModalVisible(false)}
-        onSelect={handleCoverSelect}
-        options={{
-          fileTypeFilter: ["image/"],
-          maxFiles: 1
-        }}
-      />
-    </SafeAreaView>
-  );
+            </ScrollView>
+        </SafeAreaView>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  coverPhoto: {
-    width: '100%',
-    height: 160,
-    borderRadius: 35,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-  },
-  avatar: {
-    borderWidth: 4,
-    marginTop: -40,
-    borderColor: colors.primaryLight,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'transform 0.2s ease',
-        ':hover': {
-          transform: [{ scale: 1.05 }],
-        },
-      },
-    }),
-  },
-  coverPhotoButton: {
-    width: '100%',
-    height: 160,
-    borderRadius: 35,
-    overflow: 'hidden',
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'opacity 0.2s ease',
-        ':hover': {
-          opacity: 0.9,
-        },
-      },
-    }),
-  },
-  profileButtons: {
-    position: "absolute",
-    right: 15,
-    top: 15,
-    flexDirection: "row",
-    gap: 10,
-  },
-  profileInfo: {
-    padding: 15,
-  },
-  ProfileButton: {
-    borderRadius: 20,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    backgroundColor: colors.COLOR_BACKGROUND,
-  },
-  ProfileButtonText: {
-    color: colors.primaryColor,
-    fontWeight: "bold",
-  },
-  ProfileButtonBack: {
-    borderRadius: 35,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    backgroundColor: colors.COLOR_BACKGROUND,
-    position: "absolute",
-    left: 0,
-    top: 0,
-    zIndex: 1,
-    borderWidth: 4,
-    borderColor: colors.primaryLight,
-  },
-  name: {
-    fontSize: 30,
-    fontWeight: "bold",
-    marginTop: 10,
-  },
-  usernameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  username: {
-    fontSize: 16,
-    color: colors.COLOR_BLACK_LIGHT_3,
-  },
-  lockIcon: {
-    marginLeft: 4,
-  },
-  bio: {
-    marginBottom: 10,
-  },
-  userDetails: {
-    marginBottom: 10,
-  },
-  userDetailItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 5,
-  },
-  userDetailText: {
-    color: colors.COLOR_BLACK_LIGHT_3,
-    marginLeft: 5,
-  },
-  link: {
-    color: colors.primaryColor,
-    fontWeight: "bold",
-  },
-  statsContainer: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  statText: {
-    color: colors.COLOR_BLACK_LIGHT_3,
-  },
-  statTextHover: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.primaryColor,
-  },
-  statCount: {
-    color: colors.COLOR_BLACK,
-    fontWeight: "bold",
-  },
-  tabContainer: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-    ...Platform.select({
-      web: {
-        position: "sticky",
-        top: 0,
-        zIndex: 1,
-        backgroundColor: colors.primaryLight,
-      },
-    }),
-  } as ViewStyle,
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 15,
-  },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.primaryColor,
-  },
-  tabText: {
-    color: colors.COLOR_BLACK_LIGHT_3,
-  },
-  activeTabText: {
-    color: colors.primaryColor,
-    fontWeight: "bold",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
+    container: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    scrollView: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    // Twitter-style navigation header
+    navigationHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#E1E8ED',
+        backgroundColor: '#fff',
+    },
+    backButtonSmall: {
+        padding: 8,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginLeft: 16,
+        color: '#14171A',
+    },
+    // Cover photo
+    coverPhotoContainer: {
+        height: 150,
+        width: '100%',
+        backgroundColor: '#AAB8C2',
+    },
+    coverPhoto: {
+        height: '100%',
+        width: '100%',
+        resizeMode: 'cover',
+    },
+    // Profile section
+    profileSection: {
+        paddingBottom: 10,
+    },
+    profileAvatar: {
+        marginTop: -40,
+        marginLeft: 16,
+        borderWidth: 5,
+        borderColor: '#fff',
+    },
+    profileActionContainer: {
+        position: 'absolute',
+        right: 16,
+        top: 10,
+    },
+    editProfileButton: {
+        borderWidth: 1,
+        borderColor: '#1DA1F2',
+        borderRadius: 50,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+    },
+    editProfileButtonText: {
+        color: '#1DA1F2',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    followButton: {
+        backgroundColor: '#1DA1F2',
+        borderRadius: 50,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+    },
+    followingButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: '#1DA1F2',
+    },
+    followButtonText: {
+        color: '#fff',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    followingButtonText: {
+        color: '#1DA1F2',
+    },
+    // Profile info
+    profileInfo: {
+        padding: 16,
+    },
+    fullName: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#14171A',
+    },
+    username: {
+        fontSize: 15,
+        color: '#657786',
+        marginBottom: 10,
+    },
+    bio: {
+        fontSize: 15,
+        color: '#14171A',
+        marginBottom: 12,
+        lineHeight: 20,
+    },
+    profileMetaInfo: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 12,
+    },
+    metaItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginRight: 16,
+        marginBottom: 6,
+    },
+    metaText: {
+        fontSize: 14,
+        color: '#657786',
+        marginLeft: 4,
+    },
+    // Follow stats
+    followStats: {
+        flexDirection: 'row',
+        marginTop: 4,
+    },
+    statItem: {
+        flexDirection: 'row',
+        marginRight: 16,
+    },
+    statValue: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#14171A',
+        marginRight: 4,
+    },
+    statLabel: {
+        fontSize: 14,
+        color: '#657786',
+    },
+    // Tabs
+    tabsContainer: {
+        flexDirection: 'row',
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#E1E8ED',
+    },
+    tab: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 16,
+    },
+    activeTab: {
+        borderBottomWidth: 2,
+        borderBottomColor: '#1DA1F2',
+    },
+    tabText: {
+        color: '#657786',
+        fontWeight: '500',
+    },
+    activeTabText: {
+        color: '#1DA1F2',
+        fontWeight: 'bold',
+    },
+    // Content area
+    contentArea: {
+        minHeight: 300,
+    },
+    emptyStateContainer: {
+        padding: 30,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyStateTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#14171A',
+        marginTop: 10,
+        marginBottom: 8,
+    },
+    emptyStateText: {
+        fontSize: 15,
+        color: '#657786',
+        textAlign: 'center',
+    },
+    // Loading state
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    loadingText: {
+        fontSize: 16,
+        marginTop: 12,
+        color: '#657786',
+    },
+    // Error state
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    errorText: {
+        fontSize: 16,
+        marginTop: 12,
+        color: '#ff6b6b',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    backButton: {
+        backgroundColor: '#1DA1F2',
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 50,
+        marginTop: 16,
+    },
+    backButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
 });

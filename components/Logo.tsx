@@ -2,7 +2,7 @@ import React from "react";
 import { View, TouchableOpacity, StyleSheet, AccessibilityInfo, Pressable, Platform } from "react-native";
 import { Stack, Link, useRouter } from "expo-router";
 
-import { MentionLogo } from "@/assets/mention-logo";
+import { LogoIcon } from "@/assets/logo";
 import { colors } from '@/styles/colors'
 
 export const Logo = () => {
@@ -16,7 +16,7 @@ export const Logo = () => {
         styles.container,
       ]}>
       <View style={styles.logo}>
-        <MentionLogo style={styles.logoSvg} size={27}
+        <LogoIcon style={styles.logoSvg} size={27}
           color={colors.primaryColor} />
       </View>
     </Pressable>

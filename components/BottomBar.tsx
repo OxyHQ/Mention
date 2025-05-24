@@ -1,19 +1,17 @@
-import { StyleSheet, View, Pressable, Text, ViewStyle, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, usePathname } from 'expo-router';
+import { useOxy } from '@oxyhq/services';
+import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
-import { Home, HomeActive } from '@/assets/icons/home-icon';
-import { Search, SearchActive } from '@/assets/icons/search-icon';
-import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { Video, VideoActive } from '@/assets/icons/video-icon';
-import { SessionOwnerButton } from '@/modules/oxyhqservices';
+import { Platform, Pressable, StyleSheet, View, ViewStyle } from 'react-native';
+import Avatar from './Avatar';
 
 export const BottomBar = () => {
     const router = useRouter();
     const [activeRoute, setActiveRoute] = React.useState('/');
     const pathname = usePathname();
+    const { showBottomSheet, hideBottomSheet } = useOxy();
 
-    const handlePress = (route: '/' | '/compose' | '/explore' | '/notifications' | '/videos') => {
+    const handlePress = (route: '/' | '/properties' | '/saved' | '/contracts' | '/profile') => {
         setActiveRoute(route);
         router.push(route);
     };
@@ -26,9 +24,9 @@ export const BottomBar = () => {
             flexDirection: 'row',
             justifyContent: 'space-around',
             alignItems: 'center',
-            borderTopWidth: pathname === '/videos' ? 0 : 1,
-            borderTopColor: pathname === '/videos' ? 'transparent' : '#eeeeee',
-            elevation: pathname === '/videos' ? 0 : 8,
+            borderTopWidth: 1,
+            borderTopColor: '#eeeeee',
+            elevation: 8,
             ...Platform.select({
                 web: {
                     position: 'sticky',
@@ -51,19 +49,19 @@ export const BottomBar = () => {
     return (
         <View style={styles.bottomBar}>
             <Pressable onPress={() => handlePress('/')} style={[styles.tab, activeRoute === '/' && styles.active]}>
-                {activeRoute === '/' ? <HomeActive size={28} /> : <Home size={28} />}
+                <Ionicons name={activeRoute === '/' ? "home" : "home-outline"} size={28} color={activeRoute === '/' ? "#4E67EB" : "#000"} />
             </Pressable>
-            <Pressable onPress={() => handlePress('/explore')} style={[styles.tab, activeRoute === '/explore' && styles.active]}>
-                {activeRoute === '/explore' ? <SearchActive size={28} /> : <Search size={28} />}
+            <Pressable onPress={() => handlePress('/properties')} style={[styles.tab, activeRoute === '/properties' && styles.active]}>
+                <Ionicons name={activeRoute === '/properties' ? "search" : "search-outline"} size={28} color={activeRoute === '/properties' ? "#4E67EB" : "#000"} />
             </Pressable>
-            <Pressable onPress={() => handlePress('/videos')} style={[styles.tab, activeRoute === '/videos' && styles.active]}>
-                {activeRoute === '/videos' ? <VideoActive size={28} /> : <Video size={28} />}
+            <Pressable onPress={() => handlePress('/saved')} style={[styles.tab, activeRoute === '/saved' && styles.active]}>
+                <Ionicons name={activeRoute === '/saved' ? "bookmark" : "bookmark-outline"} size={28} color={activeRoute === '/saved' ? "#4E67EB" : "#000"} />
             </Pressable>
-            <Pressable onPress={() => handlePress('/notifications')} style={[styles.tab, activeRoute === '/notifications' && styles.active]}>
-                {activeRoute === '/notifications' ? <BellActive size={28} /> : <Bell size={28} />}
+            <Pressable onPress={() => handlePress('/contracts')} style={[styles.tab, activeRoute === '/contracts' && styles.active]}>
+                <Ionicons name={activeRoute === '/contracts' ? "document-text" : "document-text-outline"} size={28} color={activeRoute === '/contracts' ? "#4E67EB" : "#000"} />
             </Pressable>
             <View style={styles.tab}>
-                <SessionOwnerButton collapsed={true} />
+                <Avatar onPress={() => showBottomSheet?.('SignIn')} />
             </View>
         </View>
     );

@@ -1,35 +1,32 @@
-import React, { useEffect, useState } from 'react';
-import { View, FlatList, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import { useProfile, OxyProfile } from '@/modules/oxyhqservices';
-import { colors } from '@/styles/colors';
 import { Header } from '@/components/Header';
-import Avatar from '@/components/Avatar';
-import { FollowButton } from '@/modules/oxyhqservices';
 import { ThemedText } from '@/components/ThemedText';
-import { Link } from 'expo-router';
+import { colors } from '@/styles/colors';
+import { Avatar, FollowButton, Models, useOxy } from '@oxyhq/services';
+import { Link, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ActivityIndicator, FlatList, View } from 'react-native';
 
 export default function FollowingScreen() {
-    const { username } = useLocalSearchParams<{ username: string }>();
-    const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
-    const { getProfile, getIdByUsername, getFollowing } = useProfile();
-    const [loading, setLoading] = useState(true);
-    const [following, setFollowing] = useState<OxyProfile[]>([]);
-    const [profile, setProfile] = useState<OxyProfile | null>(null);
-    const { t } = useTranslation();
+  const { username } = useLocalSearchParams<{ username: string }>();
+  const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
+  const { user, oxyServices } = useOxy();
+  const [loading, setLoading] = useState(true);
+  const [following, setFollowing] = useState<Models.User[]>([]);
+  const [profile, setProfile] = useState<Models.User | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const loadFollowing = async () => {
       try {
-        const userId = await getIdByUsername(cleanUsername);
-        if (!userId) {
-          throw new Error('User ID is null');
+        const userProfile = await oxyServices.getProfileByUsername(cleanUsername);
+        if (!userProfile) {
+          throw new Error('User profile is null');
         }
-        const userProfile = await getProfile(userId);
         if (userProfile?._id) {
           setProfile(userProfile);
-          const followingList = await getFollowing(userId);
+          const followingList = await oxyServices.getUserFollowing(userProfile._id);
+          console.log('Following:', followingList);
           setFollowing(followingList || []);
         }
       } catch (error) {
@@ -40,19 +37,19 @@ export default function FollowingScreen() {
     };
 
     loadFollowing();
-  }, [cleanUsername, getProfile, getFollowing]);
+  }, [cleanUsername, oxyServices]);
 
-  const renderUser = ({ item }: { item: OxyProfile }) => (
-    <View style={{ 
-      flexDirection: 'row', 
-      alignItems: 'center', 
+  const renderUser = ({ item }: { item: Models.User }) => (
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
       padding: 16,
       borderBottomWidth: 0.5,
       borderBottomColor: colors.COLOR_BLACK_LIGHT_6 
     }}>
       <Link href={`/@${item.username}`} asChild>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <Avatar id={item.avatar} size={40} />
+          <Avatar uri={item.avatar?.url} size={40} />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <ThemedText style={{ fontWeight: '600' }}>
               {item.name?.first ? `${item.name.first} ${item.name.last || ''}`.trim() : item.username}

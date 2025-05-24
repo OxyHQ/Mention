@@ -1,45 +1,43 @@
-import React, { useContext } from 'react'
-import { Dimensions, Platform, Text, View, ViewStyle, TouchableOpacity } from 'react-native'
-import { usePathname } from 'expo-router';
-import { useMediaQuery } from 'react-responsive'
-import { widthPercentageToDP as wp } from 'react-native-responsive-screen'
-import { useTranslation } from "react-i18next";
-import { SideBarItem } from './SideBarItem'
-import { colors } from '@/styles/colors'
-import { Button } from '@/components/SideBar/Button'
-import { Logo } from '@/components/Logo'
-import { Home, HomeActive } from '@/assets/icons/home-icon'
-import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
-import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
+import { AnalyticsIcon, AnalyticsIconActive } from '@/assets/icons/analytics-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { Gear, GearActive } from '@/assets/icons/gear-icon';
+import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
+import { Compose } from '@/assets/icons/compose-icon';
+import { Gear, GearActive } from '@/assets/icons/gear-icon';
+import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
+import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { List, ListActive } from '@/assets/icons/list-icon';
-import { Feeds, FeedsActive } from '@/assets/icons/feeds-icon';
-import { SessionOwnerButton } from '@/modules/oxyhqservices';
-const WindowHeight = Dimensions.get('window').height;
-
-import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
 import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { Video, VideoActive } from '@/assets/icons/video-icon';
-import { Compose } from '@/assets/icons/compose-icon';
-import { AnalyticsIcon, AnalyticsIconActive } from '@/assets/icons/analytics-icon';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { AuthBottomSheet } from '@/modules/oxyhqservices/components/AuthBottomSheet';
+import { Logo } from '@/components/Logo';
+import { Button } from '@/components/SideBar/Button';
+import { colors } from '@/styles/colors';
+import { useOxy } from '@oxyhq/services';
+import { router, usePathname } from 'expo-router';
+import React from 'react';
+import { useTranslation } from "react-i18next";
+import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useMediaQuery } from 'react-responsive';
+import { SideBarItem } from './SideBarItem';
+
+const WindowHeight = Dimensions.get('window').height;
 
 export function SideBar() {
 
     const { t } = useTranslation();
-    const sessionContext = useContext(SessionContext);
-    const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
-    const isAuthenticated = sessionContext?.state?.userId != null;
+    const { logout, isLoading, user, isAuthenticated, showBottomSheet } = useOxy();
 
-    // Early return if no session context is available
-    if (!sessionContext) {
-        return null;
-    }
+    
+    const handleLogout = async () => {
+        try {
+            await logout();
+            router.push('/');
+        } catch (error) {
+            console.error('Logout failed:', error);
+        }
+    };
 
-    const { state } = sessionContext;
 
     const sideBarData: { title: string; icon: React.ReactNode, iconActive: React.ReactNode, route: string }[] = [
         {
@@ -109,11 +107,6 @@ export function SideBar() {
     const isFullSideBar = useMediaQuery({ minWidth: 1266 })
     const isRightBarVisible = useMediaQuery({ minWidth: 990 })
 
-    const handleAuthClick = () => {
-        setBottomSheetContent(<AuthBottomSheet />);
-        openBottomSheet(true);
-    };
-
     if (!isSideBarVisible) return null
 
     if (isSideBarVisible) {
@@ -142,7 +135,7 @@ export function SideBar() {
                         alignItems: 'flex-start',
                     }}>
                     <Logo />
-                    {!state.userId && (
+                    {!isAuthenticated && (
                         <View>
                             <Text
                                 style={{
@@ -165,7 +158,6 @@ export function SideBar() {
                                     }}
                                 >
                                     <TouchableOpacity
-                                        onPress={handleAuthClick}
                                         style={{
                                             justifyContent: 'center',
                                             alignItems: 'center',
@@ -174,11 +166,11 @@ export function SideBar() {
                                             paddingHorizontal: 15,
                                             paddingVertical: 8,
                                         }}
+                                        onPress={() => showBottomSheet?.('SignUp')}
                                     >
                                         <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{t("Sign Up")}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        onPress={handleAuthClick}
                                         style={{
                                             justifyContent: 'center',
                                             alignItems: 'center',
@@ -187,6 +179,7 @@ export function SideBar() {
                                             paddingHorizontal: 15,
                                             paddingVertical: 8,
                                         }}
+                                        onPress={() => showBottomSheet?.('SignIn')}
                                     >
                                         <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{t("Sign In")}</Text>
                                     </TouchableOpacity>
@@ -194,7 +187,7 @@ export function SideBar() {
                             )}
                         </View>
                     )}
-                    {state.userId && (
+                    {isAuthenticated && (
                         <View style={{
                             justifyContent: 'center',
                             alignItems: 'flex-start',
@@ -236,8 +229,18 @@ export function SideBar() {
                         </View>)}
                 </View>
                 <View style={{ flex: 1, }}></View>
-                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-                    <SessionOwnerButton collapsed={!isFullSideBar} />
+                <View style={{ width: '100%', paddingHorizontal: 20, }}>
+                    {isAuthenticated && (
+                                        <View style={styles.logoutContainer}>
+                                            <TouchableOpacity
+                                                style={styles.logoutButton}
+                                                onPress={handleLogout}
+                                            >
+                                                <Ionicons name="log-out-outline" size={20} color="#fff" />
+                                                <Text style={styles.logoutButtonText}>Logout</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
                 </View>
             </View>
         )
@@ -245,3 +248,25 @@ export function SideBar() {
         return null
     }
 }
+
+const styles = StyleSheet.create({
+    // Logout
+    logoutContainer: {
+        padding: 16,
+        marginBottom: 20,
+    },
+    logoutButton: {
+        backgroundColor: '#E0245E',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 12,
+        borderRadius: 50,
+    },
+    logoutButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginLeft: 8,
+    },
+});

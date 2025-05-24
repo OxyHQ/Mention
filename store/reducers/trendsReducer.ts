@@ -1,6 +1,6 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { fetchData } from '@/utils/api';
 import { Trend } from '@/interfaces/Trend';
+import { fetchData } from '@/utils/api';
+import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 
 interface TrendsState {
   trends: Trend[];
@@ -15,8 +15,9 @@ const initialState: TrendsState = {
 };
 
 export const fetchTrends = createAsyncThunk('trends/fetchTrends', async () => {
-  const response = await fetchData('hashtags');
+  const response = await fetchData('hashtags') as { hashtags: any[] };
   return response.hashtags.map((trend: any) => ({
+    id: trend.id,
     text: trend.text,
     hashtag: trend.hashtag,
     score: trend.count,

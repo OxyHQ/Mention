@@ -1,31 +1,27 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, Platform, ViewStyle, ActivityIndicator } from 'react-native';
-import { router, Link } from "expo-router";
-import api from '@/utils/api';
-import { renderMedia, renderPoll, renderLocation } from './renderers';
-import Avatar from '../Avatar';
-import { colors } from '@/styles/colors';
-import { SessionContext } from '@/modules/oxyhqservices/components/SessionProvider';
-import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
+import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
 import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
-import { toast } from '@/lib/sonner';
-import { format } from 'date-fns';
 import type { Post as IPost } from '@/interfaces/Post';
-import { getOxyClient } from '@/modules/oxyhqservices';
-import type { OxyProfile } from '@/modules/oxyhqservices/types';
-import { Share } from 'react-native';
+import { toast } from '@/lib/sonner';
+import { colors } from '@/styles/colors';
+import api from '@/utils/api';
 import { Ionicons } from "@expo/vector-icons";
-import { getProfileService } from '@/modules/oxyhqservices';
+import { Models, useOxy } from '@oxyhq/services';
+import { useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { Link, router } from "expo-router";
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Animated, Share, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
+import Avatar from '../Avatar';
 
 interface PollData {
     id: string;
-    options: Array<{
+    options: {
         text: string;
         votes: number;
-    }>;
+    }[];
 }
 
 interface PostProps {
@@ -39,15 +35,16 @@ interface PostProps {
 // Global profile cache for API call optimization
 // Each profile is keyed by userId to ensure correct access
 declare global {
-    var profileCacheMap: Map<string, OxyProfile>;
+    var profileCacheMap: Map<string, Models.User>;
 }
 
 if (!global.profileCacheMap) {
-    global.profileCacheMap = new Map<string, OxyProfile>();
+    global.profileCacheMap = new Map<string, Models.User>();
 }
 
 export default function Post({ postData, quotedPost, className, style, showActions = true }: PostProps) {
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
     const [isLiked, setIsLiked] = useState(postData.isLiked || false);
     const [likesCount, setLikesCount] = useState(postData._count?.likes || 0);
     const [isReposted, setIsReposted] = useState(postData.isReposted || false);
@@ -56,14 +53,11 @@ export default function Post({ postData, quotedPost, className, style, showActio
     const [bookmarksCount, setBookmarksCount] = useState(postData._count?.bookmarks || 0);
     const [poll, setPoll] = useState<PollData | null>(null);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
-    const [authorProfile, setAuthorProfile] = useState<OxyProfile | null>(null);
-    const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
-    const [profileError, setProfileError] = useState<string | null>(null);
     const [isFollowing, setIsFollowing] = useState<boolean>(false);
-    const session = useContext(SessionContext);
+    const { user, isAuthenticated } = useOxy();
     const animatedScale = useRef(new Animated.Value(1)).current;
     const authorId = postData.author?.id;
-    
+
     // Reset states when post data changes
     useEffect(() => {
         setIsLiked(postData.isLiked || false);
@@ -73,97 +67,92 @@ export default function Post({ postData, quotedPost, className, style, showActio
         setIsBookmarked(postData.isBookmarked || false);
         setBookmarksCount(postData._count?.bookmarks || 0);
     }, [postData]);
-    
-    // Fetch profile for this specific post
+
+    // Check following status if we're authenticated and not looking at our own post
     useEffect(() => {
-        const fetchAuthorProfile = async () => {
-            // Reset profile state when author changes
-            setAuthorProfile(null);
-            
-            if (!authorId) {
-                setProfileError("No author ID available");
-                setIsLoadingProfile(false);
-                return;
-            }
-            
-            // First try to get from global cache
-            const cachedProfile = global.profileCacheMap.get(authorId);
-            if (cachedProfile) {
-                setAuthorProfile(cachedProfile);
-                setIsLoadingProfile(false);
-                
-                // Still check following status if needed
-                if (session?.isAuthenticated && session.getCurrentUserId() !== authorId) {
-                    try {
-                        const profileService = getProfileService();
-                        const followingStatus = await profileService.getFollowingStatus(authorId);
-                        setIsFollowing(followingStatus);
-                    } catch (error) {
-                        console.error('Error checking following status:', error);
-                    }
+        const checkFollowingStatus = async () => {
+            if (isAuthenticated && authorId && user?.id !== authorId) {
+                try {
+                    // Check if the user is already following the author
+                } catch (error) {
+                    console.error('Error checking following status:', error);
                 }
-                return;
-            }
-            
-            setIsLoadingProfile(true);
-            setProfileError(null);
-            
-            try {
-                const profileService = getProfileService();
-                const profile = await profileService.getProfileById(authorId);
-                
-                // Store in global cache for reuse
-                global.profileCacheMap.set(authorId, profile);
-                
-                // Set for this component instance
-                setAuthorProfile(profile);
-                
-                // Check following status
-                if (session?.isAuthenticated && session.getCurrentUserId() !== authorId) {
-                    try {
-                        const followingStatus = await profileService.getFollowingStatus(authorId);
-                        setIsFollowing(followingStatus);
-                    } catch (error) {
-                        console.error('Error checking following status:', error);
-                    }
-                }
-            } catch (error) {
-                console.error(`Error fetching author profile for ID ${authorId}:`, error);
-                setProfileError("Failed to load profile");
-            } finally {
-                setIsLoadingProfile(false);
             }
         };
-        
-        fetchAuthorProfile();
-    }, [authorId, session]);
+
+        checkFollowingStatus();
+    }, [authorId, user, isAuthenticated]);
+
+    // Animation for interactions
+    const animateInteraction = () => {
+        Animated.sequence([
+            Animated.spring(animatedScale, {
+                toValue: 1.2,
+                useNativeDriver: true,
+            }),
+            Animated.spring(animatedScale, {
+                toValue: 1,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
 
     const handleLike = async () => {
+        if (!isAuthenticated) {
+            toast.error(t('Please sign in to like posts'));
+            return;
+        }
+
         try {
             const newIsLiked = !isLiked;
+
+            // Optimistic update
             setIsLiked(newIsLiked);
             setLikesCount(prev => prev + (newIsLiked ? 1 : -1));
+            animateInteraction();
 
-            Animated.sequence([
-                Animated.spring(animatedScale, {
-                    toValue: 1.2,
-                    useNativeDriver: true,
-                }),
-                Animated.spring(animatedScale, {
-                    toValue: 1,
-                    useNativeDriver: true,
-                }),
-            ]).start();
+            // Find all feed queries that might contain this post
+            const feedQueries = queryClient.getQueriesData({
+                queryKey: ['feed']
+            });
 
+            // Update all feed queries that might have this post
+            feedQueries.forEach(([queryKey]) => {
+                queryClient.setQueryData(queryKey, (oldData: any) => {
+                    if (!oldData?.pages) return oldData;
+
+                    return {
+                        ...oldData,
+                        pages: oldData.pages.map((page: any) => ({
+                            ...page,
+                            posts: page.posts.map((post: IPost) => {
+                                if (post.id === postData.id) {
+                                    const likesCount = (post._count?.likes || 0) + (newIsLiked ? 1 : -1);
+                                    return {
+                                        ...post,
+                                        isLiked: newIsLiked,
+                                        _count: { ...post._count, likes: likesCount >= 0 ? likesCount : 0 }
+                                    };
+                                }
+                                return post;
+                            })
+                        }))
+                    };
+                });
+            });
+
+            // Make the API call
             if (newIsLiked) {
                 await api.post(`posts/${postData.id}/like`);
             } else {
                 await api.delete(`posts/${postData.id}/like`);
             }
         } catch (error) {
+            // Revert optimistic update on error
             console.error('Error liking post:', error);
             setIsLiked(prev => !prev);
             setLikesCount(prev => prev + (isLiked ? 1 : -1));
+            toast.error(t('Failed to update like status'));
         }
     };
 
@@ -172,50 +161,119 @@ export default function Post({ postData, quotedPost, className, style, showActio
     };
 
     const handleRepost = async () => {
+        if (!isAuthenticated) {
+            toast.error(t('Please sign in to repost'));
+            return;
+        }
+
         try {
             const newIsReposted = !isReposted;
+
+            // Optimistic update
             setIsReposted(newIsReposted);
             setRepostsCount(prev => prev + (newIsReposted ? 1 : -1));
+            animateInteraction();
 
-            Animated.sequence([
-                Animated.spring(animatedScale, {
-                    toValue: 1.2,
-                    useNativeDriver: true,
-                }),
-                Animated.spring(animatedScale, {
-                    toValue: 1,
-                    useNativeDriver: true,
-                }),
-            ]).start();
+            // Find all feed queries that might contain this post
+            const feedQueries = queryClient.getQueriesData({
+                queryKey: ['feed']
+            });
 
+            // Update all feed queries that might have this post
+            feedQueries.forEach(([queryKey]) => {
+                queryClient.setQueryData(queryKey, (oldData: any) => {
+                    if (!oldData?.pages) return oldData;
+
+                    return {
+                        ...oldData,
+                        pages: oldData.pages.map((page: any) => ({
+                            ...page,
+                            posts: page.posts.map((post: IPost) => {
+                                if (post.id === postData.id) {
+                                    const repostsCount = (post._count?.reposts || 0) + (newIsReposted ? 1 : -1);
+                                    return {
+                                        ...post,
+                                        isReposted: newIsReposted,
+                                        _count: { ...post._count, reposts: repostsCount >= 0 ? repostsCount : 0 }
+                                    };
+                                }
+                                return post;
+                            })
+                        }))
+                    };
+                });
+            });
+
+            // Make the API call
             if (newIsReposted) {
                 await api.post(`posts/${postData.id}/repost`);
             } else {
                 await api.delete(`posts/${postData.id}/repost`);
             }
         } catch (error) {
+            // Revert optimistic update on error
             console.error('Error reposting:', error);
             setIsReposted(prev => !prev);
             setRepostsCount(prev => prev + (isReposted ? 1 : -1));
+            toast.error(t('Failed to update repost status'));
         }
     };
 
     const handleBookmark = async () => {
+        if (!isAuthenticated) {
+            toast.error(t('Please sign in to bookmark posts'));
+            return;
+        }
+
         try {
             const newIsBookmarked = !isBookmarked;
+
+            // Optimistic update
             setIsBookmarked(newIsBookmarked);
             setBookmarksCount(prev => prev + (newIsBookmarked ? 1 : -1));
 
+            // Find all feed queries that might contain this post
+            const feedQueries = queryClient.getQueriesData({
+                queryKey: ['feed']
+            });
+
+            // Update all feed queries that might have this post
+            feedQueries.forEach(([queryKey]) => {
+                queryClient.setQueryData(queryKey, (oldData: any) => {
+                    if (!oldData?.pages) return oldData;
+
+                    return {
+                        ...oldData,
+                        pages: oldData.pages.map((page: any) => ({
+                            ...page,
+                            posts: page.posts.map((post: IPost) => {
+                                if (post.id === postData.id) {
+                                    const bookmarksCount = (post._count?.bookmarks || 0) + (newIsBookmarked ? 1 : -1);
+                                    return {
+                                        ...post,
+                                        isBookmarked: newIsBookmarked,
+                                        _count: { ...post._count, bookmarks: bookmarksCount >= 0 ? bookmarksCount : 0 }
+                                    };
+                                }
+                                return post;
+                            })
+                        }))
+                    };
+                });
+            });
+
+            // Make the API call
             if (newIsBookmarked) {
                 await api.post(`posts/${postData.id}/bookmark`);
             } else {
                 await api.delete(`posts/${postData.id}/bookmark`);
             }
         } catch (error) {
+            // Revert optimistic update on error
             console.error('Error bookmarking:', error);
             setIsBookmarked(prev => !prev);
             setBookmarksCount(prev => prev + (isBookmarked ? 1 : -1));
-            toast.error('Failed to bookmark post');
+            toast.error(t('Failed to update bookmark status'));
         }
     };
 
@@ -261,56 +319,47 @@ export default function Post({ postData, quotedPost, className, style, showActio
         return format(postDate, 'MMM d');
     };
 
-    // Format the author's full name
+    // Format the author's full name using profile data from post object
     const getAuthorDisplayName = () => {
-        if (!authorProfile) return t('Unknown');
+        if (!postData.author) return t('Unknown');
 
-        if (authorProfile.name?.first) {
-            return `${authorProfile.name.first} ${authorProfile.name.last || ''}`.trim();
+        if (postData.author.name) {
+            if (typeof postData.author.name === 'object') {
+                const { first, last } = postData.author.name;
+                return `${first} ${last || ''}`.trim();
+            } else {
+                return postData.author.name;
+            }
         }
 
-        return authorProfile.username;
+        return postData.author.username || t('Unknown');
     };
 
-    // Get author's username for profile links
+    // Get author's username for profile links from post object
     const getAuthorUsername = () => {
-        return authorProfile?.username || 'unknown';
+        return postData.author?.username || 'unknown';
     };
 
-    // Check if user has premium status
+    // Check if user has premium status from post object
     const isPremiumUser = () => {
-        return authorProfile?.premium?.isPremium || false;
+        return postData.author?.premium?.isPremium || false;
     };
 
-    // Get premium tier if available
+    // Get premium tier if available from post object
     const getPremiumTier = () => {
-        return authorProfile?.premium?.subscriptionTier || null;
+        return postData.author?.premium?.subscriptionTier || null;
     };
 
     // Handle follow/unfollow
     const handleFollowToggle = async () => {
-        if (!session?.isAuthenticated) {
+        if (!isAuthenticated) {
             toast.error(t('Please sign in to follow users'));
             return;
         }
 
-        if (!authorProfile) return;
+        if (!authorId) return;
 
         try {
-            setIsFollowing(prevState => !prevState);
-
-            // Use profileService with the getter function
-            const profileService = getProfileService();
-            const result = await profileService.follow(authorProfile.userID);
-
-            // Update the following status based on the server response
-            setIsFollowing(result.action === 'follow');
-
-            toast.success(
-                result.action === 'follow'
-                    ? t('Now following {{name}}', { name: getAuthorDisplayName() })
-                    : t('Unfollowed {{name}}', { name: getAuthorDisplayName() })
-            );
         } catch (error) {
             console.error('Error toggling follow status:', error);
             // Revert the optimistic update
@@ -320,7 +369,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
     };
 
     return (
-        <View className={`bg-white border-b border-gray-100 ${className}`} style={style}>
+        <View className={`border-b border-gray-100 ${className}`} style={style}>
             {postData.repost_of && (
                 <View className="flex-row items-center px-3 mb-2">
                     <RepostIcon size={16} color="#536471" />
@@ -330,13 +379,7 @@ export default function Post({ postData, quotedPost, className, style, showActio
             <View className="flex-row gap-2.5 px-3 items-start">
                 <Link href={`/@${getAuthorUsername()}`} asChild>
                     <TouchableOpacity onPress={(e) => e.stopPropagation()}>
-                        {isLoadingProfile ? (
-                            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }}>
-                                <ActivityIndicator size="small" color={colors.primaryColor} />
-                            </View>
-                        ) : (
-                            <Avatar id={authorProfile?.avatar} size={40} />
-                        )}
+                        <Avatar id={postData.author?.avatar} size={40} />
                     </TouchableOpacity>
                 </Link>
                 <View className="flex-1">
@@ -347,11 +390,11 @@ export default function Post({ postData, quotedPost, className, style, showActio
                                     <Link href={`/@${getAuthorUsername()}`} asChild>
                                         <TouchableOpacity>
                                             <Text className="font-bold">
-                                                {isLoadingProfile ? t('Loading...') : getAuthorDisplayName()}
+                                                {getAuthorDisplayName()}
                                             </Text>
                                         </TouchableOpacity>
                                     </Link>
-                                    {authorProfile?.labels && authorProfile.labels.includes('verified') && (
+                                    {postData.author?.labels && postData.author.labels.includes('verified') && (
                                         <Ionicons name="checkmark-circle" size={16} color={colors.primaryColor} />
                                     )}
                                     {isPremiumUser() && (
@@ -360,9 +403,8 @@ export default function Post({ postData, quotedPost, className, style, showActio
                                     <Text className="text-gray-500">·</Text>
                                     <Text className="text-gray-500">{formatTimeAgo(postData.created_at)}</Text>
                                 </View>
-                                {session?.isAuthenticated &&
-                                    session.getCurrentUserId() !== postData.author?.id &&
-                                    !isLoadingProfile && (
+                                {isAuthenticated &&
+                                    user?.id !== authorId && (
                                         <TouchableOpacity
                                             onPress={handleFollowToggle}
                                             style={{
@@ -384,18 +426,15 @@ export default function Post({ postData, quotedPost, className, style, showActio
                                         </TouchableOpacity>
                                     )}
                             </View>
-                            {!isLoadingProfile && authorProfile?.username && (
+                            {postData.author?.username && (
                                 <View className="flex-row items-center">
-                                    <Text className="text-gray-500 text-sm">@{authorProfile.username}</Text>
-                                    {authorProfile.location && (
-                                        <Text className="text-gray-500 text-sm ml-2">· {authorProfile.location}</Text>
+                                    <Text className="text-gray-500 text-sm">@{postData.author.username}</Text>
+                                    {postData.author.location && (
+                                        <Text className="text-gray-500 text-sm ml-2">· {postData.author.location}</Text>
                                     )}
                                 </View>
                             )}
                             <Text className="text-black text-base mt-1">{postData.text}</Text>
-                            {postData.media && renderMedia(postData.media)}
-                            {poll && renderPoll(poll, selectedOption, handlePollOptionPress)}
-                            {typeof postData.location === 'string' && renderLocation(postData.location)}
                             {quotedPost && (
                                 <View className="mt-3 border border-gray-200 rounded-xl p-3">
                                     {quotedPost && <Post postData={quotedPost} showActions={false} />}

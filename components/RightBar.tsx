@@ -1,32 +1,30 @@
-import React, { useEffect, useState } from 'react'
-import { View, StyleSheet, Text, Platform, TouchableOpacity, GestureResponderEvent, ActivityIndicator } from "react-native";
-import { Link } from "expo-router";
+import Avatar from '@/components/Avatar';
+import { Trends } from "@/features/trends/Trends";
+import { FollowButton, Models, useOxy } from '@oxyhq/services';
+import { Link, usePathname, useRouter } from "expo-router";
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from "react-i18next";
-import { useMediaQuery } from 'react-responsive'
-import { colors } from '../styles/colors'
-import { SearchBar } from './SearchBar'
-import { FollowButton } from '@/modules/oxyhqservices/components/FollowButton'
-import { useRouter, usePathname } from "expo-router";
-import Avatar from '@/components/Avatar'
-import { Trends } from "@/features/trends/Trends"
-import type { OxyProfile } from '@/modules/oxyhqservices/types'
-import { getOxyClient } from '@/modules/oxyhqservices'
+import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useMediaQuery } from 'react-responsive';
+import { colors } from '../styles/colors';
+import { SearchBar } from './SearchBar';
 
 export function RightBar() {
+    const { oxyServices } = useOxy();
     const isRightBarVisible = useMediaQuery({ minWidth: 990 });
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [recommendations, setRecommendations] = useState<OxyProfile[]>([]);
+    const [recommendations, setRecommendations] = useState<Models.User[] | null>(null);
 
     useEffect(() => {
         const fetchRecommendations = async () => {
             try {
                 setLoading(true);
                 setError(null);
-                const oxyClient = getOxyClient();
-                const response = await oxyClient.getRecommendations(5); // Limit to 5 recommendations
+                const response = await oxyServices.getProfileRecommendations();
+                console.log('Recommendations:', response);
                 setRecommendations(response);
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
@@ -37,7 +35,7 @@ export function RightBar() {
         };
 
         fetchRecommendations();
-    }, []);
+    }, [oxyServices]);
 
     if (!isRightBarVisible) return null;
 
@@ -59,15 +57,15 @@ export function RightBar() {
                     <Text>No recommendations available</Text>
                 </View>
             ) : (
-                <SuggestedFriends followRecData={recommendations} />
+                <SuggestedFriends followRecData={recommendations ?? []} />
             )}
         </View>
     )
 }
 
-function SuggestedFriends({ followRecData }: { followRecData: Partial<OxyProfile>[] }) {
-    const router = useRouter();
+function SuggestedFriends({ followRecData }: { followRecData: Models.User[] }) {
     const { t } = useTranslation();
+    const router = useRouter();
 
     return (
         <View
@@ -92,7 +90,7 @@ function SuggestedFriends({ followRecData }: { followRecData: Partial<OxyProfile
             </View>
             <View>
                 {followRecData?.map((data, index) => (
-                    <FollowRowComponent key={data._id || index} profileData={data} />
+                    <FollowRowComponent key={data.id || index} profileData={data} />
                 ))}
             </View>
             <TouchableOpacity
@@ -115,21 +113,15 @@ function SuggestedFriends({ followRecData }: { followRecData: Partial<OxyProfile
     );
 }
 
-const FollowRowComponent = ({ profileData }: { profileData: Partial<OxyProfile> }) => {
-    const router = useRouter();
-    const handleFollowClick = (e: GestureResponderEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-    };
-
-    // Skip rendering if no _id (using _id instead of userID since that's what the API returns)
-    if (!profileData._id) return null;
+const FollowRowComponent = ({ profileData }: { profileData: Models.User }) => {
+    // Skip rendering if no id
+    if (!profileData.id) return null;
 
     const displayName = profileData.name?.first
         ? `${profileData.name.first} ${profileData.name.last || ''}`.trim()
         : profileData.username || 'Unknown User';
 
-    const username = profileData.username || profileData._id;
+    const username = profileData.username || profileData.id;
 
     return (
         <Link href={`/@${username}`} asChild>
@@ -149,7 +141,7 @@ const FollowRowComponent = ({ profileData }: { profileData: Partial<OxyProfile> 
                     }),
                 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <Avatar id={profileData.avatar} />
+                    <Avatar id={profileData.id} />
                     <View style={{ marginRight: 'auto', marginLeft: 13 }}>
                         <Text style={{ fontWeight: 'bold', fontSize: 15 }}>
                             {displayName}
@@ -157,7 +149,7 @@ const FollowRowComponent = ({ profileData }: { profileData: Partial<OxyProfile> 
                         <Text style={{ color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 }}>
                             @{username}
                         </Text>
-                        {profileData.description && (
+                        {profileData.bio && (
                             <Text
                                 style={{
                                     color: colors.COLOR_BLACK_LIGHT_4,
@@ -166,14 +158,15 @@ const FollowRowComponent = ({ profileData }: { profileData: Partial<OxyProfile> 
                                 }}
                                 numberOfLines={2}
                             >
-                                {profileData.description}
+                                {profileData.bio}
                             </Text>
                         )}
                     </View>
                 </View>
-                <TouchableOpacity onPress={handleFollowClick}>
-                    <FollowButton userId={profileData._id} />
-                </TouchableOpacity>
+                <FollowButton
+                    userId={profileData.id}
+                    size="small"
+                />
             </View>
         </Link>
     );
@@ -216,5 +209,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: colors.primaryLight,
         borderRadius: 15,
+    },
+    followButton: {
+        backgroundColor: colors.primaryColor,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    followButtonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 14,
     },
 });

@@ -1,13 +1,9 @@
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
-import trendsReducer from "./reducers/trendsReducer";
-import followReducer from './reducers/followReducer';
 import analyticsReducer from "./reducers/analyticsReducer";
-import profileReducer from "@/modules/oxyhqservices/reducers/profileReducer";
+import trendsReducer from "./reducers/trendsReducer";
 
 const rootReducer = combineReducers({
-  profile: profileReducer,
   trends: trendsReducer,
-  follow: followReducer,
   analytics: analyticsReducer,
 });
 
