@@ -1,11 +1,12 @@
 import React from 'react';
-import { FlatList, ListRenderItemInfo, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, ListRenderItemInfo, RefreshControl, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import Post from '../Post';
 import CreatePost from '../Post/CreatePost';
 import { useFeed, FeedType } from '@/hooks/useFeed';
 import ErrorBoundary from '../ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
+import LoadingSkeleton from './LoadingSkeleton';
 
 interface FeedProps {
     type?: FeedType;
@@ -33,8 +34,12 @@ const Feed: React.FC<FeedProps> = ({
     const { t } = useTranslation();
 
     // Render each post item
-    const renderItem = ({ item }: ListRenderItemInfo<any>) => {
-        return <Post postData={item} />;
+    const renderItem = ({ item, index }: ListRenderItemInfo<any>) => {
+        return (
+            <View style={styles.postItemContainer}>
+                <Post postData={item} />
+            </View>
+        );
     };
 
     // Handle create post press
@@ -50,6 +55,15 @@ const Feed: React.FC<FeedProps> = ({
             <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{error}</Text>
                 <Text style={styles.retryText} onPress={refresh}>{t('Tap to retry')}</Text>
+            </View>
+        );
+    }
+
+    // Render initial loading state
+    if (loading && posts.length === 0 && !refreshing) {
+        return (
+            <View style={styles.loadingContainer}>
+                <LoadingSkeleton count={3} />
             </View>
         );
     }
@@ -78,6 +92,17 @@ const Feed: React.FC<FeedProps> = ({
                         </View>
                     ) : null
                 }
+                ListFooterComponent={
+                    loading && posts.length > 0 ? (
+                        <View style={styles.footerLoaderContainer}>
+                            <ActivityIndicator color={colors.primaryColor} size="small" />
+                        </View>
+                    ) : null
+                }
+                ItemSeparatorComponent={() => (
+                    <View style={styles.separator} />
+                )}
+                showsVerticalScrollIndicator={false}
             />
         </ErrorBoundary>
     );
@@ -86,17 +111,20 @@ const Feed: React.FC<FeedProps> = ({
 const styles = StyleSheet.create({
     container: {
         paddingBottom: 20,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
     },
     errorContainer: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
         padding: 20,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
     },
     errorText: {
         fontSize: 16,
         marginBottom: 10,
         textAlign: 'center',
+        color: colors.COLOR_BLACK_LIGHT_3,
     },
     retryText: {
         color: colors.primaryColor,
@@ -106,10 +134,33 @@ const styles = StyleSheet.create({
     emptyContainer: {
         padding: 20,
         alignItems: 'center',
+        backgroundColor: 'white',
     },
     emptyText: {
         fontSize: 16,
         color: colors.COLOR_BLACK_LIGHT_3,
+    },
+    loadingContainer: {
+        flex: 1,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    },
+    separator: {
+        height: 6,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    },
+    footerLoaderContainer: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    postItemContainer: {
+        backgroundColor: 'white',
+        borderRadius: 4,
+        overflow: 'hidden',
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
     }
 });
 
