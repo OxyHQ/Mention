@@ -49,3 +49,19 @@ The Feed component displays a list of posts with various filtering options and f
 - `reposts`: Shows only reposted posts
 - `media`: Shows only posts containing media
 - `following`: Shows posts from users that the current user follows
+
+## Features
+
+### Loading States
+- Animated skeleton loading placeholders during initial load
+- Pull-to-refresh functionality
+- Pagination loading indicator
+
+### Responsive Design
+- Adapts to different screen sizes (mobile, tablet, desktop)
+- Enhanced spacing and visual presentation on larger screens
+
+### Visual Enhancements
+- Card-based post presentation
+- Visual separation between posts
+- Improved readability with proper spacing

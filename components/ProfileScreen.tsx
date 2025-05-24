@@ -5,6 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Feed from './Feed';
+import { FeedType } from '@/hooks/useFeed';
 
 export default function ProfileScreen() {
     const { user: currentUser, logout, oxyServices, showBottomSheet } = useOxy();
@@ -230,27 +232,15 @@ export default function ProfileScreen() {
                 {/* Content area based on selected tab */}
                 <View style={styles.contentArea}>
                     {activeTab === 'posts' && (
-                        <View style={styles.emptyStateContainer}>
-                            <Ionicons name="chatbox-outline" size={40} color="#657786" />
-                            <Text style={styles.emptyStateTitle}>No Posts Yet</Text>
-                            <Text style={styles.emptyStateText}>When {isCurrentUser ? 'you' : 'they'} post, it&#39;ll show up here.</Text>
-                        </View>
+                        <Feed type="posts" parentId={profileData?.id} />
                     )}
 
                     {activeTab === 'replies' && (
-                        <View style={styles.emptyStateContainer}>
-                            <Ionicons name="chatbubble-outline" size={40} color="#657786" />
-                            <Text style={styles.emptyStateTitle}>No Replies Yet</Text>
-                            <Text style={styles.emptyStateText}>When {isCurrentUser ? 'you reply' : 'they reply'} to a post, it&#39;ll show up here.</Text>
-                        </View>
+                        <Feed type="replies" parentId={profileData?.id} />
                     )}
 
                     {activeTab === 'media' && (
-                        <View style={styles.emptyStateContainer}>
-                            <Ionicons name="image-outline" size={40} color="#657786" />
-                            <Text style={styles.emptyStateTitle}>No Media Yet</Text>
-                            <Text style={styles.emptyStateText}>When {isCurrentUser ? 'you' : 'they'} post photos or videos, they&#39;ll show up here.</Text>
-                        </View>
+                        <Feed type="media" parentId={profileData?.id} />
                     )}
 
                     {activeTab === 'likes' && (
