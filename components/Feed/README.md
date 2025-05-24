@@ -6,7 +6,7 @@ The Feed component displays a list of posts with various filtering options and f
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `type` | PostType | 'all' | Type of posts to display: 'all', 'posts', 'replies', 'quotes', 'reposts', 'media' |
+| `type` | PostType | 'all' | Type of posts to display: 'all', 'posts', 'replies', 'quotes', 'reposts', 'media', 'following' |
 | `parentId` | string | undefined | Optional post ID to show only replies to that specific post |
 | `showCreatePost` | boolean | false | Whether to show the post creation UI at the top of the feed |
 | `onCreatePostPress` | () => void | undefined | Function called when the create post area is pressed |
@@ -25,10 +25,10 @@ The Feed component displays a list of posts with various filtering options and f
 <Feed type="replies" parentId="123456" />
 ```
 
-### Show only posts with media
+### Show posts from followed users only
 
 ```tsx
-<Feed type="media" />
+<Feed type="following" />
 ```
 
 ### Show create post UI at the top of the feed
@@ -48,3 +48,4 @@ The Feed component displays a list of posts with various filtering options and f
 - `quotes`: Shows only quoted posts
 - `reposts`: Shows only reposted posts
 - `media`: Shows only posts containing media
+- `following`: Shows posts from users that the current user follows
