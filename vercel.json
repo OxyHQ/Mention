@@ -1,5 +1,4 @@
 {
-  "rootDirectory": "packages/frontend",
   "buildCommand": "npm run build-web",
   "outputDirectory": "dist",
   "installCommand": "npm install"
