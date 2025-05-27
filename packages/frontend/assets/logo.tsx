@@ -5,8 +5,11 @@ import { colors } from '@/styles/colors';
 
 export const LogoIcon = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
   return (
-    <Svg viewBox="0 0 388.03 512" width={size} height={size} style={style}>
-      <polygon fill={color} points="388.03 512 170.88 512 168.64 509.76 168.64 364.25 85.07 364.25 85.07 509.76 82.83 512 0 512 0 105.31 276.91 0 281.41 1.51 388.03 109.79 388.03 512" />
+    <Svg viewBox="0 0 196 196" width={size} height={size} style={style}>
+      <Path
+        d="M 131.991 97.92 L 131.991 194.648 L 163.437 194.648 L 194.883 194.648 L 194.883 97.92 L 194.883 1.192 L 163.437 1.192 L 131.991 1.192 L 131.991 97.92 M 62.299 97.071 L 62.299 174.284 L 87.795 174.284 L 113.294 174.284 L 113.294 97.071 L 113.294 19.86 L 87.795 19.86 L 62.299 19.86 L 62.299 97.071 M 1.108 97.92 L 1.108 153.921 L 22.355 153.921 L 43.603 153.921 L 43.603 97.92 L 43.603 41.92 L 22.355 41.92 L 1.108 41.92"
+        fill={color}
+      />
     </Svg>
   );
 };
