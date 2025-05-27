@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from "express";
+import { AuthRequest } from '../types/auth';
 import Post from "../models/Post";
 import { logger } from '../utils/logger';
 import mongoose, { Types } from 'mongoose';
 import { getIO } from '../utils/socket';
 import Hashtag, { IHashtag } from '../models/Hashtag';
-import { AuthRequest } from '../types/auth';
 import createError from 'http-errors';
 
 interface AuthenticatedRequest extends Request {
@@ -18,7 +18,7 @@ const extractHashtags = (text: string): string[] => {
   return matches.map(tag => tag.toLowerCase().substring(1));
 };
 
-export const createPost = async (req: AuthRequest, res: Response) => {
+export const createPost = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { text, media, in_reply_to_status_id, quoted_post_id, isDraft, scheduledFor } = req.body;
     const mentionsInput: string[] = req.body.mentions || [];
@@ -653,7 +653,7 @@ export const removeRepost = async (req: AuthenticatedRequest, res: Response) => 
   }
 };
 
-export const getDrafts = async (req: AuthRequest, res: Response) => {
+export const getDrafts = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -685,7 +685,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
+export const getScheduledPosts = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {

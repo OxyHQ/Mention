@@ -35,6 +35,7 @@
   "author": "OxyHQ",
   "license": "MIT",
   "dependencies": {
+    "@oxyhq/services": "^5.2.0",
     "autoprefixer": "^10.4.21",
     "expo": "^53.0.9",
     "postcss": "^8.5.3",

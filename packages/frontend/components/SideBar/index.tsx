@@ -12,12 +12,12 @@ import { Video, VideoActive } from '@/assets/icons/video-icon';
 import { Logo } from '@/components/Logo';
 import { Button } from '@/components/SideBar/Button';
 import { colors } from '@/styles/colors';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxyhq/services/full';
 import { router, usePathname } from 'expo-router';
 import React from 'react';
 import { useTranslation } from "react-i18next";
 import { Dimensions, Platform, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import { useMediaQuery } from 'react-responsive';
 import { SideBarItem } from './SideBarItem';
 

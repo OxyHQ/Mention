@@ -3,14 +3,14 @@ import { IPost } from './Post';
 
 export interface IPollOption extends Document {
   text: string;
-  votes: mongoose.Types.ObjectId[]; // User IDs who voted for this option
+  votes: string[]; // User IDs who voted for this option
 }
 
 export interface IPoll extends Document {
   question: string;
   options: IPollOption[];
   postId: string | IPost['_id']; // Allow string for temporary IDs
-  createdBy: mongoose.Types.ObjectId;
+  createdBy: string;
   endsAt: Date;
   isMultipleChoice: boolean;
   isAnonymous: boolean;
@@ -20,7 +20,7 @@ export interface IPoll extends Document {
 
 const PollOptionSchema = new Schema<IPollOption>({
   text: { type: String, required: true },
-  votes: [{ type: Schema.Types.ObjectId, ref: 'User' }]
+  votes: [{ type: String, required: true }]
 }, { _id: true });
 
 const PollSchema = new Schema<IPoll>({
@@ -37,7 +37,7 @@ const PollSchema = new Schema<IPoll>({
       message: props => `${props.value} is not a valid ObjectId or temporary ID!`
     }
   },
-  createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  createdBy: { type: String, required: true },
   endsAt: { type: Date, required: true },
   isMultipleChoice: { type: Boolean, default: false },
   isAnonymous: { type: Boolean, default: false }

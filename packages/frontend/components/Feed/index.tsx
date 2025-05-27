@@ -7,7 +7,7 @@ import ErrorBoundary from '../ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
 import LoadingSkeleton from './LoadingSkeleton';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxyhq/services/full';
 
 interface FeedProps {
     type?: FeedType;
@@ -22,6 +22,8 @@ const Feed: React.FC<FeedProps> = ({
     showCreatePost = false,
     onCreatePostPress
 }) => {
+    const { isAuthenticated } = useOxy();
+    const feedType = type === 'home' && !isAuthenticated ? 'all' : type;
     const {
         posts,
         loading,
@@ -30,11 +32,10 @@ const Feed: React.FC<FeedProps> = ({
         hasMore,
         fetchMore,
         refresh
-    } = useFeed({ type, parentId });
+    } = useFeed({ type: feedType, parentId });
 
     const { t } = useTranslation();
     const { width: windowWidth } = useWindowDimensions();
-    const { isAuthenticated } = useOxy();
 
     // Calculate responsive values
     const isTabletOrDesktop = windowWidth >= 768;
@@ -66,6 +67,14 @@ const Feed: React.FC<FeedProps> = ({
 
     // Render error state
     if (error) {
+        // If the error is about missing auth and user is not authenticated, show sign-in prompt
+        if ((error.toLowerCase().includes('authorization') || error.toLowerCase().includes('auth')) && !isAuthenticated && type === 'home') {
+            return (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{t('Sign in to view your personalized feed.')}</Text>
+                </View>
+            );
+        }
         return (
             <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{error}</Text>

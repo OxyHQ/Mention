@@ -73,25 +73,7 @@ PostSchema.virtual('_count').get(function() {
   };
 });
 
-// Middleware to update user's post count on create
-PostSchema.post('save', async function(this: IPost) {
-  const User = mongoose.model('User');
-  const count = await mongoose.model('Post').countDocuments({ userID: this.userID });
-  await User.findByIdAndUpdate(this.userID, { 
-    $set: { '_count.posts': count }
-  });
-});
 
-// Middleware to update user's post count on delete
-PostSchema.post('deleteOne', async function(this: IPost) {
-  if (this.userID) {
-    const User = mongoose.model('User');
-    const count = await mongoose.model('Post').countDocuments({ userID: this.userID });
-    await User.findByIdAndUpdate(this.userID, { 
-      $set: { '_count.posts': count }
-    });
-  }
-});
 
 // Indexes
 PostSchema.index({ userID: 1, created_at: -1 });

@@ -177,9 +177,26 @@ api.interceptors.request.use(async (config) => {
   let token = null;
   try {
     // OxyProvider uses storageKeyPrefix="oxy_example" by default
-    token = await SecureStore.getItemAsync('oxy_example_token');
+    if (typeof window !== 'undefined' && window.localStorage) {
+      token = window.localStorage.getItem('oxy_example_access_token');
+    }
     if (!token) {
-      token = await AsyncStorage.getItem('oxy_example_token');
+      token = await SecureStore.getItemAsync('oxy_example_access_token');
+    }
+    if (!token) {
+      token = await AsyncStorage.getItem('oxy_example_access_token');
+    }
+    // If token is a JSON string (e.g., '"tokenvalue"'), parse it
+    if (token && typeof token === 'string' && token.startsWith('"') && token.endsWith('"')) {
+      try {
+        token = JSON.parse(token);
+      } catch (e) {
+        // ignore parse error, use as is
+      }
+    }
+    // Debug: log the token value (redact for safety)
+    if (typeof window !== 'undefined' && window?.location?.hostname === 'localhost') {
+      console.log('[Oxy API] Token for Authorization header:', token ? '[present]' : '[missing]');
     }
   } catch (e) {
     // ignore

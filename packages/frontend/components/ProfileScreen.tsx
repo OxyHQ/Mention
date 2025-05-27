@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, FollowButton, Models, useOxy } from '@oxyhq/services';
+import { Avatar, FollowButton, Models, useOxy } from '@oxyhq/services/full';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';

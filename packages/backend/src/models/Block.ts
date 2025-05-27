@@ -1,20 +1,18 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IBlock extends Document {
-  userId: mongoose.Types.ObjectId;
-  blockedId: mongoose.Types.ObjectId;
+  userId: string;
+  blockedId: string;
   createdAt: Date;
 }
 
 const BlockSchema = new Schema({
   userId: {
-    type: Schema.Types.ObjectId,
-    ref: "User",
+    type: String,
     required: true
   },
   blockedId: {
-    type: Schema.Types.ObjectId,
-    ref: "User",
+    type: String,
     required: true
   },
   createdAt: {

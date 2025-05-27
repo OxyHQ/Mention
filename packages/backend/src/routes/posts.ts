@@ -15,6 +15,7 @@ import {
   getDrafts,
   getScheduledPosts
 } from '../controllers/posts.controller';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -23,19 +24,19 @@ router.get('/', getPosts);
 router.get('/hashtag/:hashtag', getPostsByHashtag);
 
 // Protected routes - specific routes first
-router.post('/', createPost);
-router.get('/drafts', getDrafts);
-router.get('/scheduled', getScheduledPosts);
+router.post('/', authenticateToken, createPost);
+router.get('/drafts', authenticateToken, getDrafts);
+router.get('/scheduled', authenticateToken, getScheduledPosts);
 
 // Protected routes with parameters
 router.get('/:id', getPostById);
-router.put('/:id', updatePost);
-router.delete('/:id', deletePost);
-router.post('/:id/like', likePost);
-router.delete('/:id/like', unlikePost);
-router.post('/:id/bookmark', bookmarkPost);
-router.delete('/:id/bookmark', unbookmarkPost);
-router.post('/:id/repost', repostPost);
-router.post('/:id/quote', quotePost);
+router.put('/:id', authenticateToken, updatePost);
+router.delete('/:id', authenticateToken, deletePost);
+router.post('/:id/like', authenticateToken, likePost);
+router.delete('/:id/like', authenticateToken, unlikePost);
+router.post('/:id/bookmark', authenticateToken, bookmarkPost);
+router.delete('/:id/bookmark', authenticateToken, unbookmarkPost);
+router.post('/:id/repost', authenticateToken, repostPost);
+router.post('/:id/quote', authenticateToken, quotePost);
 
 export default router;

@@ -5,7 +5,7 @@ import { PostProvider } from '../context/PostContext';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
 import { FeedType } from '@/hooks/useFeed';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxyhq/services/full';
 import { router } from 'expo-router';
 
 const HomeScreen: React.FC = () => {

@@ -1,4 +1,4 @@
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxyhq/services/full';
 import { router } from 'expo-router';
 import React from 'react';
 import { useTranslation } from 'react-i18next';

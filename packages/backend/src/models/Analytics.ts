@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IAnalytics extends Document {
-  userID: mongoose.Schema.Types.ObjectId;
+  userID: string;
   period: string; // 'daily', 'weekly', 'monthly', 'yearly'
   date: Date;
   stats: {
@@ -30,7 +30,7 @@ export interface IAnalytics extends Document {
 }
 
 const AnalyticsSchema = new Schema({
-  userID: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  userID: { type: String, required: true },
   period: { type: String, required: true, enum: ["daily", "weekly", "monthly", "yearly"] },
   date: { type: Date, required: true },
   stats: {

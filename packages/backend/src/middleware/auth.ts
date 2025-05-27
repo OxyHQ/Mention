@@ -1,67 +1,52 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+
+import { Request, Response, NextFunction } from "express";
+import { OxyServices } from "@oxyhq/services";
 
 interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    username?: string;
-    role?: string;
-    // Add other user properties as needed
-  };
+  userId?: string;
+  accessToken?: string;
 }
 
-export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+/**
+ * Oxy authentication middleware for Express.js
+ * Validates the Bearer token using OxyServices and attaches userId and accessToken to the request
+ */
+export const authenticateToken = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authorization header missing'
-      });
-    }
-
-    const token = authHeader.split(' ')[1]; // Extract token from "Bearer TOKEN"
-    
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access token required'
-      });
+      return res.status(401).json({ message: "Access token required" });
     }
 
-    // Verify JWT token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    
-    // Attach user info to request object
-    req.user = {
-      id: decoded.id || decoded.userId,
-      email: decoded.email,
-      username: decoded.username,
-      role: decoded.role
-    };
-
-    next(); // Continue to the next middleware/controller
-    
-  } catch (error) {
-    if (error instanceof jwt.TokenExpiredError) {
-      return res.status(401).json({
-        success: false,
-        message: 'Token expired'
-      });
-    }
-    
-    if (error instanceof jwt.JsonWebTokenError) {
-      return res.status(403).json({
-        success: false,
-        message: 'Invalid token'
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: 'Authentication error'
+    // Use OxyServices to validate the token
+    const tempOxyServices = new OxyServices({
+      baseURL: "http://localhost:3001", // Replace with your Oxy backend URL
     });
+    tempOxyServices.setTokens(token, "");
+    const isValid = await tempOxyServices.validate();
+    const userId = await tempOxyServices.getCurrentUserId();
+    // Debug logging for troubleshooting
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[OxyAuth] Token:', token);
+      console.log('[OxyAuth] isValid:', isValid);
+      console.log('[OxyAuth] userId:', userId);
+    }
+    if (!isValid) {
+      return res.status(403).json({ message: "Invalid or expired token" });
+    }
+    if (!userId) {
+      return res.status(403).json({ message: "Invalid token payload" });
+    }
+    req.userId = userId;
+    req.accessToken = token;
+    next();
+  } catch (error: any) {
+    return res.status(403).json({ message: "Token validation failed", error: error?.message });
   }
 };
+  

@@ -200,7 +200,7 @@ class PollsController {
       }
 
       // Add vote
-      option.votes.push(new mongoose.Types.ObjectId(userId));
+      option.votes.push(userId);
       await poll.save();
 
       res.json({

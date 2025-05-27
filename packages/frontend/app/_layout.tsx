@@ -17,7 +17,7 @@ import {
   scheduleDemoNotification,
   setupNotifications,
 } from "@/utils/notifications";
-import { OxyProvider, OxyServices } from '@oxyhq/services';
+import { OxyProvider, OxyServices } from '@oxyhq/services/full';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from "expo-font";
 import { Slot } from 'expo-router';
@@ -60,9 +60,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   // Initialize OxyServices
-  const oxyServices = new OxyServices({
-    baseURL: 'https://api.oxy.so',
-  });
+  const oxyServices = new OxyServices({ baseURL: "http://localhost:3001" });
 
   // Handle user authentication - no hooks here
   const handleAuthenticated = (user: any) => {
@@ -165,15 +163,15 @@ export default function RootLayout() {
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <OxyProvider
-          oxyServices={oxyServices}
-          initialScreen="SignIn"
-          autoPresent={false} // Don't auto-present, we'll control it with the button
-          onClose={() => console.log('Sheet closed')}
-          onAuthenticated={handleAuthenticated}
-          onAuthStateChange={(user) => console.log('Auth state changed:', user?.username || 'logged out')}
-          storageKeyPrefix="oxy_example" // Prefix for stored auth tokens
-          theme="light"
-        ><ScrollView>
+        oxyServices={oxyServices}
+        initialScreen="SignIn"
+        autoPresent={false} // Don't auto-present, we'll control it with the button
+        onClose={() => console.log('Sheet closed')}
+        onAuthenticated={handleAuthenticated}
+        onAuthStateChange={(user) => console.log('Auth state changed:', user?.username || 'logged out')}
+        storageKeyPrefix="oxy_example" // Prefix for stored auth tokens
+        theme="light"
+      ><ScrollView>
             <QueryClientProvider client={queryClient}>
               <Provider store={store}>
                 <I18nextProvider i18n={i18n}>

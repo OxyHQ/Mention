@@ -1,15 +1,16 @@
 {
   "compilerOptions": {
     "target": "es6",
-    "module": "commonjs",
+    "module": "Node16",
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "typeRoots": [
-      "./src/types",
-      "./node_modules/@types"
+      "../../node_modules/@types",
+      "./src/types"
     ],
+    "moduleResolution": "node16",
     "types": [
       "node"
     ],
@@ -22,5 +23,10 @@
   },
   "include": [
     "src/**/*"
+  ],
+  "exclude": [
+    "../../node_modules/react-native",
+    "../../packages/frontend",
+    "../../node_modules/@types/react-native"
   ]
 }

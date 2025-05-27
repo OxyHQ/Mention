@@ -9,7 +9,7 @@ import {
   Platform,
   ActivityIndicator
 } from 'react-native';
-import { useOxy } from '@oxyhq/services';
+import { useOxy } from '@oxyhq/services/full';
 import { postData } from '@/utils/api';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';

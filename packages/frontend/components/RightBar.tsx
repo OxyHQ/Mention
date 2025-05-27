@@ -1,6 +1,6 @@
 import Avatar from '@/components/Avatar';
 import { Trends } from "@/features/trends/Trends";
-import { FollowButton, Models, useOxy } from '@oxyhq/services';
+import { FollowButton, Models, useOxy } from '@oxyhq/services/full';
 import { Link, usePathname, useRouter } from "expo-router";
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from "react-i18next";

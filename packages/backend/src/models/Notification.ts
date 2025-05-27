@@ -1,8 +1,8 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface INotification extends Document {
-  recipientId: mongoose.Types.ObjectId;
-  actorId: mongoose.Types.ObjectId;
+  recipientId: string;
+  actorId: string;
   type: string;
   entityId: mongoose.Types.ObjectId;
   entityType: string;
@@ -11,8 +11,8 @@ export interface INotification extends Document {
 }
 
 const NotificationSchema = new Schema({
-  recipientId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  actorId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  recipientId: { type: String, required: true },
+  actorId: { type: String, required: true },
   type: { 
     type: String, 
     required: true,
