@@ -11,13 +11,13 @@
       "extends": "production",
       "distribution": "internal",
       "env": {
-        "API_URL": "https://mention.earth/api"
+        "API_URL": "https://api.mention.earth"
       }
     },
     "production": {
       "node": "20.0.0",
       "env": {
-        "API_URL": "https://mention.earth/api"
+        "API_URL": "https://api.mention.earth"
       },
       "android": {
         "buildType": "apk"

@@ -1,44 +1,44 @@
-import { BottomBar } from "@/components/BottomBar";
-import ErrorBoundary from '@/components/ErrorBoundary';
-import LoadingTopSpinner from "@/components/LoadingTopSpinner";
-import { RightBar } from '@/components/RightBar';
+import { useEffect, useRef, useCallback, useState, useContext } from "react";
+import { ScrollView, Keyboard, LogBox, Platform } from "react-native";
+import * as SplashScreen from 'expo-splash-screen';
+import { Provider } from 'react-redux';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts } from "expo-font";
+import { Slot } from 'expo-router';
+import store from '@/store/store';
+import { useMediaQuery } from 'react-responsive'
+import { StatusBar } from "expo-status-bar";
+import "react-native-reanimated";
 import { SideBar } from '@/components/SideBar';
-import WebSplashScreen from "@/components/WebSplashScreen";
+import { RightBar } from '@/components/RightBar';
+import { colors } from '@/styles/colors';
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { queryClient } from '@/lib/reactQuery';
 import { Toaster } from '@/lib/sonner';
+import {
+  setupNotifications,
+  requestNotificationPermissions,
+  scheduleDemoNotification,
+} from "@/utils/notifications";
+import i18n from "i18next";
+import { initReactI18next, I18nextProvider, useTranslation } from "react-i18next";
 import en from "@/locales/en.json";
 import es from "@/locales/es.json";
 import it from "@/locales/it.json";
-import store from '@/store/store';
-import { colors } from '@/styles/colors';
-import {
-  requestNotificationPermissions,
-  scheduleDemoNotification,
-  setupNotifications,
-} from "@/utils/notifications";
-import { OxyProvider, OxyServices } from '@oxyhq/services/full';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { useFonts } from "expo-font";
-import { Slot } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from "expo-status-bar";
-import i18n from "i18next";
-import { useEffect, useState } from "react";
-import { I18nextProvider, initReactI18next, useTranslation } from "react-i18next";
-import { Keyboard, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { View, StyleSheet, } from 'react-native';
+import { BottomBar } from "@/components/BottomBar";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { initialWindowMetrics } from 'react-native-safe-area-context';
 import { MenuProvider } from 'react-native-popup-menu';
-import "react-native-reanimated";
-import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
-import { Provider } from 'react-redux';
-import { useMediaQuery } from 'react-responsive';
-
+import { BottomSheetModal, BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import WebSplashScreen from "@/components/WebSplashScreen";
+import LoadingTopSpinner from "@/components/LoadingTopSpinner";
+import ErrorBoundary from '@/components/ErrorBoundary';
+import { BottomSheetProvider } from '@/context/BottomSheetContext';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { OxyLogo, OxyProvider, OxyServices, OxySignInButton, useOxy } from '@oxyhq/services';
 import "../styles/global.css";
-
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
-
 i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },
@@ -53,22 +53,20 @@ i18n.use(initReactI18next).init({
 }).catch(error => {
   console.error("Failed to initialize i18n:", error);
 });
-
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
   const { i18n } = useTranslation();
   const colorScheme = useColorScheme();
-
   // Initialize OxyServices
-  const oxyServices = new OxyServices({ baseURL: "http://localhost:3001" });
-
+  const oxyServices = new OxyServices({
+    baseURL: 'https://api.oxy.so',
+  });
   // Handle user authentication - no hooks here
   const handleAuthenticated = (user: any) => {
     console.log('User authenticated:', user);
     // We'll just log the authentication event here
     // The bottom sheet will be closed by the OxyProvider internally
   };
-
   const [loaded] = useFonts({
     "Inter-Black": require("@/assets/fonts/inter/Inter-Black.otf"),
     "Inter-Bold": require("@/assets/fonts/inter/Inter-Bold.otf"),
@@ -81,9 +79,15 @@ export default function RootLayout() {
     "Inter-Thin": require("@/assets/fonts/inter/Inter-Thin.otf"),
     "Phudu": require("@/assets/fonts/Phudu-VariableFont_wght.ttf"),
   });
-
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const bottomSheetContext = useContext(BottomSheetContext);
+  const handleSheetChanges = useCallback((index: number) => {
+    console.log('handleSheetChanges', index);
+  }, []);
+  const openBottomSheet = () => {
+    bottomSheetRef.current?.expand();
+  };
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-
   useEffect(() => {
     const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
     const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
@@ -92,13 +96,11 @@ export default function RootLayout() {
       hide.remove();
     };
   }, []);
-
   const initializeApp = async () => {
     try {
       if (loaded) {
         await setupNotifications();
         const hasPermission = await requestNotificationPermissions();
-
         if (hasPermission) {
           await scheduleDemoNotification();
         }
@@ -109,23 +111,18 @@ export default function RootLayout() {
       console.warn("Failed to set up notifications:", error);
     }
   };
-
   useEffect(() => {
     initializeApp();
-
     // Change overflow style to visible only on web
     if (typeof document !== 'undefined') {
       document.body.style.overflow = 'visible';
       document.body.style.backgroundColor = colors.COLOR_BACKGROUND;
     }
   }, [loaded]);
-
   const isScreenNotMobile = useMediaQuery({ minWidth: 500 })
-
   if (!loaded) {
     return null;
   }
-
   if (!appIsReady) {
     // check if we are in web
     if (Platform.OS === 'web') {
@@ -134,7 +131,6 @@ export default function RootLayout() {
       return null;
     }
   }
-
   const styles = StyleSheet.create({
     container: {
       maxWidth: 1300,
@@ -158,29 +154,29 @@ export default function RootLayout() {
       alignItems: 'center',
     },
   });
-
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <OxyProvider
-        oxyServices={oxyServices}
-        initialScreen="SignIn"
-        autoPresent={false} // Don't auto-present, we'll control it with the button
-        onClose={() => console.log('Sheet closed')}
-        onAuthenticated={handleAuthenticated}
-        onAuthStateChange={(user) => console.log('Auth state changed:', user?.username || 'logged out')}
-        storageKeyPrefix="oxy_example" // Prefix for stored auth tokens
-        theme="light"
-      ><ScrollView>
-            <QueryClientProvider client={queryClient}>
-              <Provider store={store}>
-                <I18nextProvider i18n={i18n}>
-                  <MenuProvider>
-                    <ErrorBoundary>
+          oxyServices={oxyServices}
+          initialScreen="SignIn"
+          autoPresent={false} // Don't auto-present, we'll control it with the button
+          onClose={() => console.log('Sheet closed')}
+          onAuthenticated={handleAuthenticated}
+          onAuthStateChange={(user) => console.log('Auth state changed:', user?.username || 'logged out')}
+          storageKeyPrefix="oxy_example" // Prefix for stored auth tokens
+          theme="light"
+        >
+          <Provider store={store}>
+            <I18nextProvider i18n={i18n}>
+              <MenuProvider>
+                <ErrorBoundary>
+                  <BottomSheetModalProvider>
+                    <BottomSheetProvider>
                       <View style={styles.container}>
                         <SideBar />
                         <View style={styles.mainContentWrapper}>
-                          <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0 }} />
+                          <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0, }} />
                           <Slot />
                         </View>
                         <RightBar />
@@ -188,12 +184,12 @@ export default function RootLayout() {
                       <StatusBar style="auto" />
                       <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
                       {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
-                    </ErrorBoundary>
-                  </MenuProvider>
-                </I18nextProvider>
-              </Provider>
-            </QueryClientProvider>
-          </ScrollView>
+                    </BottomSheetProvider>
+                  </BottomSheetModalProvider>
+                </ErrorBoundary>
+              </MenuProvider>
+            </I18nextProvider>
+          </Provider>
         </OxyProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>

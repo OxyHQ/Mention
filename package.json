@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "frontend": "cd packages/frontend && npm run start",
+    "frontend": "cd packages/frontend && npm run start --tunnel --reset-cache",
     "backend": "cd packages/backend && npm run dev",
     "frontend:build": "cd packages/frontend && npm run build-web",
     "backend:build": "cd packages/backend && npm run build",
@@ -35,7 +35,7 @@
   "author": "OxyHQ",
   "license": "MIT",
   "dependencies": {
-    "@oxyhq/services": "^5.2.0",
+    "@oxyhq/services": "^5.2.1",
     "autoprefixer": "^10.4.21",
     "expo": "^53.0.9",
     "postcss": "^8.5.3",

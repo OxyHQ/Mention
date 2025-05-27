@@ -9,7 +9,7 @@ export const BottomBar = () => {
     const router = useRouter();
     const [activeRoute, setActiveRoute] = React.useState('/');
     const pathname = usePathname();
-    const { showBottomSheet, hideBottomSheet } = useOxy();
+    const { showBottomSheet, hideBottomSheet, user, isAuthenticated } = useOxy();
 
     const handlePress = (route: '/' | '/properties' | '/saved' | '/contracts' | '/profile') => {
         setActiveRoute(route);
@@ -61,7 +61,18 @@ export const BottomBar = () => {
                 <Ionicons name={activeRoute === '/contracts' ? "document-text" : "document-text-outline"} size={28} color={activeRoute === '/contracts' ? "#4E67EB" : "#000"} />
             </Pressable>
             <View style={styles.tab}>
-                <Avatar onPress={() => showBottomSheet?.('SignIn')} />
+                <Avatar
+                  onPress={() => {
+                    if (isAuthenticated) {
+                      handlePress('/profile');
+                    } else {
+                      showBottomSheet?.('SignIn');
+                    }
+                  }}
+                  onLongPress={() => {
+                    showBottomSheet?.('AccountCenter');
+                  }}
+                />
             </View>
         </View>
     );

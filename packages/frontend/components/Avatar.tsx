@@ -8,9 +8,10 @@ interface AvatarProps {
   size?: number;
   style?: ImageStyle;
   onPress?: () => void;
+  onLongPress?: () => void;
 }
 
-const Avatar: React.FC<AvatarProps> = ({ id, size = 40, style, onPress }) => {
+const Avatar: React.FC<AvatarProps> = ({ id, size = 40, style, onPress, onLongPress }) => {
   // Handle different avatar formats
   let source;
 
@@ -26,7 +27,7 @@ const Avatar: React.FC<AvatarProps> = ({ id, size = 40, style, onPress }) => {
   }
 
   return (
-    <Pressable onPress={onPress} disabled={!onPress}>
+    <Pressable onPress={onPress} disabled={!onPress} onLongPress={onLongPress}>
       <Image
         source={source}
         style={[styles.avatar, { width: size, height: size, borderRadius: size }, style]}
