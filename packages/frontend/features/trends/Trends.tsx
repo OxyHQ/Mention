@@ -2,13 +2,12 @@ import React, { useEffect } from "react";
 import { View, StyleSheet, FlatList, TouchableOpacity, Text, Platform } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useSelector, useDispatch } from 'react-redux';
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/styles/colors";
 import { TrendItem } from "@/features/trends/TrendItem";
 import { fetchTrends } from '@/store/reducers/trendsReducer';
 import { Loading } from "@/assets/icons/loading-icon";
-import { RootState, AppDispatch } from '@/store/store';
+import { useAppSelector, useAppDispatch } from '@/hooks/useRedux';
 
 export const Trends = ({
     hideTrends
@@ -19,10 +18,10 @@ export const Trends = ({
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
     const { t } = useTranslation();
-    const trendsData = useSelector((state: RootState) => state.trends.trends);
-    const isLoading = useSelector((state: RootState) => state.trends.isLoading);
+    const trendsData = useAppSelector((state) => state.trends.trends);
+    const isLoading = useAppSelector((state) => state.trends.isLoading);
 
-    const dispatch = useDispatch<AppDispatch>();
+    const dispatch = useAppDispatch();
 
     useEffect(() => {
         dispatch(fetchTrends());

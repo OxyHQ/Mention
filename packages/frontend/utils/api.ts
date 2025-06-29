@@ -1,8 +1,9 @@
-import axios, { AxiosRequestConfig } from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
-import { toast } from 'sonner';
-import { API_URL } from '@/config';
+import axios, { AxiosRequestConfig } from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import { toast } from "sonner";
+import { API_URL } from "@/config";
+import { useOxy } from "@oxyhq/services/full";
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const BATCH_DELAY = 50; // ms to wait before processing batch
@@ -177,17 +178,17 @@ api.interceptors.request.use(async (config) => {
   let token = null;
   try {
     // OxyProvider uses storageKeyPrefix="oxy_example" by default
-    if (typeof window !== 'undefined' && window.localStorage) {
-      token = window.localStorage.getItem('oxy_example_access_token');
+    if (typeof window !== "undefined" && window.localStorage) {
+      token = window.localStorage.getItem("oxy_example_access_token");
     }
     if (!token) {
-      token = await SecureStore.getItemAsync('oxy_example_access_token');
+      token = await SecureStore.getItemAsync("oxy_example_access_token");
     }
     if (!token) {
-      token = await AsyncStorage.getItem('oxy_example_access_token');
+      token = await AsyncStorage.getItem("oxy_example_access_token");
     }
     // If token is a JSON string (e.g., '"tokenvalue"'), parse it
-    if (token && typeof token === 'string' && token.startsWith('"') && token.endsWith('"')) {
+    if (token && typeof token === "string" && token.startsWith('"') && token.endsWith('"')) {
       try {
         token = JSON.parse(token);
       } catch (e) {
@@ -195,15 +196,26 @@ api.interceptors.request.use(async (config) => {
       }
     }
     // Debug: log the token value (redact for safety)
-    if (typeof window !== 'undefined' && window?.location?.hostname === 'localhost') {
-      console.log('[Oxy API] Token for Authorization header:', token ? '[present]' : '[missing]');
+    if (typeof window !== "undefined" && window?.location?.hostname === "localhost") {
+      console.log("[Oxy API] Token for Authorization header:", token ? "[present]" : "[missing]");
     }
   } catch (e) {
     // ignore
   }
+  config.headers = config.headers || {};
   if (token) {
-    config.headers = config.headers || {};
-    config.headers['Authorization'] = `Bearer ${token}`;
+    config.headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  // Add x-session-id header if available
+  try {
+    const { user } = useOxy();
+    const sessionId = user?.id;
+    if (sessionId) {
+      config.headers["x-session-id"] = "HAHAHAHA";
+    }
+  } catch (e) {
+    // ignore
   }
   return config;
 });

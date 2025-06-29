@@ -59,7 +59,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   // Initialize OxyServices
   const oxyServices = new OxyServices({
-    baseURL: 'https://api.oxy.so',
+    baseURL: 'http://localhost:3001', // Replace with your backend URL
   });
   // Handle user authentication - no hooks here
   const handleAuthenticated = (user: any) => {
@@ -157,17 +157,17 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <OxyProvider
-          oxyServices={oxyServices}
-          initialScreen="SignIn"
-          autoPresent={false} // Don't auto-present, we'll control it with the button
-          onClose={() => console.log('Sheet closed')}
-          onAuthenticated={handleAuthenticated}
-          onAuthStateChange={(user) => console.log('Auth state changed:', user?.username || 'logged out')}
-          storageKeyPrefix="oxy_example" // Prefix for stored auth tokens
-          theme="light"
-        >
-          <Provider store={store}>
+        <Provider store={store}>
+          <OxyProvider
+            oxyServices={oxyServices}
+            initialScreen="SignIn"
+            autoPresent={false} // Don't auto-present, we'll control it with the button
+            onClose={() => console.log('Sheet closed')}
+            onAuthenticated={handleAuthenticated}
+            onAuthStateChange={(user) => console.log('Auth state changed:', user?.username || 'logged out')}
+            theme="light"
+            skipReduxProvider={true}
+          >
             <I18nextProvider i18n={i18n}>
               <MenuProvider>
                 <ErrorBoundary>
@@ -189,8 +189,8 @@ export default function RootLayout() {
                 </ErrorBoundary>
               </MenuProvider>
             </I18nextProvider>
-          </Provider>
-        </OxyProvider>
+          </OxyProvider>
+        </Provider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
