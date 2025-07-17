@@ -1,6 +1,5 @@
 import express from 'express';
 import pollsController from '../controllers/polls.controller';
-import { authMiddleware } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -9,9 +8,6 @@ const router = express.Router();
 router.get('/:id', pollsController.getPoll);
 // Get poll results (public for viewing results)
 router.get('/:id/results', pollsController.getResults);
-
-// Apply authentication middleware for protected routes
-router.use('/', authMiddleware);
 
 // Protected routes
 // Create a new poll

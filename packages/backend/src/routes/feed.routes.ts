@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { FeedController } from '../controllers/feed.controller';
-import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
 const feedController = new FeedController();
@@ -23,10 +22,10 @@ router.get('/reposts', feedController.getRepostsFeed.bind(feedController));
 router.get('/posts', feedController.getPostsFeed.bind(feedController));
 
 // Protected routes (with authentication middleware)
-router.get('/home', authMiddleware, feedController.getHomeFeed.bind(feedController));
-router.get('/user/:userId', authMiddleware, feedController.getUserFeed.bind(feedController));
-router.get('/bookmarks', authMiddleware, feedController.getBookmarksFeed.bind(feedController));
-router.get('/replies/:parentId', authMiddleware, feedController.getRepliesFeed.bind(feedController));
-router.get('/following', authMiddleware, feedController.getFollowingFeed.bind(feedController));
+router.get('/home', feedController.getHomeFeed.bind(feedController));
+router.get('/user/:userId', feedController.getUserFeed.bind(feedController));
+router.get('/bookmarks', feedController.getBookmarksFeed.bind(feedController));
+router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedController));
+router.get('/following', feedController.getFollowingFeed.bind(feedController));
 
 export default router;

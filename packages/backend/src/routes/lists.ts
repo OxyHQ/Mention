@@ -1,11 +1,7 @@
 import express, { Request, Response } from 'express';
 import List from '../models/List';
-import { authMiddleware } from '../middleware/auth';
 
 const router = express.Router();
-
-// Apply authentication middleware to all routes
-router.use('/', authMiddleware);
 
 // Create a new list
 router.post('/', async (req: Request, res: Response) => {

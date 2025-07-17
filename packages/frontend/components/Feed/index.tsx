@@ -1,19 +1,11 @@
 import React, { useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { FlatList, ListRenderItemInfo, RefreshControl, StyleSheet, Text, View, ActivityIndicator, Platform } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
 import CreatePost from '../Post/CreatePost';
-import {
-    fetchFeed,
-    selectFeedWithPosts,
-    clearFeed,
-    setFeedRefreshing,
-    FeedType
-} from '@/store/reducers/postsReducer';
+import { usePostsStore, FeedType } from '@/store/postsStore';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
 import LoadingSkeleton from './LoadingSkeleton';
 import { useOxy } from '@oxyhq/services/full';
-import type { AppDispatch, RootState } from '@/store/store';
 
 // Lazy load the Post component for better initial bundle size
 const Post = React.lazy(() => import('../Post'));
@@ -108,9 +100,15 @@ const Feed: React.FC<FeedProps> = React.memo(({
     onCreatePostPress,
     customOptions
 }) => {
-    const dispatch = useDispatch<AppDispatch>();
     const { isAuthenticated } = useOxy();
     const { t } = useTranslation();
+    const {
+        posts,
+        feeds,
+        fetchFeed,
+        clearFeed,
+        setFeedRefreshing,
+    } = usePostsStore();
 
     // Refs for performance tracking
     const flatListRef = useRef<FlatList>(null);
@@ -127,56 +125,53 @@ const Feed: React.FC<FeedProps> = React.memo(({
         return type === 'home' && !isAuthenticated ? 'all' : type;
     }, [type, isAuthenticated]);
 
-    // Select feed data with optimized selector
-    const feedData = useSelector((state: RootState) =>
-        selectFeedWithPosts(feedKey)(state),
-        (left, right) => {
-            // Deep equality check for better performance
-            return left.posts.length === right.posts.length &&
-                left.isLoading === right.isLoading &&
-                left.isRefreshing === right.isRefreshing &&
-                left.error === right.error &&
-                left.hasMore === right.hasMore &&
-                left.lastFetch === right.lastFetch;
-        }
-    );
-
-    const { posts, isLoading, isRefreshing, error, hasMore, nextCursor, lastFetch } = feedData;
+    // Zustand feed data
+    const feedData = feeds[feedKey] || {
+        postIds: [],
+        nextCursor: null,
+        hasMore: true,
+        isLoading: false,
+        isRefreshing: false,
+        error: null,
+        lastFetch: 0,
+    };
+    const { postIds, isLoading, isRefreshing, error, hasMore, nextCursor } = feedData;
+    const feedPosts = postIds.map((id) => posts[id]).filter(Boolean);
 
     // Limit rendered posts for better performance
     const visiblePosts = useMemo(() => {
-        return posts.slice(0, MAX_ITEMS_TO_RENDER);
-    }, [posts]);
+        return feedPosts.slice(0, MAX_ITEMS_TO_RENDER);
+    }, [feedPosts]);
 
     // Optimized callbacks
     const fetchInitialFeed = useCallback(() => {
-        dispatch(clearFeed(feedKey));
-        dispatch(fetchFeed({
+        clearFeed(feedKey);
+        fetchFeed({
             type: feedType,
             parentId,
             customOptions
-        }));
-    }, [dispatch, feedKey, feedType, parentId, customOptions]);
+        });
+    }, [clearFeed, fetchFeed, feedKey, feedType, parentId, customOptions]);
 
     const handleRefresh = useCallback(() => {
-        dispatch(setFeedRefreshing({ feedKey, refreshing: true }));
-        dispatch(fetchFeed({
+        setFeedRefreshing(feedKey, true);
+        fetchFeed({
             type: feedType,
             parentId,
             customOptions
-        }));
-    }, [dispatch, feedKey, feedType, parentId, customOptions]);
+        });
+    }, [setFeedRefreshing, fetchFeed, feedKey, feedType, parentId, customOptions]);
 
     const handleLoadMore = useCallback(() => {
         if (!isLoading && hasMore && nextCursor) {
-            dispatch(fetchFeed({
+            fetchFeed({
                 type: feedType,
                 parentId,
                 customOptions,
                 cursor: nextCursor
-            }));
+            });
         }
-    }, [dispatch, feedType, parentId, customOptions, nextCursor, isLoading, hasMore]);
+    }, [fetchFeed, feedType, parentId, customOptions, nextCursor, isLoading, hasMore]);
 
     const handleCreatePostPress = useCallback(() => {
         if (onCreatePostPress) {
@@ -277,13 +272,13 @@ const Feed: React.FC<FeedProps> = React.memo(({
     useEffect(() => {
         const now = Date.now();
         const shouldFetch = visiblePosts.length === 0 ||
-            (lastFetch && now - lastFetch > CACHE_DURATION) ||
-            !lastFetch;
+            (feedData.lastFetch && now - feedData.lastFetch > CACHE_DURATION) ||
+            !feedData.lastFetch;
 
         if (shouldFetch) {
             fetchInitialFeed();
         }
-    }, [feedKey, fetchInitialFeed, visiblePosts.length, lastFetch]);
+    }, [feedKey, fetchInitialFeed, visiblePosts.length, feedData.lastFetch]);
 
     // Render error state
     if (error && visiblePosts.length === 0) {

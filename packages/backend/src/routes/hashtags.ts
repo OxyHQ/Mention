@@ -1,7 +1,6 @@
 import express, { Request, Response } from "express";
 import Post from "../models/Post";
 import { HashtagsController } from '../controllers/hashtags.controller';
-import { authMiddleware } from '../middleware/auth';
 
 const router = express.Router();
 const hashtagsController = new HashtagsController();
@@ -34,9 +33,6 @@ router.get("/", async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error fetching hashtags from posts", error });
   }
 });
-
-// Apply authentication middleware for protected routes
-router.use('/', authMiddleware);
 
 // Protected routes
 // Search hashtags

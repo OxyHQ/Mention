@@ -15,7 +15,6 @@ import {
   getDrafts,
   getScheduledPosts
 } from '../controllers/posts.controller';
-import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
 
@@ -23,9 +22,6 @@ const router = Router();
 router.get('/', getPosts);
 router.get('/hashtag/:hashtag', getPostsByHashtag);
 router.get('/:id', getPostById);
-
-// Apply authentication middleware to all subsequent routes
-router.use('/', authMiddleware);
 
 // Protected routes - specific routes first
 router.post('/', createPost);

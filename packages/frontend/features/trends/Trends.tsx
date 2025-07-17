@@ -5,9 +5,8 @@ import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/styles/colors";
 import { TrendItem } from "@/features/trends/TrendItem";
-import { fetchTrends } from '@/store/reducers/trendsReducer';
+import { useTrendsStore } from '@/store/trendsStore';
 import { Loading } from "@/assets/icons/loading-icon";
-import { useAppSelector, useAppDispatch } from '@/hooks/useRedux';
 
 export const Trends = ({
     hideTrends
@@ -18,14 +17,11 @@ export const Trends = ({
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';
     const { t } = useTranslation();
-    const trendsData = useAppSelector((state) => state.trends.trends);
-    const isLoading = useAppSelector((state) => state.trends.isLoading);
-
-    const dispatch = useAppDispatch();
+    const { trends, isLoading, fetchTrends } = useTrendsStore();
 
     useEffect(() => {
-        dispatch(fetchTrends());
-    }, [dispatch]);
+        fetchTrends();
+    }, [fetchTrends]);
 
     if (hideTrends) return null;
 
@@ -46,65 +42,27 @@ export const Trends = ({
     }
 
     return (
-        <View
-            style={{
-                backgroundColor: isExplorePage ? "" : colors.primaryLight,
-                borderRadius: isExplorePage ? 0 : 15,
-                overflow: 'hidden',
-            }}>
-            <View
-                style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    paddingHorizontal: 14,
-                    paddingVertical: 14,
-                    borderBottomWidth: 0.01,
-                    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-                }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
-                    {t("Trends for you")}
-                </Text>
-                <TouchableOpacity onPress={() => router.push('/settings')}>
-                    <Ionicons style={{ fontSize: 20 }} name="settings" />
-                </TouchableOpacity>
-            </View>
-            <View>
-                <FlatList
-                    data={trendsData}
-                    renderItem={({ item }) => (
-                        <TrendItem
-                            topHeader="Hashtag · Trending"
-                            mainTitle={item.text}
-                            numberOfPosts={item.score}
-                        />
-                    )}
-                    keyExtractor={(item) => item.id}
-                />
-            </View>
-            {!isExplorePage && (
-                <View>
-                    <TouchableOpacity
-                        onPress={() => router.push('/explore')}
-                        style={styles.showMoreButton}>
-                        <Text style={{ fontSize: 15, color: colors.primaryColor }}>
-                            {t("Show more")}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            )}
+        <View style={styles.container}>
+            <FlatList
+                data={trends}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                    <TrendItem
+                        topHeader="Hashtag · Trending"
+                        mainTitle={item.text}
+                        numberOfPosts={item.score}
+                    />
+                )}
+            />
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    showMoreButton: {
-        padding: 14,
-        ...Platform.select({
-            web: {
-                cursor: 'pointer',
-            },
-        }),
-        backgroundColor: 'transparent',
-    }
+    container: {
+        padding: 16,
+        backgroundColor: colors.primaryLight,
+        borderRadius: 15,
+        margin: 8,
+    },
 });

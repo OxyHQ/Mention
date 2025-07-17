@@ -8,12 +8,8 @@ import {
   getTopPosts,
   getFollowerDetails
 } from "../controllers/analytics.controller";
-import { authMiddleware } from '../middleware/auth';
 
 const router = express.Router();
-
-// Apply authentication middleware to all routes
-router.use('/', authMiddleware);
 
 router.get("/", getAnalytics);
 router.post("/update", updateAnalytics);

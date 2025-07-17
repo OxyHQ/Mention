@@ -1,11 +1,9 @@
 import { useEffect, useRef, useCallback, useState, useContext } from "react";
 import { ScrollView, Keyboard, LogBox, Platform } from "react-native";
 import * as SplashScreen from 'expo-splash-screen';
-import { Provider } from 'react-redux';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from "expo-font";
 import { Slot } from 'expo-router';
-import store from '@/store/store';
 import { useMediaQuery } from 'react-responsive'
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
@@ -157,40 +155,38 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <Provider store={store}>
-          <OxyProvider
-            oxyServices={oxyServices}
-            initialScreen="SignIn"
-            autoPresent={false} // Don't auto-present, we'll control it with the button
-            onClose={() => console.log('Sheet closed')}
-            onAuthenticated={handleAuthenticated}
-            onAuthStateChange={(user) => console.log('Auth state changed:', user?.username || 'logged out')}
-            theme="light"
-            skipReduxProvider={true}
-          >
-            <I18nextProvider i18n={i18n}>
-              <MenuProvider>
-                <ErrorBoundary>
-                  <BottomSheetModalProvider>
-                    <BottomSheetProvider>
-                      <View style={styles.container}>
-                        <SideBar />
-                        <View style={styles.mainContentWrapper}>
-                          <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0, }} />
-                          <Slot />
-                        </View>
-                        <RightBar />
+        <OxyProvider
+          oxyServices={oxyServices}
+          initialScreen="SignIn"
+          autoPresent={false} // Don't auto-present, we'll control it with the button
+          onClose={() => console.log('Sheet closed')}
+          onAuthenticated={handleAuthenticated}
+          onAuthStateChange={(user) => console.log('Auth state changed:', user?.username || 'logged out')}
+          theme="light"
+          skipReduxProvider={true}
+        >
+          <I18nextProvider i18n={i18n}>
+            <MenuProvider>
+              <ErrorBoundary>
+                <BottomSheetModalProvider>
+                  <BottomSheetProvider>
+                    <View style={styles.container}>
+                      <SideBar />
+                      <View style={styles.mainContentWrapper}>
+                        <LoadingTopSpinner showLoading={false} size={20} style={{ paddingBottom: 0, }} />
+                        <Slot />
                       </View>
-                      <StatusBar style="auto" />
-                      <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
-                      {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
-                    </BottomSheetProvider>
-                  </BottomSheetModalProvider>
-                </ErrorBoundary>
-              </MenuProvider>
-            </I18nextProvider>
-          </OxyProvider>
-        </Provider>
+                      <RightBar />
+                    </View>
+                    <StatusBar style="auto" />
+                    <Toaster position="bottom-center" swipeToDismissDirection="left" offset={15} />
+                    {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                  </BottomSheetProvider>
+                </BottomSheetModalProvider>
+              </ErrorBoundary>
+            </MenuProvider>
+          </I18nextProvider>
+        </OxyProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

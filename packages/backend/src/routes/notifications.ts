@@ -1,7 +1,6 @@
 import express, { Request, Response } from "express";
 import Notification from "../models/Notification";
 import { Server } from 'socket.io';
-import { authMiddleware } from '../middleware/auth';
 
 // Extend Request type to include user property
 interface AuthRequest extends Request {
@@ -12,9 +11,6 @@ interface AuthRequest extends Request {
 }
 
 const router = express.Router();
-
-// Apply authentication middleware to all routes
-router.use('/', authMiddleware);
 
 // Helper function to emit notification event
 const emitNotification = async (req: Request, notification: any) => {
