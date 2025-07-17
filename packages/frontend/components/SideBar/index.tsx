@@ -28,7 +28,7 @@ export function SideBar() {
     const { t } = useTranslation();
     const { logout, isLoading, user, isAuthenticated, showBottomSheet } = useOxy();
 
-    
+
     const handleLogout = async () => {
         try {
             await logout();
@@ -231,16 +231,16 @@ export function SideBar() {
                 <View style={{ flex: 1, }}></View>
                 <View style={{ width: '100%', paddingHorizontal: 20, }}>
                     {isAuthenticated && (
-                                        <View style={styles.logoutContainer}>
-                                            <TouchableOpacity
-                                                style={styles.logoutButton}
-                                                onPress={handleLogout}
-                                            >
-                                                <Ionicons name="log-out-outline" size={20} color="#fff" />
-                                                <Text style={styles.logoutButtonText}>Logout</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
+                        <View style={styles.logoutContainer}>
+                            <TouchableOpacity
+                                style={styles.logoutButton}
+                                onPress={handleLogout}
+                            >
+                                <Ionicons name="log-out-outline" size={20} color="#fff" />
+                                <Text style={styles.logoutButtonText}>Logout</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </View>
         )

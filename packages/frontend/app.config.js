@@ -29,6 +29,7 @@ return {
         scheme: "mention",
         userInterfaceStyle: "automatic",
         newArchEnabled: true,
+        jsEngine: "jsc",
         ios: {
             supportsTablet: true,
             bundleIdentifier: "earth.mention.android"

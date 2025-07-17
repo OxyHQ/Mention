@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  StyleSheet, 
-  TouchableOpacity, 
-  KeyboardAvoidingView, 
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  KeyboardAvoidingView,
   Platform,
   ActivityIndicator
 } from 'react-native';
-import { useOxy } from '@oxyhq/services/full';
-import { postData } from '@/utils/api';
+import { useAuthFetch, useOxy } from '@oxyhq/services/full';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { clearCache } from '@/utils/api';
 import { router } from 'expo-router';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
@@ -25,48 +23,56 @@ const ComposeScreen = () => {
   const [isPosting, setIsPosting] = useState(false);
   const { user } = useOxy();
   const { t } = useTranslation();
-  
+
+  const authFetch = useAuthFetch();
+  authFetch.setApiUrl('http://localhost:3000');
+
   const handlePost = async () => {
     if (!postContent.trim() || isPosting) return;
-    
+
     setIsPosting(true);
     try {
-      // Call API to create post
-      await postData('/posts', { text: postContent.trim() });
-      
-      // Clear cache to ensure feed is refreshed with the new post
-      clearCache('feed/');
-      
+      console.log('Attempting to create post...');
+
+      // Call API to create post - authentication handled by API utils
+      const result = await authFetch.post('/posts', { text: postContent.trim() });
+      console.log('Post created successfully:', result);
+
       // Show success toast
       toast.success(t('Post published successfully'));
-      
+
       // Navigate back after posting
       router.back();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating post:', error);
-      toast.error(t('Failed to publish post'));
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+
+      // Show specific error message if available
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to publish post';
+      toast.error(t(errorMessage));
     } finally {
       setIsPosting(false);
     }
   };
-  
+
   const handleCancel = () => {
     router.back();
   };
-  
+
   const isPostButtonEnabled = postContent.trim().length > 0 && !isPosting;
-  
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="dark" />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
           <Text style={styles.cancelButtonText}>{t('Cancel')}</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           onPress={handlePost}
           style={[
             styles.postButton,
@@ -81,23 +87,23 @@ const ComposeScreen = () => {
           )}
         </TouchableOpacity>
       </View>
-      
-      <KeyboardAvoidingView 
+
+      <KeyboardAvoidingView
         style={styles.composeArea}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <View style={styles.userInfoContainer}>
-          <Avatar 
+          <Avatar
             size={40}
           />
-          
+
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{user?.fullName || user?.username}</Text>
             {user?.username && <Text style={styles.userHandle}>@{user.username}</Text>}
           </View>
         </View>
-        
+
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
@@ -110,7 +116,7 @@ const ComposeScreen = () => {
             maxLength={280}
           />
         </View>
-        
+
         <View style={styles.charCountContainer}>
           <Text style={[
             styles.charCount,
@@ -128,7 +134,6 @@ const ComposeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
@@ -138,6 +143,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: '#E1E8ED',
+    ...Platform.select({
+      web: {
+        position: 'sticky',
+        top: 0,
+        zIndex: 1000,
+      },
+    }),
   },
   cancelButton: {
     padding: 8,

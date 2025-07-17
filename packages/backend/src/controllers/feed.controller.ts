@@ -5,9 +5,113 @@ import mongoose, { Types } from 'mongoose';
 import { AuthRequest } from '../types/auth';
 import createError from 'http-errors';
 import Bookmark from "../models/Bookmark";
+import { generateMockData, MockUser, MockPost } from '../utils/mockData';
 
 
 export class FeedController {
+  // Cache for mock data
+  private static mockUsers: MockUser[] = [];
+  private static mockPosts: MockPost[] = [];
+  private static mockDataInitialized = false;
+
+  /**
+   * Initialize mock data if not already done
+   */
+  private initializeMockData() {
+    if (!FeedController.mockDataInitialized) {
+      const { users, posts } = generateMockData(50, 200);
+      FeedController.mockUsers = users;
+      FeedController.mockPosts = posts;
+      FeedController.mockDataInitialized = true;
+      console.log('Mock data initialized:', { users: users.length, posts: posts.length });
+    }
+  }
+
+  /**
+   * Transform mock post to API format
+   */
+  private transformMockPost(mockPost: MockPost): any {
+    const author = FeedController.mockUsers.find(u => u._id.equals(mockPost.userID));
+    return {
+      id: mockPost._id.toString(),
+      text: mockPost.text,
+      author: author ? {
+        id: author._id.toString(),
+        username: author.username,
+        name: author.name,
+        avatar: author.avatar,
+        location: author.location,
+        website: author.website,
+        verified: author.verified,
+        premium: author.premium,
+        labels: author.labels,
+        stats: author.stats,
+        description: author.description
+      } : {
+        id: mockPost.userID.toString(),
+        username: "user",
+        name: "User",
+        avatar: ""
+      },
+      media: mockPost.media,
+      location: mockPost.location,
+      created_at: mockPost.created_at.toISOString(),
+      updated_at: mockPost.updated_at.toISOString(),
+      hashtags: mockPost.hashtags,
+      mentions: mockPost.mentions,
+      isLiked: false,
+      isReposted: false,
+      isBookmarked: false,
+      source: mockPost.source,
+      lang: mockPost.lang,
+      possibly_sensitive: mockPost.possibly_sensitive,
+      in_reply_to_status_id: mockPost.in_reply_to_status_id?.toString() || null,
+      quoted_post_id: mockPost.quoted_post_id?.toString() || null,
+      _count: {
+        likes: mockPost.likes.length,
+        reposts: mockPost.reposts.length,
+        replies: mockPost.replies.length,
+        bookmarks: mockPost.bookmarks.length,
+        quotes: 0
+      }
+    };
+  }
+
+  /**
+   * Get mock feed data with pagination
+   */
+  private getMockFeedData(limit: number, cursor?: string, filterFn?: (post: MockPost) => boolean) {
+    this.initializeMockData();
+    
+    let posts = FeedController.mockPosts;
+    
+    // Apply filter if provided
+    if (filterFn) {
+      posts = posts.filter(filterFn);
+    }
+    
+    // Sort by creation date (newest first)
+    posts = posts.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+    
+    // Apply cursor-based pagination
+    if (cursor) {
+      const cursorIndex = posts.findIndex(p => p._id.toString() === cursor);
+      if (cursorIndex !== -1) {
+        posts = posts.slice(cursorIndex + 1);
+      }
+    }
+    
+    const hasMore = posts.length > limit;
+    const resultPosts = hasMore ? posts.slice(0, limit) : posts;
+    const nextCursor = hasMore && resultPosts.length > 0 ? resultPosts[resultPosts.length - 1]._id.toString() : null;
+    
+    return {
+      posts: resultPosts.map(p => this.transformMockPost(p)),
+      nextCursor,
+      hasMore
+    };
+  }
+
   /**
    * Fetch profile data for a list of user IDs (stub: returns empty map)
    * @param userIds List of user IDs to fetch profile data for
@@ -50,7 +154,9 @@ export class FeedController {
    */
   async getHomeFeed(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const userId = req.user?.id;
+      const userId = req.userId || req.user?.id;
+      console.log('Home feed auth check - userId:', userId, 'user:', req.user);
+      
       if (!userId) {
         return next(createError(401, 'Authentication required'));
       }
@@ -59,9 +165,18 @@ export class FeedController {
       const cursor = req.query.cursor as string;
       const includeProfiles = req.query.includeProfiles === 'true';
       
-      // Build query
+      // For development, return mock data since test user won't have real posts
+      if (userId === 'test-user-id') {
+        console.log('Returning mock data for test user');
+        const mockFeedData = this.getMockFeedData(limit, cursor);
+        return res.status(200).json({
+          data: mockFeedData
+        });
+      }
+      
+      // Build query for real users
       const query: any = {
-        userID: userId, // Field name is userID not user
+        userID: userId,
         isDraft: { $ne: true },
         scheduledFor: { $exists: false }
       };
@@ -75,6 +190,17 @@ export class FeedController {
       const posts = await Post.find(query)
         .sort({ created_at: -1 })
         .limit(limit + 1); // Get one extra to determine if there are more
+      
+      // If no posts found, return empty result
+      if (posts.length === 0) {
+        return res.status(200).json({
+          data: {
+            posts: [],
+            nextCursor: null,
+            hasMore: false
+          }
+        });
+      }
       
       const hasMore = posts.length > limit;
       const resultPosts = hasMore ? posts.slice(0, limit) : posts;
@@ -105,8 +231,17 @@ export class FeedController {
       const limit = parseInt(req.query.limit as string) || 20;
       const cursor = req.query.cursor as string;
       const includeProfiles = req.query.includeProfiles === 'true';
+      const useMockData = req.query.mock === 'true';
       
-      // Build query
+      // Use mock data if explicitly requested
+      if (useMockData) {
+        const mockFeedData = this.getMockFeedData(limit, cursor);
+        return res.status(200).json({
+          data: mockFeedData
+        });
+      }
+      
+      // Build query for real data
       const query: any = {
         isDraft: { $ne: true },
         scheduledFor: { $exists: false }
@@ -121,6 +256,14 @@ export class FeedController {
       const posts = await Post.find(query)
         .sort({ created_at: -1 }) // Sort by creation date for now
         .limit(limit + 1); // Get one extra to determine if there are more
+      
+      // If no real posts found, fall back to mock data
+      if (posts.length === 0) {
+        const mockFeedData = this.getMockFeedData(limit, cursor);
+        return res.status(200).json({
+          data: mockFeedData
+        });
+      }
       
       const hasMore = posts.length > limit;
       const resultPosts = hasMore ? posts.slice(0, limit) : posts;
@@ -314,7 +457,7 @@ export class FeedController {
    */
   async getBookmarksFeed(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const userId = req.user?.id;
+      const userId = req.userId || req.user?.id;
       const limit = parseInt(req.query.limit as string) || 20;
       const cursor = req.query.cursor as string;
       const includeProfiles = req.query.includeProfiles === 'true';
@@ -495,6 +638,168 @@ export class FeedController {
   }
 
   /**
+   * Get custom feed based on filters
+   */
+  async getCustomFeed(req: Request, res: Response, next: NextFunction) {
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      const cursor = req.query.cursor as string;
+      const users = req.query.users ? (req.query.users as string).split(',') : [];
+      const hashtags = req.query.hashtags ? (req.query.hashtags as string).split(',') : [];
+      const keywords = req.query.keywords ? (req.query.keywords as string).split(',') : [];
+      const mediaOnly = req.query.mediaOnly === 'true';
+      const useMockData = req.query.mock === 'true';
+      
+      if (useMockData) {
+        // Filter function for mock data
+        const filterFn = (post: MockPost) => {
+          // Filter by users
+          if (users.length > 0) {
+            const author = FeedController.mockUsers.find(u => u._id.equals(post.userID));
+            if (!author || !users.includes(author.username)) {
+              return false;
+            }
+          }
+          
+          // Filter by hashtags
+          if (hashtags.length > 0) {
+            const hasMatchingHashtag = hashtags.some(tag => 
+              post.hashtags.some(postTag => postTag.toLowerCase().includes(tag.toLowerCase()))
+            );
+            if (!hasMatchingHashtag) {
+              return false;
+            }
+          }
+          
+          // Filter by keywords
+          if (keywords.length > 0) {
+            const hasMatchingKeyword = keywords.some(keyword =>
+              post.text.toLowerCase().includes(keyword.toLowerCase())
+            );
+            if (!hasMatchingKeyword) {
+              return false;
+            }
+          }
+          
+          // Filter by media
+          if (mediaOnly && post.media.length === 0) {
+            return false;
+          }
+          
+          return true;
+        };
+        
+        const mockFeedData = this.getMockFeedData(limit, cursor, filterFn);
+        return res.status(200).json({
+          data: mockFeedData
+        });
+      }
+      
+      // Build query for real data
+      const query: any = {
+        isDraft: { $ne: true },
+        scheduledFor: { $exists: false }
+      };
+      
+      // Add user filters
+      if (users.length > 0) {
+        // This would need to be implemented with user lookup
+        // For now, just return mock data
+        const filterFn = (post: MockPost) => {
+          const author = FeedController.mockUsers.find(u => u._id.equals(post.userID));
+          return !!(author && users.includes(author.username));
+        };
+        const mockFeedData = this.getMockFeedData(limit, cursor, filterFn);
+        return res.status(200).json({
+          data: mockFeedData
+        });
+      }
+      
+      // Add hashtag filters
+      if (hashtags.length > 0) {
+        query.$or = hashtags.map(tag => ({
+          hashtags: { $regex: new RegExp(tag, 'i') }
+        }));
+      }
+      
+      // Add keyword filters
+      if (keywords.length > 0) {
+        const keywordQuery = {
+          $or: keywords.map(keyword => ({
+            text: { $regex: new RegExp(keyword, 'i') }
+          }))
+        };
+        
+        if (query.$or) {
+          query.$and = [{ $or: query.$or }, keywordQuery];
+          delete query.$or;
+        } else {
+          query.$or = keywordQuery.$or;
+        }
+      }
+      
+      // Add media filter
+      if (mediaOnly) {
+        query.media = { $exists: true, $ne: [] };
+      }
+      
+      // Add cursor-based pagination
+      if (cursor) {
+        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+      }
+      
+      const posts = await Post.find(query)
+        .sort({ created_at: -1 })
+        .limit(limit + 1);
+      
+      // If no real posts found, fall back to mock data with filters
+      if (posts.length === 0) {
+        const filterFn = (post: MockPost) => {
+          if (hashtags.length > 0) {
+            const hasMatchingHashtag = hashtags.some(tag => 
+              post.hashtags.some(postTag => postTag.toLowerCase().includes(tag.toLowerCase()))
+            );
+            if (!hasMatchingHashtag) return false;
+          }
+          
+          if (keywords.length > 0) {
+            const hasMatchingKeyword = keywords.some(keyword =>
+              post.text.toLowerCase().includes(keyword.toLowerCase())
+            );
+            if (!hasMatchingKeyword) return false;
+          }
+          
+          if (mediaOnly && post.media.length === 0) return false;
+          
+          return true;
+        };
+        
+        const mockFeedData = this.getMockFeedData(limit, cursor, filterFn);
+        return res.status(200).json({
+          data: mockFeedData
+        });
+      }
+      
+      const hasMore = posts.length > limit;
+      const resultPosts = hasMore ? posts.slice(0, limit) : posts;
+      const nextCursor = hasMore && resultPosts.length > 0 ? resultPosts[resultPosts.length - 1]._id : null;
+      
+      const transformedPosts = await this.transformPostsWithProfiles(resultPosts, true);
+      
+      return res.status(200).json({
+        data: {
+          posts: transformedPosts,
+          nextCursor: nextCursor ? nextCursor.toString() : null,
+          hasMore
+        }
+      });
+    } catch (error) {
+      logger.error('Error in getCustomFeed:', error);
+      return next(createError(500, 'Error retrieving custom feed'));
+    }
+  }
+
+  /**
    * Get reposts
    */
   async getRepostsFeed(req: Request, res: Response, next: NextFunction) {
@@ -573,7 +878,7 @@ export class FeedController {
    */
   async getFollowingFeed(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const userId = req.user?.id;
+      const userId = req.userId || req.user?.id;
       if (!userId) {
         return next(createError(401, 'Authentication required'));
       }

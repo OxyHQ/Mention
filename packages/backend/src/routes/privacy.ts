@@ -12,7 +12,7 @@ interface AuthenticatedRequest extends Request {
 }
 
 const router = express.Router();
-router.use(authMiddleware);
+router.use('/', authMiddleware);
 
 const privacySettingsSchema = z.object({
   isPrivateAccount: z.boolean().optional(),

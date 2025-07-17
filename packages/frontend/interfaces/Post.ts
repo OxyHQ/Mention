@@ -14,6 +14,17 @@ interface Author {
   color: string;
 }
 
+export interface MediaItem {
+  id: string;
+  type: 'image' | 'video' | 'file';
+  url: string;
+  thumbnail?: string;
+  alt?: string;
+  filename?: string;
+  size?: number;
+  duration?: number;
+}
+
 export interface Post {
   id: string;
   text: string;

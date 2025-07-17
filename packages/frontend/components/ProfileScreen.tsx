@@ -12,7 +12,7 @@ export default function ProfileScreen() {
     const { user: currentUser, logout, oxyServices, showBottomSheet } = useOxy();
     let { username } = useLocalSearchParams<{ username: string }>();
     if (username && username.startsWith('@')) {
-      username = username.slice(1);
+        username = username.slice(1);
     }
 
     const [profileData, setProfileData] = useState<Models.User | null>(null);
@@ -124,7 +124,7 @@ export default function ProfileScreen() {
             <ScrollView style={styles.scrollView}>
                 {/* Cover photo banner */}
                 <View style={styles.coverPhotoContainer}>
-                    <Image 
+                    <Image
                         source={{ uri: profileData?.coverPhoto || 'https://pbs.twimg.com/profile_banners/44196397/1576183471/1500x500' }}
                         style={styles.coverPhoto}
                     />
@@ -153,7 +153,7 @@ export default function ProfileScreen() {
                     <View style={styles.profileInfo}>
                         <Text style={styles.fullName}>{profileData?.fullName || 'User'}</Text>
                         <Text style={styles.username}>@{profileData?.username}</Text>
-                        
+
                         {profileData?.description && (
                             <Text style={styles.bio}>{profileData.description}</Text>
                         )}
@@ -166,7 +166,7 @@ export default function ProfileScreen() {
                                     <Text style={styles.metaText}>{profileData.location}</Text>
                                 </View>
                             )}
-                            
+
                             {profileData?.createdAt && (
                                 <View style={styles.metaItem}>
                                     <Ionicons name="calendar-outline" size={16} color="#657786" />
@@ -179,15 +179,15 @@ export default function ProfileScreen() {
 
                         {/* Followers/Following counts */}
                         <View style={styles.followStats}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.statItem}
                                 onPress={() => router.push(`/${profileData?.username}/following`)}
                             >
                                 <Text style={styles.statValue}>{profileData?.followingCount || 0}</Text>
                                 <Text style={styles.statLabel}>Following</Text>
                             </TouchableOpacity>
-                            
-                            <TouchableOpacity 
+
+                            <TouchableOpacity
                                 style={styles.statItem}
                                 onPress={() => router.push(`/${profileData?.username}/followers`)}
                             >
@@ -199,28 +199,28 @@ export default function ProfileScreen() {
 
                     {/* Twitter-like content tabs */}
                     <View style={styles.tabsContainer}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.tab, activeTab === 'posts' ? styles.activeTab : {}]}
                             onPress={() => handleTabPress('posts')}
                         >
                             <Text style={[styles.tabText, activeTab === 'posts' ? styles.activeTabText : {}]}>Posts</Text>
                         </TouchableOpacity>
-                        
-                        <TouchableOpacity 
+
+                        <TouchableOpacity
                             style={[styles.tab, activeTab === 'replies' ? styles.activeTab : {}]}
                             onPress={() => handleTabPress('replies')}
                         >
                             <Text style={[styles.tabText, activeTab === 'replies' ? styles.activeTabText : {}]}>Replies</Text>
                         </TouchableOpacity>
-                        
-                        <TouchableOpacity 
+
+                        <TouchableOpacity
                             style={[styles.tab, activeTab === 'media' ? styles.activeTab : {}]}
                             onPress={() => handleTabPress('media')}
                         >
                             <Text style={[styles.tabText, activeTab === 'media' ? styles.activeTabText : {}]}>Media</Text>
                         </TouchableOpacity>
-                        
-                        <TouchableOpacity 
+
+                        <TouchableOpacity
                             style={[styles.tab, activeTab === 'likes' ? styles.activeTab : {}]}
                             onPress={() => handleTabPress('likes')}
                         >
@@ -232,20 +232,36 @@ export default function ProfileScreen() {
                 {/* Content area based on selected tab */}
                 <View style={styles.contentArea}>
                     {activeTab === 'posts' && (
-                        <Feed type="posts" parentId={profileData?.id} />
+                        <Feed
+                            type="posts"
+                            customOptions={{
+                                users: profileData?.username ? [profileData.username] : []
+                            }}
+                        />
                     )}
 
                     {activeTab === 'replies' && (
-                        <Feed type="replies" parentId={profileData?.id} />
+                        <Feed
+                            type="replies"
+                            customOptions={{
+                                users: profileData?.username ? [profileData.username] : []
+                            }}
+                        />
                     )}
 
                     {activeTab === 'media' && (
-                        <Feed type="media" parentId={profileData?.id} />
+                        <Feed
+                            type="custom"
+                            customOptions={{
+                                users: profileData?.username ? [profileData.username] : [],
+                                mediaOnly: true
+                            }}
+                        />
                     )}
 
                     {activeTab === 'likes' && (
                         <View style={styles.emptyStateContainer}>
-                            <Ionicons name="heart-outline" size={40} color="#657786" />
+                            <Text style={styles.emptyStateIcon}>❤️</Text>
                             <Text style={styles.emptyStateTitle}>No Likes Yet</Text>
                             <Text style={styles.emptyStateText}>Posts {isCurrentUser ? 'you have' : 'they have'} liked will show up here.</Text>
                         </View>
@@ -427,6 +443,10 @@ const styles = StyleSheet.create({
         padding: 30,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    emptyStateIcon: {
+        fontSize: 40,
+        marginBottom: 10,
     },
     emptyStateTitle: {
         fontSize: 20,

@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@oxyhq/services": "^5.5.0",
     "@types/mongoose": "^5.11.97",
     "@types/socket.io": "^3.0.2",
     "axios": "^1.7.9",

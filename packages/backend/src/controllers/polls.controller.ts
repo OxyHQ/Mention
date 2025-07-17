@@ -11,6 +11,14 @@ class PollsController {
       const { question, options, postId, endsAt, isMultipleChoice, isAnonymous } = req.body;
       const userId = req.user?.id;
 
+      // Debug logging for authentication
+      console.log('Polls createPoll auth debug:', {
+        hasUser: !!req.user,
+        userKeys: req.user ? Object.keys(req.user) : [],
+        userId: userId,
+        userIdType: typeof userId
+      });
+
       if (!userId) {
         return res.status(401).json({
           error: 'Authentication required',

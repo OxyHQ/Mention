@@ -26,7 +26,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 app.use((req, res, next) => {
-  const allowedOrigins = [process.env.FRONTEND_URL || "https://mention.earth", "http://localhost:8081"];
+  const allowedOrigins = [process.env.FRONTEND_URL || "https://mention.earth", "http://localhost:8081", "http://localhost:8082"];
   const origin = req.headers.origin;
   
   if (origin && allowedOrigins.includes(origin)) {
@@ -107,7 +107,7 @@ const io = new SocketIOServer(server, {
   maxHttpBufferSize: SOCKET_CONFIG.MAX_BUFFER_SIZE,
   connectTimeout: SOCKET_CONFIG.CONNECT_TIMEOUT,
   cors: {
-    origin: [process.env.FRONTEND_URL || "https://mention.earth", "http://localhost:8081"],
+    origin: [process.env.FRONTEND_URL || "https://mention.earth", "http://localhost:8081", "http://localhost:8082"],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With", "Accept", "Accept-Version", "Content-Length", "Content-MD5", "Date", "X-Api-Version"]

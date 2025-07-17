@@ -1,10 +1,12 @@
 import express, { Request, Response } from "express";
 import Post from "../models/Post";
 import { HashtagsController } from '../controllers/hashtags.controller';
+import { authMiddleware } from '../middleware/auth';
 
 const router = express.Router();
 const hashtagsController = new HashtagsController();
 
+// Public routes
 // Get all hashtags
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -33,6 +35,10 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
+// Apply authentication middleware for protected routes
+router.use('/', authMiddleware);
+
+// Protected routes
 // Search hashtags
 router.post('/search', hashtagsController.searchHashtags.bind(hashtagsController));
 

@@ -1,20 +1,33 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { fetchData, postData } from '@/utils/api';
+import { createSlice, createAsyncThunk, PayloadAction, createSelector } from '@reduxjs/toolkit';
+import api, { postData } from '@/utils/api';
 import { Post } from '@/interfaces/Post';
+
+export type FeedType = 'all' | 'posts' | 'replies' | 'quotes' | 'reposts' | 'media' | 'following' | 'home' | 'custom';
+
+interface CustomFeedOptions {
+  users?: string[];
+  hashtags?: string[];
+  keywords?: string[];
+  mediaOnly?: boolean;
+}
+
+interface FetchFeedParams {
+  type?: FeedType;
+  parentId?: string;
+  limit?: number;
+  cursor?: string | null;
+  customOptions?: CustomFeedOptions;
+}
 
 // Async thunks for posts
 export const fetchFeed = createAsyncThunk(
   'posts/fetchFeed',
-  async (params: { 
-    type?: string; 
-    parentId?: string; 
-    limit?: number; 
-    cursor?: string | null;
-  } = {}) => {
-    const { type = 'all', parentId, limit = 20, cursor } = params;
+  async (params: FetchFeedParams = {}) => {
+    const { type = 'all', parentId, limit = 20, cursor, customOptions } = params;
     
     const endpoint = (() => {
       if (type === 'replies' && parentId) return `feed/replies/${parentId}`;
+      if (type === 'custom') return 'feed/custom';
       if (type === 'media') return 'feed/media';
       if (type === 'quotes') return 'feed/quotes';
       if (type === 'reposts') return 'feed/reposts';
@@ -25,22 +38,29 @@ export const fetchFeed = createAsyncThunk(
       return 'feed/explore';
     })();
 
-    const queryParams: any = { limit };
+    const queryParams: any = { limit, mock: 'true' };
     if (cursor) queryParams.cursor = cursor;
+    
+    // Add custom feed parameters
+    if (type === 'custom' && customOptions) {
+      if (customOptions.users?.length) queryParams.users = customOptions.users.join(',');
+      if (customOptions.hashtags?.length) queryParams.hashtags = customOptions.hashtags.join(',');
+      if (customOptions.keywords?.length) queryParams.keywords = customOptions.keywords.join(',');
+      if (customOptions.mediaOnly) queryParams.mediaOnly = 'true';
+    }
 
-    const response = await fetchData<{
-      data: {
-        posts: Post[];
-        nextCursor: string | null;
-        hasMore: boolean;
-      };
-    }>(endpoint, { params: queryParams });
+    const response = await api.get(endpoint, { params: queryParams });
+    
+    // Create unique feed key for different feed configurations
+    const feedKey = type === 'custom' && customOptions
+      ? `custom_${JSON.stringify(customOptions)}`
+      : parentId ? `${type}_${parentId}` : type;
     
     return {
-      posts: response.data.posts,
-      nextCursor: response.data.nextCursor,
-      hasMore: response.data.hasMore,
-      feedType: type,
+      posts: response.data.data.posts,
+      nextCursor: response.data.data.nextCursor,
+      hasMore: response.data.data.hasMore,
+      feedKey,
       isRefresh: !cursor
     };
   }
@@ -90,38 +110,42 @@ export const bookmarkPost = createAsyncThunk(
   }
 );
 
-interface PostsState {
-  // Feed management
-  posts: Record<string, Post>;
-  feedPosts: {
-    [feedType: string]: string[]; // Array of post IDs
-  };
-  nextCursor: {
-    [feedType: string]: string | null;
-  };
-  hasMore: {
-    [feedType: string]: boolean;
-  };
-  
-  // Loading states
+interface FeedState {
+  postIds: string[];
+  nextCursor: string | null;
+  hasMore: boolean;
   isLoading: boolean;
   isRefreshing: boolean;
-  isCreating: boolean;
-  
-  // Errors
   error: string | null;
+  lastFetch: number;
+}
+
+interface PostsState {
+  // Normalized posts storage
+  posts: Record<string, Post>;
+  
+  // Feed management - each feed has its own state
+  feeds: Record<string, FeedState>;
+  
+  // Global states
+  isCreating: boolean;
   createError: string | null;
 }
 
-const initialState: PostsState = {
-  posts: {},
-  feedPosts: {},
-  nextCursor: {},
-  hasMore: {},
+const initialFeedState: FeedState = {
+  postIds: [],
+  nextCursor: null,
+  hasMore: true,
   isLoading: false,
   isRefreshing: false,
-  isCreating: false,
   error: null,
+  lastFetch: 0,
+};
+
+const initialState: PostsState = {
+  posts: {},
+  feeds: {},
+  isCreating: false,
   createError: null,
 };
 
@@ -130,10 +154,10 @@ const postsSlice = createSlice({
   initialState,
   reducers: {
     clearFeed: (state, action: PayloadAction<string>) => {
-      const feedType = action.payload;
-      state.feedPosts[feedType] = [];
-      state.nextCursor[feedType] = null;
-      state.hasMore[feedType] = true;
+      const feedKey = action.payload;
+      if (state.feeds[feedKey]) {
+        state.feeds[feedKey] = { ...initialFeedState };
+      }
     },
     updatePostLocally: (state, action: PayloadAction<Partial<Post> & { id: string }>) => {
       const { id, ...updates } = action.payload;
@@ -141,56 +165,90 @@ const postsSlice = createSlice({
         state.posts[id] = { ...state.posts[id], ...updates };
       }
     },
-    toggleLikeLocally: (state, action: PayloadAction<string>) => {
-      const postId = action.payload;
+    optimisticUpdatePost: (state, action: PayloadAction<{ postId: string; field: keyof Post; value: any }>) => {
+      const { postId, field, value } = action.payload;
       if (state.posts[postId]) {
-        const post = state.posts[postId];
-        post.isLiked = !post.isLiked;
-        post.likes = post.isLiked 
-          ? [...post.likes, 'user_like_id']
-          : post.likes.filter(id => id !== 'user_like_id');
+        (state.posts[postId] as any)[field] = value;
       }
     },
-    setRefreshing: (state, action: PayloadAction<boolean>) => {
-      state.isRefreshing = action.payload;
+    setFeedRefreshing: (state, action: PayloadAction<{ feedKey: string; refreshing: boolean }>) => {
+      const { feedKey, refreshing } = action.payload;
+      if (!state.feeds[feedKey]) {
+        state.feeds[feedKey] = { ...initialFeedState };
+      }
+      state.feeds[feedKey].isRefreshing = refreshing;
+    },
+    // Reset all feeds (useful for logout/login)
+    resetFeeds: (state) => {
+      state.feeds = {};
+      state.posts = {};
     },
   },
   extraReducers: (builder) => {
     builder
       // Fetch feed
       .addCase(fetchFeed.pending, (state, action) => {
-        if (action.meta.arg.cursor) {
-          state.isLoading = true;
-        } else {
-          state.isRefreshing = true;
+        const { cursor } = action.meta.arg;
+        const feedKey = action.meta.arg.type === 'custom' && action.meta.arg.customOptions
+          ? `custom_${JSON.stringify(action.meta.arg.customOptions)}`
+          : action.meta.arg.parentId 
+            ? `${action.meta.arg.type || 'all'}_${action.meta.arg.parentId}` 
+            : action.meta.arg.type || 'all';
+        
+        if (!state.feeds[feedKey]) {
+          state.feeds[feedKey] = { ...initialFeedState };
         }
-        state.error = null;
+        
+        if (cursor) {
+          state.feeds[feedKey].isLoading = true;
+        } else {
+          state.feeds[feedKey].isRefreshing = true;
+        }
+        state.feeds[feedKey].error = null;
       })
       .addCase(fetchFeed.fulfilled, (state, action) => {
-        const { posts, nextCursor, hasMore, feedType, isRefresh } = action.payload;
+        const { posts, nextCursor, hasMore, feedKey, isRefresh } = action.payload;
         
-                 // Add posts to the posts collection
-         posts.forEach((post: Post) => {
-           state.posts[post.id] = post;
-         });
-         
-         // Update feed arrays
-         if (isRefresh) {
-           state.feedPosts[feedType] = posts.map((p: Post) => p.id);
-         } else {
-           const existing = state.feedPosts[feedType] || [];
-           state.feedPosts[feedType] = [...existing, ...posts.map((p: Post) => p.id)];
-         }
+        if (!state.feeds[feedKey]) {
+          state.feeds[feedKey] = { ...initialFeedState };
+        }
         
-        state.nextCursor[feedType] = nextCursor;
-        state.hasMore[feedType] = hasMore;
-        state.isLoading = false;
-        state.isRefreshing = false;
+        // Add posts to the normalized posts collection
+        posts.forEach((post: Post) => {
+          state.posts[post.id] = post;
+        });
+        
+        // Update feed state
+        const feed = state.feeds[feedKey];
+        if (isRefresh) {
+          feed.postIds = posts.map((p: Post) => p.id);
+        } else {
+          // Remove duplicates when appending
+          const existingIds = new Set(feed.postIds);
+          const newIds = posts.filter((p: Post) => !existingIds.has(p.id)).map((p: Post) => p.id);
+          feed.postIds = [...feed.postIds, ...newIds];
+        }
+        
+        feed.nextCursor = nextCursor;
+        feed.hasMore = hasMore;
+        feed.isLoading = false;
+        feed.isRefreshing = false;
+        feed.lastFetch = Date.now();
       })
       .addCase(fetchFeed.rejected, (state, action) => {
-        state.isLoading = false;
-        state.isRefreshing = false;
-        state.error = action.error.message || 'Failed to fetch posts';
+        const feedKey = action.meta.arg.type === 'custom' && action.meta.arg.customOptions
+          ? `custom_${JSON.stringify(action.meta.arg.customOptions)}`
+          : action.meta.arg.parentId 
+            ? `${action.meta.arg.type || 'all'}_${action.meta.arg.parentId}` 
+            : action.meta.arg.type || 'all';
+        
+        if (!state.feeds[feedKey]) {
+          state.feeds[feedKey] = { ...initialFeedState };
+        }
+        
+        state.feeds[feedKey].isLoading = false;
+        state.feeds[feedKey].isRefreshing = false;
+        state.feeds[feedKey].error = action.error.message || 'Failed to fetch posts';
       })
       
       // Create post
@@ -204,9 +262,9 @@ const postsSlice = createSlice({
         state.posts[newPost.id] = newPost;
         
         // Add to the beginning of relevant feeds
-        Object.keys(state.feedPosts).forEach(feedType => {
-          if (feedType === 'all' || feedType === 'home') {
-            state.feedPosts[feedType] = [newPost.id, ...(state.feedPosts[feedType] || [])];
+        Object.keys(state.feeds).forEach(feedKey => {
+          if (feedKey === 'all' || feedKey === 'home' || feedKey === 'following') {
+            state.feeds[feedKey].postIds = [newPost.id, ...state.feeds[feedKey].postIds];
           }
         });
       })
@@ -220,6 +278,11 @@ const postsSlice = createSlice({
         const { postId, liked } = action.payload;
         if (state.posts[postId]) {
           state.posts[postId].isLiked = liked;
+          // Update like count if available
+          if (state.posts[postId]._count?.likes !== undefined) {
+            const currentCount = state.posts[postId]._count!.likes || 0;
+            state.posts[postId]._count!.likes = liked ? currentCount + 1 : Math.max(0, currentCount - 1);
+          }
         }
       })
       
@@ -228,6 +291,10 @@ const postsSlice = createSlice({
         const { postId, liked } = action.payload;
         if (state.posts[postId]) {
           state.posts[postId].isLiked = liked;
+          if (state.posts[postId]._count?.likes !== undefined) {
+            const currentCount = state.posts[postId]._count!.likes || 0;
+            state.posts[postId]._count!.likes = liked ? currentCount + 1 : Math.max(0, currentCount - 1);
+          }
         }
       })
       
@@ -236,6 +303,10 @@ const postsSlice = createSlice({
         const { postId, reposted } = action.payload;
         if (state.posts[postId]) {
           state.posts[postId].isReposted = reposted;
+          if (state.posts[postId]._count?.reposts !== undefined) {
+            const currentCount = state.posts[postId]._count!.reposts || 0;
+            state.posts[postId]._count!.reposts = reposted ? currentCount + 1 : Math.max(0, currentCount - 1);
+          }
         }
       })
       
@@ -244,16 +315,40 @@ const postsSlice = createSlice({
         const { postId, bookmarked } = action.payload;
         if (state.posts[postId]) {
           state.posts[postId].isBookmarked = bookmarked;
+          if (state.posts[postId]._count?.bookmarks !== undefined) {
+            const currentCount = state.posts[postId]._count!.bookmarks || 0;
+            state.posts[postId]._count!.bookmarks = bookmarked ? currentCount + 1 : Math.max(0, currentCount - 1);
+          }
         }
       });
   },
 });
 
+// Selectors
+export const selectPosts = (state: { posts: PostsState }) => state.posts.posts;
+export const selectFeed = (feedKey: string) => (state: { posts: PostsState }) => state.posts.feeds[feedKey] || initialFeedState;
+
+export const selectFeedPosts = createSelector(
+  [selectPosts, (state: { posts: PostsState }, feedKey: string) => selectFeed(feedKey)(state)],
+  (posts, feed) => {
+    return feed.postIds.map(id => posts[id]).filter(Boolean);
+  }
+);
+
+export const selectFeedWithPosts = (feedKey: string) => createSelector(
+  [selectPosts, selectFeed(feedKey)],
+  (posts, feed) => ({
+    ...feed,
+    posts: feed.postIds.map(id => posts[id]).filter(Boolean),
+  })
+);
+
 export const { 
   clearFeed, 
   updatePostLocally, 
-  toggleLikeLocally, 
-  setRefreshing 
+  optimisticUpdatePost,
+  setFeedRefreshing,
+  resetFeeds,
 } = postsSlice.actions;
 
 export default postsSlice.reducer; 

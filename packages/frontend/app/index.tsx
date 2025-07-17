@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView, StyleSheet, View, TouchableOpacity, Text, Platform } from 'react-native';
 import Feed from '../components/Feed';
+import CustomFeed from '../components/Feed/CustomFeed';
 import { PostProvider } from '../context/PostContext';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
@@ -8,20 +9,19 @@ import { FeedType } from '@/hooks/useFeed';
 import { useOxy } from '@oxyhq/services/full';
 import { router } from 'expo-router';
 
+type TabType = 'for-you' | 'following' | 'custom';
+
 const HomeScreen: React.FC = () => {
-    const [feedType, setFeedType] = useState<FeedType>('all');
+    const [activeTab, setActiveTab] = useState<TabType>('for-you');
     const { t } = useTranslation();
     const { isAuthenticated } = useOxy();
-    
-    // Whether the current tab is the "For You" tab
-    const isForYouTab = feedType === 'all' || feedType === 'home';
 
     useEffect(() => {
-        // Set default feed type based on authentication
+        // Set default tab based on authentication
         if (isAuthenticated) {
-            setFeedType('home');
+            setActiveTab('for-you');
         } else {
-            setFeedType('all');
+            setActiveTab('for-you'); // Show explore feed for unauthenticated users
         }
     }, [isAuthenticated]);
 
@@ -29,32 +29,73 @@ const HomeScreen: React.FC = () => {
         router.push('/compose');
     };
 
+    const getFeedType = (): FeedType => {
+        if (activeTab === 'following') return 'following';
+        if (activeTab === 'for-you') return isAuthenticated ? 'home' : 'all';
+        return 'all'; // fallback
+    };
+
+    const renderFeedContent = () => {
+        if (activeTab === 'custom') {
+            return (
+                <CustomFeed
+                    title={t('My Custom Feed')}
+                    initialFilters={{
+                        hashtags: [],
+                        users: [],
+                        keywords: [],
+                        mediaOnly: false
+                    }}
+                />
+            );
+        }
+
+        return (
+            <Feed
+                showCreatePost
+                type={getFeedType()}
+                onCreatePostPress={handleCreatePostPress}
+            />
+        );
+    };
+
     return (
         <PostProvider>
             <SafeAreaView style={styles.container}>
-                <View style={styles.feedToggle}>
-                    <TouchableOpacity 
-                        style={[styles.toggleButton, isForYouTab && styles.activeToggle]} 
-                        onPress={() => setFeedType(isAuthenticated ? 'home' : 'all')}
+                {/* Enhanced Tab Navigation */}
+                <View style={styles.tabsContainer}>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'for-you' && styles.activeTab]}
+                        onPress={() => setActiveTab('for-you')}
                     >
-                        <Text style={[styles.toggleText, isForYouTab && styles.activeToggleText]}>
+                        <Text style={[styles.tabText, activeTab === 'for-you' && styles.activeTabText]}>
                             {t('For You')}
                         </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
-                        style={[styles.toggleButton, feedType === 'following' && styles.activeToggle]} 
-                        onPress={() => setFeedType('following')}
+
+                    {isAuthenticated && (
+                        <TouchableOpacity
+                            style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+                            onPress={() => setActiveTab('following')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
+                                {t('Following')}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'custom' && styles.activeTab]}
+                        onPress={() => setActiveTab('custom')}
                     >
-                        <Text style={[styles.toggleText, feedType === 'following' && styles.activeToggleText]}>
-                            {t('Following')}
+                        <Text style={[styles.tabText, activeTab === 'custom' && styles.activeTabText]}>
+                            🔧 {t('Custom')}
                         </Text>
                     </TouchableOpacity>
                 </View>
-                <Feed 
-                    showCreatePost 
-                    type={feedType} 
-                    onCreatePostPress={handleCreatePostPress}
-                />
+
+                {/* Feed Content */}
+                {renderFeedContent()}
             </SafeAreaView>
         </PostProvider>
     );
@@ -63,35 +104,38 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
     },
-    feedToggle: {
+    tabsContainer: {
         flexDirection: 'row',
+        backgroundColor: 'white',
         borderBottomWidth: 0.5,
         borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-        backgroundColor: 'white',
         shadowColor: colors.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
         elevation: Platform.OS === 'android' ? 2 : 0,
     },
-    toggleButton: {
+    tab: {
         flex: 1,
         alignItems: 'center',
-        paddingVertical: 15,
+        paddingVertical: 16,
+        paddingHorizontal: 8,
     },
-    activeToggle: {
-        borderBottomWidth: 2,
+    activeTab: {
+        borderBottomWidth: 3,
         borderBottomColor: colors.primaryColor,
     },
-    toggleText: {
-        fontSize: 16,
-        fontWeight: '500',
+    tabText: {
+        fontSize: 15,
+        fontWeight: '600',
         color: colors.COLOR_BLACK_LIGHT_3,
+        textAlign: 'center',
     },
-    activeToggleText: {
-        fontWeight: 'bold',
+    activeTabText: {
         color: colors.primaryColor,
+        fontWeight: 'bold',
     },
 });
 

@@ -1,8 +1,12 @@
 import express, { Request, Response } from "express";
 import Post from "../models/Post";
 import { logger } from '../utils/logger';
+import { authMiddleware } from '../middleware/auth';
 
 const router = express.Router();
+
+// Apply authentication middleware to all routes (optional authentication for personalized results)
+router.use('/', authMiddleware);
 
 router.get("/", async (req: Request, res: Response) => {
   try {

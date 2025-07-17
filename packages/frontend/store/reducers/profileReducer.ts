@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { fetchData, postData } from '@/utils/api';
+import api, { postData } from '@/utils/api';
 
 // Define profile interface (linked to Oxy user)
 interface Profile {
@@ -24,8 +24,8 @@ interface Profile {
 export const fetchProfile = createAsyncThunk(
   'profile/fetchProfile',
   async (oxyUserId: string) => {
-    const response = await fetchData(`profiles/${oxyUserId}`);
-    return response as Profile;
+    const response = await api.get(`profiles/${oxyUserId}`);
+    return response.data as Profile;
   }
 );
 
@@ -33,8 +33,8 @@ export const fetchProfile = createAsyncThunk(
 export const fetchProfileByUsername = createAsyncThunk(
   'profile/fetchProfileByUsername',
   async (username: string) => {
-    const response = await fetchData(`profiles/username/${username}`);
-    return response as Profile;
+    const response = await api.get(`profiles/username/${username}`);
+    return response.data as Profile;
   }
 );
 

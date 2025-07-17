@@ -7,14 +7,15 @@ import { toast } from '@/lib/sonner';
 import { colors } from '@/styles/colors';
 import api from '@/utils/api';
 import { Ionicons } from "@expo/vector-icons";
-import { Models, useOxy } from '@oxyhq/services';
-import { useQueryClient } from '@tanstack/react-query';
+import { FollowButton, Models, useOxy } from '@oxyhq/services/full';
+
 import { format } from 'date-fns';
 import { Link, router } from "expo-router";
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Animated, Share, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import Avatar from '../Avatar';
+import MediaGrid from './MediaGrid';
 
 interface PollData {
     id: string;
@@ -42,9 +43,8 @@ if (!global.profileCacheMap) {
     global.profileCacheMap = new Map<string, Models.User>();
 }
 
-export default function Post({ postData, quotedPost, className, style, showActions = true }: PostProps) {
+const Post = React.memo<PostProps>(function Post({ postData, quotedPost, className, style, showActions = true }) {
     const { t } = useTranslation();
-    const queryClient = useQueryClient();
     const [isLiked, setIsLiked] = useState(postData.isLiked || false);
     const [likesCount, setLikesCount] = useState(postData._count?.likes || 0);
     const [isReposted, setIsReposted] = useState(postData.isReposted || false);
@@ -53,38 +53,67 @@ export default function Post({ postData, quotedPost, className, style, showActio
     const [bookmarksCount, setBookmarksCount] = useState(postData._count?.bookmarks || 0);
     const [poll, setPoll] = useState<PollData | null>(null);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
-    const [isFollowing, setIsFollowing] = useState<boolean>(false);
     const { user, isAuthenticated } = useOxy();
     const animatedScale = useRef(new Animated.Value(1)).current;
-    const authorId = postData.author?.id;
 
-    // Reset states when post data changes
-    useEffect(() => {
-        setIsLiked(postData.isLiked || false);
-        setLikesCount(postData._count?.likes || 0);
-        setIsReposted(postData.isReposted || false);
-        setRepostsCount(postData._count?.reposts || 0);
-        setIsBookmarked(postData.isBookmarked || false);
-        setBookmarksCount(postData._count?.bookmarks || 0);
-    }, [postData]);
+    // Memoize author ID to prevent unnecessary re-calculations
+    const authorId = useMemo(() => postData.author?.id, [postData.author?.id]);
 
-    // Check following status if we're authenticated and not looking at our own post
-    useEffect(() => {
-        const checkFollowingStatus = async () => {
-            if (isAuthenticated && authorId && user?.id !== authorId) {
-                try {
-                    // Check if the user is already following the author
-                } catch (error) {
-                    console.error('Error checking following status:', error);
-                }
+    // Memoize expensive calculations
+    const authorDisplayName = useMemo(() => {
+        if (!postData.author) return t('Unknown');
+
+        if (postData.author.name) {
+            if (typeof postData.author.name === 'object') {
+                const { first, last } = postData.author.name;
+                return `${first} ${last || ''}`.trim();
+            } else {
+                return postData.author.name;
             }
-        };
+        }
 
-        checkFollowingStatus();
-    }, [authorId, user, isAuthenticated]);
+        return postData.author.username || t('Unknown');
+    }, [postData.author, t]);
 
-    // Animation for interactions
-    const animateInteraction = () => {
+    const authorUsername = useMemo(() => {
+        return postData.author?.username || 'unknown';
+    }, [postData.author?.username]);
+
+    const isPremiumUser = useMemo(() => {
+        return postData.author?.premium?.isPremium || false;
+    }, [postData.author?.premium?.isPremium]);
+
+    const formattedTimeAgo = useMemo(() => {
+        const now = new Date();
+        const postDate = new Date(postData.created_at);
+        const diffInMinutes = Math.floor((now.getTime() - postDate.getTime()) / (1000 * 60));
+
+        if (diffInMinutes < 1) return 'just now';
+        if (diffInMinutes < 60) return `${diffInMinutes}m`;
+        if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h`;
+        return format(postDate, 'MMM d');
+    }, [postData.created_at]);
+
+    // Reset states when post data changes - optimized to only update when necessary
+    useEffect(() => {
+        const newIsLiked = postData.isLiked || false;
+        const newLikesCount = postData._count?.likes || 0;
+        const newIsReposted = postData.isReposted || false;
+        const newRepostsCount = postData._count?.reposts || 0;
+        const newIsBookmarked = postData.isBookmarked || false;
+        const newBookmarksCount = postData._count?.bookmarks || 0;
+
+        // Only update state if values actually changed
+        setIsLiked(current => current !== newIsLiked ? newIsLiked : current);
+        setLikesCount(current => current !== newLikesCount ? newLikesCount : current);
+        setIsReposted(current => current !== newIsReposted ? newIsReposted : current);
+        setRepostsCount(current => current !== newRepostsCount ? newRepostsCount : current);
+        setIsBookmarked(current => current !== newIsBookmarked ? newIsBookmarked : current);
+        setBookmarksCount(current => current !== newBookmarksCount ? newBookmarksCount : current);
+    }, [postData.isLiked, postData._count?.likes, postData.isReposted, postData._count?.reposts, postData.isBookmarked, postData._count?.bookmarks]);
+
+    // Memoized animation function
+    const animateInteraction = useCallback(() => {
         Animated.sequence([
             Animated.spring(animatedScale, {
                 toValue: 1.2,
@@ -95,9 +124,10 @@ export default function Post({ postData, quotedPost, className, style, showActio
                 useNativeDriver: true,
             }),
         ]).start();
-    };
+    }, [animatedScale]);
 
-    const handleLike = async () => {
+    // Memoized event handlers
+    const handleLike = useCallback(async () => {
         if (!isAuthenticated) {
             toast.error(t('Please sign in to like posts'));
             return;
@@ -110,36 +140,6 @@ export default function Post({ postData, quotedPost, className, style, showActio
             setIsLiked(newIsLiked);
             setLikesCount(prev => prev + (newIsLiked ? 1 : -1));
             animateInteraction();
-
-            // Find all feed queries that might contain this post
-            const feedQueries = queryClient.getQueriesData({
-                queryKey: ['feed']
-            });
-
-            // Update all feed queries that might have this post
-            feedQueries.forEach(([queryKey]) => {
-                queryClient.setQueryData(queryKey, (oldData: any) => {
-                    if (!oldData?.pages) return oldData;
-
-                    return {
-                        ...oldData,
-                        pages: oldData.pages.map((page: any) => ({
-                            ...page,
-                            posts: page.posts.map((post: IPost) => {
-                                if (post.id === postData.id) {
-                                    const likesCount = (post._count?.likes || 0) + (newIsLiked ? 1 : -1);
-                                    return {
-                                        ...post,
-                                        isLiked: newIsLiked,
-                                        _count: { ...post._count, likes: likesCount >= 0 ? likesCount : 0 }
-                                    };
-                                }
-                                return post;
-                            })
-                        }))
-                    };
-                });
-            });
 
             // Make the API call
             if (newIsLiked) {
@@ -154,13 +154,13 @@ export default function Post({ postData, quotedPost, className, style, showActio
             setLikesCount(prev => prev + (isLiked ? 1 : -1));
             toast.error(t('Failed to update like status'));
         }
-    };
+    }, [isAuthenticated, isLiked, animateInteraction, postData.id, t]);
 
-    const handleReply = () => {
-        router.push(`/post/${postData.id}/reply`);
-    };
+    const handleReply = useCallback(() => {
+        router.push(`/p/${postData.id}/reply`);
+    }, [postData.id]);
 
-    const handleRepost = async () => {
+    const handleRepost = useCallback(async () => {
         if (!isAuthenticated) {
             toast.error(t('Please sign in to repost'));
             return;
@@ -173,36 +173,6 @@ export default function Post({ postData, quotedPost, className, style, showActio
             setIsReposted(newIsReposted);
             setRepostsCount(prev => prev + (newIsReposted ? 1 : -1));
             animateInteraction();
-
-            // Find all feed queries that might contain this post
-            const feedQueries = queryClient.getQueriesData({
-                queryKey: ['feed']
-            });
-
-            // Update all feed queries that might have this post
-            feedQueries.forEach(([queryKey]) => {
-                queryClient.setQueryData(queryKey, (oldData: any) => {
-                    if (!oldData?.pages) return oldData;
-
-                    return {
-                        ...oldData,
-                        pages: oldData.pages.map((page: any) => ({
-                            ...page,
-                            posts: page.posts.map((post: IPost) => {
-                                if (post.id === postData.id) {
-                                    const repostsCount = (post._count?.reposts || 0) + (newIsReposted ? 1 : -1);
-                                    return {
-                                        ...post,
-                                        isReposted: newIsReposted,
-                                        _count: { ...post._count, reposts: repostsCount >= 0 ? repostsCount : 0 }
-                                    };
-                                }
-                                return post;
-                            })
-                        }))
-                    };
-                });
-            });
 
             // Make the API call
             if (newIsReposted) {
@@ -217,9 +187,9 @@ export default function Post({ postData, quotedPost, className, style, showActio
             setRepostsCount(prev => prev + (isReposted ? 1 : -1));
             toast.error(t('Failed to update repost status'));
         }
-    };
+    }, [isAuthenticated, isReposted, animateInteraction, postData.id, t]);
 
-    const handleBookmark = async () => {
+    const handleBookmark = useCallback(async () => {
         if (!isAuthenticated) {
             toast.error(t('Please sign in to bookmark posts'));
             return;
@@ -231,36 +201,6 @@ export default function Post({ postData, quotedPost, className, style, showActio
             // Optimistic update
             setIsBookmarked(newIsBookmarked);
             setBookmarksCount(prev => prev + (newIsBookmarked ? 1 : -1));
-
-            // Find all feed queries that might contain this post
-            const feedQueries = queryClient.getQueriesData({
-                queryKey: ['feed']
-            });
-
-            // Update all feed queries that might have this post
-            feedQueries.forEach(([queryKey]) => {
-                queryClient.setQueryData(queryKey, (oldData: any) => {
-                    if (!oldData?.pages) return oldData;
-
-                    return {
-                        ...oldData,
-                        pages: oldData.pages.map((page: any) => ({
-                            ...page,
-                            posts: page.posts.map((post: IPost) => {
-                                if (post.id === postData.id) {
-                                    const bookmarksCount = (post._count?.bookmarks || 0) + (newIsBookmarked ? 1 : -1);
-                                    return {
-                                        ...post,
-                                        isBookmarked: newIsBookmarked,
-                                        _count: { ...post._count, bookmarks: bookmarksCount >= 0 ? bookmarksCount : 0 }
-                                    };
-                                }
-                                return post;
-                            })
-                        }))
-                    };
-                });
-            });
 
             // Make the API call
             if (newIsBookmarked) {
@@ -275,9 +215,9 @@ export default function Post({ postData, quotedPost, className, style, showActio
             setBookmarksCount(prev => prev + (isBookmarked ? 1 : -1));
             toast.error(t('Failed to update bookmark status'));
         }
-    };
+    }, [isAuthenticated, isBookmarked, postData.id, t]);
 
-    const handlePollOptionPress = async (optionIndex: number) => {
+    const handlePollOptionPress = useCallback(async (optionIndex: number) => {
         if (!poll || selectedOption !== null) return;
 
         try {
@@ -295,162 +235,120 @@ export default function Post({ postData, quotedPost, className, style, showActio
             console.error('Error voting in poll:', error);
             toast.error('Failed to vote in poll');
         }
-    };
+    }, [poll, selectedOption]);
 
-    const handleShare = async () => {
+    const handleShare = useCallback(async () => {
         try {
             await Share.share({
                 message: `${postData.text}\n\nShared from Mention`,
-                url: `https://mention.earth/post/${postData.id}`
+                url: `https://mention.earth/p/${postData.id}`
             });
         } catch (error) {
             console.error('Error sharing post:', error);
         }
-    };
+    }, [postData.text, postData.id]);
 
-    const formatTimeAgo = (date: string) => {
-        const now = new Date();
-        const postDate = new Date(date);
-        const diffInMinutes = Math.floor((now.getTime() - postDate.getTime()) / (1000 * 60));
+    const handleMediaPress = useCallback((media: any, index: number) => {
+        // Handle media press - could open full screen viewer
+        console.log('Media pressed:', media, index);
+    }, []);
 
-        if (diffInMinutes < 1) return 'just now';
-        if (diffInMinutes < 60) return `${diffInMinutes}m`;
-        if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h`;
-        return format(postDate, 'MMM d');
-    };
+    // Memoize style objects to prevent recreation
+    const containerStyle = useMemo(() => ({
+        borderBottomWidth: 1,
+        borderBottomColor: '#f3f4f6',
+        ...(style || {})
+    }), [style]);
 
-    // Format the author's full name using profile data from post object
-    const getAuthorDisplayName = () => {
-        if (!postData.author) return t('Unknown');
+    const repostIndicatorStyle = useMemo(() => ({
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        paddingHorizontal: 12,
+        marginBottom: 8
+    }), []);
 
-        if (postData.author.name) {
-            if (typeof postData.author.name === 'object') {
-                const { first, last } = postData.author.name;
-                return `${first} ${last || ''}`.trim();
-            } else {
-                return postData.author.name;
-            }
-        }
+    const mainContentStyle = useMemo(() => ({
+        flexDirection: 'row' as const,
+        gap: 10,
+        paddingHorizontal: 12,
+        alignItems: 'flex-start' as const
+    }), []);
 
-        return postData.author.username || t('Unknown');
-    };
-
-    // Get author's username for profile links from post object
-    const getAuthorUsername = () => {
-        return postData.author?.username || 'unknown';
-    };
-
-    // Check if user has premium status from post object
-    const isPremiumUser = () => {
-        return postData.author?.premium?.isPremium || false;
-    };
-
-    // Get premium tier if available from post object
-    const getPremiumTier = () => {
-        return postData.author?.premium?.subscriptionTier || null;
-    };
-
-    // Handle follow/unfollow
-    const handleFollowToggle = async () => {
-        if (!isAuthenticated) {
-            toast.error(t('Please sign in to follow users'));
-            return;
-        }
-
-        if (!authorId) return;
-
-        try {
-        } catch (error) {
-            console.error('Error toggling follow status:', error);
-            // Revert the optimistic update
-            setIsFollowing(prevState => !prevState);
-            toast.error(t('Failed to update follow status'));
-        }
-    };
+    const showFollowButton = useMemo(() => {
+        return isAuthenticated && user?.id !== authorId && authorId;
+    }, [isAuthenticated, user?.id, authorId]);
 
     return (
-        <View className={`border-b border-gray-100 ${className}`} style={style}>
+        <View style={containerStyle}>
             {postData.repost_of && (
-                <View className="flex-row items-center px-3 mb-2">
+                <View style={repostIndicatorStyle}>
                     <RepostIcon size={16} color="#536471" />
-                    <Text className="text-gray-500 ml-2">{getAuthorDisplayName()} {t('Reposted')}</Text>
+                    <Text style={{ color: '#536471', marginLeft: 8 }}>{authorDisplayName} {t('Reposted')}</Text>
                 </View>
             )}
-            <View className="flex-row gap-2.5 px-3 items-start">
-                <Link href={`/@${getAuthorUsername()}`} asChild>
+            <View style={mainContentStyle}>
+                <Link href={`/@${authorUsername}`} asChild>
                     <TouchableOpacity onPress={(e) => e.stopPropagation()}>
                         <Avatar id={postData.author?.avatar} size={40} />
                     </TouchableOpacity>
                 </Link>
-                <View className="flex-1">
-                    <Link href={`/post/${postData.id}`} asChild>
-                        <TouchableOpacity className="flex-1" activeOpacity={0.7}>
-                            <View className="flex-row items-center">
-                                <View className="flex-row items-center flex-1 gap-1">
-                                    <Link href={`/@${getAuthorUsername()}`} asChild>
-                                        <TouchableOpacity>
-                                            <Text className="font-bold">
-                                                {getAuthorDisplayName()}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </Link>
+                <View style={{ flex: 1 }}>
+                    <Link href={`/p/${postData.id}`} asChild>
+                        <TouchableOpacity style={{ flex: 1 }} activeOpacity={0.7}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 4 }}>
+                                    <TouchableOpacity
+                                        onPress={(e) => {
+                                            e.stopPropagation();
+                                            router.push(`/@${authorUsername}`);
+                                        }}
+                                    >
+                                        <Text style={{ fontWeight: 'bold' }}>
+                                            {authorDisplayName}
+                                        </Text>
+                                    </TouchableOpacity>
                                     {postData.author?.labels && postData.author.labels.includes('verified') && (
                                         <Ionicons name="checkmark-circle" size={16} color={colors.primaryColor} />
                                     )}
-                                    {isPremiumUser() && (
+                                    {isPremiumUser && (
                                         <Ionicons name="star" size={14} color="#FFD700" />
                                     )}
-                                    <Text className="text-gray-500">·</Text>
-                                    <Text className="text-gray-500">{formatTimeAgo(postData.created_at)}</Text>
+                                    <Text style={{ color: '#536471' }}>·</Text>
+                                    <Text style={{ color: '#536471' }}>{formattedTimeAgo}</Text>
                                 </View>
-                                {isAuthenticated &&
-                                    user?.id !== authorId && (
-                                        <TouchableOpacity
-                                            onPress={handleFollowToggle}
-                                            style={{
-                                                paddingHorizontal: 10,
-                                                paddingVertical: 4,
-                                                borderRadius: 16,
-                                                backgroundColor: isFollowing ? 'transparent' : colors.primaryColor,
-                                                borderWidth: 1,
-                                                borderColor: colors.primaryColor
-                                            }}
-                                        >
-                                            <Text style={{
-                                                color: isFollowing ? colors.primaryColor : 'white',
-                                                fontWeight: '600',
-                                                fontSize: 12
-                                            }}>
-                                                {isFollowing ? t('Following') : t('Follow')}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )}
+                                {showFollowButton && (
+                                    <FollowButton userId={authorId!} size="small" />
+                                )}
                             </View>
                             {postData.author?.username && (
-                                <View className="flex-row items-center">
-                                    <Text className="text-gray-500 text-sm">@{postData.author.username}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Text style={{ color: '#536471', fontSize: 14 }}>@{postData.author.username}</Text>
                                     {postData.author.location && (
-                                        <Text className="text-gray-500 text-sm ml-2">· {postData.author.location}</Text>
+                                        <Text style={{ color: '#536471', fontSize: 14, marginLeft: 8 }}>· {postData.author.location}</Text>
                                     )}
                                 </View>
                             )}
-                            <Text className="text-black text-base mt-1">{postData.text}</Text>
+                            <Text style={{ color: '#000', fontSize: 16, marginTop: 4 }}>{postData.text}</Text>
+                            <MediaGrid
+                                media={postData.media || []}
+                                onMediaPress={handleMediaPress}
+                            />
                             {quotedPost && (
-                                <View className="mt-3 border border-gray-200 rounded-xl p-3">
-                                    {quotedPost && <Post postData={quotedPost} showActions={false} />}
+                                <View style={{ marginTop: 12, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12 }}>
+                                    <Post postData={quotedPost} showActions={false} />
                                 </View>
                             )}
                         </TouchableOpacity>
                     </Link>
                     {showActions && (
-                        <View className="flex-row justify-between mt-3 mb-2 pr-16">
-                            <TouchableOpacity onPress={handleReply} className="flex-row items-center">
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, marginBottom: 8, paddingRight: 64 }}>
+                            <TouchableOpacity onPress={handleReply} style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Ionicons name="chatbubble-outline" size={18} color="#536471" />
                                 {(postData._count?.replies ?? 0) > 0 && (
-                                    <Text className="text-gray-600 ml-2">{postData._count?.replies ?? 0}</Text>
+                                    <Text style={{ color: '#536471', marginLeft: 8 }}>{postData._count?.replies ?? 0}</Text>
                                 )}
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={handleRepost} className="flex-row items-center">
+                            <TouchableOpacity onPress={handleRepost} style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
                                     {isReposted ? (
                                         <RepostIconActive size={18} color={colors.primaryColor} />
@@ -459,12 +357,15 @@ export default function Post({ postData, quotedPost, className, style, showActio
                                     )}
                                 </Animated.View>
                                 {repostsCount > 0 && (
-                                    <Text className={`ml-2 ${isReposted ? 'text-primary' : 'text-gray-600'}`}>
+                                    <Text style={{
+                                        marginLeft: 8,
+                                        color: isReposted ? colors.primaryColor : '#536471'
+                                    }}>
                                         {repostsCount}
                                     </Text>
                                 )}
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={handleLike} className="flex-row items-center">
+                            <TouchableOpacity onPress={handleLike} style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Animated.View style={{ transform: [{ scale: animatedScale }] }}>
                                     {isLiked ? (
                                         <HeartIconActive size={18} color={colors.primaryColor} />
@@ -473,25 +374,31 @@ export default function Post({ postData, quotedPost, className, style, showActio
                                     )}
                                 </Animated.View>
                                 {likesCount > 0 && (
-                                    <Text className={`ml-2 ${isLiked ? 'text-primary' : 'text-gray-600'}`}>
+                                    <Text style={{
+                                        marginLeft: 8,
+                                        color: isLiked ? colors.primaryColor : '#536471'
+                                    }}>
                                         {likesCount}
                                     </Text>
                                 )}
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={handleBookmark} className="flex-row items-center">
+                            <TouchableOpacity onPress={handleBookmark} style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 {isBookmarked ? (
                                     <BookmarkActive size={18} color={colors.primaryColor} />
                                 ) : (
                                     <Bookmark size={18} color="#536471" />
                                 )}
                                 {bookmarksCount > 0 && (
-                                    <Text className={`ml-2 ${isBookmarked ? 'text-primary' : 'text-gray-600'}`}>
+                                    <Text style={{
+                                        marginLeft: 8,
+                                        color: isBookmarked ? colors.primaryColor : '#536471'
+                                    }}>
                                         {bookmarksCount}
                                     </Text>
                                 )}
                             </TouchableOpacity>
                             <TouchableOpacity
-                                className="flex-row items-center gap-1"
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                                 onPress={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
@@ -506,4 +413,6 @@ export default function Post({ postData, quotedPost, className, style, showActio
             </View>
         </View>
     );
-}
+});
+
+export default Post;

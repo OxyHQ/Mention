@@ -7,23 +7,26 @@ import { getIO } from '../utils/socket';
 import Hashtag, { IHashtag } from '../models/Hashtag';
 import createError from 'http-errors';
 
-interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-  };
-}
-
 const extractHashtags = (text: string): string[] => {
   const matches = text.match(/#[a-zA-Z0-9_]+/g) || [];
   return matches.map(tag => tag.toLowerCase().substring(1));
 };
 
-export const createPost = async (req: AuthenticatedRequest, res: Response) => {
+export const createPost = async (req: AuthRequest, res: Response) => {
   try {
     const { text, media, in_reply_to_status_id, quoted_post_id, isDraft, scheduledFor } = req.body;
     const mentionsInput: string[] = req.body.mentions || [];
     const hashtagsInput: string[] = req.body.hashtags || [];
-    const userId = req.user?.id;
+    // Extract user ID from request with fallback options
+    const userId = (req as any).userId || req.user?.id || (req.user as any)?._id;
+
+    // Debug logging for authentication
+    console.log('CreatePost auth debug:', {
+      hasUser: !!req.user,
+      hasUserId: !!(req as any).userId,
+      userKeys: req.user ? Object.keys(req.user) : [],
+      extractedUserId: userId
+    });
 
     if (!userId) {
       return res.status(401).json({
@@ -181,7 +184,7 @@ export const getPostById = async (req: Request, res: Response) => {
   }
 };
 
-export const updatePost = async (req: AuthenticatedRequest, res: Response) => {
+export const updatePost = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { text, media } = req.body;
@@ -217,7 +220,7 @@ export const updatePost = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const deletePost = async (req: AuthenticatedRequest, res: Response) => {
+export const deletePost = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userID = req.user?.id;
@@ -253,7 +256,7 @@ export const deletePost = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const likePost = async (req: AuthenticatedRequest, res: Response) => {
+export const likePost = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userID = req.user?.id;
@@ -300,7 +303,7 @@ export const likePost = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const unlikePost = async (req: AuthenticatedRequest, res: Response) => {
+export const unlikePost = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userID = req.user?.id;
@@ -496,7 +499,7 @@ export const unbookmarkPost = async (req: AuthRequest, res: Response, next: Next
   }
 };
 
-export const repostPost = async (req: AuthenticatedRequest, res: Response) => {
+export const repostPost = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userID = req.user?.id;
@@ -531,7 +534,7 @@ export const repostPost = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const quotePost = async (req: AuthenticatedRequest, res: Response) => {
+export const quotePost = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { text, media, mentions, hashtags: inputHashtags } = req.body;
@@ -607,7 +610,7 @@ export const getPostsByHashtag = async (req: Request, res: Response) => {
   }
 };
 
-export const removeRepost = async (req: AuthenticatedRequest, res: Response) => {
+export const removeRepost = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userID = req.user?.id;
@@ -653,7 +656,7 @@ export const removeRepost = async (req: AuthenticatedRequest, res: Response) => 
   }
 };
 
-export const getDrafts = async (req: AuthenticatedRequest, res: Response) => {
+export const getDrafts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -685,7 +688,7 @@ export const getDrafts = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const getScheduledPosts = async (req: AuthenticatedRequest, res: Response) => {
+export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {

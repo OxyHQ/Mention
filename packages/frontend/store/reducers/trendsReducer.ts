@@ -1,5 +1,5 @@
 import { Trend } from '@/interfaces/Trend';
-import { fetchData } from '@/utils/api';
+import api from '@/utils/api';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 
 interface TrendsState {
@@ -15,8 +15,8 @@ const initialState: TrendsState = {
 };
 
 export const fetchTrends = createAsyncThunk('trends/fetchTrends', async () => {
-  const response = await fetchData('hashtags') as { hashtags: any[] };
-  return response.hashtags.map((trend: any) => ({
+  const response = await api.get('hashtags');
+  return response.data.hashtags.map((trend: any) => ({
     id: trend.id,
     text: trend.text,
     hashtag: trend.hashtag,

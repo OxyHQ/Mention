@@ -1,6 +1,6 @@
 import { Header } from '@/components/Header';
 import { Post as IPost } from '@/interfaces/Post';
-import { fetchData } from '@/utils/api';
+import api from '@/utils/api';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
@@ -16,7 +16,7 @@ export default function QuoteScreen() {
             try {
                 setLoading(true);
                 setError(null);
-                const response = await fetchData<{ data: IPost }>(`feed/post/${id}`);
+                const response = await api.get(`feed/post/${id}`);
                 setPost(response.data);
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load post');

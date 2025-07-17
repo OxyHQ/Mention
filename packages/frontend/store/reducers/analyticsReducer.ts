@@ -1,11 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { fetchData } from '@/utils/api';
+import api from '@/utils/api';
 
 export const fetchAnalytics = createAsyncThunk(
   'analytics/fetchAnalytics',
   async ({ userID, period }: { userID: string; period: string }) => {
-    const response = await fetchData(`analytics?userID=${userID}&period=${period}`);
-    return response;
+    const response = await api.get(`analytics?userID=${userID}&period=${period}`);
+    return response.data;
   }
 );
 

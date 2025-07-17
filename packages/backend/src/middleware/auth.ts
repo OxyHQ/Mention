@@ -1,48 +1,38 @@
+import { Request, Response, NextFunction } from 'express';
+import axios from 'axios';
 
-import { Request, Response, NextFunction } from "express";
-import { OxyServices } from "@oxyhq/services/core";
+const OXY_API_URL = process.env.OXY_API_URL || 'http://localhost:3001';
 
-interface AuthenticatedRequest extends Request {
-  userId?: string;
-  accessToken?: string;
-}
-
-/**
- * Oxy authentication middleware for Express.js
- * Validates the Bearer token using OxyServices and attaches userId and accessToken to the request
- */
-export const authenticateToken = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) => {
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
-
-    // Check if token is provided
-    console.error("Token:", token);
-
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
     if (!token) {
-      return res.status(401).json({ message: "Access token required" });
+      return res.status(401).json({ error: 'No token provided' });
     }
 
-    // Use OxyServices to validate the token
-    const tempOxyServices = new OxyServices({
-      baseURL: "http://localhost:3001", // Replace with your backend URL
+    const response = await axios.get(`${OXY_API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
     });
-    
 
-    const result = await tempOxyServices.authenticateToken(token);
+    const userData = response.data.data || response.data;
+    const userId = userData.id || userData._id || userData.user_id;
 
-    return {
-      success: true,
-      userId: result.userId,
-      user: result.user
-    };
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid user data' });
+    }
+
+    // Attach user data to request
+    (req as any).user = { ...userData, id: userId };
+    (req as any).userId = userId;
+    (req as any).accessToken = token;
+
     next();
   } catch (error: any) {
-    return res.status(403).json({ message: "Token validation failed", error: error?.message });
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    
+    res.status(401).json({ error: 'Authentication failed' });
   }
 };
-  

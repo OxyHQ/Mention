@@ -10,7 +10,9 @@ export default function QuotedPost({ id }: QuotedPostProps) {
     // Minimal implementation; expand as needed.
     if (!id) return null;
     return (
-        <Post id={id} />
+        <View style={styles.container}>
+            <Text style={styles.text}>Quoted post: {id}</Text>
+        </View>
     );
 }
 
@@ -21,6 +23,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: 6,
         marginVertical: 8,
+        width: '100%',
+        flex: 1,
     },
     text: {
         fontSize: 14,
