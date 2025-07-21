@@ -20,6 +20,7 @@ import searchRoutes from "./routes/search";
 import analyticsRoutes from "./routes/analytics.routes";
 import feedRoutes from './routes/feed.routes';
 import pollsRoutes from './routes/polls';
+import profilesRouter, { authenticatedProfileRouter } from './routes/profiles';
 
 const oxy = new OxyServices({
   baseURL: process.env.OXY_API_URL || 'http://localhost:3001'
@@ -356,6 +357,7 @@ publicApiRouter.use("/posts", postsRouter); // postsRouter splits public/protect
 publicApiRouter.use("/hashtags", hashtagsRoutes);
 publicApiRouter.use("/feed", feedRoutes); // feedRoutes splits public/protected
 publicApiRouter.use("/polls", pollsRoutes); // pollsRouter splits public/protected
+publicApiRouter.use("/profiles", profilesRouter); // Public profile routes (search, get by ID)
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
@@ -363,6 +365,7 @@ authenticatedApiRouter.use("/lists", listsRoutes);
 authenticatedApiRouter.use("/notifications", notificationsRouter);
 authenticatedApiRouter.use("/analytics", analyticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
+authenticatedApiRouter.use("/profiles", authenticatedProfileRouter); // Protected profile routes
 // You can add more protected routers here as needed
 
 // Mount public and authenticated API routers
@@ -384,7 +387,11 @@ mongoose.connect(process.env.MONGODB_URI || "", { autoIndex: true, autoCreate: t
 const db = mongoose.connection;
 db.on("error", (error) => { console.error("MongoDB connection error:", error); });
 db.once("open", () => { console.log("Connected to MongoDB successfully"); });
-db.once("open", () => { require("./models/Post"); require("./models/Block"); });
+db.once("open", () => { 
+  require("./models/Post"); 
+  require("./models/Block"); 
+  require("./models/Profile"); // Load Profile model
+});
 
 // --- Server Listen ---
 const PORT = process.env.PORT || 3000;
