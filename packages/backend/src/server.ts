@@ -383,15 +383,34 @@ app.get("", async (req, res) => {
 });
 
 // --- MongoDB Connection ---
-mongoose.connect(process.env.MONGODB_URI || "", { autoIndex: true, autoCreate: true });
+const connectToMongoDB = async () => {
+  try {
+    const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/mention-dev";
+    console.log('Attempting to connect to MongoDB...');
+    await mongoose.connect(mongoUri, { 
+      autoIndex: true, 
+      autoCreate: true,
+      serverSelectionTimeoutMS: 5000 // 5 second timeout
+    });
+    console.log("Connected to MongoDB successfully");
+    
+    // Load models after successful connection
+    require("./models/Post"); 
+    require("./models/Block"); 
+    require("./models/Profile");
+    
+  } catch (error: any) {
+    console.warn("MongoDB connection failed:", error.message);
+    console.log("🚀 Server will continue running without MongoDB (development mode)");
+    console.log("💡 Profile functionality will return mock data when DB is unavailable");
+  }
+};
+
+// Connect to MongoDB without crashing the server
+connectToMongoDB();
+
 const db = mongoose.connection;
-db.on("error", (error) => { console.error("MongoDB connection error:", error); });
-db.once("open", () => { console.log("Connected to MongoDB successfully"); });
-db.once("open", () => { 
-  require("./models/Post"); 
-  require("./models/Block"); 
-  require("./models/Profile"); // Load Profile model
-});
+db.on("error", (error) => { console.warn("MongoDB connection error:", error.message); });
 
 // --- Server Listen ---
 const PORT = process.env.PORT || 3000;

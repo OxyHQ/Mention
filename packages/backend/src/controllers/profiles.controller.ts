@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import Profile, { IProfile } from "../models/Profile";
 import { AuthRequest } from '../types/auth';
 import createError from 'http-errors';
@@ -16,6 +17,35 @@ export class ProfileController {
       
       if (!userId) {
         return next(createError(401, 'Authentication required'));
+      }
+
+      // Check if MongoDB is connected
+      if (mongoose.connection.readyState !== 1) {
+        // Return mock data when DB is not available
+        const mockProfile = {
+          id: `profile_${userId}`,
+          oxyUserId: userId,
+          username: `user_${userId.slice(-8)}`,
+          displayName: 'Demo User',
+          bio: 'This is a demo profile (MongoDB not connected)',
+          avatar: '',
+          location: '',
+          website: '',
+          verified: false,
+          isPersonal: true,
+          profileType: 'personal',
+          followers: 0,
+          following: 0,
+          postsCount: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        return res.status(200).json({
+          success: true,
+          message: 'Demo profile (MongoDB not connected)',
+          data: mockProfile
+        });
       }
 
       // Try to find existing profile first
@@ -91,6 +121,16 @@ export class ProfileController {
       
       if (!oxyUserId) {
         return next(createError(400, 'Oxy User ID is required'));
+      }
+
+      // Check if MongoDB is connected
+      if (mongoose.connection.readyState !== 1) {
+        // Return mock data when DB is not available
+        return res.status(404).json({
+          success: false,
+          message: 'Profile not found (MongoDB not connected)',
+          error: 'Database unavailable'
+        });
       }
 
       const profile = await Profile.findOne({ oxyUserId });
@@ -269,6 +309,24 @@ export class ProfileController {
       
       if (!q || typeof q !== 'string') {
         return next(createError(400, 'Search query is required'));
+      }
+
+      // Check if MongoDB is connected
+      if (mongoose.connection.readyState !== 1) {
+        // Return empty results when DB is not available
+        return res.status(200).json({
+          success: true,
+          message: 'Search unavailable (MongoDB not connected)',
+          data: {
+            profiles: [],
+            pagination: {
+              page: 1,
+              limit: 20,
+              total: 0,
+              pages: 0
+            }
+          }
+        });
       }
 
       const searchLimit = Math.min(parseInt(limit as string) || 20, 50);

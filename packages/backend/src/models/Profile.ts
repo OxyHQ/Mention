@@ -48,8 +48,6 @@ const ProfileSchema = new Schema<IProfile>({
 });
 
 // Indexes for performance
-ProfileSchema.index({ oxyUserId: 1 });
-ProfileSchema.index({ username: 1 });
 ProfileSchema.index({ profileType: 1 });
 ProfileSchema.index({ created_at: -1 });
 
