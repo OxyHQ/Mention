@@ -26,7 +26,15 @@ interface PostsState {
   feeds: Record<string, FeedState>;
   isCreating: boolean;
   createError: string | null;
-  fetchFeed: (params: { type?: FeedType; parentId?: string; limit?: number; cursor?: string | null; customOptions?: CustomFeedOptions }) => Promise<void>;
+  fetchFeed: (params: {
+    type?: FeedType;
+    parentId?: string;
+    limit?: number;
+    cursor?: string | null;
+    customOptions?: CustomFeedOptions;
+    oxyServices?: any;
+    activeSessionId?: string;
+  }) => Promise<void>;
   createPost: (newPostData: { text: string; parentId?: string; media?: string[] }) => Promise<void>;
   likePost: (postId: string) => Promise<void>;
   unlikePost: (postId: string) => Promise<void>;
@@ -55,18 +63,18 @@ export const usePostsStore = create<PostsState>((set, get) => ({
   isCreating: false,
   createError: null,
   fetchFeed: async (params) => {
-    const { type = 'all', parentId, limit = 20, cursor, customOptions } = params;
+    const { type = 'all', parentId, limit = 20, cursor, customOptions, oxyServices, activeSessionId } = params;
     const endpoint = (() => {
-      if (type === 'replies' && parentId) return `feed/replies/${parentId}`;
-      if (type === 'custom') return 'feed/custom';
-      if (type === 'media') return 'feed/media';
-      if (type === 'quotes') return 'feed/quotes';
-      if (type === 'reposts') return 'feed/reposts';
-      if (type === 'posts') return 'feed/posts';
-      if (type === 'following') return 'feed/following';
-      if (type === 'home') return 'feed/home';
-      if (type === 'all') return 'feed/explore';
-      return 'feed/explore';
+      if (type === 'replies' && parentId) return `/api/feed/replies/${parentId}`;
+      if (type === 'custom') return '/api/feed/custom';
+      if (type === 'media') return '/api/feed/media';
+      if (type === 'quotes') return '/api/feed/quotes';
+      if (type === 'reposts') return '/api/feed/reposts';
+      if (type === 'posts') return '/api/feed/posts';
+      if (type === 'following') return '/api/feed/following';
+      if (type === 'home') return '/api/feed/home';
+      if (type === 'all') return '/api/feed/explore';
+      return '/api/feed/explore';
     })();
     const queryParams: any = { limit, mock: 'true' };
     if (cursor) queryParams.cursor = cursor;
@@ -91,7 +99,11 @@ export const usePostsStore = create<PostsState>((set, get) => ({
       },
     }));
     try {
-      const response = await api.get(endpoint, { params: queryParams });
+      const response = await api.get(endpoint, {
+        params: queryParams,
+        oxyServices,
+        activeSessionId,
+      });
       const posts = response.data.data.posts;
       const nextCursor = response.data.data.nextCursor;
       const hasMore = response.data.data.hasMore;

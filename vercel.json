@@ -1,5 +1,13 @@
 {
-  "buildCommand": "npm run build-web",
-  "outputDirectory": "dist",
-  "installCommand": "npm install"
+  "name": "mention-monorepo",
+  "buildCommand": "VERCEL_TARGET=frontend node scripts/build-for-vercel.js",
+  "outputDirectory": "packages/frontend/dist",
+  "installCommand": "npm install",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }

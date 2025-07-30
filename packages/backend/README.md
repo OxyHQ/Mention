@@ -1,8 +1,12 @@
-# Mention API Documentation
+# @mention/backend
+
+> The backend package of the Mention monorepo - A robust API service built with Express.js and TypeScript.
+
+---
 
 ## Overview
 
-Mention API is a robust backend service built with Express.js and TypeScript, providing functionality for social media interactions including posts, user management, authentication, and real-time communications.
+This is the **backend package** of the **Mention** monorepo. The Mention API is a robust backend service built with Express.js and TypeScript, providing functionality for social media interactions including posts, user management, authentication, and real-time communications.
 
 ## Tech Stack
 
@@ -16,69 +20,82 @@ Mention API is a robust backend service built with Express.js and TypeScript, pr
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
+- Node.js 18+ and npm 8+
 - MongoDB instance
-- npm or yarn package manager
+- Git
 
-### Installation
+### Development Setup
 
-1. Clone the repository
-2. Install dependencies:
+#### Option 1: From the Monorepo Root (Recommended)
 ```bash
-npm install
+# Clone the repository
+git clone https://github.com/OxyHQ/Mention.git
+cd Mention
+
+# Install all dependencies
+npm run install:all
+
+# Start backend development
+npm run dev:backend
 ```
 
-3. Create a `.env` file in the root directory with the following variables:
+#### Option 2: From This Package Directory
+```bash
+# Navigate to this package
+cd packages/backend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+### Environment Configuration
+
+Create a `.env` file in this package directory with the following variables:
+
 ```env
+# Database
 MONGODB_URI=your_mongodb_connection_string
+
+# Authentication
 ACCESS_TOKEN_SECRET=your_jwt_access_token_secret
 REFRESH_TOKEN_SECRET=your_jwt_refresh_token_secret
+
+# Server Configuration
 PORT=3000
+NODE_ENV=development
+
+# External Services
+OPENAI_API_KEY=your_openai_api_key
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 ```
 
 ### Running the API
 
-Development mode:
+#### Development Mode
 ```bash
 npm run dev
 ```
 
-Production mode:
+#### Production Mode
 ```bash
 npm run build
 npm start
 ```
 
-### Deployment
+### Database Setup
 
-#### Docker Deployment
+The API uses MongoDB with Mongoose. Make sure your MongoDB instance is running and accessible.
+
+#### Running Migrations
 ```bash
-# Build the Docker image
-docker build -t mention-api .
+# Development environment
+npm run migrate:dev
 
-# Run the container
-docker run -p 3000:3000 -e MONGODB_URI=your_mongodb_uri mention-api
-```
-
-#### Cloud Deployment (Vercel)
-1. Configure `vercel.json`:
-```json
-{
-  "version": 2,
-  "builds": [{
-    "src": "dist/server.js",
-    "use": "@vercel/node"
-  }],
-  "routes": [{
-    "src": "/(.*)",
-    "dest": "dist/server.js"
-  }]
-}
-```
-
-2. Deploy using Vercel CLI:
-```bash
-vercel --prod
+# Production environment
+npm run migrate
 ```
 
 ## API Endpoints
@@ -234,6 +251,28 @@ erDiagram
     }
 ```
 
+## Development Scripts
+
+- `npm run dev` — Start development server with hot reload
+- `npm run build` — Build the project
+- `npm run start` — Start production server
+- `npm run lint` — Lint codebase
+- `npm run clean` — Clean build artifacts
+- `npm run migrate` — Run database migrations
+- `npm run migrate:dev` — Run database migrations in development
+- `npm run test` — Run tests (placeholder)
+
+## Monorepo Integration
+
+This package is part of the Mention monorepo and integrates with:
+
+- **@mention/frontend**: React Native application
+- **@mention/shared-types**: Shared TypeScript type definitions
+
+### Shared Dependencies
+- Uses `@homiio/shared-types` for type safety across packages
+- Integrates with `@oxyhq/services` for common functionality
+
 ## Performance Optimization
 
 ### Caching Strategy
@@ -271,6 +310,38 @@ Response: {
 - Log levels: error, warn, info, debug
 - Include request ID in all logs
 
+## Deployment
+
+### Docker Deployment
+```bash
+# Build the Docker image
+docker build -t mention-api .
+
+# Run the container
+docker run -p 3000:3000 -e MONGODB_URI=your_mongodb_uri mention-api
+```
+
+### Cloud Deployment (Vercel)
+1. Configure `vercel.json`:
+```json
+{
+  "version": 2,
+  "builds": [{
+    "src": "dist/server.js",
+    "use": "@vercel/node"
+  }],
+  "routes": [{
+    "src": "/(.*)",
+    "dest": "dist/server.js"
+  }]
+}
+```
+
+2. Deploy using Vercel CLI:
+```bash
+vercel --prod
+```
+
 ## Troubleshooting Guide
 
 ### Common Issues
@@ -295,12 +366,14 @@ Solution: Implement exponential backoff in client
 
 ## Contributing
 
+Contributions are welcome! Please see the [main README](../../README.md) for the complete contributing guidelines.
+
 1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting: `npm run test && npm run lint`
+5. Submit a pull request
 
 ## License
 
-AGPL License
+This project is licensed under the AGPL License.

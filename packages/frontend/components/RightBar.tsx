@@ -23,7 +23,7 @@ export function RightBar() {
             try {
                 setLoading(true);
                 setError(null);
-                const response = await oxyServices.getProfileRecommendations();
+                const response = await oxyServices.users.getProfileRecommendations();
                 console.log('Recommendations:', response);
                 setRecommendations(response);
             } catch (err) {

@@ -100,7 +100,7 @@ const Feed: React.FC<FeedProps> = React.memo(({
     onCreatePostPress,
     customOptions
 }) => {
-    const { isAuthenticated } = useOxy();
+    const { isAuthenticated, oxyServices, session } = useOxy();
     const { t } = useTranslation();
     const {
         posts,
@@ -149,18 +149,22 @@ const Feed: React.FC<FeedProps> = React.memo(({
         fetchFeed({
             type: feedType,
             parentId,
-            customOptions
+            customOptions,
+            oxyServices,
+            activeSessionId: session?.id,
         });
-    }, [clearFeed, fetchFeed, feedKey, feedType, parentId, customOptions]);
+    }, [clearFeed, fetchFeed, feedKey, feedType, parentId, customOptions, oxyServices, session]);
 
     const handleRefresh = useCallback(() => {
         setFeedRefreshing(feedKey, true);
         fetchFeed({
             type: feedType,
             parentId,
-            customOptions
+            customOptions,
+            oxyServices,
+            activeSessionId: session?.id,
         });
-    }, [setFeedRefreshing, fetchFeed, feedKey, feedType, parentId, customOptions]);
+    }, [setFeedRefreshing, fetchFeed, feedKey, feedType, parentId, customOptions, oxyServices, session]);
 
     const handleLoadMore = useCallback(() => {
         if (!isLoading && hasMore && nextCursor) {
@@ -168,10 +172,12 @@ const Feed: React.FC<FeedProps> = React.memo(({
                 type: feedType,
                 parentId,
                 customOptions,
-                cursor: nextCursor
+                cursor: nextCursor,
+                oxyServices,
+                activeSessionId: session?.id,
             });
         }
-    }, [fetchFeed, feedType, parentId, customOptions, nextCursor, isLoading, hasMore]);
+    }, [fetchFeed, feedType, parentId, customOptions, nextCursor, isLoading, hasMore, oxyServices, session]);
 
     const handleCreatePostPress = useCallback(() => {
         if (onCreatePostPress) {

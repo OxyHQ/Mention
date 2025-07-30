@@ -1,49 +1,37 @@
 {
   "name": "mention",
-  "version": "1.0.0",
-  "description": "A modern, cross-platform social app with frontend and backend",
+  "version": "2.0.0",
+  "description": "Mention Monorepo - Frontend and Backend",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "frontend": "cd packages/frontend && npm run start --tunnel --reset-cache",
-    "backend": "cd packages/backend && npm run dev",
-    "frontend:build": "cd packages/frontend && npm run build-web",
-    "backend:build": "cd packages/backend && npm run build",
-    "frontend:lint": "cd packages/frontend && npm run lint",
-    "backend:lint": "cd packages/backend && npm run lint",
-    "install:all": "npm install && npm run install:frontend && npm run install:backend",
-    "install:frontend": "cd packages/frontend && npm install",
-    "install:backend": "cd packages/backend && npm install"
-  },
-  "keywords": [
-    "social",
-    "react-native",
-    "expo",
-    "express",
-    "node",
-    "mongodb"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/OxyHQ/Mention.git"
-  },
-  "engines": {
-    "node": ">=14.0.0"
-  },
-  "author": "OxyHQ",
-  "license": "MIT",
-  "dependencies": {
-    "@oxyhq/services": "^5.7.3",
-    "autoprefixer": "^10.4.21",
-    "expo": "^53.0.9",
-    "install": "^0.13.0",
-    "npm": "^11.4.2",
-    "postcss": "^8.5.3",
-    "tailwindcss": "^3.4.17"
+    "dev": "npm run dev --workspaces",
+    "dev:frontend": "npm run dev --workspace=@mention/frontend",
+    "dev:backend": "npm run dev --workspace=@mention/backend",
+    "build": "npm run build --workspaces",
+    "build:shared-types": "npm run build --workspace=@mention/shared-types",
+    "build:frontend": "npm run build --workspace=@mention/frontend",
+    "build:backend": "npm run build --workspace=@mention/backend",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "clean": "npm run clean --workspaces && rm -rf node_modules",
+    "install:all": "npm install && npm install --workspaces",
+    "start:frontend": "npm run start --workspace=@mention/frontend",
+    "start:backend": "npm run start --workspace=@mention/backend",
+    "postinstall": "npm run build:shared-types"
   },
   "devDependencies": {
-    "@types/node": "^22.15.21"
+    "@types/node": "^20.0.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@oxyhq/services": "^5.9.11",
+    "expo-location": "^18.1.6"
   }
 }

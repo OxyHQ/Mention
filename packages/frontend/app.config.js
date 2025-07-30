@@ -32,7 +32,7 @@ return {
         jsEngine: "jsc",
         ios: {
             supportsTablet: true,
-            bundleIdentifier: "earth.mention.android"
+            bundleIdentifier: "com.mention.android"
         },
         android: {
             adaptiveIcon: {
@@ -44,7 +44,7 @@ return {
                 "android.permission.CAMERA",
                 "android.permission.RECORD_AUDIO"
             ],
-            package: "earth.mention.android",
+            package: "com.mention.android",
             intentFilters: [
                     {
                         action: 'VIEW',
@@ -52,7 +52,7 @@ return {
                         data: [
                             {
                                 scheme: 'https',
-                                host: 'mention.earth',
+                                host: 'mention.com',
                             },
                             IS_DEV && {
                                 scheme: 'http',
@@ -62,10 +62,6 @@ return {
                                 scheme: 'https',
                                 host: 'oxy.so',
                             },
-                            {
-                                scheme: 'https',
-                                host: 'api.oxy.so',
-                            },
                             IS_DEV && {
                                 scheme: 'http',
                                 host: 'localhost:3000',
@@ -73,14 +69,32 @@ return {
                         ],
                         category: ['BROWSABLE', 'DEFAULT'],
                     },
-                ],
+            ],
+            softwareKeyboardLayoutMode: "pan",
         },
         web: {
             bundler: "metro",
             output: "static",
-            favicon: "./assets/images/favicon.png"
+            favicon: "./assets/images/favicon.png",
+            manifest: "./public/manifest.json",
+            meta: {
+                viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no",
+                themeColor: "#4F46E5",
+                appleMobileWebAppCapable: "yes",
+                appleMobileWebAppStatusBarStyle: "default",
+                appleMobileWebAppTitle: "Mention",
+                applicationName: "Mention",
+                msapplicationTileColor: "#4F46E5",
+                msapplicationConfig: "/browserconfig.xml"
+            },
+            build: {
+                babel: {
+                    include: ["@expo/vector-icons"]
+                }
+            }
         },
         plugins: [
+            "expo-router",
             [
                 "expo-splash-screen",
                 {
@@ -104,7 +118,6 @@ return {
                     recordAudioAndroid: true
                 }
             ],
-            "expo-video",
             "expo-image-picker",
             [
                 "expo-secure-store",
@@ -117,6 +130,12 @@ return {
                 'expo-font',
                 {
                   fonts: [
+                    './assets/fonts/Cereal/Cereal_W_Lt.otf',
+                    './assets/fonts/Cereal/Cereal_W_Bk.otf',
+                    './assets/fonts/Cereal/Cereal_W_Blk.otf',
+                    './assets/fonts/Cereal/Cereal_W_Md.otf',
+                    './assets/fonts/Cereal/Cereal_W_XBd.otf',
+                    './assets/fonts/Cereal/Cereal_W_Bd.otf',
                     './assets/fonts/inter/InterVariable.woff2',
                     './assets/fonts/inter/InterVariable-Italic.woff2',
                     // Android only
@@ -150,12 +169,11 @@ return {
                   },
                 },
             ],
-            "expo-router",
     "expo-web-browser",
         ],
         extra: {
             eas: {
-                projectId: "0ca1d394-efea-4bf7-91b6-ed94a021bcf3"
+                projectId: "a261857b-a404-45ce-983c-501242578074"
             },
             router: {
                 origin: false
