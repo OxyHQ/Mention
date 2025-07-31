@@ -2,7 +2,7 @@ import { AnalyticsIcon, AnalyticsIconActive } from '@/assets/icons/analytics-ico
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
-import { Compose } from '@/assets/icons/compose-icon';
+import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { Gear, GearActive } from '@/assets/icons/gear-icon';
 import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
@@ -209,7 +209,7 @@ export function SideBar() {
                                 }
                                 renderIcon={({ state }) =>
                                     state === 'tablet' ? (
-                                        <Compose size={24} color={colors.primaryLight} />
+                                        <ComposeIcon size={24} color={colors.primaryLight} />
                                     ) : null
                                 }
                                 containerStyle={({ state }) => ({

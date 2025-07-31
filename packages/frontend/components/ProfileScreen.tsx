@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState, useEffect } from 'react';
 import {
     Animated,
@@ -10,11 +10,14 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
+    Share
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy, FollowButton } from '@oxyhq/services';
-import { useLocalSearchParams } from 'expo-router';
+import { Feed, PostItem, PostAction } from './Feed/index';
+import { UIPost as Post } from '@mention/shared-types';
+import { usePostsStore } from '../stores/postsStore';
 
 const HEADER_HEIGHT_EXPANDED = 80;
 const HEADER_HEIGHT_NARROWED = 110;
@@ -22,25 +25,11 @@ const HEADER_HEIGHT_NARROWED = 110;
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView as any);
 
-interface Post {
-    id: string;
-    user: {
-        name: string;
-        handle: string;
-        avatar: string;
-        verified: boolean;
-    };
-    content: string;
-    date: string;
-    engagement: {
-        replies: number;
-        reposts: number;
-        likes: number;
-    };
-}
+
 
 const TwitterProfile: React.FC = () => {
     const { user: currentUser, logout, oxyServices, showBottomSheet } = useOxy();
+    const { posts, replies, reposts } = usePostsStore();
     let { username } = useLocalSearchParams<{ username: string }>();
     if (username && username.startsWith('@')) {
         username = username.slice(1);
@@ -62,7 +51,7 @@ const TwitterProfile: React.FC = () => {
 
             try {
                 setLoading(true);
-                const data = await oxyServices.users.getProfileByUsername(username);
+                const data = await oxyServices.getProfileByUsername(username);
                 console.log('Fetched profile data:', data);
                 setProfileData(data);
             } catch (error) {
@@ -75,374 +64,11 @@ const TwitterProfile: React.FC = () => {
         fetchProfileData();
     }, [username, oxyServices]);
 
-    const mockPosts: Post[] = [
-        {
-            id: '1',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: "Text slide animation in @reactnative @expo😷\n\nw/@swmansion's reanimated + expo-blur 🔥\nproduct/ ordio.com 💙",
-            date: '29.04.25',
-            engagement: { replies: 30, reposts: 82, likes: 1300 },
-        },
-        {
-            id: '2',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Building landing components just got easier! 🚀\n\n@landingcomps is the fastest way to ship beautiful landing pages. Pre-built, customizable, and React-ready.',
-            date: '28.04.25',
-            engagement: { replies: 45, reposts: 112, likes: 890 },
-        },
-        {
-            id: '3',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'AI prompt engineering made simple ✨\n\n@niceprompt helps you craft better prompts and get better results from AI. Game changer for productivity!',
-            date: '27.04.25',
-            engagement: { replies: 67, reposts: 201, likes: 1450 },
-        },
-        {
-            id: '4',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Ship faster, design better 🎯\n\nCombining @landingcomps + @niceprompt workflow has 10x my productivity. From idea to shipped product in hours, not days.',
-            date: '26.04.25',
-            engagement: { replies: 89, reposts: 324, likes: 2100 },
-        },
-        {
-            id: '5',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Just dropped a new React Native animation tutorial on YouTube! 📹\n\nCovers advanced Reanimated 3 techniques and performance optimization tips. Link in bio 👆',
-            date: '25.04.25',
-            engagement: { replies: 156, reposts: 445, likes: 2890 },
-        },
-        {
-            id: '6',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Hot take: Design systems are only as good as their adoption rate.\n\nDocumentation, developer experience, and team buy-in matter more than perfect components.',
-            date: '24.04.25',
-            engagement: { replies: 78, reposts: 267, likes: 1567 },
-        },
-        {
-            id: '7',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Working on something big with the @landingcomps team 👀\n\nHint: It involves AI-powered component generation. Can\'t wait to share more soon! 🤖✨',
-            date: '23.04.25',
-            engagement: { replies: 234, reposts: 567, likes: 3456 },
-        },
-        {
-            id: '8',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'TypeScript tip: Use const assertions for better type inference 💡\n\nconst colors = ["red", "blue"] as const;\n// Now colors is readonly ["red", "blue"] instead of string[]',
-            date: '22.04.25',
-            engagement: { replies: 45, reposts: 178, likes: 923 },
-        },
-        {
-            id: '9',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Berlin tech scene is absolutely thriving! 🇩🇪\n\nAmazing to see so many innovative startups and passionate developers here. The future is bright! ⚡',
-            date: '21.04.25',
-            engagement: { replies: 67, reposts: 234, likes: 1234 },
-        },
-        {
-            id: '10',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Remember: Code is written once, but read many times.\n\nWrite for your future self and your teammates. Clear, readable code > clever code. 📚💭',
-            date: '20.04.25',
-            engagement: { replies: 123, reposts: 456, likes: 2345 },
-        },
-    ];
 
-    const replyPosts: Post[] = [
-        {
-            id: 'r1',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Exactly! The key is finding the right balance between innovation and maintainability. Thanks for sharing your thoughts! 💯',
-            date: '2h',
-            engagement: { replies: 12, reposts: 34, likes: 156 },
-        },
-        {
-            id: 'r2',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Have you tried using Zustand for state management? It\'s been a game changer for our React Native projects at @ordio 🚀',
-            date: '4h',
-            engagement: { replies: 23, reposts: 67, likes: 289 },
-        },
-        {
-            id: 'r3',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Great question! We use a combination of Figma tokens and Style Dictionary to maintain design consistency across platforms 🎨',
-            date: '6h',
-            engagement: { replies: 45, reposts: 123, likes: 567 },
-        },
-        {
-            id: 'r4',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Absolutely agree! Performance should be a first-class citizen in any React Native app. Have you profiled with Flipper yet? 📊',
-            date: '8h',
-            engagement: { replies: 18, reposts: 56, likes: 234 },
-        },
-        {
-            id: 'r5',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Thanks for the kind words! Always happy to help the community grow. DM me if you need any specific guidance 📩',
-            date: '12h',
-            engagement: { replies: 34, reposts: 89, likes: 445 },
-        },
-        {
-            id: 'r6',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'This is such an important point! Accessibility should never be an afterthought. WCAG guidelines are a great starting point 🌐',
-            date: '1d',
-            engagement: { replies: 67, reposts: 178, likes: 723 },
-        },
-        {
-            id: 'r7',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Love seeing the React Native community grow! Your animation work is inspiring. Keep pushing the boundaries! 🌟',
-            date: '1d',
-            engagement: { replies: 29, reposts: 78, likes: 356 },
-        },
-        {
-            id: 'r8',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Expo has come such a long way! The developer experience improvements in SDK 50 are incredible. What\'s your favorite new feature? 🤔',
-            date: '2d',
-            engagement: { replies: 56, reposts: 145, likes: 689 },
-        },
-        {
-            id: 'r9',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'Couldn\'t agree more! User research is the foundation of great UX. Data-driven design decisions always win in the long run 📈',
-            date: '3d',
-            engagement: { replies: 41, reposts: 112, likes: 478 },
-        },
-        {
-            id: 'r10',
-            user: {
-                name: 'Eren Arica',
-                handle: 'imeronn',
-                avatar: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg',
-                verified: true,
-            },
-            content: 'This thread is gold! 🏆 Saving for future reference. The component composition patterns you shared are brilliant 🧠',
-            date: '4d',
-            engagement: { replies: 38, reposts: 167, likes: 834 },
-        },
-    ];
 
-    const likedPosts: Post[] = [
-        {
-            id: 'l1',
-            user: {
-                name: 'Sarah Chen',
-                handle: 'sarahdesigns',
-                avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100&h=100&fit=crop&crop=face',
-                verified: false,
-            },
-            content: 'Just shipped a new design system! 🎨 The component library approach is game-changing for design consistency.',
-            date: '1h',
-            engagement: { replies: 12, reposts: 45, likes: 230 },
-        },
-        {
-            id: 'l2',
-            user: {
-                name: 'Alex Turner',
-                handle: 'alexcodes',
-                avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-                verified: true,
-            },
-            content: 'React Native performance tip: Use FlatList for large datasets instead of ScrollView with map() 🚀',
-            date: '3h',
-            engagement: { replies: 28, reposts: 156, likes: 892 },
-        },
-        {
-            id: 'l3',
-            user: {
-                name: 'Maya Patel',
-                handle: 'mayauxui',
-                avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
-                verified: false,
-            },
-            content: 'UX research insight: Users scan in F-patterns on web, but Z-patterns on mobile. Design accordingly! 📱💻',
-            date: '5h',
-            engagement: { replies: 67, reposts: 203, likes: 1205 },
-        },
-        {
-            id: 'l4',
-            user: {
-                name: 'Tom Wilson',
-                handle: 'tomdevs',
-                avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-                verified: true,
-            },
-            content: 'TypeScript + React Native = ❤️\n\nCatch bugs at compile time, better IntelliSense, and more maintainable code.',
-            date: '8h',
-            engagement: { replies: 34, reposts: 89, likes: 567 },
-        },
-        {
-            id: 'l5',
-            user: {
-                name: 'Lisa Rodriguez',
-                handle: 'lisabrands',
-                avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face',
-                verified: false,
-            },
-            content: 'Brand colors psychology:\n🔴 Red: Energy, urgency\n🔵 Blue: Trust, stability\n🟢 Green: Growth, nature\n🟡 Yellow: Optimism, creativity',
-            date: '12h',
-            engagement: { replies: 45, reposts: 178, likes: 923 },
-        },
-        {
-            id: 'l6',
-            user: {
-                name: 'David Kim',
-                handle: 'davidtech',
-                avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face',
-                verified: true,
-            },
-            content: 'AI is not replacing designers. Designers who use AI are replacing designers who don\'t. 🤖✨',
-            date: '1d',
-            engagement: { replies: 123, reposts: 456, likes: 2341 },
-        },
-        {
-            id: 'l7',
-            user: {
-                name: 'Emma Johnson',
-                handle: 'emmawrites',
-                avatar: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=100&h=100&fit=crop&crop=face',
-                verified: false,
-            },
-            content: 'Content strategy tip: Write for humans first, SEO second. Authentic voice always wins over keyword stuffing. 📝',
-            date: '1d',
-            engagement: { replies: 67, reposts: 234, likes: 1456 },
-        },
-        {
-            id: 'l8',
-            user: {
-                name: 'Mike Chen',
-                handle: 'mikebuilds',
-                avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&h=100&fit=crop&crop=face',
-                verified: true,
-            },
-            content: 'Frontend performance checklist:\n✅ Image optimization\n✅ Code splitting\n✅ Lazy loading\n✅ CDN usage\n✅ Bundle analysis',
-            date: '2d',
-            engagement: { replies: 89, reposts: 367, likes: 1789 },
-        },
-        {
-            id: 'l9',
-            user: {
-                name: 'Sofia Martinez',
-                handle: 'sofiadata',
-                avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop&crop=face',
-                verified: false,
-            },
-            content: 'Data visualization principle: If your chart needs a legend, your design needs work. Make it self-explanatory! 📊',
-            date: '3d',
-            engagement: { replies: 45, reposts: 156, likes: 892 },
-        },
-        {
-            id: 'l10',
-            user: {
-                name: 'James Park',
-                handle: 'jamesux',
-                avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop&crop=face',
-                verified: true,
-            },
-            content: 'Design systems aren\'t just component libraries. They\'re the DNA of your product\'s user experience. 🧬',
-            date: '4d',
-            engagement: { replies: 78, reposts: 289, likes: 1567 },
-        },
-    ];
+
+
+
 
     const mediaImages = [
         'https://images.unsplash.com/photo-1551650975-87deedd944c3?w=400&h=400&fit=crop',
@@ -467,83 +93,58 @@ const TwitterProfile: React.FC = () => {
         'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=400&fit=crop',
     ];
 
-    const tabs = ['Posts', 'Replies', 'Media', 'Likes'];
-    const tabData = [mockPosts, replyPosts, mediaImages, likedPosts];
+    const tabs = ['Posts', 'Replies', 'Media', 'Likes', 'Reposts'];
+
+    // Filter posts for different tabs
+    const userPosts = posts.filter(post => post.user.handle === username);
+    const userReplies = replies.filter(reply => reply.user.handle === username);
+    const userReposts = reposts.filter(repost => repost.user.handle === username);
+    const userLikes = posts.filter(post => post.engagement.likes > 0);
+
+    const tabData = [userPosts, userReplies, mediaImages, userLikes, userReposts];
 
     const onTabPress = (index: number) => {
         setActiveTab(index);
     };
 
-    const renderPost = ({ item }: { item: Post }) => (
-        <View style={styles.postContainer}>
-            <Image source={{ uri: item.user.avatar }} style={styles.postAvatar} />
-            <View style={styles.postContent}>
-                <View style={styles.postHeader}>
-                    <Text style={styles.postUserName}>
-                        {item.user.name}
-                        {item.user.verified && (
-                            <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" style={styles.verifiedIcon} />
-                        )}
-                    </Text>
-                    <Text style={styles.postHandle}>@{item.user.handle}</Text>
-                    <Text style={styles.postDate}>· {item.date}</Text>
-                </View>
-                <Text style={styles.postText}>{item.content}</Text>
-                <View style={styles.postEngagement}>
-                    <TouchableOpacity style={styles.engagementButton}>
-                        <Ionicons name="chatbubble-outline" size={18} color="#71767B" />
-                        <Text style={styles.engagementText}>{item.engagement.replies}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.engagementButton}>
-                        <Ionicons name="repeat-outline" size={18} color="#71767B" />
-                        <Text style={styles.engagementText}>{item.engagement.reposts}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.engagementButton}>
-                        <Ionicons name="heart-outline" size={18} color="#71767B" />
-                        <Text style={styles.engagementText}>{item.engagement.likes.toLocaleString()}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.engagementButton}>
-                        <Ionicons name="share-outline" size={18} color="#71767B" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </View>
-    );
+    const handleShare = async () => {
+        if (!profileData) return;
 
-    const renderMediaGrid = (images: string[]) => {
-        const rows = [];
-        for (let i = 0; i < images.length; i += 3) {
-            const rowImages = images.slice(i, i + 3);
-            rows.push(
-                <View key={i} style={styles.mediaRow}>
-                    {rowImages.map((imageUrl, index) => (
-                        <TouchableOpacity key={i + index} style={styles.mediaImageContainer}>
-                            <Image source={{ uri: imageUrl }} style={styles.mediaImage} />
-                        </TouchableOpacity>
-                    ))}
-                </View>
-            );
+        try {
+            const shareUrl = `https://mention.earth/@${profileData.username}`;
+            const shareMessage = `Check out ${profileData.name?.full || profileData.username}'s profile on Mention!`;
+
+            await Share.share({
+                message: `${shareMessage}\n\n${shareUrl}`,
+                url: shareUrl,
+                title: `${profileData.name?.full || profileData.username} on Mention`
+            });
+        } catch (error) {
+            console.error('Error sharing profile:', error);
         }
-        return <View style={styles.mediaGrid}>{rows}</View>;
+    };
+
+    const handlePostAction = (action: PostAction, postId: string) => {
+        console.log(`${action} action for post ${postId}`);
+        // Post actions are handled by the Feed component and store
+    };
+
+    const handleMediaPress = (imageUrl: string, index: number) => {
+        console.log(`Media pressed: ${imageUrl} at index ${index}`);
+        // TODO: Implement media viewer
     };
 
     const renderTabContent = () => {
         const data = tabData[activeTab];
-
-        if (activeTab === 2) { // Media tab
-            return renderMediaGrid(data as string[]);
-        }
-
-        if (!data || data.length === 0) {
-            return <View style={styles.emptyTabView} />;
-        }
+        const feedType = activeTab === 0 ? 'posts' : activeTab === 1 ? 'replies' : activeTab === 2 ? 'media' : activeTab === 3 ? 'likes' : 'reposts';
 
         return (
-            <View>
-                {(data as Post[]).map(item => (
-                    <View key={item.id}>{renderPost({ item })}</View>
-                ))}
-            </View>
+            <Feed
+                data={data}
+                type={feedType}
+                onPostAction={handlePostAction}
+                onMediaPress={handleMediaPress}
+            />
         );
     };
 
@@ -572,7 +173,7 @@ const TwitterProfile: React.FC = () => {
                         <TouchableOpacity style={styles.headerIconButton}>
                             <Ionicons name="search-outline" size={20} color="white" />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.headerIconButton}>
+                        <TouchableOpacity style={styles.headerIconButton} onPress={handleShare}>
                             <Ionicons name="share-outline" size={20} color="white" />
                         </TouchableOpacity>
                     </View>
@@ -686,10 +287,24 @@ const TwitterProfile: React.FC = () => {
                                 />
 
                                 <View style={styles.profileActions}>
-                                    <TouchableOpacity style={styles.followButton}>
-                                        <Text style={styles.followButtonText}>Edit Profile</Text>
-                                    </TouchableOpacity>
-                                    <FollowButton userId={profileData?.id} />
+                                    {currentUser?.username === username ? (
+                                        <View style={styles.actionButtons}>
+                                            <TouchableOpacity
+                                                style={styles.followButton}
+                                                onPress={() => showBottomSheet?.('EditProfile')}
+                                            >
+                                                <Text style={styles.followButtonText}>Edit Profile</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.settingsButton}
+                                                onPress={() => showBottomSheet?.('PrivacySettings')}
+                                            >
+                                                <Ionicons name="settings-outline" size={20} color="#FFF" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : (
+                                        <FollowButton userId={profileData?.id} />
+                                    )}
                                 </View>
                             </View>
 
@@ -697,90 +312,105 @@ const TwitterProfile: React.FC = () => {
                                 <Text style={styles.profileName}>
                                     {profileData?.name?.full || profileData?.username}
                                 </Text>
-                                <Text style={styles.profileHandle}>
-                                    @{profileData?.username || 'username'}
-                                </Text>
+                                <View style={styles.handleRow}>
+                                    <Text style={styles.profileHandle}>
+                                        @{profileData?.username || 'username'}
+                                    </Text>
+                                    {profileData?.privacySettings?.isPrivateAccount && (
+                                        <View style={styles.privateIndicator}>
+                                            <Ionicons name="lock-closed" size={12} color="#666" />
+                                            <Text style={styles.privateText}>Private</Text>
+                                        </View>
+                                    )}
+                                </View>
                             </View>
-                            <Text style={styles.profileBio}>
-                                {profileData?.bio || 'Good people at '}
-                                {profileData?.bio ? '' : <Text style={styles.linkText}>oxy.so</Text>}
-                                {profileData?.bio || ' Making a better world with\n'}
-                                {profileData?.bio ? '' : <Text style={styles.linkText}>@oxy</Text>}
-                                {profileData?.bio || ' I love '}
-                                {profileData?.bio ? '' : <Text style={styles.linkText}>@mention</Text>}
-                            </Text>
+                            {profileData?.bio && (
+                                <Text style={styles.profileBio}>
+                                    {profileData.bio}
+                                </Text>
+                            )}
 
                             <View style={styles.profileMeta}>
-                                <View style={styles.metaItem}>
-                                    <Ionicons name="location-outline" size={16} color="#666" />
-                                    <Text style={styles.metaText}>Berlin</Text>
-                                </View>
-                                <View style={styles.metaItem}>
-                                    <View
-                                        style={{
-                                            transform: [{ rotate: '-45deg' }],
-                                        }}
-                                    >
-                                        <Ionicons name="link-outline" size={16} color="#666" />
+                                {profileData?.primaryLocation && (
+                                    <View style={styles.metaItem}>
+                                        <Ionicons name="location-outline" size={16} color="#666" />
+                                        <Text style={styles.metaText}>{profileData.primaryLocation}</Text>
                                     </View>
-                                    <Text style={[styles.metaText, styles.linkText]}>erencanarica.com</Text>
-                                </View>
+                                )}
+                                {profileData?.links && profileData.links.length > 0 && (
+                                    <View style={styles.metaItem}>
+                                        <View
+                                            style={{
+                                                transform: [{ rotate: '-45deg' }],
+                                            }}
+                                        >
+                                            <Ionicons name="link-outline" size={16} color="#666" />
+                                        </View>
+                                        <Text style={[styles.metaText, styles.linkText]}>{profileData.links[0]}</Text>
+                                    </View>
+                                )}
                                 <View style={styles.metaItem}>
                                     <Ionicons name="calendar-outline" size={16} color="#666" />
-                                    <Text style={styles.metaText}>Joined April 2019</Text>
+                                    <Text style={styles.metaText}>Joined {new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text>
                                 </View>
                             </View>
 
-                            <View style={styles.followStats}>
-                                <TouchableOpacity style={styles.statItem}>
-                                    <Text style={styles.statNumber}>
-                                        {profileData?.followingCount || 234}
-                                    </Text>
-                                    <Text style={styles.statLabel}>Following</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.statItem}>
-                                    <Text style={styles.statNumber}>
-                                        {profileData?.followersCount || '1.3K'}
-                                    </Text>
-                                    <Text style={styles.statLabel}>Followers</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Communities section */}
-                            <View style={styles.communitiesSection}>
-                                <Text style={styles.communitiesTitle}>Communities</Text>
-                                <View style={styles.communityCard}>
-                                    <View style={styles.communityHeader}>
-                                        <View style={styles.communityIcon}>
-                                            <Image source={{ uri: 'https://pbs.twimg.com/media/FECS7TfVcAcCrj2?format=jpg&name=medium' }} style={styles.communityIconImage} />
-                                        </View>
-                                        <View style={styles.communityInfo}>
-                                            <Text style={styles.communityName}>Design Engineers</Text>
-                                            <Text style={styles.communityDescription}>A space where design and code converge ✨ Share, seek feedback,...</Text>
-                                            <View style={styles.communityMembers}>
-                                                <View style={styles.memberAvatars}>
-                                                    <View style={[styles.memberAvatar, { zIndex: 4 }]}>
-                                                        <View style={styles.avatarCircle} />
-                                                    </View>
-                                                    <View style={[styles.memberAvatar, { zIndex: 3, marginLeft: -8 }]}>
-                                                        <View style={styles.avatarCircle} />
-                                                    </View>
-                                                    <View style={[styles.memberAvatar, { zIndex: 2, marginLeft: -8 }]}>
-                                                        <View style={styles.avatarCircle} />
-                                                    </View>
-                                                    <View style={[styles.memberAvatar, { zIndex: 1, marginLeft: -8 }]}>
-                                                        <View style={styles.avatarCircle} />
-                                                    </View>
-                                                </View>
-                                                <Text style={styles.memberCount}>24 Members</Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                    <TouchableOpacity style={styles.viewButtonInCard}>
-                                        <Text style={styles.viewButtonText}>View</Text>
+                            {(!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
+                                <View style={styles.followStats}>
+                                    <TouchableOpacity style={styles.statItem}>
+                                        <Text style={styles.statNumber}>
+                                            {profileData?._count?.followers || 0}
+                                        </Text>
+                                        <Text style={styles.statLabel}>Following</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.statItem}>
+                                        <Text style={styles.statNumber}>
+                                            {profileData?._count?.following || 0}
+                                        </Text>
+                                        <Text style={styles.statLabel}>Followers</Text>
                                     </TouchableOpacity>
                                 </View>
-                            </View>
+                            )}
+
+                            {/* Communities section */}
+                            {profileData?.communities && profileData.communities.length > 0 &&
+                                (!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
+                                    <View style={styles.communitiesSection}>
+                                        <Text style={styles.communitiesTitle}>Communities</Text>
+                                        {profileData.communities.map((community: any, index: number) => (
+                                            <View key={community.id || index} style={styles.communityCard}>
+                                                <View style={styles.communityHeader}>
+                                                    {community.icon && (
+                                                        <View style={styles.communityIcon}>
+                                                            <Image
+                                                                source={{ uri: community.icon }}
+                                                                style={styles.communityIconImage}
+                                                            />
+                                                        </View>
+                                                    )}
+                                                    <View style={styles.communityInfo}>
+                                                        <Text style={styles.communityName}>{community.name}</Text>
+                                                        {community.description && (
+                                                            <Text style={styles.communityDescription}>
+                                                                {community.description}
+                                                            </Text>
+                                                        )}
+                                                        {community.memberCount && (
+                                                            <View style={styles.communityMembers}>
+                                                                <Text style={styles.memberCount}>
+                                                                    {community.memberCount} Members
+                                                                </Text>
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                </View>
+                                                <TouchableOpacity style={styles.viewButtonInCard}>
+                                                    <Text style={styles.viewButtonText}>View</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
                         </View>
 
                         {/* Tabs */}
@@ -812,7 +442,10 @@ const TwitterProfile: React.FC = () => {
 
 
                     {/* FAB */}
-                    <TouchableOpacity style={styles.fab}>
+                    <TouchableOpacity
+                        style={styles.fab}
+                        onPress={() => router.push('/compose')}
+                    >
                         <Ionicons name="add" size={24} color="#FFF" />
                     </TouchableOpacity>
                 </>
@@ -1017,65 +650,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#1D9BF0',
         borderRadius: 1,
     },
-    postContainer: {
-        flexDirection: 'row',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
-        backgroundColor: '#000',
-    },
-    postAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        marginRight: 12,
-    },
-    postContent: {
-        flex: 1,
-    },
-    postHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    postUserName: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#FFF',
-        marginRight: 4,
-    },
-    verifiedIcon: {
-        marginRight: 4,
-    },
-    postHandle: {
-        fontSize: 15,
-        color: '#71767B',
-        marginRight: 4,
-    },
-    postDate: {
-        fontSize: 15,
-        color: '#71767B',
-    },
-    postText: {
-        fontSize: 15,
-        color: '#FFF',
-        lineHeight: 20,
-        marginBottom: 12,
-    },
-    postEngagement: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        maxWidth: 300,
-    },
-    engagementButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    engagementText: {
-        fontSize: 13,
-        color: '#71767B',
-        marginLeft: 4,
-    },
+
     communitiesSection: {
         marginTop: 16,
     },
@@ -1186,25 +761,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
     },
-    emptyTabView: {
-        height: 200,
-    },
-    mediaGrid: {
-        backgroundColor: '#000',
-    },
-    mediaRow: {
-        flexDirection: 'row',
-        marginBottom: 2,
-    },
-    mediaImageContainer: {
-        flex: 1,
-        marginHorizontal: 1,
-    },
-    mediaImage: {
-        width: '100%',
-        aspectRatio: 1,
-        backgroundColor: '#2F3336',
-    },
+
     stickyTabBar: {
         position: 'absolute',
         left: 0,
@@ -1227,6 +784,40 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    handleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    privateIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 12,
+        gap: 4,
+    },
+    privateText: {
+        color: '#666',
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    actionButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    settingsButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
     },
 
 });

@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
-import { useAuthFetch, useOxy } from '@oxyhq/services/full';
+import { useOxy } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -17,26 +18,44 @@ import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { usePostsStore } from '../stores/postsStore';
 
 const ComposeScreen = () => {
   const [postContent, setPostContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const { user } = useOxy();
+  const { addPost } = usePostsStore();
   const { t } = useTranslation();
 
-  const authFetch = useAuthFetch();
-  authFetch.setApiUrl('http://localhost:3000');
-
   const handlePost = async () => {
-    if (!postContent.trim() || isPosting) return;
+    if (!postContent.trim() || isPosting || !user) return;
 
     setIsPosting(true);
     try {
       console.log('Attempting to create post...');
 
-      // Call API to create post - authentication handled by API utils
-      const result = await authFetch.post('/posts', { text: postContent.trim() });
-      console.log('Post created successfully:', result);
+      // Create new post data for store
+      const avatarUrl = typeof user.avatar === 'string'
+        ? user.avatar
+        : user.avatar?.url || 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg';
+
+      const newPostData = {
+        user: {
+          name: user.name?.full || user.username,
+          handle: user.username,
+          avatar: avatarUrl,
+          verified: user.verified || false,
+        },
+        content: postContent.trim(),
+        engagement: {
+          replies: 0,
+          reposts: 0,
+          likes: 0,
+        },
+      };
+
+      // Add to store
+      addPost(newPostData);
 
       // Show success toast
       toast.success(t('Post published successfully'));
@@ -45,12 +64,7 @@ const ComposeScreen = () => {
       router.back();
     } catch (error: any) {
       console.error('Error creating post:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-
-      // Show specific error message if available
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to publish post';
-      toast.error(t(errorMessage));
+      toast.error(t('Failed to publish post'));
     } finally {
       setIsPosting(false);
     }
@@ -143,13 +157,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: '#E1E8ED',
-    ...Platform.select({
-      web: {
-        position: 'sticky',
-        top: 0,
-        zIndex: 1000,
-      },
-    }),
   },
   cancelButton: {
     padding: 8,

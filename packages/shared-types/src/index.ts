@@ -17,9 +17,6 @@ export * from './post';
 // Interaction types
 export * from './interaction';
 
-// Feed types
-export * from './feed';
-
 // Media types
 export * from './media';
 
@@ -31,3 +28,6 @@ export * from './list';
 
 // Analytics types
 export * from './analytics';
+
+// Feed types
+export * from './feed';

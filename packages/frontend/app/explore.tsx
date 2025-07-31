@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
-import Feed from '@/components/Feed';
-import CustomFeed from '@/components/Feed/CustomFeed';
-import { PostProvider } from '@/context/PostContext';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
 import { StatusBar } from 'expo-status-bar';
@@ -17,96 +14,75 @@ const ExploreScreen: React.FC = () => {
     switch (activeTab) {
       case 'media':
         return (
-          <Feed
-            type="custom"
-            customOptions={{ mediaOnly: true }}
-          />
+          <Text>Media</Text>
         );
 
       case 'trending':
         return (
-          <CustomFeed
-            title={t('Trending')}
-            initialFilters={{
-              hashtags: ['trending', 'viral', 'popular'],
-              users: [],
-              keywords: [],
-              mediaOnly: false
-            }}
-          />
+          <Text>Trending feed</Text>
         );
 
       case 'custom':
         return (
-          <CustomFeed
-            title={t('Create Your Discovery Feed')}
-            initialFilters={{
-              hashtags: [],
-              users: [],
-              keywords: [],
-              mediaOnly: false
-            }}
-          />
+          <Text>Custom feed</Text>
         );
 
       default:
-        return <Feed type="all" />;
+        return <Text>All feed</Text>;
     }
   };
 
   return (
-    <PostProvider>
-      <SafeAreaView style={styles.container}>
-        <StatusBar style="dark" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="dark" />
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{t('Explore')}</Text>
-        </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>{t('Explore')}</Text>
+      </View>
 
-        {/* Tab Navigation */}
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'all' && styles.activeTab]}
-            onPress={() => setActiveTab('all')}
-          >
-            <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
-              {t('All')}
-            </Text>
-          </TouchableOpacity>
+      {/* Tab Navigation */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'all' && styles.activeTab]}
+          onPress={() => setActiveTab('all')}
+        >
+          <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
+            {t('All')}
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'media' && styles.activeTab]}
-            onPress={() => setActiveTab('media')}
-          >
-            <Text style={[styles.tabText, activeTab === 'media' && styles.activeTabText]}>
-              📸 {t('Media')}
-            </Text>
-          </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'media' && styles.activeTab]}
+          onPress={() => setActiveTab('media')}
+        >
+          <Text style={[styles.tabText, activeTab === 'media' && styles.activeTabText]}>
+            📸 {t('Media')}
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
-            onPress={() => setActiveTab('trending')}
-          >
-            <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
-              🔥 {t('Trending')}
-            </Text>
-          </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
+          onPress={() => setActiveTab('trending')}
+        >
+          <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
+            🔥 {t('Trending')}
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'custom' && styles.activeTab]}
-            onPress={() => setActiveTab('custom')}
-          >
-            <Text style={[styles.tabText, activeTab === 'custom' && styles.activeTabText]}>
-              🎯 {t('Custom')}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'custom' && styles.activeTab]}
+          onPress={() => setActiveTab('custom')}
+        >
+          <Text style={[styles.tabText, activeTab === 'custom' && styles.activeTabText]}>
+            🎯 {t('Custom')}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Content */}
-        {renderContent()}
-      </SafeAreaView>
-    </PostProvider>
+      {/* Content */}
+      {renderContent()}
+    </SafeAreaView>
   );
 };
 

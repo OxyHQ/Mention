@@ -1,130 +1,88 @@
 /**
- * Feed-related types for Mention social network
+ * Feed types for Mention social network
+ * Shared between frontend and backend
  */
 
-import { Post } from './post';
-import { Profile, OxyUser } from './profile';
+import { Post as DomainPost } from './post';
 
-export enum FeedType {
-  HOME = 'home',
-  EXPLORE = 'explore',
-  TRENDING = 'trending',
-  LATEST = 'latest',
-  TOP = 'top',
-  FOLLOWING = 'following',
-  FOR_YOU = 'for_you',
-  BOOKMARKS = 'bookmarks',
-  LIKES = 'likes',
-  USER_PROFILE = 'user_profile',
-  HASHTAG = 'hashtag',
-  SEARCH = 'search'
+// Common user interface for feed items
+export interface FeedUser {
+  id?: string;
+  name: string;
+  handle: string;
+  avatar: string;
+  verified: boolean;
 }
 
-export enum FeedAlgorithm {
-  CHRONOLOGICAL = 'chronological',
-  RELEVANCE = 'relevance',
-  ENGAGEMENT = 'engagement',
-  PERSONALIZED = 'personalized'
+// Common engagement interface for feed items
+export interface FeedEngagement {
+  replies: number;
+  reposts: number;
+  likes: number;
 }
 
-export interface Feed {
+// Feed item types for frontend components
+export interface Post {
   id: string;
-  type: FeedType;
-  algorithm: FeedAlgorithm;
-  posts: Post[];
+  user: FeedUser;
+  content: string;
+  date: string;
+  engagement: FeedEngagement;
+  media?: string[];
+  isLiked?: boolean;
+  isReposted?: boolean;
+}
+
+export interface Reply {
+  id: string;
+  postId: string;
+  user: FeedUser;
+  content: string;
+  date: string;
+  engagement: FeedEngagement;
+}
+
+export interface FeedRepost {
+  id: string;
+  originalPostId: string;
+  user: FeedUser;
+  date: string;
+  engagement: FeedEngagement;
+}
+
+// Feed types and actions
+export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'mixed';
+
+export type PostAction = 'reply' | 'repost' | 'like' | 'share';
+
+// Feed data structures
+export interface FeedItem {
+  id: string;
+  type: 'post' | 'reply' | 'repost';
+  data: DomainPost | Reply | FeedRepost;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeedResponse {
+  items: FeedItem[];
   hasMore: boolean;
   nextCursor?: string;
-  refreshToken?: string;
-  lastUpdated: string;
+  totalCount: number;
 }
 
-export interface TimelineFeed extends Feed {
-  type: FeedType.HOME | FeedType.FOLLOWING | FeedType.FOR_YOU;
-  algorithm: FeedAlgorithm;
-}
-
-export interface ExploreFeed extends Feed {
-  type: FeedType.EXPLORE | FeedType.TRENDING;
-  trendingTopics: TrendingTopic[];
-  suggestedProfiles: Profile[];
-}
-
-export interface UserProfileFeed extends Feed {
-  type: FeedType.USER_PROFILE;
-  oxyUserId: string; // Links to Oxy user
-  filter: 'posts' | 'replies' | 'media' | 'likes';
-}
-
-export interface HashtagFeed extends Feed {
-  type: FeedType.HASHTAG;
-  hashtag: string;
-  postCount: number;
-}
-
-export interface SearchFeed extends Feed {
-  type: FeedType.SEARCH;
-  query: string;
-  filters: SearchFilters;
-  results: SearchResults;
-}
-
-export interface TrendingTopic {
-  id: string;
-  name: string;
-  hashtag: string;
-  postCount: number;
-  trendDirection: 'up' | 'down' | 'stable';
-  category?: string;
-  isPromoted: boolean;
-  createdAt: string;
-}
-
-export interface SearchResults {
-  posts: Post[];
-  profiles: Profile[];
-  hashtags: string[];
-  totalPosts: number;
-  totalProfiles: number;
-  totalHashtags: number;
-}
-
-export interface SearchFilters {
-  type?: 'posts' | 'users' | 'hashtags' | 'all';
-  dateFrom?: string;
-  dateTo?: string;
-  language?: string;
-  isVerified?: boolean;
-  hasMedia?: boolean;
-  hasLinks?: boolean;
-  isSensitive?: boolean;
-}
-
-export interface FeedPreferences {
-  algorithm: FeedAlgorithm;
-  showRetweets: boolean;
-  showReplies: boolean;
-  showQuotes: boolean;
-  showMedia: boolean;
-  showSensitiveContent: boolean;
-  autoRefresh: boolean;
-  refreshInterval: number; // in minutes
-}
-
+// Feed request and filtering
 export interface FeedRequest {
   type: FeedType;
-  algorithm?: FeedAlgorithm;
   cursor?: string;
   limit?: number;
+  userId?: string;
   filters?: FeedFilters;
-  oxyUserId?: string; // for user-specific feeds
-  hashtag?: string; // for hashtag feeds
-  query?: string; // for search feeds
 }
 
 export interface FeedFilters {
-  includeRetweets?: boolean;
   includeReplies?: boolean;
-  includeQuotes?: boolean;
+  includeReposts?: boolean;
   includeMedia?: boolean;
   includeSensitive?: boolean;
   language?: string;
@@ -134,26 +92,39 @@ export interface FeedFilters {
 
 export interface FeedStats {
   totalPosts: number;
-  totalUsers: number;
-  totalInteractions: number;
+  totalReplies: number;
+  totalReposts: number;
+  totalLikes: number;
   averageEngagement: number;
-  topHashtags: string[];
-  topMentions: string[];
-  trendingTopics: TrendingTopic[];
 }
 
-export interface FeedRefreshRequest {
-  feedId: string;
-  refreshToken?: string;
-  forceRefresh?: boolean;
+// API request types
+export interface CreateReplyRequest {
+  postId: string;
+  content: string;
+  mentions?: string[];
+  hashtags?: string[];
 }
 
-export interface FeedRefreshResponse {
-  newPosts: Post[];
-  updatedPosts: Post[];
-  removedPosts: string[];
-  hasMore: boolean;
-  nextCursor?: string;
-  refreshToken?: string;
-  lastUpdated: string;
+export interface CreateRepostRequest {
+  originalPostId: string;
+  comment?: string;
+  mentions?: string[];
+  hashtags?: string[];
+}
+
+export interface LikeRequest {
+  postId: string;
+  type: 'post' | 'reply' | 'repost';
+}
+
+export interface UnlikeRequest {
+  postId: string;
+  type: 'post' | 'reply' | 'repost';
+}
+
+export interface ShareRequest {
+  postId: string;
+  type: 'post' | 'reply' | 'repost';
+  platform?: 'twitter' | 'facebook' | 'linkedin' | 'copy';
 } 

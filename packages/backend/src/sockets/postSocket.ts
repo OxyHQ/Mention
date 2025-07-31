@@ -1,5 +1,4 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 import { logger } from '../utils/logger';
 import jwt from 'jsonwebtoken';
 
@@ -9,7 +8,7 @@ interface AuthenticatedSocket extends Socket {
   };
 }
 
-export const setupPostSocket = (io: SocketIOServer<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap>) => {
+export const setupPostSocket = (io: SocketIOServer) => {
   const postsNamespace = io.of('/posts');
 
   // Authentication middleware

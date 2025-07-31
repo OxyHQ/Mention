@@ -1,32 +1,33 @@
 {
   "compilerOptions": {
-    "target": "es6",
+    "target": "ES2020",
     "module": "Node16",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "typeRoots": [
-      "../../node_modules/@types",
-      "./src/types"
-    ],
     "moduleResolution": "node16",
-    "types": [
-      "node"
-    ],
+    "rootDir": "./",
+    "outDir": "dist",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "composite": true,
     "baseUrl": ".",
     "paths": {
-      "*": [
-        "src/types/*"
+      "@mention/shared-types": [
+        "../shared-types/src"
+      ],
+      "@mention/shared-types/*": [
+        "../shared-types/src/*"
       ]
     }
   },
   "include": [
-    "src/**/*"
+    "**/*.ts",
+    "package.json"
   ],
-  "exclude": [
-    "../../node_modules/react-native",
-    "../../packages/frontend",
-    "../../node_modules/@types/react-native"
+  "references": [
+    {
+      "path": "../shared-types"
+    }
   ]
 }

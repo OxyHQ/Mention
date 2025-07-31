@@ -1,25 +1,25 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useOxy } from '@oxyhq/services';
-import { usePathname, useRouter } from 'expo-router';
+import { StyleSheet, View, Pressable, Text, ViewStyle, Platform } from 'react-native';
+import { Home, HomeActive, Search, SearchActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
+import { useRouter, usePathname } from 'expo-router';
 import React from 'react';
-import { Platform, Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import Avatar from './Avatar';
+import { useOxy } from '@oxyhq/services';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const BottomBar = () => {
     const router = useRouter();
-    const [activeRoute, setActiveRoute] = React.useState('/');
     const pathname = usePathname();
-    const { showBottomSheet, hideBottomSheet, user, isAuthenticated } = useOxy();
+    const { showBottomSheet, user, isAuthenticated } = useOxy();
+    const insets = useSafeAreaInsets();
 
-    const handlePress = (route: '/' | '/properties' | '/saved' | '/contracts' | '/profile') => {
-        setActiveRoute(route);
+    const handlePress = (route: string) => {
         router.push(route);
     };
 
     const styles = StyleSheet.create({
         bottomBar: {
             width: '100%',
-            height: 60,
+            height: 60 + insets.bottom,
             backgroundColor: '#ffffff',
             flexDirection: 'row',
             justifyContent: 'space-around',
@@ -27,11 +27,14 @@ export const BottomBar = () => {
             borderTopWidth: 1,
             borderTopColor: '#eeeeee',
             elevation: 8,
+            paddingBottom: insets.bottom,
             ...Platform.select({
                 web: {
                     position: 'sticky',
                     bottom: 0,
                     left: 0,
+                    height: 60,
+                    paddingBottom: 0,
                 },
             }),
         } as ViewStyle,
@@ -48,30 +51,46 @@ export const BottomBar = () => {
 
     return (
         <View style={styles.bottomBar}>
-            <Pressable onPress={() => handlePress('/')} style={[styles.tab, activeRoute === '/' && styles.active]}>
-                <Ionicons name={activeRoute === '/' ? "home" : "home-outline"} size={28} color={activeRoute === '/' ? "#4E67EB" : "#000"} />
+            <Pressable onPress={() => handlePress('/')} style={[styles.tab, pathname === '/' && styles.active]}>
+                {pathname === '/' ? (
+                    <HomeActive size={28} color="#4E67EB" />
+                ) : (
+                    <Home size={28} color="#000" />
+                )}
             </Pressable>
-            <Pressable onPress={() => handlePress('/properties')} style={[styles.tab, activeRoute === '/properties' && styles.active]}>
-                <Ionicons name={activeRoute === '/properties' ? "search" : "search-outline"} size={28} color={activeRoute === '/properties' ? "#4E67EB" : "#000"} />
+            <Pressable onPress={() => handlePress('/search')} style={[styles.tab, pathname === '/search' && styles.active]}>
+                {pathname === '/search' ? (
+                    <SearchActive size={28} color="#4E67EB" />
+                ) : (
+                    <Search size={28} color="#000" />
+                )}
             </Pressable>
-            <Pressable onPress={() => handlePress('/saved')} style={[styles.tab, activeRoute === '/saved' && styles.active]}>
-                <Ionicons name={activeRoute === '/saved' ? "bookmark" : "bookmark-outline"} size={28} color={activeRoute === '/saved' ? "#4E67EB" : "#000"} />
+            <Pressable onPress={() => handlePress('/compose')} style={[styles.tab, pathname === '/compose' && styles.active]}>
+                {pathname === '/compose' ? (
+                    <ComposeIIconActive size={28} color="#4E67EB" />
+                ) : (
+                    <ComposeIcon size={28} color="#000" />
+                )}
             </Pressable>
-            <Pressable onPress={() => handlePress('/contracts')} style={[styles.tab, activeRoute === '/contracts' && styles.active]}>
-                <Ionicons name={activeRoute === '/contracts' ? "document-text" : "document-text-outline"} size={28} color={activeRoute === '/contracts' ? "#4E67EB" : "#000"} />
+            <Pressable onPress={() => handlePress('/notifications')} style={[styles.tab, pathname === '/notifications' && styles.active]}>
+                {pathname === '/notifications' ? (
+                    <BellActive size={28} color="#4E67EB" />
+                ) : (
+                    <Bell size={28} color="#000" />
+                )}
             </Pressable>
-            <View style={styles.tab}>
+            <View style={[styles.tab, pathname.startsWith('/@') && styles.active]}>
                 <Avatar
-                  onPress={() => {
-                    if (isAuthenticated) {
-                      handlePress('/profile');
-                    } else {
-                      showBottomSheet?.('SignIn');
-                    }
-                  }}
-                  onLongPress={() => {
-                    showBottomSheet?.('AccountCenter');
-                  }}
+                    onPress={() => {
+                        if (isAuthenticated && user?.username) {
+                            handlePress(`/@${user.username}`);
+                        } else {
+                            showBottomSheet?.('SignIn');
+                        }
+                    }}
+                    onLongPress={() => {
+                        showBottomSheet?.('AccountCenter');
+                    }}
                 />
             </View>
         </View>

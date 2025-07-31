@@ -11,7 +11,7 @@ const rateLimiter = rateLimit({
 });
 
 // Brute force protection middleware (exclude file uploads)
-const bruteForceProtection = slowDown({
+const bruteForceProtection: any = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
   delayAfter: 50000, // allow 100 requests per 15 minutes, then...
   delayMs: () => 500, // add 500ms delay per request above 100 (new behavior)

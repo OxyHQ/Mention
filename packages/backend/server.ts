@@ -5,41 +5,26 @@ import mongoose from "mongoose";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { OxyServices } from "@oxyhq/services";
+import { authMiddleware } from "./src/middleware/auth";
 
 // Models
-import { Post } from "./models/Post";
-import Notification from "./models/Notification";
+import { Post } from "./src/models/Post";
+import Notification from "./src/models/Notification";
 
 // Routers
-import postsRouter from "./routes/posts";
-import notificationsRouter from "./routes/notifications";
-import listsRoutes from "./routes/lists";
-import hashtagsRoutes from "./routes/hashtags";
-import searchRoutes from "./routes/search";
-import analyticsRoutes from "./routes/analytics.routes";
-import feedRoutes from './routes/feed.routes';
-import pollsRoutes from './routes/polls';
+import postsRouter from "./src/routes/posts";
+import notificationsRouter from "./src/routes/notifications";
+import listsRoutes from "./src/routes/lists";
+import hashtagsRoutes from "./src/routes/hashtags";
+import searchRoutes from "./src/routes/search";
+import analyticsRoutes from "./src/routes/analytics.routes";
+import feedRoutes from './src/routes/feed.routes';
+import pollsRoutes from './src/routes/polls';
 
-const oxy = new OxyServices({
-  baseURL: process.env.OXY_API_URL || 'http://localhost:3001'
-});
-const authenticateTokenBase = oxy.createAuthenticateTokenMiddleware({
-  loadFullUser: true
-});
-
-function authenticateToken(req: express.Request, res: express.Response, next: express.NextFunction) {
-  authenticateTokenBase(req, res, (err?: any) => {
-    if (err) {
-      console.error('Auth error:', err);
-      return res.status(401).json({ error: err.message || 'Authentication failed' });
-    }
-    next();
-  });
-}
+// Authentication middleware is now handled by custom authMiddleware
 
 // Middleware
-import { rateLimiter, bruteForceProtection } from "./middleware/security";
+import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
 
 // --- Config ---
 dotenv.config();
@@ -354,7 +339,7 @@ app.set("postsNamespace", postsNamespace);
 const publicApiRouter = express.Router();
 publicApiRouter.use("/posts", postsRouter); // postsRouter splits public/protected
 publicApiRouter.use("/hashtags", hashtagsRoutes);
-publicApiRouter.use("/feed", feedRoutes); // feedRoutes splits public/protected
+publicApiRouter.use("/feed", feedRoutes); // feed routes
 publicApiRouter.use("/polls", pollsRoutes); // pollsRouter splits public/protected
 
 // Authenticated API routes (require authentication)
@@ -367,7 +352,7 @@ authenticatedApiRouter.use("/search", searchRoutes);
 
 // Mount public and authenticated API routers
 app.use("/api", publicApiRouter);
-app.use("/api", authenticateToken, authenticatedApiRouter);
+app.use("/api", authMiddleware, authenticatedApiRouter);
 
 // --- Root API Welcome Route ---
 app.get("", async (req, res) => {
@@ -384,7 +369,7 @@ mongoose.connect(process.env.MONGODB_URI || "", { autoIndex: true, autoCreate: t
 const db = mongoose.connection;
 db.on("error", (error) => { console.error("MongoDB connection error:", error); });
 db.once("open", () => { console.log("Connected to MongoDB successfully"); });
-db.once("open", () => { require("./models/Post"); require("./models/Block"); });
+db.once("open", () => { require("./src/models/Post"); require("./src/models/Block"); });
 
 // --- Server Listen ---
 const PORT = process.env.PORT || 3000;
