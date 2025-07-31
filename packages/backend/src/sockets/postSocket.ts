@@ -11,22 +11,6 @@ interface AuthenticatedSocket extends Socket {
 export const setupPostSocket = (io: SocketIOServer) => {
   const postsNamespace = io.of('/posts');
 
-  // Authentication middleware
-  postsNamespace.use(async (socket: AuthenticatedSocket, next) => {
-    try {
-      const token = socket.handshake.auth.token;
-      if (!token) {
-        return next(new Error('Authentication token is required'));
-      }
-
-      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET!) as { id: string };
-      socket.user = { id: decoded.id };
-      next();
-    } catch (error) {
-      next(new Error('Invalid authentication token'));
-    }
-  });
-
   postsNamespace.on('connection', (socket: AuthenticatedSocket) => {
     logger.info(`Client connected to posts namespace: ${socket.id}`);
 

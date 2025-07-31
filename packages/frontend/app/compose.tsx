@@ -24,7 +24,7 @@ const ComposeScreen = () => {
   const [postContent, setPostContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const { user } = useOxy();
-  const { addPost } = usePostsStore();
+  const { addPost, createPostAPI } = usePostsStore();
   const { t } = useTranslation();
 
   const handlePost = async () => {
@@ -34,28 +34,17 @@ const ComposeScreen = () => {
     try {
       console.log('Attempting to create post...');
 
-      // Create new post data for store
-      const avatarUrl = typeof user.avatar === 'string'
-        ? user.avatar
-        : user.avatar?.url || 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg';
-
-      const newPostData = {
-        user: {
-          name: user.name?.full || user.username,
-          handle: user.username,
-          avatar: avatarUrl,
-          verified: user.verified || false,
+      // Create the post request for the API
+      const postRequest = {
+        content: {
+          text: postContent.trim(),
         },
-        content: postContent.trim(),
-        engagement: {
-          replies: 0,
-          reposts: 0,
-          likes: 0,
-        },
+        mentions: [],
+        hashtags: []
       };
 
-      // Add to store
-      addPost(newPostData);
+      // Send to backend API
+      await createPostAPI(postRequest);
 
       // Show success toast
       toast.success(t('Post published successfully'));

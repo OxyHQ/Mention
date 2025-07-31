@@ -29,5 +29,22 @@ export * from './list';
 // Analytics types
 export * from './analytics';
 
-// Feed types
-export * from './feed';
+// Feed types - use specific exports to avoid conflicts
+export { 
+  FeedUser, 
+  FeedEngagement, 
+  Post as UIPost, 
+  Reply, 
+  FeedRepost, 
+  FeedType, 
+  PostAction, 
+  FeedItem, 
+  FeedResponse, 
+  FeedRequest, 
+  FeedFilters, 
+  FeedStats, 
+  CreateReplyRequest, 
+  CreateRepostRequest, 
+  LikeRequest, 
+  UnlikeRequest 
+} from './feed';

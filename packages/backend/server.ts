@@ -5,7 +5,6 @@ import mongoose from "mongoose";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { authMiddleware } from "./src/middleware/auth";
 
 // Models
 import { Post } from "./src/models/Post";
@@ -20,8 +19,10 @@ import searchRoutes from "./src/routes/search";
 import analyticsRoutes from "./src/routes/analytics.routes";
 import feedRoutes from './src/routes/feed.routes';
 import pollsRoutes from './src/routes/polls';
+import { OxyServices } from '@oxyhq/services/core';
 
-// Authentication middleware is now handled by custom authMiddleware
+const oxy = new OxyServices({ baseURL: 'https://localhost:3001' });
+
 
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
@@ -100,36 +101,6 @@ const io = new SocketIOServer(server, {
     zlibDeflateOptions: { chunkSize: SOCKET_CONFIG.CHUNK_SIZE, windowBits: SOCKET_CONFIG.WINDOW_BITS, level: SOCKET_CONFIG.COMPRESSION_LEVEL },
   },
 });
-
-const verifySocketToken = async (socket: Socket, next: (err?: Error) => void) => {
-  try {
-    const token = socket.handshake.auth.token;
-    if (!token) {
-      console.error("No auth token provided for socket connection");
-      return next(new Error("Authentication token required"));
-    }
-    try {
-      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET!) as { id: string };
-      if (!decoded) {
-        console.error("Token verification failed");
-        return next(new Error("Invalid authentication token"));
-      }
-      (socket as AuthenticatedSocket).user = decoded as { id: string };
-      console.log(`Socket authenticated for user: ${decoded.id}`);
-      return next();
-    } catch (error) {
-      console.error("JWT verification error:", error);
-      if (error instanceof jwt.TokenExpiredError) return next(error);
-      if (error instanceof jwt.JsonWebTokenError) return next(error);
-      if (error instanceof Error) return next(error);
-      return next(new Error("Authentication failed"));
-    }
-  } catch (error) {
-    console.error("Socket authentication error:", error);
-    if (error instanceof Error) return next(error);
-    return next(new Error("Authentication failed"));
-  }
-};
 
 const configureNamespaceErrorHandling = (namespace: Namespace) => {
   namespace.on("connection_error", (error: Error) => {
@@ -246,12 +217,10 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   notificationsNamespace,
   postsNamespace,
 ].forEach((namespace) => {
-  namespace.use(verifySocketToken);
   configureNamespaceErrorHandling(namespace);
 });
 
 // Configure main namespace with enhanced error handling
-io.use(verifySocketToken);
 io.on("connection", (socket: AuthenticatedSocket) => {
   console.log("Client connected from ip:", socket.handshake.address);
 
@@ -337,13 +306,13 @@ app.set("postsNamespace", postsNamespace);
 // --- API ROUTES ---
 // Public API routes (no authentication required)
 const publicApiRouter = express.Router();
-publicApiRouter.use("/posts", postsRouter); // postsRouter splits public/protected
 publicApiRouter.use("/hashtags", hashtagsRoutes);
 publicApiRouter.use("/feed", feedRoutes); // feed routes
-publicApiRouter.use("/polls", pollsRoutes); // pollsRouter splits public/protected
+publicApiRouter.use("/polls", pollsRoutes); // pollsRoutes splits public/protected
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
+authenticatedApiRouter.use("/posts", postsRouter); // All post routes require authentication
 authenticatedApiRouter.use("/lists", listsRoutes);
 authenticatedApiRouter.use("/notifications", notificationsRouter);
 authenticatedApiRouter.use("/analytics", analyticsRoutes);
@@ -352,7 +321,7 @@ authenticatedApiRouter.use("/search", searchRoutes);
 
 // Mount public and authenticated API routers
 app.use("/api", publicApiRouter);
-app.use("/api", authMiddleware, authenticatedApiRouter);
+app.use("/api", oxy.auth(), authenticatedApiRouter);
 
 // --- Root API Welcome Route ---
 app.get("", async (req, res) => {

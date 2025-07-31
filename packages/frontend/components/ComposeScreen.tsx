@@ -21,7 +21,7 @@ const MAX_CHARACTERS = 280;
 
 const ComposeScreen: React.FC = () => {
     const { user } = useOxy();
-    const { addPost } = usePostsStore();
+    const { addPost, createPostAPI } = usePostsStore();
     const insets = useSafeAreaInsets();
 
     const [content, setContent] = useState('');
@@ -38,28 +38,17 @@ const ComposeScreen: React.FC = () => {
         setIsSubmitting(true);
 
         try {
-            // Create new post data
-            const avatarUrl = typeof user.avatar === 'string'
-                ? user.avatar
-                : user.avatar?.url || 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg';
-
-            const newPostData = {
-                user: {
-                    name: user.name?.full || user.username,
-                    handle: user.username,
-                    avatar: avatarUrl,
-                    verified: user.verified || false,
+            // Create the post request for the API
+            const postRequest = {
+                content: {
+                    text: content.trim(),
                 },
-                content: content.trim(),
-                engagement: {
-                    replies: 0,
-                    reposts: 0,
-                    likes: 0,
-                },
+                mentions: [],
+                hashtags: []
             };
 
-            // Add to store
-            addPost(newPostData);
+            // Send to backend API
+            await createPostAPI(postRequest);
 
             // Navigate back
             router.back();

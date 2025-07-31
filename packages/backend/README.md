@@ -60,8 +60,7 @@ Create a `.env` file in this package directory with the following variables:
 MONGODB_URI=your_mongodb_connection_string
 
 # Authentication
-ACCESS_TOKEN_SECRET=your_jwt_access_token_secret
-REFRESH_TOKEN_SECRET=your_jwt_refresh_token_secret
+# WE USE OXY FOR AUTHENTICATION
 
 # Server Configuration
 PORT=3000

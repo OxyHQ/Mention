@@ -1,19 +1,18 @@
 import { create } from 'zustand';
-import { Post, Reply, FeedRepost as Repost, FeedRequest, FeedResponse, CreateReplyRequest, CreateRepostRequest, LikeRequest, UnlikeRequest } from '@mention/shared-types';
-import { feedApi } from '../utils/api';
-
+import { UIPost, Reply, FeedRepost as Repost, FeedRequest, FeedResponse, CreateReplyRequest, CreateRepostRequest, CreatePostRequest, LikeRequest, UnlikeRequest } from '@mention/shared-types';
+import { feedService } from '../services/feedService';
 
 
 interface PostsState {
-  posts: Post[];
+  posts: UIPost[];
   replies: Reply[];
   reposts: Repost[];
   isLoading: boolean;
   error: string | null;
   
   // Post Actions
-  addPost: (post: Omit<Post, 'id' | 'date'>) => void;
-  updatePost: (id: string, updates: Partial<Post>) => void;
+  addPost: (post: Omit<UIPost, 'id' | 'date'>) => void;
+  updatePost: (id: string, updates: Partial<UIPost>) => void;
   deletePost: (id: string) => void;
   likePost: (id: string) => void;
   unlikePost: (id: string) => void;
@@ -36,6 +35,7 @@ interface PostsState {
   
   // API Integration Actions
   fetchFeed: (request: FeedRequest) => Promise<void>;
+  createPostAPI: (request: CreatePostRequest) => Promise<void>;
   createReplyAPI: (request: CreateReplyRequest) => Promise<void>;
   createRepostAPI: (request: CreateRepostRequest) => Promise<void>;
   likeItemAPI: (request: LikeRequest) => Promise<void>;
@@ -455,25 +455,62 @@ export const usePostsStore = create<PostsState>((set, get) => ({
     try {
       const response = await feedService.getFeed(request);
       
-      // Transform the response to match our store structure
-      const posts: UIPost[] = [];
-      const replies: Reply[] = [];
-      const reposts: Repost[] = [];
+      // The backend returns { data: { posts: [...], nextCursor, hasMore } }
+      // But feedService returns the response directly, so we need to handle it correctly
+      const responseData = response as any;
+      
+      if (responseData.data && responseData.data.posts) {
+        const posts: UIPost[] = responseData.data.posts.map((post: any) => ({
+          id: post.id,
+          user: {
+            name: post.author?.name || 'User',
+            handle: post.author?.username || 'user',
+            avatar: post.author?.avatar || '',
+            verified: post.author?.verified || false,
+          },
+          content: post.text || post.content || '',
+          date: new Date(post.created_at).toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric' 
+          }),
+          engagement: {
+            replies: post.replies_count || 0,
+            reposts: post.reposts_count || 0,
+            likes: post.likes_count || 0,
+          },
+          media: post.media || [],
+          isLiked: post.is_liked || false,
+          isReposted: post.is_reposted || false,
+        }));
 
-      response.items.forEach(item => {
-        if (item.type === 'post') {
-          posts.push(item.data as UIPost);
-        } else if (item.type === 'reply') {
-          replies.push(item.data as Reply);
-        } else if (item.type === 'repost') {
-          reposts.push(item.data as Repost);
-        }
-      });
-
-      set({ posts, replies, reposts, isLoading: false });
+        set({ posts, isLoading: false });
+      } else {
+        set({ posts: [], isLoading: false });
+      }
     } catch (error) {
+      console.error('Error fetching feed:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Failed to fetch feed', 
+        isLoading: false 
+      });
+    }
+  },
+
+  createPostAPI: async (request) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await feedService.createPost(request);
+      if (response.success) {
+        // Add the new post to the store
+        const newPost = response.post;
+        set(state => ({
+          posts: [newPost, ...state.posts],
+          isLoading: false
+        }));
+      }
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to create post', 
         isLoading: false 
       });
     }

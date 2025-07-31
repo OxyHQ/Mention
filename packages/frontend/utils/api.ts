@@ -21,11 +21,11 @@ const API_CONFIG = {
   },
 };
 
-// Initialize OxyServices
+// Initialize OxyServices - if it automatically adds /api prefix, we don't need it in baseURL
 const oxyServices = new OxyServices({ baseURL: API_CONFIG.baseURL });
 const authenticatedClient = oxyServices.getClient();
 
-// API methods using authenticatedClient
+// API methods using authenticatedClient (with token handling)
 export const api = {
   async get<T = any>(endpoint: string, params?: Record<string, any>): Promise<{ data: T }> {
     const response = await authenticatedClient.get(endpoint, { params });
