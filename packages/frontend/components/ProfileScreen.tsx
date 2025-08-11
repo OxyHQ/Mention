@@ -27,8 +27,8 @@ const AnimatedBlurView = Animated.createAnimatedComponent(BlurView as any);
 
 
 
-const TwitterProfile: React.FC = () => {
-    const { user: currentUser, logout, oxyServices, showBottomSheet } = useOxy();
+const MentionProfile: React.FC = () => {
+    const { user: currentUser, logout, oxyServices, showBottomSheet, useFollow } = useOxy();
     const { posts, replies, reposts } = usePostsStore();
     let { username } = useLocalSearchParams<{ username: string }>();
     if (username && username.startsWith('@')) {
@@ -40,6 +40,9 @@ const TwitterProfile: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const scrollY = useRef(new Animated.Value(0)).current;
     const insets = useSafeAreaInsets();
+
+    // Follow counts
+    const { followerCount, followingCount, isLoadingCounts } = useFollow(profileData?.id);
 
     // Fetch profile data
     useEffect(() => {
@@ -63,12 +66,6 @@ const TwitterProfile: React.FC = () => {
 
         fetchProfileData();
     }, [username, oxyServices]);
-
-
-
-
-
-
 
     const mediaImages = [
         'https://images.unsplash.com/photo-1551650975-87deedd944c3?w=400&h=400&fit=crop',
@@ -359,13 +356,13 @@ const TwitterProfile: React.FC = () => {
                                 <View style={styles.followStats}>
                                     <TouchableOpacity style={styles.statItem}>
                                         <Text style={styles.statNumber}>
-                                            {profileData?._count?.followers || 0}
+                                            {followerCount || 0}
                                         </Text>
                                         <Text style={styles.statLabel}>Following</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={styles.statItem}>
                                         <Text style={styles.statNumber}>
-                                            {profileData?._count?.following || 0}
+                                            {followingCount || 0}
                                         </Text>
                                         <Text style={styles.statLabel}>Followers</Text>
                                     </TouchableOpacity>
@@ -822,4 +819,4 @@ const styles = StyleSheet.create({
 
 });
 
-export default TwitterProfile;
+export default MentionProfile;

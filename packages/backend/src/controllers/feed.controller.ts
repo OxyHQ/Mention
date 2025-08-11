@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Post } from '../models/Post';
 import { FeedRequest, CreateReplyRequest, CreateRepostRequest, LikeRequest, UnlikeRequest } from '@mention/shared-types';
 import mongoose from 'mongoose';
+import { oxyClient } from '@oxyhq/services/core';
 
 interface AuthRequest extends Request {
   user?: {
@@ -15,18 +16,62 @@ class FeedController {
    * Transform posts to include full profile data
    */
   private async transformPostsWithProfiles(posts: any[], includeProfiles: boolean) {
-    // Basic transformation
+    // Get unique user IDs to fetch user data in batch
+    const userIds = [...new Set(posts.map(post => {
+      const postObj = post.toObject ? post.toObject() : post;
+      return postObj.userID ? postObj.userID.toString() : postObj.oxyUserId;
+    }))];
+
+    // Fetch user data from Oxy
+    const userDataMap = new Map();
+    
+    try {
+      // Fetch all users in parallel
+      await Promise.all(userIds.map(async (userId) => {
+        try {
+          if (userId) {
+            // Try to get user profile by userId
+            const userData = await oxyClient.getUserById(userId);
+            userDataMap.set(userId, {
+              id: userData.id,
+              username: userData.username || 'user',
+              name: userData.name?.full || userData.username || 'Userss',
+              avatar: userData.avatar?.url || userData.avatar || '',
+              verified: userData.verified || false
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching user data for ${userId}:`, error);
+          // Fallback user data
+          userDataMap.set(userId, {
+            id: userId,
+            username: 'user',
+            name: 'User',
+            avatar: '',
+            verified: false
+          });
+        }
+      }));
+    } catch (error) {
+      console.error('Error fetching user profiles:', error);
+    }
+
+    // Transform posts with real user data
     const transformedPosts = posts.map(post => {
       const postObj = post.toObject ? post.toObject() : post;
+      const userId = postObj.userID ? postObj.userID.toString() : postObj.oxyUserId;
+      const userData = userDataMap.get(userId) || {
+        id: userId,
+        username: 'user',
+        name: 'User',
+        avatar: '',
+        verified: false
+      };
+      
       return {
         ...postObj,
         id: postObj._id.toString(),
-        author: {
-          id: postObj.userID ? postObj.userID.toString() : postObj.oxyUserId,
-          username: "user",
-          name: "User",
-          avatar: ""
-        }
+        author: userData
       };
     });
     
