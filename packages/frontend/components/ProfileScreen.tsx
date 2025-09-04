@@ -320,15 +320,21 @@ const MentionProfile: React.FC = () => {
 
                             {(!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
                                 <View style={styles.followStats}>
-                                    <TouchableOpacity style={styles.statItem}>
+                                    <TouchableOpacity
+                                        style={styles.statItem}
+                                        onPress={() => router.push(`/@${profileData?.username || username}/following`)}
+                                    >
                                         <Text style={styles.statNumber}>
-                                            {profileData?._count?.followers || 0}
+                                            {profileData?._count?.following ?? 0}
                                         </Text>
                                         <Text style={styles.statLabel}>Following</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={styles.statItem}>
+                                    <TouchableOpacity
+                                        style={styles.statItem}
+                                        onPress={() => router.push(`/@${profileData?.username || username}/followers`)}
+                                    >
                                         <Text style={styles.statNumber}>
-                                            {profileData?._count?.following || 0}
+                                            {profileData?._count?.followers ?? 0}
                                         </Text>
                                         <Text style={styles.statLabel}>Followers</Text>
                                     </TouchableOpacity>

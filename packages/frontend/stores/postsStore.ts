@@ -125,7 +125,9 @@ const createDefaultFeedsState = () => ({
   reposts: createDefaultFeedState(),
   media: createDefaultFeedState(),
   likes: createDefaultFeedState(),
-  mixed: createDefaultFeedState()
+  mixed: createDefaultFeedState(),
+  for_you: createDefaultFeedState(),
+  following: createDefaultFeedState(),
 });
 
 // Normalize backend payload to UI-friendly shape
@@ -608,7 +610,7 @@ export const usePostsStore = create<FeedState>()(
         if (response.success) {
           // Update post repost state locally in all feed types
           set(state => {
-            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed'];
+            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following'];
             const updatedFeeds: any = { ...state.feeds };
 
             feedTypes.forEach(feedType => {
@@ -650,7 +652,7 @@ export const usePostsStore = create<FeedState>()(
         if (response.success) {
           // Update post repost state locally in all feed types
           set(state => {
-            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed'];
+            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following'];
             const updatedFeeds: any = { ...state.feeds };
 
             feedTypes.forEach(feedType => {
@@ -690,7 +692,7 @@ export const usePostsStore = create<FeedState>()(
         if (response.success) {
           // Update post like state locally in all feed types
           set(state => {
-            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed'];
+            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following'];
             const updatedFeeds: any = { ...state.feeds };
 
             feedTypes.forEach(feedType => {
@@ -730,7 +732,7 @@ export const usePostsStore = create<FeedState>()(
         if (response.success) {
           // Update post like state locally in all feed types
           set(state => {
-            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed'];
+            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following'];
             const updatedFeeds: any = { ...state.feeds };
 
             feedTypes.forEach(feedType => {

@@ -88,14 +88,8 @@ class PollsController {
 
         // If we have a valid post, update its metadata
         if (post) {
-          const metadata = {
-            poll: {
-              id: poll._id
-            }
-          };
-          
           await Post.findByIdAndUpdate(postId, {
-            $set: { metadata: JSON.stringify(metadata) }
+            $set: { 'metadata.pollId': String(poll._id) }
           });
         }
 
@@ -379,14 +373,8 @@ class PollsController {
       await poll.save();
 
       // Update post metadata to include poll reference
-      const metadata = {
-        poll: {
-          id: poll._id
-        }
-      };
-      
       await Post.findByIdAndUpdate(postId, {
-        $set: { metadata: JSON.stringify(metadata) }
+        $set: { 'metadata.pollId': String(poll._id) }
       });
 
       res.json({

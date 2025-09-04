@@ -204,6 +204,20 @@ const PostItem: React.FC<PostItemProps> = ({
                 media={(post as any).media}
                 nestedPost={(originalPost || parentPost) ?? null}
                 leftOffset={AVATAR_OFFSET}
+                pollId={(() => {
+                    const md: any = (post as any).metadata;
+                    try {
+                        if (!md) return null;
+                        // support object, stringified JSON, and direct pollId
+                        if (typeof md === 'string') {
+                            const parsed = JSON.parse(md);
+                            return parsed?.poll?.id || parsed?.pollId || null;
+                        }
+                        return md?.pollId || md?.poll?.id || null;
+                    } catch {
+                        return null;
+                    }
+                })() as any}
             />
 
             {/* Only show engagement buttons for non-nested posts */}

@@ -54,7 +54,14 @@ const PostDetailScreen: React.FC = () => {
                 }
 
                 if (foundPost) {
-                    setPost(foundPost);
+                    // If the item from store lacks user data (edge cases), fetch transformed version
+                    // @ts-ignore
+                    if (!foundPost.user || !foundPost.user.handle) {
+                        const response = await getPostById(id);
+                        setPost(response);
+                    } else {
+                        setPost(foundPost as any);
+                    }
                 } else {
                     // Fetch from API if not in store
                     const response = await getPostById(id);

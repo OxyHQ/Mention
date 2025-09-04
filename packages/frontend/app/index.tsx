@@ -19,7 +19,7 @@ import { usePostsStore } from '../stores/postsStore';
 const MainFeedScreen = () => {
     const { user, isAuthenticated } = useOxy();
     const { savePost, unsavePost } = usePostsStore();
-    const [activeTab, setActiveTab] = useState<'mixed' | 'posts' | 'media' | 'replies' | 'reposts'>('mixed');
+    const [activeTab, setActiveTab] = useState<'for_you' | 'following'>('for_you');
 
     // Debug authentication state
     console.log('🔐 MainFeedScreen - isAuthenticated:', isAuthenticated, 'user:', user?.id);
@@ -97,16 +97,13 @@ const MainFeedScreen = () => {
 
                 {/* Tab Navigation */}
                 <View style={styles.tabContainer}>
-                    {renderTabButton('mixed', 'For You', 'home-outline')}
-                    {renderTabButton('posts', 'Posts', 'document-text-outline')}
-                    {renderTabButton('media', 'Media', 'image-outline')}
-                    {renderTabButton('replies', 'Replies', 'chatbubble-outline')}
-                    {renderTabButton('reposts', 'Reposts', 'repeat-outline')}
+                    {renderTabButton('for_you', 'For You', 'home-outline')}
+                    {renderTabButton('following', 'Following', 'people-outline')}
                 </View>
 
                 {/* Feed */}
                 <Feed
-                    type={activeTab}
+                    type={activeTab as any}
                     onSavePress={handleSavePress}
                 />
 

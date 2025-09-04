@@ -5,6 +5,8 @@ const router = Router();
 
 // Public routes
 router.get('/feed', feedController.getFeed.bind(feedController));
+router.get('/for-you', feedController.getForYouFeed.bind(feedController));
+router.get('/following', feedController.getFollowingFeed.bind(feedController));
 router.get('/explore', feedController.getExploreFeed.bind(feedController));
 router.get('/media', feedController.getMediaFeed.bind(feedController));
 router.get('/quotes', feedController.getQuotesFeed.bind(feedController));

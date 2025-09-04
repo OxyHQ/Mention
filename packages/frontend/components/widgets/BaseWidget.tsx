@@ -1,37 +1,59 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { ReactNode } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { colors } from '@/styles/colors';
+import { ThemedText } from '@/components/ThemedText';
 
-export interface BaseWidgetProps {
+type BaseWidgetProps = {
     title?: string;
-    children?: React.ReactNode;
-}
+    icon?: ReactNode;
+    children: ReactNode;
+    noPadding?: boolean;
+};
 
-export function BaseWidget({ title, children }: BaseWidgetProps) {
+export function BaseWidget({ title, icon, children, noPadding = false }: BaseWidgetProps) {
     return (
-        <View style={styles.container}>
-            {title && <Text style={styles.title}>{title}</Text>}
-            {children}
+        <View style={styles.widgetContainer}>
+            {title && (
+                <View style={styles.widgetHeader}>
+                    <ThemedText style={styles.widgetTitle}>{title}</ThemedText>
+                    {icon && <View>{icon}</View>}
+                </View>
+            )}
+            <View style={[styles.widgetContent, noPadding && styles.noPadding]}>{children}</View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        padding: 16,
-        backgroundColor: '#fff',
-        borderRadius: 8,
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-        elevation: 5,
+    widgetContainer: {
+        backgroundColor: colors.primaryLight,
+        borderRadius: 15,
+        overflow: 'hidden',
+        pointerEvents: 'auto' as any,
+        borderWidth: 1,
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
     },
-    title: {
+    widgetHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingBottom: 12,
+        borderBottomWidth: 0.5,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        margin: 15,
+        marginBottom: 6,
+    },
+    widgetTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        marginBottom: 12,
+        color: colors.COLOR_BLACK_LIGHT_1,
+    },
+    widgetContent: {
+        padding: 15,
+        paddingTop: 0,
+    },
+    noPadding: {
+        padding: 0,
+        paddingBottom: 10,
     },
 });

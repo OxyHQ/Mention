@@ -35,6 +35,12 @@ class FeedService {
       let endpoint = '/feed/feed'; // default endpoint
       
       switch (request.type) {
+        case 'for_you':
+          endpoint = '/feed/for-you';
+          break;
+        case 'following':
+          endpoint = '/feed/following';
+          break;
         case 'media':
           endpoint = '/feed/media';
           break;

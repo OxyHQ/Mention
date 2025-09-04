@@ -1,7 +1,8 @@
 import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/ThemedText';
 import { colors } from '@/styles/colors';
-import { Avatar, FollowButton, Models, useOxy } from '@oxyhq/services';
+import Avatar from '@/components/Avatar';
+import { FollowButton, Models, useOxy } from '@oxyhq/services';
 import { Link, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +11,7 @@ import { ActivityIndicator, FlatList, View } from 'react-native';
 export default function FollowersScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
-  const { user, oxyServices } = useOxy();
+  const { oxyServices } = useOxy();
   const [loading, setLoading] = useState(true);
   const [followers, setFollowers] = useState<Models.User[]>([]);
   const [profile, setProfile] = useState<Models.User | null>(null);
@@ -23,11 +24,16 @@ export default function FollowersScreen() {
         if (!userProfile) {
           throw new Error('User profile is null');
         }
-        if (userProfile?._id) {
+        if (userProfile?._id || userProfile?.id) {
           setProfile(userProfile);
-          const followersList = await oxyServices.getUserFollowers(userProfile._id);
+          const followersList: any = await oxyServices.getUserFollowers((userProfile as any)._id || (userProfile as any).id);
           console.log('Followers:', followersList);
-          setFollowers(followersList || []);
+          const list = Array.isArray(followersList?.followers)
+            ? followersList.followers
+            : Array.isArray(followersList)
+              ? followersList
+              : [];
+          setFollowers(list);
         }
       } catch (error) {
         console.error('Error loading followers:', error);
@@ -49,7 +55,7 @@ export default function FollowersScreen() {
     }}>
       <Link href={`/@${item.username}`} asChild>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <Avatar uri={item.avatar?.url} size={40} />
+          <Avatar source={(item as any)?.avatar?.url || (item as any)?.avatar} size={40} />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <ThemedText style={{ fontWeight: '600' }}>
               {item.name?.first ? `${item.name.first} ${item.name.last || ''}`.trim() : item.username}
@@ -58,7 +64,7 @@ export default function FollowersScreen() {
           </View>
         </View>
       </Link>
-      <FollowButton userId={item._id || item.userID} />
+      <FollowButton userId={(item as any).id || (item as any)._id || (item as any).userID} />
     </View>
   );
 
@@ -73,11 +79,11 @@ export default function FollowersScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Header options={{ title: `${profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : username} ${t("Followers")}`, showBackButton: true }} />
+      <Header options={{ title: `${profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : cleanUsername} ${t("Followers")}`, showBackButton: true }} />
       <FlatList
         data={followers}
         renderItem={renderUser}
-        keyExtractor={(item) => item._id || item.userID}
+        keyExtractor={(item) => (item as any).id || (item as any)._id || (item as any).userID}
         ListEmptyComponent={
           <View style={{ padding: 16, alignItems: 'center' }}>
             <ThemedText>{t("No followers yet")}</ThemedText>

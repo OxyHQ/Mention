@@ -308,7 +308,9 @@ app.set("postsNamespace", postsNamespace);
 // Public API routes (no authentication required)
 const publicApiRouter = express.Router();
 publicApiRouter.use("/hashtags", hashtagsRoutes);
-publicApiRouter.use("/polls", pollsRoutes); // pollsRoutes splits public/protected
+// Move polls under authenticated router so req.user is available for create/vote
+// If you want public GET access later, split the router or add a public shim.
+// publicApiRouter.use("/polls", pollsRoutes);
 publicApiRouter.get("/feed/debug", async (req, res) => {
   try {
     const posts = await Post.find({}).limit(3).lean();
@@ -340,6 +342,7 @@ authenticatedApiRouter.use("/notifications", notificationsRouter);
 authenticatedApiRouter.use("/analytics", analyticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
 authenticatedApiRouter.use("/feed", feedRoutes); // Feed routes require authentication
+authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authentication
 authenticatedApiRouter.use("/test", testRoutes);
 // You can add more protected routers here as needed
 

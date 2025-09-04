@@ -59,7 +59,9 @@ const PostMetadataSchema = new Schema({
   authorMuted: { type: Boolean, default: false },
   // Track user interactions
   likedBy: [{ type: String }], // Array of user IDs who liked this post
-  savedBy: [{ type: String }]  // Array of user IDs who saved this post
+  savedBy: [{ type: String }],  // Array of user IDs who saved this post
+  // Poll reference (separate Poll model)
+  pollId: { type: String }
 });
 
 const PostSchema = new Schema<IPost>({

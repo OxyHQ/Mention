@@ -63,7 +63,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <View style={styles.headerRow}>
-        {avatarUri ? <PostAvatar uri={avatarUri} size={avatarSize} /> : null}
+        <PostAvatar uri={avatarUri} size={avatarSize} />
         <View style={styles.headerMeta}>
           <View style={styles.postHeader}>
             <Text style={styles.postUserName}>

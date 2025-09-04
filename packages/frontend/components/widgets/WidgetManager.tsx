@@ -3,6 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import {
     BaseWidget
 } from './';
+import { WhoToFollowWidget } from './WhoToFollowWidget';
+import { FollowingWidget } from './FollowingWidget';
 
 // Define screen IDs for social network
 export type ScreenId =
@@ -32,15 +34,8 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
         switch (screen) {
             case 'home':
                 return [
-                    <View key="trending-topics">
-                        <Text>Trending Topics Widget</Text>
-                    </View>,
-                    <View key="suggested-users">
-                        <Text>Suggested Users Widget</Text>
-                    </View>,
-                    <View key="activity-feed">
-                        <Text>Activity Feed Widget</Text>
-                    </View>
+                    <WhoToFollowWidget key="who-to-follow" />,
+                    <FollowingWidget key="following-preview" />,
                 ];
 
             case 'explore':
@@ -128,9 +123,10 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
 
 const styles = StyleSheet.create({
     container: {
-        padding: 10,
+        flexDirection: 'column',
+        gap: 15,
     },
     widgetWrapper: {
-        marginBottom: 16,
+        marginBottom: 0, // No margin since we're using gap
     },
-}); 
+});

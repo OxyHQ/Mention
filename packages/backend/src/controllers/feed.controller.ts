@@ -393,6 +393,185 @@ class FeedController {
   }
 
   /**
+   * Get personalized For You feed (engagement-ranked)
+   */
+  async getForYouFeed(req: AuthRequest, res: Response) {
+    try {
+      const { cursor, limit = 20 } = req.query as any;
+      const currentUserId = req.user?.id;
+
+      // Following for personalization
+      let followingIds: string[] = [];
+      try {
+        if (currentUserId) {
+          const followingRes = await oxyClient.getUserFollowing(currentUserId);
+          const followingUsers = (followingRes as any)?.following || [];
+          followingIds = followingUsers.map((u: any) => u.id).filter(Boolean);
+        }
+      } catch (e) {
+        console.error('ForYou: getUserFollowing failed; continuing without follow boost', e);
+      }
+
+      const match: any = {
+        visibility: PostVisibility.PUBLIC,
+        $and: [
+          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        ]
+      };
+
+      if (cursor) {
+        match._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+      }
+
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+      const posts = await Post.aggregate([
+        { $match: match },
+        {
+          $addFields: {
+            engagementScore: {
+              $add: [
+                { $ifNull: ['$stats.likesCount', 0] },
+                { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
+                { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
+              ]
+            },
+            followBoost: { $cond: [{ $in: ['$oxyUserId', followingIds] }, 1.5, 1] },
+            interactionBoost: {
+              $cond: [
+                { $or: [
+                  { $in: [currentUserId || '', '$metadata.likedBy'] },
+                  { $in: [currentUserId || '', '$metadata.savedBy'] }
+                ]}, 1.2, 1]
+            },
+            recencyBoost: {
+              $cond: [
+                { $gte: ['$createdAt', threeDaysAgo] }, 1.3,
+                { $cond: [ { $gte: ['$createdAt', sevenDaysAgo] }, 1.15, 1 ] }
+              ]
+            }
+          }
+        },
+        {
+          $addFields: {
+            finalScore: {
+              $multiply: ['$engagementScore', '$followBoost', '$interactionBoost', '$recencyBoost']
+            }
+          }
+        },
+        { $sort: { finalScore: -1, createdAt: -1 } },
+        { $limit: Number(limit) + 1 }
+      ]);
+
+      const hasMore = posts.length > Number(limit);
+      const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
+      const nextCursor = hasMore ? posts[Number(limit) - 1]._id.toString() : undefined;
+
+      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+
+      const response: FeedResponse = {
+        items: transformedPosts.map(post => ({
+          id: post.id,
+          type: 'post',
+          data: post,
+          createdAt: post.date,
+          updatedAt: post.date
+        })),
+        hasMore,
+        nextCursor,
+        totalCount: transformedPosts.length
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Error fetching For You feed:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch For You feed',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Get Following feed (posts from accounts the user follows)
+   */
+  async getFollowingFeed(req: AuthRequest, res: Response) {
+    try {
+      const { cursor, limit = 20 } = req.query as any;
+      const currentUserId = req.user?.id;
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      // Get following list from Oxy
+      const followingRes = await oxyClient.getUserFollowing(currentUserId);
+      const rawList = Array.isArray((followingRes as any)?.following)
+        ? (followingRes as any).following
+        : (Array.isArray(followingRes) ? (followingRes as any) : []);
+      const extracted = (rawList as any[]).map((u: any) => (
+        typeof u === 'string' 
+          ? u 
+          : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
+      ));
+      const followingIds = [
+        ...new Set([
+          ...extracted.filter(Boolean),
+          currentUserId // include user's own posts
+        ])
+      ];
+
+      if (followingIds.length === 0) {
+        return res.json({ items: [], hasMore: false, totalCount: 0 });
+      }
+
+      const query: any = {
+        oxyUserId: { $in: followingIds },
+        visibility: PostVisibility.PUBLIC,
+        parentPostId: null,
+        repostOf: null
+      };
+
+      if (cursor) {
+        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+      }
+
+      const posts = await Post.find(query)
+        .sort({ createdAt: -1 })
+        .limit(Number(limit) + 1)
+        .lean();
+
+      const hasMore = posts.length > Number(limit);
+      const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
+      const nextCursor = hasMore ? posts[Number(limit) - 1]._id.toString() : undefined;
+
+      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+
+      const response: FeedResponse = {
+        items: transformedPosts.map(post => ({
+          id: post.id,
+          type: 'post',
+          data: post,
+          createdAt: post.date,
+          updatedAt: post.date
+        })),
+        hasMore,
+        nextCursor,
+        totalCount: transformedPosts.length
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Error fetching Following feed:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch Following feed',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
    * Get explore feed (trending posts)
    */
   async getExploreFeed(req: AuthRequest, res: Response) {
