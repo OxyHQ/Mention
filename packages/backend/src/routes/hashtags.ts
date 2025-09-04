@@ -16,13 +16,13 @@ router.get("/", async (req: Request, res: Response) => {
     
     posts.forEach((post) => {
       // Extract hashtags from post text using regex
-      const hashtags = (post.text as string).match(/#[a-zA-Z0-9_]+/g) || [];
+      const hashtags = (post.content?.text || '').match(/#[a-zA-Z0-9_]+/g) || [];
       hashtags.forEach((hashtag: string) => {
         const tag = hashtag.toLowerCase();
         if (!hashtagCounts[tag]) {
           hashtagCounts[tag] = { 
             count: 0, 
-            createdAt: post.created_at as Date, 
+            createdAt: new Date(post.createdAt), 
             text: hashtag.toLowerCase().substring(1) as string 
           };
         }
@@ -68,7 +68,7 @@ router.post('/search', async (req: Request, res: Response) => {
     const hashtagCounts: Record<string, number> = {};
     
     posts.forEach((post) => {
-      const hashtags = (post.text as string).match(/#[a-zA-Z0-9_]+/g) || [];
+      const hashtags = (post.content?.text || '').match(/#[a-zA-Z0-9_]+/g) || [];
       hashtags.forEach((hashtag: string) => {
         if (hashtag.toLowerCase().includes(query.toLowerCase())) {
           hashtagCounts[hashtag] = (hashtagCounts[hashtag] || 0) + 1;
