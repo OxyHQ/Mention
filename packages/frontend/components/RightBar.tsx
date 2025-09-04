@@ -1,4 +1,3 @@
-import { Trends } from "@/features/trends/Trends";
 import { useOxy } from '@oxyhq/services/full';
 import { usePathname } from "expo-router";
 import React from 'react';
@@ -19,7 +18,7 @@ export function RightBar() {
     return (
         <View style={styles.container}>
             <SearchBar />
-            {!isExplorePage && (<Trends />)}
+            {/* Trends now handled via WidgetManager (TrendsWidget) */}
             <WidgetManager screenId="home" />
         </View>
     )

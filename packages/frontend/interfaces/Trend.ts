@@ -5,4 +5,5 @@ export interface Trend {
   hashtag: string;
   score: number;
   created_at: string;
+  direction?: 'up' | 'down' | 'flat';
 }

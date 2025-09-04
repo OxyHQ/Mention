@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { FollowButton, Models, useOxy } from '@oxyhq/services/full';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
@@ -53,20 +53,18 @@ export function FollowingWidget() {
       ) : (following && following.length > 0) ? (
         <View>
           {following.map((u, idx) => (
-            <Link key={(u as any).id || idx} href={`/@${u.username || (u as any).id}`} asChild>
-              <View style={styles.row}>
-                <View style={styles.rowLeft}>
-                  <Avatar source={(u as any)?.avatar?.url || (u as any)?.avatar} />
-                  <View style={styles.rowTextWrap}>
-                    <Text style={styles.rowTitle}>
-                      {u.name?.first ? `${u.name.first} ${u.name.last || ''}`.trim() : u.username}
-                    </Text>
-                    <Text style={styles.rowSub}>@{u.username || (u as any).id}</Text>
-                  </View>
+            <View key={(u as any).id || idx} style={styles.row}>
+              <View style={styles.rowLeft}>
+                <Avatar source={(u as any)?.avatar?.url || (u as any)?.avatar} />
+                <View style={styles.rowTextWrap}>
+                  <Text style={styles.rowTitle} onPress={() => router.push(`/@${u.username || (u as any).id}`)}>
+                    {u.name?.first ? `${u.name.first} ${u.name.last || ''}`.trim() : u.username}
+                  </Text>
+                  <Text style={styles.rowSub} onPress={() => router.push(`/@${u.username || (u as any).id}`)}>@{u.username || (u as any).id}</Text>
                 </View>
-                <FollowButton userId={(u as any).id || (u as any)._id || (u as any).userID} size="small" />
               </View>
-            </Link>
+              <FollowButton userId={(u as any).id || (u as any)._id || (u as any).userID} size="small" />
+            </View>
           ))}
           <TouchableOpacity onPress={() => router.push(`/@${user.username || user.id}/following`)} style={{ paddingTop: 10 }}>
             <Text style={{ fontSize: 15, color: colors.primaryColor }}>{t('See all')}</Text>

@@ -5,6 +5,7 @@ import {
 } from './';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { FollowingWidget } from './FollowingWidget';
+import { TrendsWidget } from './TrendsWidget';
 
 // Define screen IDs for social network
 export type ScreenId =
@@ -34,18 +35,14 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
         switch (screen) {
             case 'home':
                 return [
+                    <TrendsWidget key="trends" />,
                     <WhoToFollowWidget key="who-to-follow" />,
                     <FollowingWidget key="following-preview" />,
                 ];
 
             case 'explore':
                 return [
-                    <View key="popular-posts">
-                        <Text>Popular Posts Widget</Text>
-                    </View>,
-                    <View key="trending-topics">
-                        <Text>Trending Topics Widget</Text>
-                    </View>
+                    <TrendsWidget key="trends" />,
                 ];
 
             case 'notifications':
@@ -91,9 +88,7 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
 
             case 'search':
                 return [
-                    <View key="trending-topics">
-                        <Text>Trending Topics Widget</Text>
-                    </View>
+                    <TrendsWidget key="trends" />,
                 ];
 
             default:

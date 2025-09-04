@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { FollowButton, Models, useOxy } from '@oxyhq/services/full';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
@@ -76,22 +76,21 @@ function FollowRowComponent({ profileData }: { profileData: Models.User }) {
     : undefined;
   const username = profileData.username || profileData.id;
 
+  const router = useRouter();
   return (
-    <Link href={`/@${username}`} asChild>
-      <View style={styles.row}>
-        <View style={styles.rowLeft}>
-          <Avatar source={avatarUri} />
-          <View style={styles.rowTextWrap}>
-            <Text style={styles.rowTitle}>{displayName}</Text>
-            <Text style={styles.rowSub}>@{username}</Text>
-            {profileData.bio && (
-              <Text style={styles.rowBio} numberOfLines={2}>{profileData.bio}</Text>
-            )}
-          </View>
+    <View style={styles.row}>
+      <View style={styles.rowLeft}>
+        <Avatar source={avatarUri} />
+        <View style={styles.rowTextWrap}>
+          <Text style={styles.rowTitle} onPress={() => router.push(`/@${username}`)}>{displayName}</Text>
+          <Text style={styles.rowSub} onPress={() => router.push(`/@${username}`)}>@{username}</Text>
+          {profileData.bio && (
+            <Text style={styles.rowBio} numberOfLines={2}>{profileData.bio}</Text>
+          )}
         </View>
-        <FollowButton userId={profileData.id} size="small" />
       </View>
-    </Link>
+      <FollowButton userId={profileData.id} size="small" />
+    </View>
   );
 }
 

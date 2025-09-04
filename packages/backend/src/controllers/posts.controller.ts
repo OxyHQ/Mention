@@ -16,13 +16,17 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     const { text, media, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id } = req.body;
 
+    // Extract hashtags from text if not provided
+    const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
+    const uniqueTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
+
     const post = new Post({
       oxyUserId: userId,
       content: {
         text: text || '',
         images: media || []
       },
-      hashtags: hashtags || [],
+      hashtags: uniqueTags,
       mentions: mentions || [],
       quoteOf: quoted_post_id || null,
       repostOf: repost_of || null,
@@ -181,7 +185,13 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     const { text, media, hashtags, mentions } = req.body;
     
-    if (text !== undefined) post.content.text = text;
+    if (text !== undefined) {
+      post.content.text = text;
+      // Re-extract hashtags when text changes
+      const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
+      const uniqueTags = Array.from(new Set([...(hashtags || post.hashtags || []), ...extractedTags]));
+      post.hashtags = uniqueTags;
+    }
     if (media !== undefined) post.content.images = media;
     if (hashtags !== undefined) post.hashtags = hashtags || [];
     if (mentions !== undefined) post.mentions = mentions || [];
