@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     StyleSheet,
     Text,
@@ -7,7 +7,7 @@ import {
     Image,
     Alert
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useOxy } from '@oxyhq/services';
 import { Feed } from './Feed/index';
 import { usePostsStore } from '../stores/postsStore';
@@ -51,18 +51,53 @@ const ProfileScreen: React.FC = () => {
         fetchProfile();
     }, [username, oxyServices]);
 
-    // Handle post actions
-    const handlePostAction = async (action: string, postId: string) => {
-        console.log(`${action} action for post ${postId}`);
-        // Handle profile-specific actions if needed
-    };
+    // Handle post press
+    const handlePostPress = useCallback((postId: string) => {
+        router.push(`/p/${postId}`);
+    }, []);
 
-    // Handle media press
-    const handleMediaPress = (imageUrl: string, index: number) => {
-        console.log(`Profile media pressed: ${imageUrl} at index ${index}`);
-        // TODO: Implement media viewer
-        Alert.alert('Media Viewer', `Viewing media at index ${index}`);
-    };
+    // Handle user press
+    const handleUserPress = useCallback((username: string) => {
+        router.push(`/@${username}`);
+    }, []);
+
+    // Handle reply press
+    const handleReplyPress = useCallback((postId: string) => {
+        router.push(`/reply?postId=${postId}`);
+    }, []);
+
+    // Handle repost press
+    const handleRepostPress = useCallback((postId: string) => {
+        router.push(`/repost?postId=${postId}`);
+    }, []);
+
+    // Handle like press
+    const handleLikePress = useCallback(async (postId: string) => {
+        try {
+            const { likePost, unlikePost } = usePostsStore.getState();
+            // TODO: Check if post is already liked and toggle accordingly
+            await likePost({ postId });
+        } catch (error) {
+            console.error('Error toggling like:', error);
+        }
+    }, []);
+
+    // Handle share press
+    const handleSharePress = useCallback((postId: string) => {
+        // TODO: Implement share functionality
+        Alert.alert('Share', `Share post ${postId}`);
+    }, []);
+
+    // Handle save press
+    const handleSavePress = useCallback(async (postId: string) => {
+        try {
+            const { savePost, unsavePost } = usePostsStore.getState();
+            // TODO: Check if post is already saved and toggle accordingly
+            await savePost({ postId });
+        } catch (error) {
+            console.error('Error toggling save:', error);
+        }
+    }, []);
 
     // Render profile feed content
     const renderProfileFeedContent = () => {
@@ -71,10 +106,14 @@ const ProfileScreen: React.FC = () => {
         return (
             <Feed
                 type={activeTab as FeedType}
-                onPostAction={handlePostAction}
-                onMediaPress={handleMediaPress}
                 userId={profileData.id}
-                autoRefresh={false} // Disable auto-refresh for profile feeds
+                onPostPress={handlePostPress}
+                onUserPress={handleUserPress}
+                onReplyPress={handleReplyPress}
+                onRepostPress={handleRepostPress}
+                onLikePress={handleLikePress}
+                onSharePress={handleSharePress}
+                onSavePress={handleSavePress}
             />
         );
     };

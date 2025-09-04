@@ -52,16 +52,24 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 };
 
 // Get all posts
-export const getPosts = async (req: Request, res: Response) => {
+export const getPosts = async (req: AuthRequest, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
+    const currentUserId = req.user?.id;
 
     const posts = await Post.find({ visibility: 'public' })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean();
+
+    // Get saved status for current user if authenticated
+    let savedPostIds: string[] = [];
+    if (currentUserId) {
+      const savedPosts = await Bookmark.find({ userId: currentUserId }).lean();
+      savedPostIds = savedPosts.map(saved => saved.postId.toString());
+    }
 
     // Transform posts to match frontend expectations
     const transformedPosts = posts.map((post: any) => {
@@ -75,6 +83,7 @@ export const getPosts = async (req: Request, res: Response) => {
           avatar: typeof userData === 'object' ? userData.avatar : '',
           verified: typeof userData === 'object' ? userData.verified : false
         },
+        isSaved: savedPostIds.includes(post._id.toString()),
         oxyUserId: undefined
       };
     });
@@ -92,13 +101,21 @@ export const getPosts = async (req: Request, res: Response) => {
 };
 
 // Get post by ID
-export const getPostById = async (req: Request, res: Response) => {
+export const getPostById = async (req: AuthRequest, res: Response) => {
   try {
+    const currentUserId = req.user?.id;
     const post = await Post.findById(req.params.id)
       .lean();
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // Check if current user has saved this post
+    let isSaved = false;
+    if (currentUserId) {
+      const savedPost = await Bookmark.findOne({ userId: currentUserId, postId: post._id.toString() });
+      isSaved = !!savedPost;
     }
 
     // Transform post to match frontend expectations
@@ -112,6 +129,7 @@ export const getPostById = async (req: Request, res: Response) => {
         avatar: userData && typeof userData === 'object' ? userData.avatar : '',
         verified: userData && typeof userData === 'object' ? userData.verified : false
       },
+      isSaved,
       oxyUserId: undefined
     };
 
@@ -347,6 +365,63 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error creating quote post:', error);
     res.status(500).json({ message: 'Error creating quote post', error });
+  }
+};
+
+// Get saved posts for current user
+export const getSavedPosts = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    // Get saved post IDs for the user
+    const savedPosts = await Bookmark.find({ userId })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    const postIds = savedPosts.map(saved => saved.postId);
+
+    // Get the actual posts
+    const posts = await Post.find({ 
+      _id: { $in: postIds },
+      visibility: 'public' 
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Transform posts to match frontend expectations
+    const transformedPosts = posts.map((post: any) => {
+      const userData = post.oxyUserId;
+      return {
+        ...post,
+        user: {
+          id: typeof userData === 'object' ? userData._id : userData,
+          name: typeof userData === 'object' ? userData.name : 'Unknown User',
+          handle: typeof userData === 'object' ? userData.username : 'unknown',
+          avatar: typeof userData === 'object' ? userData.avatar : '',
+          verified: typeof userData === 'object' ? userData.verified : false
+        },
+        isSaved: true, // All posts in this endpoint are saved
+        oxyUserId: undefined
+      };
+    });
+
+    res.json({
+      posts: transformedPosts,
+      hasMore: savedPosts.length === limit,
+      page,
+      limit
+    });
+  } catch (error) {
+    console.error('Error fetching saved posts:', error);
+    res.status(500).json({ message: 'Error fetching saved posts', error });
   }
 };
 

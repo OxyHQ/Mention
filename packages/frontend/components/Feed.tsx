@@ -138,7 +138,7 @@ const Feed: React.FC<FeedProps> = ({
         <PostCard
             post={item}
             onPostPress={() => handlePostAction('post', item.id)}
-            onUserPress={() => handlePostAction('user', item.user.id)}
+            onUserPress={() => handlePostAction('user', item.user.handle)}
             onReplyPress={() => handlePostAction('reply', item.id)}
             onRepostPress={() => handlePostAction('repost', item.id)}
             onLikePress={() => handlePostAction('like', item.id)}

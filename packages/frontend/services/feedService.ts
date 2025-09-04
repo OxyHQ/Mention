@@ -206,6 +206,24 @@ class FeedService {
   }
 
   /**
+   * Get saved posts for current user
+   */
+  async getSavedPosts(request: { page?: number; limit?: number } = {}): Promise<{ success: boolean; data: any }> {
+    try {
+      const response = await authenticatedClient.get('/posts/saved', {
+        params: {
+          page: request.page || 1,
+          limit: request.limit || 20
+        }
+      });
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('Error fetching saved posts:', error);
+      throw new Error('Failed to fetch saved posts');
+    }
+  }
+
+  /**
    * Get post by ID
    */
   async getPostById(postId: string): Promise<any> {

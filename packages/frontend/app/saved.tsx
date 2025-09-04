@@ -9,30 +9,36 @@ import { router } from 'expo-router';
 
 const SavedPostsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
-    const { feeds, fetchFeed, refreshFeed, loading, error } = usePostsStore();
+    const { feeds, fetchSavedPosts, refreshFeed, loading, error } = usePostsStore();
     const [refreshing, setRefreshing] = useState(false);
 
-    // For now, we'll show all posts and filter saved ones on the frontend
-    // In a real implementation, you'd want a dedicated API endpoint for saved posts
-    const savedPosts = feeds.posts.items.filter(post => post.isSaved);
+    // Load saved posts data
+    useEffect(() => {
+        if (feeds.posts.items.length === 0 && !loading) {
+            fetchSavedPosts({ page: 1, limit: 50 });
+        }
+    }, [feeds.posts.items.length, loading, fetchSavedPosts]);
+
+    // Use the posts from the saved posts feed
+    const savedPosts = feeds.posts.items;
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            await refreshFeed('posts');
+            await fetchSavedPosts({ page: 1, limit: 50 });
         } catch (error) {
             console.error('Error refreshing saved posts:', error);
         } finally {
             setRefreshing(false);
         }
-    }, [refreshFeed]);
+    }, [fetchSavedPosts]);
 
     const handlePostPress = useCallback((postId: string) => {
         router.push(`/p/${postId}`);
     }, []);
 
-    const handleUserPress = useCallback((userId: string) => {
-        router.push(`/@${userId}`);
+    const handleUserPress = useCallback((username: string) => {
+        router.push(`/@${username}`);
     }, []);
 
     const handleReplyPress = useCallback((postId: string) => {
@@ -80,7 +86,7 @@ const SavedPostsScreen: React.FC = () => {
         <PostCard
             post={item}
             onPostPress={() => handlePostPress(item.id)}
-            onUserPress={() => handleUserPress(item.user.id)}
+            onUserPress={() => handleUserPress(item.user.handle)}
             onReplyPress={() => handleReplyPress(item.id)}
             onRepostPress={() => handleRepostPress(item.id)}
             onLikePress={() => handleLikePress(item.id)}

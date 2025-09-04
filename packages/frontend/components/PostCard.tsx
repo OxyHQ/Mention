@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     View,
     Text,
@@ -80,6 +80,13 @@ const PostCard: React.FC<PostCardProps> = ({
     const [isLiked, setIsLiked] = useState(post.isLiked || false);
     const [isReposted, setIsReposted] = useState(post.isReposted || false);
     const [isSaved, setIsSaved] = useState(post.isSaved || false);
+
+    // Update local state when post props change
+    useEffect(() => {
+        setIsLiked(post.isLiked || false);
+        setIsReposted(post.isReposted || false);
+        setIsSaved(post.isSaved || false);
+    }, [post.isLiked, post.isReposted, post.isSaved]);
 
     // Format date
     const formatDate = useCallback((dateString: string) => {

@@ -33,6 +33,7 @@ interface FeedItem {
   media?: string[];
   isLiked?: boolean;
   isReposted?: boolean;
+  isSaved?: boolean;
   type?: string;
   visibility?: string;
   hashtags?: string[];
@@ -79,6 +80,7 @@ interface FeedState {
   // Feed management
   fetchFeed: (request: FeedRequest) => Promise<void>;
   fetchUserFeed: (userId: string, request: FeedRequest) => Promise<void>;
+  fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
   refreshFeed: (type: FeedType) => Promise<void>;
   loadMoreFeed: (type: FeedType) => Promise<void>;
   
@@ -155,7 +157,19 @@ export const usePostsStore = create<FeedState>()(
           feeds: {
             ...state.feeds,
             [type]: {
-              items: response.items?.map(item => item.data) || [],
+              items: response.items?.map(item => ({
+                ...item.data,
+                // Flatten metadata properties to top level
+                isSaved: item.data.metadata?.isSaved || false,
+                isLiked: item.data.metadata?.isLiked || item.data.isLiked || false,
+                isReposted: item.data.metadata?.isReposted || item.data.isReposted || false,
+                isCommented: item.data.metadata?.isCommented || false,
+                isFollowingAuthor: item.data.metadata?.isFollowingAuthor || false,
+                authorBlocked: item.data.metadata?.authorBlocked || false,
+                authorMuted: item.data.metadata?.authorMuted || false,
+                isSensitive: item.data.metadata?.isSensitive || false,
+                isPinned: item.data.metadata?.isPinned || false,
+              })) || [],
               hasMore: response.hasMore || false,
               nextCursor: response.nextCursor,
               totalCount: response.totalCount || 0,
@@ -210,7 +224,19 @@ export const usePostsStore = create<FeedState>()(
             [userId]: {
               ...state.userFeeds[userId],
               [type]: {
-                items: response.items?.map(item => item.data) || [],
+                items: response.items?.map(item => ({
+                  ...item.data,
+                  // Flatten metadata properties to top level
+                  isSaved: item.data.metadata?.isSaved || false,
+                  isLiked: item.data.metadata?.isLiked || item.data.isLiked || false,
+                  isReposted: item.data.metadata?.isReposted || item.data.isReposted || false,
+                  isCommented: item.data.metadata?.isCommented || false,
+                  isFollowingAuthor: item.data.metadata?.isFollowingAuthor || false,
+                  authorBlocked: item.data.metadata?.authorBlocked || false,
+                  authorMuted: item.data.metadata?.authorMuted || false,
+                  isSensitive: item.data.metadata?.isSensitive || false,
+                  isPinned: item.data.metadata?.isPinned || false,
+                })) || [],
                 hasMore: response.hasMore || false,
                 nextCursor: response.nextCursor,
                 totalCount: response.totalCount || 0,
@@ -236,6 +262,66 @@ export const usePostsStore = create<FeedState>()(
               }
             }
           }
+        }));
+      }
+    },
+
+    // Fetch saved posts
+    fetchSavedPosts: async (request: { page?: number; limit?: number } = {}) => {
+      set(state => ({
+        feeds: {
+          ...state.feeds,
+          posts: {
+            ...state.feeds.posts,
+            isLoading: true,
+            error: null
+          }
+        }
+      }));
+
+      try {
+        const response = await feedService.getSavedPosts(request);
+        
+        set(state => ({
+          feeds: {
+            ...state.feeds,
+            posts: {
+              items: response.data.posts?.map(post => ({
+                ...post,
+                // Flatten metadata properties to top level
+                isSaved: post.metadata?.isSaved || post.isSaved || true, // Saved posts are always saved
+                isLiked: post.metadata?.isLiked || post.isLiked || false,
+                isReposted: post.metadata?.isReposted || post.isReposted || false,
+                isCommented: post.metadata?.isCommented || false,
+                isFollowingAuthor: post.metadata?.isFollowingAuthor || false,
+                authorBlocked: post.metadata?.authorBlocked || false,
+                authorMuted: post.metadata?.authorMuted || false,
+                isSensitive: post.metadata?.isSensitive || false,
+                isPinned: post.metadata?.isPinned || false,
+              })) || [],
+              hasMore: response.data.hasMore || false,
+              nextCursor: null,
+              totalCount: response.data.posts?.length || 0,
+              isLoading: false,
+              error: null,
+              lastUpdated: Date.now()
+            }
+          },
+          lastRefresh: Date.now()
+        }));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch saved posts';
+        
+        set(state => ({
+          feeds: {
+            ...state.feeds,
+            posts: {
+              ...state.feeds.posts,
+              isLoading: false,
+              error: errorMessage
+            }
+          },
+          error: errorMessage
         }));
       }
     },
@@ -637,7 +723,19 @@ export const usePostsStore = create<FeedState>()(
     getPostById: async (postId: string) => {
       try {
         const response = await feedService.getPostById(postId);
-        return response;
+        // Transform the response to flatten metadata properties
+        return {
+          ...response,
+          isSaved: response.metadata?.isSaved || response.isSaved || false,
+          isLiked: response.metadata?.isLiked || response.isLiked || false,
+          isReposted: response.metadata?.isReposted || response.isReposted || false,
+          isCommented: response.metadata?.isCommented || false,
+          isFollowingAuthor: response.metadata?.isFollowingAuthor || false,
+          authorBlocked: response.metadata?.authorBlocked || false,
+          authorMuted: response.metadata?.authorMuted || false,
+          isSensitive: response.metadata?.isSensitive || false,
+          isPinned: response.metadata?.isPinned || false,
+        };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch post';
         set({ error: errorMessage });

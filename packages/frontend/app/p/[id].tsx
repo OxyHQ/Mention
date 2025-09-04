@@ -66,8 +66,8 @@ const PostDetailScreen: React.FC = () => {
         // Post is already open, do nothing
     };
 
-    const handleUserPress = (userId: string) => {
-        router.push(`/${userId}`);
+    const handleUserPress = (username: string) => {
+        router.push(`/@${username}`);
     };
 
     const handleReplyPress = (postId: string) => {
@@ -88,9 +88,22 @@ const PostDetailScreen: React.FC = () => {
         console.log('Share post:', postId);
     };
 
-    const handleSavePress = (postId: string) => {
-        // Handle save action
-        console.log('Save post:', postId);
+    const handleSavePress = async (postId: string) => {
+        try {
+            const { savePost, unsavePost } = usePostsStore.getState();
+
+            if (post?.isSaved) {
+                await unsavePost({ postId });
+                // Update local post state
+                setPost(prev => prev ? { ...prev, isSaved: false } : null);
+            } else {
+                await savePost({ postId });
+                // Update local post state
+                setPost(prev => prev ? { ...prev, isSaved: true } : null);
+            }
+        } catch (error) {
+            console.error('Error toggling save:', error);
+        }
     };
 
     if (loading) {
@@ -146,7 +159,7 @@ const PostDetailScreen: React.FC = () => {
                 <PostCard
                     post={post}
                     onPostPress={handlePostPress}
-                    onUserPress={() => handleUserPress(post.user.id)}
+                    onUserPress={() => handleUserPress(post.user.handle)}
                     onReplyPress={() => handleReplyPress(post.id)}
                     onRepostPress={() => handleRepostPress(post.id)}
                     onLikePress={() => handleLikePress(post.id)}

@@ -25,9 +25,9 @@ const MainFeedScreen = () => {
         router.push(`/p/${postId}`);
     }, []);
 
-    const handleUserPress = useCallback((userId: string) => {
+    const handleUserPress = useCallback((username: string) => {
         // Navigate to user profile
-        router.push(`/profile/${userId}`);
+        router.push(`/@${username}`);
     }, []);
 
     const handleReplyPress = useCallback((postId: string) => {
@@ -52,12 +52,19 @@ const MainFeedScreen = () => {
 
     const handleSavePress = useCallback(async (postId: string) => {
         try {
-            // For now, we'll just save the post (you can add logic to check if already saved)
-            await savePost({ postId });
+            const { feeds } = usePostsStore.getState();
+            const post = feeds.posts.items.find(p => p.id === postId) ||
+                feeds.mixed.items.find(p => p.id === postId);
+
+            if (post?.isSaved) {
+                await unsavePost({ postId });
+            } else {
+                await savePost({ postId });
+            }
         } catch (error) {
-            console.error('Error saving post:', error);
+            console.error('Error toggling save:', error);
         }
-    }, [savePost]);
+    }, [savePost, unsavePost]);
 
     const handleComposePress = useCallback(() => {
         // Navigate to compose screen
