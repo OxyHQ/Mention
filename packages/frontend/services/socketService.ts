@@ -1,0 +1,294 @@
+import { io, Socket } from 'socket.io-client';
+import { usePostsStore } from '../stores/postsStore';
+
+class SocketService {
+  private socket: Socket | null = null;
+  private isConnected = false;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
+
+  constructor() {
+    this.setupEventListeners();
+  }
+
+  /**
+   * Connect to the backend socket server
+   */
+  connect(token?: string) {
+    if (this.socket?.connected) {
+      console.log('Socket already connected');
+      return;
+    }
+
+    try {
+      // Connect to the backend socket server
+      this.socket = io(process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000', {
+        transports: ['websocket', 'polling'],
+        auth: token ? { token } : undefined,
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: this.maxReconnectAttempts,
+        reconnectionDelay: this.reconnectDelay,
+      });
+
+      this.setupSocketEventListeners();
+    } catch (error) {
+      console.error('Error connecting to socket:', error);
+    }
+  }
+
+  /**
+   * Disconnect from the socket server
+   */
+  disconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+      this.isConnected = false;
+    }
+  }
+
+  /**
+   * Join a post room for real-time updates
+   */
+  joinPost(postId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('joinPost', postId);
+    }
+  }
+
+  /**
+   * Leave a post room
+   */
+  leavePost(postId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('leavePost', postId);
+    }
+  }
+
+  /**
+   * Setup socket event listeners
+   */
+  private setupSocketEventListeners() {
+    if (!this.socket) return;
+
+    this.socket.on('connect', () => {
+      console.log('Socket connected');
+      this.isConnected = true;
+      this.reconnectAttempts = 0;
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
+      this.isConnected = false;
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      this.handleReconnect();
+    });
+
+    this.socket.on('reconnect', (attemptNumber) => {
+      console.log('Socket reconnected after', attemptNumber, 'attempts');
+      this.isConnected = true;
+      this.reconnectAttempts = 0;
+    });
+
+    this.socket.on('reconnect_error', (error) => {
+      console.error('Socket reconnection error:', error);
+      this.handleReconnect();
+    });
+
+    this.socket.on('reconnect_failed', () => {
+      console.error('Socket reconnection failed');
+      this.isConnected = false;
+    });
+
+    // Feed update events
+    this.socket.on('feed:updated', (data) => {
+      console.log('Feed updated:', data);
+      this.handleFeedUpdate(data);
+    });
+
+    // Post interaction events
+    this.socket.on('post:liked', (data) => {
+      console.log('Post liked:', data);
+      this.handlePostLiked(data);
+    });
+
+    this.socket.on('post:unliked', (data) => {
+      console.log('Post unliked:', data);
+      this.handlePostUnliked(data);
+    });
+
+    this.socket.on('post:replied', (data) => {
+      console.log('Post replied:', data);
+      this.handlePostReplied(data);
+    });
+
+    this.socket.on('post:reposted', (data) => {
+      console.log('Post reposted:', data);
+      this.handlePostReposted(data);
+    });
+  }
+
+  /**
+   * Setup global event listeners
+   */
+  private setupEventListeners() {
+    // Handle app state changes
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', () => {
+        if (!this.isConnected && this.socket) {
+          this.socket.connect();
+        }
+      });
+
+      window.addEventListener('blur', () => {
+        // Optionally disconnect when app is in background
+        // this.disconnect();
+      });
+    }
+  }
+
+  /**
+   * Handle reconnection logic
+   */
+  private handleReconnect() {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      
+      setTimeout(() => {
+        if (this.socket && !this.socket.connected) {
+          this.socket.connect();
+        }
+      }, this.reconnectDelay * this.reconnectAttempts);
+    }
+  }
+
+  /**
+   * Handle feed updates from socket
+   */
+  private handleFeedUpdate(data: any) {
+    const { type, posts, timestamp } = data;
+    
+    // Update the store with new feed data
+    const store = usePostsStore.getState();
+    
+    if (store.feeds[type]) {
+      // Merge new posts with existing ones, avoiding duplicates
+      const existingIds = new Set(store.feeds[type].items.map(post => post.id));
+      const newPosts = posts.filter((post: any) => !existingIds.has(post.id));
+      
+      if (newPosts.length > 0) {
+        store.addPostToFeed(newPosts[0], type);
+      }
+    }
+  }
+
+  /**
+   * Handle post liked event
+   */
+  private handlePostLiked(data: any) {
+    const { postId, userId, likesCount } = data;
+    
+    // Update the store with new like count
+    const store = usePostsStore.getState();
+    store.updatePostLocally(postId, {
+      isLiked: true,
+      engagement: { likes: likesCount, replies: 0, reposts: 0 }
+    });
+  }
+
+  /**
+   * Handle post unliked event
+   */
+  private handlePostUnliked(data: any) {
+    const { postId, userId, likesCount } = data;
+    
+    // Update the store with new like count
+    const store = usePostsStore.getState();
+    store.updatePostLocally(postId, {
+      isLiked: false,
+      engagement: { likes: likesCount, replies: 0, reposts: 0 }
+    });
+  }
+
+  /**
+   * Handle post replied event
+   */
+  private handlePostReplied(data: any) {
+    const { postId, reply } = data;
+    
+    // Update the store with new reply count
+    const store = usePostsStore.getState();
+    store.updatePostLocally(postId, {
+      engagement: { likes: 0, replies: 1, reposts: 0 }
+    });
+  }
+
+  /**
+   * Handle post reposted event
+   */
+  private handlePostReposted(data: any) {
+    const { originalPostId, repost } = data;
+    
+    // Update the store with new repost count
+    const store = usePostsStore.getState();
+    store.updatePostLocally(originalPostId, {
+      engagement: { likes: 0, replies: 0, reposts: 1 }
+    });
+  }
+
+  /**
+   * Get connection status
+   */
+  getConnectionStatus() {
+    return {
+      isConnected: this.isConnected,
+      reconnectAttempts: this.reconnectAttempts,
+      maxReconnectAttempts: this.maxReconnectAttempts
+    };
+  }
+
+  /**
+   * Emit custom event
+   */
+  emit(event: string, data: any) {
+    if (this.socket?.connected) {
+      this.socket.emit(event, data);
+    } else {
+      console.warn('Socket not connected, cannot emit event:', event);
+    }
+  }
+
+  /**
+   * Listen to custom event
+   */
+  on(event: string, callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
+  }
+
+  /**
+   * Remove custom event listener
+   */
+  off(event: string, callback?: (data: any) => void) {
+    if (this.socket) {
+      if (callback) {
+        this.socket.off(event, callback);
+      } else {
+        this.socket.off(event);
+      }
+    }
+  }
+}
+
+// Create singleton instance
+export const socketService = new SocketService();
+
+// Export for use in components
+export default socketService;

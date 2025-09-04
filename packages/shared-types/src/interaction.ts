@@ -9,7 +9,7 @@ export enum InteractionType {
   REPOST = 'repost',
   COMMENT = 'comment',
   SHARE = 'share',
-  BOOKMARK = 'bookmark',
+  SAVE = 'save',
   FOLLOW = 'follow',
   BLOCK = 'block',
   MUTE = 'mute',
@@ -107,7 +107,7 @@ export interface Mute {
   expiresAt?: string;
 }
 
-export interface Bookmark {
+export interface Saved {
   id: string;
   oxyUserId: string;
   postId: string;
@@ -187,7 +187,7 @@ export interface InteractionStats {
   totalReposts: number;
   totalComments: number;
   totalShares: number;
-  totalBookmarks: number;
+  totalSaved: number;
   totalFollows: number;
   totalBlocks: number;
   totalMutes: number;

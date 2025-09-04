@@ -27,7 +27,7 @@ This package contains the complete React Native application that runs on Android
 - Real-time feed with posts, replies, quotes, and reposts
 - User profiles with followers/following
 - Trends and analytics
-- Bookmarks, lists, and media posts
+- Saved posts, lists, and media posts
 - Notifications (push and in-app)
 - Multi-language support (English, Spanish, Italian)
 - Responsive design and theming

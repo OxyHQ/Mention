@@ -226,7 +226,7 @@ sequenceDiagram
 ```mermaid
 erDiagram
     User ||--o{ Post : creates
-    User ||--o{ Bookmark : has
+    User ||--o{ Saved : has
     User ||--o{ Follow : follows
     Post ||--o{ Like : receives
     Post ||--o{ Comment : has
@@ -236,7 +236,7 @@ erDiagram
         string username
         string email
         string password
-        string[] bookmarks
+        string[] saved
         datetime createdAt
     }
     

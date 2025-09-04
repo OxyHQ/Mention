@@ -24,7 +24,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
         totalLikes: { $sum: "$_count.likes" },
         totalReposts: { $sum: "$_count.reposts" },
         totalQuotes: { $sum: "$_count.quotes" },
-        totalBookmarks: { $sum: "$_count.bookmarks" },
+        totalSaved: { $sum: "$_count.saved" },
         totalReplies: { $sum: "$_count.replies" }
       }}
     ]);
@@ -96,7 +96,7 @@ export const getHashtagStats = async (req: Request, res: Response) => {
           totalLikes: { $sum: "$_count.likes" },
           totalReposts: { $sum: "$_count.reposts" },
           totalQuotes: { $sum: "$_count.quotes" },
-          totalBookmarks: { $sum: "$_count.bookmarks" },
+          totalSaved: { $sum: "$_count.saved" },
           totalReplies: { $sum: "$_count.replies" }
         }
       }
@@ -107,7 +107,7 @@ export const getHashtagStats = async (req: Request, res: Response) => {
       totalLikes: 0,
       totalReposts: 0,
       totalQuotes: 0,
-      totalBookmarks: 0,
+      totalSaved: 0,
       totalReplies: 0
     });
   } catch (error) {
@@ -201,7 +201,7 @@ export const getTopPosts = async (req: Request, res: Response) => {
             { $ifNull: ["$_count.reposts", 0] },
             { $ifNull: ["$_count.quotes", 0] },
             { $ifNull: ["$_count.replies", 0] },
-            { $ifNull: ["$_count.bookmarks", 0] }
+            { $ifNull: ["$_count.saved", 0] }
           ]
         },
         stats: "$_count"

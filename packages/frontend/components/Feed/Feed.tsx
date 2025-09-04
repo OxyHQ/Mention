@@ -1,338 +1,414 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
-    Image
+    Image,
+    FlatList,
+    RefreshControl,
+    ActivityIndicator,
+    Alert,
+    Platform
 } from 'react-native';
-import PostItem from './PostItem';
-import { UIPost, Reply, FeedRepost as Repost, FeedType, PostAction } from '@mention/shared-types';
-import { usePostsStore } from '../../stores/postsStore';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Share } from 'react-native';
+import { usePostsStore, useFeedSelector, useFeedLoading, useFeedError, useFeedHasMore } from '../../stores/postsStore';
+import { FeedType, PostAction } from '@mention/shared-types';
+import PostItem from './PostItem';
+import ErrorBoundary from '../ErrorBoundary';
+import LoadingTopSpinner from '../LoadingTopSpinner';
 
 interface FeedProps {
-    data: UIPost[] | Reply[] | Repost[] | string[] | (UIPost | Reply | Repost)[];
     type: FeedType;
     onPostAction?: (action: PostAction, postId: string) => void;
-    onMediaPress?: (imageUrl: string, index: number) => void;
-    isLoading?: boolean;
+    showComposeButton?: boolean;
+    onComposePress?: () => void;
+    userId?: string; // For user profile feeds
+    autoRefresh?: boolean; // Enable auto-refresh
+    refreshInterval?: number; // Auto-refresh interval in ms
 }
 
 const Feed: React.FC<FeedProps> = ({
-    data,
     type,
     onPostAction,
-    onMediaPress,
-    isLoading = false
+    showComposeButton = false,
+    onComposePress,
+    userId,
+    autoRefresh = false,
+    refreshInterval = 30000 // 30 seconds default
 }) => {
-    const { likePost, unlikePost, repost, likeReply, unlikeReply, addRepost, likeRepost, unlikeRepost } = usePostsStore();
+    const router = useRouter();
+    const flatListRef = useRef<FlatList>(null);
+    const [refreshing, setRefreshing] = useState(false);
+    const [autoRefreshTimer, setAutoRefreshTimer] = useState<NodeJS.Timeout | null>(null);
 
-    const handleShare = async (post: UIPost | Reply | Repost) => {
+    // Get feed data from store
+    const feedData = useFeedSelector(type);
+    const isLoading = useFeedLoading(type);
+    const error = useFeedError(type);
+    const hasMore = useFeedHasMore(type);
+
+    const {
+        fetchFeed,
+        fetchUserFeed,
+        refreshFeed,
+        loadMoreFeed,
+        clearError,
+        likePost,
+        unlikePost
+    } = usePostsStore();
+
+    // Auto-refresh effect
+    useEffect(() => {
+        if (autoRefresh && refreshInterval > 0) {
+            const timer = setInterval(() => {
+                if (userId) {
+                    fetchUserFeed(userId, { type, limit: 20 });
+                } else {
+                    refreshFeed(type);
+                }
+            }, refreshInterval);
+
+            setAutoRefreshTimer(timer);
+
+            return () => {
+                if (timer) clearInterval(timer);
+            };
+        }
+    }, [autoRefresh, refreshInterval, type, userId, fetchUserFeed, refreshFeed]);
+
+    // Initial feed fetch
+    useEffect(() => {
+        const fetchInitialFeed = async () => {
+            try {
+                if (userId) {
+                    await fetchUserFeed(userId, { type, limit: 20 });
+                } else {
+                    await fetchFeed({ type, limit: 20 });
+                }
+            } catch (error) {
+                console.error('Error fetching initial feed:', error);
+            }
+        };
+
+        fetchInitialFeed();
+    }, [type, userId, fetchFeed, fetchUserFeed]);
+
+    // Handle pull-to-refresh
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
         try {
-            const shareUrl = `https://mention.earth/post/${post.id}`;
-            const shareMessage = 'content' in post && post.content
-                ? `${post.user.name} (@${post.user.handle}): ${post.content}`
-                : `${post.user.name} (@${post.user.handle}) reposted`;
+            if (userId) {
+                await fetchUserFeed(userId, { type, limit: 20 });
+            } else {
+                await refreshFeed(type);
+            }
+        } catch (error) {
+            console.error('Error refreshing feed:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [type, userId, fetchUserFeed, refreshFeed]);
 
-            await Share.share({
-                message: `${shareMessage}\n\n${shareUrl}`,
-                url: shareUrl,
-                title: `${post.user.name} on Mention`
-            });
+    // Handle infinite scroll
+    const handleLoadMore = useCallback(async () => {
+        if (!hasMore || isLoading) return;
+
+        try {
+            if (userId) {
+                // For user feeds, we need to implement loadMore for user feeds
+                // For now, just fetch more with current cursor
+                await fetchUserFeed(userId, { type, limit: 20 });
+            } else {
+                await loadMoreFeed(type);
+            }
+        } catch (error) {
+            console.error('Error loading more feed:', error);
+        }
+    }, [hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed]);
+
+    // Handle post actions
+    const handlePostAction = useCallback(async (action: PostAction, postId: string) => {
+        try {
+            switch (action) {
+                case 'like':
+                    await likePost({ postId, type: 'post' });
+                    break;
+                case 'reply':
+                    router.push(`/reply?postId=${postId}`);
+                    break;
+                case 'repost':
+                    router.push(`/repost?postId=${postId}`);
+                    break;
+                case 'share':
+                    await handleShare(postId);
+                    break;
+            }
+
+            onPostAction?.(action, postId);
+        } catch (error) {
+            console.error(`Error handling ${action} action:`, error);
+            Alert.alert('Error', `Failed to ${action} post`);
+        }
+    }, [likePost, router, onPostAction]);
+
+    // Handle share
+    const handleShare = async (postId: string) => {
+        try {
+            const post = feedData?.items.find(item => item.id === postId);
+            if (!post) return;
+
+            const shareUrl = `https://mention.earth/post/${postId}`;
+            const shareMessage = post.content
+                ? `${post.user.name} (@${post.user.handle}): ${post.content}`
+                : `${post.user.name} (@${post.user.handle})`;
+
+            if (Platform.OS === 'web') {
+                // Web sharing
+                if (navigator.share) {
+                    await navigator.share({
+                        title: `${post.user.name} on Mention`,
+                        text: shareMessage,
+                        url: shareUrl
+                    });
+                } else {
+                    // Fallback to copying to clipboard
+                    await navigator.clipboard.writeText(`${shareMessage}\n\n${shareUrl}`);
+                    Alert.alert('Link copied', 'Post link has been copied to clipboard');
+                }
+            } else {
+                // Native sharing
+                await Share.share({
+                    message: `${shareMessage}\n\n${shareUrl}`,
+                    url: shareUrl,
+                    title: `${post.user.name} on Mention`
+                });
+            }
         } catch (error) {
             console.error('Error sharing post:', error);
+            Alert.alert('Error', 'Failed to share post');
         }
     };
-    const renderMediaGrid = (images: string[]) => {
-        const rows = [];
-        for (let i = 0; i < images.length; i += 3) {
-            const rowImages = images.slice(i, i + 3);
-            rows.push(
-                <View key={i} style={styles.mediaRow}>
-                    {rowImages.map((imageUrl, index) => (
-                        <TouchableOpacity
-                            key={i + index}
-                            style={styles.mediaImageContainer}
-                            onPress={() => onMediaPress?.(imageUrl, i + index)}
-                        >
-                            <Image source={{ uri: imageUrl }} style={styles.mediaImage} />
-                        </TouchableOpacity>
-                    ))}
-                </View>
-            );
-        }
-        return <View style={styles.mediaGrid}>{rows}</View>;
-    };
-
-    const renderPost = (post: UIPost) => (
-        <PostItem
-            key={post.id}
-            post={post}
-            onReply={() => {
-                router.push(`/reply?postId=${post.id}`);
-                onPostAction?.('reply', post.id);
-            }}
-            onRepost={() => {
-                router.push(`/repost?postId=${post.id}`);
-                onPostAction?.('repost', post.id);
-            }}
-            onLike={() => {
-                likePost(post.id);
-                onPostAction?.('like', post.id);
-            }}
-            onShare={() => {
-                handleShare(post);
-                onPostAction?.('share', post.id);
-            }}
-        />
-    );
 
 
 
-    const renderContent = () => {
+    // Render post item
+    const renderPostItem = useCallback(({ item }: { item: any }) => {
+        const handleLike = async () => {
+            if (item.isLiked) {
+                await unlikePost({ postId: item.id, type: 'post' });
+            } else {
+                await likePost({ postId: item.id, type: 'post' });
+            }
+        };
+
+        return (
+            <PostItem
+                post={item}
+                onReply={() => handlePostAction('reply', item.id)}
+                onRepost={() => handlePostAction('repost', item.id)}
+                onLike={handleLike}
+                onShare={() => handlePostAction('share', item.id)}
+            />
+        );
+    }, [handlePostAction, likePost, unlikePost]);
+
+    // Render empty state
+    const renderEmptyState = useCallback(() => {
         if (isLoading) {
             return (
-                <View style={styles.emptyTabView}>
-                    <Text style={styles.emptyText}>Loading...</Text>
+                <View style={styles.emptyState}>
+                    <ActivityIndicator size="large" color="#1DA1F2" />
+                    <Text style={styles.emptyStateText}>Loading posts...</Text>
                 </View>
             );
         }
 
-        if (!data || data.length === 0) {
+        if (error) {
             return (
-                <View style={styles.emptyTabView}>
-                    <Text style={styles.emptyText}>
-                        {type === 'posts' && 'No posts yet'}
-                        {type === 'replies' && 'No replies yet'}
-                        {type === 'media' && 'No media yet'}
-                        {type === 'likes' && 'No likes yet'}
-                        {type === 'reposts' && 'No reposts yet'}
-                        {type === 'mixed' && 'No content yet'}
-                    </Text>
-                    <Text style={styles.emptySubtext}>
-                        {type === 'posts' && 'When you post something, it will show up here'}
-                        {type === 'replies' && 'When you reply to posts, they will show up here'}
-                        {type === 'media' && 'When you post media, it will show up here'}
-                        {type === 'likes' && 'When you like posts, they will show up here'}
-                        {type === 'reposts' && 'When you repost something, it will show up here'}
-                        {type === 'mixed' && 'Start posting to see content in your feed'}
-                    </Text>
-                </View>
-            );
-        }
-
-        if (type === 'media') {
-            return renderMediaGrid(data as string[]);
-        }
-
-        if (type === 'replies') {
-            return (
-                <View>
-                    {(data as Reply[]).map((reply) => (
-                        <PostItem
-                            key={reply.id}
-                            post={reply}
-                            onReply={() => {
-                                router.push(`/reply?postId=${reply.postId}`);
-                                onPostAction?.('reply', reply.postId);
-                            }}
-                            onRepost={() => {
-                                // For replies, we repost the original post
-                                router.push(`/repost?postId=${reply.postId}`);
-                                onPostAction?.('repost', reply.postId);
-                            }}
-                            onLike={() => {
-                                likeReply(reply.id);
-                                onPostAction?.('like', reply.id);
-                            }}
-                            onShare={() => {
-                                handleShare(reply);
-                                onPostAction?.('share', reply.id);
-                            }}
-                        />
-                    ))}
-                </View>
-            );
-        }
-
-        if (type === 'reposts') {
-            return (
-                <View>
-                    {(data as Repost[]).map((repost) => (
-                        <PostItem
-                            key={repost.id}
-                            post={repost}
-                            onReply={() => {
-                                router.push(`/reply?postId=${repost.originalPostId}`);
-                                onPostAction?.('reply', repost.originalPostId);
-                            }}
-                            onRepost={() => {
-                                router.push(`/repost?postId=${repost.originalPostId}`);
-                                onPostAction?.('repost', repost.originalPostId);
-                            }}
-                            onLike={() => {
-                                likeRepost(repost.id);
-                                onPostAction?.('like', repost.id);
-                            }}
-                            onShare={() => {
-                                handleShare(repost);
-                                onPostAction?.('share', repost.id);
-                            }}
-                        />
-                    ))}
-                </View>
-            );
-        }
-
-        if (type === 'mixed') {
-            return (
-                <View>
-                    {(data as (UIPost | Reply | Repost)[]).map((item) => {
-                        if ('originalPostId' in item) {
-                            // This is a repost
-                            return (
-                                <PostItem
-                                    key={item.id}
-                                    post={item}
-                                    onReply={() => {
-                                        router.push(`/reply?postId=${item.originalPostId}`);
-                                        onPostAction?.('reply', item.originalPostId);
-                                    }}
-                                    onRepost={() => {
-                                        router.push(`/repost?postId=${item.originalPostId}`);
-                                        onPostAction?.('repost', item.originalPostId);
-                                    }}
-                                    onLike={() => {
-                                        likeRepost(item.id);
-                                        onPostAction?.('like', item.id);
-                                    }}
-                                    onShare={() => {
-                                        handleShare(item);
-                                        onPostAction?.('share', item.id);
-                                    }}
-                                />
-                            );
-                        } else if ('postId' in item) {
-                            // This is a reply
-                            return (
-                                <PostItem
-                                    key={item.id}
-                                    post={item}
-                                    onReply={() => {
-                                        router.push(`/reply?postId=${item.postId}`);
-                                        onPostAction?.('reply', item.postId);
-                                    }}
-                                    onRepost={() => {
-                                        router.push(`/repost?postId=${item.postId}`);
-                                        onPostAction?.('repost', item.postId);
-                                    }}
-                                    onLike={() => {
-                                        likeReply(item.id);
-                                        onPostAction?.('like', item.id);
-                                    }}
-                                    onShare={() => {
-                                        handleShare(item);
-                                        onPostAction?.('share', item.id);
-                                    }}
-                                />
-                            );
-                        } else {
-                            // This is a post
-                            return renderPost(item);
-                        }
-                    })}
+                <View style={styles.emptyState}>
+                    <Text style={styles.errorText}>Failed to load posts</Text>
+                    <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={() => {
+                            clearError();
+                            if (userId) {
+                                fetchUserFeed(userId, { type, limit: 20 });
+                            } else {
+                                fetchFeed({ type, limit: 20 });
+                            }
+                        }}
+                    >
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
                 </View>
             );
         }
 
         return (
-            <View>
-                {(data as UIPost[]).map(renderPost)}
+            <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No posts yet</Text>
+                <Text style={styles.emptyStateSubtext}>
+                    {type === 'posts' ? 'Be the first to share something!' :
+                        type === 'media' ? 'No media posts found' :
+                            type === 'replies' ? 'No replies yet' :
+                                type === 'reposts' ? 'No reposts yet' :
+                                    'Start following people to see their posts'}
+                </Text>
             </View>
         );
-    };
+    }, [isLoading, error, type, userId, clearError, fetchFeed, fetchUserFeed]);
 
-    const getFeedTitle = () => {
-        switch (type) {
-            case 'posts': return 'Posts';
-            case 'replies': return 'Replies';
-            case 'media': return 'Media';
-            case 'likes': return 'Likes';
-            case 'reposts': return 'Reposts';
-            case 'mixed': return 'For You';
-            default: return 'Feed';
-        }
-    };
+    // Render footer (loading indicator for infinite scroll)
+    const renderFooter = useCallback(() => {
+        if (!hasMore) return null;
+
+        return (
+            <View style={styles.footer}>
+                <ActivityIndicator size="small" color="#1DA1F2" />
+                <Text style={styles.footerText}>Loading more posts...</Text>
+            </View>
+        );
+    }, [hasMore]);
+
+    // Render header (compose button if enabled)
+    const renderHeader = useCallback(() => {
+        if (!showComposeButton) return null;
+
+        return (
+            <TouchableOpacity
+                style={styles.composeButton}
+                onPress={onComposePress}
+            >
+                <Text style={styles.composeButtonText}>What&apos;s happening?</Text>
+            </TouchableOpacity>
+        );
+    }, [showComposeButton, onComposePress]);
+
+    // Key extractor for FlatList
+    const keyExtractor = useCallback((item: any) => item.id, []);
+
+    // Get item layout for better performance
+    const getItemLayout = useCallback((data: any, index: number) => ({
+        length: 200, // Approximate height of post items
+        offset: 200 * index,
+        index,
+    }), []);
 
     return (
-        <View style={styles.container}>
-            {data && data.length > 0 && (
-                <View style={styles.feedHeader}>
-                    <Text style={styles.feedTitle}>{getFeedTitle()}</Text>
-                    <Text style={styles.feedCount}>{data.length} items</Text>
-                </View>
-            )}
-            {renderContent()}
-        </View>
+        <ErrorBoundary>
+            <View style={styles.container}>
+                {/* Loading spinner at top */}
+                {isLoading && !refreshing && <LoadingTopSpinner />}
+
+                {/* Feed content */}
+                < FlatList
+                    ref={flatListRef}
+                    data={feedData?.items || []}
+                    renderItem={renderPostItem}
+                    keyExtractor={keyExtractor}
+                    getItemLayout={getItemLayout}
+                    ListHeaderComponent={renderHeader}
+                    ListEmptyComponent={renderEmptyState}
+                    ListFooterComponent={renderFooter}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            colors={['#1DA1F2']}
+                            tintColor="#1DA1F2"
+                        />
+                    }
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.1}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.listContent}
+                    style={styles.list}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    initialNumToRender={10}
+                />
+            </View>
+        </ErrorBoundary>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#000',
+        flex: 1,
+        backgroundColor: '#ffffff',
     },
-    feedHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
+    list: {
+        flex: 1,
     },
-    feedTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#FFF',
+    listContent: {
+        flexGrow: 1,
     },
-    feedCount: {
-        fontSize: 14,
-        color: '#71767B',
-    },
-    emptyTabView: {
-        height: 200,
+    emptyState: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        paddingVertical: 60,
+        paddingHorizontal: 20,
     },
-    emptyText: {
-        color: '#71767B',
-        fontSize: 16,
+    emptyStateText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#14171A',
+        marginTop: 16,
         textAlign: 'center',
-        marginBottom: 8,
     },
-    emptySubtext: {
-        color: '#536471',
+    emptyStateSubtext: {
         fontSize: 14,
+        color: '#657786',
+        marginTop: 8,
         textAlign: 'center',
-        paddingHorizontal: 32,
+        lineHeight: 20,
     },
-    mediaGrid: {
-        backgroundColor: '#000',
+    errorText: {
+        fontSize: 16,
+        color: '#E0245E',
+        marginBottom: 16,
+        textAlign: 'center',
     },
-    mediaRow: {
+    retryButton: {
+        backgroundColor: '#1DA1F2',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 20,
+    },
+    retryButtonText: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    footer: {
         flexDirection: 'row',
-        marginBottom: 2,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 20,
     },
-    mediaImageContainer: {
-        flex: 1,
-        marginHorizontal: 1,
+    footerText: {
+        fontSize: 14,
+        color: '#657786',
+        marginLeft: 8,
     },
-    mediaImage: {
-        width: '100%',
-        aspectRatio: 1,
-        backgroundColor: '#2F3336',
+    composeButton: {
+        backgroundColor: '#f7f9fa',
+        borderWidth: 1,
+        borderColor: '#e1e8ed',
+        borderRadius: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        marginHorizontal: 16,
+        marginVertical: 12,
+    },
+    composeButtonText: {
+        fontSize: 16,
+        color: '#657786',
+        textAlign: 'center',
     },
 });
 

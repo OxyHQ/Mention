@@ -1,167 +1,137 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { SafeAreaView, StyleSheet, View, TouchableOpacity, Text, Platform, ScrollView, RefreshControl, Alert } from 'react-native';
-import { useTranslation } from 'react-i18next';
-import { colors } from '@/styles/colors';
-import { useOxy } from '@oxyhq/services';
-import { router } from 'expo-router';
-import { Feed, PostAction } from '../components/Feed/index';
-import { usePostsStore } from '../stores/postsStore';
+import React, { useCallback, useState } from 'react';
+import {
+    View,
+    StyleSheet,
+    TouchableOpacity,
+    Text,
+    SafeAreaView,
+    StatusBar,
+    Image
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useOxy } from '@oxyhq/services';
+import Feed from '../components/Feed';
+import { colors } from '../styles/colors';
+import { usePostsStore } from '../stores/postsStore';
 
-type TabType = 'for-you' | 'following' | 'custom';
+const MainFeedScreen = () => {
+    const { user } = useOxy();
+    const { savePost, unsavePost } = usePostsStore();
+    const [activeTab, setActiveTab] = useState<'mixed' | 'posts' | 'media' | 'replies' | 'reposts'>('mixed');
 
-const HomeScreen: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<TabType>('for-you');
-    const [refreshing, setRefreshing] = useState(false);
-    const { t } = useTranslation();
-    const { isAuthenticated, user } = useOxy();
-    const { posts, replies, reposts, fetchFeed, isLoading } = usePostsStore();
+    const handlePostPress = useCallback((postId: string) => {
+        // Navigate to post detail
+        router.push(`/p/${postId}`);
+    }, []);
 
-    useEffect(() => {
-        // Set default tab based on authentication
-        if (isAuthenticated) {
-            setActiveTab('for-you');
-        } else {
-            setActiveTab('for-you'); // Show explore feed for unauthenticated users
+    const handleUserPress = useCallback((userId: string) => {
+        // Navigate to user profile
+        router.push(`/profile/${userId}`);
+    }, []);
+
+    const handleReplyPress = useCallback((postId: string) => {
+        // Navigate to reply screen
+        router.push(`/reply?postId=${postId}`);
+    }, []);
+
+    const handleRepostPress = useCallback((postId: string) => {
+        // Navigate to repost screen
+        router.push(`/repost?postId=${postId}`);
+    }, []);
+
+    const handleLikePress = useCallback((postId: string) => {
+        // Handle like action
+        console.log('Like post:', postId);
+    }, []);
+
+    const handleSharePress = useCallback((postId: string) => {
+        // Handle share action
+        console.log('Share post:', postId);
+    }, []);
+
+    const handleSavePress = useCallback(async (postId: string) => {
+        try {
+            // For now, we'll just save the post (you can add logic to check if already saved)
+            await savePost({ postId });
+        } catch (error) {
+            console.error('Error saving post:', error);
         }
+    }, [savePost]);
 
-        // Fetch initial feed data
-        fetchFeed({
-            type: 'mixed',
-            limit: 20
-        });
-    }, [isAuthenticated, fetchFeed]);
+    const handleComposePress = useCallback(() => {
+        // Navigate to compose screen
+        router.push('/compose');
+    }, []);
 
-    const handlePostAction = (action: PostAction, postId: string) => {
-        console.log(`${action} action for post ${postId}`);
-        // Post actions are handled by the Feed component and store
-    };
-
-    const handleMediaPress = (imageUrl: string, index: number) => {
-        console.log(`Media pressed: ${imageUrl} at index ${index}`);
-        // TODO: Implement media viewer with modal or navigation
-        // For now, just show an alert
-        Alert.alert('Media Viewer', `Viewing media at index ${index}`);
-    };
-
-    const onRefresh = useCallback(() => {
-        setRefreshing(true);
-        // Fetch fresh data from backend
-        fetchFeed({
-            type: 'mixed',
-            limit: 20
-        }).finally(() => {
-            setRefreshing(false);
-        });
-    }, [fetchFeed]);
-
-    const getFeedData = () => {
-        if (activeTab === 'custom') {
-            return { data: [], type: 'posts' as const };
-        }
-
-        if (activeTab === 'following' && isAuthenticated && user) {
-            // For following tab, show posts from users the current user follows
-            // For now, just show all posts (in a real app, you'd filter by following)
-            return { data: posts, type: 'posts' as const };
-        } else if (activeTab === 'for-you') {
-            // For "For You" tab, show a mix of posts, replies, and reposts
-            const allContent = [
-                ...posts,
-                ...replies,
-                ...reposts
-            ].sort((a, b) => {
-                // Sort by date (newest first)
-                const dateA = new Date(a.date).getTime();
-                const dateB = new Date(b.date).getTime();
-                return dateB - dateA;
-            });
-
-            return { data: allContent, type: 'mixed' as const };
-        }
-
-        return { data: posts, type: 'posts' as const };
-    };
-
-    const renderFeedContent = () => {
-        if (activeTab === 'custom') {
-            return (
-                <View style={styles.customFeedContainer}>
-                    <Text style={styles.customFeedText}>Custom Feed</Text>
-                    <Text style={styles.customFeedSubtext}>Coming soon...</Text>
-                </View>
-            );
-        }
-
-        const { data, type } = getFeedData();
-
-        return (
-            <ScrollView
-                style={styles.feedContainer}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={colors.primaryColor}
-                        colors={[colors.primaryColor]}
-                    />
-                }
-            >
-                <Feed
-                    data={data}
-                    type={type}
-                    onPostAction={handlePostAction}
-                    onMediaPress={handleMediaPress}
-                    isLoading={refreshing || isLoading}
-                />
-            </ScrollView>
-        );
-    };
+    const renderTabButton = (tab: typeof activeTab, label: string, icon: string) => (
+        <TouchableOpacity
+            style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
+            onPress={() => setActiveTab(tab)}
+        >
+            <Ionicons
+                name={icon as any}
+                size={20}
+                color={activeTab === tab ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
+            />
+            <Text style={[styles.tabLabel, activeTab === tab && styles.activeTabLabel]}>
+                {label}
+            </Text>
+        </TouchableOpacity>
+    );
 
     return (
-        <SafeAreaView style={styles.container}>
-            {/* Enhanced Tab Navigation */}
-            <View style={styles.tabsContainer}>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'for-you' && styles.activeTab]}
-                    onPress={() => setActiveTab('for-you')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'for-you' && styles.activeTabText]}>
-                        {t('For You')}
-                    </Text>
-                </TouchableOpacity>
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <StatusBar style="dark" />
 
-                {isAuthenticated && (
-                    <TouchableOpacity
-                        style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-                        onPress={() => setActiveTab('following')}
-                    >
-                        <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
-                            {t('Following')}
-                        </Text>
+            {/* Header */}
+            <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                    <Text style={styles.headerTitle}>Mention</Text>
+                </View>
+
+                <View style={styles.headerRight}>
+                    <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/search')}>
+                        <Ionicons name="search-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
                     </TouchableOpacity>
-                )}
 
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'custom' && styles.activeTab]}
-                    onPress={() => setActiveTab('custom')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'custom' && styles.activeTabText]}>
-                        🔧 {t('Custom')}
-                    </Text>
-                </TouchableOpacity>
+                    <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/notifications')}>
+                        <Ionicons name="notifications-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/profile')}>
+                        <Image
+                            source={{ uri: user?.avatar || 'https://via.placeholder.com/32' }}
+                            style={styles.headerAvatar}
+                        />
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            {/* Feed Content */}
-            {renderFeedContent()}
+            {/* Tab Navigation */}
+            <View style={styles.tabContainer}>
+                {renderTabButton('mixed', 'For You', 'home-outline')}
+                {renderTabButton('posts', 'Posts', 'document-text-outline')}
+                {renderTabButton('media', 'Media', 'image-outline')}
+                {renderTabButton('replies', 'Replies', 'chatbubble-outline')}
+                {renderTabButton('reposts', 'Reposts', 'repeat-outline')}
+            </View>
 
-            {/* FAB for creating new posts */}
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => router.push('/compose')}
-            >
-                <Ionicons name="add" size={24} color="#FFF" />
+            {/* Feed */}
+            <Feed
+                type={activeTab}
+                onPostPress={handlePostPress}
+                onUserPress={handleUserPress}
+                onReplyPress={handleReplyPress}
+                onRepostPress={handleRepostPress}
+                onLikePress={handleLikePress}
+                onSharePress={handleSharePress}
+                onSavePress={handleSavePress}
+            />
+
+            {/* Floating Action Button */}
+            <TouchableOpacity style={styles.fab} onPress={handleComposePress}>
+                <Ionicons name="add" size={24} color={colors.COLOR_BLACK_LIGHT_9} />
             </TouchableOpacity>
         </SafeAreaView>
     );
@@ -170,76 +140,85 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
-    tabsContainer: {
+    header: {
         flexDirection: 'row',
-        backgroundColor: 'white',
-        borderBottomWidth: 0.5,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: Platform.OS === 'android' ? 2 : 0,
-    },
-    tab: {
-        flex: 1,
+        justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+    },
+    headerLeft: {
+        flex: 1,
+    },
+    headerTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: colors.primaryColor,
+    },
+    headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    headerButton: {
+        padding: 8,
+        marginLeft: 8,
+    },
+    headerAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+    },
+    tabContainer: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+    },
+    tabButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         paddingVertical: 16,
         paddingHorizontal: 8,
     },
-    activeTab: {
-        borderBottomWidth: 3,
+    activeTabButton: {
+        borderBottomWidth: 2,
         borderBottomColor: colors.primaryColor,
     },
-    tabText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: colors.COLOR_BLACK_LIGHT_3,
-        textAlign: 'center',
-    },
-    activeTabText: {
-        color: colors.primaryColor,
-        fontWeight: 'bold',
-    },
-    feedContainer: {
-        flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-    },
-    customFeedContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-    },
-    customFeedText: {
-        fontSize: 18,
-        color: colors.COLOR_BLACK_LIGHT_3,
-        fontWeight: '600',
-    },
-    customFeedSubtext: {
+    tabLabel: {
+        marginLeft: 6,
         fontSize: 14,
+        fontWeight: '500',
         color: colors.COLOR_BLACK_LIGHT_4,
-        marginTop: 8,
+    },
+    activeTabLabel: {
+        color: colors.primaryColor,
+        fontWeight: '600',
     },
     fab: {
         position: 'absolute',
-        bottom: 40,
-        right: 20,
+        bottom: 24,
+        right: 24,
         width: 56,
         height: 56,
         borderRadius: 28,
-        zIndex: 1000,
         backgroundColor: colors.primaryColor,
-        alignItems: 'center',
         justifyContent: 'center',
+        alignItems: 'center',
         elevation: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+        shadowColor: colors.shadow,
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
         shadowOpacity: 0.3,
         shadowRadius: 8,
     },
 });
 
-export default HomeScreen;
+export default MainFeedScreen;

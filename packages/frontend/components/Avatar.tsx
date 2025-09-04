@@ -1,46 +1,64 @@
-import defaultAvatar from "@/assets/images/default-avatar.jpg";
-import { colors } from "@/styles/colors";
-import React from "react";
-import { Image, ImageStyle, Pressable, StyleSheet } from 'react-native';
+import React from 'react';
+import {
+  View,
+  Image,
+  StyleSheet,
+  ImageSourcePropType
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors } from '../styles/colors';
 
 interface AvatarProps {
-  id?: string; // Avatar ID or full URL
+  source?: ImageSourcePropType | string;
   size?: number;
-  style?: ImageStyle;
-  onPress?: () => void;
-  onLongPress?: () => void;
+  verified?: boolean;
+  style?: any;
 }
 
-const Avatar: React.FC<AvatarProps> = ({ id, size = 40, style, onPress, onLongPress }) => {
-  // Handle different avatar formats
-  let source;
-
-  if (!id) {
-    // Use default avatar if no ID provided
-    source = defaultAvatar;
-  } else if (id.startsWith('http')) {
-    // If it's already a full URL, use it directly
-    source = { uri: id };
-  } else {
-    // Otherwise, construct the URL using the cloud URL
-    source = { uri: `${id}` };
-  }
+const Avatar: React.FC<AvatarProps> = ({
+  source,
+  size = 40,
+  verified = false,
+  style
+}) => {
+  const imageSource = typeof source === 'string' ? { uri: source } : source;
+  const defaultSource = { uri: 'https://via.placeholder.com/40' };
 
   return (
-    <Pressable onPress={onPress} disabled={!onPress} onLongPress={onLongPress}>
+    <View style={[styles.container, { width: size, height: size }, style]}>
       <Image
-        source={source}
-        style={[styles.avatar, { width: size, height: size, borderRadius: size }, style]}
-        defaultSource={defaultAvatar}
-        onError={(e) => console.warn('Avatar image failed to load:', id)}
+        source={imageSource || defaultSource}
+        style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
+        defaultSource={defaultSource}
       />
-    </Pressable>
+      {verified && (
+        <View style={[styles.verifiedBadge, { width: size * 0.4, height: size * 0.4 }]}>
+          <Ionicons
+            name="checkmark-circle"
+            size={size * 0.4}
+            color={colors.primaryColor}
+          />
+        </View>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  avatar: {
-    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+  container: {
+    position: 'relative',
+  },
+  image: {
+    resizeMode: 'cover',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+            backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

@@ -24,16 +24,16 @@ return {
         name: "Mention",
         slug: "mention",
         version: VERSION,
-        orientation: "portrait",
-        icon: "./assets/images/mention-icon.png",
-        scheme: "mention",
-        userInterfaceStyle: "automatic",
-        newArchEnabled: true,
-        jsEngine: "jsc",
-        ios: {
-            supportsTablet: true,
-            bundleIdentifier: "com.mention.android"
-        },
+      orientation: 'portrait',
+      icon: './assets/images/mention-icon.png',
+      scheme: 'mention',
+      userInterfaceStyle: 'automatic',
+      newArchEnabled: true,
+      jsEngine: 'hermes',
+      ios: {
+        supportsTablet: true,
+        bundleIdentifier: 'com.mention.android',
+      },
         android: {
             adaptiveIcon: {
                 foregroundImage: "./assets/images/mention-icon_foreground.png",
@@ -88,10 +88,18 @@ return {
                 msapplicationConfig: "/browserconfig.xml"
             },
             build: {
-                babel: {
-                    include: ["@expo/vector-icons"]
-                }
-            }
+          babel: {
+            include: ['@expo/vector-icons'],
+          },
+        },
+        // Add Metro configuration for better module resolution
+        metro: {
+          resolver: {
+            alias: {
+              '@react-native-async-storage/async-storage': require.resolve('@react-native-async-storage/async-storage'),
+            },
+          },
+        },
         },
         plugins: [
             "expo-router",

@@ -3,16 +3,19 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "strict": true,
+    "composite": true,
+    "noEmit": false,
     "baseUrl": ".",
     "jsx": "react-jsx",
+    "jsxImportSource": "nativewind",
     "paths": {
       "@/*": [
         "./*"
       ],
-      "@homiio/shared-types": [
+      "@mention/shared-types": [
         "../shared-types/src"
       ],
-      "@homiio/shared-types/*": [
+      "@mention/shared-types/*": [
         "../shared-types/src/*"
       ]
     }

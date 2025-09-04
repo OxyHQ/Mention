@@ -71,10 +71,10 @@ export function SideBar() {
             route: '/analytics',
         },
         {
-            title: t("Bookmarks"),
+            title: t("Saved"),
             icon: <Bookmark color={colors.COLOR_BLACK} />,
             iconActive: <BookmarkActive />,
-            route: '/bookmarks',
+            route: '/saved',
         },
         {
             title: t("Feeds"),

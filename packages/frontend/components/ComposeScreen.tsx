@@ -16,12 +16,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
+import { colors } from '../styles/colors';
 
 const MAX_CHARACTERS = 280;
 
 const ComposeScreen: React.FC = () => {
     const { user } = useOxy();
-    const { addPost, createPostAPI } = usePostsStore();
+    const { createPost } = usePostsStore();
     const insets = useSafeAreaInsets();
 
     const [content, setContent] = useState('');
@@ -48,7 +49,7 @@ const ComposeScreen: React.FC = () => {
             };
 
             // Send to backend API
-            await createPostAPI(postRequest);
+            await createPost(postRequest);
 
             // Navigate back
             router.back();
@@ -67,14 +68,10 @@ const ComposeScreen: React.FC = () => {
         if (content.trim().length > 0) {
             Alert.alert(
                 'Discard Post?',
-                'Are you sure you want to discard this post?',
+                'You have unsaved changes. Are you sure you want to discard them?',
                 [
                     { text: 'Keep Editing', style: 'cancel' },
-                    {
-                        text: 'Discard',
-                        style: 'destructive',
-                        onPress: () => router.back()
-                    },
+                    { text: 'Discard', style: 'destructive', onPress: () => router.back() }
                 ]
             );
         } else {
@@ -83,209 +80,177 @@ const ComposeScreen: React.FC = () => {
     };
 
     return (
-        <KeyboardAvoidingView
-            style={styles.container}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top }]}>
+            <View style={styles.header}>
                 <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
                     <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
 
-                <View style={styles.headerActions}>
-                    <TouchableOpacity
-                        style={[styles.postButton, !canPost && styles.postButtonDisabled]}
-                        onPress={handlePost}
-                        disabled={!canPost}
-                    >
-                        <Text style={[styles.postButtonText, !canPost && styles.postButtonTextDisabled]}>
-                            {isSubmitting ? 'Posting...' : 'Post'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                    onPress={handlePost}
+                    disabled={!canPost}
+                    style={[styles.postButton, !canPost && styles.postButtonDisabled]}
+                >
+                    <Text style={[styles.postButtonText, !canPost && styles.postButtonTextDisabled]}>
+                        Post
+                    </Text>
+                </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {/* User Info */}
+            {/* Compose Area */}
+            <KeyboardAvoidingView
+                style={styles.composeArea}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
                 <View style={styles.userInfo}>
-                    <Image
-                        source={{
-                            uri: typeof user?.avatar === 'string'
-                                ? user.avatar
-                                : user?.avatar?.url || 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg'
-                        }}
-                        style={styles.userAvatar}
-                    />
+                    <View style={styles.avatarContainer}>
+                        <Image
+                            source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }}
+                            style={styles.avatar}
+                        />
+                        {user?.verified && (
+                            <View style={styles.verifiedBadge}>
+                                <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" />
+                            </View>
+                        )}
+                    </View>
+
                     <View style={styles.userDetails}>
-                        <Text style={styles.userName}>
-                            {user?.name?.full || user?.username}
-                        </Text>
+                        <Text style={styles.userName}>{user?.name?.full || user?.username}</Text>
                         <Text style={styles.userHandle}>@{user?.username}</Text>
                     </View>
                 </View>
 
-                {/* Text Input */}
                 <TextInput
                     ref={textInputRef}
                     style={styles.textInput}
                     placeholder="What's happening?"
-                    placeholderTextColor="#71767B"
+                    placeholderTextColor="#657786"
                     value={content}
                     onChangeText={setContent}
                     multiline
                     autoFocus
-                    maxLength={MAX_CHARACTERS + 50} // Allow some overflow for visual feedback
+                    maxLength={MAX_CHARACTERS}
                     textAlignVertical="top"
                 />
 
-                {/* Character Count */}
-                <View style={styles.characterCount}>
-                    <Text style={[
-                        styles.characterCountText,
-                        isOverLimit && styles.characterCountOverLimit
-                    ]}>
-                        {characterCount}
-                    </Text>
-                    <Text style={styles.characterCountMax}>/{MAX_CHARACTERS}</Text>
+                <View style={styles.footer}>
+                    <View style={styles.characterCount}>
+                        <Text style={[
+                            styles.characterCountText,
+                            isOverLimit && styles.characterCountWarning
+                        ]}>
+                            {characterCount}/{MAX_CHARACTERS}
+                        </Text>
+                    </View>
                 </View>
-            </ScrollView>
-
-            {/* Bottom Actions */}
-            <View style={styles.bottomActions}>
-                <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.actionButton}>
-                        <Ionicons name="image-outline" size={24} color="#1D9BF0" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
-                        <Ionicons name="camera-outline" size={24} color="#1D9BF0" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
-                        <Ionicons name="videocam-outline" size={24} color="#1D9BF0" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
-                        <Ionicons name="location-outline" size={24} color="#1D9BF0" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </KeyboardAvoidingView>
+            </KeyboardAvoidingView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingBottom: 12,
+        paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
     },
     cancelButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 12,
+        padding: 8,
     },
     cancelText: {
-        color: '#1D9BF0',
         fontSize: 16,
-        fontWeight: '600',
-    },
-    headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        color: colors.primaryColor,
     },
     postButton: {
-        backgroundColor: '#1D9BF0',
+        backgroundColor: colors.primaryColor,
         paddingHorizontal: 20,
         paddingVertical: 8,
         borderRadius: 20,
+        minWidth: 60,
+        alignItems: 'center',
     },
     postButtonDisabled: {
-        backgroundColor: '#1D9BF0',
-        opacity: 0.5,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_5,
     },
     postButtonText: {
-        color: '#FFF',
+        color: '#FFFFFF',
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '600',
     },
     postButtonTextDisabled: {
+        color: '#FFFFFF',
         opacity: 0.7,
     },
-    content: {
+    composeArea: {
         flex: 1,
-        paddingHorizontal: 16,
+        padding: 16,
     },
     userInfo: {
         flexDirection: 'row',
-        marginTop: 16,
-        marginBottom: 12,
+        alignItems: 'center',
+        marginBottom: 16,
     },
-    userAvatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        marginRight: 12,
+    avatarContainer: {
+        position: 'relative',
+    },
+    avatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+    },
+    verifiedBadge: {
+        position: 'absolute',
+        bottom: -2,
+        right: -2,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+        borderRadius: 8,
     },
     userDetails: {
-        justifyContent: 'center',
+        marginLeft: 12,
     },
     userName: {
         fontSize: 16,
-        fontWeight: '700',
-        color: '#FFF',
-        marginBottom: 2,
+        fontWeight: '600',
+        color: colors.COLOR_BLACK_LIGHT_1,
     },
     userHandle: {
         fontSize: 14,
-        color: '#71767B',
+        color: colors.COLOR_BLACK_LIGHT_4,
+        marginTop: 2,
     },
     textInput: {
-        fontSize: 20,
-        color: '#FFF',
-        lineHeight: 28,
+        flex: 1,
+        fontSize: 18,
+        lineHeight: 24,
+        color: colors.COLOR_BLACK_LIGHT_1,
         minHeight: 120,
-        textAlignVertical: 'top',
     },
-    characterCount: {
+    footer: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
-        alignItems: 'center',
         marginTop: 16,
-        marginBottom: 20,
+    },
+    characterCount: {
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     characterCountText: {
         fontSize: 14,
-        color: '#71767B',
-        fontWeight: '500',
+        color: colors.COLOR_BLACK_LIGHT_4,
     },
-    characterCountOverLimit: {
-        color: '#F4212E',
-    },
-    characterCountMax: {
-        fontSize: 14,
-        color: '#71767B',
-        marginLeft: 2,
-    },
-    bottomActions: {
-        paddingHorizontal: 16,
-        paddingBottom: 20,
-        borderTopWidth: 1,
-        borderTopColor: '#2F3336',
-    },
-    actionButtons: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 12,
-    },
-    actionButton: {
-        padding: 8,
-        marginRight: 16,
+    characterCountWarning: {
+        color: '#E0245E',
+        fontWeight: '600',
     },
 });
 

@@ -14,7 +14,7 @@ import { useOxy } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { colors } from '@/styles/colors';
+import { colors } from '../styles/colors';
 import Avatar from '@/components/Avatar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -24,7 +24,7 @@ const ComposeScreen = () => {
   const [postContent, setPostContent] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const { user } = useOxy();
-  const { addPost, createPostAPI } = usePostsStore();
+  const { createPost } = usePostsStore();
   const { t } = useTranslation();
 
   const handlePost = async () => {
@@ -44,7 +44,7 @@ const ComposeScreen = () => {
       };
 
       // Send to backend API
-      await createPostAPI(postRequest);
+      await createPost(postRequest);
 
       // Show success toast
       toast.success(t('Post published successfully'));
@@ -72,61 +72,57 @@ const ComposeScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
-          <Text style={styles.cancelButtonText}>{t('Cancel')}</Text>
+          <Text style={styles.cancelText}>{t('Cancel')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={handlePost}
+          disabled={!isPostButtonEnabled}
           style={[
             styles.postButton,
             !isPostButtonEnabled && styles.postButtonDisabled
           ]}
-          disabled={!isPostButtonEnabled}
         >
           {isPosting ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color="white" />
           ) : (
             <Text style={styles.postButtonText}>{t('Post')}</Text>
           )}
         </TouchableOpacity>
       </View>
 
+      {/* Compose Area */}
       <KeyboardAvoidingView
         style={styles.composeArea}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.userInfoContainer}>
+        <View style={styles.userInfo}>
           <Avatar
+            source={user?.avatar}
             size={40}
+            verified={user?.verified}
           />
-
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user?.fullName || user?.username}</Text>
-            {user?.username && <Text style={styles.userHandle}>@{user.username}</Text>}
+          <View style={styles.userDetails}>
+            <Text style={styles.userName}>{user?.name?.full || user?.username}</Text>
+            <Text style={styles.userHandle}>@{user?.username}</Text>
           </View>
         </View>
 
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder={t("What's happening?")}
-            placeholderTextColor="#657786"
-            multiline
-            autoFocus
-            value={postContent}
-            onChangeText={setPostContent}
-            maxLength={280}
-          />
-        </View>
+        <TextInput
+          style={styles.textInput}
+          placeholder={t("What's happening?")}
+          placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+          value={postContent}
+          onChangeText={setPostContent}
+          multiline
+          autoFocus
+          maxLength={280}
+          textAlignVertical="top"
+        />
 
-        <View style={styles.charCountContainer}>
-          <Text style={[
-            styles.charCount,
-            postContent.length > 260 && styles.charCountWarning,
-            postContent.length >= 280 && styles.charCountLimit
-          ]}>
-            {280 - postContent.length}
+        <View style={styles.footer}>
+          <Text style={styles.characterCount}>
+            {postContent.length}/280
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -137,6 +133,7 @@ const ComposeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.COLOR_BLACK_LIGHT_9,
   },
   header: {
     flexDirection: 'row',
@@ -144,73 +141,69 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#E1E8ED',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
   },
   cancelButton: {
     padding: 8,
   },
-  cancelButtonText: {
-    color: '#1DA1F2',
+  cancelText: {
     fontSize: 16,
+    color: colors.COLOR_BLACK_LIGHT_4,
   },
   postButton: {
     backgroundColor: colors.primaryColor,
     paddingHorizontal: 20,
     paddingVertical: 8,
-    borderRadius: 50,
+    borderRadius: 20,
+    minWidth: 60,
+    alignItems: 'center',
   },
   postButtonDisabled: {
-    backgroundColor: '#9BD1F9',
+    backgroundColor: colors.COLOR_BLACK_LIGHT_5,
   },
   postButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: colors.COLOR_BLACK_LIGHT_9,
     fontSize: 16,
+    fontWeight: '600',
   },
   composeArea: {
     flex: 1,
     padding: 16,
   },
-  userInfoContainer: {
+  userInfo: {
     flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  userInfo: {
+  userDetails: {
     marginLeft: 12,
-    justifyContent: 'center',
   },
   userName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#14171A',
+    fontWeight: '600',
+    color: colors.COLOR_BLACK_LIGHT_1,
   },
   userHandle: {
     fontSize: 14,
-    color: '#657786',
+    color: colors.COLOR_BLACK_LIGHT_4,
+    marginTop: 2,
   },
-  inputContainer: {
+  textInput: {
     flex: 1,
-  },
-  input: {
     fontSize: 18,
     lineHeight: 24,
-    color: '#14171A',
-    textAlignVertical: 'top',
+    color: colors.COLOR_BLACK_LIGHT_1,
+    minHeight: 120,
   },
-  charCountContainer: {
-    alignItems: 'flex-end',
-    paddingVertical: 8,
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
   },
-  charCount: {
+  characterCount: {
     fontSize: 14,
-    color: '#657786',
-  },
-  charCountWarning: {
-    color: '#FFAD1F',
-  },
-  charCountLimit: {
-    color: '#E0245E',
+    color: colors.COLOR_BLACK_LIGHT_4,
   },
 });
 

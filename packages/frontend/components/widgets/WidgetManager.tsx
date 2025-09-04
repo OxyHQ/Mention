@@ -10,7 +10,7 @@ export type ScreenId =
     | 'explore'
     | 'notifications'
     | 'messages'
-    | 'bookmarks'
+    | 'saved'
     | 'profile'
     | 'post-detail'
     | 'search';
@@ -67,10 +67,10 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
                     </View>
                 ];
 
-            case 'bookmarks':
+            case 'saved':
                 return [
-                    <View key="bookmarks">
-                        <Text>Bookmarks Widget</Text>
+                    <View key="saved">
+                        <Text>Saved Posts Widget</Text>
                     </View>
                 ];
 
@@ -145,24 +145,24 @@ const styles = StyleSheet.create({
     },
 });
 
-    const screenWidgets = getWidgetsForScreen(screenId);
+const screenWidgets = getWidgetsForScreen(screenId);
 
-    // Combine screen-specific widgets with any custom widgets passed as props
-    const allWidgets = [...screenWidgets, ...customWidgets];
+// Combine screen-specific widgets with any custom widgets passed as props
+const allWidgets = [...screenWidgets, ...customWidgets];
 
-    if (allWidgets.length === 0) {
-        return null;
-    }
+if (allWidgets.length === 0) {
+    return null;
+}
 
-    return (
-        <View style={styles.container}>
-            {allWidgets.map((widget, index) => (
-                <View key={`widget-${index}`} style={styles.widgetWrapper}>
-                    {widget}
-                </View>
-            ))}
-        </View>
-    );
+return (
+    <View style={styles.container}>
+        {allWidgets.map((widget, index) => (
+            <View key={`widget-${index}`} style={styles.widgetWrapper}>
+                {widget}
+            </View>
+        ))}
+    </View>
+);
 }
 
 const styles = StyleSheet.create({

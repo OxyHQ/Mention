@@ -12,6 +12,9 @@ router.get('/reposts', feedController.getRepostsFeed.bind(feedController));
 router.get('/posts', feedController.getPostsFeed.bind(feedController));
 router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedController));
 
+// User profile feed routes
+router.get('/user/:userId', feedController.getUserProfileFeed.bind(feedController));
+
 // Protected routes (authentication handled by server middleware)
 router.post('/reply', feedController.createReply.bind(feedController));
 router.post('/repost', feedController.createRepost.bind(feedController));

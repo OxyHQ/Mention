@@ -7,8 +7,8 @@ import {
   deletePost,
   likePost,
   unlikePost,
-  bookmarkPost,
-  unbookmarkPost,
+  savePost,
+  unsavePost,
   repostPost,
   quotePost,
   getPostsByHashtag,
@@ -33,8 +33,8 @@ router.put('/:id', updatePost);
 router.delete('/:id', deletePost);
 router.post('/:id/like', likePost);
 router.delete('/:id/like', unlikePost);
-router.post('/:id/bookmark', bookmarkPost);
-router.delete('/:id/bookmark', unbookmarkPost);
+router.post('/:id/save', savePost);
+router.delete('/:id/save', unsavePost);
 router.post('/:id/repost', repostPost);
 router.post('/:id/quote', quotePost);
 

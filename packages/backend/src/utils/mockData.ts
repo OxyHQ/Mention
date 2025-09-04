@@ -48,7 +48,7 @@ export interface MockPost {
   likes: Types.ObjectId[];
   reposts: Types.ObjectId[];
   replies: Types.ObjectId[];
-  bookmarks: Types.ObjectId[];
+  saved: Types.ObjectId[];
   location?: {
     type: 'Point';
     coordinates: [number, number];
@@ -283,12 +283,12 @@ export function generateMockPost(users: MockUser[]): MockPost {
   const likeCount = randomInt(0, 500);
   const repostCount = randomInt(0, 100);
   const replyCount = randomInt(0, 50);
-  const bookmarkCount = randomInt(0, 200);
+  const savedCount = randomInt(0, 200);
   
   const likes = Array.from({ length: likeCount }, () => new Types.ObjectId());
   const reposts = Array.from({ length: repostCount }, () => new Types.ObjectId());
   const replies = Array.from({ length: replyCount }, () => new Types.ObjectId());
-  const bookmarks = Array.from({ length: bookmarkCount }, () => new Types.ObjectId());
+  const saved = Array.from({ length: savedCount }, () => new Types.ObjectId());
   
   return {
     _id: postId,
@@ -300,7 +300,7 @@ export function generateMockPost(users: MockUser[]): MockPost {
     likes,
     reposts,
     replies,
-    bookmarks,
+    saved,
     location: randomBool(0.2) ? {
       type: 'Point',
       coordinates: randomChoice(sampleLocations).coordinates as [number, number],

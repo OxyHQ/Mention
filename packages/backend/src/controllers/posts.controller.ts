@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { Post } from '../models/Post';
+import Like from '../models/Like';
+import Bookmark from '../models/Bookmark';
 import { AuthRequest } from '../types/auth';
 import mongoose from 'mongoose';
 
@@ -14,20 +16,35 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const { text, media, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id } = req.body;
 
     const post = new Post({
-      text,
-      userID: new mongoose.Types.ObjectId(userId),
-      media: media || [],
-      hashtags: hashtags?.map((h: string) => new mongoose.Types.ObjectId(h)) || [],
-      mentions: mentions?.map((m: string) => new mongoose.Types.ObjectId(m)) || [],
-      quoted_post_id: quoted_post_id ? new mongoose.Types.ObjectId(quoted_post_id) : null,
-      repost_of: repost_of ? new mongoose.Types.ObjectId(repost_of) : null,
-      in_reply_to_status_id: in_reply_to_status_id ? new mongoose.Types.ObjectId(in_reply_to_status_id) : null
+      oxyUserId: userId,
+      content: {
+        text: text || '',
+        images: media || []
+      },
+      hashtags: hashtags || [],
+      mentions: mentions || [],
+      quoteOf: quoted_post_id || null,
+      repostOf: repost_of || null,
+      parentPostId: in_reply_to_status_id || null
     });
 
     await post.save();
-    await post.populate('userID', 'username name avatar verified');
+    // No populate needed since oxyUserId is just a string reference
 
-    res.status(201).json(post);
+    // Transform the response to match frontend expectations
+    const transformedPost = post.toObject() as any;
+    const userData = transformedPost.oxyUserId;
+    
+    transformedPost.user = {
+        id: typeof userData === 'object' ? userData._id : userData,
+        name: typeof userData === 'object' ? userData.name : 'Unknown User',
+        handle: typeof userData === 'object' ? userData.username : 'unknown',
+        avatar: typeof userData === 'object' ? userData.avatar : '',
+        verified: typeof userData === 'object' ? userData.verified : false
+    };
+    delete transformedPost.oxyUserId;
+
+    res.status(201).json(transformedPost);
   } catch (error) {
     console.error('Error creating post:', error);
     res.status(500).json({ message: 'Error creating post', error });
@@ -40,15 +57,30 @@ export const getPosts = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
 
-    const posts = await Post.find({ status: 'published' })
-      .sort({ created_at: -1 })
+    const posts = await Post.find({ visibility: 'public' })
+      .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate('userID', 'username name avatar verified')
       .lean();
 
+    // Transform posts to match frontend expectations
+    const transformedPosts = posts.map((post: any) => {
+      const userData = post.oxyUserId;
+      return {
+        ...post,
+        user: {
+          id: typeof userData === 'object' ? userData._id : userData,
+          name: typeof userData === 'object' ? userData.name : 'Unknown User',
+          handle: typeof userData === 'object' ? userData.username : 'unknown',
+          avatar: typeof userData === 'object' ? userData.avatar : '',
+          verified: typeof userData === 'object' ? userData.verified : false
+        },
+        oxyUserId: undefined
+      };
+    });
+
     res.json({
-      posts,
+      posts: transformedPosts,
       hasMore: posts.length === limit,
       page,
       limit
@@ -63,14 +95,27 @@ export const getPosts = async (req: Request, res: Response) => {
 export const getPostById = async (req: Request, res: Response) => {
   try {
     const post = await Post.findById(req.params.id)
-      .populate('userID', 'username name avatar verified')
       .lean();
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    res.json(post);
+    // Transform post to match frontend expectations
+    const userData = post.oxyUserId as any;
+    const transformedPost = {
+      ...post,
+      user: {
+        id: userData && typeof userData === 'object' ? userData._id : (userData || 'unknown'),
+        name: userData && typeof userData === 'object' ? userData.name : 'Unknown User',
+        handle: userData && typeof userData === 'object' ? userData.username : 'unknown',
+        avatar: userData && typeof userData === 'object' ? userData.avatar : '',
+        verified: userData && typeof userData === 'object' ? userData.verified : false
+      },
+      oxyUserId: undefined
+    };
+
+    res.json(transformedPost);
   } catch (error) {
     console.error('Error fetching post:', error);
     res.status(500).json({ message: 'Error fetching post', error });
@@ -85,22 +130,34 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findOne({ _id: req.params.id, userID: userId });
+    const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId });
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
     const { text, media, hashtags, mentions } = req.body;
     
-    if (text !== undefined) post.text = text;
-    if (media !== undefined) post.media = media;
-    if (hashtags !== undefined) post.hashtags = hashtags?.map((h: string) => new mongoose.Types.ObjectId(h)) || [];
-    if (mentions !== undefined) post.mentions = mentions?.map((m: string) => new mongoose.Types.ObjectId(m)) || [];
+    if (text !== undefined) post.content.text = text;
+    if (media !== undefined) post.content.images = media;
+    if (hashtags !== undefined) post.hashtags = hashtags || [];
+    if (mentions !== undefined) post.mentions = mentions || [];
 
     await post.save();
-    await post.populate('userID', 'username name avatar verified');
 
-    res.json(post);
+    // Transform the response to match frontend expectations
+    const transformedPost = post.toObject() as any;
+    
+    // For now, use placeholder user data since we don't have a User model
+    transformedPost.user = {
+        id: transformedPost.oxyUserId,
+        name: 'User', // This should come from Oxy service in the future
+        handle: transformedPost.oxyUserId, // Use oxyUserId as handle for now
+        avatar: '', // Default avatar
+        verified: false // Default to false
+    };
+    delete transformedPost.oxyUserId;
+
+    res.json(transformedPost);
   } catch (error) {
     console.error('Error updating post:', error);
     res.status(500).json({ message: 'Error updating post', error });
@@ -115,7 +172,7 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findOneAndDelete({ _id: req.params.id, userID: userId });
+    const post = await Post.findOneAndDelete({ _id: req.params.id, oxyUserId: userId });
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
@@ -135,15 +192,21 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findById(req.params.id);
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
+    const postId = req.params.id;
+
+    // Check if already liked
+    const existingLike = await Like.findOne({ userId, postId });
+    if (existingLike) {
+      return res.json({ message: 'Post already liked' });
     }
 
-    if (!post.likes.includes(new mongoose.Types.ObjectId(userId))) {
-      post.likes.push(new mongoose.Types.ObjectId(userId));
-      await post.save();
-    }
+    // Create like record
+    await Like.create({ userId, postId });
+
+    // Update post stats
+    await Post.findByIdAndUpdate(postId, {
+      $inc: { 'stats.likesCount': 1 }
+    });
 
     res.json({ message: 'Post liked successfully' });
   } catch (error) {
@@ -160,13 +223,18 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findById(req.params.id);
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
+    const postId = req.params.id;
+
+    // Remove like record
+    const result = await Like.deleteOne({ userId, postId });
+    if (result.deletedCount === 0) {
+      return res.json({ message: 'Post not liked' });
     }
 
-    post.likes = post.likes.filter(id => id.toString() !== userId);
-    await post.save();
+    // Update post stats
+    await Post.findByIdAndUpdate(postId, {
+      $inc: { 'stats.likesCount': -1 }
+    });
 
     res.json({ message: 'Post unliked successfully' });
   } catch (error) {
@@ -175,51 +243,52 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Bookmark post
-export const bookmarkPost = async (req: AuthRequest, res: Response) => {
+// Save post
+export const savePost = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findById(req.params.id);
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
+    const postId = req.params.id;
+
+    // Check if already saved
+    const existingSave = await Bookmark.findOne({ userId, postId });
+    if (existingSave) {
+      return res.json({ message: 'Post already saved' });
     }
 
-    if (!post.bookmarks.includes(new mongoose.Types.ObjectId(userId))) {
-      post.bookmarks.push(new mongoose.Types.ObjectId(userId));
-      await post.save();
-    }
+    // Create save record
+    await Bookmark.create({ userId, postId });
 
-    res.json({ message: 'Post bookmarked successfully' });
+    res.json({ message: 'Post saved successfully' });
   } catch (error) {
-    console.error('Error bookmarking post:', error);
-    res.status(500).json({ message: 'Error bookmarking post', error });
+    console.error('Error saving post:', error);
+    res.status(500).json({ message: 'Error saving post', error });
   }
-};
+ };
 
-// Unbookmark post
-export const unbookmarkPost = async (req: AuthRequest, res: Response) => {
+// Unsave post
+export const unsavePost = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findById(req.params.id);
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
+    const postId = req.params.id;
+
+    // Remove save record
+    const result = await Bookmark.deleteOne({ userId, postId });
+    if (result.deletedCount === 0) {
+      return res.json({ message: 'Post not saved' });
     }
 
-    post.bookmarks = post.bookmarks.filter(id => id.toString() !== userId);
-    await post.save();
-
-    res.json({ message: 'Post unbookmarked successfully' });
+    res.json({ message: 'Post unsaved successfully' });
   } catch (error) {
-    console.error('Error unbookmarking post:', error);
-    res.status(500).json({ message: 'Error unbookmarking post', error });
+    console.error('Error unsaving post:', error);
+    res.status(500).json({ message: 'Error unsaving post', error });
   }
 };
 

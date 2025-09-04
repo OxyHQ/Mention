@@ -12,7 +12,7 @@ export interface IAnalytics extends Document {
       replies: number;
       reposts: number;
       quotes: number;
-      bookmarks: number;
+      saved: number;
     };
     reach: {
       impressions: number;
@@ -41,7 +41,7 @@ const AnalyticsSchema = new Schema({
       replies: { type: Number, default: 0 },
       reposts: { type: Number, default: 0 },
       quotes: { type: Number, default: 0 },
-      bookmarks: { type: Number, default: 0 }
+      saved: { type: Number, default: 0 }
     },
     reach: {
       impressions: { type: Number, default: 0 },

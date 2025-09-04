@@ -20,6 +20,7 @@ import analyticsRoutes from "./src/routes/analytics.routes";
 import feedRoutes from './src/routes/feed.routes';
 import pollsRoutes from './src/routes/polls';
 import { OxyServices } from '@oxyhq/services/core';
+import testRoutes from "./src/routes/test";
 
 const oxy = new OxyServices({ baseURL: 'https://localhost:3001' });
 
@@ -307,7 +308,6 @@ app.set("postsNamespace", postsNamespace);
 // Public API routes (no authentication required)
 const publicApiRouter = express.Router();
 publicApiRouter.use("/hashtags", hashtagsRoutes);
-publicApiRouter.use("/feed", feedRoutes); // feed routes
 publicApiRouter.use("/polls", pollsRoutes); // pollsRoutes splits public/protected
 
 // Authenticated API routes (require authentication)
@@ -317,6 +317,8 @@ authenticatedApiRouter.use("/lists", listsRoutes);
 authenticatedApiRouter.use("/notifications", notificationsRouter);
 authenticatedApiRouter.use("/analytics", analyticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
+authenticatedApiRouter.use("/feed", feedRoutes); // Feed routes require authentication
+authenticatedApiRouter.use("/test", testRoutes);
 // You can add more protected routers here as needed
 
 // Mount public and authenticated API routers
