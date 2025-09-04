@@ -77,15 +77,15 @@ const PostCard: React.FC<PostCardProps> = ({
     onSharePress,
     onSavePress
 }) => {
-    const [isLiked, setIsLiked] = useState(post.isLiked || false);
-    const [isReposted, setIsReposted] = useState(post.isReposted || false);
-    const [isSaved, setIsSaved] = useState(post.isSaved || false);
+    const [isLiked, setIsLiked] = useState(post.isLiked !== undefined ? post.isLiked : false);
+    const [isReposted, setIsReposted] = useState(post.isReposted !== undefined ? post.isReposted : false);
+    const [isSaved, setIsSaved] = useState(post.isSaved !== undefined ? post.isSaved : false);
 
     // Update local state when post props change
     useEffect(() => {
-        setIsLiked(post.isLiked || false);
-        setIsReposted(post.isReposted || false);
-        setIsSaved(post.isSaved || false);
+        setIsLiked(post.isLiked !== undefined ? post.isLiked : false);
+        setIsReposted(post.isReposted !== undefined ? post.isReposted : false);
+        setIsSaved(post.isSaved !== undefined ? post.isSaved : false);
     }, [post.isLiked, post.isReposted, post.isSaved]);
 
     // Format date

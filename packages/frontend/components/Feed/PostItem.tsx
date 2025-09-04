@@ -28,9 +28,9 @@ const PostItem: React.FC<PostItemProps> = ({
     onSave
 }) => {
     // Use the actual data from the post instead of local state
-    const isLiked = 'isLiked' in post ? post.isLiked || false : false;
-    const isReposted = 'isReposted' in post ? post.isReposted || false : false;
-    const isSaved = 'isSaved' in post ? post.isSaved || false : false;
+    const isLiked = 'isLiked' in post ? (post.isLiked !== undefined ? post.isLiked : false) : false;
+    const isReposted = 'isReposted' in post ? (post.isReposted !== undefined ? post.isReposted : false) : false;
+    const isSaved = 'isSaved' in post ? (post.isSaved !== undefined ? post.isSaved : false) : false;
 
     const handleLike = () => {
         onLike?.();

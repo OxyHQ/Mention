@@ -252,10 +252,10 @@ export const usePostsStore = create<FeedState>()(
               [type]: {
                 items: response.items?.map(item => ({
                   ...item.data,
-                  // Use the actual data from API response
-                  isSaved: item.data.isSaved || false,
-                  isLiked: item.data.isLiked || false,
-                  isReposted: item.data.isReposted || false,
+                  // Use the backend values directly, only fallback if undefined
+                  isSaved: item.data.isSaved !== undefined ? item.data.isSaved : false,
+                  isLiked: item.data.isLiked !== undefined ? item.data.isLiked : false,
+                  isReposted: item.data.isReposted !== undefined ? item.data.isReposted : false,
                   isCommented: item.data.metadata?.isCommented || false,
                   isFollowingAuthor: item.data.metadata?.isFollowingAuthor || false,
                   authorBlocked: item.data.metadata?.authorBlocked || false,
@@ -315,9 +315,9 @@ export const usePostsStore = create<FeedState>()(
               items: response.data.posts?.map(post => ({
                 ...post,
                 // Flatten metadata properties to top level
-                isSaved: post.metadata?.isSaved || post.isSaved || true, // Saved posts are always saved
-                isLiked: post.metadata?.isLiked || post.isLiked || false,
-                isReposted: post.metadata?.isReposted || post.isReposted || false,
+                isSaved: post.metadata?.isSaved !== undefined ? post.metadata.isSaved : (post.isSaved !== undefined ? post.isSaved : true), // Saved posts are always saved
+                isLiked: post.metadata?.isLiked !== undefined ? post.metadata.isLiked : (post.isLiked !== undefined ? post.isLiked : false),
+                isReposted: post.metadata?.isReposted !== undefined ? post.metadata.isReposted : (post.isReposted !== undefined ? post.isReposted : false),
                 isCommented: post.metadata?.isCommented || false,
                 isFollowingAuthor: post.metadata?.isFollowingAuthor || false,
                 authorBlocked: post.metadata?.authorBlocked || false,
@@ -756,9 +756,9 @@ export const usePostsStore = create<FeedState>()(
         // Transform the response to flatten metadata properties
         return {
           ...response,
-          isSaved: response.metadata?.isSaved || response.isSaved || false,
-          isLiked: response.metadata?.isLiked || response.isLiked || false,
-          isReposted: response.metadata?.isReposted || response.isReposted || false,
+          isSaved: response.metadata?.isSaved !== undefined ? response.metadata.isSaved : (response.isSaved !== undefined ? response.isSaved : false),
+          isLiked: response.metadata?.isLiked !== undefined ? response.metadata.isLiked : (response.isLiked !== undefined ? response.isLiked : false),
+          isReposted: response.metadata?.isReposted !== undefined ? response.metadata.isReposted : (response.isReposted !== undefined ? response.isReposted : false),
           isCommented: response.metadata?.isCommented || false,
           isFollowingAuthor: response.metadata?.isFollowingAuthor || false,
           authorBlocked: response.metadata?.authorBlocked || false,
