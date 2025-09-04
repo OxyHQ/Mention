@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../styles/colors';
 import PostItem from '../../components/Feed/PostItem';
+import Feed from '../../components/Feed/Feed';
 import { usePostsStore } from '../../stores/postsStore';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 
@@ -130,12 +131,10 @@ const PostDetailScreen: React.FC = () => {
                     <PostItem post={post} />
                 </View>
 
-                {/* Add replies section here if needed */}
+                {/* Replies section with Feed component */}
                 <View style={styles.repliesSection}>
                     <Text style={styles.repliesTitle}>Replies</Text>
-                    <Text style={styles.repliesPlaceholder}>
-                        Replies will be displayed here
-                    </Text>
+                    <Feed type="replies" />
                 </View>
             </ScrollView>
         </View>
@@ -214,7 +213,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     repliesSection: {
-        padding: 16,
+        flex: 1,
         borderTopWidth: 1,
         borderTopColor: colors.COLOR_BLACK_LIGHT_6,
     },
@@ -223,12 +222,8 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: colors.COLOR_BLACK_LIGHT_1,
         marginBottom: 12,
-    },
-    repliesPlaceholder: {
-        fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_4,
-        textAlign: 'center',
-        paddingVertical: 32,
+        paddingHorizontal: 16,
+        paddingTop: 16,
     },
 });
 

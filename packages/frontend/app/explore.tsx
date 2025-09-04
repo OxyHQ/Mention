@@ -3,6 +3,7 @@ import { SafeAreaView, StyleSheet, Text, View, TouchableOpacity, Platform } from
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
 import { StatusBar } from 'expo-status-bar';
+import Feed from '../components/Feed/Feed';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'custom';
 
@@ -14,21 +15,21 @@ const ExploreScreen: React.FC = () => {
     switch (activeTab) {
       case 'media':
         return (
-          <Text>Media</Text>
+          <Feed type="media" />
         );
 
       case 'trending':
         return (
-          <Text>Trending feed</Text>
+          <Feed type="mixed" />
         );
 
       case 'custom':
         return (
-          <Text>Custom feed</Text>
+          <Feed type="posts" />
         );
 
       default:
-        return <Text>All feed</Text>;
+        return <Feed type="mixed" />;
     }
   };
 
