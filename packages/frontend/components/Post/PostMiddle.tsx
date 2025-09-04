@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, ScrollView, StyleSheet } from 'react-native';
+import { Image, ScrollView, StyleSheet, View } from 'react-native';
 import PostItem from '../Feed/PostItem';
 
 interface Props {
@@ -9,10 +9,11 @@ interface Props {
 }
 
 const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0 }) => {
-  const items: Array<'nested' | { type: 'image'; src: string }> = [] as any;
+  type Item = { type: "nested" } | { type: "image"; src: string };
+  const items: Item[] = [];
 
-  if (nestedPost) items.push('nested');
-  (media || []).forEach((src) => items.push({ type: 'image', src } as any));
+  if (nestedPost) items.push({ type: "nested" });
+  (media || []).forEach((src) => items.push({ type: "image", src }));
 
   if (items.length === 0) return null;
 
@@ -22,22 +23,18 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0 }) => {
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
-      {items.map((item, idx) => {
-        if (item === 'nested') {
-          return (
-            <PostItem key={`nested-${idx}`} post={nestedPost} isNested={true} />
-          );
-        }
-        const image = item as { type: 'image'; src: string };
-        return (
+      {items.map((item, idx) =>
+        item.type === "nested" ? (
+          <PostItem key={idx} post={nestedPost} isNested={true} />
+        ) : (
           <Image
-            key={`img-${idx}`}
-            source={{ uri: image.src }}
-            style={styles.mediaImage}
+            key={idx}
+            source={{ uri: item.src }}
+            style={[styles.mediaImage, styles.itemContainer]}
             resizeMode="cover"
           />
-        );
-      })}
+        )
+      )}
     </ScrollView>
   );
 };
@@ -49,8 +46,13 @@ const CARD_HEIGHT = 180;
 
 const styles = StyleSheet.create({
   scroller: {
-    paddingRight: 8,
+    paddingRight: 12,
     gap: 12,
+    flex: 1,
+  },
+  itemContainer: {
+    borderWidth: 5,
+    borderColor: '#000',
   },
   mediaImage: {
     width: CARD_WIDTH,

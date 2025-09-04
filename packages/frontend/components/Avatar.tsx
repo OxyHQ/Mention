@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../styles/colors';
+import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 
 interface AvatarProps {
   source?: ImageSourcePropType | string;
@@ -21,15 +22,14 @@ const Avatar: React.FC<AvatarProps> = ({
   verified = false,
   style
 }) => {
-  const imageSource = typeof source === 'string' ? { uri: source } : source;
-  const defaultSource = { uri: 'https://via.placeholder.com/40' };
+  const imageSource = source ? (typeof source === 'string' ? { uri: source } : source) : DefaultAvatar;
 
   return (
     <View style={[styles.container, { width: size, height: size }, style]}>
       <Image
-        source={imageSource || defaultSource}
+        source={imageSource}
         style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
-        defaultSource={defaultSource}
+        defaultSource={DefaultAvatar}
       />
       {verified && (
         <View style={[styles.verifiedBadge, { width: size * 0.4, height: size * 0.4 }]}>
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-            backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+    backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',

@@ -15,6 +15,7 @@ import { SideBarItem } from './SideBarItem';
 import { colors } from '@/styles/colors';
 import { Button } from '@/components/SideBar/Button';
 import { Logo } from '@/components/Logo';
+import Avatar from '@/components/Avatar';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { Gear, GearActive } from '@/assets/icons/gear-icon';
@@ -37,7 +38,9 @@ const WindowHeight = Dimensions.get('window').height;
 export function SideBar() {
     const { t } = useTranslation();
     const router = useRouter();
-    const { isAuthenticated: _isAuthenticated, user, showBottomSheet, logout } = useOxy();
+    const { isAuthenticated: _isAuthenticated, user, showBottomSheet, logout, oxyServices } = useOxy();
+
+    const avatarUri = user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined;
 
     const handleSignOut = () => {
         webAlert(t('settings.signOut'), t('settings.signOutMessage'), [
@@ -72,6 +75,12 @@ export function SideBar() {
                 iconActive: <HomeActive />,
                 route: '/',
             },
+            ...(user ? [{
+                title: 'Profile',
+                icon: <Avatar source={avatarUri} size={24} />,
+                iconActive: <Avatar source={avatarUri} size={24} />,
+                route: `/@${user.username}`,
+            }] : []),
             {
                 title: t("Explore"),
                 icon: <Search color={colors.COLOR_BLACK} />,
@@ -196,7 +205,7 @@ export function SideBar() {
 
                         <View style={styles.addPropertyButtonContainer}>
                             <Button
-                                href="/properties/create"
+                                href="/compose"
                                 renderText={() => (
                                     <Text style={[
                                         styles.addPostButtonText,

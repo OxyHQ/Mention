@@ -25,7 +25,7 @@ const AnimatedBlurView = Animated.createAnimatedComponent(BlurView as any);
 
 
 
-const TwitterProfile: React.FC = () => {
+const MentionProfile: React.FC = () => {
     const { user: currentUser, oxyServices, showBottomSheet } = useOxy();
     let { username } = useLocalSearchParams<{ username: string }>();
     if (username && username.startsWith('@')) {
@@ -60,6 +60,8 @@ const TwitterProfile: React.FC = () => {
 
         fetchProfileData();
     }, [username, oxyServices]);
+
+    const avatarUri = profileData?.avatar ? oxyServices.getFileDownloadUrl(profileData.avatar as string, 'thumb') : undefined;
 
 
 
@@ -100,7 +102,11 @@ const TwitterProfile: React.FC = () => {
 
         return (
             <Feed
-                type={feedType}
+                type={feedType as any}
+                userId={profileData?.id}
+                hideHeader={true}
+                scrollEnabled={false}
+                contentContainerStyle={{ paddingBottom: 100 }}
             />
         );
     };
@@ -219,7 +225,7 @@ const TwitterProfile: React.FC = () => {
                         <View style={styles.profileContent}>
                             <View style={styles.avatarRow}>
                                 <Animated.Image
-                                    source={{ uri: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg' }}
+                                    source={{ uri: avatarUri }}
                                     style={[
                                         styles.avatar,
                                         {
@@ -488,6 +494,7 @@ const styles = StyleSheet.create({
         borderRadius: 40,
         borderWidth: 3,
         borderColor: '#000',
+        backgroundColor: '#333',
     },
     profileActions: {
         flexDirection: 'row',
@@ -779,4 +786,4 @@ const styles = StyleSheet.create({
 
 });
 
-export default TwitterProfile;
+export default MentionProfile;

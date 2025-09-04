@@ -422,18 +422,44 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Transform posts to match frontend expectations
+    // Fetch profile data for unique oxyUserIds (same as feed controller)
+    const uniqueUserIds = Array.from(new Set(posts.map((p: any) => p.oxyUserId).filter(Boolean)));
+    const userDataMap = new Map<string, any>();
+    await Promise.all(uniqueUserIds.map(async (uid) => {
+      try {
+        const userData = await oxyClient.getUserById(uid);
+        userDataMap.set(uid, {
+          id: userData.id,
+          name: userData.name?.full || userData.username || 'User',
+          handle: userData.username || 'user',
+          avatar: typeof userData.avatar === 'string' ? userData.avatar : (userData.avatar as any)?.url || '',
+          verified: userData.verified || false
+        });
+      } catch (e) {
+        // Fallback if lookup fails
+        userDataMap.set(uid, {
+          id: uid,
+          name: 'User',
+          handle: 'user',
+          avatar: '',
+          verified: false
+        });
+      }
+    }));
+
+    // Transform posts to match frontend expectations with real user profile
     const transformedPosts = posts.map((post: any) => {
-      const userData = post.oxyUserId;
+      const userProfile = userDataMap.get(post.oxyUserId) || {
+        id: post.oxyUserId,
+        name: 'User',
+        handle: 'user',
+        avatar: '',
+        verified: false
+      };
+
       return {
         ...post,
-        user: {
-          id: typeof userData === 'object' ? userData._id : userData,
-          name: typeof userData === 'object' ? userData.name : 'Unknown User',
-          handle: typeof userData === 'object' ? userData.username : 'unknown',
-          avatar: typeof userData === 'object' ? userData.avatar : '',
-          verified: typeof userData === 'object' ? userData.verified : false
-        },
+        user: userProfile,
         isSaved: true, // All posts in this endpoint are saved
         oxyUserId: undefined
       };

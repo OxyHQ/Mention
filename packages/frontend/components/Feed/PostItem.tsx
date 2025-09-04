@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { StyleSheet, View, Share, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -9,16 +9,20 @@ import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
 import { colors } from '../../styles/colors';
 import PostMiddle from '../Post/PostMiddle';
+import { useOxy } from '@oxyhq/services';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
     isNested?: boolean; // Flag to indicate if this is a nested post (for reposts/replies)
+    style?: object; // Additional styles for the post container
 }
 
 const PostItem: React.FC<PostItemProps> = ({
     post,
-    isNested = false
+    isNested = false,
+    style,
 }) => {
+    const { oxyServices } = useOxy();
     const router = useRouter();
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
 
@@ -35,18 +39,19 @@ const PostItem: React.FC<PostItemProps> = ({
     const [parentPost, setParentPost] = React.useState<any>(null);
     const [isLoadingParent, setIsLoadingParent] = React.useState(false);
 
+    const findFromStore = useCallback((id: string) => {
+        try {
+            const { feeds } = usePostsStore.getState();
+            const types: Array<'posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes'> = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
+            for (const t of types) {
+                const match = feeds[t]?.items?.find((p: any) => p.id === id);
+                if (match) return match;
+            }
+        } catch { }
+        return null;
+    }, []);
+
     React.useEffect(() => {
-        const findFromStore = (id: string) => {
-            try {
-                const { feeds } = usePostsStore.getState();
-                const types: Array<'posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes'> = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
-                for (const t of types) {
-                    const match = feeds[t]?.items?.find((p: any) => p.id === id);
-                    if (match) return match;
-                }
-            } catch { }
-            return null;
-        };
 
         const loadOriginalPost = async () => {
             if (!isNested && 'originalPostId' in post && post.originalPostId) {
@@ -94,7 +99,7 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [post, getPostById, isNested]);
 
 
-    const handleLike = async () => {
+    const handleLike = useCallback(async () => {
         try {
             if (isLiked) {
                 await unlikePost({ postId: post.id, type: 'post' });
@@ -104,13 +109,13 @@ const PostItem: React.FC<PostItemProps> = ({
         } catch (error) {
             console.error('Error toggling like:', error);
         }
-    };
+    }, [isLiked, likePost, unlikePost, post.id]);
 
-    const handleReply = () => {
+    const handleReply = useCallback(() => {
         router.push(`/p/${post.id}/reply`);
-    };
+    }, [router, post.id]);
 
-    const handleRepost = async () => {
+    const handleRepost = useCallback(async () => {
         try {
             if (isReposted) {
                 await unrepostPost({ postId: post.id });
@@ -120,9 +125,9 @@ const PostItem: React.FC<PostItemProps> = ({
         } catch (error) {
             console.error('Error toggling repost:', error);
         }
-    };
+    }, [isReposted, post.id, repostPost, unrepostPost]);
 
-    const handleShare = async () => {
+    const handleShare = useCallback(async () => {
         try {
             const postUrl = `https://mention.earth/p/${post.id}`;
             const shareMessage = ('content' in post && post.content)
@@ -151,9 +156,9 @@ const PostItem: React.FC<PostItemProps> = ({
             console.error('Error sharing post:', error);
             Alert.alert('Error', 'Failed to share post');
         }
-    };
+    }, [post]);
 
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         try {
             if (isSaved) {
                 await unsavePost({ postId: post.id });
@@ -163,88 +168,82 @@ const PostItem: React.FC<PostItemProps> = ({
         } catch (error) {
             console.error('Error toggling save:', error);
         }
-    };
+    }, [isSaved, post.id, savePost, unsavePost]);
 
     // Keep this in sync with PostAvatar defaults
+    const HPAD = 16;
     const AVATAR_SIZE = 40;
     const AVATAR_GAP = 12;
     const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
+    const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET;
 
     // Early return if post is invalid
     if (!post || !post.user) {
         return null;
     }
 
+    const avatarUri = post.user.avatar ? oxyServices.getFileDownloadUrl(post.user.avatar as string, 'thumb') : undefined;
+
     return (
-        <View style={[styles.postContainer, isNested && styles.nestedPostContainer]}>
-            <View style={styles.postContent}>
-                <PostHeader
-                    user={post.user}
-                    date={post.date || 'Just now'}
-                    showRepost={Boolean((post as any).originalPostId) && !isNested}
-                    showReply={Boolean((post as any).postId) && !isNested}
-                    avatarUri={post.user.avatar}
-                >
-                    {/* Top: text content */}
-                    {'content' in post && !!post.content && (
-                        <PostContentText content={post.content} />
-                    )}
-                </PostHeader>
-
-                {/* Middle: horizontal scroller with media and nested post (repost/parent) */}
-                <PostMiddle
-                    media={(post as any).media}
-                    nestedPost={(originalPost || parentPost) ?? null}
-                    leftOffset={AVATAR_OFFSET}
-                />
-
-                {/* Only show engagement buttons for non-nested posts */}
-                {!isNested && (
-                    <View style={styles.bottomPadding}>
-                        <PostActions
-                            engagement={post.engagement}
-                            isLiked={isLiked}
-                            isReposted={isReposted}
-                            isSaved={isSaved}
-                            onReply={handleReply}
-                            onRepost={handleRepost}
-                            onLike={handleLike}
-                            onSave={handleSave}
-                            onShare={handleShare}
-                        />
-                    </View>
+        <View style={[styles.postContainer, isNested && styles.nestedPostContainer, style]}>
+            <PostHeader
+                user={post.user}
+                date={post.date || 'Just now'}
+                showRepost={Boolean((post as any).originalPostId) && !isNested}
+                showReply={Boolean((post as any).postId) && !isNested}
+                avatarUri={avatarUri}
+            >
+                {/* Top: text content */}
+                {'content' in post && !!post.content && (
+                    <PostContentText content={post.content} postId={post.id} />
                 )}
-            </View>
+            </PostHeader>
+
+            {/* Middle: horizontal scroller with media and nested post (repost/parent) */}
+            <PostMiddle
+                media={(post as any).media}
+                nestedPost={(originalPost || parentPost) ?? null}
+                leftOffset={AVATAR_OFFSET}
+            />
+
+            {/* Only show engagement buttons for non-nested posts */}
+            {!isNested && (
+                <View style={[styles.bottomPadding, { paddingLeft: BOTTOM_LEFT_PAD, paddingRight: HPAD }]}>
+                    <PostActions
+                        engagement={post.engagement}
+                        isLiked={isLiked}
+                        isReposted={isReposted}
+                        isSaved={isSaved}
+                        onReply={handleReply}
+                        onRepost={handleRepost}
+                        onLike={handleLike}
+                        onSave={handleSave}
+                        onShare={handleShare}
+                    />
+                </View>
+            )}
         </View>
     );
 };
 
 const styles = StyleSheet.create({
     postContainer: {
-        flexDirection: 'row',
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
-    },
-    postContent: {
-        flex: 1,
+        flexDirection: 'column',
         gap: 12,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+        flex: 1,
     },
     nestedPostContainer: {
-        borderLeftWidth: 0,
-        paddingLeft: 0,
-        marginLeft: 0,
-        borderRadius: 8,
         borderWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
         backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-        paddingTop: 8,
+        borderRadius: 16,
     },
-    
+
     bottomPadding: {
-        paddingLeft: 16 + 40 + 12, // header horizontal padding + avatar + gap
-        paddingRight: 16,
+        // Values injected from constants above
     },
 
 });

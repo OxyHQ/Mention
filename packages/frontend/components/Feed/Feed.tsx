@@ -29,6 +29,7 @@ interface FeedProps {
     hideRefreshControl?: boolean;
     style?: any;
     contentContainerStyle?: any;
+    scrollEnabled?: boolean;
 }
 
 const Feed = ({
@@ -43,7 +44,8 @@ const Feed = ({
     hideHeader = false,
     hideRefreshControl = false,
     style,
-    contentContainerStyle
+    contentContainerStyle,
+    scrollEnabled = true
 }: FeedProps) => {
     const flatListRef = useRef<FlatList>(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -70,6 +72,7 @@ const Feed = ({
     const {
         fetchFeed,
         fetchUserFeed,
+        fetchSavedPosts,
         refreshFeed,
         loadMoreFeed,
         clearError
@@ -79,23 +82,29 @@ const Feed = ({
     useEffect(() => {
         const fetchInitialFeed = async () => {
             try {
-            if (userId) {
-                await fetchUserFeed(userId, { type, limit: 20 });
-            } else {
-                await fetchFeed({ type, limit: 20 });
-            }
+                if (showOnlySaved) {
+                    await fetchSavedPosts({ page: 1, limit: 50 });
+                    return;
+                }
+                if (userId) {
+                    await fetchUserFeed(userId, { type, limit: 20 });
+                } else {
+                    await fetchFeed({ type, limit: 20 });
+                }
             } catch (error) {
                 console.error('Error fetching initial feed:', error);
             }
         };
 
         fetchInitialFeed();
-    }, [type, userId, fetchFeed, fetchUserFeed]);
+    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            if (userId) {
+            if (showOnlySaved) {
+                await fetchSavedPosts({ page: 1, limit: 50 });
+            } else if (userId) {
                 await fetchUserFeed(userId, { type, limit: 20 });
             } else {
                 await refreshFeed(type);
@@ -105,9 +114,11 @@ const Feed = ({
         } finally {
             setRefreshing(false);
         }
-    }, [type, userId, refreshFeed, fetchUserFeed]);
+    }, [type, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts]);
 
     const handleLoadMore = useCallback(async () => {
+        // Saved posts currently load as a single page; skip infinite scroll
+        if (showOnlySaved) return;
         if (!hasMore || isLoading) return;
 
         try {
@@ -119,7 +130,7 @@ const Feed = ({
         } catch (error) {
             console.error('Error loading more feed:', error);
         }
-    }, [hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor]);
+    }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor]);
 
     const renderPostItem = useCallback(({ item }: { item: any }) => (
         <PostItem post={item} />
@@ -175,6 +186,7 @@ const Feed = ({
     }, [isLoading, error, type, userId, clearError, fetchFeed, fetchUserFeed, showOnlySaved]);
 
     const renderFooter = useCallback(() => {
+        if (showOnlySaved) return null;
         if (!hasMore) return null;
 
         // Don't show "Loading more posts..." during initial load when the list is empty
@@ -187,7 +199,7 @@ const Feed = ({
                 <Text style={styles.footerText}>Loading more posts...</Text>
             </View>
         );
-    }, [hasMore, isLoading, filteredFeedData?.items]);
+    }, [showOnlySaved, hasMore, isLoading, filteredFeedData?.items]);
 
     const renderHeader = useCallback(() => {
         if (!showComposeButton || hideHeader) return null;
@@ -223,6 +235,7 @@ const Feed = ({
                     ListHeaderComponent={renderHeader}
                     ListEmptyComponent={renderEmptyState}
                     ListFooterComponent={renderFooter}
+                    scrollEnabled={scrollEnabled}
                     refreshControl={
                         hideRefreshControl ? undefined : (
                             <RefreshControl

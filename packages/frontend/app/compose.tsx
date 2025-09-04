@@ -116,13 +116,12 @@ const ComposeScreen = () => {
           onChangeText={setPostContent}
           multiline
           autoFocus
-          maxLength={280}
           textAlignVertical="top"
         />
 
         <View style={styles.footer}>
           <Text style={styles.characterCount}>
-            {postContent.length}/280
+            {postContent.length}
           </Text>
         </View>
       </KeyboardAvoidingView>

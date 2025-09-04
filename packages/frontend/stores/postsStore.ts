@@ -304,7 +304,26 @@ export const usePostsStore = create<FeedState>()(
       try {
         const response = await feedService.getSavedPosts(request);
 
-        const processedPosts = response.data.posts?.map((post: any) => transformToUIItem({ ...post, isSaved: true })) || [];
+        let processedPosts = response.data.posts?.map((post: any) => transformToUIItem({ ...post, isSaved: true })) || [];
+
+        // Fallback: if API returns empty, derive from currently loaded feeds
+        if (!processedPosts.length) {
+          const state = get();
+          const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
+          const seen = new Set<string>();
+          const localSaved: FeedItem[] = [];
+          types.forEach(t => {
+            state.feeds[t]?.items?.forEach((p: any) => {
+              if (p?.isSaved && !seen.has(p.id)) {
+                seen.add(p.id);
+                localSaved.push(p);
+              }
+            });
+          });
+          if (localSaved.length) {
+            processedPosts = localSaved;
+          }
+        }
 
         console.log('Store: Setting posts in store:', processedPosts.length, 'posts');
 
@@ -315,7 +334,7 @@ export const usePostsStore = create<FeedState>()(
               items: processedPosts,
               hasMore: response.data.hasMore || false,
               nextCursor: null,
-              totalCount: response.data.posts?.length || 0,
+              totalCount: processedPosts.length,
               isLoading: false,
               error: null,
               lastUpdated: Date.now()

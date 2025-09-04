@@ -114,12 +114,15 @@ function SuggestedFriends({ followRecData }: { followRecData: Models.User[] }) {
 }
 
 const FollowRowComponent = ({ profileData }: { profileData: Models.User }) => {
+    const { oxyServices } = useOxy();
     // Skip rendering if no id
     if (!profileData.id) return null;
 
     const displayName = profileData.name?.first
         ? `${profileData.name.first} ${profileData.name.last || ''}`.trim()
         : profileData.username || 'Unknown User';
+
+    const avatarUri = profileData?.avatar ? oxyServices.getFileDownloadUrl(profileData.avatar as string, 'thumb') : undefined;
 
     const username = profileData.username || profileData.id;
 
@@ -141,7 +144,7 @@ const FollowRowComponent = ({ profileData }: { profileData: Models.User }) => {
                     }),
                 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <Avatar id={profileData.id} />
+                    <Avatar source={avatarUri} />
                     <View style={{ marginRight: 'auto', marginLeft: 13 }}>
                         <Text style={{ fontWeight: 'bold', fontSize: 15 }}>
                             {displayName}

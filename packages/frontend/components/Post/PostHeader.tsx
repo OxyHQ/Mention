@@ -60,7 +60,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   };
 
   const timeLabel = formatRelativeTime(date);
-  const indentLeft = avatarUri ? avatarSize + avatarGap : 0;
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <View style={styles.headerRow}>
@@ -88,9 +87,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               </View>
             )}
           </View>
+          {children ? <View style={styles.headerChildren}>{children}</View> : null}
         </View>
       </View>
-      {children ? <View style={[styles.headerChildren, { paddingLeft: indentLeft }]}>{children}</View> : null}
     </View>
   );
 };
@@ -109,6 +108,7 @@ const styles = StyleSheet.create({
   headerMeta: {
     flex: 1,
     paddingTop: 2,
+    gap: 8,
   },
   postHeader: {
     flexDirection: 'row',
@@ -116,7 +116,6 @@ const styles = StyleSheet.create({
     gap: ROW_GAP,
   },
   headerChildren: {
-    paddingTop: SECTION_GAP,
   },
   postUserName: {
     fontSize: 15,

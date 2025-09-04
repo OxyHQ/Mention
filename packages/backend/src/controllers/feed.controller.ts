@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { Post } from '../models/Post';
+import Like from '../models/Like';
 import { 
   FeedRequest, 
   CreateReplyRequest, 
@@ -43,8 +44,8 @@ class FeedController {
             const userData = await oxyClient.getUserById(userId);
             userDataMap.set(userId, {
               id: userData.id,
-              name: userData.name?.full || userData.username || 'User',
-              handle: userData.username || 'user',
+              name: userData.name?.full || userData.username,
+              handle: userData.username,
               avatar: typeof userData.avatar === 'string' ? userData.avatar : (userData.avatar as any)?.url || '',
               verified: userData.verified || false
             });
@@ -255,20 +256,24 @@ class FeedController {
     // Filter by post type
     switch (type) {
       case 'posts':
+        // Regular posts (not replies or reposts)
         query.type = { $in: [PostType.TEXT, PostType.IMAGE, PostType.VIDEO, PostType.POLL] };
-        query.parentPostId = { $exists: false };
-        query.repostOf = { $exists: false };
+        query.parentPostId = null; // matches null or non-existent
+        query.repostOf = null;
         break;
       case 'media':
+        // Media posts (images/videos) that are not replies or reposts
         query.type = { $in: [PostType.IMAGE, PostType.VIDEO] };
-        query.parentPostId = { $exists: false };
-        query.repostOf = { $exists: false };
+        query.parentPostId = null;
+        query.repostOf = null;
         break;
       case 'replies':
-        query.parentPostId = { $exists: true };
+        // Replies have a parentPostId set (not null)
+        query.parentPostId = { $ne: null };
         break;
       case 'reposts':
-        query.repostOf = { $exists: true };
+        // Reposts have repostOf set (not null)
+        query.repostOf = { $ne: null };
         break;
       case 'mixed':
       default:
@@ -519,6 +524,56 @@ class FeedController {
         return res.status(400).json({ error: 'User ID is required' });
       }
 
+      // Handle Likes feed separately (posts the user liked)
+      if (type === 'likes') {
+        // Paginate likes by Like document _id (chronological like order)
+        const likeQuery: any = { userId };
+        if (cursor) {
+          likeQuery._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+        }
+
+        const likes = await Like.find(likeQuery)
+          .sort({ _id: -1 })
+          .limit(Number(limit) + 1)
+          .lean();
+
+        const hasMore = likes.length > Number(limit);
+        const likesToReturn = hasMore ? likes.slice(0, Number(limit)) : likes;
+        const nextCursor = hasMore ? likes[Number(limit) - 1]._id.toString() : undefined;
+
+        const likedPostIds = likesToReturn.map(l => l.postId);
+        if (likedPostIds.length === 0) {
+          return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
+        }
+
+        const posts = await Post.find({
+          _id: { $in: likedPostIds },
+          visibility: PostVisibility.PUBLIC
+        }).lean();
+
+        // Preserve the like order
+        const postsOrdered = likedPostIds
+          .map(id => posts.find(p => p._id.toString() === id.toString()))
+          .filter(Boolean) as any[];
+
+        const transformedPosts = await this.transformPostsWithProfiles(postsOrdered, currentUserId);
+
+        const response: FeedResponse = {
+          items: transformedPosts.map(post => ({
+            id: post.id,
+            type: 'post',
+            data: post,
+            createdAt: post.date,
+            updatedAt: post.date
+          })),
+          hasMore,
+          nextCursor,
+          totalCount: transformedPosts.length
+        };
+
+        return res.json(response);
+      }
+
       const query: any = {
         oxyUserId: userId,
         visibility: PostVisibility.PUBLIC
@@ -526,14 +581,20 @@ class FeedController {
 
       // Filter by content type
       if (type === 'posts') {
-        query.parentPostId = { $exists: false };
-        query.repostOf = { $exists: false };
+        // Regular posts (not replies or reposts)
+        query.parentPostId = null;
+        query.repostOf = null;
       } else if (type === 'replies') {
-        query.parentPostId = { $exists: true };
+        // Replies
+        query.parentPostId = { $ne: null };
       } else if (type === 'media') {
+        // Media-only top-level posts
         query.type = { $in: [PostType.IMAGE, PostType.VIDEO] };
-        query.parentPostId = { $exists: false };
-        query.repostOf = { $exists: false };
+        query.parentPostId = null;
+        query.repostOf = null;
+      } else if (type === 'reposts') {
+        // Reposts only
+        query.repostOf = { $ne: null };
       }
 
       if (cursor) {

@@ -1,7 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
+import { CommentIcon } from '@/assets/icons/comment-icon';
+import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
+import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
+import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
+import { ShareIcon } from '@/assets/icons/share-icon';
 
 interface Engagement {
   replies: number;
@@ -34,39 +38,48 @@ const PostActions: React.FC<Props> = ({
 }) => {
   return (
     <View style={styles.postEngagement}>
-      <TouchableOpacity style={styles.engagementButton} onPress={onReply}>
-        <Ionicons name="chatbubble-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-        <Text style={styles.engagementText}>{engagement?.replies ?? 0}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.engagementButton} onPress={onRepost}>
-        <Ionicons
-          name={isReposted ? 'repeat' : 'repeat-outline'}
-          size={18}
-          color={isReposted ? colors.online : colors.COLOR_BLACK_LIGHT_4}
-        />
-        <Text style={[styles.engagementText, isReposted && styles.activeEngagementText]}>
-          {engagement?.reposts ?? 0}
-        </Text>
-      </TouchableOpacity>
+      {/* Heart (like) */}
       <TouchableOpacity style={styles.engagementButton} onPress={onLike}>
-        <Ionicons
-          name={isLiked ? 'heart' : 'heart-outline'}
-          size={18}
-          color={isLiked ? colors.busy : colors.COLOR_BLACK_LIGHT_4}
-        />
+        {isLiked ? (
+          <HeartIconActive size={18} color={colors.busy} />
+        ) : (
+          <HeartIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+        )}
         <Text style={[styles.engagementText, isLiked && styles.activeLikeText]}>
           {engagement?.likes ?? 0}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.engagementButton} onPress={onSave}>
-        <Ionicons
-          name={isSaved ? 'bookmark' : 'bookmark-outline'}
-          size={18}
-          color={isSaved ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
-        />
+
+      {/* Reply (comment) */}
+      <TouchableOpacity style={styles.engagementButton} onPress={onReply}>
+        <CommentIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+        <Text style={styles.engagementText}>{engagement?.replies ?? 0}</Text>
       </TouchableOpacity>
+
+      {/* Repost */}
+      <TouchableOpacity style={styles.engagementButton} onPress={onRepost}>
+        {isReposted ? (
+          <RepostIconActive size={18} color={colors.online} />
+        ) : (
+          <RepostIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+        )}
+        <Text style={[styles.engagementText, isReposted && styles.activeEngagementText]}>
+          {engagement?.reposts ?? 0}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Share */}
       <TouchableOpacity style={styles.engagementButton} onPress={onShare}>
-        <Ionicons name="share-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+        <ShareIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+      </TouchableOpacity>
+
+      {/* Save */}
+      <TouchableOpacity style={styles.engagementButton} onPress={onSave}>
+        {isSaved ? (
+          <BookmarkActive size={18} color={colors.primaryColor} />
+        ) : (
+          <Bookmark size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+        )}
       </TouchableOpacity>
     </View>
   );

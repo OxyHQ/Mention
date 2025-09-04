@@ -185,7 +185,8 @@ class FeedService {
   async saveItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
     try {
       console.log('💾 FeedService.saveItem called with:', request);
-      const response = await authenticatedClient.post(`/feed/${request.postId}/save`);
+      // Use posts controller which persists bookmarks used by /posts/saved
+      const response = await authenticatedClient.post(`/posts/${request.postId}/save`);
       console.log('✅ Save API response:', response.data);
       return { success: true, data: response.data };
     } catch (error) {
@@ -200,7 +201,8 @@ class FeedService {
   async unsaveItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
     try {
       console.log('🗑️ FeedService.unsaveItem called with:', request);
-      const response = await authenticatedClient.delete(`/feed/${request.postId}/save`);
+      // Use posts controller which persists bookmarks used by /posts/saved
+      const response = await authenticatedClient.delete(`/posts/${request.postId}/save`);
       console.log('✅ Unsave API response:', response.data);
       return { success: true, data: response.data };
     } catch (error) {
