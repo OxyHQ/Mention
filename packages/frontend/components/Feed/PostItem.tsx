@@ -1,19 +1,15 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import {
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    Share,
-    Platform,
-    Alert
-} from 'react-native';
+import { StyleSheet, View, Share, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
+import PostAvatar from '../Post/PostAvatar';
+import PostHeader from '../Post/PostHeader';
+import PostContentText from '../Post/PostContentText';
+import PostActions from '../Post/PostActions';
+import { colors } from '../../styles/colors';
+import PostMiddle from '../Post/PostMiddle';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -41,8 +37,26 @@ const PostItem: React.FC<PostItemProps> = ({
     const [isLoadingParent, setIsLoadingParent] = React.useState(false);
 
     React.useEffect(() => {
+        const findFromStore = (id: string) => {
+            try {
+                const { feeds } = usePostsStore.getState();
+                const types: Array<'posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes'> = ['posts','mixed','media','replies','reposts','likes'];
+                for (const t of types) {
+                    const match = feeds[t]?.items?.find((p: any) => p.id === id);
+                    if (match) return match;
+                }
+            } catch {}
+            return null;
+        };
+
         const loadOriginalPost = async () => {
-            if ('originalPostId' in post && post.originalPostId) {
+            if (!isNested && 'originalPostId' in post && post.originalPostId) {
+                // Try store first for fully hydrated user data
+                const fromStore = findFromStore(post.originalPostId);
+                if (fromStore) {
+                    setOriginalPost(fromStore);
+                    return;
+                }
                 setIsLoadingOriginal(true);
                 try {
                     const original = await getPostById(post.originalPostId);
@@ -58,6 +72,12 @@ const PostItem: React.FC<PostItemProps> = ({
         const loadParentPost = async () => {
             // Only load parent post for replies when we're at the top level
             if ('postId' in post && post.postId && !isNested) {
+                // Try store first for fully hydrated user data
+                const fromStore = findFromStore(post.postId);
+                if (fromStore) {
+                    setParentPost(fromStore);
+                    return;
+                }
                 setIsLoadingParent(true);
                 try {
                     const parent = await getPostById(post.postId);
@@ -146,197 +166,70 @@ const PostItem: React.FC<PostItemProps> = ({
         }
     };
 
+    // Keep this in sync with PostAvatar defaults
+    const AVATAR_SIZE = 40;
+    const AVATAR_GAP = 12;
+    const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
+
     // Early return if post is invalid
     if (!post || !post.user) {
         return null;
     }
 
     return (
-        <View style={[styles.postContainer, isNested && styles.nestedPostContainer]}>
-            <Image source={{ uri: post.user.avatar }} style={styles.postAvatar} />
-            <View style={styles.postContent}>
-                <View style={styles.postHeader}>
-                    <Text style={styles.postUserName}>
-                        {post.user.name}
-                        {post.user.verified && (
-                            <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" style={styles.verifiedIcon} />
-                        )}
-                    </Text>
-                    <Text style={styles.postHandle}>@{post.user.handle}</Text>
-                    <Text style={styles.postDate}>· {post.date || 'Just now'}</Text>
-                    {'originalPostId' in post && !isNested && (
-                        <View style={styles.repostIndicator}>
-                            <Ionicons name="repeat" size={12} color="#71767B" />
-                            <Text style={styles.repostText}>Reposted</Text>
-                        </View>
-                    )}
-                    {'postId' in post && !isNested && (
-                        <View style={styles.repostIndicator}>
-                            <Ionicons name="chatbubble" size={12} color="#71767B" />
-                            <Text style={styles.repostText}>Replied</Text>
-                        </View>
-                    )}
-                </View>
+      <View style={[styles.postContainer, isNested && styles.nestedPostContainer]}>
+        <PostAvatar uri={post.user.avatar} />
+        <View style={styles.postContent}>
+          <PostHeader
+            user={post.user}
+            date={post.date || 'Just now'}
+            showRepost={Boolean((post as any).originalPostId) && !isNested}
+            showReply={Boolean((post as any).postId) && !isNested}
+          />
 
-                {/* Show parent post for replies */}
-                {'postId' in post && parentPost && !isNested && (
-                    <View style={styles.parentPostContainer}>
-                        {isLoadingParent ? (
-                            <Text style={styles.repostText}>Loading original post...</Text>
-                        ) : (
-                            <PostItem post={parentPost} isNested={true} />
-                        )}
-                    </View>
-                )}
+          {/* Top: text content (with header above) */}
+          {'content' in post && !!post.content && (
+            <PostContentText content={post.content} />
+          )}
 
-                {'content' in post && post.content && (
-                    <Text style={styles.postText}>{post.content}</Text>
-                )}
-                
-                {/* Show original post for reposts */}
-                {'originalPostId' in post && !('content' in post) && (
-                    <View style={styles.repostContainer}>
-                        {isLoadingOriginal ? (
-                            <Text style={styles.repostText}>Loading original post...</Text>
-                        ) : originalPost ? (
-                            <PostItem post={originalPost} isNested={true} />
-                        ) : (
-                            <Text style={styles.repostText}>Original post not found</Text>
-                        )}
-                    </View>
-                )}
-                
-                {/* Only show engagement buttons for non-nested posts */}
-                {!isNested && (
-                    <View style={styles.postEngagement}>
-                        <TouchableOpacity style={styles.engagementButton} onPress={handleReply}>
-                            <Ionicons name="chatbubble-outline" size={18} color="#71767B" />
-                            <Text style={styles.engagementText}>{post.engagement?.replies ?? 0}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.engagementButton} onPress={handleRepost}>
-                            <Ionicons
-                                name={isReposted ? "repeat" : "repeat-outline"}
-                                size={18}
-                                color={isReposted ? "#00BA7C" : "#71767B"}
-                            />
-                            <Text style={[styles.engagementText, isReposted && styles.activeEngagementText]}>
-                                {post.engagement?.reposts ?? 0}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.engagementButton} onPress={handleLike}>
-                            <Ionicons
-                                name={isLiked ? "heart" : "heart-outline"}
-                                size={18}
-                                color={isLiked ? "#F91880" : "#71767B"}
-                            />
-                            <Text style={[styles.engagementText, isLiked && styles.activeEngagementText]}>
-                                {post.engagement?.likes ?? 0}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
-                            <Ionicons
-                                name={isSaved ? "bookmark" : "bookmark-outline"}
-                                size={18}
-                                color={isSaved ? "#1DA1F2" : "#71767B"}
-                            />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
-                            <Ionicons name="share-outline" size={18} color="#71767B" />
-                        </TouchableOpacity>
-                    </View>
-                )}
+          {/* Middle: horizontal scroller with media and nested post (repost/parent) */}
+          <PostMiddle
+            media={(post as any).media}
+            nestedPost={(originalPost || parentPost) ?? null}
+            leftOffset={AVATAR_OFFSET}
+          />
+
+          {/* Only show engagement buttons for non-nested posts */}
+          {!isNested && (
+            <View style={styles.sectionGapTop}>
+              <PostActions
+                engagement={post.engagement}
+                isLiked={isLiked}
+                isReposted={isReposted}
+                isSaved={isSaved}
+                onReply={handleReply}
+                onRepost={handleRepost}
+                onLike={handleLike}
+                onSave={handleSave}
+                onShare={handleShare}
+              />
             </View>
+          )}
         </View>
+      </View>
     );
 };
 
 const styles = StyleSheet.create({
     postContainer: {
         flexDirection: 'row',
-        padding: 16,
+        paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
-        backgroundColor: '#000',
-    },
-    postAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        marginRight: 12,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     postContent: {
         flex: 1,
-    },
-    postHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    postUserName: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#FFF',
-        marginRight: 4,
-    },
-    verifiedIcon: {
-        marginRight: 4,
-    },
-    postHandle: {
-        fontSize: 15,
-        color: '#71767B',
-        marginRight: 4,
-    },
-    postDate: {
-        fontSize: 15,
-        color: '#71767B',
-    },
-    postText: {
-        fontSize: 15,
-        color: '#FFF',
-        lineHeight: 20,
-        marginBottom: 12,
-    },
-    postEngagement: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        maxWidth: 300,
-    },
-    engagementButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    engagementText: {
-        fontSize: 13,
-        color: '#71767B',
-        marginLeft: 4,
-    },
-    activeEngagementText: {
-        color: '#F91880',
-    },
-    repostIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginLeft: 8,
-    },
-    repostText: {
-        fontSize: 12,
-        color: '#71767B',
-        marginLeft: 2,
-    },
-    repostContainer: {
-        marginTop: 8,
-        borderLeftWidth: 2,
-        borderLeftColor: '#71767B',
-        paddingLeft: 12,
-        opacity: 0.8,
-    },
-    parentPostContainer: {
-        marginTop: 8,
-        marginBottom: 8,
-        borderLeftWidth: 2,
-        borderLeftColor: '#1DA1F2',
-        paddingLeft: 12,
-        opacity: 0.9,
     },
     nestedPostContainer: {
         borderLeftWidth: 0,
@@ -344,9 +237,12 @@ const styles = StyleSheet.create({
         marginLeft: 0,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#2F3336',
-        backgroundColor: '#0a0a0a',
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
         marginTop: 8,
+    },
+    sectionGapTop: {
+        marginTop: 12,
     },
 });
 

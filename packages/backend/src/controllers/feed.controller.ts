@@ -854,11 +854,11 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      // Find and delete the repost
+      // Interpret :postId as the ORIGINAL post ID for unrepost operations.
+      // Find and delete the repost document created by the current user that points to this original.
       const repost = await Post.findOneAndDelete({
-        _id: postId,
         oxyUserId: currentUserId,
-        repostOf: { $exists: true }
+        repostOf: postId
       });
 
       if (!repost) {
@@ -873,7 +873,7 @@ class FeedController {
       // Emit real-time update
       io.emit('post:unreposted', {
         originalPostId: repost.repostOf,
-        repostId: postId,
+        repostId: repost._id,
         userId: currentUserId,
         timestamp: new Date().toISOString()
       });
@@ -1062,6 +1062,32 @@ class FeedController {
   async getRepliesFeed(req: AuthRequest, res: Response) {
     req.query.type = 'replies';
     return this.getFeed(req, res);
+  }
+
+  /**
+   * Get a single feed item by ID with full transformation and user interactions
+   */
+  async getFeedItemById(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params as any;
+      const currentUserId = req.user?.id;
+
+      if (!id) {
+        return res.status(400).json({ error: 'Post ID is required' });
+      }
+
+      const post = await Post.findById(id).lean();
+      if (!post) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      const [transformed] = await this.transformPostsWithProfiles([post], currentUserId);
+
+      return res.json(transformed);
+    } catch (error) {
+      console.error('Error fetching feed item:', error);
+      res.status(500).json({ error: 'Failed to fetch feed item' });
+    }
   }
 }
 

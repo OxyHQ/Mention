@@ -192,13 +192,13 @@ class SocketService {
    * Handle post liked event
    */
   private handlePostLiked(data: any) {
-    const { postId, userId, likesCount } = data;
-    
-    // Update the store with new like count
+    const { postId, likesCount } = data;
     const store = usePostsStore.getState();
+    const current = store.feeds.posts.items.find(p => p.id === postId) || store.feeds.mixed.items.find(p => p.id === postId);
+    const prevEng = current?.engagement || { likes: 0, replies: 0, reposts: 0 };
     store.updatePostLocally(postId, {
       isLiked: true,
-      engagement: { likes: likesCount, replies: 0, reposts: 0 }
+      engagement: { ...prevEng, likes: likesCount }
     });
   }
 
@@ -206,13 +206,13 @@ class SocketService {
    * Handle post unliked event
    */
   private handlePostUnliked(data: any) {
-    const { postId, userId, likesCount } = data;
-    
-    // Update the store with new like count
+    const { postId, likesCount } = data;
     const store = usePostsStore.getState();
+    const current = store.feeds.posts.items.find(p => p.id === postId) || store.feeds.mixed.items.find(p => p.id === postId);
+    const prevEng = current?.engagement || { likes: 0, replies: 0, reposts: 0 };
     store.updatePostLocally(postId, {
       isLiked: false,
-      engagement: { likes: likesCount, replies: 0, reposts: 0 }
+      engagement: { ...prevEng, likes: likesCount }
     });
   }
 
@@ -221,11 +221,11 @@ class SocketService {
    */
   private handlePostReplied(data: any) {
     const { postId, reply } = data;
-    
-    // Update the store with new reply count
     const store = usePostsStore.getState();
+    const current = store.feeds.posts.items.find(p => p.id === postId) || store.feeds.mixed.items.find(p => p.id === postId);
+    const prevEng = current?.engagement || { likes: 0, replies: 0, reposts: 0 };
     store.updatePostLocally(postId, {
-      engagement: { likes: 0, replies: 1, reposts: 0 }
+      engagement: { ...prevEng, replies: (prevEng.replies || 0) + 1 }
     });
   }
 
@@ -234,11 +234,11 @@ class SocketService {
    */
   private handlePostReposted(data: any) {
     const { originalPostId, repost } = data;
-    
-    // Update the store with new repost count
     const store = usePostsStore.getState();
+    const current = store.feeds.posts.items.find(p => p.id === originalPostId) || store.feeds.mixed.items.find(p => p.id === originalPostId);
+    const prevEng = current?.engagement || { likes: 0, replies: 0, reposts: 0 };
     store.updatePostLocally(originalPostId, {
-      engagement: { likes: 0, replies: 0, reposts: 1 }
+      engagement: { ...prevEng, reposts: (prevEng.reposts || 0) + 1 }
     });
   }
 

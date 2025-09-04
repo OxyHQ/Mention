@@ -11,12 +11,16 @@ router.get('/quotes', feedController.getQuotesFeed.bind(feedController));
 router.get('/reposts', feedController.getRepostsFeed.bind(feedController));
 router.get('/posts', feedController.getPostsFeed.bind(feedController));
 router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedController));
+// Add generic replies route for feeds that don't target a single parent
+router.get('/replies', feedController.getRepliesFeed.bind(feedController));
 
 // Debug route (no auth required for testing)
 router.get('/debug', feedController.debugPosts.bind(feedController));
 
 // User profile feed routes
 router.get('/user/:userId', feedController.getUserProfileFeed.bind(feedController));
+// Single feed item with full transformation
+router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 
 // Protected routes (authentication handled by server middleware)
 router.post('/reply', feedController.createReply.bind(feedController));

@@ -8,11 +8,12 @@ import {
     RefreshControl,
     ActivityIndicator
 } from 'react-native';
-import { usePostsStore, useFeedSelector, useFeedLoading, useFeedError, useFeedHasMore } from '../../stores/postsStore';
+import { usePostsStore, useFeedSelector, useFeedLoading, useFeedError, useFeedHasMore, useUserFeedSelector } from '../../stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import PostItem from './PostItem';
 import ErrorBoundary from '../ErrorBoundary';
 import LoadingTopSpinner from '../LoadingTopSpinner';
+import { colors } from '../../styles/colors';
 
 interface FeedProps {
     type: FeedType;
@@ -47,10 +48,13 @@ const Feed = ({
     const flatListRef = useRef<FlatList>(null);
     const [refreshing, setRefreshing] = useState(false);
 
-    const feedData = useFeedSelector(type);
-    const isLoading = useFeedLoading(type);
-    const error = useFeedError(type);
-    const hasMore = useFeedHasMore(type);
+    // Select appropriate feed slice (global vs user profile)
+    const globalFeed = useFeedSelector(type);
+    const userFeed = userId ? useUserFeedSelector(userId, type) : undefined;
+    const feedData = userId ? userFeed : globalFeed;
+    const isLoading = !!feedData?.isLoading;
+    const error = feedData?.error;
+    const hasMore = !!feedData?.hasMore;
 
     // Filter posts to show only saved ones if showOnlySaved is true
     const filteredFeedData = showOnlySaved
@@ -75,11 +79,11 @@ const Feed = ({
     useEffect(() => {
         const fetchInitialFeed = async () => {
             try {
-                if (userId) {
-                    await fetchUserFeed(userId, { type, limit: 20 });
-                } else {
-                    await fetchFeed({ type, limit: 20 });
-                }
+            if (userId) {
+                await fetchUserFeed(userId, { type, limit: 20 });
+            } else {
+                await fetchFeed({ type, limit: 20 });
+            }
             } catch (error) {
                 console.error('Error fetching initial feed:', error);
             }
@@ -108,14 +112,14 @@ const Feed = ({
 
         try {
             if (userId) {
-                await fetchUserFeed(userId, { type, limit: 20 });
+                await fetchUserFeed(userId, { type, limit: 20, cursor: feedData?.nextCursor });
             } else {
                 await loadMoreFeed(type);
             }
         } catch (error) {
             console.error('Error loading more feed:', error);
         }
-    }, [hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed]);
+    }, [hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor]);
 
     const renderPostItem = useCallback(({ item }: { item: any }) => (
         <PostItem post={item} />
@@ -125,7 +129,7 @@ const Feed = ({
         if (isLoading) {
             return (
                 <View style={styles.emptyState}>
-                    <ActivityIndicator size="large" color="#1DA1F2" />
+                    <ActivityIndicator size="large" color={colors.primaryColor} />
                     <Text style={styles.emptyStateText}>Loading posts...</Text>
                 </View>
             );
@@ -179,7 +183,7 @@ const Feed = ({
 
         return (
             <View style={styles.footer}>
-                <ActivityIndicator size="small" color="#1DA1F2" />
+                <ActivityIndicator size="small" color={colors.primaryColor} />
                 <Text style={styles.footerText}>Loading more posts...</Text>
             </View>
         );
@@ -224,8 +228,8 @@ const Feed = ({
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={handleRefresh}
-                                colors={['#1DA1F2']}
-                                tintColor="#1DA1F2"
+                                colors={[colors.primaryColor]}
+                                tintColor={colors.primaryColor}
                             />
                         )
                     }
@@ -249,7 +253,7 @@ export default Feed;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000000',
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     list: {
         flex: 1,
@@ -267,31 +271,31 @@ const styles = StyleSheet.create({
     emptyStateText: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#FFFFFF',
+        color: colors.COLOR_BLACK_LIGHT_1,
         marginTop: 16,
         textAlign: 'center',
     },
     emptyStateSubtext: {
         fontSize: 14,
-        color: '#71767B',
+        color: colors.COLOR_BLACK_LIGHT_4,
         marginTop: 8,
         textAlign: 'center',
         lineHeight: 20,
     },
     errorText: {
         fontSize: 16,
-        color: '#E0245E',
+        color: colors.busy,
         marginBottom: 16,
         textAlign: 'center',
     },
     retryButton: {
-        backgroundColor: '#1DA1F2',
+        backgroundColor: colors.primaryColor,
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 20,
     },
     retryButtonText: {
-        color: '#ffffff',
+        color: colors.primaryLight,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -303,13 +307,13 @@ const styles = StyleSheet.create({
     },
     footerText: {
         fontSize: 14,
-        color: '#657786',
+        color: colors.COLOR_BLACK_LIGHT_4,
         marginLeft: 8,
     },
     composeButton: {
-        backgroundColor: '#1a1a1a',
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
         borderWidth: 1,
-        borderColor: '#2F3336',
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
         borderRadius: 20,
         paddingHorizontal: 16,
         paddingVertical: 12,
@@ -318,7 +322,7 @@ const styles = StyleSheet.create({
     },
     composeButtonText: {
         fontSize: 16,
-        color: '#71767B',
+        color: colors.COLOR_BLACK_LIGHT_4,
         textAlign: 'center',
     },
 });

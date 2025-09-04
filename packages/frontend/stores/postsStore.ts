@@ -128,6 +128,28 @@ const createDefaultFeedsState = () => ({
   mixed: createDefaultFeedState()
 });
 
+// Normalize backend payload to UI-friendly shape
+const transformToUIItem = (raw: any) => {
+  const engagement = raw?.engagement || {
+    replies: raw?.stats?.commentsCount || 0,
+    reposts: raw?.stats?.repostsCount || 0,
+    likes: raw?.stats?.likesCount || 0,
+  };
+
+  return {
+    ...raw,
+    id: String(raw?.id || raw?._id),
+    content: typeof raw?.content === 'string' ? raw.content : (raw?.content?.text || ''),
+    isSaved: raw?.isSaved !== undefined ? raw.isSaved : (raw?.metadata?.isSaved ?? false),
+    isLiked: raw?.isLiked !== undefined ? raw.isLiked : (raw?.metadata?.isLiked ?? false),
+    isReposted: raw?.isReposted !== undefined ? raw.isReposted : (raw?.metadata?.isReposted ?? false),
+    // Map aliases expected by components
+    postId: raw?.postId || raw?.parentPostId,
+    originalPostId: raw?.originalPostId || raw?.repostOf,
+    engagement,
+  };
+};
+
 export const usePostsStore = create<FeedState>()(
   subscribeWithSelector((set, get) => ({
     // Initial state
@@ -175,29 +197,7 @@ export const usePostsStore = create<FeedState>()(
           feeds: {
             ...state.feeds,
             [type]: {
-              items: response.items?.map(item => {
-                console.log('🔧 Transforming item:', {
-                  id: item.id,
-                  originalIsLiked: item.data.isLiked,
-                  originalIsSaved: item.data.isSaved,
-                  originalIsReposted: item.data.isReposted,
-                  originalEngagement: item.data.engagement
-                });
-                
-                return {
-                  ...item.data,
-                  // Use the backend values directly, only fallback if undefined
-                  isSaved: item.data.isSaved !== undefined ? item.data.isSaved : false,
-                  isLiked: item.data.isLiked !== undefined ? item.data.isLiked : false,
-                  isReposted: item.data.isReposted !== undefined ? item.data.isReposted : false,
-                  isCommented: item.data.metadata?.isCommented || false,
-                  isFollowingAuthor: item.data.metadata?.isFollowingAuthor || false,
-                  authorBlocked: item.data.metadata?.authorBlocked || false,
-                  authorMuted: item.data.metadata?.authorMuted || false,
-                  isSensitive: item.data.metadata?.isSensitive || false,
-                  isPinned: item.data.metadata?.isPinned || false,
-                };
-              }) || [],
+              items: response.items?.map(item => transformToUIItem(item.data)) || [],
               hasMore: response.hasMore || false,
               nextCursor: response.nextCursor,
               totalCount: response.totalCount || 0,
@@ -245,36 +245,30 @@ export const usePostsStore = create<FeedState>()(
 
       try {
         const response = await feedService.getUserFeed(userId, request);
-        
-        set(state => ({
-          userFeeds: {
-            ...state.userFeeds,
-            [userId]: {
-              ...state.userFeeds[userId],
-              [type]: {
-                items: response.items?.map(item => ({
-                  ...item.data,
-                  // Use the backend values directly, only fallback if undefined
-                  isSaved: item.data.isSaved !== undefined ? item.data.isSaved : false,
-                  isLiked: item.data.isLiked !== undefined ? item.data.isLiked : false,
-                  isReposted: item.data.isReposted !== undefined ? item.data.isReposted : false,
-                  isCommented: item.data.metadata?.isCommented || false,
-                  isFollowingAuthor: item.data.metadata?.isFollowingAuthor || false,
-                  authorBlocked: item.data.metadata?.authorBlocked || false,
-                  authorMuted: item.data.metadata?.authorMuted || false,
-                  isSensitive: item.data.metadata?.isSensitive || false,
-                  isPinned: item.data.metadata?.isPinned || false,
-                })) || [],
-                hasMore: response.hasMore || false,
-                nextCursor: response.nextCursor,
-                totalCount: response.totalCount || 0,
-                isLoading: false,
-                error: null,
-                lastUpdated: Date.now()
+
+        set(state => {
+          const prev = state.userFeeds[userId]?.[type] || createDefaultFeedState();
+          const newItems = response.items?.map(item => transformToUIItem(item.data)) || [];
+          const mergedItems = request.cursor ? [...(prev.items || []), ...newItems] : newItems;
+
+          return ({
+            userFeeds: {
+              ...state.userFeeds,
+              [userId]: {
+                ...state.userFeeds[userId],
+                [type]: {
+                  items: mergedItems,
+                  hasMore: response.hasMore || false,
+                  nextCursor: response.nextCursor,
+                  totalCount: (request.cursor ? (prev.totalCount || 0) : 0) + (newItems.length || 0),
+                  isLoading: false,
+                  error: null,
+                  lastUpdated: Date.now()
+                }
               }
             }
-          }
-        }));
+          });
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch user feed';
         
@@ -310,23 +304,7 @@ export const usePostsStore = create<FeedState>()(
       try {
         const response = await feedService.getSavedPosts(request);
 
-        const processedPosts = response.data.posts?.map(post => {
-          const processed = {
-            ...post,
-            // Flatten metadata properties to top level
-            isSaved: post.isSaved !== undefined ? post.isSaved : (post.metadata?.isSaved !== undefined ? post.metadata.isSaved : true), // Saved posts are always saved
-            isLiked: post.metadata?.isLiked !== undefined ? post.metadata.isLiked : (post.isLiked !== undefined ? post.isLiked : false),
-            isReposted: post.metadata?.isReposted !== undefined ? post.metadata.isReposted : (post.isReposted !== undefined ? post.isReposted : false),
-            isCommented: post.metadata?.isCommented || false,
-            isFollowingAuthor: post.metadata?.isFollowingAuthor || false,
-            authorBlocked: post.metadata?.authorBlocked || false,
-            authorMuted: post.metadata?.authorMuted || false,
-            isSensitive: post.metadata?.isSensitive || false,
-            isPinned: post.metadata?.isPinned || false,
-          };
-          console.log('Store: Processed post:', processed.id, 'isSaved:', processed.isSaved);
-          return processed;
-        }) || [];
+        const processedPosts = response.data.posts?.map((post: any) => transformToUIItem({ ...post, isSaved: true })) || [];
 
         console.log('Store: Setting posts in store:', processedPosts.length, 'posts');
 
@@ -445,7 +423,10 @@ export const usePostsStore = create<FeedState>()(
           feeds: {
             ...state.feeds,
             [type]: {
-              items: [...state.feeds[type].items, ...(response.items?.map(item => item.data) || [])],
+              items: [
+                ...state.feeds[type].items,
+                ...(response.items?.map(item => transformToUIItem(item.data)) || [])
+              ],
               hasMore: response.hasMore || false,
               nextCursor: response.nextCursor,
               totalCount: state.feeds[type].totalCount + (response.items?.length || 0),
@@ -579,7 +560,7 @@ export const usePostsStore = create<FeedState>()(
               mixed: {
                 ...state.feeds.mixed,
                 items: state.feeds.mixed.items.map(post =>
-                  post.id === request.postId
+                  post.id === request.originalPostId
                     ? { ...post, engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 } }
                     : post
                 )
@@ -842,19 +823,7 @@ export const usePostsStore = create<FeedState>()(
     getPostById: async (postId: string) => {
       try {
         const response = await feedService.getPostById(postId);
-        // Transform the response to flatten metadata properties
-        return {
-          ...response,
-          isSaved: response.metadata?.isSaved !== undefined ? response.metadata.isSaved : (response.isSaved !== undefined ? response.isSaved : false),
-          isLiked: response.metadata?.isLiked !== undefined ? response.metadata.isLiked : (response.isLiked !== undefined ? response.isLiked : false),
-          isReposted: response.metadata?.isReposted !== undefined ? response.metadata.isReposted : (response.isReposted !== undefined ? response.isReposted : false),
-          isCommented: response.metadata?.isCommented || false,
-          isFollowingAuthor: response.metadata?.isFollowingAuthor || false,
-          authorBlocked: response.metadata?.authorBlocked || false,
-          authorMuted: response.metadata?.authorMuted || false,
-          isSensitive: response.metadata?.isSensitive || false,
-          isPinned: response.metadata?.isPinned || false,
-        };
+        return transformToUIItem(response);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch post';
         set({ error: errorMessage });

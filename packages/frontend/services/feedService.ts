@@ -248,8 +248,15 @@ class FeedService {
    */
   async getPostById(postId: string): Promise<any> {
     try {
-      const response = await authenticatedClient.get(`/posts/${postId}`);
-      return response.data;
+      // Prefer transformed feed item for consistent user/enagement shape
+      try {
+        const transformed = await authenticatedClient.get(`/feed/item/${postId}`);
+        return transformed.data;
+      } catch (e) {
+        // Fallback to posts endpoint for backward compatibility
+        const response = await authenticatedClient.get(`/posts/${postId}`);
+        return response.data;
+      }
     } catch (error) {
       console.error('Error fetching post:', error);
       throw new Error('Failed to fetch post');

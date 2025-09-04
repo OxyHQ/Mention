@@ -4,6 +4,7 @@ import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import { AuthRequest } from '../types/auth';
 import mongoose from 'mongoose';
+import { oxyClient } from '@oxyhq/services/core';
 
 // Create a new post
 export const createPost = async (req: AuthRequest, res: Response) => {
@@ -124,18 +125,38 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
     }
 
     // Transform post to match frontend expectations
-    const userData = post.oxyUserId as any;
+    const oxyUserId = post.oxyUserId as any;
+
+    // Build user object; fetch from Oxy when we only have an ID string
+    let user = {
+      id: typeof oxyUserId === 'object' ? oxyUserId._id : (oxyUserId || 'unknown'),
+      name: typeof oxyUserId === 'object' ? oxyUserId.name : 'User',
+      handle: typeof oxyUserId === 'object' ? oxyUserId.username : 'user',
+      avatar: typeof oxyUserId === 'object' ? oxyUserId.avatar : '',
+      verified: typeof oxyUserId === 'object' ? !!oxyUserId.verified : false,
+    } as any;
+
+    if (oxyUserId && typeof oxyUserId === 'string') {
+      try {
+        const fetched = await oxyClient.getUserById(oxyUserId);
+        user = {
+          id: fetched.id,
+          name: fetched.name?.full || fetched.username || 'User',
+          handle: fetched.username || 'user',
+          avatar: typeof fetched.avatar === 'string' ? fetched.avatar : (fetched.avatar as any)?.url || '',
+          verified: !!fetched.verified,
+        };
+      } catch (e) {
+        // keep fallback user
+        console.error('Failed fetching user from Oxy for post', req.params.id, e);
+      }
+    }
+
     const transformedPost = {
       ...post,
-      user: {
-        id: userData && typeof userData === 'object' ? userData._id : (userData || 'unknown'),
-        name: userData && typeof userData === 'object' ? userData.name : 'Unknown User',
-        handle: userData && typeof userData === 'object' ? userData.username : 'unknown',
-        avatar: userData && typeof userData === 'object' ? userData.avatar : '',
-        verified: userData && typeof userData === 'object' ? userData.verified : false
-      },
+      user,
       isSaved,
-      oxyUserId: undefined
+      oxyUserId: undefined,
     };
 
     res.json(transformedPost);

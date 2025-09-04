@@ -212,9 +212,7 @@ export function SideBar() {
                                                 },
                                             }) as any),
                                         }
-                                    ]}>
-                                        {t('sidebar.actions.addProperty')}
-                                    </Text>
+                                    ]}>Create Post</Text>
                                 )}
                                 renderIcon={() => (
                                     <View style={{
