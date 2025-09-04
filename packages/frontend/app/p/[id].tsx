@@ -134,7 +134,12 @@ const PostDetailScreen: React.FC = () => {
                 {/* Replies section with Feed component */}
                 <View style={styles.repliesSection}>
                     <Text style={styles.repliesTitle}>Replies</Text>
-                    <Feed type="replies" />
+                    <Feed 
+                        type="replies" 
+                        hideHeader={true}
+                        hideRefreshControl={true}
+                        style={styles.repliesFeed}
+                    />
                 </View>
             </ScrollView>
         </View>
@@ -224,6 +229,9 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         paddingHorizontal: 16,
         paddingTop: 16,
+    },
+    repliesFeed: {
+        flex: 1,
     },
 });
 

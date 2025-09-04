@@ -23,6 +23,11 @@ interface FeedProps {
     refreshInterval?: number;
     onSavePress?: (postId: string) => void;
     showOnlySaved?: boolean;
+    // New configuration options for better reusability
+    hideHeader?: boolean;
+    hideRefreshControl?: boolean;
+    style?: any;
+    contentContainerStyle?: any;
 }
 
 const Feed = ({
@@ -33,7 +38,11 @@ const Feed = ({
     autoRefresh: _autoRefresh = false,
     refreshInterval: _refreshInterval = 30000,
     onSavePress: _onSavePress,
-    showOnlySaved = false
+    showOnlySaved = false,
+    hideHeader = false,
+    hideRefreshControl = false,
+    style,
+    contentContainerStyle
 }: FeedProps) => {
     const flatListRef = useRef<FlatList>(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -177,7 +186,7 @@ const Feed = ({
     }, [hasMore, isLoading, filteredFeedData?.items]);
 
     const renderHeader = useCallback(() => {
-        if (!showComposeButton) return null;
+        if (!showComposeButton || hideHeader) return null;
 
         return (
             <TouchableOpacity
@@ -187,7 +196,7 @@ const Feed = ({
                 <Text style={styles.composeButtonText}>What&apos;s happening?</Text>
             </TouchableOpacity>
         );
-    }, [showComposeButton, onComposePress]);
+    }, [showComposeButton, onComposePress, hideHeader]);
 
     const keyExtractor = useCallback((item: any) => item.id, []);
 
@@ -211,18 +220,20 @@ const Feed = ({
                     ListEmptyComponent={renderEmptyState}
                     ListFooterComponent={renderFooter}
                     refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={handleRefresh}
-                            colors={['#1DA1F2']}
-                            tintColor="#1DA1F2"
-                        />
+                        hideRefreshControl ? undefined : (
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={handleRefresh}
+                                colors={['#1DA1F2']}
+                                tintColor="#1DA1F2"
+                            />
+                        )
                     }
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.1}
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.listContent}
-                    style={styles.list}
+                    contentContainerStyle={[styles.listContent, contentContainerStyle]}
+                    style={[styles.list, style]}
                     removeClippedSubviews={true}
                     maxToRenderPerBatch={10}
                     windowSize={10}

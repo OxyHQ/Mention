@@ -36,6 +36,10 @@ const PostItem: React.FC<PostItemProps> = ({
     const [originalPost, setOriginalPost] = React.useState<any>(null);
     const [isLoadingOriginal, setIsLoadingOriginal] = React.useState(false);
 
+    // Handle replies - if this is a reply, we might want to show the parent post
+    const [parentPost, setParentPost] = React.useState<any>(null);
+    const [isLoadingParent, setIsLoadingParent] = React.useState(false);
+
     React.useEffect(() => {
         const loadOriginalPost = async () => {
             if ('originalPostId' in post && post.originalPostId) {
@@ -51,8 +55,24 @@ const PostItem: React.FC<PostItemProps> = ({
             }
         };
 
+        const loadParentPost = async () => {
+            // Only load parent post for replies when we're at the top level
+            if ('postId' in post && post.postId && !isNested) {
+                setIsLoadingParent(true);
+                try {
+                    const parent = await getPostById(post.postId);
+                    setParentPost(parent);
+                } catch (error) {
+                    console.error('Error loading parent post:', error);
+                } finally {
+                    setIsLoadingParent(false);
+                }
+            }
+        };
+
         loadOriginalPost();
-    }, [post, getPostById]);
+        loadParentPost();
+    }, [post, getPostById, isNested]);
 
 
     const handleLike = async () => {
@@ -150,10 +170,30 @@ const PostItem: React.FC<PostItemProps> = ({
                             <Text style={styles.repostText}>Reposted</Text>
                         </View>
                     )}
+                    {'postId' in post && !isNested && (
+                        <View style={styles.repostIndicator}>
+                            <Ionicons name="chatbubble" size={12} color="#71767B" />
+                            <Text style={styles.repostText}>Replied</Text>
+                        </View>
+                    )}
                 </View>
+
+                {/* Show parent post for replies */}
+                {'postId' in post && parentPost && !isNested && (
+                    <View style={styles.parentPostContainer}>
+                        {isLoadingParent ? (
+                            <Text style={styles.repostText}>Loading original post...</Text>
+                        ) : (
+                            <PostItem post={parentPost} isNested={true} />
+                        )}
+                    </View>
+                )}
+
                 {'content' in post && post.content && (
                     <Text style={styles.postText}>{post.content}</Text>
                 )}
+                
+                {/* Show original post for reposts */}
                 {'originalPostId' in post && !('content' in post) && (
                     <View style={styles.repostContainer}>
                         {isLoadingOriginal ? (
@@ -165,6 +205,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         )}
                     </View>
                 )}
+                
                 {/* Only show engagement buttons for non-nested posts */}
                 {!isNested && (
                     <View style={styles.postEngagement}>
@@ -288,6 +329,14 @@ const styles = StyleSheet.create({
         borderLeftColor: '#71767B',
         paddingLeft: 12,
         opacity: 0.8,
+    },
+    parentPostContainer: {
+        marginTop: 8,
+        marginBottom: 8,
+        borderLeftWidth: 2,
+        borderLeftColor: '#1DA1F2',
+        paddingLeft: 12,
+        opacity: 0.9,
     },
     nestedPostContainer: {
         borderLeftWidth: 0,
