@@ -39,12 +39,12 @@ const PostItem: React.FC<PostItemProps> = ({
         const findFromStore = (id: string) => {
             try {
                 const { feeds } = usePostsStore.getState();
-                const types: Array<'posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes'> = ['posts','mixed','media','replies','reposts','likes'];
+                const types: Array<'posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes'> = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
                 for (const t of types) {
                     const match = feeds[t]?.items?.find((p: any) => p.id === id);
                     if (match) return match;
                 }
-            } catch {}
+            } catch { }
             return null;
         };
 
@@ -176,45 +176,46 @@ const PostItem: React.FC<PostItemProps> = ({
     }
 
     return (
-      <View style={[styles.postContainer, isNested && styles.nestedPostContainer]}>
-        <View style={styles.postContent}>
-          <PostHeader
-            user={post.user}
-            date={post.date || 'Just now'}
-            showRepost={Boolean((post as any).originalPostId) && !isNested}
-            showReply={Boolean((post as any).postId) && !isNested}
-            avatarUri={post.user.avatar}
-          >
-            {/* Top: text content */}
-            {'content' in post && !!post.content && (
-              <PostContentText content={post.content} />
-            )}
-            {/* Middle: horizontal scroller with media and nested post (repost/parent) */}
-            <PostMiddle
-              media={(post as any).media}
-              nestedPost={(originalPost || parentPost) ?? null}
-              leftOffset={0}
-            />
-          </PostHeader>
+        <View style={[styles.postContainer, isNested && styles.nestedPostContainer]}>
+            <View style={styles.postContent}>
+                <PostHeader
+                    user={post.user}
+                    date={post.date || 'Just now'}
+                    showRepost={Boolean((post as any).originalPostId) && !isNested}
+                    showReply={Boolean((post as any).postId) && !isNested}
+                    avatarUri={post.user.avatar}
+                >
+                    {/* Top: text content */}
+                    {'content' in post && !!post.content && (
+                        <PostContentText content={post.content} />
+                    )}
+                </PostHeader>
 
-          {/* Only show engagement buttons for non-nested posts */}
-          {!isNested && (
-            <View style={[styles.sectionGapTop, styles.bottomPadding]}>
-              <PostActions
-                engagement={post.engagement}
-                isLiked={isLiked}
-                isReposted={isReposted}
-                isSaved={isSaved}
-                onReply={handleReply}
-                onRepost={handleRepost}
-                onLike={handleLike}
-                onSave={handleSave}
-                onShare={handleShare}
-              />
+                {/* Middle: horizontal scroller with media and nested post (repost/parent) */}
+                <PostMiddle
+                    media={(post as any).media}
+                    nestedPost={(originalPost || parentPost) ?? null}
+                    leftOffset={AVATAR_OFFSET}
+                />
+
+                {/* Only show engagement buttons for non-nested posts */}
+                {!isNested && (
+                    <View style={styles.bottomPadding}>
+                        <PostActions
+                            engagement={post.engagement}
+                            isLiked={isLiked}
+                            isReposted={isReposted}
+                            isSaved={isSaved}
+                            onReply={handleReply}
+                            onRepost={handleRepost}
+                            onLike={handleLike}
+                            onSave={handleSave}
+                            onShare={handleShare}
+                        />
+                    </View>
+                )}
             </View>
-          )}
         </View>
-      </View>
     );
 };
 
@@ -228,6 +229,7 @@ const styles = StyleSheet.create({
     },
     postContent: {
         flex: 1,
+        gap: 12,
     },
     nestedPostContainer: {
         borderLeftWidth: 0,
@@ -237,16 +239,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.COLOR_BLACK_LIGHT_6,
         backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-        marginTop: 8,
+        paddingTop: 8,
     },
-    sectionGapTop: {
-        marginTop: 12,
-    },
+    
     bottomPadding: {
         paddingLeft: 16 + 40 + 12, // header horizontal padding + avatar + gap
         paddingRight: 16,
     },
-    
+
 });
 
 export default PostItem; 

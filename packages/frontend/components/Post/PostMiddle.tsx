@@ -18,7 +18,6 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0 }) => {
 
   return (
     <ScrollView
-      style={leftOffset ? [{ marginLeft: -leftOffset, marginTop: 12, marginBottom: 12 }] as any : { marginTop: 12, marginBottom: 12 } as any}
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
@@ -45,8 +44,18 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0 }) => {
 
 export default PostMiddle;
 
+const CARD_WIDTH = 280;
+const CARD_HEIGHT = 180;
+
 const styles = StyleSheet.create({
   scroller: {
     paddingRight: 8,
+    gap: 12,
+  },
+  mediaImage: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: 10,
+    backgroundColor: '#EFEFEF',
   },
 });

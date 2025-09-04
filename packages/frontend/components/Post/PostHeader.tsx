@@ -4,6 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
 import PostAvatar from './PostAvatar';
 
+// Spacing tokens for consistent layout
+const HPAD = 16;         // horizontal padding
+const ROW_GAP = 8;       // gap between inline header items
+const SECTION_GAP = 12;  // vertical gap from header row to children
+
 interface User {
   name: string;
   handle: string;
@@ -27,12 +32,34 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   date,
   showRepost,
   showReply,
-  paddingHorizontal = 16,
+  paddingHorizontal = HPAD,
   children,
   avatarUri,
   avatarSize = 40,
   avatarGap = 12,
 }) => {
+  const formatRelativeTime = (input?: string): string => {
+    if (!input) return 'now';
+    const ts = Date.parse(input);
+    if (Number.isNaN(ts)) return 'now';
+    const diff = Math.max(0, Date.now() - ts);
+    const sec = Math.floor(diff / 1000);
+    if (sec < 60) return 'now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m`;
+    const hrs = Math.floor(min / 60);
+    if (hrs < 24) return `${hrs}h`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d`;
+    const weeks = Math.floor(days / 7);
+    if (weeks < 5) return `${weeks}w`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo`;
+    const years = Math.floor(days / 365);
+    return `${years}y`;
+  };
+
+  const timeLabel = formatRelativeTime(date);
   const indentLeft = avatarUri ? avatarSize + avatarGap : 0;
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
@@ -47,7 +74,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               )}
             </Text>
             <Text style={styles.postHandle}>@{user.handle}</Text>
-            {!!date && <Text style={styles.postDate}>· {date}</Text>}
+            {!!timeLabel && <Text style={styles.postDate}>· {timeLabel}</Text>}
             {showRepost && (
               <View style={styles.metaIndicator}>
                 <Ionicons name="repeat" size={12} color={colors.COLOR_BLACK_LIGHT_4} />
@@ -86,24 +113,22 @@ const styles = StyleSheet.create({
   postHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    gap: ROW_GAP,
   },
   headerChildren: {
-    marginTop: 8,
+    paddingTop: SECTION_GAP,
   },
   postUserName: {
     fontSize: 15,
     fontWeight: '700',
     color: colors.COLOR_BLACK_LIGHT_1,
-    marginRight: 4,
   },
   verifiedIcon: {
-    marginRight: 4,
+    // icon sits inline with text; spacing handled by gap/text layout
   },
   postHandle: {
     fontSize: 15,
     color: colors.COLOR_BLACK_LIGHT_4,
-    marginRight: 4,
   },
   postDate: {
     fontSize: 15,
@@ -112,11 +137,10 @@ const styles = StyleSheet.create({
   metaIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 8,
+    gap: ROW_GAP,
   },
   metaIndicatorText: {
     fontSize: 12,
     color: colors.COLOR_BLACK_LIGHT_4,
-    marginLeft: 2,
   },
 });
