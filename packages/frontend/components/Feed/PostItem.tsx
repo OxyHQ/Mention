@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
-import PostAvatar from '../Post/PostAvatar';
 import PostHeader from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
@@ -178,30 +177,29 @@ const PostItem: React.FC<PostItemProps> = ({
 
     return (
       <View style={[styles.postContainer, isNested && styles.nestedPostContainer]}>
-        <PostAvatar uri={post.user.avatar} />
         <View style={styles.postContent}>
           <PostHeader
             user={post.user}
             date={post.date || 'Just now'}
             showRepost={Boolean((post as any).originalPostId) && !isNested}
             showReply={Boolean((post as any).postId) && !isNested}
-          />
-
-          {/* Top: text content (with header above) */}
-          {'content' in post && !!post.content && (
-            <PostContentText content={post.content} />
-          )}
-
-          {/* Middle: horizontal scroller with media and nested post (repost/parent) */}
-          <PostMiddle
-            media={(post as any).media}
-            nestedPost={(originalPost || parentPost) ?? null}
-            leftOffset={AVATAR_OFFSET}
-          />
+            avatarUri={post.user.avatar}
+          >
+            {/* Top: text content */}
+            {'content' in post && !!post.content && (
+              <PostContentText content={post.content} />
+            )}
+            {/* Middle: horizontal scroller with media and nested post (repost/parent) */}
+            <PostMiddle
+              media={(post as any).media}
+              nestedPost={(originalPost || parentPost) ?? null}
+              leftOffset={0}
+            />
+          </PostHeader>
 
           {/* Only show engagement buttons for non-nested posts */}
           {!isNested && (
-            <View style={styles.sectionGapTop}>
+            <View style={[styles.sectionGapTop, styles.bottomPadding]}>
               <PostActions
                 engagement={post.engagement}
                 isLiked={isLiked}
@@ -244,6 +242,11 @@ const styles = StyleSheet.create({
     sectionGapTop: {
         marginTop: 12,
     },
+    bottomPadding: {
+        paddingLeft: 16 + 40 + 12, // header horizontal padding + avatar + gap
+        paddingRight: 16,
+    },
+    
 });
 
 export default PostItem; 
