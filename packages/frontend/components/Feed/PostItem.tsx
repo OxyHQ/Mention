@@ -203,7 +203,7 @@ const PostItem: React.FC<PostItemProps> = ({
             <PostMiddle
                 media={(post as any).media}
                 nestedPost={(originalPost || parentPost) ?? null}
-                leftOffset={AVATAR_OFFSET}
+                leftOffset={BOTTOM_LEFT_PAD}
                 pollId={(() => {
                     const md: any = (post as any).metadata;
                     try {

@@ -20,11 +20,20 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
     const uniqueTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
 
+    const normalizeMedia = (arr: any[]): any[] => {
+      if (!Array.isArray(arr)) return [];
+      return arr.map((m: any) => {
+        if (typeof m === 'string') return { id: m, type: 'image' };
+        if (m && typeof m === 'object') return { id: m.id || m.fileId || m._id, type: m.type || 'image', mime: m.mime || m.contentType };
+        return null;
+      }).filter(Boolean);
+    };
+
     const post = new Post({
       oxyUserId: userId,
       content: {
         text: text || '',
-        images: media || []
+        images: normalizeMedia(media || [])
       },
       hashtags: uniqueTags,
       mentions: mentions || [],
@@ -160,8 +169,9 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       ...post,
       user,
       isSaved,
+      media: Array.isArray((post as any)?.content?.images) ? (post as any).content.images : [],
       oxyUserId: undefined,
-    };
+    } as any;
 
     res.json(transformedPost);
   } catch (error) {
@@ -192,7 +202,17 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       const uniqueTags = Array.from(new Set([...(hashtags || post.hashtags || []), ...extractedTags]));
       post.hashtags = uniqueTags;
     }
-    if (media !== undefined) post.content.images = media;
+    if (media !== undefined) {
+      const normalizeMedia = (arr: any[]): any[] => {
+        if (!Array.isArray(arr)) return [];
+        return arr.map((m: any) => {
+          if (typeof m === 'string') return { id: m, type: 'image' };
+          if (m && typeof m === 'object') return { id: m.id || m.fileId || m._id, type: m.type || 'image', mime: m.mime || m.contentType };
+          return null;
+        }).filter(Boolean);
+      };
+      post.content.images = normalizeMedia(media);
+    }
     if (hashtags !== undefined) post.hashtags = hashtags || [];
     if (mentions !== undefined) post.mentions = mentions || [];
 

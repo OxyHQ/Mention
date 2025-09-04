@@ -204,7 +204,7 @@ class FeedController {
           content: postObj.content?.text || '',
           date: postObj.createdAt,
           engagement,
-          media: postObj.content?.images || [],
+          media: Array.isArray(postObj?.content?.images) ? postObj.content.images : [],
           isLiked,
           isReposted,
           isSaved,

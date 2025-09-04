@@ -24,7 +24,8 @@ export interface IPost extends Document {
 
 const PostContentSchema = new Schema({
   text: { type: String },
-  images: [{ type: String }],
+  // Allow either string IDs or objects { id, type, mime }
+  images: [{ type: Schema.Types.Mixed }],
   video: { type: String },
   poll: {
     question: { type: String },

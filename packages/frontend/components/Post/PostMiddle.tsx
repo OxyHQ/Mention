@@ -3,9 +3,11 @@ import { Image, ScrollView, StyleSheet, View } from 'react-native';
 import PostItem from '../Feed/PostItem';
 import PollCard from './PollCard';
 import { colors } from '@/styles/colors';
+import { useOxy } from '@oxyhq/services';
 
+interface MediaObj { id?: string; type?: string; uri?: string; url?: string }
 interface Props {
-  media?: string[];
+  media?: Array<string | MediaObj>;
   nestedPost?: any; // original (repost) or parent (reply)
   leftOffset?: number; // negative margin-left to offset avatar space
   pollId?: string;
@@ -14,10 +16,24 @@ interface Props {
 const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId }) => {
   type Item = { type: "nested" } | { type: "image"; src: string } | { type: "poll" };
   const items: Item[] = [];
+  const { oxyServices } = useOxy();
 
   if (pollId) items.push({ type: "poll" });
   if (nestedPost) items.push({ type: "nested" });
-  (media || []).forEach((src) => items.push({ type: "image", src }));
+  (media || []).forEach((m) => {
+    if (typeof m === 'string') {
+      const uri = oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(m) : m;
+      items.push({ type: 'image', src: uri });
+    } else if (m && (m as any).id) {
+      const id = (m as any).id;
+      const uri = oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(id) : id;
+      items.push({ type: 'image', src: uri });
+    } else if (m && (m as any).uri) {
+      items.push({ type: 'image', src: (m as any).uri });
+    } else if (m && (m as any).url) {
+      items.push({ type: 'image', src: (m as any).url });
+    }
+  });
 
   if (items.length === 0) return null;
 

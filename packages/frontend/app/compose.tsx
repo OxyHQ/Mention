@@ -10,6 +10,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { useOxy } from '@oxyhq/services';
+import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -27,7 +28,8 @@ const ComposeScreen = () => {
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const [pollEndsInDays, setPollEndsInDays] = useState(7); // simple duration control
-  const { user } = useOxy();
+  const [mediaIds, setMediaIds] = useState<string[]>([]);
+  const { user, showBottomSheet, oxyServices } = useOxy();
   const { createPost } = usePostsStore();
   const { t } = useTranslation();
 
@@ -38,8 +40,15 @@ const ComposeScreen = () => {
   }, [showPoll, pollQuestion, pollOptions]);
 
   const handlePost = async () => {
-    if (!postContent.trim() || isPosting || !user) return;
-    if (!validPoll) {
+    if (isPosting || !user) return;
+    const hasText = postContent.trim().length > 0;
+    const hasMedia = mediaIds.length > 0;
+    const hasPoll = showPoll && validPoll;
+    if (!(hasText || hasMedia || hasPoll)) {
+      toast.error(t('Add text, an image, or a poll'));
+      return;
+    }
+    if (showPoll && !validPoll) {
       toast.error(t('Please provide a question and at least 2 options'));
       return;
     }
@@ -52,6 +61,7 @@ const ComposeScreen = () => {
       const postRequest = {
         content: {
           text: postContent.trim(),
+          images: mediaIds,
         },
         mentions: [],
         hashtags: []
@@ -87,7 +97,7 @@ const ComposeScreen = () => {
                     pollId
                   } as any
                 } as any);
-              } catch {}
+              } catch { }
             }
           }
         } catch (err) {
@@ -112,7 +122,8 @@ const ComposeScreen = () => {
     router.back();
   };
 
-  const isPostButtonEnabled = postContent.trim().length > 0 && !isPosting;
+  const canPostContent = postContent.trim().length > 0 || mediaIds.length > 0 || (showPoll && validPoll);
+  const isPostButtonEnabled = canPostContent && !isPosting;
   const canAddOption = pollOptions.length < 4;
   const handleAddOption = () => {
     if (canAddOption) setPollOptions(prev => [...prev, '']);
@@ -122,6 +133,38 @@ const ComposeScreen = () => {
   };
   const handleChangeOption = (index: number, value: string) => {
     setPollOptions(prev => prev.map((opt, i) => (i === index ? value : opt)));
+  };
+
+  const openMediaPicker = () => {
+    showBottomSheet?.({
+      screen: 'FileManagement',
+      props: {
+        selectMode: true,
+        multiSelect: true,
+        disabledMimeTypes: ['video/', 'audio/', 'application/pdf'],
+        afterSelect: 'back',
+        onSelect: async (file: any) => {
+          if (!file?.contentType?.startsWith?.('image/')) {
+            toast.error(t('Please select an image file'));
+            return;
+          }
+          try {
+            setMediaIds(prev => prev.includes(file.id) ? prev : [...prev, file.id]);
+            toast.success(t('Image attached'));
+          } catch (e: any) {
+            toast.error(e?.message || t('Failed to attach image'));
+          }
+        },
+        onConfirmSelection: async (files: any[]) => {
+          const onlyImages = (files || []).filter(f => f?.contentType?.startsWith?.('image/'));
+          if (onlyImages.length !== (files || []).length) {
+            toast.error(t('Please select only image files'));
+          }
+          const ids = onlyImages.map(f => f.id);
+          setMediaIds(prev => Array.from(new Set([...(prev || []), ...ids])));
+        }
+      }
+    });
   };
 
   return (
@@ -177,6 +220,30 @@ const ComposeScreen = () => {
           autoFocus
           textAlignVertical="top"
         />
+
+        {/* Media attach */}
+        <View style={styles.mediaRow}>
+          <TouchableOpacity style={styles.mediaButton} onPress={openMediaPicker}>
+            <Text style={styles.mediaButtonText}>{t('Add image')}</Text>
+          </TouchableOpacity>
+          {mediaIds.length > 0 && (
+            <Text style={styles.mediaInfoText}>
+              {mediaIds.length} {t('image selected')}
+            </Text>
+          )}
+        </View>
+        {mediaIds.length > 0 && (
+          <View style={styles.previewGrid}>
+            {mediaIds.map((id) => (
+              <View key={id} style={styles.previewItem}>
+                <Avatar source={oxyServices.getFileDownloadUrl(id, 'thumb')} size={64} />
+                <TouchableOpacity style={styles.removeBadge} onPress={() => setMediaIds(prev => prev.filter(x => x !== id))}>
+                  <Ionicons name="close" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Poll Composer */}
         <View style={styles.pollContainer}>
@@ -324,6 +391,71 @@ const styles = StyleSheet.create({
   characterCount: {
     fontSize: 14,
     color: colors.COLOR_BLACK_LIGHT_4,
+  },
+  mediaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+  },
+  mediaButton: {
+    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    borderWidth: 1,
+    borderColor: colors.COLOR_BLACK_LIGHT_6,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  mediaButtonText: {
+    color: colors.COLOR_BLACK_LIGHT_3,
+    fontWeight: '600',
+  },
+  mediaInfoText: {
+    color: colors.COLOR_BLACK_LIGHT_4,
+    fontSize: 12,
+  },
+  previewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 10,
+  },
+  previewItem: {
+    width: 64,
+    height: 64,
+  },
+  removeBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.busy,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mediaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
+  mediaButton: {
+    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    borderWidth: 1,
+    borderColor: colors.COLOR_BLACK_LIGHT_6,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  mediaButtonText: {
+    color: colors.COLOR_BLACK_LIGHT_3,
+    fontWeight: '600',
+  },
+  mediaInfoText: {
+    color: colors.COLOR_BLACK_LIGHT_4,
+    fontSize: 12,
   },
   pollContainer: {
     marginTop: 12,

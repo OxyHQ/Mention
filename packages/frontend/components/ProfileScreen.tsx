@@ -426,7 +426,6 @@ const MentionProfile: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
     },
     backButton: {
         zIndex: 2,
