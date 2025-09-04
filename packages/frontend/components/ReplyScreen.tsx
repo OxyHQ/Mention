@@ -10,25 +10,27 @@ import {
     Alert,
     KeyboardAvoidingView,
     Platform,
-    ScrollView,
     Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
 import { colors } from '../styles/colors';
+import PostItem from './Feed/PostItem';
+import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 
 const MAX_CHARACTERS = 280;
 
 const ReplyScreen: React.FC = () => {
     const { user } = useOxy();
-    const { createReply, posts } = usePostsStore();
+    const { createReply, feeds, getPostById } = usePostsStore();
     const insets = useSafeAreaInsets();
     const { id: postId } = useLocalSearchParams<{ id: string }>();
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [originalPost, setOriginalPost] = useState<any>(null);
+    const [originalPost, setOriginalPost] = useState<UIPost | Reply | Repost | null>(null);
+    const [isLoadingPost, setIsLoadingPost] = useState(true);
     const textInputRef = useRef<TextInput>(null);
 
     const characterCount = content.length;
@@ -36,14 +38,49 @@ const ReplyScreen: React.FC = () => {
     const canReply = content.trim().length > 0 && !isOverLimit && !isSubmitting;
 
     useEffect(() => {
-        // Find the original post from the store
-        if (postId && posts) {
-            const post = posts.find(p => p.id === postId);
-            if (post) {
-                setOriginalPost(post);
+        const findOriginalPost = async () => {
+            if (!postId) {
+                setIsLoadingPost(false);
+                return;
             }
-        }
-    }, [postId, posts]);
+
+            setIsLoadingPost(true);
+
+            try {
+                // First try to find in the feeds
+                const feedTypes: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = [
+                    'posts', 'mixed', 'media', 'replies', 'reposts', 'likes'
+                ];
+
+                let foundPost = null;
+                for (const feedType of feedTypes) {
+                    const feed = feeds[feedType];
+                    if (feed?.items) {
+                        foundPost = feed.items.find(p => p.id === postId);
+                        if (foundPost) break;
+                    }
+                }
+
+                // If not found in feeds, try to fetch from API
+                if (!foundPost) {
+                    console.log('Post not found in feeds, fetching from API...');
+                    foundPost = await getPostById(postId);
+                }
+
+                if (foundPost) {
+                    setOriginalPost(foundPost);
+                } else {
+                    console.error('Post not found:', postId);
+                }
+            } catch (error) {
+                console.error('Error finding original post:', error);
+            } finally {
+                setIsLoadingPost(false);
+            }
+        };
+
+        findOriginalPost();
+    }, [postId, feeds, getPostById]);
 
     const handleReply = async () => {
         if (!canReply || !user || !originalPost) return;
@@ -56,7 +93,7 @@ const ReplyScreen: React.FC = () => {
                 postId: postId!,
                 content: {
                     text: content.trim(),
-                },
+                } as any, // Cast to any to match expected PostContent type
                 mentions: [],
                 hashtags: []
             };
@@ -92,10 +129,18 @@ const ReplyScreen: React.FC = () => {
         }
     };
 
+    if (isLoadingPost) {
+        return (
+            <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: colors.COLOR_BLACK_LIGHT_1 }}>Loading post...</Text>
+            </View>
+        );
+    }
+
     if (!originalPost) {
         return (
-            <View style={[styles.container, { paddingTop: insets.top }]}>
-                <Text>Loading...</Text>
+            <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: colors.COLOR_BLACK_LIGHT_1 }}>Post not found</Text>
             </View>
         );
     }
@@ -120,18 +165,8 @@ const ReplyScreen: React.FC = () => {
             </View>
 
             {/* Original Post */}
-            <View style={styles.originalPost}>
-                <Image
-                    source={{ uri: originalPost.user?.avatar || 'https://via.placeholder.com/40' }}
-                    style={styles.originalPostAvatar}
-                />
-                <View style={styles.originalPostContent}>
-                    <View style={styles.originalPostHeader}>
-                        <Text style={styles.originalPostName}>{originalPost.user?.name}</Text>
-                        <Text style={styles.originalPostHandle}>@{originalPost.user?.handle}</Text>
-                    </View>
-                    <Text style={styles.originalPostText}>{originalPost.content}</Text>
-                </View>
+            <View style={styles.originalPostContainer}>
+                {originalPost && <PostItem post={originalPost} />}
             </View>
 
             {/* Reply Input */}
@@ -145,7 +180,7 @@ const ReplyScreen: React.FC = () => {
                             source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }}
                             style={styles.avatar}
                         />
-                        {user?.verified && (
+                        {user && (user as any).verified && (
                             <View style={styles.verifiedBadge}>
                                 <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" />
                             </View>
@@ -227,41 +262,10 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         opacity: 0.7,
     },
-    originalPost: {
-        flexDirection: 'row',
-        padding: 16,
+    originalPostContainer: {
         borderBottomWidth: 1,
         borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
         backgroundColor: colors.COLOR_BLACK_LIGHT_7,
-    },
-    originalPostAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        marginRight: 12,
-    },
-    originalPostContent: {
-        flex: 1,
-    },
-    originalPostHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    originalPostName: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: colors.COLOR_BLACK_LIGHT_1,
-        marginRight: 8,
-    },
-    originalPostHandle: {
-        fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_4,
-    },
-    originalPostText: {
-        fontSize: 16,
-        lineHeight: 20,
-        color: colors.COLOR_BLACK_LIGHT_1,
     },
     replyArea: {
         flex: 1,

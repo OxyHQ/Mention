@@ -30,9 +30,9 @@ const Feed = ({
     showComposeButton = false,
     onComposePress,
     userId,
-    autoRefresh = false,
-    refreshInterval = 30000,
-    onSavePress,
+    autoRefresh: _autoRefresh = false,
+    refreshInterval: _refreshInterval = 30000,
+    onSavePress: _onSavePress,
     showOnlySaved = false
 }: FeedProps) => {
     const flatListRef = useRef<FlatList>(null);
@@ -48,18 +48,11 @@ const Feed = ({
         ? {
             ...feedData,
             items: feedData?.items?.filter(item => {
-                console.log('Filtering post:', item.id, 'isSaved:', item.isSaved, 'item:', item);
-                return item.isSaved;
+                return item.isSaved === true;
             }) || []
         }
         : feedData;
 
-    console.log('Feed filtering:', {
-        showOnlySaved,
-        totalPosts: feedData?.items?.length || 0,
-        filteredPosts: filteredFeedData?.items?.length || 0,
-        savedPosts: feedData?.items?.filter(item => item.isSaved)?.length || 0
-    });
 
     const {
         fetchFeed,
@@ -166,10 +159,14 @@ const Feed = ({
                 </Text>
             </View>
         );
-    }, [isLoading, error, type, userId, clearError, fetchFeed, fetchUserFeed, filteredFeedData?.items, showOnlySaved]);
+    }, [isLoading, error, type, userId, clearError, fetchFeed, fetchUserFeed, showOnlySaved]);
 
     const renderFooter = useCallback(() => {
         if (!hasMore) return null;
+
+        // Don't show "Loading more posts..." during initial load when the list is empty
+        const hasItems = filteredFeedData?.items && filteredFeedData.items.length > 0;
+        if (isLoading && !hasItems) return null;
 
         return (
             <View style={styles.footer}>
@@ -177,7 +174,7 @@ const Feed = ({
                 <Text style={styles.footerText}>Loading more posts...</Text>
             </View>
         );
-    }, [hasMore]);
+    }, [hasMore, isLoading, filteredFeedData?.items]);
 
     const renderHeader = useCallback(() => {
         if (!showComposeButton) return null;
@@ -241,7 +238,7 @@ export default Feed;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#ffffff',
+        backgroundColor: '#000000',
     },
     list: {
         flex: 1,
@@ -259,13 +256,13 @@ const styles = StyleSheet.create({
     emptyStateText: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#14171A',
+        color: '#FFFFFF',
         marginTop: 16,
         textAlign: 'center',
     },
     emptyStateSubtext: {
         fontSize: 14,
-        color: '#657786',
+        color: '#71767B',
         marginTop: 8,
         textAlign: 'center',
         lineHeight: 20,
@@ -299,9 +296,9 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
     composeButton: {
-        backgroundColor: '#f7f9fa',
+        backgroundColor: '#1a1a1a',
         borderWidth: 1,
-        borderColor: '#e1e8ed',
+        borderColor: '#2F3336',
         borderRadius: 20,
         paddingHorizontal: 16,
         paddingVertical: 12,
@@ -310,7 +307,7 @@ const styles = StyleSheet.create({
     },
     composeButtonText: {
         fontSize: 16,
-        color: '#657786',
+        color: '#71767B',
         textAlign: 'center',
     },
 });

@@ -88,6 +88,8 @@ interface FeedState {
   createPost: (request: CreatePostRequest) => Promise<void>;
   createReply: (request: CreateReplyRequest) => Promise<void>;
   createRepost: (request: CreateRepostRequest) => Promise<void>;
+  repostPost: (request: { postId: string }) => Promise<void>;
+  unrepostPost: (request: { postId: string }) => Promise<void>;
   likePost: (request: LikeRequest) => Promise<void>;
   unlikePost: (request: UnlikeRequest) => Promise<void>;
   savePost: (request: { postId: string }) => Promise<void>;
@@ -560,7 +562,7 @@ export const usePostsStore = create<FeedState>()(
 
       try {
         const response = await feedService.createRepost(request);
-        
+
         if (response.success) {
           // Update the original post's repost count locally
           set(state => ({
@@ -568,7 +570,7 @@ export const usePostsStore = create<FeedState>()(
               ...state.feeds,
               posts: {
                 ...state.feeds.posts,
-                items: state.feeds.posts.items.map(post => 
+                items: state.feeds.posts.items.map(post =>
                   post.id === request.originalPostId
                     ? { ...post, engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 } }
                     : post
@@ -576,7 +578,7 @@ export const usePostsStore = create<FeedState>()(
               },
               mixed: {
                 ...state.feeds.mixed,
-                items: state.feeds.mixed.items.map(post => 
+                items: state.feeds.mixed.items.map(post =>
                   post.id === request.postId
                     ? { ...post, engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 } }
                     : post
@@ -589,6 +591,93 @@ export const usePostsStore = create<FeedState>()(
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to create repost';
         set({ isLoading: false, error: errorMessage });
+        throw error;
+      }
+    },
+
+    // Repost post (simple repost without comment)
+    repostPost: async (request: { postId: string }) => {
+      try {
+        const response = await feedService.createRepost({
+          originalPostId: request.postId,
+          comment: '',
+          mentions: [],
+          hashtags: []
+        });
+
+        if (response.success) {
+          // Update post repost state locally in all feed types
+          set(state => {
+            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed'];
+            const updatedFeeds: any = { ...state.feeds };
+
+            feedTypes.forEach(feedType => {
+              if (state.feeds[feedType]) {
+                updatedFeeds[feedType] = {
+                  ...state.feeds[feedType],
+                  items: state.feeds[feedType].items.map(post =>
+                    post.id === request.postId
+                      ? {
+                          ...post,
+                          isReposted: true,
+                          engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 }
+                        }
+                      : post
+                  )
+                };
+              }
+            });
+
+            return {
+              feeds: updatedFeeds
+            };
+          });
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to repost post';
+        set({ error: errorMessage });
+        throw error;
+      }
+    },
+
+    // Unrepost post
+    unrepostPost: async (request: { postId: string }) => {
+      try {
+        console.log('🔄 PostsStore.unrepostPost called with:', request);
+        const response = await feedService.unrepostItem(request);
+        console.log('✅ Unrepost response:', response);
+
+        if (response.success) {
+          // Update post repost state locally in all feed types
+          set(state => {
+            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed'];
+            const updatedFeeds: any = { ...state.feeds };
+
+            feedTypes.forEach(feedType => {
+              if (state.feeds[feedType]) {
+                updatedFeeds[feedType] = {
+                  ...state.feeds[feedType],
+                  items: state.feeds[feedType].items.map(post =>
+                    post.id === request.postId
+                      ? {
+                          ...post,
+                          isReposted: false,
+                          engagement: { ...post.engagement, reposts: Math.max(0, post.engagement.reposts - 1) }
+                        }
+                      : post
+                  )
+                };
+              }
+            });
+
+            return {
+              feeds: updatedFeeds
+            };
+          });
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to unrepost post';
+        set({ error: errorMessage });
         throw error;
       }
     },

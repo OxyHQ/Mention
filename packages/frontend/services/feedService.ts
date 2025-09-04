@@ -119,15 +119,13 @@ class FeedService {
   async createReply(request: CreateReplyRequest): Promise<{ success: boolean; reply: any }> {
     try {
       const backendRequest = {
-        text: request.content.text || '',
-        media: request.content.images || [],
-        hashtags: request.hashtags || [],
+        postId: request.postId,
+        content: request.content?.text || '',
         mentions: request.mentions || [],
-        in_reply_to_status_id: request.postId,
-        visibility: request.visibility || 'public'
+        hashtags: request.hashtags || []
       };
-      
-      const response = await authenticatedClient.post('/posts', backendRequest);
+
+      const response = await authenticatedClient.post('/feed/reply', backendRequest);
       return { success: true, reply: response.data };
     } catch (error) {
       console.error('Error creating reply:', error);
@@ -141,15 +139,13 @@ class FeedService {
   async createRepost(request: CreateRepostRequest): Promise<{ success: boolean; repost: any }> {
     try {
       const backendRequest = {
-        text: request.content.text || '',
-        media: request.content.images || [],
-        hashtags: request.hashtags || [],
+        originalPostId: request.originalPostId,
+        comment: request.content?.text || '',
         mentions: request.mentions || [],
-        repost_of: request.originalPostId,
-        visibility: request.visibility || 'public'
+        hashtags: request.hashtags || []
       };
-      
-      const response = await authenticatedClient.post('/posts', backendRequest);
+
+      const response = await authenticatedClient.post('/feed/repost', backendRequest);
       return { success: true, repost: response.data };
     } catch (error) {
       console.error('Error creating repost:', error);
@@ -212,6 +208,22 @@ class FeedService {
       throw new Error('Failed to remove save');
     }
   }
+
+  /**
+   * Unrepost a post
+   */
+  async unrepostItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
+    try {
+      console.log('🔄 FeedService.unrepostItem called with:', request);
+      const response = await authenticatedClient.delete(`/feed/${request.postId}/repost`);
+      console.log('✅ Unrepost API response:', response.data);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('❌ Error unreposting:', error);
+      throw new Error('Failed to unrepost');
+    }
+  }
+
 
   /**
    * Get saved posts for current user

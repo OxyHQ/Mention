@@ -23,11 +23,34 @@ const PostItem: React.FC<PostItemProps> = ({
     post
 }) => {
     const router = useRouter();
-    const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost } = usePostsStore();
-    // Use the actual data from the post instead of local state
-    const isLiked = 'isLiked' in post ? (post.isLiked !== undefined ? post.isLiked : false) : false;
-    const isReposted = 'isReposted' in post ? (post.isReposted !== undefined ? post.isReposted : false) : false;
-    const isSaved = 'isSaved' in post ? (post.isSaved !== undefined ? post.isSaved : false) : false;
+    const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
+
+    // Safely extract boolean states with proper fallbacks
+    const isLiked = post?.isLiked ?? false;
+    const isReposted = post?.isReposted ?? false;
+    const isSaved = post?.isSaved ?? false;
+
+    // Handle reposts - if this is a repost, we need to get the original post
+    const [originalPost, setOriginalPost] = React.useState<any>(null);
+    const [isLoadingOriginal, setIsLoadingOriginal] = React.useState(false);
+
+    React.useEffect(() => {
+        const loadOriginalPost = async () => {
+            if ('originalPostId' in post && post.originalPostId) {
+                setIsLoadingOriginal(true);
+                try {
+                    const original = await getPostById(post.originalPostId);
+                    setOriginalPost(original);
+                } catch (error) {
+                    console.error('Error loading original post:', error);
+                } finally {
+                    setIsLoadingOriginal(false);
+                }
+            }
+        };
+
+        loadOriginalPost();
+    }, [post, getPostById]);
 
 
     const handleLike = async () => {
@@ -61,9 +84,9 @@ const PostItem: React.FC<PostItemProps> = ({
     const handleShare = async () => {
         try {
             const postUrl = `https://mention.earth/p/${post.id}`;
-            const shareMessage = post.content
+            const shareMessage = ('content' in post && post.content)
                 ? `${post.user.name} (@${post.user.handle}): ${post.content}`
-                : `${post.user.name} (@${post.user.handle})`;
+                : `${post.user.name} (@${post.user.handle}) shared a post`;
 
             if (Platform.OS === 'web') {
                 if (navigator.share) {
@@ -101,19 +124,24 @@ const PostItem: React.FC<PostItemProps> = ({
         }
     };
 
+    // Early return if post is invalid
+    if (!post || !post.user) {
+        return null;
+    }
+
     return (
         <View style={styles.postContainer}>
-            <Image source={{ uri: post?.user?.avatar }} style={styles.postAvatar} />
+            <Image source={{ uri: post.user.avatar }} style={styles.postAvatar} />
             <View style={styles.postContent}>
                 <View style={styles.postHeader}>
                     <Text style={styles.postUserName}>
-                        {post.user?.name}
-                        {post.user?.verified && (
+                        {post.user.name}
+                        {post.user.verified && (
                             <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" style={styles.verifiedIcon} />
                         )}
                     </Text>
-                    <Text style={styles.postHandle}>@{post.user?.handle}</Text>
-                    <Text style={styles.postDate}>· {post.date}</Text>
+                    <Text style={styles.postHandle}>@{post.user.handle}</Text>
+                    <Text style={styles.postDate}>· {post.date || 'Just now'}</Text>
                     {'originalPostId' in post && (
                         <View style={styles.repostIndicator}>
                             <Ionicons name="repeat" size={12} color="#71767B" />
@@ -124,10 +152,21 @@ const PostItem: React.FC<PostItemProps> = ({
                 {'content' in post && post.content && (
                     <Text style={styles.postText}>{post.content}</Text>
                 )}
+                {'originalPostId' in post && !('content' in post) && (
+                    <View style={styles.repostContainer}>
+                        {isLoadingOriginal ? (
+                            <Text style={styles.repostText}>Loading original post...</Text>
+                        ) : originalPost ? (
+                            <PostItem post={originalPost} />
+                        ) : (
+                            <Text style={styles.repostText}>Original post not found</Text>
+                        )}
+                    </View>
+                )}
                 <View style={styles.postEngagement}>
                     <TouchableOpacity style={styles.engagementButton} onPress={handleReply}>
                         <Ionicons name="chatbubble-outline" size={18} color="#71767B" />
-                        <Text style={styles.engagementText}>{post.engagement?.replies}</Text>
+                        <Text style={styles.engagementText}>{post.engagement?.replies ?? 0}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.engagementButton} onPress={handleRepost}>
                         <Ionicons
@@ -136,7 +175,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             color={isReposted ? "#00BA7C" : "#71767B"}
                         />
                         <Text style={[styles.engagementText, isReposted && styles.activeEngagementText]}>
-                            {post.engagement?.reposts}
+                            {post.engagement?.reposts ?? 0}
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.engagementButton} onPress={handleLike}>
@@ -146,7 +185,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             color={isLiked ? "#F91880" : "#71767B"}
                         />
                         <Text style={[styles.engagementText, isLiked && styles.activeEngagementText]}>
-                            {post.engagement?.likes}
+                            {post.engagement?.likes ?? 0}
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
@@ -237,6 +276,13 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#71767B',
         marginLeft: 2,
+    },
+    repostContainer: {
+        marginTop: 8,
+        borderLeftWidth: 2,
+        borderLeftColor: '#71767B',
+        paddingLeft: 12,
+        opacity: 0.8,
     },
 });
 

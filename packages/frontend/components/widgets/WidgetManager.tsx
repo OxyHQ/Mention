@@ -133,44 +133,4 @@ const styles = StyleSheet.create({
     widgetWrapper: {
         marginBottom: 16,
     },
-});
-}
-
-const styles = StyleSheet.create({
-    container: {
-        padding: 10,
-    },
-    widgetWrapper: {
-        marginBottom: 16,
-    },
-});
-
-const screenWidgets = getWidgetsForScreen(screenId);
-
-// Combine screen-specific widgets with any custom widgets passed as props
-const allWidgets = [...screenWidgets, ...customWidgets];
-
-if (allWidgets.length === 0) {
-    return null;
-}
-
-return (
-    <View style={styles.container}>
-        {allWidgets.map((widget, index) => (
-            <View key={`widget-${index}`} style={styles.widgetWrapper}>
-                {widget}
-            </View>
-        ))}
-    </View>
-);
-}
-
-const styles = StyleSheet.create({
-    container: {
-        flexDirection: 'column',
-        gap: 10,
-    },
-    widgetWrapper: {
-        marginBottom: 10,
-    }
 }); 

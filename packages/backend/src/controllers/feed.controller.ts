@@ -640,7 +640,7 @@ class FeedController {
    */
   async createRepost(req: AuthRequest, res: Response) {
     try {
-      const { originalPostId, comment, mentions, hashtags } = req.body as CreateRepostRequest;
+      const { originalPostId, content, mentions, hashtags } = req.body as CreateRepostRequest;
       const currentUserId = req.user?.id;
 
       if (!currentUserId) {
@@ -665,7 +665,7 @@ class FeedController {
       const repost = new Post({
         oxyUserId: currentUserId,
         type: PostType.REPOST,
-        content: { text: comment || '' },
+        content: { text: content || '' },
         visibility: PostVisibility.PUBLIC,
         repostOf: originalPostId,
         hashtags: hashtags || [],
@@ -831,6 +831,61 @@ class FeedController {
       console.error('Error unliking post:', error);
       res.status(500).json({ 
         error: 'Failed to unlike post',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Unrepost a post
+   */
+  async unrepostItem(req: AuthRequest, res: Response) {
+    try {
+      const { postId } = req.params;
+      const currentUserId = req.user?.id;
+
+      console.log('🔄 Unrepost request:', { postId, currentUserId });
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      if (!postId) {
+        return res.status(400).json({ error: 'Post ID is required' });
+      }
+
+      // Find and delete the repost
+      const repost = await Post.findOneAndDelete({
+        _id: postId,
+        oxyUserId: currentUserId,
+        repostOf: { $exists: true }
+      });
+
+      if (!repost) {
+        return res.status(404).json({ error: 'Repost not found' });
+      }
+
+      // Update original post repost count
+      await Post.findByIdAndUpdate(repost.repostOf, {
+        $inc: { 'stats.repostsCount': -1 }
+      });
+
+      // Emit real-time update
+      io.emit('post:unreposted', {
+        originalPostId: repost.repostOf,
+        repostId: postId,
+        userId: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+
+      res.json({
+        success: true,
+        message: 'Repost removed successfully'
+      });
+    } catch (error) {
+      console.error('Error unreposting:', error);
+      res.status(500).json({
+        error: 'Failed to unrepost',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }

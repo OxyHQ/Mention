@@ -21,6 +21,7 @@ router.get('/user/:userId', feedController.getUserProfileFeed.bind(feedControlle
 // Protected routes (authentication handled by server middleware)
 router.post('/reply', feedController.createReply.bind(feedController));
 router.post('/repost', feedController.createRepost.bind(feedController));
+router.delete('/:postId/repost', feedController.unrepostItem.bind(feedController));
 router.post('/like', feedController.likeItem.bind(feedController));
 router.post('/unlike', feedController.unlikeItem.bind(feedController));
 router.post('/:postId/save', feedController.saveItem.bind(feedController));

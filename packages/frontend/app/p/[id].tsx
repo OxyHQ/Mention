@@ -12,15 +12,16 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../styles/colors';
-import PostCard from '../../components/PostCard';
+import PostItem from '../../components/Feed/PostItem';
 import { usePostsStore } from '../../stores/postsStore';
+import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 
 const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
     const { getPostById } = usePostsStore();
 
-    const [post, setPost] = useState<any>(null);
+    const [post, setPost] = useState<UIPost | Reply | Repost | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -36,12 +37,23 @@ const PostDetailScreen: React.FC = () => {
                 setLoading(true);
                 setError(null);
 
-                // Try to get post from store first
-                const posts = usePostsStore.getState().posts;
-                const existingPost = posts?.find(p => p.id === id);
+                // Try to get post from feeds first
+                const { feeds } = usePostsStore.getState();
+                const feedTypes: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = [
+                    'posts', 'mixed', 'media', 'replies', 'reposts', 'likes'
+                ];
 
-                if (existingPost) {
-                    setPost(existingPost);
+                let foundPost = null;
+                for (const feedType of feedTypes) {
+                    const feed = feeds[feedType];
+                    if (feed?.items) {
+                        foundPost = feed.items.find(p => p.id === id);
+                        if (foundPost) break;
+                    }
+                }
+
+                if (foundPost) {
+                    setPost(foundPost);
                 } else {
                     // Fetch from API if not in store
                     const response = await getPostById(id);
@@ -62,49 +74,7 @@ const PostDetailScreen: React.FC = () => {
         router.back();
     };
 
-    const handlePostPress = () => {
-        // Post is already open, do nothing
-    };
 
-    const handleUserPress = (username: string) => {
-        router.push(`/@${username}`);
-    };
-
-    const handleReplyPress = (postId: string) => {
-        router.push(`/p/${postId}/reply`);
-    };
-
-    const handleRepostPress = (postId: string) => {
-        router.push(`/p/${postId}/repost`);
-    };
-
-    const handleLikePress = (postId: string) => {
-        // Handle like action
-        console.log('Like post:', postId);
-    };
-
-    const handleSharePress = (postId: string) => {
-        // Handle share action
-        console.log('Share post:', postId);
-    };
-
-    const handleSavePress = async (postId: string) => {
-        try {
-            const { savePost, unsavePost } = usePostsStore.getState();
-
-            if (post?.isSaved) {
-                await unsavePost({ postId });
-                // Update local post state
-                setPost(prev => prev ? { ...prev, isSaved: false } : null);
-            } else {
-                await savePost({ postId });
-                // Update local post state
-                setPost(prev => prev ? { ...prev, isSaved: true } : null);
-            }
-        } catch (error) {
-            console.error('Error toggling save:', error);
-        }
-    };
 
     if (loading) {
         return (
@@ -156,16 +126,9 @@ const PostDetailScreen: React.FC = () => {
             </View>
 
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                <PostCard
-                    post={post}
-                    onPostPress={handlePostPress}
-                    onUserPress={() => handleUserPress(post.user.handle)}
-                    onReplyPress={() => handleReplyPress(post.id)}
-                    onRepostPress={() => handleRepostPress(post.id)}
-                    onLikePress={() => handleLikePress(post.id)}
-                    onSharePress={() => handleSharePress(post.id)}
-                    onSavePress={() => handleSavePress(post.id)}
-                />
+                <View style={styles.postContainer}>
+                    <PostItem post={post} />
+                </View>
 
                 {/* Add replies section here if needed */}
                 <View style={styles.repliesSection}>
@@ -204,6 +167,9 @@ const styles = StyleSheet.create({
     },
     scrollView: {
         flex: 1,
+    },
+    postContainer: {
+        padding: 16,
     },
     loadingContainer: {
         flex: 1,

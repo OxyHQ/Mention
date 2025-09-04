@@ -3,7 +3,7 @@
  * Shared between frontend and backend
  */
 
-import { Post as DomainPost } from './post';
+import { Post as DomainPost, PostContent, PostVisibility } from './post';
 
 // Common user interface for feed items
 export interface FeedUser {
@@ -41,6 +41,9 @@ export interface Reply {
   content: string;
   date: string;
   engagement: FeedEngagement;
+  isLiked?: boolean;
+  isReposted?: boolean;
+  isSaved?: boolean;
 }
 
 export interface FeedRepost {
@@ -49,6 +52,9 @@ export interface FeedRepost {
   user: FeedUser;
   date: string;
   engagement: FeedEngagement;
+  isLiked?: boolean;
+  isReposted?: boolean;
+  isSaved?: boolean;
 }
 
 // Feed types and actions
@@ -102,14 +108,16 @@ export interface FeedStats {
 // API request types
 export interface CreateReplyRequest {
   postId: string;
-  content: string;
+  content: PostContent;
+  visibility?: PostVisibility;
   mentions?: string[];
   hashtags?: string[];
 }
 
 export interface CreateRepostRequest {
   originalPostId: string;
-  comment?: string;
+  content?: PostContent;
+  visibility?: PostVisibility;
   mentions?: string[];
   hashtags?: string[];
 }
