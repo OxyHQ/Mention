@@ -71,11 +71,11 @@ const PostDetailScreen: React.FC = () => {
     };
 
     const handleReplyPress = (postId: string) => {
-        router.push(`/reply?postId=${postId}`);
+        router.push(`/p/${postId}/reply`);
     };
 
     const handleRepostPress = (postId: string) => {
-        router.push(`/repost?postId=${postId}`);
+        router.push(`/p/${postId}/repost`);
     };
 
     const handleLikePress = (postId: string) => {

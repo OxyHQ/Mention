@@ -1,55 +1,108 @@
-import React from 'react'
-import { View, Text, Platform, Pressable } from 'react-native'
-import { useMediaQuery } from 'react-responsive'
+import React from 'react';
+import { View, Text, Platform } from 'react-native';
+import { Pressable } from 'react-native-web-hover';
 import { useRouter } from 'expo-router';
-import { colors } from '@/styles/colors'
-
-import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { colors } from '@/styles/colors';
 
 export function SideBarItem({
     isActive,
     icon,
     text,
     href,
+    isExpanded,
+    onHoverExpand,
+    onPress,
 }: {
     isActive: boolean;
     icon: React.ReactNode;
     text: string;
-    href: string;
+    href?: string;
+    isExpanded: boolean;
+    onHoverExpand?: () => void;
+    onPress?: () => void;
 }) {
     const router = useRouter();
-    const isFullSideBar = useMediaQuery({ minWidth: 1266 })
+    const [isHovered, setIsHovered] = React.useState(false);
     return (
         <Pressable
-            onPress={() => router.push(href)}
-            style={({ pressed, hovered }) => [
-                pressed ? { backgroundColor: `${colors.primaryColor}33`, } : {},
-                hovered ? { backgroundColor: `${colors.primaryColor}22`, } : {},
+            {...({
+                onPress: () => {
+                    if (onPress) return onPress();
+                    if (href) router.push(href);
+                },
+                onHoverIn: () => {
+                    setIsHovered(true);
+                    onHoverExpand?.();
+                },
+                onHoverOut: () => setIsHovered(false),
+            } as any)}
+            style={({ pressed }) => [
                 {
                     flexDirection: 'row',
                     alignItems: 'center',
-                    width: 'auto',
-                    marginBottom: 10,
-                    marginEnd: isFullSideBar ? 70 : 0,
-                    borderRadius: 100,
-                    padding: 12,
-                    paddingEnd: isFullSideBar ? 30 : 15,
+                    width: isExpanded ? '100%' : 'auto',
+                    alignSelf: isExpanded ? 'stretch' : 'flex-start',
+                    marginBottom: 6,
+                    marginEnd: 0,
+                    borderRadius: 35,
+                    paddingVertical: 10,
+                    paddingHorizontal: isExpanded ? 16 : 12,
+                    marginLeft: 0,
+                    backgroundColor: pressed
+                        ? `${colors.primaryColor}20`
+                        : isHovered
+                            ? `${colors.primaryColor}0F`
+                            : isActive
+                                ? `${colors.primaryColor}15`
+                                : 'transparent',
+                    ...(Platform.select({
+                        web: {
+                            transition: 'all 200ms cubic-bezier(0.2, 0, 0, 1)',
+                            willChange: 'background-color, border-color, transform',
+                        },
+                    }) as any),
                     ...Platform.select({
                         web: {
                             cursor: 'pointer',
                         },
                     }),
                 },
-            ]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                {icon}
-                {isFullSideBar ? (
-                    <Text style={{ marginStart: 15, fontSize: 20, color: isActive ? colors.primaryColor : colors.COLOR_BLACK }}>
+            ]}
+        >
+            <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                width: '100%',
+                justifyContent: 'flex-start',
+                gap: isExpanded ? 12 : 0,
+            }}>
+                <View style={{
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 24,
+                    height: 24,
+                }}>
+                    {icon}
+                </View>
+                {isExpanded ? (
+                    <Text
+                        style={{
+                            fontSize: 15,
+                            fontWeight: isActive ? '600' : '500',
+                            color: isActive || isHovered ? colors.primaryColor : colors.COLOR_BLACK,
+                            ...(Platform.select({
+                                web: {
+                                    transition: 'color 200ms cubic-bezier(0.2, 0, 0, 1)',
+                                    fontFamily: 'Phudu',
+                                    whiteSpace: 'nowrap',
+                                },
+                            }) as any),
+                        }}
+                    >
                         {text}
                     </Text>
                 ) : null}
             </View>
         </Pressable>
-    )
+    );
 }

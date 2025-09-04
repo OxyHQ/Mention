@@ -5,39 +5,100 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
+    Share,
+    Platform,
+    Alert
 } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
+import { usePostsStore } from '../../stores/postsStore';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
-    onReply?: () => void;
-    onRepost?: () => void;
-    onLike?: () => void;
-    onShare?: () => void;
-    onSave?: () => void;
 }
 
 const PostItem: React.FC<PostItemProps> = ({
-    post,
-    onReply,
-    onRepost,
-    onLike,
-    onShare,
-    onSave
+    post
 }) => {
+    const router = useRouter();
+    const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost } = usePostsStore();
     // Use the actual data from the post instead of local state
     const isLiked = 'isLiked' in post ? (post.isLiked !== undefined ? post.isLiked : false) : false;
     const isReposted = 'isReposted' in post ? (post.isReposted !== undefined ? post.isReposted : false) : false;
     const isSaved = 'isSaved' in post ? (post.isSaved !== undefined ? post.isSaved : false) : false;
 
-    const handleLike = () => {
-        onLike?.();
+
+    const handleLike = async () => {
+        try {
+            if (isLiked) {
+                await unlikePost({ postId: post.id, type: 'post' });
+            } else {
+                await likePost({ postId: post.id, type: 'post' });
+            }
+        } catch (error) {
+            console.error('Error toggling like:', error);
+        }
     };
 
-    const handleRepost = () => {
-        onRepost?.();
+    const handleReply = () => {
+        router.push(`/p/${post.id}/reply`);
+    };
+
+    const handleRepost = async () => {
+        try {
+            if (isReposted) {
+                await unrepostPost({ postId: post.id });
+            } else {
+                await repostPost({ postId: post.id });
+            }
+        } catch (error) {
+            console.error('Error toggling repost:', error);
+        }
+    };
+
+    const handleShare = async () => {
+        try {
+            const postUrl = `https://mention.earth/p/${post.id}`;
+            const shareMessage = post.content
+                ? `${post.user.name} (@${post.user.handle}): ${post.content}`
+                : `${post.user.name} (@${post.user.handle})`;
+
+            if (Platform.OS === 'web') {
+                if (navigator.share) {
+                    await navigator.share({
+                        title: `${post.user.name} on Mention`,
+                        text: shareMessage,
+                        url: postUrl
+                    });
+                } else {
+                    await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
+                    Alert.alert('Link copied', 'Post link has been copied to clipboard');
+                }
+            } else {
+                await Share.share({
+                    message: `${shareMessage}\n\n${postUrl}`,
+                    url: postUrl,
+                    title: `${post.user.name} on Mention`
+                });
+            }
+        } catch (error) {
+            console.error('Error sharing post:', error);
+            Alert.alert('Error', 'Failed to share post');
+        }
+    };
+
+    const handleSave = async () => {
+        try {
+            if (isSaved) {
+                await unsavePost({ postId: post.id });
+            } else {
+                await savePost({ postId: post.id });
+            }
+        } catch (error) {
+            console.error('Error toggling save:', error);
+        }
     };
 
     return (
@@ -64,7 +125,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     <Text style={styles.postText}>{post.content}</Text>
                 )}
                 <View style={styles.postEngagement}>
-                    <TouchableOpacity style={styles.engagementButton} onPress={onReply}>
+                    <TouchableOpacity style={styles.engagementButton} onPress={handleReply}>
                         <Ionicons name="chatbubble-outline" size={18} color="#71767B" />
                         <Text style={styles.engagementText}>{post.engagement?.replies}</Text>
                     </TouchableOpacity>
@@ -88,14 +149,14 @@ const PostItem: React.FC<PostItemProps> = ({
                             {post.engagement?.likes}
                         </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.engagementButton} onPress={onSave}>
+                    <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
                         <Ionicons
                             name={isSaved ? "bookmark" : "bookmark-outline"}
                             size={18}
                             color={isSaved ? "#1DA1F2" : "#71767B"}
                         />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.engagementButton} onPress={onShare}>
+                    <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
                         <Ionicons name="share-outline" size={18} color="#71767B" />
                     </TouchableOpacity>
                 </View>

@@ -1,146 +1,29 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { usePostsStore } from '../stores/postsStore';
-import PostCard from '../components/PostCard';
+import Feed from '../components/Feed/Feed';
 import { colors } from '../styles/colors';
-import { router } from 'expo-router';
 
 const SavedPostsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
-    const { feeds, fetchSavedPosts, refreshFeed, loading, error } = usePostsStore();
-    const [refreshing, setRefreshing] = useState(false);
+    const { fetchSavedPosts, feeds } = usePostsStore();
 
-    // Load saved posts data
+    console.log('SavedPostsScreen render:', {
+        postsCount: feeds.posts.items.length,
+        posts: feeds.posts.items.map(p => ({ id: p.id, isSaved: p.isSaved }))
+    });
+
+    // Load saved posts data on mount
     useEffect(() => {
-        if (feeds.posts.items.length === 0 && !loading) {
-            fetchSavedPosts({ page: 1, limit: 50 });
-        }
-    }, [feeds.posts.items.length, loading, fetchSavedPosts]);
-
-    // Use the posts from the saved posts feed
-    const savedPosts = feeds.posts.items;
-
-    const handleRefresh = useCallback(async () => {
-        setRefreshing(true);
-        try {
-            await fetchSavedPosts({ page: 1, limit: 50 });
-        } catch (error) {
-            console.error('Error refreshing saved posts:', error);
-        } finally {
-            setRefreshing(false);
-        }
+        console.log('SavedPostsScreen: Loading saved posts...');
+        fetchSavedPosts({ page: 1, limit: 50 });
     }, [fetchSavedPosts]);
 
-    const handlePostPress = useCallback((postId: string) => {
-        router.push(`/p/${postId}`);
-    }, []);
-
-    const handleUserPress = useCallback((username: string) => {
-        router.push(`/@${username}`);
-    }, []);
-
-    const handleReplyPress = useCallback((postId: string) => {
-        router.push(`/reply?postId=${postId}`);
-    }, []);
-
-    const handleRepostPress = useCallback((postId: string) => {
-        router.push(`/repost?postId=${postId}`);
-    }, []);
-
-    const handleLikePress = useCallback(async (postId: string) => {
-        try {
-            const { likePost, unlikePost } = usePostsStore.getState();
-            const post = savedPosts.find(p => p.id === postId);
-            if (post?.isLiked) {
-                await unlikePost({ postId });
-            } else {
-                await likePost({ postId });
-            }
-        } catch (error) {
-            console.error('Error toggling like:', error);
-        }
-    }, [savedPosts]);
-
-    const handleSharePress = useCallback((postId: string) => {
-        // Handle share action
-        console.log('Share post:', postId);
-    }, []);
-
-    const handleSavePress = useCallback(async (postId: string) => {
-        try {
-            const { savePost, unsavePost } = usePostsStore.getState();
-            const post = savedPosts.find(p => p.id === postId);
-            if (post?.isSaved) {
-                await unsavePost({ postId });
-            } else {
-                await savePost({ postId });
-            }
-        } catch (error) {
-            console.error('Error toggling save:', error);
-        }
-    }, [savedPosts]);
-
-    const renderPostItem = useCallback(({ item }: { item: any }) => (
-        <PostCard
-            post={item}
-            onPostPress={() => handlePostPress(item.id)}
-            onUserPress={() => handleUserPress(item.user.handle)}
-            onReplyPress={() => handleReplyPress(item.id)}
-            onRepostPress={() => handleRepostPress(item.id)}
-            onLikePress={() => handleLikePress(item.id)}
-            onSharePress={() => handleSharePress(item.id)}
-            onSavePress={() => handleSavePress(item.id)}
-        />
-    ), [handlePostPress, handleUserPress, handleReplyPress, handleRepostPress, handleLikePress, handleSharePress, handleSavePress]);
-
-    const renderEmptyState = () => (
-        <View style={styles.emptyState}>
-            <Text style={styles.emptyStateTitle}>No saved posts yet</Text>
-            <Text style={styles.emptyStateSubtitle}>
-                Posts you save will appear here. Tap the bookmark icon on any post to save it.
-            </Text>
-        </View>
-    );
-
-    const renderError = () => (
-        <View style={styles.errorState}>
-            <Text style={styles.errorText}>Failed to load saved posts</Text>
-            <Text style={styles.errorSubtext}>{error}</Text>
-        </View>
-    );
-
-    if (loading && savedPosts.length === 0) {
-        return (
-            <View style={[styles.container, { paddingTop: insets.top }]}>
-                <Stack.Screen
-                    options={{
-                        title: 'Saved Posts',
-                        headerShown: true,
-                    }}
-                />
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primaryColor} />
-                    <Text style={styles.loadingText}>Loading saved posts...</Text>
-                </View>
-            </View>
-        );
-    }
-
-    if (error && savedPosts.length === 0) {
-        return (
-            <View style={[styles.container, { paddingTop: insets.top }]}>
-                <Stack.Screen
-                    options={{
-                        title: 'Saved Posts',
-                        headerShown: true,
-                    }}
-                />
-                {renderError()}
-            </View>
-        );
-    }
+    const handleSavePress = async (postId: string) => {
+        // This is handled by the Feed component's PostItem internally
+    };
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -151,25 +34,11 @@ const SavedPostsScreen: React.FC = () => {
                 }}
             />
 
-            {savedPosts.length === 0 ? (
-                renderEmptyState()
-            ) : (
-                <FlatList
-                    data={savedPosts}
-                    renderItem={renderPostItem}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.listContainer}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={handleRefresh}
-                            colors={[colors.primaryColor]}
-                            tintColor={colors.primaryColor}
-                        />
-                    }
-                    showsVerticalScrollIndicator={false}
-                />
-            )}
+            <Feed
+                type="posts"
+                showOnlySaved={true}
+                onSavePress={handleSavePress}
+            />
         </View>
     );
 };
@@ -178,56 +47,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.COLOR_BLACK_LIGHT_9,
-    },
-    listContainer: {
-        paddingBottom: 20,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: 16,
-        fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_4,
-    },
-    emptyState: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 32,
-    },
-    emptyStateTitle: {
-        fontSize: 24,
-        fontWeight: '600',
-        color: colors.COLOR_BLACK_LIGHT_1,
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    emptyStateSubtitle: {
-        fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_4,
-        textAlign: 'center',
-        lineHeight: 24,
-    },
-    errorState: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 32,
-    },
-    errorText: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: colors.busy,
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    errorSubtext: {
-        fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_4,
-        textAlign: 'center',
     },
 });
 

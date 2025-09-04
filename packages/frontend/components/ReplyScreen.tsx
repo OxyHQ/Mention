@@ -24,7 +24,7 @@ const ReplyScreen: React.FC = () => {
     const { user } = useOxy();
     const { createReply, posts } = usePostsStore();
     const insets = useSafeAreaInsets();
-    const { postId } = useLocalSearchParams<{ postId: string }>();
+    const { id: postId } = useLocalSearchParams<{ id: string }>();
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);

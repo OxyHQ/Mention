@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy, FollowButton } from '@oxyhq/services';
-import { Feed, PostAction } from './Feed/index';
+import { Feed } from './Feed/index';
 
 const HEADER_HEIGHT_EXPANDED = 80;
 const HEADER_HEIGHT_NARROWED = 110;
@@ -93,10 +93,6 @@ const TwitterProfile: React.FC = () => {
         }
     };
 
-    const handlePostAction = (action: PostAction, postId: string) => {
-        console.log(`${action} action for post ${postId}`);
-        // Post actions are handled by the Feed component and store
-    };
 
 
     const renderTabContent = () => {
@@ -105,7 +101,6 @@ const TwitterProfile: React.FC = () => {
         return (
             <Feed
                 type={feedType}
-                onPostAction={handlePostAction}
             />
         );
     };

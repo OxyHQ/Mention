@@ -23,7 +23,7 @@ const MAX_CHARACTERS = 280;
 const RepostScreen: React.FC = () => {
     const { user } = useOxy();
     const { addRepost, posts, createRepostAPI } = usePostsStore();
-    const { postId } = useLocalSearchParams<{ postId: string }>();
+    const { id: postId } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
 
     const [content, setContent] = useState('');

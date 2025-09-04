@@ -6,108 +6,86 @@ import {
     View,
     FlatList,
     RefreshControl,
-    ActivityIndicator,
-    Alert,
-    Platform
+    ActivityIndicator
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Share } from 'react-native';
 import { usePostsStore, useFeedSelector, useFeedLoading, useFeedError, useFeedHasMore } from '../../stores/postsStore';
-import { FeedType, PostAction } from '@mention/shared-types';
+import { FeedType } from '@mention/shared-types';
 import PostItem from './PostItem';
 import ErrorBoundary from '../ErrorBoundary';
 import LoadingTopSpinner from '../LoadingTopSpinner';
-import { useOxy } from '@oxyhq/services';
 
 interface FeedProps {
     type: FeedType;
-    onPostAction?: (action: PostAction, postId: string) => void;
     showComposeButton?: boolean;
     onComposePress?: () => void;
-    userId?: string; // For user profile feeds
-    autoRefresh?: boolean; // Enable auto-refresh
-    refreshInterval?: number; // Auto-refresh interval in ms
+    userId?: string;
+    autoRefresh?: boolean;
+    refreshInterval?: number;
     onSavePress?: (postId: string) => void;
+    showOnlySaved?: boolean;
 }
 
-const Feed: React.FC<FeedProps> = ({
+const Feed = ({
     type,
-    onPostAction,
     showComposeButton = false,
     onComposePress,
     userId,
     autoRefresh = false,
-    refreshInterval = 30000, // 30 seconds default
-    onSavePress
-}) => {
-    const router = useRouter();
-    const { user, isAuthenticated } = useOxy();
+    refreshInterval = 30000,
+    onSavePress,
+    showOnlySaved = false
+}: FeedProps) => {
     const flatListRef = useRef<FlatList>(null);
     const [refreshing, setRefreshing] = useState(false);
-    const [_autoRefreshTimer, setAutoRefreshTimer] = useState<NodeJS.Timeout | null>(null);
 
-    // Get feed data from store
     const feedData = useFeedSelector(type);
     const isLoading = useFeedLoading(type);
     const error = useFeedError(type);
     const hasMore = useFeedHasMore(type);
+
+    // Filter posts to show only saved ones if showOnlySaved is true
+    const filteredFeedData = showOnlySaved
+        ? {
+            ...feedData,
+            items: feedData?.items?.filter(item => {
+                console.log('Filtering post:', item.id, 'isSaved:', item.isSaved, 'item:', item);
+                return item.isSaved;
+            }) || []
+        }
+        : feedData;
+
+    console.log('Feed filtering:', {
+        showOnlySaved,
+        totalPosts: feedData?.items?.length || 0,
+        filteredPosts: filteredFeedData?.items?.length || 0,
+        savedPosts: feedData?.items?.filter(item => item.isSaved)?.length || 0
+    });
 
     const {
         fetchFeed,
         fetchUserFeed,
         refreshFeed,
         loadMoreFeed,
-        clearError,
-        likePost,
-        unlikePost
+        clearError
     } = usePostsStore();
-
-    // Auto-refresh effect
-    useEffect(() => {
-        if (autoRefresh && refreshInterval > 0) {
-            const timer = setInterval(() => {
-                if (userId) {
-                    fetchUserFeed(userId, { type, limit: 20 });
-                } else {
-                    refreshFeed(type);
-                }
-            }, refreshInterval);
-
-            setAutoRefreshTimer(timer);
-
-            return () => {
-                if (timer) clearInterval(timer);
-            };
-        }
-    }, [autoRefresh, refreshInterval, type, userId, fetchUserFeed, refreshFeed]);
 
     // Initial feed fetch
     useEffect(() => {
         const fetchInitialFeed = async () => {
-            console.log('🔄 Feed useEffect triggered - isAuthenticated:', isAuthenticated, 'user:', user?.id);
-
-            if (!isAuthenticated) {
-                console.log('⏳ User not authenticated, skipping feed fetch');
-                return;
-            }
-
             try {
                 if (userId) {
-                    console.log('👤 Fetching user feed for userId:', userId);
                     await fetchUserFeed(userId, { type, limit: 20 });
                 } else {
-                    console.log('📰 Fetching main feed for type:', type);
                     await fetchFeed({ type, limit: 20 });
                 }
             } catch (error) {
-                console.error('❌ Error fetching initial feed:', error);
+                console.error('Error fetching initial feed:', error);
             }
         };
 
         fetchInitialFeed();
-    }, [type, userId, fetchFeed, fetchUserFeed, isAuthenticated, user?.id]);
+    }, [type, userId, fetchFeed, fetchUserFeed]);
 
-    // Handle pull-to-refresh
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
@@ -121,16 +99,13 @@ const Feed: React.FC<FeedProps> = ({
         } finally {
             setRefreshing(false);
         }
-    }, [type, userId, fetchUserFeed, refreshFeed]);
+    }, [type, userId, refreshFeed, fetchUserFeed]);
 
-    // Handle infinite scroll
     const handleLoadMore = useCallback(async () => {
         if (!hasMore || isLoading) return;
 
         try {
             if (userId) {
-                // For user feeds, we need to implement loadMore for user feeds
-                // For now, just fetch more with current cursor
                 await fetchUserFeed(userId, { type, limit: 20 });
             } else {
                 await loadMoreFeed(type);
@@ -140,94 +115,10 @@ const Feed: React.FC<FeedProps> = ({
         }
     }, [hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed]);
 
-    // Handle share
-    const handleShare = useCallback(async (postId: string) => {
-        try {
-            const post = feedData?.items.find(item => item.id === postId);
-            if (!post) return;
+    const renderPostItem = useCallback(({ item }: { item: any }) => (
+        <PostItem post={item} />
+    ), []);
 
-            const shareUrl = `https://mention.earth/post/${postId}`;
-            const shareMessage = post.content
-                ? `${post.user.name} (@${post.user.handle}): ${post.content}`
-                : `${post.user.name} (@${post.user.handle})`;
-
-            if (Platform.OS === 'web') {
-                // Web sharing
-                if (navigator.share) {
-                    await navigator.share({
-                        title: `${post.user.name} on Mention`,
-                        text: shareMessage,
-                        url: shareUrl
-                    });
-                } else {
-                    // Fallback to copying to clipboard
-                    await navigator.clipboard.writeText(`${shareMessage}\n\n${shareUrl}`);
-                    Alert.alert('Link copied', 'Post link has been copied to clipboard');
-                }
-            } else {
-                // Native sharing
-                await Share.share({
-                    message: `${shareMessage}\n\n${shareUrl}`,
-                    url: shareUrl,
-                    title: `${post.user.name} on Mention`
-                });
-            }
-        } catch (error) {
-            console.error('Error sharing post:', error);
-            Alert.alert('Error', 'Failed to share post');
-        }
-    }, [feedData]);
-
-    // Handle post actions
-    const handlePostAction = useCallback(async (action: PostAction, postId: string) => {
-        try {
-            switch (action) {
-                case 'like':
-                    await likePost({ postId, type: 'post' });
-                    break;
-                case 'reply':
-                    router.push(`/reply?postId=${postId}`);
-                    break;
-                case 'repost':
-                    router.push(`/repost?postId=${postId}`);
-                    break;
-                case 'share':
-                    await handleShare(postId);
-                    break;
-            }
-
-            onPostAction?.(action, postId);
-        } catch (error) {
-            console.error(`Error handling ${action} action:`, error);
-            Alert.alert('Error', `Failed to ${action} post`);
-        }
-    }, [likePost, router, onPostAction, handleShare]);
-
-
-
-    // Render post item
-    const renderPostItem = useCallback(({ item }: { item: any }) => {
-        const handleLike = async () => {
-            if (item.isLiked) {
-                await unlikePost({ postId: item.id, type: 'post' });
-            } else {
-                await likePost({ postId: item.id, type: 'post' });
-            }
-        };
-
-        return (
-            <PostItem
-                post={item}
-                onReply={() => handlePostAction('reply', item.id)}
-                onRepost={() => handlePostAction('repost', item.id)}
-                onLike={handleLike}
-                onShare={() => handlePostAction('share', item.id)}
-                onSave={() => onSavePress?.(item.id)}
-            />
-        );
-    }, [handlePostAction, likePost, unlikePost, onSavePress]);
-
-    // Render empty state
     const renderEmptyState = useCallback(() => {
         if (isLoading) {
             return (
@@ -261,19 +152,22 @@ const Feed: React.FC<FeedProps> = ({
 
         return (
             <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>No posts yet</Text>
+                <Text style={styles.emptyStateText}>
+                    {showOnlySaved ? 'No saved posts yet' : 'No posts yet'}
+                </Text>
                 <Text style={styles.emptyStateSubtext}>
-                    {type === 'posts' ? 'Be the first to share something!' :
-                        type === 'media' ? 'No media posts found' :
-                            type === 'replies' ? 'No replies yet' :
-                                type === 'reposts' ? 'No reposts yet' :
-                                    'Start following people to see their posts'}
+                    {showOnlySaved
+                        ? 'Posts you save will appear here. Tap the bookmark icon on any post to save it.'
+                        : type === 'posts' ? 'Be the first to share something!' :
+                            type === 'media' ? 'No media posts found' :
+                                type === 'replies' ? 'No replies yet' :
+                                    type === 'reposts' ? 'No reposts yet' :
+                                        'Start following people to see their posts'}
                 </Text>
             </View>
         );
-    }, [isLoading, error, type, userId, clearError, fetchFeed, fetchUserFeed]);
+    }, [isLoading, error, type, userId, clearError, fetchFeed, fetchUserFeed, filteredFeedData?.items, showOnlySaved]);
 
-    // Render footer (loading indicator for infinite scroll)
     const renderFooter = useCallback(() => {
         if (!hasMore) return null;
 
@@ -285,7 +179,6 @@ const Feed: React.FC<FeedProps> = ({
         );
     }, [hasMore]);
 
-    // Render header (compose button if enabled)
     const renderHeader = useCallback(() => {
         if (!showComposeButton) return null;
 
@@ -299,12 +192,10 @@ const Feed: React.FC<FeedProps> = ({
         );
     }, [showComposeButton, onComposePress]);
 
-    // Key extractor for FlatList
     const keyExtractor = useCallback((item: any) => item.id, []);
 
-    // Get item layout for better performance
     const getItemLayout = useCallback((data: any, index: number) => ({
-        length: 200, // Approximate height of post items
+        length: 200,
         offset: 200 * index,
         index,
     }), []);
@@ -312,13 +203,10 @@ const Feed: React.FC<FeedProps> = ({
     return (
         <ErrorBoundary>
             <View style={styles.container}>
-                {/* Loading spinner at top */}
                 {isLoading && !refreshing && <LoadingTopSpinner />}
-
-                {/* Feed content */}
-                < FlatList
+                <FlatList
                     ref={flatListRef}
-                    data={feedData?.items || []}
+                    data={filteredFeedData?.items || []}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
                     getItemLayout={getItemLayout}
@@ -347,6 +235,8 @@ const Feed: React.FC<FeedProps> = ({
         </ErrorBoundary>
     );
 };
+
+export default Feed;
 
 const styles = StyleSheet.create({
     container: {
@@ -424,5 +314,3 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
 });
-
-export default Feed; 

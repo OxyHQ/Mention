@@ -11,7 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useOxy } from '@oxyhq/services';
-import Feed from '../components/Feed';
+import Feed from '../components/Feed/Feed';
 import { Header } from '../components/Header';
 import { colors } from '../styles/colors';
 import { usePostsStore } from '../stores/postsStore';
@@ -24,40 +24,11 @@ const MainFeedScreen = () => {
     // Debug authentication state
     console.log('🔐 MainFeedScreen - isAuthenticated:', isAuthenticated, 'user:', user?.id);
 
-    const handlePostPress = useCallback((postId: string) => {
-        // Navigate to post detail
-        router.push(`/p/${postId}`);
-    }, []);
-
-    const handleUserPress = useCallback((username: string) => {
-        // Navigate to user profile
-        router.push(`/@${username}`);
-    }, []);
-
-    const handleReplyPress = useCallback((postId: string) => {
-        // Navigate to reply screen
-        router.push(`/reply?postId=${postId}`);
-    }, []);
-
-    const handleRepostPress = useCallback((postId: string) => {
-        // Navigate to repost screen
-        router.push(`/repost?postId=${postId}`);
-    }, []);
-
-    const handleLikePress = useCallback((postId: string) => {
-        // Handle like action
-        console.log('Like post:', postId);
-    }, []);
-
-    const handleSharePress = useCallback((postId: string) => {
-        // Handle share action
-        console.log('Share post:', postId);
-    }, []);
 
     const handleSavePress = useCallback(async (postId: string) => {
         try {
             console.log('💾 Save button pressed for postId:', postId);
-            
+
             const { feeds } = usePostsStore.getState();
             const post = feeds.posts.items.find(p => p.id === postId) ||
                 feeds.mixed.items.find(p => p.id === postId);
@@ -75,6 +46,7 @@ const MainFeedScreen = () => {
             console.error('❌ Error toggling save:', error);
         }
     }, [savePost, unsavePost]);
+
 
     const handleComposePress = useCallback(() => {
         // Navigate to compose screen

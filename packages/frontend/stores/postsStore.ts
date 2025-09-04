@@ -307,24 +307,32 @@ export const usePostsStore = create<FeedState>()(
 
       try {
         const response = await feedService.getSavedPosts(request);
-        
+
+        const processedPosts = response.data.posts?.map(post => {
+          const processed = {
+            ...post,
+            // Flatten metadata properties to top level
+            isSaved: post.isSaved !== undefined ? post.isSaved : (post.metadata?.isSaved !== undefined ? post.metadata.isSaved : true), // Saved posts are always saved
+            isLiked: post.metadata?.isLiked !== undefined ? post.metadata.isLiked : (post.isLiked !== undefined ? post.isLiked : false),
+            isReposted: post.metadata?.isReposted !== undefined ? post.metadata.isReposted : (post.isReposted !== undefined ? post.isReposted : false),
+            isCommented: post.metadata?.isCommented || false,
+            isFollowingAuthor: post.metadata?.isFollowingAuthor || false,
+            authorBlocked: post.metadata?.authorBlocked || false,
+            authorMuted: post.metadata?.authorMuted || false,
+            isSensitive: post.metadata?.isSensitive || false,
+            isPinned: post.metadata?.isPinned || false,
+          };
+          console.log('Store: Processed post:', processed.id, 'isSaved:', processed.isSaved);
+          return processed;
+        }) || [];
+
+        console.log('Store: Setting posts in store:', processedPosts.length, 'posts');
+
         set(state => ({
           feeds: {
             ...state.feeds,
             posts: {
-              items: response.data.posts?.map(post => ({
-                ...post,
-                // Flatten metadata properties to top level
-                isSaved: post.metadata?.isSaved !== undefined ? post.metadata.isSaved : (post.isSaved !== undefined ? post.isSaved : true), // Saved posts are always saved
-                isLiked: post.metadata?.isLiked !== undefined ? post.metadata.isLiked : (post.isLiked !== undefined ? post.isLiked : false),
-                isReposted: post.metadata?.isReposted !== undefined ? post.metadata.isReposted : (post.isReposted !== undefined ? post.isReposted : false),
-                isCommented: post.metadata?.isCommented || false,
-                isFollowingAuthor: post.metadata?.isFollowingAuthor || false,
-                authorBlocked: post.metadata?.authorBlocked || false,
-                authorMuted: post.metadata?.authorMuted || false,
-                isSensitive: post.metadata?.isSensitive || false,
-                isPinned: post.metadata?.isPinned || false,
-              })) || [],
+              items: processedPosts,
               hasMore: response.data.hasMore || false,
               nextCursor: null,
               totalCount: response.data.posts?.length || 0,
@@ -589,38 +597,34 @@ export const usePostsStore = create<FeedState>()(
     likePost: async (request: LikeRequest) => {
       try {
         const response = await feedService.likeItem(request);
-        
+
         if (response.success) {
-          // Update post like state locally
-          set(state => ({
-            feeds: {
-              ...state.feeds,
-              posts: {
-                ...state.feeds.posts,
-                items: state.feeds.posts.items.map(post => 
-                  post.id === request.postId 
-                    ? { 
-                        ...post, 
-                        isLiked: true,
-                        engagement: { ...post.engagement, likes: post.engagement.likes + 1 }
-                      }
-                    : post
-                )
-              },
-              mixed: {
-                ...state.feeds.mixed,
-                items: state.feeds.mixed.items.map(post => 
-                  post.id === request.postId
-                    ? { 
-                        ...post, 
-                        isLiked: true,
-                        engagement: { ...post.engagement, likes: post.engagement.likes + 1 }
-                      }
-                    : post
-                )
+          // Update post like state locally in all feed types
+          set(state => {
+            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed'];
+            const updatedFeeds: any = { ...state.feeds };
+
+            feedTypes.forEach(feedType => {
+              if (state.feeds[feedType]) {
+                updatedFeeds[feedType] = {
+                  ...state.feeds[feedType],
+                  items: state.feeds[feedType].items.map(post =>
+                    post.id === request.postId
+                      ? {
+                          ...post,
+                          isLiked: true,
+                          engagement: { ...post.engagement, likes: post.engagement.likes + 1 }
+                        }
+                      : post
+                  )
+                };
               }
-            }
-          }));
+            });
+
+            return {
+              feeds: updatedFeeds
+            };
+          });
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to like post';
@@ -633,38 +637,34 @@ export const usePostsStore = create<FeedState>()(
     unlikePost: async (request: UnlikeRequest) => {
       try {
         const response = await feedService.unlikeItem(request);
-        
+
         if (response.success) {
-          // Update post like state locally
-          set(state => ({
-            feeds: {
-              ...state.feeds,
-              posts: {
-                ...state.feeds.posts,
-                items: state.feeds.posts.items.map(post => 
-                  post.id === request.postId 
-                    ? { 
-                        ...post, 
-                        isLiked: false,
-                        engagement: { ...post.engagement, likes: Math.max(0, post.engagement.likes - 1) }
-                      }
-                    : post
-                )
-              },
-              mixed: {
-                ...state.feeds.mixed,
-                items: state.feeds.mixed.items.map(post => 
-                  post.id === request.postId
-                    ? { 
-                        ...post, 
-                        isLiked: false,
-                        engagement: { ...post.engagement, likes: Math.max(0, post.engagement.likes - 1) }
-                      }
-                    : post
-                )
+          // Update post like state locally in all feed types
+          set(state => {
+            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed'];
+            const updatedFeeds: any = { ...state.feeds };
+
+            feedTypes.forEach(feedType => {
+              if (state.feeds[feedType]) {
+                updatedFeeds[feedType] = {
+                  ...state.feeds[feedType],
+                  items: state.feeds[feedType].items.map(post =>
+                    post.id === request.postId
+                      ? {
+                          ...post,
+                          isLiked: false,
+                          engagement: { ...post.engagement, likes: Math.max(0, post.engagement.likes - 1) }
+                        }
+                      : post
+                  )
+                };
               }
-            }
-          }));
+            });
+
+            return {
+              feeds: updatedFeeds
+            };
+          });
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to unlike post';

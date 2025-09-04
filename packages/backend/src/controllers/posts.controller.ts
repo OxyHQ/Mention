@@ -66,9 +66,13 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
 
     // Get saved status for current user if authenticated
     let savedPostIds: string[] = [];
+    let likedPostIds: string[] = [];
     if (currentUserId) {
       const savedPosts = await Bookmark.find({ userId: currentUserId }).lean();
       savedPostIds = savedPosts.map(saved => saved.postId.toString());
+
+      const likedPosts = await Like.find({ userId: currentUserId }).lean();
+      likedPostIds = likedPosts.map(liked => liked.postId.toString());
     }
 
     // Transform posts to match frontend expectations
@@ -84,6 +88,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
           verified: typeof userData === 'object' ? userData.verified : false
         },
         isSaved: savedPostIds.includes(post._id.toString()),
+        isLiked: likedPostIds.includes(post._id.toString()),
         oxyUserId: undefined
       };
     });
