@@ -17,10 +17,12 @@ import { usePostsStore } from '../../stores/postsStore';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
+    isNested?: boolean; // Flag to indicate if this is a nested post (for reposts/replies)
 }
 
 const PostItem: React.FC<PostItemProps> = ({
-    post
+    post,
+    isNested = false
 }) => {
     const router = useRouter();
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
@@ -33,6 +35,10 @@ const PostItem: React.FC<PostItemProps> = ({
     // Handle reposts - if this is a repost, we need to get the original post
     const [originalPost, setOriginalPost] = React.useState<any>(null);
     const [isLoadingOriginal, setIsLoadingOriginal] = React.useState(false);
+
+    // Handle replies - if this is a reply, we might want to show the parent post
+    const [parentPost, setParentPost] = React.useState<any>(null);
+    const [isLoadingParent, setIsLoadingParent] = React.useState(false);
 
     React.useEffect(() => {
         const loadOriginalPost = async () => {
@@ -49,8 +55,24 @@ const PostItem: React.FC<PostItemProps> = ({
             }
         };
 
+        const loadParentPost = async () => {
+            // Only load parent post for replies when we're at the top level
+            if ('postId' in post && post.postId && !isNested) {
+                setIsLoadingParent(true);
+                try {
+                    const parent = await getPostById(post.postId);
+                    setParentPost(parent);
+                } catch (error) {
+                    console.error('Error loading parent post:', error);
+                } finally {
+                    setIsLoadingParent(false);
+                }
+            }
+        };
+
         loadOriginalPost();
-    }, [post, getPostById]);
+        loadParentPost();
+    }, [post, getPostById, isNested]);
 
 
     const handleLike = async () => {
@@ -130,7 +152,7 @@ const PostItem: React.FC<PostItemProps> = ({
     }
 
     return (
-        <View style={styles.postContainer}>
+        <View style={[styles.postContainer, isNested && styles.nestedPostContainer]}>
             <Image source={{ uri: post.user.avatar }} style={styles.postAvatar} />
             <View style={styles.postContent}>
                 <View style={styles.postHeader}>
@@ -142,63 +164,87 @@ const PostItem: React.FC<PostItemProps> = ({
                     </Text>
                     <Text style={styles.postHandle}>@{post.user.handle}</Text>
                     <Text style={styles.postDate}>· {post.date || 'Just now'}</Text>
-                    {'originalPostId' in post && (
+                    {'originalPostId' in post && !isNested && (
                         <View style={styles.repostIndicator}>
                             <Ionicons name="repeat" size={12} color="#71767B" />
                             <Text style={styles.repostText}>Reposted</Text>
                         </View>
                     )}
+                    {'postId' in post && !isNested && (
+                        <View style={styles.repostIndicator}>
+                            <Ionicons name="chatbubble" size={12} color="#71767B" />
+                            <Text style={styles.repostText}>Replied</Text>
+                        </View>
+                    )}
                 </View>
+
+                {/* Show parent post for replies */}
+                {'postId' in post && parentPost && !isNested && (
+                    <View style={styles.parentPostContainer}>
+                        {isLoadingParent ? (
+                            <Text style={styles.repostText}>Loading original post...</Text>
+                        ) : (
+                            <PostItem post={parentPost} isNested={true} />
+                        )}
+                    </View>
+                )}
+
                 {'content' in post && post.content && (
                     <Text style={styles.postText}>{post.content}</Text>
                 )}
+                
+                {/* Show original post for reposts */}
                 {'originalPostId' in post && !('content' in post) && (
                     <View style={styles.repostContainer}>
                         {isLoadingOriginal ? (
                             <Text style={styles.repostText}>Loading original post...</Text>
                         ) : originalPost ? (
-                            <PostItem post={originalPost} />
+                            <PostItem post={originalPost} isNested={true} />
                         ) : (
                             <Text style={styles.repostText}>Original post not found</Text>
                         )}
                     </View>
                 )}
-                <View style={styles.postEngagement}>
-                    <TouchableOpacity style={styles.engagementButton} onPress={handleReply}>
-                        <Ionicons name="chatbubble-outline" size={18} color="#71767B" />
-                        <Text style={styles.engagementText}>{post.engagement?.replies ?? 0}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.engagementButton} onPress={handleRepost}>
-                        <Ionicons
-                            name={isReposted ? "repeat" : "repeat-outline"}
-                            size={18}
-                            color={isReposted ? "#00BA7C" : "#71767B"}
-                        />
-                        <Text style={[styles.engagementText, isReposted && styles.activeEngagementText]}>
-                            {post.engagement?.reposts ?? 0}
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.engagementButton} onPress={handleLike}>
-                        <Ionicons
-                            name={isLiked ? "heart" : "heart-outline"}
-                            size={18}
-                            color={isLiked ? "#F91880" : "#71767B"}
-                        />
-                        <Text style={[styles.engagementText, isLiked && styles.activeEngagementText]}>
-                            {post.engagement?.likes ?? 0}
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
-                        <Ionicons
-                            name={isSaved ? "bookmark" : "bookmark-outline"}
-                            size={18}
-                            color={isSaved ? "#1DA1F2" : "#71767B"}
-                        />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
-                        <Ionicons name="share-outline" size={18} color="#71767B" />
-                    </TouchableOpacity>
-                </View>
+                
+                {/* Only show engagement buttons for non-nested posts */}
+                {!isNested && (
+                    <View style={styles.postEngagement}>
+                        <TouchableOpacity style={styles.engagementButton} onPress={handleReply}>
+                            <Ionicons name="chatbubble-outline" size={18} color="#71767B" />
+                            <Text style={styles.engagementText}>{post.engagement?.replies ?? 0}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.engagementButton} onPress={handleRepost}>
+                            <Ionicons
+                                name={isReposted ? "repeat" : "repeat-outline"}
+                                size={18}
+                                color={isReposted ? "#00BA7C" : "#71767B"}
+                            />
+                            <Text style={[styles.engagementText, isReposted && styles.activeEngagementText]}>
+                                {post.engagement?.reposts ?? 0}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.engagementButton} onPress={handleLike}>
+                            <Ionicons
+                                name={isLiked ? "heart" : "heart-outline"}
+                                size={18}
+                                color={isLiked ? "#F91880" : "#71767B"}
+                            />
+                            <Text style={[styles.engagementText, isLiked && styles.activeEngagementText]}>
+                                {post.engagement?.likes ?? 0}
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
+                            <Ionicons
+                                name={isSaved ? "bookmark" : "bookmark-outline"}
+                                size={18}
+                                color={isSaved ? "#1DA1F2" : "#71767B"}
+                            />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
+                            <Ionicons name="share-outline" size={18} color="#71767B" />
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         </View>
     );
@@ -283,6 +329,24 @@ const styles = StyleSheet.create({
         borderLeftColor: '#71767B',
         paddingLeft: 12,
         opacity: 0.8,
+    },
+    parentPostContainer: {
+        marginTop: 8,
+        marginBottom: 8,
+        borderLeftWidth: 2,
+        borderLeftColor: '#1DA1F2',
+        paddingLeft: 12,
+        opacity: 0.9,
+    },
+    nestedPostContainer: {
+        borderLeftWidth: 0,
+        paddingLeft: 0,
+        marginLeft: 0,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#2F3336',
+        backgroundColor: '#0a0a0a',
+        marginTop: 8,
     },
 });
 
