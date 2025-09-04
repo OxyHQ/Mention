@@ -156,23 +156,46 @@ export const usePostsStore = create<FeedState>()(
         const response = await feedService.getFeed(request);
         console.log('📦 FeedService response:', response);
         
+        // Debug: Log the first item to see what data we're getting
+        if (response.items && response.items.length > 0) {
+          const firstItem = response.items[0];
+          console.log('🔍 First item raw data:', firstItem);
+          console.log('🔍 First item.data:', firstItem.data);
+          console.log('🔍 First item interaction flags:', {
+            isLiked: firstItem.data.isLiked,
+            isSaved: firstItem.data.isSaved,
+            isReposted: firstItem.data.isReposted
+          });
+          console.log('🔍 First item engagement:', firstItem.data.engagement);
+        }
+        
         set(state => ({
           feeds: {
             ...state.feeds,
             [type]: {
-              items: response.items?.map(item => ({
-                ...item.data,
-                // Use the actual data from API response
-                isSaved: item.data.isSaved || false,
-                isLiked: item.data.isLiked || false,
-                isReposted: item.data.isReposted || false,
-                isCommented: item.data.metadata?.isCommented || false,
-                isFollowingAuthor: item.data.metadata?.isFollowingAuthor || false,
-                authorBlocked: item.data.metadata?.authorBlocked || false,
-                authorMuted: item.data.metadata?.authorMuted || false,
-                isSensitive: item.data.metadata?.isSensitive || false,
-                isPinned: item.data.metadata?.isPinned || false,
-              })) || [],
+              items: response.items?.map(item => {
+                console.log('🔧 Transforming item:', {
+                  id: item.id,
+                  originalIsLiked: item.data.isLiked,
+                  originalIsSaved: item.data.isSaved,
+                  originalIsReposted: item.data.isReposted,
+                  originalEngagement: item.data.engagement
+                });
+                
+                return {
+                  ...item.data,
+                  // Use the backend values directly, only fallback if undefined
+                  isSaved: item.data.isSaved !== undefined ? item.data.isSaved : false,
+                  isLiked: item.data.isLiked !== undefined ? item.data.isLiked : false,
+                  isReposted: item.data.isReposted !== undefined ? item.data.isReposted : false,
+                  isCommented: item.data.metadata?.isCommented || false,
+                  isFollowingAuthor: item.data.metadata?.isFollowingAuthor || false,
+                  authorBlocked: item.data.metadata?.authorBlocked || false,
+                  authorMuted: item.data.metadata?.authorMuted || false,
+                  isSensitive: item.data.metadata?.isSensitive || false,
+                  isPinned: item.data.metadata?.isPinned || false,
+                };
+              }) || [],
               hasMore: response.hasMore || false,
               nextCursor: response.nextCursor,
               totalCount: response.totalCount || 0,

@@ -82,6 +82,8 @@ class FeedController {
           }).select('_id metadata.likedBy metadata.savedBy');
 
           console.log('📊 Posts with metadata:', postsWithMetadata.length);
+          console.log('📋 Post IDs requested:', postIds);
+          console.log('📋 Post IDs found:', postsWithMetadata.map(p => p._id.toString()));
 
           // Check likes and saves by examining the metadata arrays
           postsWithMetadata.forEach(post => {
@@ -91,15 +93,29 @@ class FeedController {
             const savedBy = metadata.savedBy || [];
 
             console.log(`📄 Post ${postId}: likedBy=${likedBy.length}, savedBy=${savedBy.length}`);
+            console.log(`🔍 Checking if user ${currentUserId} is in likedBy:`, likedBy);
+            console.log(`🔍 Checking if user ${currentUserId} is in savedBy:`, savedBy);
 
-            if (likedBy.includes(currentUserId)) {
+            // Check likes with multiple formats for robust comparison
+            const userLiked = likedBy.includes(currentUserId) || 
+                            likedBy.includes(currentUserId?.toString()) ||
+                            likedBy.some(id => id?.toString() === currentUserId?.toString());
+            
+            if (userLiked) {
+              console.log(`✅ User ${currentUserId} found in likedBy array`);
               userInteractions.set(postId, {
                 ...userInteractions.get(postId),
                 isLiked: true
               });
             }
 
-            if (savedBy.includes(currentUserId)) {
+            // Check saves with multiple formats for robust comparison  
+            const userSaved = savedBy.includes(currentUserId) ||
+                            savedBy.includes(currentUserId?.toString()) ||
+                            savedBy.some(id => id?.toString() === currentUserId?.toString());
+
+            if (userSaved) {
+              console.log(`✅ User ${currentUserId} found in savedBy array`);
               userInteractions.set(postId, {
                 ...userInteractions.get(postId),
                 isSaved: true
@@ -144,17 +160,42 @@ class FeedController {
         };
 
         // Calculate engagement stats from actual database values
-        const engagement = {
-          replies: postObj.stats?.commentsCount || 0,
-          reposts: postObj.stats?.repostsCount || 0,
-          likes: postObj.stats?.likesCount || 0
+        // Ensure stats object exists with default values if not present
+        const stats = postObj.stats || {
+          likesCount: 0,
+          repostsCount: 0, 
+          commentsCount: 0,
+          viewsCount: 0,
+          sharesCount: 0
         };
+        
+        const engagement = {
+          replies: stats.commentsCount || 0,
+          reposts: stats.repostsCount || 0,
+          likes: stats.likesCount || 0
+        };
+
+        console.log(`📊 Post ${postId} stats:`, {
+          rawStats: postObj.stats,
+          processedStats: stats,
+          engagement,
+          hasStats: !!postObj.stats
+        });
 
         // Get user-specific interaction flags
         const interactions = userInteractions.get(postId) || {};
         const isLiked = interactions.isLiked || false;
         const isReposted = interactions.isReposted || false;
         const isSaved = interactions.isSaved || false;
+
+        console.log(`🔄 Post ${postId} user interactions:`, {
+          currentUserId,
+          interactions,
+          isLiked,
+          isReposted,
+          isSaved,
+          hasInteractionData: userInteractions.has(postId)
+        });
 
         const transformedPost = {
           id: postId,
@@ -176,7 +217,7 @@ class FeedController {
           quoteOf: postObj.quoteOf,
           isEdited: postObj.isEdited,
           language: postObj.language,
-          stats: postObj.stats,
+          stats: stats, // Use the processed stats object
           metadata: {
             ...postObj.metadata,
             isLiked,
@@ -293,6 +334,18 @@ class FeedController {
         .sort({ createdAt: -1 })
         .limit(limit + 1) // Get one extra to check if there are more
         .lean();
+
+      console.log('📋 Raw posts from database:', posts.length);
+      if (posts.length > 0) {
+        const firstPost = posts[0];
+        console.log('🔍 First post structure:', {
+          id: firstPost._id,
+          hasStats: !!firstPost.stats,
+          stats: firstPost.stats,
+          hasMetadata: !!firstPost.metadata,
+          metadata: firstPost.metadata
+        });
+      }
 
       // Check if there are more posts
       const hasMore = posts.length > limit;
