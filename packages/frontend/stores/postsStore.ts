@@ -138,6 +138,7 @@ export const usePostsStore = create<FeedState>()(
     // Fetch main feed
     fetchFeed: async (request: FeedRequest) => {
       const { type = 'mixed' } = request;
+      console.log('🚀 PostsStore.fetchFeed called with request:', request);
       
       set(state => ({
         feeds: {
@@ -151,7 +152,9 @@ export const usePostsStore = create<FeedState>()(
       }));
 
       try {
+        console.log('📞 Calling feedService.getFeed...');
         const response = await feedService.getFeed(request);
+        console.log('📦 FeedService response:', response);
         
         set(state => ({
           feeds: {
@@ -159,10 +162,10 @@ export const usePostsStore = create<FeedState>()(
             [type]: {
               items: response.items?.map(item => ({
                 ...item.data,
-                // Flatten metadata properties to top level
-                isSaved: item.data.metadata?.isSaved || false,
-                isLiked: item.data.metadata?.isLiked || item.data.isLiked || false,
-                isReposted: item.data.metadata?.isReposted || item.data.isReposted || false,
+                // Use the actual data from API response
+                isSaved: item.data.isSaved || false,
+                isLiked: item.data.isLiked || false,
+                isReposted: item.data.isReposted || false,
                 isCommented: item.data.metadata?.isCommented || false,
                 isFollowingAuthor: item.data.metadata?.isFollowingAuthor || false,
                 authorBlocked: item.data.metadata?.authorBlocked || false,
@@ -226,10 +229,10 @@ export const usePostsStore = create<FeedState>()(
               [type]: {
                 items: response.items?.map(item => ({
                   ...item.data,
-                  // Flatten metadata properties to top level
-                  isSaved: item.data.metadata?.isSaved || false,
-                  isLiked: item.data.metadata?.isLiked || item.data.isLiked || false,
-                  isReposted: item.data.metadata?.isReposted || item.data.isReposted || false,
+                  // Use the actual data from API response
+                  isSaved: item.data.isSaved || false,
+                  isLiked: item.data.isLiked || false,
+                  isReposted: item.data.isReposted || false,
                   isCommented: item.data.metadata?.isCommented || false,
                   isFollowingAuthor: item.data.metadata?.isFollowingAuthor || false,
                   authorBlocked: item.data.metadata?.authorBlocked || false,
@@ -650,7 +653,9 @@ export const usePostsStore = create<FeedState>()(
     // Save post
     savePost: async (request: { postId: string }) => {
       try {
+        console.log('💾 PostsStore.savePost called with:', request);
         const response = await feedService.saveItem(request);
+        console.log('✅ Save response:', response);
         
         if (response.success) {
           // Update post save state locally
@@ -686,7 +691,9 @@ export const usePostsStore = create<FeedState>()(
     // Unsave post
     unsavePost: async (request: { postId: string }) => {
       try {
+        console.log('🗑️ PostsStore.unsavePost called with:', request);
         const response = await feedService.unsaveItem(request);
+        console.log('✅ Unsave response:', response);
         
         if (response.success) {
           // Update post save state locally

@@ -45,7 +45,7 @@ class FeedController {
               id: userData.id,
               name: userData.name?.full || userData.username || 'User',
               handle: userData.username || 'user',
-              avatar: userData.avatar?.url || '',
+              avatar: typeof userData.avatar === 'string' ? userData.avatar : (userData.avatar as any)?.url || '',
               verified: userData.verified || false
             });
           }
@@ -62,10 +62,79 @@ class FeedController {
         }
       }));
 
+      // Get user interaction data for current user if authenticated
+      const userInteractions = new Map();
+      if (currentUserId) {
+        try {
+          console.log('🔍 Fetching user interactions for userId:', currentUserId);
+          
+          // Get all post IDs
+          const postIds = posts.map(post => {
+            const postObj = post.toObject ? post.toObject() : post;
+            return postObj._id.toString();
+          });
+
+          console.log('📝 Post IDs to check:', postIds);
+
+          // Get all posts with their metadata to check for interactions
+          const postsWithMetadata = await Post.find({
+            _id: { $in: postIds }
+          }).select('_id metadata.likedBy metadata.savedBy');
+
+          console.log('📊 Posts with metadata:', postsWithMetadata.length);
+
+          // Check likes and saves by examining the metadata arrays
+          postsWithMetadata.forEach(post => {
+            const postId = post._id.toString();
+            const metadata = post.metadata || {};
+            const likedBy = metadata.likedBy || [];
+            const savedBy = metadata.savedBy || [];
+
+            console.log(`📄 Post ${postId}: likedBy=${likedBy.length}, savedBy=${savedBy.length}`);
+
+            if (likedBy.includes(currentUserId)) {
+              userInteractions.set(postId, {
+                ...userInteractions.get(postId),
+                isLiked: true
+              });
+            }
+
+            if (savedBy.includes(currentUserId)) {
+              userInteractions.set(postId, {
+                ...userInteractions.get(postId),
+                isSaved: true
+              });
+            }
+          });
+
+          // Check reposts for current user
+          const repostedPosts = await Post.find({
+            oxyUserId: currentUserId,
+            repostOf: { $in: postIds }
+          }).select('repostOf');
+
+          console.log('🔄 Reposted posts found:', repostedPosts.length, repostedPosts.map(p => p.repostOf));
+
+          repostedPosts.forEach(post => {
+            userInteractions.set(post.repostOf, {
+              ...userInteractions.get(post.repostOf),
+              isReposted: true
+            });
+          });
+
+          console.log('🗺️ Final user interactions map:', Object.fromEntries(userInteractions));
+        } catch (error) {
+          console.error('❌ Error fetching user interactions:', error);
+        }
+      } else {
+        console.log('⚠️ No currentUserId provided, skipping user interaction checks');
+      }
+
       // Transform posts with real user data and engagement stats
       const transformedPosts = posts.map(post => {
         const postObj = post.toObject ? post.toObject() : post;
         const userId = postObj.oxyUserId;
+        const postId = postObj._id.toString();
         const userData = userDataMap.get(userId) || {
           id: userId,
           name: 'User',
@@ -74,19 +143,21 @@ class FeedController {
           verified: false
         };
 
-        // Calculate engagement stats
+        // Calculate engagement stats from actual database values
         const engagement = {
           replies: postObj.stats?.commentsCount || 0,
           reposts: postObj.stats?.repostsCount || 0,
           likes: postObj.stats?.likesCount || 0
         };
 
-        // Check if current user has interacted with this post
-        const isLiked = currentUserId ? postObj.metadata?.isLiked || false : false;
-        const isReposted = currentUserId ? postObj.metadata?.isReposted || false : false;
+        // Get user-specific interaction flags
+        const interactions = userInteractions.get(postId) || {};
+        const isLiked = interactions.isLiked || false;
+        const isReposted = interactions.isReposted || false;
+        const isSaved = interactions.isSaved || false;
 
-        return {
-          id: postObj._id.toString(),
+        const transformedPost = {
+          id: postId,
           user: userData,
           content: postObj.content?.text || '',
           date: postObj.createdAt,
@@ -94,6 +165,7 @@ class FeedController {
           media: postObj.content?.images || [],
           isLiked,
           isReposted,
+          isSaved,
           type: postObj.type,
           visibility: postObj.visibility,
           hashtags: postObj.hashtags || [],
@@ -105,8 +177,23 @@ class FeedController {
           isEdited: postObj.isEdited,
           language: postObj.language,
           stats: postObj.stats,
-          metadata: postObj.metadata
+          metadata: {
+            ...postObj.metadata,
+            isLiked,
+            isReposted,
+            isSaved
+          }
         };
+
+        console.log(`📄 Transformed post ${postId}:`, {
+          isLiked,
+          isReposted,
+          isSaved,
+          engagement,
+          interactions
+        });
+
+        return transformedPost;
       });
 
       return transformedPosts;
@@ -157,7 +244,7 @@ class FeedController {
         query.repostOf = { $exists: false };
       }
       if (filters.includeMedia === false) {
-        query.type = { $ne: PostType.IMAGE, $ne: PostType.VIDEO };
+        query.type = { $nin: [PostType.IMAGE, PostType.VIDEO] };
       }
       if (filters.includeSensitive === false) {
         query['metadata.isSensitive'] = { $ne: true };
@@ -183,6 +270,15 @@ class FeedController {
     try {
       const { type = 'mixed', cursor, limit = 20, filters } = req.query as any;
       const currentUserId = req.user?.id;
+
+      console.log('🚀 FeedController.getFeed called with:', {
+        type,
+        cursor,
+        limit,
+        filters,
+        currentUserId,
+        user: req.user
+      });
 
       // Build query
       const query = this.buildFeedQuery(type, filters, currentUserId);
@@ -573,19 +669,32 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      // Update post like count and metadata
+      // Check if user already liked this post
+      const existingPost = await Post.findById(postId);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      const alreadyLiked = existingPost.metadata?.likedBy?.includes(currentUserId);
+      
+      if (alreadyLiked) {
+        return res.json({ 
+          success: true, 
+          liked: true,
+          likesCount: existingPost.stats.likesCount,
+          message: 'Already liked'
+        });
+      }
+
+      // Update post like count and add user to likedBy array
       const updateResult = await Post.findByIdAndUpdate(
         postId,
         {
           $inc: { 'stats.likesCount': 1 },
-          $set: { 'metadata.isLiked': true }
+          $addToSet: { 'metadata.likedBy': currentUserId }
         },
         { new: true }
       );
-
-      if (!updateResult) {
-        return res.status(404).json({ error: 'Post not found' });
-      }
 
       // Emit real-time update
       io.emit('post:liked', {
@@ -625,19 +734,32 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      // Update post like count and metadata
+      // Check if user has liked this post
+      const existingPost = await Post.findById(postId);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      const hasLiked = existingPost.metadata?.likedBy?.includes(currentUserId);
+      
+      if (!hasLiked) {
+        return res.json({ 
+          success: true, 
+          liked: false,
+          likesCount: existingPost.stats.likesCount,
+          message: 'Not liked'
+        });
+      }
+
+      // Update post like count and remove user from likedBy array
       const updateResult = await Post.findByIdAndUpdate(
         postId,
         {
           $inc: { 'stats.likesCount': -1 },
-          $set: { 'metadata.isLiked': false }
+          $pull: { 'metadata.likedBy': currentUserId }
         },
         { new: true }
       );
-
-      if (!updateResult) {
-        return res.status(404).json({ error: 'Post not found' });
-      }
 
       // Emit real-time update
       io.emit('post:unliked', {
@@ -658,6 +780,158 @@ class FeedController {
         error: 'Failed to unlike post',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
+    }
+  }
+
+  /**
+   * Save a post
+   */
+  async saveItem(req: AuthRequest, res: Response) {
+    try {
+      const { postId } = req.params;
+      const currentUserId = req.user?.id;
+
+      console.log('💾 Save endpoint called:', { postId, currentUserId, user: req.user });
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      if (!postId) {
+        return res.status(400).json({ error: 'Post ID is required' });
+      }
+
+      // Check if user already saved this post
+      const existingPost = await Post.findById(postId);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      const alreadySaved = existingPost.metadata?.savedBy?.includes(currentUserId);
+      
+      if (alreadySaved) {
+        return res.json({ 
+          success: true, 
+          saved: true,
+          message: 'Already saved'
+        });
+      }
+
+      // Add user to savedBy array
+      const updateResult = await Post.findByIdAndUpdate(
+        postId,
+        {
+          $addToSet: { 'metadata.savedBy': currentUserId }
+        },
+        { new: true }
+      );
+
+      // Emit real-time update
+      io.emit('post:saved', {
+        postId,
+        userId: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+
+      res.json({ 
+        success: true, 
+        saved: true
+      });
+    } catch (error) {
+      console.error('Error saving post:', error);
+      res.status(500).json({ 
+        error: 'Failed to save post',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Unsave a post
+   */
+  async unsaveItem(req: AuthRequest, res: Response) {
+    try {
+      const { postId } = req.params;
+      const currentUserId = req.user?.id;
+
+      console.log('🗑️ Unsave endpoint called:', { postId, currentUserId, user: req.user });
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      if (!postId) {
+        return res.status(400).json({ error: 'Post ID is required' });
+      }
+
+      // Check if user has saved this post
+      const existingPost = await Post.findById(postId);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      const hasSaved = existingPost.metadata?.savedBy?.includes(currentUserId);
+      
+      if (!hasSaved) {
+        return res.json({ 
+          success: true, 
+          saved: false,
+          message: 'Not saved'
+        });
+      }
+
+      // Remove user from savedBy array
+      const updateResult = await Post.findByIdAndUpdate(
+        postId,
+        {
+          $pull: { 'metadata.savedBy': currentUserId }
+        },
+        { new: true }
+      );
+
+      // Emit real-time update
+      io.emit('post:unsaved', {
+        postId,
+        userId: currentUserId,
+        timestamp: new Date().toISOString()
+      });
+
+      res.json({ 
+        success: true, 
+        saved: false
+      });
+    } catch (error) {
+      console.error('Error unsaving post:', error);
+      res.status(500).json({ 
+        error: 'Failed to unsave post',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Debug endpoint to see raw post data
+   */
+  async debugPosts(req: AuthRequest, res: Response) {
+    try {
+      const posts = await Post.find({}).limit(3).lean();
+      console.log('🔍 Debug - Raw posts from database:', JSON.stringify(posts, null, 2));
+      
+      res.json({
+        message: 'Debug posts',
+        count: posts.length,
+        posts: posts.map(post => ({
+          id: post._id,
+          oxyUserId: post.oxyUserId,
+          content: post.content,
+          stats: post.stats,
+          metadata: post.metadata,
+          createdAt: post.createdAt
+        }))
+      });
+    } catch (error) {
+      console.error('Debug error:', error);
+      res.status(500).json({ error: 'Debug failed' });
     }
   }
 

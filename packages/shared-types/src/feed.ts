@@ -31,6 +31,7 @@ export interface Post {
   media?: string[];
   isLiked?: boolean;
   isReposted?: boolean;
+  isSaved?: boolean;
 }
 
 export interface Reply {

@@ -4,7 +4,6 @@ import {
     Text,
     TouchableOpacity,
     View,
-    Image,
     FlatList,
     RefreshControl,
     ActivityIndicator,
@@ -18,6 +17,7 @@ import { FeedType, PostAction } from '@mention/shared-types';
 import PostItem from './PostItem';
 import ErrorBoundary from '../ErrorBoundary';
 import LoadingTopSpinner from '../LoadingTopSpinner';
+import { useOxy } from '@oxyhq/services';
 
 interface FeedProps {
     type: FeedType;
@@ -27,6 +27,7 @@ interface FeedProps {
     userId?: string; // For user profile feeds
     autoRefresh?: boolean; // Enable auto-refresh
     refreshInterval?: number; // Auto-refresh interval in ms
+    onSavePress?: (postId: string) => void;
 }
 
 const Feed: React.FC<FeedProps> = ({
@@ -36,12 +37,14 @@ const Feed: React.FC<FeedProps> = ({
     onComposePress,
     userId,
     autoRefresh = false,
-    refreshInterval = 30000 // 30 seconds default
+    refreshInterval = 30000, // 30 seconds default
+    onSavePress
 }) => {
     const router = useRouter();
+    const { user, isAuthenticated } = useOxy();
     const flatListRef = useRef<FlatList>(null);
     const [refreshing, setRefreshing] = useState(false);
-    const [autoRefreshTimer, setAutoRefreshTimer] = useState<NodeJS.Timeout | null>(null);
+    const [_autoRefreshTimer, setAutoRefreshTimer] = useState<NodeJS.Timeout | null>(null);
 
     // Get feed data from store
     const feedData = useFeedSelector(type);
@@ -81,19 +84,28 @@ const Feed: React.FC<FeedProps> = ({
     // Initial feed fetch
     useEffect(() => {
         const fetchInitialFeed = async () => {
+            console.log('🔄 Feed useEffect triggered - isAuthenticated:', isAuthenticated, 'user:', user?.id);
+
+            if (!isAuthenticated) {
+                console.log('⏳ User not authenticated, skipping feed fetch');
+                return;
+            }
+
             try {
                 if (userId) {
+                    console.log('👤 Fetching user feed for userId:', userId);
                     await fetchUserFeed(userId, { type, limit: 20 });
                 } else {
+                    console.log('📰 Fetching main feed for type:', type);
                     await fetchFeed({ type, limit: 20 });
                 }
             } catch (error) {
-                console.error('Error fetching initial feed:', error);
+                console.error('❌ Error fetching initial feed:', error);
             }
         };
 
         fetchInitialFeed();
-    }, [type, userId, fetchFeed, fetchUserFeed]);
+    }, [type, userId, fetchFeed, fetchUserFeed, isAuthenticated, user?.id]);
 
     // Handle pull-to-refresh
     const handleRefresh = useCallback(async () => {
@@ -128,33 +140,8 @@ const Feed: React.FC<FeedProps> = ({
         }
     }, [hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed]);
 
-    // Handle post actions
-    const handlePostAction = useCallback(async (action: PostAction, postId: string) => {
-        try {
-            switch (action) {
-                case 'like':
-                    await likePost({ postId, type: 'post' });
-                    break;
-                case 'reply':
-                    router.push(`/reply?postId=${postId}`);
-                    break;
-                case 'repost':
-                    router.push(`/repost?postId=${postId}`);
-                    break;
-                case 'share':
-                    await handleShare(postId);
-                    break;
-            }
-
-            onPostAction?.(action, postId);
-        } catch (error) {
-            console.error(`Error handling ${action} action:`, error);
-            Alert.alert('Error', `Failed to ${action} post`);
-        }
-    }, [likePost, router, onPostAction]);
-
     // Handle share
-    const handleShare = async (postId: string) => {
+    const handleShare = useCallback(async (postId: string) => {
         try {
             const post = feedData?.items.find(item => item.id === postId);
             if (!post) return;
@@ -189,7 +176,32 @@ const Feed: React.FC<FeedProps> = ({
             console.error('Error sharing post:', error);
             Alert.alert('Error', 'Failed to share post');
         }
-    };
+    }, [feedData]);
+
+    // Handle post actions
+    const handlePostAction = useCallback(async (action: PostAction, postId: string) => {
+        try {
+            switch (action) {
+                case 'like':
+                    await likePost({ postId, type: 'post' });
+                    break;
+                case 'reply':
+                    router.push(`/reply?postId=${postId}`);
+                    break;
+                case 'repost':
+                    router.push(`/repost?postId=${postId}`);
+                    break;
+                case 'share':
+                    await handleShare(postId);
+                    break;
+            }
+
+            onPostAction?.(action, postId);
+        } catch (error) {
+            console.error(`Error handling ${action} action:`, error);
+            Alert.alert('Error', `Failed to ${action} post`);
+        }
+    }, [likePost, router, onPostAction, handleShare]);
 
 
 
@@ -210,9 +222,10 @@ const Feed: React.FC<FeedProps> = ({
                 onRepost={() => handlePostAction('repost', item.id)}
                 onLike={handleLike}
                 onShare={() => handlePostAction('share', item.id)}
+                onSave={() => onSavePress?.(item.id)}
             />
         );
-    }, [handlePostAction, likePost, unlikePost]);
+    }, [handlePostAction, likePost, unlikePost, onSavePress]);
 
     // Render empty state
     const renderEmptyState = useCallback(() => {

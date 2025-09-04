@@ -4,21 +4,25 @@ import {
     StyleSheet,
     TouchableOpacity,
     Text,
-    SafeAreaView,
-    StatusBar,
     Image
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useOxy } from '@oxyhq/services';
 import Feed from '../components/Feed';
+import { Header } from '../components/Header';
 import { colors } from '../styles/colors';
 import { usePostsStore } from '../stores/postsStore';
 
 const MainFeedScreen = () => {
-    const { user } = useOxy();
+    const { user, isAuthenticated } = useOxy();
     const { savePost, unsavePost } = usePostsStore();
     const [activeTab, setActiveTab] = useState<'mixed' | 'posts' | 'media' | 'replies' | 'reposts'>('mixed');
+
+    // Debug authentication state
+    console.log('🔐 MainFeedScreen - isAuthenticated:', isAuthenticated, 'user:', user?.id);
 
     const handlePostPress = useCallback((postId: string) => {
         // Navigate to post detail
@@ -52,17 +56,23 @@ const MainFeedScreen = () => {
 
     const handleSavePress = useCallback(async (postId: string) => {
         try {
+            console.log('💾 Save button pressed for postId:', postId);
+            
             const { feeds } = usePostsStore.getState();
             const post = feeds.posts.items.find(p => p.id === postId) ||
                 feeds.mixed.items.find(p => p.id === postId);
 
+            console.log('📄 Found post:', post?.id, 'isSaved:', post?.isSaved);
+
             if (post?.isSaved) {
+                console.log('🗑️ Unsaving post...');
                 await unsavePost({ postId });
             } else {
+                console.log('💾 Saving post...');
                 await savePost({ postId });
             }
         } catch (error) {
-            console.error('Error toggling save:', error);
+            console.error('❌ Error toggling save:', error);
         }
     }, [savePost, unsavePost]);
 
@@ -88,58 +98,51 @@ const MainFeedScreen = () => {
     );
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            <StatusBar style="dark" />
+        <SafeAreaView edges={['top']}>
+            <View style={styles.container}>
+                <StatusBar style="dark" />
 
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <Text style={styles.headerTitle}>Mention</Text>
+                {/* Header */}
+                <Header
+                    options={{
+                        title: 'Mention',
+                        rightComponents: [
+                            <TouchableOpacity key="search" style={styles.headerButton} onPress={() => router.push('/search')}>
+                                <Ionicons name="search-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                            </TouchableOpacity>,
+                            <TouchableOpacity key="notifications" style={styles.headerButton} onPress={() => router.push('/notifications')}>
+                                <Ionicons name="notifications-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                            </TouchableOpacity>,
+                            <TouchableOpacity key="profile" style={styles.headerButton} onPress={() => router.push('/profile')}>
+                                <Image
+                                    source={{ uri: user?.avatar || 'https://via.placeholder.com/32' }}
+                                    style={styles.headerAvatar}
+                                />
+                            </TouchableOpacity>
+                        ]
+                    }}
+                />
+
+                {/* Tab Navigation */}
+                <View style={styles.tabContainer}>
+                    {renderTabButton('mixed', 'For You', 'home-outline')}
+                    {renderTabButton('posts', 'Posts', 'document-text-outline')}
+                    {renderTabButton('media', 'Media', 'image-outline')}
+                    {renderTabButton('replies', 'Replies', 'chatbubble-outline')}
+                    {renderTabButton('reposts', 'Reposts', 'repeat-outline')}
                 </View>
 
-                <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/search')}>
-                        <Ionicons name="search-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
-                    </TouchableOpacity>
+                {/* Feed */}
+                <Feed
+                    type={activeTab}
+                    onSavePress={handleSavePress}
+                />
 
-                    <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/notifications')}>
-                        <Ionicons name="notifications-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/profile')}>
-                        <Image
-                            source={{ uri: user?.avatar || 'https://via.placeholder.com/32' }}
-                            style={styles.headerAvatar}
-                        />
-                    </TouchableOpacity>
-                </View>
+                {/* Floating Action Button */}
+                <TouchableOpacity style={styles.fab} onPress={handleComposePress}>
+                    <Ionicons name="add" size={24} color={colors.COLOR_BLACK_LIGHT_9} />
+                </TouchableOpacity>
             </View>
-
-            {/* Tab Navigation */}
-            <View style={styles.tabContainer}>
-                {renderTabButton('mixed', 'For You', 'home-outline')}
-                {renderTabButton('posts', 'Posts', 'document-text-outline')}
-                {renderTabButton('media', 'Media', 'image-outline')}
-                {renderTabButton('replies', 'Replies', 'chatbubble-outline')}
-                {renderTabButton('reposts', 'Reposts', 'repeat-outline')}
-            </View>
-
-            {/* Feed */}
-            <Feed
-                type={activeTab}
-                onPostPress={handlePostPress}
-                onUserPress={handleUserPress}
-                onReplyPress={handleReplyPress}
-                onRepostPress={handleRepostPress}
-                onLikePress={handleLikePress}
-                onSharePress={handleSharePress}
-                onSavePress={handleSavePress}
-            />
-
-            {/* Floating Action Button */}
-            <TouchableOpacity style={styles.fab} onPress={handleComposePress}>
-                <Ionicons name="add" size={24} color={colors.COLOR_BLACK_LIGHT_9} />
-            </TouchableOpacity>
         </SafeAreaView>
     );
 };
@@ -148,27 +151,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.COLOR_BLACK_LIGHT_9,
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-    },
-    headerLeft: {
-        flex: 1,
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: colors.primaryColor,
-    },
-    headerRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
     },
     headerButton: {
         padding: 8,

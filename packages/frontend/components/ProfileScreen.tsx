@@ -1,229 +1,417 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useRef, useState, useEffect } from 'react';
 import {
+    Animated,
+    Image,
+    ImageBackground,
+    StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
-    Image,
-    Alert
+    Share
 } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
-import { Feed } from './Feed/index';
-import { usePostsStore } from '../stores/postsStore';
-import { FeedType } from '@mention/shared-types';
-import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useOxy, FollowButton } from '@oxyhq/services';
+import { Feed, PostAction } from './Feed/index';
 
-const ProfileScreen: React.FC = () => {
-    const { user: currentUser, oxyServices } = useOxy();
-    const { fetchUserFeed } = usePostsStore();
+const HEADER_HEIGHT_EXPANDED = 80;
+const HEADER_HEIGHT_NARROWED = 110;
+
+const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView as any);
+
+
+
+const TwitterProfile: React.FC = () => {
+    const { user: currentUser, oxyServices, showBottomSheet } = useOxy();
     let { username } = useLocalSearchParams<{ username: string }>();
-
     if (username && username.startsWith('@')) {
-        username = username.substring(1);
+        username = username.slice(1);
     }
 
+    const [activeTab, setActiveTab] = useState(0);
     const [profileData, setProfileData] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'media' | 'likes'>('posts');
+    const [loading, setLoading] = useState(true);
+    const scrollY = useRef(new Animated.Value(0)).current;
+    const insets = useSafeAreaInsets();
 
     // Fetch profile data
     useEffect(() => {
-        const fetchProfile = async () => {
-            if (!username) return;
+        const fetchProfileData = async () => {
+            if (!username) {
+                setLoading(false);
+                return;
+            }
 
             try {
-                setIsLoading(true);
-                setError(null);
-
-                // Fetch user profile from Oxy
-                const userData = await oxyServices.getProfileByUsername(username);
-                setProfileData(userData);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to fetch profile');
-                console.error('Error fetching profile:', err);
+                setLoading(true);
+                const data = await oxyServices.getProfileByUsername(username);
+                console.log('Fetched profile data:', data);
+                setProfileData(data);
+            } catch (error) {
+                console.error('Error fetching profile data:', error);
             } finally {
-                setIsLoading(false);
+                setLoading(false);
             }
         };
 
-        fetchProfile();
+        fetchProfileData();
     }, [username, oxyServices]);
 
-    // Handle post press
-    const handlePostPress = useCallback((postId: string) => {
-        router.push(`/p/${postId}`);
-    }, []);
 
-    // Handle user press
-    const handleUserPress = useCallback((username: string) => {
-        router.push(`/@${username}`);
-    }, []);
 
-    // Handle reply press
-    const handleReplyPress = useCallback((postId: string) => {
-        router.push(`/reply?postId=${postId}`);
-    }, []);
 
-    // Handle repost press
-    const handleRepostPress = useCallback((postId: string) => {
-        router.push(`/repost?postId=${postId}`);
-    }, []);
 
-    // Handle like press
-    const handleLikePress = useCallback(async (postId: string) => {
+
+
+
+    const tabs = ['Posts', 'Replies', 'Media', 'Likes', 'Reposts'];
+
+
+
+    const onTabPress = (index: number) => {
+        setActiveTab(index);
+    };
+
+    const handleShare = async () => {
+        if (!profileData) return;
+
         try {
-            const { likePost, unlikePost } = usePostsStore.getState();
-            // TODO: Check if post is already liked and toggle accordingly
-            await likePost({ postId });
+            const shareUrl = `https://mention.earth/@${profileData.username}`;
+            const shareMessage = `Check out ${profileData.name?.full || profileData.username}'s profile on Mention!`;
+
+            await Share.share({
+                message: `${shareMessage}\n\n${shareUrl}`,
+                url: shareUrl,
+                title: `${profileData.name?.full || profileData.username} on Mention`
+            });
         } catch (error) {
-            console.error('Error toggling like:', error);
+            console.error('Error sharing profile:', error);
         }
-    }, []);
+    };
 
-    // Handle share press
-    const handleSharePress = useCallback((postId: string) => {
-        // TODO: Implement share functionality
-        Alert.alert('Share', `Share post ${postId}`);
-    }, []);
+    const handlePostAction = (action: PostAction, postId: string) => {
+        console.log(`${action} action for post ${postId}`);
+        // Post actions are handled by the Feed component and store
+    };
 
-    // Handle save press
-    const handleSavePress = useCallback(async (postId: string) => {
-        try {
-            const { savePost, unsavePost } = usePostsStore.getState();
-            // TODO: Check if post is already saved and toggle accordingly
-            await savePost({ postId });
-        } catch (error) {
-            console.error('Error toggling save:', error);
-        }
-    }, []);
 
-    // Render profile feed content
-    const renderProfileFeedContent = () => {
-        if (!profileData?.id) return null;
+    const renderTabContent = () => {
+        const feedType = activeTab === 0 ? 'posts' : activeTab === 1 ? 'replies' : activeTab === 2 ? 'media' : activeTab === 3 ? 'likes' : 'reposts';
 
         return (
             <Feed
-                type={activeTab as FeedType}
-                userId={profileData.id}
-                onPostPress={handlePostPress}
-                onUserPress={handleUserPress}
-                onReplyPress={handleReplyPress}
-                onRepostPress={handleRepostPress}
-                onLikePress={handleLikePress}
-                onSharePress={handleSharePress}
-                onSavePress={handleSavePress}
+                type={feedType}
+                onPostAction={handlePostAction}
             />
         );
     };
 
-    // Render profile tabs
-    const renderProfileTabs = () => {
-        const tabs = [
-            { key: 'posts', label: 'Posts', icon: 'document-text' },
-            { key: 'replies', label: 'Replies', icon: 'chatbubble' },
-            { key: 'media', label: 'Media', icon: 'image' },
-            { key: 'likes', label: 'Likes', icon: 'heart' }
-        ];
-
-        return (
-            <View style={styles.profileTabsContainer}>
-                {tabs.map((tab) => (
-                    <TouchableOpacity
-                        key={tab.key}
-                        style={[
-                            styles.profileTabButton,
-                            activeTab === tab.key && styles.activeProfileTabButton
-                        ]}
-                        onPress={() => setActiveTab(tab.key as any)}
-                    >
-                        <Ionicons
-                            name={tab.icon as any}
-                            size={20}
-                            color={activeTab === tab.key ? '#1D9BF0' : '#71767B'}
-                        />
-                        <Text style={[
-                            styles.profileTabButtonText,
-                            activeTab === tab.key && styles.activeProfileTabButtonText
-                        ]}>
-                            {tab.label}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-        );
-    };
-
-    if (isLoading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading profile...</Text>
-            </View>
-        );
-    }
-
-    if (error) {
-        return (
-            <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>Error: {error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={() => window.location.reload()}>
-                    <Text style={styles.retryButtonText}>Retry</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
-
-    if (!profileData) {
-        return (
-            <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>Profile not found</Text>
-            </View>
-        );
-    }
-
     return (
         <View style={styles.container}>
-            {/* Profile Header */}
-            <View style={styles.profileHeader}>
-                <Image
-                    source={{ uri: profileData.avatar?.url || profileData.avatar }}
-                    style={styles.avatar}
-                />
-                <Text style={styles.username}>@{profileData.username}</Text>
-                <Text style={styles.displayName}>
-                    {profileData.name?.full || profileData.username}
-                </Text>
+            <StatusBar barStyle="light-content" />
 
-                {profileData.bio && (
-                    <Text style={styles.bio} numberOfLines={3}>
-                        {profileData.bio}
-                    </Text>
-                )}
-
-                <View style={styles.statsContainer}>
-                    <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{profileData.postsCount || 0}</Text>
-                        <Text style={styles.statLabel}>Posts</Text>
-                    </View>
-                    <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{profileData.followersCount || 0}</Text>
-                        <Text style={styles.statLabel}>Followers</Text>
-                    </View>
-                    <View style={styles.statItem}>
-                        <Text style={styles.statNumber}>{profileData.followingCount || 0}</Text>
-                        <Text style={styles.statLabel}>Following</Text>
-                    </View>
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Loading profile...</Text>
                 </View>
-            </View>
+            ) : (
+                <>
+                    {/* Back button */}
+                    <View style={[styles.backButton, { top: insets.top + 5 }]}>
+                        <TouchableOpacity onPress={() => router.back()}>
+                            <Ionicons name="arrow-back" size={20} color="white" />
+                        </TouchableOpacity>
+                    </View>
 
-            {/* Profile Tabs */}
-            {renderProfileTabs()}
+                    {/* Header actions */}
+                    <View style={[styles.headerActions, { top: insets.top + 5 }]}>
+                        <TouchableOpacity style={styles.headerIconButton}>
+                            <Ionicons name="notifications-outline" size={20} color="white" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.headerIconButton}>
+                            <Ionicons name="search-outline" size={20} color="white" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.headerIconButton} onPress={handleShare}>
+                            <Ionicons name="share-outline" size={20} color="white" />
+                        </TouchableOpacity>
+                    </View>
 
-            {/* Profile Feed Content */}
-            <View style={styles.profileFeedContainer}>
-                {renderProfileFeedContent()}
-            </View>
+                    {/* Name + posts count */}
+                    <Animated.View
+                        style={[
+                            styles.headerNameOverlay,
+                            {
+                                top: insets.top + 6,
+                                opacity: scrollY.interpolate({
+                                    inputRange: [-50, 80, 120],
+                                    outputRange: [0, 0, 1],
+                                    extrapolate: 'clamp',
+                                }),
+                                transform: [
+                                    {
+                                        translateY: scrollY.interpolate({
+                                            inputRange: [-50, 100, 180],
+                                            outputRange: [0, 200, 0],
+                                            extrapolate: 'clamp',
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                    >
+                        <Text style={styles.headerTitle}>
+                            {profileData?.name?.full || profileData?.username}
+                        </Text>
+                        <Text style={styles.headerSubtitle}>
+                            {profileData?.postCount || 0} posts
+                        </Text>
+                    </Animated.View>
+
+                    {/* Banner */}
+                    <AnimatedImageBackground
+                        source={{ uri: 'https://pbs.twimg.com/profile_banners/1113181835314507777/1746124248/1500x500' }}
+                        style={[
+                            styles.banner,
+                            {
+                                height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
+                                transform: [
+                                    {
+                                        scale: scrollY.interpolate({
+                                            inputRange: [-150, 0],
+                                            outputRange: [1.5, 1],
+                                            extrapolateLeft: 'extend',
+                                            extrapolateRight: 'clamp',
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                    >
+                        <AnimatedBlurView
+                            tint="dark"
+                            intensity={50}
+                            style={[
+                                StyleSheet.absoluteFillObject,
+                                {
+                                    zIndex: 2,
+                                    opacity: scrollY.interpolate({
+                                        inputRange: [-50, 0, 30, 100],
+                                        outputRange: [1, 0, 0, 0.7],
+                                    }),
+                                },
+                            ]}
+                        />
+                    </AnimatedImageBackground>
+
+                    {/* Profile content + posts */}
+                    {/* ScrollView with stickyHeaderIndices */}
+                    <Animated.ScrollView
+                        showsVerticalScrollIndicator={false}
+                        onScroll={Animated.event(
+                            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                            { useNativeDriver: true }
+                        )}
+                        scrollEventThrottle={16}
+                        style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
+                        contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED }}
+                        stickyHeaderIndices={[1]}
+                    >
+                        {/* Profile info */}
+                        <View style={styles.profileContent}>
+                            <View style={styles.avatarRow}>
+                                <Animated.Image
+                                    source={{ uri: 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg' }}
+                                    style={[
+                                        styles.avatar,
+                                        {
+                                            transform: [
+                                                {
+                                                    scale: scrollY.interpolate({
+                                                        inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                        outputRange: [1, 0.7],
+                                                        extrapolate: 'clamp',
+                                                    }),
+                                                },
+                                                {
+                                                    translateY: scrollY.interpolate({
+                                                        inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                        outputRange: [0, 16],
+                                                        extrapolate: 'clamp',
+                                                    }),
+                                                },
+                                            ],
+                                        },
+                                    ]}
+                                />
+
+                                <View style={styles.profileActions}>
+                                    {currentUser?.username === username ? (
+                                        <View style={styles.actionButtons}>
+                                            <TouchableOpacity
+                                                style={styles.followButton}
+                                                onPress={() => showBottomSheet?.('EditProfile')}
+                                            >
+                                                <Text style={styles.followButtonText}>Edit Profile</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.settingsButton}
+                                                onPress={() => showBottomSheet?.('PrivacySettings')}
+                                            >
+                                                <Ionicons name="settings-outline" size={20} color="#FFF" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : (
+                                        <FollowButton userId={profileData?.id} />
+                                    )}
+                                </View>
+                            </View>
+
+                            <View>
+                                <Text style={styles.profileName}>
+                                    {profileData?.name?.full || profileData?.username}
+                                </Text>
+                                <View style={styles.handleRow}>
+                                    <Text style={styles.profileHandle}>
+                                        @{profileData?.username || 'username'}
+                                    </Text>
+                                    {profileData?.privacySettings?.isPrivateAccount && (
+                                        <View style={styles.privateIndicator}>
+                                            <Ionicons name="lock-closed" size={12} color="#666" />
+                                            <Text style={styles.privateText}>Private</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+                            {profileData?.bio && (
+                                <Text style={styles.profileBio}>
+                                    {profileData.bio}
+                                </Text>
+                            )}
+
+                            <View style={styles.profileMeta}>
+                                {profileData?.primaryLocation && (
+                                    <View style={styles.metaItem}>
+                                        <Ionicons name="location-outline" size={16} color="#666" />
+                                        <Text style={styles.metaText}>{profileData.primaryLocation}</Text>
+                                    </View>
+                                )}
+                                {profileData?.links && profileData.links.length > 0 && (
+                                    <View style={styles.metaItem}>
+                                        <View
+                                            style={{
+                                                transform: [{ rotate: '-45deg' }],
+                                            }}
+                                        >
+                                            <Ionicons name="link-outline" size={16} color="#666" />
+                                        </View>
+                                        <Text style={[styles.metaText, styles.linkText]}>{profileData.links[0]}</Text>
+                                    </View>
+                                )}
+                                <View style={styles.metaItem}>
+                                    <Ionicons name="calendar-outline" size={16} color="#666" />
+                                    <Text style={styles.metaText}>Joined {new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text>
+                                </View>
+                            </View>
+
+                            {(!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
+                                <View style={styles.followStats}>
+                                    <TouchableOpacity style={styles.statItem}>
+                                        <Text style={styles.statNumber}>
+                                            {profileData?._count?.followers || 0}
+                                        </Text>
+                                        <Text style={styles.statLabel}>Following</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.statItem}>
+                                        <Text style={styles.statNumber}>
+                                            {profileData?._count?.following || 0}
+                                        </Text>
+                                        <Text style={styles.statLabel}>Followers</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {/* Communities section */}
+                            {profileData?.communities && profileData.communities.length > 0 &&
+                                (!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
+                                    <View style={styles.communitiesSection}>
+                                        <Text style={styles.communitiesTitle}>Communities</Text>
+                                        {profileData.communities.map((community: any, index: number) => (
+                                            <View key={community.id || index} style={styles.communityCard}>
+                                                <View style={styles.communityHeader}>
+                                                    {community.icon && (
+                                                        <View style={styles.communityIcon}>
+                                                            <Image
+                                                                source={{ uri: community.icon }}
+                                                                style={styles.communityIconImage}
+                                                            />
+                                                        </View>
+                                                    )}
+                                                    <View style={styles.communityInfo}>
+                                                        <Text style={styles.communityName}>{community.name}</Text>
+                                                        {community.description && (
+                                                            <Text style={styles.communityDescription}>
+                                                                {community.description}
+                                                            </Text>
+                                                        )}
+                                                        {community.memberCount && (
+                                                            <View style={styles.communityMembers}>
+                                                                <Text style={styles.memberCount}>
+                                                                    {community.memberCount} Members
+                                                                </Text>
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                </View>
+                                                <TouchableOpacity style={styles.viewButtonInCard}>
+                                                    <Text style={styles.viewButtonText}>View</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                        </View>
+
+                        {/* Tabs */}
+                        <View style={styles.tabBarContainer}>
+                            <View style={styles.tabBar}>
+                                {tabs.map((tab, i) => (
+                                    <TouchableOpacity
+                                        key={tab}
+                                        style={styles.tab}
+                                        onPress={() => onTabPress(i)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.tabText,
+                                                activeTab === i && styles.activeTabText,
+                                            ]}
+                                        >
+                                            {tab}
+                                        </Text>
+                                        {activeTab === i && <View style={styles.tabIndicator} />}
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* Tab Content */}
+                        {renderTabContent()}
+                    </Animated.ScrollView>
+
+
+                    {/* FAB */}
+                    <TouchableOpacity
+                        style={styles.fab}
+                        onPress={() => router.push('/compose')}
+                    >
+                        <Ionicons name="add" size={24} color="#FFF" />
+                    </TouchableOpacity>
+                </>
+            )}
         </View>
     );
 };
@@ -233,6 +421,321 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#000',
     },
+    backButton: {
+        zIndex: 2,
+        position: 'absolute',
+        left: 16,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        height: 32,
+        width: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerActions: {
+        zIndex: 2,
+        position: 'absolute',
+        right: 16,
+        flexDirection: 'row',
+        gap: 12,
+    },
+    headerIconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginHorizontal: 2,
+    },
+    headerNameOverlay: {
+        zIndex: 2,
+        position: 'absolute',
+        left: 60,
+        alignItems: 'flex-start',
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: 'white',
+        marginBottom: -3,
+    },
+    headerSubtitle: {
+        fontSize: 13,
+        color: 'rgba(255, 255, 255, 0.8)',
+    },
+    banner: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+    },
+    scrollView: {
+        zIndex: 3,
+    },
+    profileContainer: {
+        backgroundColor: '#000',
+    },
+    profileContent: {
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+        backgroundColor: '#000',
+    },
+    avatarRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        marginTop: -30,
+        marginBottom: 10,
+    },
+    avatar: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        borderWidth: 3,
+        borderColor: '#000',
+    },
+    profileActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    notificationButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: '#2F3336',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8,
+    },
+    followButton: {
+        paddingHorizontal: 24,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#2F3336',
+    },
+    followButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FFF',
+    },
+    profileName: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#FFF',
+        marginTop: 10,
+        marginBottom: 4,
+    },
+    profileHandle: {
+        fontSize: 15,
+        color: '#71767B',
+        marginBottom: 12,
+    },
+    profileBio: {
+        fontSize: 15,
+        color: '#FFF',
+        lineHeight: 20,
+        marginBottom: 12,
+    },
+    profileMeta: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 12,
+    },
+    metaItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginRight: 16,
+        marginBottom: 4,
+    },
+    metaText: {
+        fontSize: 15,
+        color: '#71767B',
+        marginLeft: 4,
+    },
+    linkText: {
+        color: '#1D9BF0',
+    },
+    followStats: {
+        flexDirection: 'row',
+        marginBottom: 12,
+    },
+    statItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginRight: 20,
+    },
+    statNumber: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#FFF',
+        marginRight: 4,
+    },
+    statLabel: {
+        fontSize: 15,
+        color: '#71767B',
+    },
+    followedBy: {
+        fontSize: 15,
+        color: '#536471',
+    },
+    tabBarContainer: {
+        backgroundColor: '#000',
+        borderBottomWidth: 1,
+        borderBottomColor: '#2F3336',
+    },
+    tabBar: {
+        flexDirection: 'row',
+        backgroundColor: '#000',
+    },
+    tab: {
+        flex: 1,
+        paddingVertical: 16,
+        alignItems: 'center',
+        position: 'relative',
+    },
+    tabText: {
+        fontSize: 15,
+        fontWeight: '500',
+        color: '#71767B',
+    },
+    activeTabText: {
+        color: '#FFF',
+        fontWeight: '700',
+    },
+    tabIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        width: 30,
+        height: 2,
+        backgroundColor: '#1D9BF0',
+        borderRadius: 1,
+    },
+
+    communitiesSection: {
+        marginTop: 16,
+    },
+    communityIconImage: {
+        flex: 1,
+        overflow: 'hidden',
+        resizeMode: 'cover',
+    },
+    communitiesTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#FFF',
+        marginBottom: 12,
+    },
+    communityCard: {
+        backgroundColor: '#16181C',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#2F3336',
+    },
+    communityHeader: {
+        flexDirection: 'row',
+        marginBottom: 12,
+    },
+    communityIcon: {
+        width: 100,
+        height: 100,
+        borderRadius: 8,
+        marginRight: 12,
+        overflow: 'hidden',
+    },
+    communityIconGradient: {
+        flex: 1,
+        backgroundColor: '#1D9BF0',
+        borderRadius: 8,
+    },
+    communityInfo: {
+        flex: 1,
+    },
+    communityName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#FFF',
+        marginBottom: 4,
+    },
+    communityDescription: {
+        fontSize: 14,
+        color: '#71767B',
+        lineHeight: 18,
+        marginBottom: 8,
+    },
+    communityMembers: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    memberAvatars: {
+        flexDirection: 'row',
+        marginRight: 8,
+    },
+    memberAvatar: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#16181C',
+    },
+    avatarCircle: {
+        flex: 1,
+        backgroundColor: '#71767B',
+        borderRadius: 10,
+    },
+    memberCount: {
+        fontSize: 13,
+        color: '#71767B',
+    },
+    viewButtonInCard: {
+        backgroundColor: 'transparent',
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        alignSelf: 'center',
+        width: "100%",
+        textAlign: "center",
+        marginTop: 10
+    },
+    viewButtonText: {
+        color: '#1D9BF0',
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: "center"
+    },
+    fab: {
+        position: 'absolute',
+        bottom: 40,
+        right: 20,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        zIndex: 1000,
+        backgroundColor: '#1D9BF0',
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+    },
+
+    stickyTabBar: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+    },
+    stickyTabBarContent: {
+        flexDirection: 'row',
+        backgroundColor: '#000',
+        borderBottomWidth: 1,
+        borderBottomColor: '#2F3336',
+    },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -240,112 +743,45 @@ const styles = StyleSheet.create({
         backgroundColor: '#000',
     },
     loadingText: {
-        color: '#fff',
-        fontSize: 16,
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#000',
-        padding: 20,
-    },
-    errorText: {
-        color: '#E0245E',
-        fontSize: 16,
-        textAlign: 'center',
-        marginBottom: 20,
-    },
-    retryButton: {
-        backgroundColor: '#1D9BF0',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 20,
-    },
-    retryButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    profileHeader: {
-        alignItems: 'center',
-        paddingVertical: 20,
-        paddingHorizontal: 20,
-        backgroundColor: '#000',
-    },
-    avatar: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        marginBottom: 12,
-    },
-    username: {
-        fontSize: 16,
-        color: '#71767B',
-        marginBottom: 4,
-    },
-    displayName: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 8,
-    },
-    bio: {
-        fontSize: 14,
-        color: '#fff',
-        textAlign: 'center',
-        marginBottom: 16,
-        lineHeight: 20,
-    },
-    statsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        width: '100%',
-    },
-    statItem: {
-        alignItems: 'center',
-    },
-    statNumber: {
+        color: '#FFF',
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#fff',
     },
-    statLabel: {
-        fontSize: 12,
-        color: '#71767B',
-        marginTop: 2,
-    },
-    profileTabsContainer: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
-        backgroundColor: '#000',
-    },
-    profileTabButton: {
-        flex: 1,
+    handleRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 8,
         gap: 8,
     },
-    activeProfileTabButton: {
-        borderBottomWidth: 2,
-        borderBottomColor: '#1D9BF0',
+    privateIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 12,
+        gap: 4,
     },
-    profileTabButtonText: {
-        fontSize: 16,
+    privateText: {
+        color: '#666',
+        fontSize: 12,
         fontWeight: '500',
-        color: '#71767B',
     },
-    activeProfileTabButtonText: {
-        color: '#1D9BF0',
-        fontWeight: '600',
+    actionButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
     },
-    profileFeedContainer: {
-        flex: 1,
+    settingsButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
     },
+
 });
 
-export default ProfileScreen;
+export default TwitterProfile;

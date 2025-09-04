@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React from 'react';
 import {
     Image,
     StyleSheet,
@@ -8,7 +8,7 @@ import {
     View
 } from 'react-native';
 
-import { UIPost, Reply, FeedRepost as Repost, PostAction } from '@mention/shared-types';
+import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -16,6 +16,7 @@ interface PostItemProps {
     onRepost?: () => void;
     onLike?: () => void;
     onShare?: () => void;
+    onSave?: () => void;
 }
 
 const PostItem: React.FC<PostItemProps> = ({
@@ -23,18 +24,19 @@ const PostItem: React.FC<PostItemProps> = ({
     onReply,
     onRepost,
     onLike,
-    onShare
+    onShare,
+    onSave
 }) => {
-    const [isLiked, setIsLiked] = useState(false);
-    const [isReposted, setIsReposted] = useState(false);
+    // Use the actual data from the post instead of local state
+    const isLiked = 'isLiked' in post ? post.isLiked || false : false;
+    const isReposted = 'isReposted' in post ? post.isReposted || false : false;
+    const isSaved = 'isSaved' in post ? post.isSaved || false : false;
 
     const handleLike = () => {
-        setIsLiked(!isLiked);
         onLike?.();
     };
 
     const handleRepost = () => {
-        setIsReposted(!isReposted);
         onRepost?.();
     };
 
@@ -85,6 +87,13 @@ const PostItem: React.FC<PostItemProps> = ({
                         <Text style={[styles.engagementText, isLiked && styles.activeEngagementText]}>
                             {post.engagement?.likes}
                         </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.engagementButton} onPress={onSave}>
+                        <Ionicons
+                            name={isSaved ? "bookmark" : "bookmark-outline"}
+                            size={18}
+                            color={isSaved ? "#1DA1F2" : "#71767B"}
+                        />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.engagementButton} onPress={onShare}>
                         <Ionicons name="share-outline" size={18} color="#71767B" />

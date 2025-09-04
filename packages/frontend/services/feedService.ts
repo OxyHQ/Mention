@@ -16,6 +16,8 @@ class FeedService {
    */
   async getFeed(request: FeedRequest): Promise<FeedResponse> {
     try {
+      console.log('🔍 FeedService.getFeed called with request:', request);
+      
       const params: any = {};
       
       if (request.cursor) params.cursor = request.cursor;
@@ -51,10 +53,12 @@ class FeedService {
           break;
       }
 
+      console.log('📡 Making API call to:', endpoint, 'with params:', params);
       const response = await authenticatedClient.get(endpoint, { params });
+      console.log('✅ API response received:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Error fetching feed:', error);
+      console.error('❌ Error fetching feed:', error);
       throw new Error('Failed to fetch feed');
     }
   }
@@ -184,10 +188,12 @@ class FeedService {
    */
   async saveItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
     try {
-      const response = await authenticatedClient.post(`/posts/${request.postId}/save`);
+      console.log('💾 FeedService.saveItem called with:', request);
+      const response = await authenticatedClient.post(`/feed/${request.postId}/save`);
+      console.log('✅ Save API response:', response.data);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('Error saving post:', error);
+      console.error('❌ Error saving post:', error);
       throw new Error('Failed to save post');
     }
   }
@@ -197,10 +203,12 @@ class FeedService {
    */
   async unsaveItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
     try {
-      const response = await authenticatedClient.delete(`/posts/${request.postId}/save`);
+      console.log('🗑️ FeedService.unsaveItem called with:', request);
+      const response = await authenticatedClient.delete(`/feed/${request.postId}/save`);
+      console.log('✅ Unsave API response:', response.data);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('Error removing save:', error);
+      console.error('❌ Error removing save:', error);
       throw new Error('Failed to remove save');
     }
   }

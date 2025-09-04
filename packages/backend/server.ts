@@ -309,6 +309,28 @@ app.set("postsNamespace", postsNamespace);
 const publicApiRouter = express.Router();
 publicApiRouter.use("/hashtags", hashtagsRoutes);
 publicApiRouter.use("/polls", pollsRoutes); // pollsRoutes splits public/protected
+publicApiRouter.get("/feed/debug", async (req, res) => {
+  try {
+    const posts = await Post.find({}).limit(3).lean();
+    console.log('🔍 Debug - Raw posts from database:', JSON.stringify(posts, null, 2));
+    
+    res.json({
+      message: 'Debug posts',
+      count: posts.length,
+      posts: posts.map(post => ({
+        id: post._id,
+        oxyUserId: post.oxyUserId,
+        content: post.content,
+        stats: post.stats,
+        metadata: post.metadata,
+        createdAt: post.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({ error: 'Debug failed' });
+  }
+});
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();

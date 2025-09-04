@@ -76,6 +76,9 @@ export interface PostMetadata {
   isFollowingAuthor?: boolean;
   authorBlocked?: boolean;
   authorMuted?: boolean;
+  // Track user interactions
+  likedBy?: string[]; // Array of user IDs who liked this post
+  savedBy?: string[]; // Array of user IDs who saved this post
 }
 
 export interface CreatePostRequest {
