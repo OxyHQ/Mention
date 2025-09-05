@@ -8,16 +8,20 @@ export const Loading = ({ color = colors.primaryColor, size = 26, style }: { col
     const rotateAnim = React.useRef(new Animated.Value(0)).current;
 
     React.useEffect(() => {
-        const animation = Animated.loop(
+        // Reset before (re)starting to avoid stuck at end value
+        rotateAnim.setValue(0);
+        const loop = Animated.loop(
             Animated.timing(rotateAnim, {
                 toValue: 1,
-                duration: 500,
+                duration: 700,
                 easing: Easing.linear,
-                useNativeDriver: true, // Enable native driver for rotation
-            })
+                useNativeDriver: true,
+                isInteraction: false,
+            }),
+            { iterations: -1, resetBeforeIteration: true }
         );
-        animation.start();
-        return () => animation.stop();
+        loop.start();
+        return () => loop.stop();
     }, [rotateAnim]);
 
     const rotate = rotateAnim.interpolate({
@@ -26,7 +30,16 @@ export const Loading = ({ color = colors.primaryColor, size = 26, style }: { col
     });
 
     return (
-        <Animated.View style={{ transform: [{ rotate }], width: size, height: size, alignItems: 'center', margin: 'auto', justifyContent: 'center', ...style }}>
+        <Animated.View
+            style={{
+                transform: [{ rotate }],
+                width: size,
+                height: size,
+                alignItems: 'center',
+                justifyContent: 'center',
+                ...style,
+            }}
+        >
             <Svg viewBox="0 0 100 100" width={size} height={size}>
                 <Rect fill={color} height="10" opacity="0" rx="5" ry="5" transform="rotate(-90 50 50)" width="28" x="67" y="45"></Rect>
                 <Rect fill={color} height="10" opacity="0.125" rx="5" ry="5" transform="rotate(-45 50 50)" width="28" x="67" y="45"></Rect>

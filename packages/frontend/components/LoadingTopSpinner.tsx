@@ -10,7 +10,7 @@ interface AvatarProps {
     showLoading?: boolean;
 }
 
-const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, style, showLoading }) => {
+const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, style, showLoading = true }) => {
     const translateYAnim = useRef(new Animated.Value(0)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
     const containerHeight = iconSize + size;
