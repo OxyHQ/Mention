@@ -191,14 +191,8 @@ const Feed = ({
     ), []);
 
     const renderEmptyState = useCallback(() => {
-        if (isLoading) {
-            return (
-                <View style={styles.emptyState}>
-                    <ActivityIndicator size="large" color={colors.primaryColor} />
-                    <Text style={styles.emptyStateText}>Loading posts...</Text>
-                </View>
-            );
-        }
+        // Avoid double loading UI; top spinner handles initial load
+        if (isLoading) return null;
 
         if (error) {
             return (
@@ -279,7 +273,7 @@ const Feed = ({
     return (
         <ErrorBoundary>
             <View style={styles.container}>
-                {isLoading && !refreshing && <LoadingTopSpinner />}
+                <LoadingTopSpinner showLoading={isLoading && !refreshing} />
                 <FlatList
                     ref={flatListRef}
                     data={useScoped ? localItems : (filteredFeedData?.items || [])}

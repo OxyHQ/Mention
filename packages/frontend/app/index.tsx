@@ -119,7 +119,6 @@ const MainFeedScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     headerButton: {
         padding: 8,

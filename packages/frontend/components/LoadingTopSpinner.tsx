@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from "react";
-import { View, Animated, StyleSheet, ImageStyle } from "react-native";
-import { colors } from "../styles/colors";
+import React, { useEffect } from "react";
+import { View, StyleSheet, ImageStyle } from "react-native";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { Loading } from "@/assets/icons/loading-icon";
 
 interface AvatarProps {
@@ -11,40 +11,37 @@ interface AvatarProps {
 }
 
 const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, style, showLoading = true }) => {
-    const translateYAnim = useRef(new Animated.Value(0)).current;
-    const opacityAnim = useRef(new Animated.Value(0)).current;
-    const containerHeight = iconSize + size;
+    const targetHeight = Math.max(0, iconSize + size);
+
+    // Reanimated shared values
+    const height = useSharedValue(showLoading ? targetHeight : 0);
+    const opacity = useSharedValue(showLoading ? 1 : 0);
+    const translateY = useSharedValue(showLoading ? 0 : -targetHeight);
 
     useEffect(() => {
-        Animated.parallel([
-            Animated.timing(opacityAnim, {
-                toValue: showLoading ? 1 : 0,
-                duration: 300,
-                useNativeDriver: true,
-            }),
-            Animated.timing(translateYAnim, {
-                toValue: showLoading ? 0 : -containerHeight,
-                duration: 300,
-                useNativeDriver: true,
-            })
-        ]).start();
-    }, [showLoading, size, iconSize, containerHeight]);
+        height.value = withTiming(showLoading ? targetHeight : 0, { duration: 250, easing: Easing.out(Easing.cubic) });
+        opacity.value = withTiming(showLoading ? 1 : 0, { duration: 250, easing: Easing.out(Easing.cubic) });
+        translateY.value = withTiming(showLoading ? 0 : -targetHeight, { duration: 250, easing: Easing.out(Easing.cubic) });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showLoading, targetHeight]);
 
-    // If not showing loading, don't render anything at all
-    if (showLoading === false) {
-        return null;
-    }
+    const containerAnimated = useAnimatedStyle(() => ({
+        height: height.value,
+    }));
+
+    const innerAnimated = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+        transform: [{ translateY: translateY.value }],
+    }));
 
     const styles = StyleSheet.create({
         container: {
             width: '100%',
-            height: containerHeight,
             position: 'relative',
             overflow: 'hidden',
         },
         loadingView: {
             width: '100%',
-            height: containerHeight,
             alignItems: 'center',
             justifyContent: 'center',
             position: 'absolute',
@@ -54,20 +51,11 @@ const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, st
     });
 
     return (
-        <View style={styles.container}>
-            <Animated.View
-                style={[
-                    styles.loadingView,
-                    {
-                        opacity: opacityAnim,
-                        transform: [{ translateY: translateYAnim }]
-                    },
-                    style
-                ]}
-            >
+        <Animated.View style={[styles.container, containerAnimated]}>
+            <Animated.View style={[styles.loadingView, { height: targetHeight }, innerAnimated, style]}>
                 <Loading size={iconSize} />
             </Animated.View>
-        </View>
+        </Animated.View>
     );
 };
 

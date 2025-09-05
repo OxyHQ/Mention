@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderColor: colors.COLOR_BLACK_LIGHT_6,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+        backgroundColor: colors.primaryLight,
         flex: 1,
     },
     nestedPostContainer: {
