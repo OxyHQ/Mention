@@ -9,19 +9,18 @@ import {
     KeyboardAvoidingView,
     Platform,
     TextInput,
-    Image,
-    FlatList,
-    RefreshControl
+    Image
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../styles/colors';
 import PostItem from '../../components/Feed/PostItem';
+import Feed from '../../components/Feed/Feed';
 import { usePostsStore } from '../../stores/postsStore';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useOxy } from '@oxyhq/services';
-import { feedService } from '../../services/feedService';
+//
 
 const MAX_CHARACTERS = 280;
 
@@ -37,17 +36,13 @@ const PostDetailScreen: React.FC = () => {
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const textInputRef = useRef<TextInput>(null);
+    const [repliesReloadKey, setRepliesReloadKey] = useState(0);
 
     const characterCount = content.length;
     const isOverLimit = characterCount > MAX_CHARACTERS;
     const canReply = content.trim().length > 0 && !isOverLimit && !isSubmitting;
 
-    // Local replies state filtered to current post
-    const [replies, setReplies] = useState<any[]>([]);
-    const [repliesCursor, setRepliesCursor] = useState<string | undefined>(undefined);
-    const [repliesHasMore, setRepliesHasMore] = useState(true);
-    const [repliesLoading, setRepliesLoading] = useState(false);
-    const [repliesRefreshing, setRepliesRefreshing] = useState(false);
+    // Using Feed component with filters for replies
 
     useEffect(() => {
         const fetchPost = async () => {
@@ -117,8 +112,8 @@ const PostDetailScreen: React.FC = () => {
             });
             setContent('');
             Alert.alert('Success', 'Your reply has been posted!');
-            // Refresh filtered replies list
-            await loadReplies(true);
+            // Trigger filtered replies list reload
+            setRepliesReloadKey(k => k + 1);
         } catch (e) {
             Alert.alert('Error', 'Failed to post reply. Please try again.');
         } finally {
@@ -126,58 +121,7 @@ const PostDetailScreen: React.FC = () => {
         }
     };
 
-    // Transform API item to UI item similar to store
-    const toUIItem = (raw: any) => {
-        const data = raw?.data || raw;
-        const engagement = data?.engagement || {
-            replies: data?.stats?.commentsCount || 0,
-            reposts: data?.stats?.repostsCount || 0,
-            likes: data?.stats?.likesCount || 0,
-        };
-        return {
-            ...data,
-            id: String(data?.id || data?._id),
-            content: typeof data?.content === 'string' ? data.content : (data?.content?.text || ''),
-            isSaved: data?.isSaved !== undefined ? data.isSaved : (data?.metadata?.isSaved ?? false),
-            isLiked: data?.isLiked !== undefined ? data.isLiked : (data?.metadata?.isLiked ?? false),
-            isReposted: data?.isReposted !== undefined ? data.isReposted : (data?.metadata?.isReposted ?? false),
-            postId: data?.postId || data?.parentPostId,
-            originalPostId: data?.originalPostId || data?.repostOf,
-            engagement,
-        };
-    };
-
-    const loadReplies = async (reset = false) => {
-        if (!id) return;
-        if (repliesLoading) return;
-        setRepliesLoading(true);
-        try {
-            const response = await feedService.getFeed({
-                type: 'replies' as any,
-                limit: 20,
-                cursor: reset ? undefined : repliesCursor,
-                filters: { postId: String(id), parentPostId: String(id) }
-            } as any);
-
-            const newItems = (response.items || []).map((it: any) => toUIItem(it));
-            setReplies(prev => reset ? newItems : [...prev, ...newItems]);
-            setRepliesCursor(response.nextCursor);
-            setRepliesHasMore(!!response.hasMore);
-        } catch (e) {
-            // swallow for now; could expose UI error
-        } finally {
-            setRepliesLoading(false);
-            if (reset) setRepliesRefreshing(false);
-        }
-    };
-
-    // Initial load of filtered replies
-    useEffect(() => {
-        setReplies([]);
-        setRepliesCursor(undefined);
-        setRepliesHasMore(true);
-        loadReplies(true);
-    }, [id]);
+    // No local replies state; Feed handles loading with filters
 
 
 
@@ -230,51 +174,27 @@ const PostDetailScreen: React.FC = () => {
                 <Text style={styles.headerTitle}>Post</Text>
             </View>
 
-            <FlatList
-                data={replies}
-                keyExtractor={(item: any) => item.id}
-                renderItem={({ item }) => (
-                    <PostItem post={item} />
-                )}
-                ListHeaderComponent={(
-                    <>
-                        <View style={styles.postContainer}>
-                            <PostItem
-                                post={post}
-                                onReply={() => {
-                                    try { textInputRef.current?.focus(); } catch {}
-                                }}
-                            />
-                        </View>
-                        <View style={styles.repliesSection}>
-                            <Text style={styles.repliesTitle}>Replies</Text>
-                        </View>
-                    </>
-                )}
-                ListFooterComponent={(
-                    repliesHasMore ? (
-                        <View style={styles.footer}>
-                            <ActivityIndicator size="small" color={colors.primaryColor} />
-                            <Text style={styles.footerText}>Loading more replies...</Text>
-                        </View>
-                    ) : null
-                )}
-                onEndReached={() => {
-                    if (repliesHasMore && !repliesLoading) loadReplies(false);
-                }}
-                onEndReachedThreshold={0.2}
-                refreshControl={(
-                    <RefreshControl
-                        refreshing={repliesRefreshing}
-                        onRefresh={() => { setRepliesRefreshing(true); loadReplies(true); }}
-                        colors={[colors.primaryColor]}
-                        tintColor={colors.primaryColor}
+            <View style={{ flex: 1 }}>
+                <View style={styles.postContainer}>
+                    <PostItem
+                        post={post}
+                        onReply={() => {
+                            try { textInputRef.current?.focus(); } catch { }
+                        }}
                     />
-                )}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 140 }}
-                style={styles.list}
-            />
+                </View>
+                <View style={styles.repliesSection}>
+                    <Text style={styles.repliesTitle}>Replies</Text>
+                    <Feed
+                        type={'replies' as any}
+                        hideHeader={true}
+                        style={styles.repliesFeed}
+                        contentContainerStyle={{ paddingBottom: 140 }}
+                        filters={{ postId: String(id), parentPostId: String(id) }}
+                        reloadKey={repliesReloadKey}
+                    />
+                </View>
+            </View>
 
             {/* Inline Reply Composer */}
             <KeyboardAvoidingView
@@ -349,7 +269,6 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     postContainer: {
-        padding: 16,
     },
     loadingContainer: {
         flex: 1,
@@ -395,8 +314,6 @@ const styles = StyleSheet.create({
     },
     repliesSection: {
         flex: 1,
-        borderTopWidth: 1,
-        borderTopColor: colors.COLOR_BLACK_LIGHT_6,
     },
     repliesTitle: {
         fontSize: 18,

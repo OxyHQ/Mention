@@ -14,6 +14,7 @@ import PostItem from './PostItem';
 import ErrorBoundary from '../ErrorBoundary';
 import LoadingTopSpinner from '../LoadingTopSpinner';
 import { colors } from '../../styles/colors';
+import { feedService } from '../../services/feedService';
 
 interface FeedProps {
     type: FeedType;
@@ -30,6 +31,8 @@ interface FeedProps {
     style?: any;
     contentContainerStyle?: any;
     scrollEnabled?: boolean;
+    filters?: Record<string, any>;
+    reloadKey?: string | number;
 }
 
 const Feed = ({
@@ -45,18 +48,30 @@ const Feed = ({
     hideRefreshControl = false,
     style,
     contentContainerStyle,
-    scrollEnabled = true
+    scrollEnabled = true,
+    filters,
+    reloadKey
 }: FeedProps) => {
     const flatListRef = useRef<FlatList>(null);
     const [refreshing, setRefreshing] = useState(false);
+
+    // When filters are provided, scope the feed locally to avoid clashes
+    const useScoped = !!(filters && Object.keys(filters || {}).length);
+
+    // Local state for scoped (filtered) feeds
+    const [localItems, setLocalItems] = useState<any[]>([]);
+    const [localHasMore, setLocalHasMore] = useState<boolean>(true);
+    const [localNextCursor, setLocalNextCursor] = useState<string | undefined>(undefined);
+    const [localLoading, setLocalLoading] = useState<boolean>(false);
+    const [localError, setLocalError] = useState<string | null>(null);
 
     // Select appropriate feed slice (global vs user profile)
     const globalFeed = useFeedSelector(type);
     const userFeed = userId ? useUserFeedSelector(userId, type) : undefined;
     const feedData = userId ? userFeed : globalFeed;
-    const isLoading = !!feedData?.isLoading;
-    const error = feedData?.error;
-    const hasMore = !!feedData?.hasMore;
+    const isLoading = useScoped ? localLoading : !!feedData?.isLoading;
+    const error = useScoped ? localError : feedData?.error;
+    const hasMore = useScoped ? localHasMore : !!feedData?.hasMore;
 
     // Filter posts to show only saved ones if showOnlySaved is true
     const filteredFeedData = showOnlySaved
@@ -86,35 +101,61 @@ const Feed = ({
                     await fetchSavedPosts({ page: 1, limit: 50 });
                     return;
                 }
-                if (userId) {
-                    await fetchUserFeed(userId, { type, limit: 20 });
+                if (useScoped) {
+                    setLocalLoading(true);
+                    setLocalError(null);
+                    const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
+                    let items = (resp.items || []).map((it: any) => (it?.data ? it.data : it));
+                    const pid = (filters || {}).postId || (filters || {}).parentPostId;
+                    if (pid) {
+                        items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
+                    }
+                    setLocalItems(items);
+                    setLocalHasMore(!!resp.hasMore);
+                    setLocalNextCursor(resp.nextCursor);
+                } else if (userId) {
+                    await fetchUserFeed(userId, { type, limit: 20, filters });
                 } else {
-                    await fetchFeed({ type, limit: 20 });
+                    await fetchFeed({ type, limit: 20, filters });
                 }
             } catch (error) {
                 console.error('Error fetching initial feed:', error);
+                if (useScoped) setLocalError('Failed to load');
+            } finally {
+                if (useScoped) setLocalLoading(false);
             }
         };
 
         fetchInitialFeed();
-    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts]);
+    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, JSON.stringify(filters), useScoped, reloadKey]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
             if (showOnlySaved) {
                 await fetchSavedPosts({ page: 1, limit: 50 });
+            } else if (useScoped) {
+                try {
+                    setLocalLoading(true);
+                    const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
+                    const items = (resp.items || []).map((it: any) => (it?.data ? it.data : it));
+                    setLocalItems(items);
+                    setLocalHasMore(!!resp.hasMore);
+                    setLocalNextCursor(resp.nextCursor);
+                } finally {
+                    setLocalLoading(false);
+                }
             } else if (userId) {
-                await fetchUserFeed(userId, { type, limit: 20 });
+                await fetchUserFeed(userId, { type, limit: 20, filters });
             } else {
-                await refreshFeed(type);
+                await refreshFeed(type, filters);
             }
         } catch (error) {
             console.error('Error refreshing feed:', error);
         } finally {
             setRefreshing(false);
         }
-    }, [type, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts]);
+    }, [type, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts, JSON.stringify(filters), useScoped]);
 
     const handleLoadMore = useCallback(async () => {
         // Saved posts currently load as a single page; skip infinite scroll
@@ -122,15 +163,28 @@ const Feed = ({
         if (!hasMore || isLoading) return;
 
         try {
-            if (userId) {
-                await fetchUserFeed(userId, { type, limit: 20, cursor: feedData?.nextCursor });
+            if (useScoped) {
+                if (!localHasMore || localLoading) return;
+                setLocalLoading(true);
+                const resp = await feedService.getFeed({ type, limit: 20, cursor: localNextCursor, filters } as any);
+                let items = (resp.items || []).map((it: any) => (it?.data ? it.data : it));
+                const pid = (filters || {}).postId || (filters || {}).parentPostId;
+                if (pid) {
+                    items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
+                }
+                setLocalItems(prev => [...prev, ...items]);
+                setLocalHasMore(!!resp.hasMore);
+                setLocalNextCursor(resp.nextCursor);
+                setLocalLoading(false);
+            } else if (userId) {
+                await fetchUserFeed(userId, { type, limit: 20, cursor: feedData?.nextCursor, filters });
             } else {
-                await loadMoreFeed(type);
+                await loadMoreFeed(type, filters);
             }
         } catch (error) {
             console.error('Error loading more feed:', error);
         }
-    }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor]);
+    }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, JSON.stringify(filters), useScoped, localHasMore, localLoading, localNextCursor]);
 
     const renderPostItem = useCallback(({ item }: { item: any }) => (
         <PostItem post={item} />
@@ -190,7 +244,7 @@ const Feed = ({
         if (!hasMore) return null;
 
         // Don't show "Loading more posts..." during initial load when the list is empty
-        const hasItems = filteredFeedData?.items && filteredFeedData.items.length > 0;
+        const hasItems = useScoped ? (localItems.length > 0) : !!(filteredFeedData?.items && filteredFeedData.items.length > 0);
         if (isLoading && !hasItems) return null;
 
         return (
@@ -199,7 +253,7 @@ const Feed = ({
                 <Text style={styles.footerText}>Loading more posts...</Text>
             </View>
         );
-    }, [showOnlySaved, hasMore, isLoading, filteredFeedData?.items]);
+    }, [showOnlySaved, hasMore, isLoading, filteredFeedData?.items, useScoped, localItems.length]);
 
     const renderHeader = useCallback(() => {
         if (!showComposeButton || hideHeader) return null;
@@ -228,7 +282,7 @@ const Feed = ({
                 {isLoading && !refreshing && <LoadingTopSpinner />}
                 <FlatList
                     ref={flatListRef}
-                    data={filteredFeedData?.items || []}
+                    data={useScoped ? localItems : (filteredFeedData?.items || [])}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
                     getItemLayout={getItemLayout}

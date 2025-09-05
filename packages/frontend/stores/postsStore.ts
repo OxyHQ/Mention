@@ -81,8 +81,8 @@ interface FeedState {
   fetchFeed: (request: FeedRequest) => Promise<void>;
   fetchUserFeed: (userId: string, request: FeedRequest) => Promise<void>;
   fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
-  refreshFeed: (type: FeedType) => Promise<void>;
-  loadMoreFeed: (type: FeedType) => Promise<void>;
+  refreshFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
+  loadMoreFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
   
   // Post actions
   createPost: (request: CreatePostRequest) => Promise<void>;
@@ -362,7 +362,7 @@ export const usePostsStore = create<FeedState>()(
     },
 
     // Refresh feed (pull to refresh)
-    refreshFeed: async (type: FeedType) => {
+    refreshFeed: async (type: FeedType, filters?: Record<string, any>) => {
       const state = get();
       const currentFeed = state.feeds[type];
       
@@ -382,14 +382,15 @@ export const usePostsStore = create<FeedState>()(
       try {
         const response = await feedService.getFeed({
           type,
-          limit: currentFeed.items.length || 20
-        });
+          limit: currentFeed.items.length || 20,
+          filters
+        } as any);
 
         set(state => ({
           feeds: {
             ...state.feeds,
             [type]: {
-              items: response.items?.map(item => item.data) || [],
+              items: response.items?.map(item => transformToUIItem(item.data)) || [],
               hasMore: response.hasMore || false,
               nextCursor: response.nextCursor,
               totalCount: response.totalCount || 0,
@@ -417,7 +418,7 @@ export const usePostsStore = create<FeedState>()(
     },
 
     // Load more feed (infinite scroll)
-    loadMoreFeed: async (type: FeedType) => {
+    loadMoreFeed: async (type: FeedType, filters?: Record<string, any>) => {
       const state = get();
       const currentFeed = state.feeds[type];
       
@@ -437,8 +438,9 @@ export const usePostsStore = create<FeedState>()(
         const response = await feedService.getFeed({
           type,
           cursor: currentFeed.nextCursor,
-          limit: 20
-        });
+          limit: 20,
+          filters
+        } as any);
 
         set(state => ({
           feeds: {
