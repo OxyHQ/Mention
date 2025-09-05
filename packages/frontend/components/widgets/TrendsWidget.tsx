@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { colors } from '@/styles/colors';
@@ -25,7 +24,7 @@ export function TrendsWidget() {
   };
 
   return (
-    <BaseWidget title={t('Trends for you')}>
+    <BaseWidget title={t('Trending')}>
       {isLoading ? (
         <View style={styles.centerRow}>
           <ActivityIndicator size="small" color={colors.primaryColor} />
@@ -34,35 +33,21 @@ export function TrendsWidget() {
       ) : error ? (
         <Text style={styles.error}>{t('error.fetch_trends')}</Text>
       ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsContainer}
-        >
-          {(trends || []).slice(0, 8).map((trend: any) => {
+        <View style={styles.chipsWrap}>
+          {(trends || []).slice(0, 10).map((trend: any) => {
             const tag = trend.hashtag || trend.text;
-            const dir = trend.direction || 'flat';
-            const iconName = dir === 'up' ? 'trending-up-outline' : dir === 'down' ? 'trending-down-outline' : 'remove-outline';
-            const iconColor = dir === 'up' ? colors.online : dir === 'down' ? colors.busy : colors.COLOR_BLACK_LIGHT_4;
-
             return (
               <TouchableOpacity
                 key={trend.id}
                 style={styles.chip}
                 onPress={() => handleTrendPress(trend)}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
-                <View style={styles.chipContent}>
-                  <Text style={styles.chipText}>#{tag?.replace(/^#/, '')}</Text>
-                  <View style={styles.chipStats}>
-                    <Text style={styles.chipCount}>{trend.score}</Text>
-                    <Ionicons name={iconName as any} size={14} color={iconColor} />
-                  </View>
-                </View>
+                <Text style={styles.chipText}>#{tag?.replace(/^#/, '')}</Text>
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
       )}
     </BaseWidget>
   );
@@ -72,43 +57,27 @@ const styles = StyleSheet.create({
   centerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   muted: { color: colors.COLOR_BLACK_LIGHT_4, fontSize: 13 },
   error: { color: 'red' },
-  chipsContainer: {
-    paddingTop: 10,
-    paddingBottom: 5,
-    gap: 8,
+  chipsWrap: {
+    paddingTop: 4,
+    paddingBottom: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    alignItems: 'flex-start',
   },
   chip: {
-    backgroundColor: colors.primaryLight_1,
+    backgroundColor: 'transparent',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.primaryColor,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minWidth: 80,
-    maxWidth: 140,
+    borderColor: colors.COLOR_BLACK_LIGHT_1,
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  marginRight: 4,
     ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  chipContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
   },
   chipText: {
     fontWeight: '600',
-    fontSize: 14,
-    color: colors.primaryColor,
-    flex: 1,
-  },
-  chipStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  chipCount: {
-    fontSize: 12,
-    color: colors.COLOR_BLACK_LIGHT_4,
-    fontWeight: '500',
+    fontSize: 13,
+    color: colors.COLOR_BLACK_LIGHT_1,
   },
 });

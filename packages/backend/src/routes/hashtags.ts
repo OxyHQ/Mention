@@ -7,7 +7,8 @@ const router = express.Router();
 // Get all hashtags
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const limit = Math.max(1, Math.min(parseInt((req.query.limit as string) || '10', 10), 50));
+  // default to 10 and enforce a maximum of 10 results from the backend
+  const limit = Math.max(1, Math.min(parseInt((req.query.limit as string) || '10', 10), 10));
     const days = parseInt((req.query.days as string) || '7', 10);
     const since = isNaN(days) ? undefined : new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
