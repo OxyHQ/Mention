@@ -23,7 +23,7 @@ import { OxyServices } from '@oxyhq/services/core';
 import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
 
-export const oxy = new OxyServices({ baseURL: 'http://localhost:3001' });
+export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
 
 
 // Middleware
