@@ -16,7 +16,7 @@ router.post('/', async (req: any, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { title, description, isPublic = false, memberOxyUserIds = [] } = req.body || {};
+    const { title, description, isPublic = false, memberOxyUserIds = [], keywords = [], includeReplies = true, includeReposts = true, includeMedia = true, language } = req.body || {};
     if (!title || typeof title !== 'string') {
       return res.status(400).json({ error: 'Title is required' });
     }
@@ -27,6 +27,11 @@ router.post('/', async (req: any, res) => {
       description: description?.trim(),
       isPublic: !!isPublic,
       memberOxyUserIds: Array.isArray(memberOxyUserIds) ? memberOxyUserIds : [],
+      keywords: Array.isArray(keywords) ? keywords : String(keywords || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+      includeReplies: !!includeReplies,
+      includeReposts: !!includeReposts,
+      includeMedia: !!includeMedia,
+      language: language || undefined,
     });
 
     res.status(201).json(feed);
@@ -82,11 +87,16 @@ router.put('/:id', async (req: any, res) => {
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
     if (feed.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
-    const { title, description, isPublic, memberOxyUserIds } = req.body || {};
+    const { title, description, isPublic, memberOxyUserIds, keywords, includeReplies, includeReposts, includeMedia, language } = req.body || {};
     if (title !== undefined) feed.title = String(title);
     if (description !== undefined) feed.description = String(description);
     if (isPublic !== undefined) feed.isPublic = !!isPublic;
     if (memberOxyUserIds !== undefined && Array.isArray(memberOxyUserIds)) feed.memberOxyUserIds = memberOxyUserIds;
+    if (keywords !== undefined) feed.keywords = Array.isArray(keywords) ? keywords : String(keywords).split(',').map((s: string) => s.trim()).filter(Boolean);
+    if (includeReplies !== undefined) feed.includeReplies = !!includeReplies;
+    if (includeReposts !== undefined) feed.includeReposts = !!includeReposts;
+    if (includeMedia !== undefined) feed.includeMedia = !!includeMedia;
+    if (language !== undefined) feed.language = language;
     await feed.save();
     res.json(feed);
   } catch (error) {
@@ -155,12 +165,35 @@ router.get('/:id/timeline', async (req: any, res) => {
       return res.status(403).json({ error: 'Not allowed' });
     }
 
+    // Expand authors from direct members + lists
+    let authors: string[] = Array.from(new Set(feed.memberOxyUserIds || []));
+    try {
+      if (feed.sourceListIds && feed.sourceListIds.length) {
+        const { AccountList } = require('../models/AccountList');
+        const lists = await AccountList.find({ _id: { $in: feed.sourceListIds } }).lean();
+        lists.forEach((l: any) => (l.memberOxyUserIds || []).forEach((id: string) => authors.push(id)));
+        authors = Array.from(new Set(authors));
+      }
+    } catch (e) {
+      console.warn('Failed to expand feed.sourceListIds:', e?.message || e);
+    }
+
     const q: any = {
-      oxyUserId: { $in: feed.memberOxyUserIds || [] },
+      oxyUserId: { $in: authors },
       visibility: 'public',
     };
     if (cursor) {
       q._id = { $lt: new mongoose.Types.ObjectId(String(cursor)) };
+    }
+
+    // Apply additional filters similar to buildFeedQuery
+    if (feed.includeReplies === false) q.parentPostId = { $exists: false };
+    if (feed.includeReposts === false) q.repostOf = { $exists: false };
+    if (feed.includeMedia === false) q.type = { $nin: ['image', 'video'] } as any;
+    if (feed.language) q.language = feed.language;
+    if (feed.keywords && feed.keywords.length) {
+      const regexes = (feed.keywords || []).map((k: string) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+      q.$or = [{ 'content.text': { $in: regexes } }, { hashtags: { $in: feed.keywords } }];
     }
 
     const docs = await Post.find(q).sort({ createdAt: -1 }).limit(Number(limit) + 1).lean();
@@ -183,4 +216,3 @@ router.get('/:id/timeline', async (req: any, res) => {
 });
 
 export default router;
-

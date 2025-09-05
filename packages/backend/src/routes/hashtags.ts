@@ -20,29 +20,25 @@ router.get("/", async (req: Request, res: Response) => {
       match.createdAt = { $gte: since };
     }
 
-    // Primary window aggregation (overall within optional `days`)
+    // Primary window aggregation: derive trending words from post content
+    // Tokenize on whitespace, normalize to lowercase, trim punctuation, filter short/common tokens
+    const stopWords = [
+      'the','and','for','with','that','this','have','from','they','you','your','are','was','but','not','can','just','about','what','when','where','which','their','will','there','been','were','more','like','than','also'
+    ];
+
     let agg = await (Post as any).aggregate([
       { $match: match },
-      { $unwind: '$hashtags' },
-      {
-        $group: {
-          _id: { $toLower: '$hashtags' },
-          count: { $sum: 1 },
-          latest: { $max: '$createdAt' }
-        }
-      },
+      { $project: { text: { $ifNull: ['$content.text', ''] }, createdAt: 1 } },
+      { $match: { text: { $ne: '' } } },
+      { $project: { words: { $split: ['$text', ' '] }, createdAt: 1 } },
+      { $unwind: '$words' },
+      { $project: { word: { $toLower: { $trim: { input: '$words' } } }, createdAt: 1 } },
+      // remove tokens with punctuation/short tokens and stop words
+      { $match: { word: { $regex: /^[a-z0-9_]{3,}$/ } } },
+      { $group: { _id: '$word', count: { $sum: 1 }, latest: { $max: '$createdAt' } } },
       { $sort: { count: -1, latest: -1 } },
       { $limit: limit },
-      {
-        $project: {
-          _id: 0,
-          id: '$_id',
-          text: '$_id',
-          hashtag: { $concat: ['#', '$_id'] },
-          count: 1,
-          created_at: '$latest'
-        }
-      }
+      { $project: { _id: 0, id: '$_id', text: '$_id', hashtag: '$_id', count: 1, created_at: '$latest' } }
     ]);
 
     // Trend direction (recent vs previous 24h windows)
@@ -51,14 +47,20 @@ router.get("/", async (req: Request, res: Response) => {
     const prevStart = new Date(now.getTime() - 48 * 60 * 60 * 1000);
 
     const recentAgg = await (Post as any).aggregate([
-      { $match: { visibility: 'public', hashtags: { $exists: true, $ne: [] }, createdAt: { $gte: recentStart } } },
-      { $unwind: '$hashtags' },
-      { $group: { _id: { $toLower: '$hashtags' }, c: { $sum: 1 } } }
+      { $match: { visibility: 'public', 'content.text': { $exists: true, $ne: '' }, createdAt: { $gte: recentStart } } },
+      { $project: { words: { $split: ['$content.text', ' '] } } },
+      { $unwind: '$words' },
+      { $project: { word: { $toLower: { $trim: { input: '$words' } } } } },
+      { $match: { word: { $regex: /^[a-z0-9_]{3,}$/ } } },
+      { $group: { _id: '$word', c: { $sum: 1 } } }
     ]);
     const prevAgg = await (Post as any).aggregate([
-      { $match: { visibility: 'public', hashtags: { $exists: true, $ne: [] }, createdAt: { $gte: prevStart, $lt: recentStart } } },
-      { $unwind: '$hashtags' },
-      { $group: { _id: { $toLower: '$hashtags' }, c: { $sum: 1 } } }
+      { $match: { visibility: 'public', 'content.text': { $exists: true, $ne: '' }, createdAt: { $gte: prevStart, $lt: recentStart } } },
+      { $project: { words: { $split: ['$content.text', ' '] } } },
+      { $unwind: '$words' },
+      { $project: { word: { $toLower: { $trim: { input: '$words' } } } } },
+      { $match: { word: { $regex: /^[a-z0-9_]{3,}$/ } } },
+      { $group: { _id: '$word', c: { $sum: 1 } } }
     ]);
     const recentMap = new Map<string, number>(recentAgg.map((x: any) => [x._id, x.c]));
     const prevMap = new Map<string, number>(prevAgg.map((x: any) => [x._id, x.c]));

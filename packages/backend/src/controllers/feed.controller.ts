@@ -319,6 +319,20 @@ class FeedController {
       if (filters.dateTo) {
         query.createdAt = { ...query.createdAt, $lte: new Date(filters.dateTo) };
       }
+      // Keywords: OR match against text or hashtags
+      if (filters.keywords) {
+        const kws = Array.isArray(filters.keywords)
+          ? filters.keywords
+          : String(filters.keywords).split(',').map((s: string) => s.trim()).filter(Boolean);
+        if (kws.length) {
+          const regexes = kws.map((k: string) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+          query.$or = [
+            ...(query.$or || []),
+            { 'content.text': { $in: regexes } },
+            { hashtags: { $in: kws } },
+          ];
+        }
+      }
     }
 
     return query;
@@ -329,7 +343,8 @@ class FeedController {
    */
   async getFeed(req: AuthRequest, res: Response) {
     try {
-      const { type = 'mixed', cursor, limit = 20, filters } = req.query as any;
+      const { type = 'mixed', cursor, limit = 20 } = req.query as any;
+      let { filters } = req.query as any;
       const currentUserId = req.user?.id;
 
       console.log('🚀 FeedController.getFeed called with:', {
@@ -340,6 +355,30 @@ class FeedController {
         currentUserId,
         user: req.user
       });
+
+      // If a listId or listIds is provided, expand to authors
+      try {
+        if (filters && (filters.listId || filters.listIds)) {
+          const { AccountList } = require('../models/AccountList');
+          const ids = String(filters.listIds || filters.listId)
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (ids.length) {
+            const lists = await AccountList.find({ _id: { $in: ids } }).lean();
+            const authors = new Set(
+              String(filters.authors || '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            );
+            lists.forEach((l: any) => (l.memberOxyUserIds || []).forEach((id: string) => authors.add(id)));
+            filters = { ...filters, authors: Array.from(authors).join(',') };
+          }
+        }
+      } catch (e) {
+        console.warn('Optional listIds expansion failed:', e?.message || e);
+      }
 
       // Build query
       const query = this.buildFeedQuery(type, filters, currentUserId);

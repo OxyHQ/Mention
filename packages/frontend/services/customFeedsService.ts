@@ -1,28 +1,23 @@
 import { authenticatedClient } from '@/utils/api';
-import { 
-  CustomFeed, 
-  CreateCustomFeedRequest, 
-  UpdateCustomFeedRequest, 
-  FeedResponse 
-} from '@mention/shared-types';
+import { FeedResponse } from '@mention/shared-types';
 
 class CustomFeedsService {
-  async list(params?: { mine?: boolean; publicOnly?: boolean }): Promise<{ items: CustomFeed[]; total: number }> {
+  async list(params?: { mine?: boolean; publicOnly?: boolean }): Promise<{ items: any[]; total: number }> {
     const res = await authenticatedClient.get('/feeds', { params });
     return res.data;
     }
 
-  async get(id: string): Promise<CustomFeed> {
+  async get(id: string): Promise<any> {
     const res = await authenticatedClient.get(`/feeds/${id}`);
     return res.data;
   }
 
-  async create(req: CreateCustomFeedRequest): Promise<CustomFeed> {
+  async create(req: any): Promise<any> {
     const res = await authenticatedClient.post('/feeds', req);
     return res.data;
   }
 
-  async update(id: string, req: UpdateCustomFeedRequest): Promise<CustomFeed> {
+  async update(id: string, req: any): Promise<any> {
     const res = await authenticatedClient.put(`/feeds/${id}`, req);
     return res.data;
   }
@@ -32,12 +27,12 @@ class CustomFeedsService {
     return res.data;
   }
 
-  async addMembers(id: string, userIds: string[]): Promise<CustomFeed> {
+  async addMembers(id: string, userIds: string[]): Promise<any> {
     const res = await authenticatedClient.post(`/feeds/${id}/members`, { userIds });
     return res.data;
   }
 
-  async removeMembers(id: string, userIds: string[]): Promise<CustomFeed> {
+  async removeMembers(id: string, userIds: string[]): Promise<any> {
     const res = await authenticatedClient.delete(`/feeds/${id}/members`, { data: { userIds } });
     return res.data;
   }

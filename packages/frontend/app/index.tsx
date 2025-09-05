@@ -19,16 +19,18 @@ import { colors } from '../styles/colors';
 import { usePostsStore } from '../stores/postsStore';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
+import { listsService } from '@/services/listsService';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
-type MainTabKey = 'for_you' | 'following' | `custom:${string}`;
+type MainTabKey = 'for_you' | 'following' | `custom:${string}` | `list:${string}`;
 
 const MainFeedScreen = () => {
     const { user, isAuthenticated, showBottomSheet: _showBottomSheet } = useOxy();
     const { savePost, unsavePost } = usePostsStore();
     const [activeTab, setActiveTab] = useState<MainTabKey>('for_you');
-    const [pinnedCustomFeeds, setPinnedCustomFeeds] = useState<Array<{ id: string; title: string; memberOxyUserIds: string[] }>>([]);
+    const [pinnedCustomFeeds, setPinnedCustomFeeds] = useState<Array<{ id: string; title: string; memberOxyUserIds: string[]; keywords?: string[]; includeReplies?: boolean; includeReposts?: boolean; includeMedia?: boolean; language?: string }>>([]);
+    const [pinnedLists, setPinnedLists] = useState<Array<{ id: string; title: string; memberOxyUserIds: string[] }>>([]);
 
     // Debug authentication state
     console.log('🔐 MainFeedScreen - isAuthenticated:', isAuthenticated, 'user:', user?.id);
@@ -69,21 +71,35 @@ const MainFeedScreen = () => {
                 .filter((s) => String(s).startsWith('custom:'))
                 .map((s) => String(s).split(':')[1])
                 .filter(Boolean);
+            const listIds = ids
+                .filter((s) => String(s).startsWith('list:'))
+                .map((s) => String(s).split(':')[1])
+                .filter(Boolean);
             if (!customIds.length) {
                 setPinnedCustomFeeds([]);
-                return;
             }
             const loaded = await Promise.all(
                 customIds.map(async (id) => {
                     try {
                         const f = await customFeedsService.get(id);
-                        return { id: String(f._id || f.id), title: f.title, memberOxyUserIds: f.memberOxyUserIds || [] };
+                        return { id: String(f._id || f.id), title: f.title, memberOxyUserIds: f.memberOxyUserIds || [], keywords: f.keywords || [], includeReplies: f.includeReplies, includeReposts: f.includeReposts, includeMedia: f.includeMedia, language: f.language };
                     } catch {
                         return null;
                     }
                 })
             );
             setPinnedCustomFeeds(loaded.filter(Boolean) as any);
+            if (listIds.length) {
+                const lloaded = await Promise.all(listIds.map(async (id) => {
+                    try {
+                        const l = await listsService.get(id);
+                        return { id: String(l._id || l.id), title: l.title, memberOxyUserIds: l.memberOxyUserIds || [] };
+                    } catch { return null; }
+                }));
+                setPinnedLists(lloaded.filter(Boolean) as any);
+            } else {
+                setPinnedLists([]);
+            }
         } catch (e) {
             console.warn('Failed to load pinned feeds', e);
         }
@@ -106,8 +122,9 @@ const MainFeedScreen = () => {
             { key: 'following', label: 'Following' },
         ];
         const customs = pinnedCustomFeeds.map((f) => ({ key: `custom:${f.id}` as MainTabKey, label: f.title }));
-        return [...base, ...customs];
-    }, [pinnedCustomFeeds]);
+        const lists = pinnedLists.map((l) => ({ key: `list:${l.id}` as MainTabKey, label: l.title }));
+        return [...base, ...customs, ...lists];
+    }, [pinnedCustomFeeds, pinnedLists]);
 
     const renderTabButton = (tab: MainTabKey, label: string) => (
         <TouchableOpacity
@@ -167,8 +184,16 @@ const MainFeedScreen = () => {
                                     <Feed
                                         type={'mixed' as any}
                                         onSavePress={handleSavePress}
-                                        filters={{ authors: (feed?.memberOxyUserIds || []).join(',') }}
+                                        filters={{ authors: (feed?.memberOxyUserIds || []).join(','), keywords: (feed?.keywords || []).join(','), includeReplies: feed?.includeReplies, includeReposts: feed?.includeReposts, includeMedia: feed?.includeMedia, language: feed?.language }}
                                     />
+                                );
+                            })()
+                        ) : String(activeTab).startsWith('list:') ? (
+                            (() => {
+                                const id = String(activeTab).split(':')[1];
+                                const list = pinnedLists.find((l) => l.id === id);
+                                return (
+                                    <Feed type={'mixed' as any} onSavePress={handleSavePress} filters={{ authors: (list?.memberOxyUserIds || []).join(',') }} />
                                 );
                             })()
                         ) : (
