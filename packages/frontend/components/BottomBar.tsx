@@ -79,20 +79,21 @@ export const BottomBar = () => {
                     <Bell size={28} color="#000" />
                 )}
             </Pressable>
-            <View style={[styles.tab, pathname.startsWith('/@') && styles.active]}>
-                <Avatar
-                    onPress={() => {
-                        if (isAuthenticated && user?.username) {
-                            handlePress(`/@${user.username}`);
-                        } else {
-                            showBottomSheet?.('SignIn');
-                        }
-                    }}
-                    onLongPress={() => {
-                        showBottomSheet?.('AccountCenter');
-                    }}
-                />
-            </View>
+            <Pressable
+                style={[styles.tab, pathname.startsWith('/@') && styles.active]}
+                onPress={() => {
+                    if (isAuthenticated && user?.username) {
+                        handlePress(`/@${user.username}`);
+                    } else {
+                        showBottomSheet?.('SignIn');
+                    }
+                }}
+                onLongPress={() => {
+                    showBottomSheet?.('AccountCenter');
+                }}
+            >
+                <Avatar />
+            </Pressable>
         </View>
     );
 };

@@ -832,13 +832,13 @@ class FeedController {
 
       // Create reply post
       // Extract hashtags from content
-      const extractedTags = Array.from((content || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
+      const extractedTags = Array.from((content?.text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
       const mergedTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
 
       const reply = new Post({
         oxyUserId: currentUserId,
         type: PostType.TEXT,
-        content: { text: content },
+        content: content,
         visibility: PostVisibility.PUBLIC,
         parentPostId: postId,
         hashtags: mergedTags,
@@ -907,13 +907,13 @@ class FeedController {
 
       // Create repost
       // Extract hashtags from content
-      const extractedTags = Array.from(((content as any) || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
+      const extractedTags = Array.from((content?.text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
       const mergedTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
 
       const repost = new Post({
         oxyUserId: currentUserId,
         type: PostType.REPOST,
-        content: { text: (content as any) || '' },
+        content: content || { text: '' },
         visibility: PostVisibility.PUBLIC,
         repostOf: originalPostId,
         hashtags: mergedTags,

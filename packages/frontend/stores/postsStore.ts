@@ -46,6 +46,8 @@ interface FeedItem {
   language?: string;
   stats?: any;
   metadata?: any;
+  // Client-only flag to prioritize new self posts
+  isLocalNew?: boolean;
 }
 
 interface FeedState {
@@ -493,7 +495,8 @@ export const usePostsStore = create<FeedState>()(
             type: response.post.type,
             visibility: response.post.visibility,
             hashtags: response.post.hashtags || [],
-            mentions: response.post.mentions || []
+            mentions: response.post.mentions || [],
+            isLocalNew: true
           };
 
           set(state => ({
@@ -508,6 +511,11 @@ export const usePostsStore = create<FeedState>()(
                 ...state.feeds.mixed,
                 items: [newPost, ...state.feeds.mixed.items],
                 totalCount: state.feeds.mixed.totalCount + 1
+              },
+              for_you: {
+                ...state.feeds.for_you,
+                items: [newPost, ...(state.feeds.for_you?.items || [])],
+                totalCount: (state.feeds.for_you?.totalCount || 0) + 1
               }
             },
             isLoading: false,

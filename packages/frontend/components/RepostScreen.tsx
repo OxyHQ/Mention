@@ -66,7 +66,7 @@ const RepostScreen: React.FC = () => {
             // Create repost request
             const repostRequest: CreateRepostRequest = {
                 originalPostId: postId!,
-                comment: content.trim() || undefined,
+                content: content.trim() ? { text: content.trim() } : undefined,
                 mentions: [],
                 hashtags: []
             };

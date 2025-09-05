@@ -14,6 +14,7 @@ import PostItem from './PostItem';
 import ErrorBoundary from '../ErrorBoundary';
 import LoadingTopSpinner from '../LoadingTopSpinner';
 import { colors } from '../../styles/colors';
+import { useOxy } from '@oxyhq/services';
 import { feedService } from '../../services/feedService';
 
 interface FeedProps {
@@ -33,6 +34,8 @@ interface FeedProps {
     scrollEnabled?: boolean;
     filters?: Record<string, any>;
     reloadKey?: string | number;
+    // Optional: external header for embedding screens (e.g., Profile)
+    listHeaderComponent?: React.ReactElement | null;
 }
 
 const Feed = ({
@@ -50,7 +53,8 @@ const Feed = ({
     contentContainerStyle,
     scrollEnabled = true,
     filters,
-    reloadKey
+    reloadKey,
+    listHeaderComponent,
 }: FeedProps) => {
     const flatListRef = useRef<FlatList>(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -190,6 +194,38 @@ const Feed = ({
         <PostItem post={item} />
     ), []);
 
+    // Prioritize current user's fresh posts at the top (For You only)
+    const { user: currentUser } = useOxy();
+    const computeDisplayItems = useCallback(() => {
+        const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
+        if (type !== 'for_you' || !currentUser?.id) return src;
+
+        const now = Date.now();
+        const THRESHOLD_MS = 60 * 1000; // consider "posted now" within 60s
+
+        const mineNow: any[] = [];
+        const others: any[] = [];
+        for (const it of src) {
+            const ownerId = it?.user?.id;
+            const d = it?.date || it?.createdAt;
+            const ts = d ? Date.parse(d) : NaN;
+            const isRecent = Number.isFinite(ts) && (now - ts) <= THRESHOLD_MS;
+            if ((it?.isLocalNew || (ownerId && ownerId === currentUser.id && isRecent))) {
+                mineNow.push(it);
+            } else {
+                others.push(it);
+            }
+        }
+        // Sort "now" posts by newest first
+        const mineNowSorted = mineNow.sort((a: any, b: any) => {
+            const tb = Date.parse(b?.date || b?.createdAt || '') || 0;
+            const ta = Date.parse(a?.date || a?.createdAt || '') || 0;
+            return tb - ta;
+        });
+        return [...mineNowSorted, ...others];
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [useScoped, localItems, filteredFeedData?.items, type, currentUser?.id]);
+
     const renderEmptyState = useCallback(() => {
         // Avoid double loading UI; top spinner handles initial load
         if (isLoading) return null;
@@ -276,11 +312,11 @@ const Feed = ({
                 <LoadingTopSpinner showLoading={isLoading && !refreshing} />
                 <FlatList
                     ref={flatListRef}
-                    data={useScoped ? localItems : (filteredFeedData?.items || [])}
+                    data={computeDisplayItems()}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
                     getItemLayout={getItemLayout}
-                    ListHeaderComponent={renderHeader}
+                    ListHeaderComponent={listHeaderComponent ?? renderHeader}
                     ListEmptyComponent={renderEmptyState}
                     ListFooterComponent={renderFooter}
                     scrollEnabled={scrollEnabled}

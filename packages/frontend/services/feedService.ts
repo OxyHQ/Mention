@@ -146,7 +146,7 @@ class FeedService {
     try {
       const backendRequest = {
         originalPostId: request.originalPostId,
-        comment: request.content?.text || '',
+        content: request.content?.text || '',
         mentions: request.mentions || [],
         hashtags: request.hashtags || []
       };

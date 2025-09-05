@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     profileContent: {
         paddingHorizontal: 16,
         paddingBottom: 16,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+        backgroundColor: colors.primaryLight,
     },
     avatarRow: {
         flexDirection: 'row',
