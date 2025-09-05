@@ -242,7 +242,6 @@ const PostDetailScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     header: {
         flexDirection: 'row',

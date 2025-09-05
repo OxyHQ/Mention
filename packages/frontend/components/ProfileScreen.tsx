@@ -113,14 +113,69 @@ const MentionProfile: React.FC = () => {
         );
     };
 
+    const ProfileSkeleton: React.FC = () => {
+        const pulse = useRef(new Animated.Value(0.5)).current;
+        useEffect(() => {
+            const anim = Animated.loop(
+                Animated.sequence([
+                    Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+                    Animated.timing(pulse, { toValue: 0.5, duration: 700, useNativeDriver: true }),
+                ])
+            );
+            anim.start();
+            return () => anim.stop();
+        }, [pulse]);
+
+        const Shimmer = ({ style }: { style?: any }) => (
+            <Animated.View style={[styles.skeletonBlock, style, { opacity: pulse }]} />
+        );
+
+        return (
+            <View style={styles.skeletonContainer}>
+                {/* Banner placeholder */}
+                <Shimmer style={[styles.skeletonBanner]} />
+
+                <View style={styles.skeletonContent}>
+                    {/* Avatar row */}
+                    <View style={styles.skeletonAvatarRow}>
+                        <Shimmer style={styles.skeletonAvatar} />
+                        <View style={{ flex: 1 }} />
+                        <Shimmer style={styles.skeletonBtn} />
+                        <Shimmer style={styles.skeletonIconBtn} />
+                    </View>
+
+                    {/* Name + handle */}
+                    <Shimmer style={[styles.skeletonLine, { width: '40%', height: 20 }]} />
+                    <Shimmer style={[styles.skeletonLine, { width: '30%', marginTop: 8 }]} />
+
+                    {/* Bio lines */}
+                    <Shimmer style={[styles.skeletonLine, { width: '90%', marginTop: 12 }]} />
+                    <Shimmer style={[styles.skeletonLine, { width: '80%', marginTop: 8 }]} />
+
+                    {/* Meta */}
+                    <View style={[styles.skeletonMetaRow]}>
+                        <Shimmer style={[styles.skeletonChip, { width: 120 }]} />
+                        <Shimmer style={[styles.skeletonChip, { width: 160 }]} />
+                        <Shimmer style={[styles.skeletonChip, { width: 180 }]} />
+                    </View>
+
+                    {/* Tabs */}
+                    <View style={styles.skeletonTabs}>
+                        {[...Array(5)].map((_, i) => (
+                            <Shimmer key={i} style={styles.skeletonTab} />
+                        ))}
+                    </View>
+                </View>
+            </View>
+        );
+    };
+
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
 
             {loading ? (
-                <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Loading profile...</Text>
-                </View>
+                <ProfileSkeleton />
             ) : (
                 <>
                     {/* Back button */}
@@ -757,12 +812,85 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#000',
     },
     loadingText: {
         color: '#FFF',
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    // Skeleton styles
+    skeletonContainer: {
+        flex: 1,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+    },
+    skeletonContent: {
+        paddingHorizontal: 16,
+        marginTop: 16,
+    },
+    skeletonBanner: {
+        height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+    },
+    skeletonAvatarRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: -40,
+    },
+    skeletonAvatar: {
+        width: 96,
+        height: 96,
+        borderRadius: 48,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+        borderWidth: 2,
+        borderColor: colors.COLOR_BLACK_LIGHT_9,
+    },
+    skeletonBtn: {
+        width: 120,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+        marginRight: 8,
+    },
+    skeletonIconBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+    },
+    skeletonBlock: {
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+        borderRadius: 8,
+    },
+    skeletonLine: {
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+    },
+    skeletonMetaRow: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 12,
+        flexWrap: 'wrap',
+    },
+    skeletonChip: {
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+    },
+    skeletonTabs: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 16,
+        paddingVertical: 8,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
+    },
+    skeletonTab: {
+        flex: 1,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
     },
     handleRow: {
         flexDirection: 'row',

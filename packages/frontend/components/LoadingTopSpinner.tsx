@@ -55,10 +55,10 @@ const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, st
 
     return (
         <View style={styles.container}>
-            <Animated.View 
+            <Animated.View
                 style={[
-                    styles.loadingView, 
-                    { 
+                    styles.loadingView,
+                    {
                         opacity: opacityAnim,
                         transform: [{ translateY: translateYAnim }]
                     },
