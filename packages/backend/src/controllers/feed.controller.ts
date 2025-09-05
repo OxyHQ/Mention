@@ -283,6 +283,21 @@ class FeedController {
 
     // Apply filters
     if (filters) {
+      // Author filter: limit to posts authored by specific user IDs
+      if (filters.authors) {
+        let authors: string[] = [];
+        if (Array.isArray(filters.authors)) {
+          authors = filters.authors as string[];
+        } else if (typeof filters.authors === 'string') {
+          authors = String(filters.authors)
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+        }
+        if (authors.length) {
+          query.oxyUserId = { $in: authors };
+        }
+      }
       if (filters.includeReplies === false) {
         query.parentPostId = { $exists: false };
       }

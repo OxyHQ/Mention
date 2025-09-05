@@ -1,10 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import {
-    BaseWidget
-} from './';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
-import { FollowingWidget } from './FollowingWidget';
 import { TrendsWidget } from './TrendsWidget';
 
 // Define screen IDs for social network
@@ -37,7 +33,6 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
                 return [
                     <TrendsWidget key="trends" />,
                     <WhoToFollowWidget key="who-to-follow" />,
-                    <FollowingWidget key="following-preview" />,
                 ];
 
             case 'explore':

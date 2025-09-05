@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -18,6 +18,12 @@ export function TrendsWidget() {
     return () => clearInterval(id);
   }, [fetchTrends]);
 
+  const handleTrendPress = (trend: any) => {
+    const tag = trend.hashtag || trend.text;
+    const href = `/search/%23${encodeURIComponent(tag?.replace(/^#/, ''))}`;
+    router.push(href);
+  };
+
   return (
     <BaseWidget title={t('Trends for you')}>
       {isLoading ? (
@@ -28,29 +34,35 @@ export function TrendsWidget() {
       ) : error ? (
         <Text style={styles.error}>{t('error.fetch_trends')}</Text>
       ) : (
-        <View style={{ gap: 10, paddingTop: 10 }}>
-          {(trends || []).slice(0, 5).map((trend: any, idx: number, arr: any[]) => {
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsContainer}
+        >
+          {(trends || []).slice(0, 8).map((trend: any) => {
             const tag = trend.hashtag || trend.text;
-            const href = `/search/%23${encodeURIComponent(tag?.replace(/^#/, ''))}`;
-            const isLast = idx === arr.length - 1;
             const dir = trend.direction || 'flat';
             const iconName = dir === 'up' ? 'trending-up-outline' : dir === 'down' ? 'trending-down-outline' : 'remove-outline';
             const iconColor = dir === 'up' ? colors.online : dir === 'down' ? colors.busy : colors.COLOR_BLACK_LIGHT_4;
+
             return (
-              <View key={trend.id}>
-                <View
-                  style={[styles.row, isLast && styles.rowLast]}
-                >
-                  <View style={styles.rowTextWrap}>
-                    <Text style={styles.title} onPress={() => router.push(href)}>#{tag?.replace(/^#/, '')}</Text>
-                    <Text style={styles.subtitle}>{trend.score} posts</Text>
+              <TouchableOpacity
+                key={trend.id}
+                style={styles.chip}
+                onPress={() => handleTrendPress(trend)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.chipContent}>
+                  <Text style={styles.chipText}>#{tag?.replace(/^#/, '')}</Text>
+                  <View style={styles.chipStats}>
+                    <Text style={styles.chipCount}>{trend.score}</Text>
+                    <Ionicons name={iconName as any} size={14} color={iconColor} />
                   </View>
-                  <Ionicons name={iconName as any} size={22} color={iconColor} />
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       )}
     </BaseWidget>
   );
@@ -60,18 +72,43 @@ const styles = StyleSheet.create({
   centerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   muted: { color: colors.COLOR_BLACK_LIGHT_4, fontSize: 13 },
   error: { color: 'red' },
-  row: {
+  chipsContainer: {
+    paddingTop: 10,
+    paddingBottom: 5,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  chip: {
+    backgroundColor: colors.primaryLight_1,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.primaryColor,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 80,
+    maxWidth: 140,
+    ...Platform.select({ web: { cursor: 'pointer' } }),
+  },
+  chipContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 0.01,
-    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-    paddingBottom: 10,
+    justifyContent: 'space-between',
+    gap: 6,
   },
-  rowLast: {
-    borderBottomWidth: 0,
+  chipText: {
+    fontWeight: '600',
+    fontSize: 14,
+    color: colors.primaryColor,
+    flex: 1,
   },
-  rowTextWrap: { flex: 1 },
-  title: { fontWeight: 'bold', fontSize: 15, color: colors.COLOR_BLACK_LIGHT_1 },
-  subtitle: { color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4, fontSize: 13 },
+  chipStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  chipCount: {
+    fontSize: 12,
+    color: colors.COLOR_BLACK_LIGHT_4,
+    fontWeight: '500',
+  },
 });

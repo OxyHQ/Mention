@@ -26,7 +26,12 @@ class FeedService {
       if (request.filters) {
         Object.entries(request.filters).forEach(([key, value]) => {
           if (value !== undefined) {
-            params[`filters[${key}]`] = value;
+            // Special handling for array-based filters
+            if (key === 'authors' && Array.isArray(value)) {
+              params[`filters[${key}]`] = (value as any[]).join(',');
+            } else {
+              params[`filters[${key}]`] = value as any;
+            }
           }
         });
       }

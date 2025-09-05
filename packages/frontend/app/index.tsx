@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View,
     StyleSheet,
@@ -10,17 +10,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useOxy } from '@oxyhq/services';
 import Feed from '../components/Feed/Feed';
 import { Header } from '../components/Header';
 import SignInPrompt from '../components/SignInPrompt';
 import { colors } from '../styles/colors';
 import { usePostsStore } from '../stores/postsStore';
+import { getData } from '@/utils/storage';
+import { customFeedsService } from '@/services/customFeedsService';
+
+const PINNED_KEY = 'mention.pinnedFeeds';
+
+type MainTabKey = 'for_you' | 'following' | `custom:${string}`;
 
 const MainFeedScreen = () => {
     const { user, isAuthenticated, showBottomSheet: _showBottomSheet } = useOxy();
     const { savePost, unsavePost } = usePostsStore();
-    const [activeTab, setActiveTab] = useState<'for_you' | 'following'>('for_you');
+    const [activeTab, setActiveTab] = useState<MainTabKey>('for_you');
+    const [pinnedCustomFeeds, setPinnedCustomFeeds] = useState<Array<{ id: string; title: string; memberOxyUserIds: string[] }>>([]);
 
     // Debug authentication state
     console.log('🔐 MainFeedScreen - isAuthenticated:', isAuthenticated, 'user:', user?.id);
@@ -54,19 +62,59 @@ const MainFeedScreen = () => {
         router.push('/compose');
     }, []);
 
-    const renderTabButton = (tab: typeof activeTab, label: string, icon: string) => (
+    const loadPinned = useCallback(async () => {
+        try {
+            const ids = (await getData<string[]>(PINNED_KEY)) || [];
+            const customIds = ids
+                .filter((s) => String(s).startsWith('custom:'))
+                .map((s) => String(s).split(':')[1])
+                .filter(Boolean);
+            if (!customIds.length) {
+                setPinnedCustomFeeds([]);
+                return;
+            }
+            const loaded = await Promise.all(
+                customIds.map(async (id) => {
+                    try {
+                        const f = await customFeedsService.get(id);
+                        return { id: String(f._id || f.id), title: f.title, memberOxyUserIds: f.memberOxyUserIds || [] };
+                    } catch {
+                        return null;
+                    }
+                })
+            );
+            setPinnedCustomFeeds(loaded.filter(Boolean) as any);
+        } catch (e) {
+            console.warn('Failed to load pinned feeds', e);
+        }
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadPinned();
+        }, [loadPinned])
+    );
+
+    useEffect(() => {
+        // initial
+        loadPinned();
+    }, [loadPinned]);
+
+    const tabs = useMemo(() => {
+        const base: Array<{ key: MainTabKey; label: string }> = [
+            { key: 'for_you', label: 'For You' },
+            { key: 'following', label: 'Following' },
+        ];
+        const customs = pinnedCustomFeeds.map((f) => ({ key: `custom:${f.id}` as MainTabKey, label: f.title }));
+        return [...base, ...customs];
+    }, [pinnedCustomFeeds]);
+
+    const renderTabButton = (tab: MainTabKey, label: string) => (
         <TouchableOpacity
             style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
             onPress={() => setActiveTab(tab)}
         >
-            <Ionicons
-                name={icon as any}
-                size={20}
-                color={activeTab === tab ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
-            />
-            <Text style={[styles.tabLabel, activeTab === tab && styles.activeTabLabel]}>
-                {label}
-            </Text>
+            <Text style={[styles.tabLabel, activeTab === tab && styles.activeTabLabel]}>{label}</Text>
         </TouchableOpacity>
     );
 
@@ -98,18 +146,37 @@ const MainFeedScreen = () => {
 
                 {/* Tab Navigation */}
                 <View style={styles.tabContainer}>
-                    {renderTabButton('for_you', 'For You', 'home-outline')}
-                    {renderTabButton('following', 'Following', 'people-outline')}
+                    <View style={styles.tabsRow}>
+                        {tabs.map((t) => (
+                            <View key={t.key} style={{ flex: 1 }}>
+                                {renderTabButton(t.key, t.label)}
+                            </View>
+                        ))}
+                    </View>
                 </View>
 
                 {/* Conditional rendering based on authentication */}
                 {isAuthenticated ? (
                     <>
                         {/* Feed */}
-                        <Feed
-                            type={activeTab as any}
-                            onSavePress={handleSavePress}
-                        />
+                        {String(activeTab).startsWith('custom:') ? (
+                            (() => {
+                                const id = String(activeTab).split(':')[1];
+                                const feed = pinnedCustomFeeds.find((f) => f.id === id);
+                                return (
+                                    <Feed
+                                        type={'mixed' as any}
+                                        onSavePress={handleSavePress}
+                                        filters={{ authors: (feed?.memberOxyUserIds || []).join(',') }}
+                                    />
+                                );
+                            })()
+                        ) : (
+                            <Feed
+                                type={activeTab as any}
+                                onSavePress={handleSavePress}
+                            />
+                        )}
 
                         {/* Floating Action Button */}
                         <TouchableOpacity style={styles.fab} onPress={handleComposePress}>
@@ -143,6 +210,11 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
         backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+    },
+    tabsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        width: '100%',
     },
     tabButton: {
         flex: 1,

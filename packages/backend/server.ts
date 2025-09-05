@@ -19,6 +19,7 @@ import searchRoutes from "./src/routes/search";
 import analyticsRoutes from "./src/routes/analytics.routes";
 import feedRoutes from './src/routes/feed.routes';
 import pollsRoutes from './src/routes/polls';
+import customFeedsRoutes from './src/routes/customFeeds.routes';
 import { OxyServices } from '@oxyhq/services/core';
 import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
@@ -343,6 +344,7 @@ authenticatedApiRouter.use("/notifications", notificationsRouter);
 authenticatedApiRouter.use("/analytics", analyticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
 authenticatedApiRouter.use("/feed", feedRoutes); // Feed routes require authentication
+authenticatedApiRouter.use("/feeds", customFeedsRoutes); // User-created feeds
 authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authentication
 authenticatedApiRouter.use("/test", testRoutes);
 authenticatedApiRouter.use("/profile", profileSettingsRoutes);

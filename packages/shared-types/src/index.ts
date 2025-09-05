@@ -48,3 +48,6 @@ export {
   LikeRequest, 
   UnlikeRequest 
 } from './feed';
+
+// Custom feeds (user-created timelines)
+export * from './customFeed';
