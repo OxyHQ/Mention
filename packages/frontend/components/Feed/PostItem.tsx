@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
-import { StyleSheet, View, Share, Platform, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { StyleSheet, View, Share, Platform, Alert, TouchableOpacity } from 'react-native';
+import { useRouter, usePathname } from 'expo-router';
 
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
@@ -15,15 +15,18 @@ interface PostItemProps {
     post: UIPost | Reply | Repost;
     isNested?: boolean; // Flag to indicate if this is a nested post (for reposts/replies)
     style?: object; // Additional styles for the post container
+    onReply?: () => void; // Optional override for reply action
 }
 
 const PostItem: React.FC<PostItemProps> = ({
     post,
     isNested = false,
     style,
+    onReply,
 }) => {
     const { oxyServices } = useOxy();
     const router = useRouter();
+    const pathname = usePathname();
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
 
     // Safely extract boolean states with proper fallbacks
@@ -112,8 +115,9 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [isLiked, likePost, unlikePost, post.id]);
 
     const handleReply = useCallback(() => {
+        if (onReply) return onReply();
         router.push(`/p/${post.id}/reply`);
-    }, [router, post.id]);
+    }, [onReply, router, post.id]);
 
     const handleRepost = useCallback(async () => {
         try {
@@ -183,15 +187,31 @@ const PostItem: React.FC<PostItemProps> = ({
     }
 
     const avatarUri = post.user.avatar ? oxyServices.getFileDownloadUrl(post.user.avatar as string, 'thumb') : undefined;
+    const isPostDetail = (pathname || '').startsWith('/p/');
+    const goToPost = useCallback(() => {
+        if (!isPostDetail) router.push(`/p/${post.id}`);
+    }, [router, post.id, isPostDetail]);
+    const goToUser = useCallback(() => {
+        const handle = post.user?.handle || '';
+        if (handle) router.push(`/@${handle}`);
+    }, [router, post.user?.handle]);
+
+    // Make whole post pressable (except in detail view)
+    const Container: any = isPostDetail ? View : TouchableOpacity;
 
     return (
-        <View style={[styles.postContainer, isNested && styles.nestedPostContainer, style]}>
+        <Container
+            style={[styles.postContainer, isNested && styles.nestedPostContainer, style]}
+            {...(isPostDetail ? {} : { onPress: goToPost, activeOpacity: 0.8 })}
+        >
             <PostHeader
                 user={post.user}
                 date={post.date || 'Just now'}
                 showRepost={Boolean((post as any).originalPostId) && !isNested}
                 showReply={Boolean((post as any).postId) && !isNested}
                 avatarUri={avatarUri}
+                onPressUser={goToUser}
+                onPressAvatar={goToUser}
             >
                 {/* Top: text content */}
                 {'content' in post && !!post.content && (
@@ -236,7 +256,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     />
                 </View>
             )}
-        </View>
+        </Container>
     );
 };
 

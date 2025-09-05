@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
 import PostAvatar from './PostAvatar';
@@ -25,6 +25,8 @@ interface PostHeaderProps {
   avatarUri?: string;
   avatarSize?: number;
   avatarGap?: number;
+  onPressUser?: () => void;
+  onPressAvatar?: () => void;
 }
 
 const PostHeader: React.FC<PostHeaderProps> = ({
@@ -37,6 +39,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   avatarUri,
   avatarSize = 40,
   avatarGap = 12,
+  onPressUser,
+  onPressAvatar,
 }) => {
   const formatRelativeTime = (input?: string): string => {
     if (!input) return 'now';
@@ -63,16 +67,22 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <View style={styles.headerRow}>
-        <PostAvatar uri={avatarUri} size={avatarSize} />
+        <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
+          <PostAvatar uri={avatarUri} size={avatarSize} />
+        </TouchableOpacity>
         <View style={styles.headerMeta}>
           <View style={styles.postHeader}>
-            <Text style={styles.postUserName}>
-              {user.name}
-              {user.verified && (
-                <Ionicons name="checkmark-circle" size={16} color={colors.primaryColor} style={styles.verifiedIcon} />
-              )}
-            </Text>
-            <Text style={styles.postHandle}>@{user.handle}</Text>
+            <TouchableOpacity activeOpacity={0.7} onPress={onPressUser}>
+              <Text style={styles.postUserName}>
+                {user.name}
+                {user.verified && (
+                  <Ionicons name="checkmark-circle" size={16} color={colors.primaryColor} style={styles.verifiedIcon} />
+                )}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.7} onPress={onPressUser}>
+              <Text style={styles.postHandle}>@{user.handle}</Text>
+            </TouchableOpacity>
             {!!timeLabel && <Text style={styles.postDate}>· {timeLabel}</Text>}
             {showRepost && (
               <View style={styles.metaIndicator}>

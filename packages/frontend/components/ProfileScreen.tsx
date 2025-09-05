@@ -11,11 +11,13 @@ import {
     Text,
     TouchableOpacity,
     View,
-    Share
+    Share,
+    Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy, FollowButton } from '@oxyhq/services';
 import { Feed } from './Feed/index';
+import { colors } from '../styles/colors';
 
 const HEADER_HEIGHT_EXPANDED = 80;
 const HEADER_HEIGHT_NARROWED = 110;
@@ -124,20 +126,20 @@ const MentionProfile: React.FC = () => {
                     {/* Back button */}
                     <View style={[styles.backButton, { top: insets.top + 5 }]}>
                         <TouchableOpacity onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={20} color="white" />
+                            <Ionicons name="arrow-back" size={20} color={colors.primaryLight} />
                         </TouchableOpacity>
                     </View>
 
                     {/* Header actions */}
                     <View style={[styles.headerActions, { top: insets.top + 5 }]}>
                         <TouchableOpacity style={styles.headerIconButton}>
-                            <Ionicons name="notifications-outline" size={20} color="white" />
+                            <Ionicons name="notifications-outline" size={20} color={colors.primaryLight} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.headerIconButton}>
-                            <Ionicons name="search-outline" size={20} color="white" />
+                            <Ionicons name="search-outline" size={20} color={colors.primaryLight} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.headerIconButton} onPress={handleShare}>
-                            <Ionicons name="share-outline" size={20} color="white" />
+                            <Ionicons name="share-outline" size={20} color={colors.primaryLight} />
                         </TouchableOpacity>
                     </View>
 
@@ -262,7 +264,7 @@ const MentionProfile: React.FC = () => {
                                                 style={styles.settingsButton}
                                                 onPress={() => showBottomSheet?.('PrivacySettings')}
                                             >
-                                                <Ionicons name="settings-outline" size={20} color="#FFF" />
+                                                <Ionicons name="settings-outline" size={20} color={colors.primaryDark} />
                                             </TouchableOpacity>
                                         </View>
                                     ) : (
@@ -463,12 +465,12 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: 'white',
+        color: colors.primaryLight,
         marginBottom: -3,
     },
     headerSubtitle: {
         fontSize: 13,
-        color: 'rgba(255, 255, 255, 0.8)',
+        color: colors.primaryLight,
     },
     banner: {
         position: 'absolute',
@@ -479,12 +481,12 @@ const styles = StyleSheet.create({
         zIndex: 3,
     },
     profileContainer: {
-        backgroundColor: '#000',
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     profileContent: {
         paddingHorizontal: 16,
         paddingBottom: 16,
-        backgroundColor: '#000',
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     avatarRow: {
         flexDirection: 'row',
@@ -498,8 +500,8 @@ const styles = StyleSheet.create({
         height: 80,
         borderRadius: 40,
         borderWidth: 3,
-        borderColor: '#000',
-        backgroundColor: '#333',
+        borderColor: colors.COLOR_BLACK_LIGHT_9,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
     },
     profileActions: {
         flexDirection: 'row',
@@ -520,28 +522,28 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: '#2F3336',
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
     },
     followButtonText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#FFF',
+        color: colors.COLOR_BLACK_LIGHT_1,
     },
     profileName: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#FFF',
+        color: colors.COLOR_BLACK_LIGHT_1,
         marginTop: 10,
         marginBottom: 4,
     },
     profileHandle: {
         fontSize: 15,
-        color: '#71767B',
+        color: colors.COLOR_BLACK_LIGHT_4,
         marginBottom: 12,
     },
     profileBio: {
         fontSize: 15,
-        color: '#FFF',
+        color: colors.COLOR_BLACK_LIGHT_1,
         lineHeight: 20,
         marginBottom: 12,
     },
@@ -558,11 +560,11 @@ const styles = StyleSheet.create({
     },
     metaText: {
         fontSize: 15,
-        color: '#71767B',
+        color: colors.COLOR_BLACK_LIGHT_4,
         marginLeft: 4,
     },
     linkText: {
-        color: '#1D9BF0',
+        color: colors.primaryColor,
     },
     followStats: {
         flexDirection: 'row',
@@ -576,25 +578,25 @@ const styles = StyleSheet.create({
     statNumber: {
         fontSize: 15,
         fontWeight: '700',
-        color: '#FFF',
+        color: colors.COLOR_BLACK_LIGHT_1,
         marginRight: 4,
     },
     statLabel: {
         fontSize: 15,
-        color: '#71767B',
+        color: colors.COLOR_BLACK_LIGHT_4,
     },
     followedBy: {
         fontSize: 15,
-        color: '#536471',
+        color: colors.COLOR_BLACK_LIGHT_4,
     },
     tabBarContainer: {
-        backgroundColor: '#000',
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
         borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
     },
     tabBar: {
         flexDirection: 'row',
-        backgroundColor: '#000',
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     tab: {
         flex: 1,
@@ -605,10 +607,10 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 15,
         fontWeight: '500',
-        color: '#71767B',
+        color: colors.COLOR_BLACK_LIGHT_4,
     },
     activeTabText: {
-        color: '#FFF',
+        color: colors.primaryColor,
         fontWeight: '700',
     },
     tabIndicator: {
@@ -616,7 +618,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         width: 30,
         height: 2,
-        backgroundColor: '#1D9BF0',
+        backgroundColor: colors.primaryColor,
         borderRadius: 1,
     },
 
@@ -714,8 +716,7 @@ const styles = StyleSheet.create({
         textAlign: "center"
     },
     fab: {
-        position: 'absolute',
-        bottom: 40,
+        bottom: 20,
         right: 20,
         width: 56,
         height: 56,
@@ -729,6 +730,15 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
+        ...Platform.select({
+            web: {
+                cursor: 'pointer',
+                position: 'fixed',
+            },
+            default: {
+                position: 'absolute',
+            }
+        }),
     },
 
     stickyTabBar: {
@@ -782,11 +792,11 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
     },
 
 });
