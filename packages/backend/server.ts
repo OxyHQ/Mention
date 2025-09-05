@@ -23,9 +23,6 @@ import { OxyServices } from '@oxyhq/services/core';
 import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
 
-export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-
-
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
 
@@ -33,6 +30,9 @@ import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
 dotenv.config();
 
 const app = express();
+
+export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
+
 
 // --- Middleware ---
 app.use(express.json());
