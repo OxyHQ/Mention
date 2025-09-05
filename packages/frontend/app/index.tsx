@@ -13,11 +13,12 @@ import { router } from 'expo-router';
 import { useOxy } from '@oxyhq/services';
 import Feed from '../components/Feed/Feed';
 import { Header } from '../components/Header';
+import SignInPrompt from '../components/SignInPrompt';
 import { colors } from '../styles/colors';
 import { usePostsStore } from '../stores/postsStore';
 
 const MainFeedScreen = () => {
-    const { user, isAuthenticated, showBottomSheet } = useOxy();
+    const { user, isAuthenticated, showBottomSheet: _showBottomSheet } = useOxy();
     const { savePost, unsavePost } = usePostsStore();
     const [activeTab, setActiveTab] = useState<'for_you' | 'following'>('for_you');
 
@@ -117,13 +118,7 @@ const MainFeedScreen = () => {
                     </>
                 ) : (
                     /* Sign-in prompt when not authenticated */
-                    <View style={styles.signInContainer}>
-                        <Text style={styles.signInTitle}>Welcome to Mention</Text>
-                        <Text style={styles.signInSubtitle}>Sign in to see your feed and connect with others</Text>
-                        <TouchableOpacity style={styles.signInButton} onPress={() => showBottomSheet?.('SignIn')}>
-                            <Text style={styles.signInButtonText}>Sign In</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <SignInPrompt />
                 )}
             </View>
         </SafeAreaView>
@@ -189,39 +184,6 @@ const styles = StyleSheet.create({
         },
         shadowOpacity: 0.3,
         shadowRadius: 8,
-    },
-    signInContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 24,
-    },
-    signInTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: colors.COLOR_BLACK_LIGHT_1,
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    signInSubtitle: {
-        fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_3,
-        marginBottom: 32,
-        textAlign: 'center',
-        lineHeight: 24,
-    },
-    signInButton: {
-        backgroundColor: colors.primaryColor,
-        paddingHorizontal: 32,
-        paddingVertical: 16,
-        borderRadius: 8,
-        minWidth: 120,
-        alignItems: 'center',
-    },
-    signInButtonText: {
-        color: colors.COLOR_BLACK_LIGHT_9,
-        fontSize: 16,
-        fontWeight: '600',
     },
 });
 

@@ -14,8 +14,8 @@ import {
   PostVisibility
 } from '@mention/shared-types';
 import mongoose from 'mongoose';
-import { oxyClient } from '@oxyhq/services/core';
 import { io } from '../../server';
+import { oxy as oxyClient } from '../../server';
 
 interface AuthRequest extends Request {
   user?: {

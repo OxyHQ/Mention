@@ -52,6 +52,8 @@ export interface ProfileSettings {
   language: string;
   timezone: string;
   currency?: string;
+  /** Optional appearance settings (theme, colors) */
+  appearance?: AppearanceSettings;
 }
 
 export interface ProfileStats {
@@ -90,4 +92,14 @@ export interface OxyUser {
 export interface ProfileWithOxyUser {
   profile: Profile;
   oxyUser: OxyUser;
+}
+
+// Appearance / Theme
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+export interface AppearanceSettings {
+  /** Preferred app theme */
+  themeMode: ThemeMode;
+  /** User-selected primary color in hex (e.g. #005c67) */
+  primaryColor?: string;
 }

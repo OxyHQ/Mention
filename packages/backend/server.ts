@@ -21,8 +21,9 @@ import feedRoutes from './src/routes/feed.routes';
 import pollsRoutes from './src/routes/polls';
 import { OxyServices } from '@oxyhq/services/core';
 import testRoutes from "./src/routes/test";
+import profileSettingsRoutes from './src/routes/profileSettings';
 
-const oxy = new OxyServices({ baseURL: 'https://localhost:3001' });
+export const oxy = new OxyServices({ baseURL: 'http://localhost:3001' });
 
 
 // Middleware
@@ -344,6 +345,7 @@ authenticatedApiRouter.use("/search", searchRoutes);
 authenticatedApiRouter.use("/feed", feedRoutes); // Feed routes require authentication
 authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authentication
 authenticatedApiRouter.use("/test", testRoutes);
+authenticatedApiRouter.use("/profile", profileSettingsRoutes);
 // You can add more protected routers here as needed
 
 // Mount public and authenticated API routers

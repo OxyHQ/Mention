@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy, FollowButton } from '@oxyhq/services';
 import { Feed } from './Feed/index';
 import { colors } from '../styles/colors';
+import { useAppearanceStore } from '@/store/appearanceStore';
 
 const HEADER_HEIGHT_EXPANDED = 80;
 const HEADER_HEIGHT_NARROWED = 110;
@@ -35,6 +36,7 @@ const MentionProfile: React.FC = () => {
     }
 
     const [activeTab, setActiveTab] = useState(0);
+    const { byUserId, loadForUser } = useAppearanceStore();
     const [profileData, setProfileData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -64,6 +66,42 @@ const MentionProfile: React.FC = () => {
     }, [username, oxyServices]);
 
     const avatarUri = profileData?.avatar ? oxyServices.getFileDownloadUrl(profileData.avatar as string, 'thumb') : undefined;
+
+    // Load appearance settings for this profile's oxy user id
+    useEffect(() => {
+        if (profileData?.id) {
+            loadForUser(profileData.id);
+        }
+    }, [profileData?.id, loadForUser]);
+
+    const userAppearance = profileData?.id ? byUserId[profileData.id] : undefined;
+    const primaryColor = userAppearance?.appearance?.primaryColor || colors.primaryColor;
+    const bannerUri = userAppearance?.profileHeaderImage
+        ? oxyServices.getFileDownloadUrl(userAppearance.profileHeaderImage, 'full')
+        : undefined;
+
+    // Lighten helper for hex colors (e.g. #RRGGBB)
+    const lightenHex = (hex: string, percent: number) => {
+        try {
+            const h = hex.replace('#', '');
+            const num = parseInt(h, 16);
+            const amt = Math.round(2.55 * percent);
+            const R = (num >> 16) + amt;
+            const G = ((num >> 8) & 0x00FF) + amt;
+            const B = (num & 0x0000FF) + amt;
+            return `#${(
+                0x1000000 +
+                (R < 255 ? (R < 0 ? 0 : R) : 255) * 0x10000 +
+                (G < 255 ? (G < 0 ? 0 : G) : 255) * 0x100 +
+                (B < 255 ? (B < 0 ? 0 : B) : 255)
+            )
+                .toString(16)
+                .slice(1)
+                .toUpperCase()}`;
+        } catch {
+            return hex;
+        }
+    };
 
 
 
@@ -230,40 +268,77 @@ const MentionProfile: React.FC = () => {
                     </Animated.View>
 
                     {/* Banner */}
-                    <AnimatedImageBackground
-                        source={{ uri: 'https://pbs.twimg.com/profile_banners/1113181835314507777/1746124248/1500x500' }}
-                        style={[
-                            styles.banner,
-                            {
-                                height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
-                                transform: [
-                                    {
-                                        scale: scrollY.interpolate({
-                                            inputRange: [-150, 0],
-                                            outputRange: [1.5, 1],
-                                            extrapolateLeft: 'extend',
-                                            extrapolateRight: 'clamp',
-                                        }),
-                                    },
-                                ],
-                            },
-                        ]}
-                    >
-                        <AnimatedBlurView
-                            tint="dark"
-                            intensity={50}
+                    {bannerUri ? (
+                        <AnimatedImageBackground
+                            source={{ uri: bannerUri }}
                             style={[
-                                StyleSheet.absoluteFillObject,
+                                styles.banner,
                                 {
-                                    zIndex: 2,
-                                    opacity: scrollY.interpolate({
-                                        inputRange: [-50, 0, 30, 100],
-                                        outputRange: [1, 0, 0, 0.7],
-                                    }),
+                                    height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
+                                    transform: [
+                                        {
+                                            scale: scrollY.interpolate({
+                                                inputRange: [-150, 0],
+                                                outputRange: [1.5, 1],
+                                                extrapolateLeft: 'extend',
+                                                extrapolateRight: 'clamp',
+                                            }),
+                                        },
+                                    ],
                                 },
                             ]}
-                        />
-                    </AnimatedImageBackground>
+                        >
+                            <AnimatedBlurView
+                                tint="dark"
+                                intensity={50}
+                                style={[
+                                    StyleSheet.absoluteFillObject,
+                                    {
+                                        zIndex: 2,
+                                        opacity: scrollY.interpolate({
+                                            inputRange: [-50, 0, 30, 100],
+                                            outputRange: [1, 0, 0, 0.7],
+                                        }),
+                                    },
+                                ]}
+                            />
+                        </AnimatedImageBackground>
+                    ) : (
+                        <Animated.View
+                            style={[
+                                styles.banner,
+                                {
+                                    height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
+                                    backgroundColor: lightenHex(primaryColor, 85),
+                                    transform: [
+                                        {
+                                            scale: scrollY.interpolate({
+                                                inputRange: [-150, 0],
+                                                outputRange: [1.5, 1],
+                                                extrapolateLeft: 'extend',
+                                                extrapolateRight: 'clamp',
+                                            }),
+                                        },
+                                    ],
+                                },
+                            ]}
+                        >
+                            {/* Overlay that fades in to the normal primary color as you scroll */}
+                            <Animated.View
+                                style={[
+                                    StyleSheet.absoluteFillObject,
+                                    {
+                                        backgroundColor: primaryColor,
+                                        opacity: scrollY.interpolate({
+                                            inputRange: [-50, 0, 100],
+                                            outputRange: [0, 0, 1],
+                                            extrapolate: 'clamp',
+                                        }),
+                                    },
+                                ]}
+                            />
+                        </Animated.View>
+                    )}
 
                     {/* Profile content + posts */}
                     {/* ScrollView with stickyHeaderIndices */}
@@ -281,30 +356,69 @@ const MentionProfile: React.FC = () => {
                         {/* Profile info */}
                         <View style={styles.profileContent}>
                             <View style={styles.avatarRow}>
-                                <Animated.Image
-                                    source={{ uri: avatarUri }}
-                                    style={[
-                                        styles.avatar,
-                                        {
-                                            transform: [
-                                                {
-                                                    scale: scrollY.interpolate({
-                                                        inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                        outputRange: [1, 0.7],
-                                                        extrapolate: 'clamp',
-                                                    }),
-                                                },
-                                                {
-                                                    translateY: scrollY.interpolate({
-                                                        inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                        outputRange: [0, 16],
-                                                        extrapolate: 'clamp',
-                                                    }),
-                                                },
-                                            ],
-                                        },
-                                    ]}
-                                />
+                                {avatarUri ? (
+                                    <Animated.Image
+                                        source={{ uri: avatarUri }}
+                                        style={[
+                                            styles.avatar,
+                                            {
+                                                transform: [
+                                                    {
+                                                        scale: scrollY.interpolate({
+                                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                            outputRange: [1, 0.7],
+                                                            extrapolate: 'clamp',
+                                                        }),
+                                                    },
+                                                    {
+                                                        translateY: scrollY.interpolate({
+                                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                            outputRange: [0, 16],
+                                                            extrapolate: 'clamp',
+                                                        }),
+                                                    },
+                                                ],
+                                            },
+                                        ]}
+                                    />
+                                ) : (
+                                    <Animated.View
+                                        style={[
+                                            styles.avatar,
+                                            {
+                                                backgroundColor: lightenHex(primaryColor, 80),
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                transform: [
+                                                    {
+                                                        scale: scrollY.interpolate({
+                                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                            outputRange: [1, 0.7],
+                                                            extrapolate: 'clamp',
+                                                        }),
+                                                    },
+                                                    {
+                                                        translateY: scrollY.interpolate({
+                                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                            outputRange: [0, 16],
+                                                            extrapolate: 'clamp',
+                                                        }),
+                                                    },
+                                                ],
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={{ color: primaryColor, fontWeight: '700' }}>
+                                            {(() => {
+                                                const display = (profileData?.name?.full || profileData?.username || '').trim();
+                                                if (!display) return '?';
+                                                const parts = display.split(/\s+/).slice(0, 2);
+                                                const chars = parts.map(p => p.charAt(0).toUpperCase()).join('');
+                                                return chars || (display.charAt(0).toUpperCase() || '?');
+                                            })()}
+                                        </Text>
+                                    </Animated.View>
+                                )}
 
                                 <View style={styles.profileActions}>
                                     {currentUser?.username === username ? (
@@ -320,6 +434,12 @@ const MentionProfile: React.FC = () => {
                                                 onPress={() => showBottomSheet?.('PrivacySettings')}
                                             >
                                                 <Ionicons name="settings-outline" size={20} color={colors.primaryDark} />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.settingsButton}
+                                                onPress={() => router.push('/settings/appearance')}
+                                            >
+                                                <Ionicons name="color-palette-outline" size={20} color={colors.primaryDark} />
                                             </TouchableOpacity>
                                         </View>
                                     ) : (
@@ -451,12 +571,12 @@ const MentionProfile: React.FC = () => {
                                         <Text
                                             style={[
                                                 styles.tabText,
-                                                activeTab === i && styles.activeTabText,
+                                                activeTab === i && { color: primaryColor, fontWeight: '700' },
                                             ]}
                                         >
                                             {tab}
                                         </Text>
-                                        {activeTab === i && <View style={styles.tabIndicator} />}
+                                        {activeTab === i && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
                                     </TouchableOpacity>
                                 ))}
                             </View>

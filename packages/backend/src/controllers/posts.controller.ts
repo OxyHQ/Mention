@@ -4,7 +4,7 @@ import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import { AuthRequest } from '../types/auth';
 import mongoose from 'mongoose';
-import { oxyClient } from '@oxyhq/services/core';
+import { oxy as oxyClient } from '../../server';
 
 // Create a new post
 export const createPost = async (req: AuthRequest, res: Response) => {
