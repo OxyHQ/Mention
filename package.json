@@ -31,7 +31,7 @@
     "npm": ">=8.0.0"
   },
   "dependencies": {
-    "@oxyhq/services": "^5.12.4",
+    "@oxyhq/services": "^5.12.5",
     "@react-native/js-polyfills": "^0.81.1"
   }
 }

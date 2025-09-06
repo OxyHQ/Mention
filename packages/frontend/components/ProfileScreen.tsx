@@ -30,7 +30,7 @@ const AnimatedBlurView = Animated.createAnimatedComponent(BlurView as any);
 
 
 const MentionProfile: React.FC = () => {
-    const { user: currentUser, oxyServices, showBottomSheet } = useOxy();
+    const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
     let { username } = useLocalSearchParams<{ username: string }>();
     if (username && username.startsWith('@')) {
         username = username.slice(1);
@@ -65,6 +65,15 @@ const MentionProfile: React.FC = () => {
 
         fetchProfileData();
     }, [username, oxyServices]);
+
+    const {
+        followerCount,
+        followingCount,
+        isLoadingCounts,
+        fetchUserCounts,
+        setFollowerCount,
+        setFollowingCount,
+    } = useFollow(profileData?.id);
 
     const avatarUri = profileData?.avatar ? oxyServices.getFileDownloadUrl(profileData.avatar as string, 'thumb') : undefined;
 
@@ -437,7 +446,7 @@ const MentionProfile: React.FC = () => {
                                         onPress={() => router.push(`/@${profileData?.username || username}/following`)}
                                     >
                                         <Text style={styles.statNumber}>
-                                            {profileData?._count?.following ?? 0}
+                                            {followingCount ?? 0}
                                         </Text>
                                         <Text style={styles.statLabel}>Following</Text>
                                     </TouchableOpacity>
@@ -446,7 +455,7 @@ const MentionProfile: React.FC = () => {
                                         onPress={() => router.push(`/@${profileData?.username || username}/followers`)}
                                     >
                                         <Text style={styles.statNumber}>
-                                            {profileData?._count?.followers ?? 0}
+                                            {followerCount ?? 0}
                                         </Text>
                                         <Text style={styles.statLabel}>Followers</Text>
                                     </TouchableOpacity>
