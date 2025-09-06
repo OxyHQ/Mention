@@ -1,11 +1,13 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator } from 'react-native';
 import { Header } from '@/components/Header';
+import Avatar from '@/components/Avatar';
 import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
 import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
+import { toast } from '@/lib/sonner';
 
 type MinimalUser = { id: string; username: string; name?: { full?: string } ; avatar?: any };
 
@@ -24,16 +26,24 @@ const CreateFeedScreen: React.FC = () => {
   const [includeMedia, setIncludeMedia] = useState(true);
   const [myLists, setMyLists] = useState<any[]>([]);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
+  const [listsLoaded, setListsLoaded] = useState(false);
+  const searchTimer = useRef<number | null>(null);
 
-  const doSearch = useCallback(async (q: string) => {
-    try {
-      setSearch(q);
-      if (!q.trim()) { setResults([]); return; }
-      const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
-      setResults(res as any);
-    } catch (e) {
-      console.warn('searchProfiles failed', e);
-    }
+  
+
+  const doSearch = useCallback((q: string) => {
+    setSearch(q);
+    if (searchTimer.current) { clearTimeout(searchTimer.current); }
+    if (!q.trim()) { setResults([]); return; }
+    // debounce quick typing
+    searchTimer.current = window.setTimeout(async () => {
+      try {
+        const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
+        setResults(res as any);
+      } catch (e) {
+        console.warn('searchProfiles failed', e);
+      }
+    }, 300);
   }, [oxyServices]);
 
   const addMember = (u: MinimalUser) => {
@@ -57,9 +67,11 @@ const CreateFeedScreen: React.FC = () => {
         includeMedia,
         sourceListIds: selectedListIds,
       });
+      toast.success('Feed created');
       router.replace('/feeds');
     } catch (e) {
       console.error('Create feed failed', e);
+      toast.error('Create feed failed');
     } finally {
       setSaving(false);
     }
@@ -89,12 +101,14 @@ const CreateFeedScreen: React.FC = () => {
 
         <Text style={[styles.label, { marginTop: 12 }]}>Add Lists (optional)</Text>
         <TouchableOpacity onPress={async () => {
+          if (listsLoaded) { setMyLists([]); setListsLoaded(false); return; }
           try {
             const res = await listsService.list({ mine: true });
             setMyLists(res.items || []);
-          } catch (e) { console.warn('load my lists failed', e); }
+            setListsLoaded(true);
+          } catch (e) { console.warn('load my lists failed', e); toast.error('Failed to load lists'); }
         }} style={[styles.createBtn, { backgroundColor: colors.COLOR_BLACK_LIGHT_8, alignItems: 'center' }]}>
-          <Text style={{ color: colors.COLOR_BLACK_LIGHT_3, fontWeight: '600' }}>Load My Lists</Text>
+          <Text style={{ color: colors.COLOR_BLACK_LIGHT_3, fontWeight: '600' }}>{listsLoaded ? 'Hide Lists' : 'Load My Lists'}</Text>
         </TouchableOpacity>
         {myLists.map((l) => {
           const id = String(l._id || l.id);
@@ -107,14 +121,17 @@ const CreateFeedScreen: React.FC = () => {
           );
         })}
 
-        <Text style={[styles.label, { marginTop: 12 }]}>Add Members</Text>
-        <TextInput value={search} onChangeText={doSearch} placeholder="Search users" style={styles.input} />
+  <Text style={[styles.label, { marginTop: 12 }]}>Add Members</Text>
+  <TextInput value={search} onChangeText={doSearch} placeholder="Search users" style={styles.input} />
 
         {results.length > 0 && (
           <View style={styles.resultsBox}>
             {results.map((u) => (
               <TouchableOpacity key={u.id} style={styles.resultRow} onPress={() => addMember(u)}>
-                <Text style={styles.resultText}>@{u.username} {(u.name?.full ? `• ${u.name.full}` : '')}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Avatar source={u.avatar} size={36} style={{ marginRight: 10 }} />
+                  <Text style={styles.resultText}>@{u.username} {(u.name?.full ? `• ${u.name.full}` : '')}</Text>
+                </View>
                 <Text style={{ color: colors.linkColor, fontWeight: '600' }}>Add</Text>
               </TouchableOpacity>
             ))}
@@ -125,10 +142,13 @@ const CreateFeedScreen: React.FC = () => {
           <View style={{ marginTop: 10 }}>
             <Text style={styles.label}>Members</Text>
             {members.map((m) => (
-              <View key={m.id} style={styles.memberChip}>
-                <Text style={{ color: colors.COLOR_BLACK_LIGHT_1 }}>@{m.username}</Text>
+              <View key={m.id} style={styles.memberChipRow}>
+                <View style={styles.memberChipInner}>
+                  <Avatar source={m.avatar} size={28} />
+                  <Text style={{ color: colors.COLOR_BLACK_LIGHT_1, marginLeft: 8 }}>@{m.username}</Text>
+                </View>
                 <TouchableOpacity onPress={() => removeMember(m.id)}>
-                  <Text style={{ color: colors.busy, marginLeft: 10 }}>Remove</Text>
+                  <Text style={{ color: colors.busy, marginLeft: 10, fontWeight: '600' }}>Remove</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -136,7 +156,7 @@ const CreateFeedScreen: React.FC = () => {
         )}
 
         <TouchableOpacity disabled={saving || !title.trim()} onPress={onCreate} style={[styles.createBtn, (!title.trim()) && { opacity: 0.6 } ]}>
-          <Text style={styles.createBtnText}>{saving ? 'Saving…' : 'Create Feed'}</Text>
+          {saving ? <ActivityIndicator color={colors.primaryLight} /> : <Text style={styles.createBtnText}>Create Feed</Text>}
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -161,6 +181,8 @@ const styles = StyleSheet.create({
   resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.COLOR_BLACK_LIGHT_6 },
   resultText: { color: colors.COLOR_BLACK_LIGHT_1 },
   memberChip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  memberChipRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
+  memberChipInner: { flexDirection: 'row', alignItems: 'center' },
   createBtn: { marginTop: 20, backgroundColor: colors.primaryColor, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   createBtnText: { color: colors.primaryLight, fontWeight: '700' },
 });
