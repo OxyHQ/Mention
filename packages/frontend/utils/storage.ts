@@ -1,14 +1,16 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MMKV } from 'react-native-mmkv';
 import * as SecureStore from 'expo-secure-store';
+
+const storage = new MMKV({ id: 'mention_storage' });
 
 export const storeData = async (key: string, value: any): Promise<boolean> => {
     try {
         if (value === null || value === undefined) {
-            await AsyncStorage.removeItem(key);
+            storage.delete(key);
             return true;
         }
         const jsonValue = JSON.stringify(value);
-        await AsyncStorage.setItem(key, jsonValue);
+        storage.set(key, jsonValue);
         return true;
     } catch (error) {
         console.error(`Error storing data for key ${key}:`, error);
@@ -18,8 +20,8 @@ export const storeData = async (key: string, value: any): Promise<boolean> => {
 
 export const getData = async <T>(key: string): Promise<T | null> => {
     try {
-        const jsonValue = await AsyncStorage.getItem(key);
-        if (jsonValue === null) return null;
+        const jsonValue = storage.getString(key);
+        if (jsonValue === undefined || jsonValue === null) return null;
         return JSON.parse(jsonValue) as T;
     } catch (error) {
         console.error(`Error reading data for key ${key}:`, error);
@@ -29,7 +31,7 @@ export const getData = async <T>(key: string): Promise<T | null> => {
 
 export const removeData = async (key: string): Promise<boolean> => {
     try {
-        await AsyncStorage.removeItem(key);
+        storage.delete(key);
         return true;
     } catch (error) {
         console.error(`Error removing data for key ${key}:`, error);
@@ -39,7 +41,7 @@ export const removeData = async (key: string): Promise<boolean> => {
 
 export const clearAll = async (): Promise<boolean> => {
     try {
-        await AsyncStorage.clear();
+        storage.clearAll();
         return true;
     } catch (error) {
         console.error('Error clearing all data:', error);
