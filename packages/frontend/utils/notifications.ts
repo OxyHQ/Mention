@@ -1,19 +1,27 @@
-import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import i18next from 'i18next';
 
-export async function requestNotificationPermissions() {
-  if (Platform.OS === "web") {
-    return false;
+// Do not statically import 'expo-notifications' to avoid bundling it on web.
+// Use a cached dynamic import so the package is only loaded on native platforms.
+let notificationsModule: typeof import('expo-notifications') | null = null;
+async function getNotifications(): Promise<typeof import('expo-notifications') | null> {
+  if (Platform.OS === 'web') return null;
+  if (!notificationsModule) {
+    notificationsModule = await import('expo-notifications');
   }
+  return notificationsModule;
+}
+
+export async function requestNotificationPermissions() {
+  const Notifications = await getNotifications();
+  if (!Notifications) return false;
   const { status } = await Notifications.requestPermissionsAsync();
   return status === "granted";
 }
 
 export async function scheduleDemoNotification() {
-  if (Platform.OS === "web") {
-    return;
-  }
+  const Notifications = await getNotifications();
+  if (!Notifications) return;
   await Notifications.scheduleNotificationAsync({
     content: {
       title: i18next.t("notification.welcome.title"),
@@ -27,11 +35,10 @@ export async function scheduleDemoNotification() {
 export async function createNotification(
   title: string,
   body: string,
-  data: object = {}
+  data: Record<string, unknown> = {}
 ) {
-  if (Platform.OS === "web") {
-    return;
-  }
+  const Notifications = await getNotifications();
+  if (!Notifications) return;
   await Notifications.scheduleNotificationAsync({
     content: {
       title,
@@ -43,14 +50,15 @@ export async function createNotification(
 }
 
 export async function setupNotifications() {
-  if (Platform.OS === "web") {
-    return;
-  }
+  const Notifications = await getNotifications();
+  if (!Notifications) return;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
     }),
   });
 }

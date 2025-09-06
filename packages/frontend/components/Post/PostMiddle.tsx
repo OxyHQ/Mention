@@ -1,13 +1,12 @@
 import React from 'react';
 import { Image, ScrollView, StyleSheet, View } from 'react-native';
-import PostItem from '../Feed/PostItem';
 import PollCard from './PollCard';
 import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
 
 interface MediaObj { id?: string; type?: string; uri?: string; url?: string }
 interface Props {
-  media?: Array<string | MediaObj>;
+  media?: (string | MediaObj)[];
   nestedPost?: any; // original (repost) or parent (reply)
   leftOffset?: number; // negative margin-left to offset avatar space
   pollId?: string;
@@ -52,7 +51,13 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
           );
         }
         if (item.type === 'nested') {
-          return <PostItem key={`nested-${idx}`} post={nestedPost} isNested={true} />
+          // Render PostItem lazily to avoid require cycles on module evaluation
+          const PostItemComp = React.lazy(() => import('../Feed/PostItem'));
+          return (
+            <React.Suspense fallback={<View key={`nested-${idx}`} style={styles.itemContainer} />} key={`nested-${idx}`}>
+              <PostItemComp post={nestedPost} isNested={true} />
+            </React.Suspense>
+          );
         }
         return (
           <Image

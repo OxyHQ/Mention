@@ -4,7 +4,7 @@ import {
     StyleSheet,
     TouchableOpacity,
     Text,
-    Image
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -16,6 +16,7 @@ import Feed from '../components/Feed/Feed';
 import { Header } from '../components/Header';
 import SignInPrompt from '../components/SignInPrompt';
 import { colors } from '../styles/colors';
+import { shadowStyle } from '@/utils/platformStyles';
 import { usePostsStore } from '../stores/postsStore';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
@@ -29,8 +30,8 @@ const MainFeedScreen = () => {
     const { user, isAuthenticated, showBottomSheet: _showBottomSheet } = useOxy();
     const { savePost, unsavePost } = usePostsStore();
     const [activeTab, setActiveTab] = useState<MainTabKey>('for_you');
-    const [pinnedCustomFeeds, setPinnedCustomFeeds] = useState<Array<{ id: string; title: string; memberOxyUserIds: string[]; keywords?: string[]; includeReplies?: boolean; includeReposts?: boolean; includeMedia?: boolean; language?: string }>>([]);
-    const [pinnedLists, setPinnedLists] = useState<Array<{ id: string; title: string; memberOxyUserIds: string[] }>>([]);
+    const [pinnedCustomFeeds, setPinnedCustomFeeds] = useState<{ id: string; title: string; memberOxyUserIds: string[]; keywords?: string[]; includeReplies?: boolean; includeReposts?: boolean; includeMedia?: boolean; language?: string }[]>([]);
+    const [pinnedLists, setPinnedLists] = useState<{ id: string; title: string; memberOxyUserIds: string[] }[]>([]);
 
     // Debug authentication state
     console.log('🔐 MainFeedScreen - isAuthenticated:', isAuthenticated, 'user:', user?.id);
@@ -117,7 +118,7 @@ const MainFeedScreen = () => {
     }, [loadPinned]);
 
     const tabs = useMemo(() => {
-        const base: Array<{ key: MainTabKey; label: string }> = [
+        const base: { key: MainTabKey; label: string }[] = [
             { key: 'for_you', label: 'For You' },
             { key: 'following', label: 'Following' },
         ];
@@ -274,13 +275,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 8,
-        shadowColor: colors.shadow,
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        ...shadowStyle({ elevation: 8, web: `0px 4px 8px ${colors.shadow}` }),
     },
 });
 

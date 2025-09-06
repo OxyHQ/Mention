@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
+import { shadowStyle } from '@/utils/platformStyles';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
 import { StatusBar } from 'expo-status-bar';
@@ -97,18 +98,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 0.5,
     borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-    ...Platform.select({
-      web: {
-        position: 'sticky',
-        top: 0,
-        zIndex: 1000,
-      },
-    }),
+    ...shadowStyle({ elevation: 1, web: `0px 1px 4px ${colors.shadow}` }),
+    // sticky header on web
+    ...(Platform.OS === 'web' ? ({ position: 'sticky' as any, top: 0, zIndex: 1000 } as any) : {}),
   },
   headerTitle: {
     fontSize: 24,

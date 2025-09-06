@@ -7,7 +7,7 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
-import { Slot, usePathname } from 'expo-router';
+import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { SideBar } from '@/components/SideBar';
@@ -33,38 +33,27 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OxyProvider, OxyServices } from '@oxyhq/services';
-import { PostHogProvider } from 'posthog-react-native';
 import '../styles/global.css';
 import { OXY_BASE_URL } from '@/config';
 import { QueryClient, QueryClientProvider, onlineManager, focusManager } from '@tanstack/react-query';
 import NetInfo from '@react-native-community/netinfo';
 
-i18nUse(initReactI18next);
-
-i18nInit({
-  resources: {
-    'en-US': { translation: enUS },
-    'es-ES': { translation: esES },
-    'it-IT': { translation: itIT },
-  },
-  lng: 'en-US',
-  fallbackLng: 'en-US',
-  interpolation: { escapeValue: false },
-})
-  .catch((error: unknown) => {
-    console.error('Failed to initialize i18n:', error);
-  });
+// i18n will be initialized on app startup inside RootLayout
 
 
 
 export default function RootLayout() {
+  type SplashState = {
+    initializationComplete: boolean;
+    startFade: boolean;
+  };
+
   const [appIsReady, setAppIsReady] = useState(false);
-  const [splashState, setSplashState] = useState({
+  const [splashState, setSplashState] = useState<SplashState>({
     initializationComplete: false,
     startFade: false,
   });
   const isScreenNotMobile = useIsScreenNotMobile();
-  const pathname = usePathname() || '/';
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -93,8 +82,6 @@ export default function RootLayout() {
       backgroundColor: colors.primaryLight,
     },
   }), [isScreenNotMobile]);
-  const posthogApiKey = process.env.EXPO_PUBLIC_POSTHOG_KEY || 'phc_wRxFcPEaeeRHAKoMi4gzleLdNE9Ny4JEwYe8Z5h3soO';
-  const posthogHost = process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
   const layoutScrollY = useMemo(() => new Animated.Value(0), []);
   const queryClient = useMemo(() => new QueryClient({
     defaultOptions: {
@@ -131,29 +118,80 @@ export default function RootLayout() {
   const keyboardVisible = useKeyboardVisibility();
 
   const oxyServices = useMemo(() => new OxyServices({ baseURL: OXY_BASE_URL }), []);
+  // Helper: call runtime waitForAuth if available on the OxyServices instance
+  const waitForAuth = useCallback(async (services: OxyServices, timeoutMs = 5000) => {
+    const maybe = services as unknown as { waitForAuth?: (ms?: number) => Promise<boolean> };
+    if (typeof maybe.waitForAuth === 'function') {
+      try {
+        return await maybe.waitForAuth(timeoutMs);
+      } catch (e) {
+        console.warn('waitForAuth failed:', e);
+        return false;
+      }
+    }
+    return false;
+  }, []);
 
   const initializeApp = useCallback(async () => {
+    if (!loaded) return;
+
     try {
-      if (loaded) {
-        if (Platform.OS !== 'web') {
-          await setupNotifications();
-          const hasPermission = await requestNotificationPermissions();
-          if (hasPermission && __DEV__) {
-            await scheduleDemoNotification();
-          }
+      if (Platform.OS !== 'web') {
+        await setupNotifications();
+        const hasPermission = await requestNotificationPermissions();
+        if (hasPermission && __DEV__) {
+          await scheduleDemoNotification();
         }
-        setSplashState((prev) => ({ ...prev, initializationComplete: true }));
+      }
+
+      // Wait briefly for auth to be ready and warm up current user cache if possible.
+      const authReady = await waitForAuth(oxyServices, 5000);
+      if (authReady) {
+        try {
+          await oxyServices.getCurrentUser();
+        } catch (err) {
+          console.warn('Failed to fetch current user during init:', err);
+        }
+      }
+
+      setSplashState((prev) => ({ ...prev, initializationComplete: true }));
+
+      try {
         await SplashScreen.hideAsync();
+      } catch (err) {
+        console.warn('Failed to hide native splash screen:', err);
       }
     } catch (error) {
-      console.warn('Failed to set up notifications:', error);
+      console.warn('Failed to initialize app:', error);
     }
-  }, [loaded]);
+  }, [loaded, oxyServices, waitForAuth]);
+
+  // Initialize i18n once when the app mounts
+  useEffect(() => {
+    try {
+      i18nUse(initReactI18next);
+      i18nInit({
+        resources: {
+          'en-US': { translation: enUS },
+          'es-ES': { translation: esES },
+          'it-IT': { translation: itIT },
+        },
+        lng: 'en-US',
+        fallbackLng: 'en-US',
+        interpolation: { escapeValue: false },
+      }).catch((error: unknown) => console.error('Failed to initialize i18n:', error));
+    } catch (err) {
+      console.error('i18n setup failed:', err);
+    }
+  }, []);
 
   // --- Splash Fade Handler ---
   const handleSplashFadeComplete = useCallback(() => {
     setAppIsReady(true);
   }, []);
+
+  // Alias GestureHandlerRootView to a permissive component type to avoid children typing issues
+  const GestureRoot = GestureHandlerRootView as unknown as React.ComponentType<any>;
 
   useEffect(() => {
     // React Query online manager using NetInfo
@@ -186,13 +224,8 @@ export default function RootLayout() {
   return (
     <View style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          {!appIsReady ? (
-            <AppSplashScreen
-              startFade={splashState.startFade}
-              onFadeComplete={handleSplashFadeComplete}
-            />
-          ) : (
+        <GestureRoot style={{ flex: 1 }}>
+          {appIsReady ? (
             <QueryClientProvider client={queryClient}>
               <OxyProvider
                 oxyServices={oxyServices}
@@ -237,8 +270,13 @@ export default function RootLayout() {
                 </I18nextProvider>
               </OxyProvider>
             </QueryClientProvider>
+          ) : (
+            <AppSplashScreen
+              startFade={splashState.startFade}
+              onFadeComplete={handleSplashFadeComplete}
+            />
           )}
-        </GestureHandlerRootView>
+        </GestureRoot>
       </SafeAreaProvider>
     </View>
   );

@@ -29,10 +29,9 @@ return {
       scheme: 'mention',
       userInterfaceStyle: 'automatic',
       newArchEnabled: true,
-      jsEngine: 'hermes',
       ios: {
         supportsTablet: true,
-        bundleIdentifier: 'com.mention.android',
+        bundleIdentifier: 'com.mention.ios',
       },
         android: {
             adaptiveIcon: {
@@ -71,6 +70,7 @@ return {
                     },
             ],
             softwareKeyboardLayoutMode: "pan",
+            edgeToEdgeEnabled: true,
         },
         web: {
             bundler: "metro",
@@ -101,84 +101,85 @@ return {
           },
         },
         },
-        plugins: [
-            "expo-router",
-            [
-                "expo-splash-screen",
-                {
-                    image: "./assets/images/splash-icon.png",
-                    imageWidth: 200,
-                    resizeMode: "contain",
-                    backgroundColor: "#ffffff"
-                }
-            ],
-            [
-                "expo-notifications",
-                {
-                    color: "#ffffff"
-                }
-            ],
-            [
-                "expo-camera",
-                {
-                    cameraPermission: "Allow $(PRODUCT_NAME) to access your camera",
-                    microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone",
-                    recordAudioAndroid: true
-                }
-            ],
-            "expo-image-picker",
-            [
-                "expo-secure-store",
-                {
-                    configureAndroidBackup: true,
-                    faceIDPermission: "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
-                }
-            ],
-            [
-                'expo-font',
-                {
-                  fonts: [
-                    './assets/fonts/Cereal/Cereal_W_Lt.otf',
-                    './assets/fonts/Cereal/Cereal_W_Bk.otf',
-                    './assets/fonts/Cereal/Cereal_W_Blk.otf',
-                    './assets/fonts/Cereal/Cereal_W_Md.otf',
-                    './assets/fonts/Cereal/Cereal_W_XBd.otf',
-                    './assets/fonts/Cereal/Cereal_W_Bd.otf',
-                    './assets/fonts/inter/InterVariable.woff2',
-                    './assets/fonts/inter/InterVariable-Italic.woff2',
-                    // Android only
-                    './assets/fonts/inter/Inter-Regular.otf',
-                    './assets/fonts/inter/Inter-Italic.otf',
-                    './assets/fonts/inter/Inter-SemiBold.otf',
-                    './assets/fonts/inter/Inter-SemiBoldItalic.otf',
-                    './assets/fonts/inter/Inter-ExtraBold.otf',
-                    './assets/fonts/inter/Inter-ExtraBoldItalic.otf',
-                    './assets/fonts/Phudu-VariableFont_wght.ttf',
+        // Build the plugins array dynamically so we can exclude certain
+        // native-only plugins (like expo-notifications) from web builds.
+        plugins: (() => {
+            const base = [
+                "expo-router",
+                [
+                    "expo-splash-screen",
+                    {
+                        image: "./assets/images/splash-icon.png",
+                        imageWidth: 200,
+                        resizeMode: "contain",
+                        backgroundColor: "#ffffff"
+                    }
+                ],
+                [
+                    "expo-camera",
+                    {
+                        cameraPermission: "Allow $(PRODUCT_NAME) to access your camera",
+                        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone",
+                        recordAudioAndroid: true
+                    }
+                ],
+                "expo-image-picker",
+                [
+                    "expo-secure-store",
+                    {
+                        configureAndroidBackup: true,
+                        faceIDPermission: "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
+                    }
+                ],
+                [
+                    'expo-font',
+                    {
+                      fonts: [
+                        './assets/fonts/inter/Inter-Regular.otf',
+                        './assets/fonts/inter/Inter-Italic.otf',
+                        './assets/fonts/inter/Inter-SemiBold.otf',
+                        './assets/fonts/inter/Inter-SemiBoldItalic.otf',
+                        './assets/fonts/inter/Inter-ExtraBold.otf',
+                        './assets/fonts/inter/Inter-ExtraBoldItalic.otf',
+                        './assets/fonts/Phudu-VariableFont_wght.ttf',
+                      ],
+                    },
                   ],
-                },
-              ],
-            'react-native-compressor',
-            [
-                '@bitdrift/react-native',
-                {
-                    networkInstrumentation: true,
-                }
-            ],
-            [
-                'expo-build-properties',
-                {
-                  ios: {
-                    deploymentTarget: '15.1',
-                  },
-                  android: {
-                    compileSdkVersion: 35,
-                    targetSdkVersion: 35,
-                    buildToolsVersion: '35.0.0',
-                  },
-                },
-            ],
-    "expo-web-browser",
-        ],
+                'react-native-compressor',
+                [
+                    '@bitdrift/react-native',
+                    {
+                        networkInstrumentation: true,
+                    }
+                ],
+                [
+                    'expo-build-properties',
+                    {
+                      ios: {
+                        deploymentTarget: '15.1',
+                      },
+                      android: {
+                        compileSdkVersion: 35,
+                        targetSdkVersion: 35,
+                        buildToolsVersion: '35.0.0',
+                      },
+                    },
+                ],
+                "expo-web-browser",
+            ];
+
+            // Only include expo-notifications for native builds (android/ios)
+            if (PLATFORM !== 'web') {
+                base.splice(2, 0, [
+                    "expo-notifications",
+                    {
+                        color: "#ffffff"
+                    }
+                ]);
+            }
+
+            return base;
+        })(),
         extra: {
             eas: {
                 projectId: "a261857b-a404-45ce-983c-501242578074"
