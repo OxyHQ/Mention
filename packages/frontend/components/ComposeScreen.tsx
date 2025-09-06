@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+// Ionicons not needed in this file after refactor
 import { router } from 'expo-router';
 import React, { useState, useRef } from 'react';
 import {
@@ -10,13 +10,13 @@ import {
     Alert,
     KeyboardAvoidingView,
     Platform,
-    ScrollView,
-    Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
 import { colors } from '../styles/colors';
+import Avatar from './Avatar';
+import UserName from './UserName';
 
 const MAX_CHARACTERS = 280;
 
@@ -104,21 +104,9 @@ const ComposeScreen: React.FC = () => {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 <View style={styles.userInfo}>
-                    <View style={styles.avatarContainer}>
-                        <Image
-                            source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }}
-                            style={styles.avatar}
-                        />
-                        {user?.verified && (
-                            <View style={styles.verifiedBadge}>
-                                <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" />
-                            </View>
-                        )}
-                    </View>
-
+                    <Avatar source={user?.avatar} size={40} />
                     <View style={styles.userDetails}>
-                        <Text style={styles.userName}>{user?.name?.full || user?.username}</Text>
-                        <Text style={styles.userHandle}>@{user?.username}</Text>
+                        <UserName name={user?.name?.full || user?.username} verified={!!user?.verified} />
                     </View>
                 </View>
 

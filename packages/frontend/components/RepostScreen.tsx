@@ -13,6 +13,7 @@ import {
     ScrollView,
 } from 'react-native';
 import Avatar from './Avatar';
+import UserName from './UserName';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
@@ -21,8 +22,7 @@ import { CreateRepostRequest } from '@mention/shared-types';
 const MAX_CHARACTERS = 280;
 
 const RepostScreen: React.FC = () => {
-    const { user } = useOxy();
-    const { addRepost, posts, createRepostAPI } = usePostsStore();
+    const { user, oxyServices } = useOxy();
     const { id: postId } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
 
@@ -150,13 +150,12 @@ const RepostScreen: React.FC = () => {
                     <View style={styles.originalPostHeader}>
                         <Avatar source={originalPost.user.avatar} size={32} style={{ marginRight: 8 }} />
                         <View style={styles.originalPostInfo}>
-                            <Text style={styles.originalPostName}>
-                                {originalPost.user.name}
-                                {originalPost.user.verified && (
-                                    <Ionicons name="checkmark-circle" size={14} color="#1DA1F2" style={styles.verifiedIcon} />
-                                )}
-                            </Text>
-                            <Text style={styles.originalPostHandle}>@{originalPost.user.handle}</Text>
+                            <UserName
+                                name={originalPost.user.name}
+                                verified={originalPost.user.verified}
+                                variant="small"
+                            />
+                            {originalPost.user.handle ? <Text style={styles.originalPostHandle}>@{originalPost.user.handle}</Text> : null}
                         </View>
                     </View>
                     <Text style={styles.originalPostContent}>{originalPost.content}</Text>
@@ -166,7 +165,7 @@ const RepostScreen: React.FC = () => {
                 <View style={styles.repostSection}>
                     <View style={styles.userInfo}>
                         <Avatar
-                            source={typeof user?.avatar === 'string' ? user.avatar : user?.avatar?.url}
+                            source={oxyServices.getFileDownloadUrl(user?.avatar, 'thumb')}
                             size={48}
                             style={{ marginRight: 12 }}
                         />

@@ -11,7 +11,7 @@ import {
   ImageStyle,
   TouchableOpacity,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { colors } from '../styles/colors';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 
@@ -76,11 +76,7 @@ const Avatar: React.FC<AvatarProps> = ({
 
       {verified && (
         <View style={[styles.verifiedBadge, { width: size * 0.36, height: size * 0.36 }]}>
-          <Ionicons
-            name="checkmark-circle"
-            size={Math.round(size * 0.36)}
-            color={colors.primaryColor}
-          />
+          <VerifiedIcon size={Math.round(size * 0.36)} color={colors.primaryColor} />
         </View>
       )}
     </Animated.View>

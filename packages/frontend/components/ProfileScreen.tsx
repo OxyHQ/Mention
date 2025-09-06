@@ -14,6 +14,7 @@ import {
     Platform
 } from 'react-native';
 import Avatar from '@/components/Avatar';
+import UserName from './UserName';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy, FollowButton } from '@oxyhq/services';
 import { Feed } from './Feed/index';
@@ -229,9 +230,12 @@ const MentionProfile: React.FC = () => {
                             },
                         ]}
                     >
-                        <Text style={styles.headerTitle}>
-                            {profileData?.name?.full || profileData?.username}
-                        </Text>
+                        <UserName
+                            name={profileData?.name?.full || profileData?.username}
+                            verified={profileData?.verified}
+                            style={{ name: styles.headerTitle }}
+                            unifiedColors={true}
+                        />
                         <Text style={styles.headerSubtitle}>
                             {profileData?.postCount || 0} posts
                         </Text>
@@ -381,20 +385,19 @@ const MentionProfile: React.FC = () => {
                             </View>
 
                             <View>
-                                <Text style={styles.profileName}>
-                                    {profileData?.name?.full || profileData?.username}
-                                </Text>
-                                <View style={styles.handleRow}>
-                                    <Text style={styles.profileHandle}>
-                                        @{profileData?.username || 'username'}
-                                    </Text>
-                                    {profileData?.privacySettings?.isPrivateAccount && (
-                                        <View style={styles.privateIndicator}>
-                                            <Ionicons name="lock-closed" size={12} color="#666" />
-                                            <Text style={styles.privateText}>Private</Text>
-                                        </View>
-                                    )}
-                                </View>
+                                <UserName
+                                    name={profileData?.name?.full || profileData?.username}
+                                    handle={profileData?.username}
+                                    verified={profileData?.verified}
+                                    variant="default"
+                                    style={{ name: styles.profileName, handle: styles.profileHandle, container: undefined }}
+                                />
+                                {profileData?.privacySettings?.isPrivateAccount && (
+                                    <View style={styles.privateIndicator}>
+                                        <Ionicons name="lock-closed" size={12} color="#666" />
+                                        <Text style={styles.privateText}>Private</Text>
+                                    </View>
+                                )}
                             </View>
                             {profileData?.bio && (
                                 <Text style={styles.profileBio}>

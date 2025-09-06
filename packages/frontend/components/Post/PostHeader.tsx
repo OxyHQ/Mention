@@ -3,11 +3,11 @@ import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
 import PostAvatar from './PostAvatar';
+import UserName from '../UserName';
 
 // Spacing tokens for consistent layout
 const HPAD = 16;         // horizontal padding
 const ROW_GAP = 8;       // gap between inline header items
-const SECTION_GAP = 12;  // vertical gap from header row to children
 
 interface User {
   name: string;
@@ -38,7 +38,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   children,
   avatarUri,
   avatarSize = 40,
-  avatarGap = 12,
+
   onPressUser,
   onPressAvatar,
 }) => {
@@ -72,17 +72,12 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         </TouchableOpacity>
         <View style={styles.headerMeta}>
           <View style={styles.postHeader}>
-            <TouchableOpacity activeOpacity={0.7} onPress={onPressUser}>
-              <Text style={styles.postUserName}>
-                {user.name}
-                {user.verified && (
-                  <Ionicons name="checkmark-circle" size={16} color={colors.primaryColor} style={styles.verifiedIcon} />
-                )}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.7} onPress={onPressUser}>
-              <Text style={styles.postHandle}>@{user.handle}</Text>
-            </TouchableOpacity>
+            <UserName
+              name={user.name}
+              verified={user.verified}
+              onPress={onPressUser}
+            />
+            {user.handle ? <Text style={styles.postHandle}>@{user.handle}</Text> : null}
             {!!timeLabel && <Text style={styles.postDate}>· {timeLabel}</Text>}
             {showRepost && (
               <View style={styles.metaIndicator}>
