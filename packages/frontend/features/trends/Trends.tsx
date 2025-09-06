@@ -1,10 +1,11 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet, FlatList, TouchableOpacity, Text, Platform } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Text, Platform } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/styles/colors";
 import { TrendItem } from "@/features/trends/TrendItem";
+import LegendList from '@/components/LegendList';
 import { useTrendsStore } from '@/store/trendsStore';
 import { Loading } from "@/assets/icons/loading-icon";
 
@@ -43,12 +44,12 @@ export const Trends = ({
 
     return (
         <View style={styles.container}>
-            <FlatList
+            <LegendList
                 data={trends}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
                     <TrendItem
-                        topHeader="Hashtag · Trending"
+                        topHeader="Hashtag  Trending"
                         mainTitle={item.text}
                         numberOfPosts={item.score}
                     />

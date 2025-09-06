@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, FlatList, TouchableOpacity, Text, Platform } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Text, Platform } from "react-native";
 import { Link } from "expo-router";
 import { Pressable } from 'react-native-web-hover'
 import { Ionicons } from "@expo/vector-icons";

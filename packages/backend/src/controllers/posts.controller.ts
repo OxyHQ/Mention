@@ -51,7 +51,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     
     transformedPost.user = {
         id: typeof userData === 'object' ? userData._id : userData,
-        name: typeof userData === 'object' ? userData.name : 'Unknown User',
+        name: typeof userData === 'object' ? userData.name.full : 'Unknown User',
         handle: typeof userData === 'object' ? userData.username : 'unknown',
         avatar: typeof userData === 'object' ? userData.avatar : '',
         verified: typeof userData === 'object' ? userData.verified : false
@@ -96,7 +96,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
         ...post,
         user: {
           id: typeof userData === 'object' ? userData._id : userData,
-          name: typeof userData === 'object' ? userData.name : 'Unknown User',
+          name: typeof userData === 'object' ? userData.name?.full : 'Unknown User',
           handle: typeof userData === 'object' ? userData.username : 'unknown',
           avatar: typeof userData === 'object' ? userData.avatar : '',
           verified: typeof userData === 'object' ? userData.verified : false
@@ -143,7 +143,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
     // Build user object; fetch from Oxy when we only have an ID string
     let user = {
       id: typeof oxyUserId === 'object' ? oxyUserId._id : (oxyUserId || 'unknown'),
-      name: typeof oxyUserId === 'object' ? oxyUserId.name : 'User',
+      name: typeof oxyUserId === 'object' ? oxyUserId.name.full : 'User',
       handle: typeof oxyUserId === 'object' ? oxyUserId.username : 'user',
       avatar: typeof oxyUserId === 'object' ? oxyUserId.avatar : '',
       verified: typeof oxyUserId === 'object' ? !!oxyUserId.verified : false,

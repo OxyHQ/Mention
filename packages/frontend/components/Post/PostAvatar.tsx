@@ -1,6 +1,6 @@
 import React from 'react';
-import { Image, ImageStyle, StyleProp, View, ViewStyle } from 'react-native';
-import { colors } from '../../styles/colors';
+import Avatar from '../Avatar';
+import { ViewStyle, ImageStyle, StyleProp } from 'react-native';
 
 interface PostAvatarProps {
   uri?: string;
@@ -10,25 +10,15 @@ interface PostAvatarProps {
 }
 
 const PostAvatar: React.FC<PostAvatarProps> = ({ uri, size = 40, style, bgColor }) => {
-  const [errored, setErrored] = React.useState(false);
-
-  const baseStyle = {
-    width: size,
-    height: size,
-    borderRadius: size / 2,
-    marginRight: 12,
-    backgroundColor: bgColor || colors.COLOR_BLACK_LIGHT_6,
-  } as const;
-
-  if (!uri || errored) {
-    return <View style={[baseStyle, style]} />;
-  }
+  const initials = undefined;
 
   return (
-    <Image
-      source={{ uri }}
-      onError={() => setErrored(true)}
-      style={[baseStyle, style]}
+    <Avatar
+      source={uri}
+      size={size}
+      style={[{ marginRight: 12, backgroundColor: bgColor }, (style as any)]}
+      imageStyle={{ borderRadius: size / 2 }}
+      label={initials}
     />
   );
 };

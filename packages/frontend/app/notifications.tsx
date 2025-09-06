@@ -2,11 +2,11 @@ import React, { useState, useCallback } from 'react';
 import {
     View,
     StyleSheet,
-    FlatList,
     TouchableOpacity,
     RefreshControl,
-    Alert
+    Alert,
 } from 'react-native';
+import LegendList from '../components/LegendList';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -172,9 +172,9 @@ const NotificationsScreen: React.FC = () => {
                 ) : error ? (
                     renderErrorState()
                 ) : (
-                    <FlatList
+                    <LegendList
                         data={notificationsData?.notifications || []}
-                        keyExtractor={(item) => item.id}
+                        keyExtractor={(item: any) => (item.id || item._id || item._id_str || item._id?.toString() || item.username || JSON.stringify(item)).toString()}
                         renderItem={renderNotification}
                         ListEmptyComponent={renderEmptyState}
                         refreshControl={

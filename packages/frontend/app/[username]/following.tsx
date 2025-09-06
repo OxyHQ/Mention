@@ -6,7 +6,8 @@ import { FollowButton, Models, useOxy } from '@oxyhq/services';
 import { Link, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, FlatList, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import LegendList from '@/components/LegendList';
 
 export default function FollowingScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
@@ -51,7 +52,7 @@ export default function FollowingScreen() {
       alignItems: 'center',
       padding: 16,
       borderBottomWidth: 0.5,
-      borderBottomColor: colors.COLOR_BLACK_LIGHT_6 
+      borderBottomColor: colors.COLOR_BLACK_LIGHT_6
     }}>
       <Link href={`/@${item.username}`} asChild>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
@@ -80,7 +81,7 @@ export default function FollowingScreen() {
   return (
     <View style={{ flex: 1 }}>
       <Header options={{ title: `${profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : cleanUsername} ${t("Following")}`, showBackButton: true }} />
-      <FlatList
+      <LegendList
         data={following}
         renderItem={renderUser}
         keyExtractor={(item) => (item as any).id || (item as any)._id || (item as any).userID}

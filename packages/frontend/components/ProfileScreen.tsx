@@ -4,7 +4,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState, useEffect } from 'react';
 import {
     Animated,
-    Image,
     ImageBackground,
     StatusBar,
     StyleSheet,
@@ -14,6 +13,7 @@ import {
     Share,
     Platform
 } from 'react-native';
+import Avatar from '@/components/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy, FollowButton } from '@oxyhq/services';
 import { Feed } from './Feed/index';
@@ -21,7 +21,7 @@ import { colors } from '../styles/colors';
 import { useAppearanceStore } from '@/store/appearanceStore';
 
 const HEADER_HEIGHT_EXPANDED = 80;
-const HEADER_HEIGHT_NARROWED = 110;
+const HEADER_HEIGHT_NARROWED = 50;
 
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView as any);
@@ -79,36 +79,6 @@ const MentionProfile: React.FC = () => {
     const bannerUri = userAppearance?.profileHeaderImage
         ? oxyServices.getFileDownloadUrl(userAppearance.profileHeaderImage, 'full')
         : undefined;
-
-    // Lighten helper for hex colors (e.g. #RRGGBB)
-    const lightenHex = (hex: string, percent: number) => {
-        try {
-            const h = hex.replace('#', '');
-            const num = parseInt(h, 16);
-            const amt = Math.round(2.55 * percent);
-            const R = (num >> 16) + amt;
-            const G = ((num >> 8) & 0x00FF) + amt;
-            const B = (num & 0x0000FF) + amt;
-            return `#${(
-                0x1000000 +
-                (R < 255 ? (R < 0 ? 0 : R) : 255) * 0x10000 +
-                (G < 255 ? (G < 0 ? 0 : G) : 255) * 0x100 +
-                (B < 255 ? (B < 0 ? 0 : B) : 255)
-            )
-                .toString(16)
-                .slice(1)
-                .toUpperCase()}`;
-        } catch {
-            return hex;
-        }
-    };
-
-
-
-
-
-
-
 
     const tabs = ['Posts', 'Replies', 'Media', 'Likes', 'Reposts'];
 
@@ -309,7 +279,7 @@ const MentionProfile: React.FC = () => {
                                 styles.banner,
                                 {
                                     height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
-                                    backgroundColor: lightenHex(primaryColor, 85),
+                                    backgroundColor: `${colors.primaryColor}20`,
                                     transform: [
                                         {
                                             scale: scrollY.interpolate({
@@ -356,69 +326,31 @@ const MentionProfile: React.FC = () => {
                         {/* Profile info */}
                         <View style={styles.profileContent}>
                             <View style={styles.avatarRow}>
-                                {avatarUri ? (
-                                    <Animated.Image
-                                        source={{ uri: avatarUri }}
-                                        style={[
-                                            styles.avatar,
+                                <Avatar
+                                    source={avatarUri}
+                                    size={80}
+                                    useAnimated
+                                    style={[styles.avatar, {
+                                        transform: [
                                             {
-                                                transform: [
-                                                    {
-                                                        scale: scrollY.interpolate({
-                                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                            outputRange: [1, 0.7],
-                                                            extrapolate: 'clamp',
-                                                        }),
-                                                    },
-                                                    {
-                                                        translateY: scrollY.interpolate({
-                                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                            outputRange: [0, 16],
-                                                            extrapolate: 'clamp',
-                                                        }),
-                                                    },
-                                                ],
+                                                scale: scrollY.interpolate({
+                                                    inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                    outputRange: [1, 0.7],
+                                                    extrapolate: 'clamp',
+                                                }),
                                             },
-                                        ]}
-                                    />
-                                ) : (
-                                    <Animated.View
-                                        style={[
-                                            styles.avatar,
                                             {
-                                                backgroundColor: lightenHex(primaryColor, 80),
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                transform: [
-                                                    {
-                                                        scale: scrollY.interpolate({
-                                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                            outputRange: [1, 0.7],
-                                                            extrapolate: 'clamp',
-                                                        }),
-                                                    },
-                                                    {
-                                                        translateY: scrollY.interpolate({
-                                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                            outputRange: [0, 16],
-                                                            extrapolate: 'clamp',
-                                                        }),
-                                                    },
-                                                ],
+                                                translateY: scrollY.interpolate({
+                                                    inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                    outputRange: [0, 16],
+                                                    extrapolate: 'clamp',
+                                                }),
                                             },
-                                        ]}
-                                    >
-                                        <Text style={{ color: primaryColor, fontWeight: '700' }}>
-                                            {(() => {
-                                                const display = (profileData?.name?.full || profileData?.username || '').trim();
-                                                if (!display) return '?';
-                                                const parts = display.split(/\s+/).slice(0, 2);
-                                                const chars = parts.map(p => p.charAt(0).toUpperCase()).join('');
-                                                return chars || (display.charAt(0).toUpperCase() || '?');
-                                            })()}
-                                        </Text>
-                                    </Animated.View>
-                                )}
+                                        ],
+                                    }]}
+                                    imageStyle={{
+                                    }}
+                                />
 
                                 <View style={styles.profileActions}>
                                     {currentUser?.username === username ? (

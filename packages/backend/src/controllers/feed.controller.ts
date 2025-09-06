@@ -873,7 +873,9 @@ class FeedController {
    */
   async createReply(req: AuthRequest, res: Response) {
     try {
-      const { postId, content, mentions, hashtags } = req.body as CreateReplyRequest;
+  const { postId, content, mentions, hashtags } = req.body as CreateReplyRequest;
+  // Accept content as either a string or an object; normalize to PostContent shape
+  const replyContent = typeof content === 'string' ? { text: content } : (content || { text: '' });
       const currentUserId = req.user?.id;
 
       if (!currentUserId) {
@@ -884,15 +886,15 @@ class FeedController {
         return res.status(400).json({ error: 'Content and post ID are required' });
       }
 
-      // Create reply post
-      // Extract hashtags from content
-      const extractedTags = Array.from((content?.text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
+  // Create reply post
+  // Extract hashtags from content
+  const extractedTags = Array.from((replyContent?.text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
       const mergedTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
 
       const reply = new Post({
         oxyUserId: currentUserId,
         type: PostType.TEXT,
-        content: content,
+        content: replyContent,
         visibility: PostVisibility.PUBLIC,
         parentPostId: postId,
         hashtags: mergedTags,

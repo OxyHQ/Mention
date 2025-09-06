@@ -6,7 +6,8 @@ import { FollowButton, Models, useOxy } from '@oxyhq/services';
 import { Link, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, FlatList, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import LegendList from '@/components/LegendList';
 
 export default function FollowersScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
@@ -51,14 +52,14 @@ export default function FollowersScreen() {
       alignItems: 'center',
       padding: 16,
       borderBottomWidth: 0.5,
-      borderBottomColor: colors.COLOR_BLACK_LIGHT_6 
+      borderBottomColor: colors.COLOR_BLACK_LIGHT_6
     }}>
       <Link href={`/@${item.username}`} asChild>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
           <Avatar source={(item as any)?.avatar?.url || (item as any)?.avatar} size={40} />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <ThemedText style={{ fontWeight: '600' }}>
-              {item.name?.first ? `${item.name.first} ${item.name.last || ''}`.trim() : item.username}
+              {item.profile?.name?.full ?? item.username}
             </ThemedText>
             <ThemedText style={{ color: colors.COLOR_BLACK_LIGHT_4 }}>@{item.username}</ThemedText>
           </View>
@@ -79,11 +80,16 @@ export default function FollowersScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Header options={{ title: `${profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : cleanUsername} ${t("Followers")}`, showBackButton: true }} />
-      <FlatList
+      <Header
+        options={{
+          title: `${profile?.profile?.name?.full ?? cleanUsername} ${t("Followers")}`,
+          showBackButton: true,
+        }}
+      />
+      <LegendList
         data={followers}
         renderItem={renderUser}
-        keyExtractor={(item) => (item as any).id || (item as any)._id || (item as any).userID}
+        keyExtractor={(item: Models.User) => (item.id || (item as any)._id || (item as any).userID || item.username).toString()}
         ListEmptyComponent={
           <View style={{ padding: 16, alignItems: 'center' }}>
             <ThemedText>{t("No followers yet")}</ThemedText>

@@ -5,7 +5,7 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  FlatList,
+  // FlatList replaced with LegendList for performance
   TouchableOpacity,
   Platform,
 } from 'react-native';
@@ -15,6 +15,7 @@ import { Header } from '@/components/Header';
 import { colors } from '@/styles/colors';
 import { router } from 'expo-router';
 import { getData, storeData } from '@/utils/storage';
+import LegendList from '@/components/LegendList';
 import { customFeedsService } from '@/services/customFeedsService';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
@@ -105,7 +106,7 @@ const FeedsScreen: React.FC = () => {
     setPinned((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
       // Persist async but do not block UI
-      storeData(PINNED_KEY, next).catch(() => {});
+      storeData(PINNED_KEY, next).catch(() => { });
       return next;
     });
   }, []);
@@ -125,11 +126,13 @@ const FeedsScreen: React.FC = () => {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <View style={styles.container}>
-        <Header options={{ title: t('Feeds'), rightComponents: [
-          <TouchableOpacity key="create" onPress={() => router.push('/feeds/create')} style={{ padding: 8 }}>
-            <Ionicons name="add-circle-outline" size={22} color={colors.primaryColor} />
-          </TouchableOpacity>
-        ] }} />
+        <Header options={{
+          title: t('Feeds'), rightComponents: [
+            <TouchableOpacity key="create" onPress={() => router.push('/feeds/create')} style={{ padding: 8 }}>
+              <Ionicons name="add-circle-outline" size={22} color={colors.primaryColor} />
+            </TouchableOpacity>
+          ]
+        }} />
 
         {/* My Feeds */}
         <View style={styles.sectionHeaderRow}>
@@ -168,7 +171,7 @@ const FeedsScreen: React.FC = () => {
         </View>
 
         {/* Discover New Feeds (public) */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 10 }] }>
+        <View style={[styles.sectionHeaderRow, { marginTop: 10 }]}>
           <View style={styles.sectionHeaderIcon}>
             <Ionicons name="options" size={18} color={colors.primaryLight} />
           </View>
@@ -192,7 +195,7 @@ const FeedsScreen: React.FC = () => {
           />
         </View>
 
-        <FlatList
+        <LegendList
           data={filteredPublic}
           keyExtractor={(item: any) => String(item._id || item.id)}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -208,7 +211,7 @@ const FeedsScreen: React.FC = () => {
         />
 
         {/* Your Feeds */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 10 }] }>
+        <View style={[styles.sectionHeaderRow, { marginTop: 10 }]}>
           <View style={styles.sectionHeaderIcon}>
             <Ionicons name="person-circle" size={18} color={colors.primaryLight} />
           </View>

@@ -11,8 +11,8 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Image
 } from 'react-native';
+import Avatar from './Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
@@ -148,7 +148,7 @@ const RepostScreen: React.FC = () => {
                 {/* Original Post */}
                 <View style={styles.originalPost}>
                     <View style={styles.originalPostHeader}>
-                        <Image source={{ uri: originalPost.user.avatar }} style={styles.originalPostAvatar} />
+                        <Avatar source={originalPost.user.avatar} size={32} style={{ marginRight: 8 }} />
                         <View style={styles.originalPostInfo}>
                             <Text style={styles.originalPostName}>
                                 {originalPost.user.name}
@@ -165,13 +165,10 @@ const RepostScreen: React.FC = () => {
                 {/* Repost Input */}
                 <View style={styles.repostSection}>
                     <View style={styles.userInfo}>
-                        <Image
-                            source={{
-                                uri: typeof user?.avatar === 'string'
-                                    ? user.avatar
-                                    : user?.avatar?.url || 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg'
-                            }}
-                            style={styles.userAvatar}
+                        <Avatar
+                            source={typeof user?.avatar === 'string' ? user.avatar : user?.avatar?.url}
+                            size={48}
+                            style={{ marginRight: 12 }}
                         />
                         <View style={styles.userDetails}>
                             <Text style={styles.userName}>

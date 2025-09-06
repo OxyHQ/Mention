@@ -1,11 +1,9 @@
 import React from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Text } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import NotFoundScreen from '@/components/NotFoundScreen';
 import ProfileScreen from '@/components/ProfileScreen';
 
 const UsernamePage = () => {
-    const router = useRouter();
     const { username } = useLocalSearchParams<{ username: string }>();
 
     if (typeof username === 'string' && username.startsWith('@')) {

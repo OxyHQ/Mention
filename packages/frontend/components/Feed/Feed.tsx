@@ -4,10 +4,10 @@ import {
     Text,
     TouchableOpacity,
     View,
-    FlatList,
     RefreshControl,
     ActivityIndicator
 } from 'react-native';
+import LegendList from '../../components/LegendList';
 import { usePostsStore, useFeedSelector, useFeedLoading, useFeedError, useFeedHasMore, useUserFeedSelector } from '../../stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import PostItem from './PostItem';
@@ -56,7 +56,7 @@ const Feed = ({
     reloadKey,
     listHeaderComponent,
 }: FeedProps) => {
-    const flatListRef = useRef<FlatList>(null);
+    const flatListRef = useRef<any>(null);
     const [refreshing, setRefreshing] = useState(false);
 
     // When filters are provided, scope the feed locally to avoid clashes
@@ -310,7 +310,7 @@ const Feed = ({
         <ErrorBoundary>
             <View style={styles.container}>
                 <LoadingTopSpinner showLoading={isLoading && !refreshing} />
-                <FlatList
+                <LegendList
                     ref={flatListRef}
                     data={computeDisplayItems()}
                     renderItem={renderPostItem}
