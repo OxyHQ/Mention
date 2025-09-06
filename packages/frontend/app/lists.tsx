@@ -48,14 +48,21 @@ export default function ListsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.primaryLight }}>
       <Header options={{ title: 'Lists', showBackButton: true, rightComponents: [
-        <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={styles.newBtn}>
-          <Text style={styles.newBtnText}>+ New</Text>
+        <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={styles.newPill}>
+          <Text style={styles.newPillText}>+ New</Text>
         </TouchableOpacity>
       ] }} />
 
       <View style={styles.content}>
         {myLists.length === 0 ? (
-          <Text style={styles.emptyText}>You don’t have any lists yet</Text>
+          <View style={styles.emptyState}>
+            <Ionicons name="list" size={64} color={colors.COLOR_BLACK_LIGHT_6} />
+            <Text style={styles.emptyStateTitle}>No lists yet</Text>
+            <Text style={styles.emptyStateDescription}>Create a list to group accounts you follow and keep organized.</Text>
+            <TouchableOpacity style={styles.emptyStateButton} onPress={() => router.push('/lists/create')}>
+              <Text style={styles.emptyStateButtonText}>Create list</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           myLists.map((l) => (
             <ListCard key={String(l._id || l.id)} item={l} />
@@ -88,6 +95,15 @@ const styles = StyleSheet.create({
   newBtnText: { color: colors.primaryLight, fontWeight: '700' },
   content: { paddingHorizontal: 12, paddingTop: 10 },
   emptyText: { color: colors.COLOR_BLACK_LIGHT_4, fontSize: 15, padding: 18 },
+  // pill in header
+  newPill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.primaryColor, alignItems: 'center', justifyContent: 'center' },
+  newPillText: { color: colors.primaryLight, fontWeight: '700' },
+  // empty state
+  emptyState: { alignItems: 'center', paddingVertical: 36, paddingHorizontal: 20 },
+  emptyStateTitle: { fontSize: 20, fontWeight: '700', color: colors.COLOR_BLACK_LIGHT_1, marginTop: 12 },
+  emptyStateDescription: { fontSize: 14, color: colors.COLOR_BLACK_LIGHT_4, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  emptyStateButton: { marginTop: 18, backgroundColor: colors.primaryColor, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
+  emptyStateButtonText: { color: colors.primaryLight, fontWeight: '700' },
   
 });
 
