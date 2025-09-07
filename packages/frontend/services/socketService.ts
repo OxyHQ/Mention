@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
+import { FeedType } from '@mention/shared-types';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -174,16 +175,26 @@ class SocketService {
   private handleFeedUpdate(data: any) {
     const { type, posts, timestamp } = data;
     
+    // Type-safe feed type check
+    if (!type || !Array.isArray(posts)) {
+      console.warn('Invalid feed update data received');
+      return;
+    }
+    
     // Update the store with new feed data
     const store = usePostsStore.getState();
     
-    if (store.feeds[type]) {
+    // Type-safe access to feeds
+    const feedType = type as FeedType;
+    const currentFeed = store.feeds[feedType];
+    
+    if (currentFeed) {
       // Merge new posts with existing ones, avoiding duplicates
-      const existingIds = new Set(store.feeds[type].items.map(post => post.id));
+      const existingIds = new Set(currentFeed.items.map((post: any) => post.id));
       const newPosts = posts.filter((post: any) => !existingIds.has(post.id));
       
       if (newPosts.length > 0) {
-        store.addPostToFeed(newPosts[0], type);
+        store.addPostToFeed(newPosts[0], feedType);
       }
     }
   }

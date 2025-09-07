@@ -9,6 +9,14 @@ import LegendList from '@/components/LegendList';
 import { useTrendsStore } from '@/store/trendsStore';
 import { Loading } from "@/assets/icons/loading-icon";
 
+// Type definition for trend items
+interface TrendData {
+    id: string;
+    text: string;
+    score: number;
+    [key: string]: any;
+}
+
 export const Trends = ({
     hideTrends
 }: {
@@ -46,8 +54,8 @@ export const Trends = ({
         <View style={styles.container}>
             <LegendList
                 data={trends}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
+                keyExtractor={(item: TrendData) => item.id}
+                renderItem={({ item }: { item: TrendData }) => (
                     <TrendItem
                         topHeader="Hashtag  Trending"
                         mainTitle={item.text}

@@ -276,12 +276,6 @@ export default function RootLayout() {
               />
               {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
             </AppProviders>
-                      </ErrorBoundary>
-                    </MenuProvider>
-                  </BottomSheetProvider>
-                </I18nextProvider>
-              </OxyProvider>
-            </QueryClientProvider>
           ) : (
             <AppSplashScreen
               startFade={splashState.startFade}
