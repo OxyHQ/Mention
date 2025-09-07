@@ -58,7 +58,7 @@ interface FollowButtonProps {
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 
 const MentionProfile: React.FC = () => {
-    const { user: currentUser, oxyServices, showBottomSheet } = useOxy();
+    const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
     
     // Type-safe component references
     const TypedFollowButton = FollowButton as React.ComponentType<FollowButtonProps>;
