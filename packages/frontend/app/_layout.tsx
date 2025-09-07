@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Platform, View, StyleSheet, Animated, AppState, AppStateStatus } from 'react-native';
+import { Platform, View, StyleSheet, AppState, AppStateStatus } from 'react-native';
 import {
   SafeAreaProvider,
   initialWindowMetrics,
@@ -82,7 +82,7 @@ export default function RootLayout() {
       backgroundColor: colors.primaryLight,
     },
   }), [isScreenNotMobile]);
-  const layoutScrollY = useMemo(() => new Animated.Value(0), []);
+  // layout scroll is now handled inside LayoutScrollProvider
   const queryClient = useMemo(() => new QueryClient({
     defaultOptions: {
       queries: {
@@ -238,24 +238,18 @@ export default function RootLayout() {
                   <BottomSheetProvider>
                     <MenuProvider>
                       <ErrorBoundary>
-                        <LayoutScrollProvider scrollY={layoutScrollY}>
-                          <Animated.ScrollView
-                            contentContainerStyle={styles.container}
-                            style={{ flex: 1 }}
-                            onScroll={Animated.event(
-                              [{ nativeEvent: { contentOffset: { y: layoutScrollY } } }],
-                              { useNativeDriver: false }
-                            )}
-                            scrollEventThrottle={16}
-                          >
-                            <SideBar />
-                            <View style={styles.mainContent}>
-                              <View style={styles.mainContentWrapper}>
-                                <Slot />
-                              </View>
-                              <RightBar />
+                        <LayoutScrollProvider
+                          contentContainerStyle={styles.container}
+                          style={{ flex: 1 }}
+                          scrollEventThrottle={16}
+                        >
+                          <SideBar />
+                          <View style={styles.mainContent}>
+                            <View style={styles.mainContentWrapper}>
+                              <Slot />
                             </View>
-                          </Animated.ScrollView>
+                            <RightBar />
+                          </View>
                         </LayoutScrollProvider>
                         <StatusBar style="auto" />
                         <Toaster
