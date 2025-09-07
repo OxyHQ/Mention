@@ -112,8 +112,6 @@ const styles = StyleSheet.create({
         top: 0,
         backgroundColor: colors.primaryLight,
         zIndex: 100,
-        borderTopEndRadius: 35,
-        borderTopStartRadius: 35,
     } as ViewStyle,
     topRowText: {
         fontSize: 20,
