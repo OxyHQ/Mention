@@ -1,5 +1,6 @@
 import Notification from '../models/Notification';
 import { oxy } from '../../server';
+import { formatPushForNotification, sendPushToUser } from './push';
 
 export interface CreateNotificationData {
   recipientId: string;
@@ -42,7 +43,7 @@ export const createNotification = async (
     const notification = new Notification(data);
     await notification.save();
 
-    // Emit real-time notification if requested with actor profile data
+  // Emit real-time notification if requested with actor profile data
     if (emitEvent && (global as any).io) {
       let actor: any = null;
       try {
@@ -65,6 +66,14 @@ export const createNotification = async (
       };
       const notificationsNamespace = (global as any).io.of('/notifications');
       notificationsNamespace.to(`user:${data.recipientId}`).emit('notification', payload);
+    }
+
+    // Fire push notification (best-effort, non-blocking)
+    try {
+      const push = await formatPushForNotification(notification);
+      await sendPushToUser(data.recipientId, push);
+    } catch (e) {
+      // ignore push failures
     }
 
     console.log(`Notification created: ${data.type} from ${data.actorId} to ${data.recipientId}`);

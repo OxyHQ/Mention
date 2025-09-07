@@ -120,6 +120,26 @@ const configureNamespaceErrorHandling = (namespace: Namespace) => {
 const notificationsNamespace = io.of("/notifications");
 const postsNamespace = io.of("/posts");
 
+// --- Socket Auth Middleware ---
+// Lightweight auth: accept userId from client handshake and attach to socket
+[notificationsNamespace, postsNamespace, io].forEach((namespaceOrServer: any) => {
+  // For namespaces we have .use; for main io server we also have .use
+  if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
+    namespaceOrServer.use((socket: AuthenticatedSocket, next: (err?: any) => void) => {
+      try {
+        const auth = socket.handshake?.auth as any;
+        const userId = auth?.userId || auth?.id || auth?.user?.id;
+        if (userId && typeof userId === "string") {
+          socket.user = { id: userId };
+        }
+      } catch (_) {
+        // ignore – will be handled by connection handlers if user missing
+      }
+      return next();
+    });
+  }
+});
+
 // --- Socket Namespace Config ---
 
 // Configure notifications namespace

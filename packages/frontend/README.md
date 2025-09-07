@@ -152,6 +152,12 @@ This package is part of the Mention monorepo and integrates with:
 - Uses `@mention/shared-types` for type safety across packages
 - Integrates with `@oxyhq/services` for common functionality
 
+## Push Notifications (Expo + FCM)
+
+- `expo-notifications` is configured via plugin in `app.config.js` for native builds.
+- The app registers the device push token after the user authenticates and posts it to the backend endpoint `/api/notifications/push-token`.
+- Backend requires Firebase Admin credentials via env vars to send FCM pushes.
+
 ## Contributing
 
 Contributions are welcome! Please see the [main README](../../README.md) for the complete contributing guidelines.

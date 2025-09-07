@@ -27,6 +27,7 @@ import esES from '@/locales/es.json';
 import itIT from '@/locales/it.json';
 import { BottomBar } from '@/components/BottomBar';
 import { MenuProvider } from 'react-native-popup-menu';
+import RegisterPush from '@/components/RegisterPushToken';
 
 import AppSplashScreen from '@/components/AppSplashScreen';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -242,7 +243,7 @@ export default function RootLayout() {
         </I18nextProvider>
       </OxyProvider>
     </QueryClientProvider>
-  ), [queryClient, oxyServices, i18n]);
+  ), [queryClient, oxyServices]);
 
   // Main layout component for better organization
   const MainLayout = useCallback(() => (
@@ -269,6 +270,7 @@ export default function RootLayout() {
             <AppProviders>
               <MainLayout />
               <StatusBar style="auto" />
+              <RegisterPush />
               <Toaster
                 position="bottom-center"
                 swipeToDismissDirection="left"

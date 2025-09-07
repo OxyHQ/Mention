@@ -341,6 +341,21 @@ docker run -p 3000:3000 -e MONGODB_URI=your_mongodb_uri mention-api
 vercel --prod
 ```
 
+## Push Notifications (FCM)
+
+Set these env vars in `packages/backend/.env`:
+
+```
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_SERVICE_ACCOUNT_BASE64=base64-encoded-service-account-json
+```
+
+Routes:
+- POST /api/notifications/push-token { token, type, platform, deviceId?, locale? }
+- DELETE /api/notifications/push-token { token }
+
+When a notification is created, the server attempts to send an FCM push to registered tokens.
+
 ## Troubleshooting Guide
 
 ### Common Issues

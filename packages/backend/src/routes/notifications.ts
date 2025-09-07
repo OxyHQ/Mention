@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import Notification from "../models/Notification";
 import { Server } from 'socket.io';
 import { oxy } from '../../server';
+import PushToken from '../models/PushToken';
 
 // Extend Request type to include user property
 interface AuthRequest extends Request {
@@ -285,6 +286,40 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
     res.json({ message: "Notification deleted" });
   } catch (error: any) {
     res.status(500).json({ message: "Error deleting notification", error });
+  }
+});
+// --- Device Push Token Management ---
+// Register or update a device push token
+router.post('/push-token', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    const { token, platform, type, deviceId, locale } = req.body || {};
+    if (!token) return res.status(400).json({ message: 'Token required' });
+    const doc = await PushToken.findOneAndUpdate(
+      { token },
+      { userId, token, platform: platform || 'unknown', type: type || 'fcm', deviceId, locale, enabled: true, lastSeenAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ ok: true, id: doc._id });
+  } catch (e) {
+    console.error('Failed to register push token', e);
+    res.status(500).json({ message: 'Failed to register token' });
+  }
+});
+
+// Unregister a device push token
+router.delete('/push-token', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    const { token } = req.body || {};
+    if (!token) return res.status(400).json({ message: 'Token required' });
+    await PushToken.deleteOne({ userId, token });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Failed to unregister push token', e);
+    res.status(500).json({ message: 'Failed to unregister token' });
   }
 });
 

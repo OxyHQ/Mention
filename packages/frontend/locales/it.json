@@ -163,8 +163,7 @@
   "error.chat.send_failed": "Invio del messaggio fallito",
   "error.chat.load_failed": "Caricamento dei messaggi fallito",
   "error.data.fetch_failed": "Errore nel recupero dei dati: {{message}}",
-  "error.users.fetch_failed": "Errore nel recupero degli utenti: {{message}}"
-  ,
+  "error.users.fetch_failed": "Errore nel recupero degli utenti: {{message}}",
   "settings.title": "Impostazioni",
   "settings.signOut": "Disconnetti",
   "settings.signOutMessage": "Sei sicuro di voler disconnetterti?",
@@ -215,7 +214,6 @@
   "settings.data.clearCacheDesc": "Elimina i dati memorizzati nella cache per liberare spazio.",
   "settings.data.clearCacheMessage": "Questo eliminerà i file e i dati memorizzati nella cache.",
   "settings.data.clearCacheSuccess": "Cache cancellata.",
-
   "common.cancel": "Annulla",
   "common.clear": "Cancella",
   "common.success": "Successo",

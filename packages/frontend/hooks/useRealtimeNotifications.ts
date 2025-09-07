@@ -2,7 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import { io, Socket } from 'socket.io-client';
-import { OXY_BASE_URL } from '../config';
+import { API_URL_SOCKET } from '../config';
 
 let socket: Socket | null = null;
 
@@ -17,12 +17,13 @@ export const useRealtimeNotifications = () => {
     if (!isAuthenticated || !user?.id || socket?.connected) return;
 
     try {
-      // Connect to notifications namespace
-      socket = io(`${OXY_BASE_URL}/notifications`, {
+      // Connect to backend notifications namespace
+      socket = io(`${API_URL_SOCKET}/notifications`, {
         auth: {
           userId: user.id,
         },
         transports: ['websocket', 'polling'],
+        path: '/socket.io',
       });
 
       socket.on('connect', () => {

@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import i18next from 'i18next';
+import { t } from 'i18next';
 
 // Do not statically import 'expo-notifications' to avoid bundling it on web.
 // Use a cached dynamic import so the package is only loaded on native platforms.
@@ -24,8 +24,8 @@ export async function scheduleDemoNotification() {
   if (!Notifications) return;
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: i18next.t("notification.welcome.title"),
-      body: i18next.t("notification.welcome.body"),
+      title: t("notification.welcome.title"),
+      body: t("notification.welcome.body"),
       data: { screen: "notifications" },
     },
     trigger: null, // Shows notification immediately
@@ -52,6 +52,21 @@ export async function createNotification(
 export async function setupNotifications() {
   const Notifications = await getNotifications();
   if (!Notifications) return;
+  // Android channel setup for high-importance notifications
+  if (Platform.OS === 'android') {
+    try {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        showBadge: true,
+      });
+    } catch (e) {
+      console.warn('Failed to set Android notification channel:', e);
+    }
+  }
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -61,4 +76,27 @@ export async function setupNotifications() {
       shouldShowList: true,
     }),
   });
+}
+
+export type DevicePushToken = { token: string; type: 'fcm' | 'apns' | 'unknown' } | null;
+
+export async function getDevicePushToken(): Promise<DevicePushToken> {
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+  try {
+    // On Android managed builds with FCM configured, this returns the FCM token
+    const devicePushToken = await Notifications.getDevicePushTokenAsync();
+    // devicePushToken: { type: 'fcm' | 'apns', data: string }
+    if ((devicePushToken as any)?.data) {
+      return { token: (devicePushToken as any).data, type: (devicePushToken as any).type || (Platform.OS === 'ios' ? 'apns' : 'fcm') };
+    }
+    // Fallback shape on some SDK versions
+    const anyTok = devicePushToken as unknown as { token?: string; type?: string } | undefined;
+    if (anyTok?.token) {
+      return { token: anyTok.token, type: (anyTok.type as any) || (Platform.OS === 'ios' ? 'apns' : 'fcm') };
+    }
+  } catch (e) {
+    console.warn('Failed to get device push token:', e);
+  }
+  return null;
 }

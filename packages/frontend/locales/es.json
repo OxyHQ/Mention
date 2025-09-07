@@ -169,8 +169,7 @@
   "error.chat.send_failed": "Error al enviar el mensaje",
   "error.chat.load_failed": "Error al cargar los mensajes",
   "error.data.fetch_failed": "Error al obtener datos: {{message}}",
-  "error.users.fetch_failed": "Error al obtener usuarios: {{message}}"
-  ,
+  "error.users.fetch_failed": "Error al obtener usuarios: {{message}}",
   "settings.title": "Ajustes",
   "settings.signOut": "Cerrar sesión",
   "settings.signOutMessage": "¿Estás seguro de que quieres cerrar sesión?",
@@ -221,7 +220,6 @@
   "settings.data.clearCacheDesc": "Borra los datos en caché para liberar espacio.",
   "settings.data.clearCacheMessage": "Esto borrará los archivos y datos en caché.",
   "settings.data.clearCacheSuccess": "Caché borrada.",
-
   "common.cancel": "Cancelar",
   "common.clear": "Limpiar",
   "common.success": "Éxito",
