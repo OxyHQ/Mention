@@ -166,7 +166,11 @@ const PostDetailScreen: React.FC = () => {
     }
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+            style={[styles.container, { paddingTop: insets.top }]}
+        >
             <View style={styles.header}>
                 <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
@@ -189,7 +193,7 @@ const PostDetailScreen: React.FC = () => {
                         type={'replies' as any}
                         hideHeader={true}
                         style={styles.repliesFeed}
-                        contentContainerStyle={{ paddingBottom: 140 }}
+                        contentContainerStyle={{ paddingBottom: 16 }}
                         filters={{ postId: String(id), parentPostId: String(id) }}
                         reloadKey={repliesReloadKey}
                     />
@@ -197,8 +201,7 @@ const PostDetailScreen: React.FC = () => {
             </View>
 
             {/* Inline Reply Composer */}
-            <View
-                style={[styles.composerContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}
+            <View style={[styles.composerContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}
             >
                 <View style={styles.composer}>
                     <View style={styles.composerAvatarWrap}>
@@ -233,7 +236,7 @@ const PostDetailScreen: React.FC = () => {
                     </Text>
                 </View>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     );
 };
 
@@ -266,6 +269,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     postContainer: {
+        paddingBottom: 8,
     },
     loadingContainer: {
         flex: 1,
@@ -335,10 +339,7 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
     composerContainer: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
+        // Keep composer in normal layout so KeyboardAvoidingView can adjust it
         borderTopWidth: 1,
         borderTopColor: colors.COLOR_BLACK_LIGHT_6,
         backgroundColor: colors.COLOR_BLACK_LIGHT_9,

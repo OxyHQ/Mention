@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { SafeAreaView, StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { shadowStyle } from '@/utils/platformStyles';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
@@ -35,7 +36,7 @@ const ExploreScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <StatusBar style="dark" />
 
       {/* Header */}

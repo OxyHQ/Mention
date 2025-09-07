@@ -59,8 +59,8 @@ export const BottomBar = () => {
                     <Home size={28} color={colors.COLOR_BLACK} />
                 )}
             </Pressable>
-            <Pressable onPress={() => handlePress('/search')} style={[styles.tab, pathname === '/search' && styles.active]}>
-                {pathname === '/search' ? (
+            <Pressable onPress={() => handlePress('/explore')} style={[styles.tab, pathname === '/explore' && styles.active]}>
+                {pathname === '/explore' ? (
                     <SearchActive size={28} color={colors.primaryColor} />
                 ) : (
                     <Search size={28} color={colors.COLOR_BLACK} />
