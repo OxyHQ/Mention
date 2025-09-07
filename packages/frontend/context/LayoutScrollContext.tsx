@@ -7,10 +7,25 @@ type LayoutScrollContextValue = {
 
 const LayoutScrollContext = createContext<LayoutScrollContextValue | null>(null);
 
-export const LayoutScrollProvider = LayoutScrollContext.Provider;
+interface LayoutScrollProviderProps {
+    scrollY: Animated.Value;
+    children: React.ReactNode;
+}
 
-export function useLayoutScroll(): LayoutScrollContextValue | null {
-    return useContext(LayoutScrollContext);
+export function LayoutScrollProvider({ scrollY, children }: LayoutScrollProviderProps) {
+    return (
+        <LayoutScrollContext.Provider value={{ scrollY }}>
+            {children}
+        </LayoutScrollContext.Provider>
+    );
+}
+
+export function useLayoutScroll(): LayoutScrollContextValue {
+    const ctx = useContext(LayoutScrollContext);
+    if (!ctx) {
+        throw new Error('useLayoutScroll must be used within a LayoutScrollProvider');
+    }
+    return ctx;
 }
 
 export default LayoutScrollContext;

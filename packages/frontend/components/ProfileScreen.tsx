@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState, useEffect } from 'react';
-import { BlurView } from 'expo-blur';
+// BlurView removed — not used after switching to image overlay approach
 import {
     Animated,
     ImageBackground,
@@ -17,6 +17,7 @@ import {
 import Avatar from '@/components/Avatar';
 import UserName from './UserName';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useOxy, FollowButton } from '@oxyhq/services';
 import { Feed } from './Feed/index';
 import { colors } from '../styles/colors';
@@ -27,14 +28,15 @@ const HEADER_HEIGHT_EXPANDED = 120;
 const HEADER_HEIGHT_NARROWED = 50;
 
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
-const AnimatedBlurView = Animated.createAnimatedComponent(BlurView as any);
 
 
 
 const MentionProfile: React.FC = () => {
     const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
-    // FollowButton from services may be untyped in this project; create an any alias for JSX usage
-    const FollowButtonAny: any = (FollowButton as any);
+    // FollowButton from services may be untyped in this project; create a permissive React component type
+    // @ts-ignore: FollowButton may be untyped in @oxyhq/services
+    const FollowButtonAny = (FollowButton as unknown) as React.ComponentType<any>;
+    const UserNameAny = UserName as unknown as React.ComponentType<any>;
     let { username } = useLocalSearchParams<{ username: string }>();
     if (username && username.startsWith('@')) {
         username = username.slice(1);
@@ -44,7 +46,9 @@ const MentionProfile: React.FC = () => {
     const { byUserId, loadForUser } = useAppearanceStore();
     const [profileData, setProfileData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const scrollY = useRef(new Animated.Value(0)).current;
+    const layoutScroll = useLayoutScroll();
+    const localScrollRef = useRef(new Animated.Value(0));
+    const scrollY = layoutScroll?.scrollY ?? localScrollRef.current;
     const insets = useSafeAreaInsets();
 
     // Fetch profile data
@@ -73,10 +77,10 @@ const MentionProfile: React.FC = () => {
     const {
         followerCount,
         followingCount,
-        isLoadingCounts,
-        fetchUserCounts,
-        setFollowerCount,
-        setFollowingCount,
+        isLoadingCounts: _isLoadingCounts,
+        fetchUserCounts: _fetchUserCounts,
+        setFollowerCount: _setFollowerCount,
+        setFollowingCount: _setFollowingCount,
     } = (useFollow as any)(profileData?.id);
 
     const avatarUri = profileData?.avatar ? oxyServices.getFileDownloadUrl(profileData.avatar as string, 'thumb') : undefined;
@@ -243,7 +247,7 @@ const MentionProfile: React.FC = () => {
                             },
                         ]}
                     >
-                        <UserName
+                        <UserNameAny
                             name={profileData?.name?.full || profileData?.username}
                             verified={profileData?.verified}
                             style={{ name: styles.headerTitle }}
@@ -285,7 +289,10 @@ const MentionProfile: React.FC = () => {
                                     // @ts-ignore: web-only styles
                                     WebkitFilter: 'blur(8px)',
                                     // @ts-ignore: web-only styles
-                                    filter: 'blur(8px)'
+                                    filter: 'blur(8px)',
+                                    width: '110%',
+                                    height: '110%',
+                                    transform: [{ scale: 1.05 }],
                                 } as any) : undefined}
                                 style={[
                                     StyleSheet.absoluteFillObject,
@@ -359,7 +366,7 @@ const MentionProfile: React.FC = () => {
                     <Animated.ScrollView
                         showsVerticalScrollIndicator={false}
                         onScroll={Animated.event(
-                            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                            [{ nativeEvent: { contentOffset: { y: layoutScroll?.scrollY ?? localScrollRef.current } } }],
                             { useNativeDriver: true }
                         )}
                         scrollEventThrottle={16}
@@ -425,7 +432,7 @@ const MentionProfile: React.FC = () => {
                             </View>
 
                             <View>
-                                <UserName
+                                <UserNameAny
                                     name={profileData?.name?.full || profileData?.username}
                                     handle={profileData?.username}
                                     verified={profileData?.verified}
@@ -594,8 +601,8 @@ const styles = StyleSheet.create({
         zIndex: 2,
         position: 'absolute',
         right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     headerIconButton: {
         width: 36,
@@ -626,12 +633,12 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 0,
         right: 0,
+        overflow: 'hidden',
     },
     scrollView: {
         zIndex: 3,
     },
     profileContainer: {
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     profileContent: {
         paddingHorizontal: 16,
@@ -740,7 +747,6 @@ const styles = StyleSheet.create({
         color: colors.COLOR_BLACK_LIGHT_4,
     },
     tabBarContainer: {
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
         borderBottomWidth: 1,
         borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
     },

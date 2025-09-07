@@ -238,7 +238,7 @@ export default function RootLayout() {
                   <BottomSheetProvider>
                     <MenuProvider>
                       <ErrorBoundary>
-                        <LayoutScrollProvider value={{ scrollY: layoutScrollY }}>
+                        <LayoutScrollProvider scrollY={layoutScrollY}>
                           <Animated.ScrollView
                             contentContainerStyle={styles.container}
                             style={{ flex: 1 }}
