@@ -22,7 +22,7 @@ import { Feed } from './Feed/index';
 import { colors } from '../styles/colors';
 import { useAppearanceStore } from '@/store/appearanceStore';
 
-const HEADER_HEIGHT_EXPANDED = 80;
+const HEADER_HEIGHT_EXPANDED = 120;
 // Keep the narrowed header height consistent across native and web
 const HEADER_HEIGHT_NARROWED = 50;
 
@@ -193,7 +193,7 @@ const MentionProfile: React.FC = () => {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             <StatusBar barStyle="light-content" />
 
             {loading ? (
@@ -364,7 +364,7 @@ const MentionProfile: React.FC = () => {
                         )}
                         scrollEventThrottle={16}
                         style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
-                        contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED }}
+                        contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED - insets.top }}
                         stickyHeaderIndices={[1]}
                     >
                         {/* Profile info */}
@@ -564,7 +564,7 @@ const MentionProfile: React.FC = () => {
 
                     {/* FAB */}
                     <TouchableOpacity
-                        style={styles.fab}
+                        style={[styles.fab, { bottom: 20 + insets.bottom }]}
                         onPress={() => router.push('/compose')}
                     >
                         <Ionicons name="add" size={24} color="#FFF" />
@@ -582,11 +582,11 @@ const styles = StyleSheet.create({
     backButton: {
         zIndex: 2,
         position: 'absolute',
-        left: 16,
+        left: 12,
         backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        height: 32,
-        width: 32,
-        borderRadius: 16,
+        height: 36,
+        width: 36,
+        borderRadius: 18,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -594,17 +594,17 @@ const styles = StyleSheet.create({
         zIndex: 2,
         position: 'absolute',
         right: 16,
-        flexDirection: 'row',
-        gap: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
     },
     headerIconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         backgroundColor: 'rgba(0, 0, 0, 0.4)',
         alignItems: 'center',
         justifyContent: 'center',
-        marginHorizontal: 2,
+        marginHorizontal: 4,
     },
     headerNameOverlay: {
         zIndex: 2,
