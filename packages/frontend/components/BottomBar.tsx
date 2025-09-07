@@ -1,4 +1,4 @@
-import { StyleSheet, View, Pressable, Text, ViewStyle, Platform } from 'react-native';
+import { StyleSheet, View, Pressable, Text, ViewStyle, Platform, Vibration } from 'react-native';
 import { Home, HomeActive, Search, SearchActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname } from 'expo-router';
 import React from 'react';
@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export const BottomBar = () => {
     const router = useRouter();
     const pathname = usePathname();
-    const { showBottomSheet, user, isAuthenticated } = useOxy();
+    const { showBottomSheet, user, isAuthenticated, oxyServices } = useOxy();
     const insets = useSafeAreaInsets();
 
     const handlePress = (route: string) => {
@@ -89,10 +89,11 @@ export const BottomBar = () => {
                     }
                 }}
                 onLongPress={() => {
+                    Vibration.vibrate(5);
                     showBottomSheet?.('AccountCenter');
                 }}
             >
-                <Avatar />
+                <Avatar size={35} source={{ uri: user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined }} />
             </Pressable>
         </View>
     );
