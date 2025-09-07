@@ -24,11 +24,18 @@ import { Feed } from './Feed/index';
 import { colors } from '../styles/colors';
 import { useAppearanceStore } from '@/store/appearanceStore';
 
-// Constants for better maintainability
+// Constants for better maintainability and responsive design
 const HEADER_HEIGHT_EXPANDED = 120;
 const HEADER_HEIGHT_NARROWED = 50;
 const FAB_POSITION_BOTTOM = 20;
 const FAB_POSITION_RIGHT = 20;
+
+// Responsive breakpoints following industry standards
+const BREAKPOINTS = {
+    mobile: 768,
+    tablet: 1024,
+    desktop: 1200,
+} as const;
 
 // Type definitions for better type safety
 interface ProfileData {
@@ -73,16 +80,25 @@ const MentionProfile: React.FC = () => {
     const scrollY = layoutScroll.scrollY;
     const insets = useSafeAreaInsets();
     const { width } = useWindowDimensions();
-    const isWideWeb = Platform.OS === 'web' && width >= 500;
+    const isWideWeb = Platform.OS === 'web' && width >= BREAKPOINTS.mobile;
+    const isTablet = width >= BREAKPOINTS.tablet;
+    const isDesktop = width >= BREAKPOINTS.desktop;
 
-    // Improved FAB positioning with better type safety and readability
+    // Responsive spacing based on screen size
+    const responsiveSpacing = useMemo(() => ({
+        horizontal: isDesktop ? 32 : isTablet ? 24 : 16,
+        vertical: isDesktop ? 24 : isTablet ? 20 : 16,
+        headerPadding: isWideWeb ? 24 : 16,
+    }), [isDesktop, isTablet, isWideWeb]);
+
+    // Improved FAB positioning with better responsive design
     const fabPositionStyle = useMemo(() => ({
         ...(isWideWeb 
             ? {
                 // Sticky layout for wide web viewports
                 position: 'sticky' as const,
-                bottom: 24,
-                right: 24,
+                bottom: responsiveSpacing.vertical,
+                right: responsiveSpacing.horizontal,
                 marginLeft: 'auto',
                 marginRight: FAB_POSITION_RIGHT,
                 marginBottom: FAB_POSITION_BOTTOM,
@@ -94,7 +110,7 @@ const MentionProfile: React.FC = () => {
                 bottom: FAB_POSITION_BOTTOM,
             }
         )
-    }), [isWideWeb]);
+    }), [isWideWeb, responsiveSpacing]);
 
     // Fetch profile data
     useEffect(() => {
