@@ -46,8 +46,15 @@ export default function CustomFeedTimelineScreen() {
         <View style={styles.center}><Text>Loading…</Text></View>
       ) : (
         <Feed
-          type="mixed" as any
-          filters={{ authors: authorsCsv, keywords: (feed.keywords || []).join(','), includeReplies: feed.includeReplies, includeReposts: feed.includeReposts, includeMedia: feed.includeMedia, language: feed.language }}
+          type="mixed"
+          filters={{ 
+            authors: authorsCsv, 
+            keywords: (feed.keywords || []).join(','), 
+            includeReplies: feed.includeReplies, 
+            includeReposts: feed.includeReposts, 
+            includeMedia: feed.includeMedia, 
+            language: feed.language 
+          }}
           recycleItems={true}
           maintainVisibleContentPosition={true}
           listHeaderComponent={(

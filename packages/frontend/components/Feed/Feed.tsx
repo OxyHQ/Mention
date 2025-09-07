@@ -17,26 +17,35 @@ import { colors } from '../../styles/colors';
 import { useOxy } from '@oxyhq/services';
 import { feedService } from '../../services/feedService';
 
+// Improved interface with better organization and type safety
 interface FeedProps {
+    // Core props
     type: FeedType;
+    userId?: string;
+    
+    // UI Configuration
     showComposeButton?: boolean;
     onComposePress?: () => void;
-    userId?: string;
+    hideHeader?: boolean;
+    hideRefreshControl?: boolean;
+    scrollEnabled?: boolean;
+    
+    // Data configuration
+    showOnlySaved?: boolean;
+    filters?: Record<string, any>;
+    reloadKey?: string | number;
+    
+    // Auto-refresh (currently unused - keeping for future)
     autoRefresh?: boolean;
     refreshInterval?: number;
     onSavePress?: (postId: string) => void;
-    showOnlySaved?: boolean;
-    // New configuration options for better reusability
-    hideHeader?: boolean;
-    hideRefreshControl?: boolean;
+    
+    // Style props
     style?: any;
     contentContainerStyle?: any;
-    scrollEnabled?: boolean;
-    filters?: Record<string, any>;
-    reloadKey?: string | number;
-    // Optional: external header for embedding screens (e.g., Profile)
     listHeaderComponent?: React.ReactElement | null;
-    // Legend List specific options (optional)
+    
+    // Legend List specific options with better defaults
     recycleItems?: boolean;
     maintainScrollAtEnd?: boolean;
     maintainScrollAtEndThreshold?: number;
@@ -44,30 +53,47 @@ interface FeedProps {
     maintainVisibleContentPosition?: boolean;
 }
 
-const Feed = ({
-    type,
-    showComposeButton = false,
-    onComposePress,
-    userId,
-    autoRefresh: _autoRefresh = false,
-    refreshInterval: _refreshInterval = 30000,
-    onSavePress: _onSavePress,
-    showOnlySaved = false,
-    hideHeader = false,
-    hideRefreshControl = false,
-    style,
-    contentContainerStyle,
-    scrollEnabled = true,
-    // Legend List props (pass-through) with sensible defaults
-    recycleItems = true,
-    maintainScrollAtEnd = false,
-    maintainScrollAtEndThreshold = 0.1,
-    alignItemsAtEnd = false,
-    maintainVisibleContentPosition = true,
-    filters,
-    reloadKey,
-    listHeaderComponent,
-}: FeedProps) => {
+// Default props for better maintainability
+const DEFAULT_FEED_PROPS = {
+    showComposeButton: false,
+    hideHeader: false,
+    hideRefreshControl: false,
+    scrollEnabled: true,
+    showOnlySaved: false,
+    autoRefresh: false,
+    refreshInterval: 30000,
+    recycleItems: true,
+    maintainScrollAtEnd: false,
+    maintainScrollAtEndThreshold: 0.1,
+    alignItemsAtEnd: false,
+    maintainVisibleContentPosition: true,
+} as const;
+
+const Feed = (props: FeedProps) => {
+    // Merge with defaults for cleaner code
+    const {
+        type,
+        userId,
+        showComposeButton,
+        onComposePress,
+        hideHeader,
+        hideRefreshControl,
+        scrollEnabled,
+        showOnlySaved,
+        filters,
+        reloadKey,
+        autoRefresh: _autoRefresh, // Unused but kept for API compatibility
+        refreshInterval: _refreshInterval, // Unused but kept for API compatibility
+        onSavePress: _onSavePress, // Unused but kept for API compatibility
+        style,
+        contentContainerStyle,
+        listHeaderComponent,
+        recycleItems,
+        maintainScrollAtEnd,
+        maintainScrollAtEndThreshold,
+        alignItemsAtEnd,
+        maintainVisibleContentPosition,
+    } = { ...DEFAULT_FEED_PROPS, ...props };
     const flatListRef = useRef<any>(null);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -194,23 +220,48 @@ const Feed = ({
             if (useScoped) {
                 if (!localHasMore || localLoading) return;
                 setLocalLoading(true);
-                const resp = await feedService.getFeed({ type, limit: 20, cursor: localNextCursor, filters } as any);
-                let items = resp.items || []; // Use items directly since backend returns proper schema
+                setLocalError(null);
+                
+                const resp = await feedService.getFeed({ 
+                    type, 
+                    limit: 20, 
+                    cursor: localNextCursor, 
+                    filters 
+                });
+                
+                let items = resp.items || [];
                 const pid = (filters || {}).postId || (filters || {}).parentPostId;
                 if (pid) {
-                    items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
+                    items = items.filter((item: any) => 
+                        String(item.postId || item.parentPostId) === String(pid)
+                    );
                 }
+                
                 setLocalItems(prev => [...prev, ...items]);
                 setLocalHasMore(!!resp.hasMore);
                 setLocalNextCursor(resp.nextCursor);
-                setLocalLoading(false);
             } else if (userId) {
-                await fetchUserFeed(userId, { type, limit: 20, cursor: feedData?.nextCursor, filters });
+                await fetchUserFeed(userId, { 
+                    type, 
+                    limit: 20, 
+                    cursor: feedData?.nextCursor, 
+                    filters 
+                });
             } else {
                 await loadMoreFeed(type, filters);
             }
         } catch (error) {
             console.error('Error loading more feed:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load more posts';
+            
+            if (useScoped) {
+                setLocalError(errorMessage);
+            }
+            // Global store errors are handled by the store itself
+        } finally {
+            if (useScoped) {
+                setLocalLoading(false);
+            }
         }
     }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, JSON.stringify(filters), useScoped, localHasMore, localLoading, localNextCursor]);
 
@@ -392,7 +443,7 @@ export default Feed;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+        backgroundColor: colors.primaryLight,
     },
     list: {
         flex: 1,
@@ -404,64 +455,77 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 60,
-        paddingHorizontal: 20,
+        paddingVertical: 80,
+        paddingHorizontal: 32,
     },
     emptyStateText: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: colors.COLOR_BLACK_LIGHT_1,
-        marginTop: 16,
+        fontSize: 20,
+        fontWeight: '700',
+        color: colors.COLOR_BLACK_LIGHT_2,
+        marginTop: 24,
         textAlign: 'center',
+        letterSpacing: -0.5,
     },
     emptyStateSubtext: {
-        fontSize: 14,
+        fontSize: 16,
         color: colors.COLOR_BLACK_LIGHT_4,
-        marginTop: 8,
+        marginTop: 12,
         textAlign: 'center',
-        lineHeight: 20,
+        lineHeight: 24,
+        maxWidth: 280,
     },
     errorText: {
         fontSize: 16,
         color: colors.busy,
-        marginBottom: 16,
+        marginBottom: 20,
         textAlign: 'center',
+        fontWeight: '500',
     },
     retryButton: {
         backgroundColor: colors.primaryColor,
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 20,
+        paddingHorizontal: 28,
+        paddingVertical: 14,
+        borderRadius: 24,
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
     retryButtonText: {
         color: colors.primaryLight,
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: '600',
     },
     footer: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 20,
+        paddingVertical: 24,
+        gap: 8,
     },
     footerText: {
         fontSize: 14,
         color: colors.COLOR_BLACK_LIGHT_4,
-        marginLeft: 8,
+        fontWeight: '500',
     },
     composeButton: {
-        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-        borderWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
-        borderRadius: 20,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        backgroundColor: colors.primaryLight,
         marginHorizontal: 16,
         marginVertical: 12,
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
     },
     composeButtonText: {
         fontSize: 16,
         color: colors.COLOR_BLACK_LIGHT_4,
-        textAlign: 'center',
+        fontWeight: '400',
     },
 });

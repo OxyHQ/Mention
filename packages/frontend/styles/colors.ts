@@ -9,9 +9,12 @@ function lightenColor(hex: string, percent: number): string {
 
 // Updated primary color for better contrast and modern feel
 const primaryColor = '#005c67';
+const secondaryColor = '#d169e5'; // Oxy brand color
 
 export const colors = {
   primaryColor,
+  secondaryColor,
+  secondaryLight: '#f3e8ff',
   primaryLight: '#ffffff',
   primaryLight_1: '#DDF3F5',
   primaryLight_2: '#E5F0FF',
