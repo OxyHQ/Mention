@@ -35,18 +35,13 @@ const PostItem: React.FC<PostItemProps> = ({
     const isReposted = post?.isReposted ?? false;
     const isSaved = post?.isSaved ?? false;
 
-    // Handle reposts - if this is a repost, we need to get the original post
+    // Handle reposts and quotes - if this is a repost or quote, we need to get the original/quoted post
     const [originalPost, setOriginalPost] = React.useState<any>(null);
-    const [isLoadingOriginal, setIsLoadingOriginal] = React.useState(false);
-
-    // Handle replies - if this is a reply, we might want to show the parent post
-    const [parentPost, setParentPost] = React.useState<any>(null);
-    const [isLoadingParent, setIsLoadingParent] = React.useState(false);
 
     const findFromStore = useCallback((id: string) => {
         try {
             const { feeds } = usePostsStore.getState();
-            const types: Array<'posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes'> = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
+            const types: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
             for (const t of types) {
                 const match = feeds[t]?.items?.find((p: any) => p.id === id);
                 if (match) return match;
@@ -56,51 +51,28 @@ const PostItem: React.FC<PostItemProps> = ({
     }, []);
 
     React.useEffect(() => {
-
         const loadOriginalPost = async () => {
-            if (!isNested && 'originalPostId' in post && post.originalPostId) {
+            const postData = post as any;
+            const targetId = postData.originalPostId || postData.repostOf || postData.quoteOf;
+            
+            if (!isNested && targetId) {
                 // Try store first for fully hydrated user data
-                const fromStore = findFromStore(post.originalPostId);
+                const fromStore = findFromStore(targetId);
                 if (fromStore) {
                     setOriginalPost(fromStore);
                     return;
                 }
-                setIsLoadingOriginal(true);
                 try {
-                    const original = await getPostById(post.originalPostId);
+                    const original = await getPostById(targetId);
                     setOriginalPost(original);
                 } catch (error) {
-                    console.error('Error loading original post:', error);
-                } finally {
-                    setIsLoadingOriginal(false);
-                }
-            }
-        };
-
-        const loadParentPost = async () => {
-            // Only load parent post for replies when we're at the top level
-            if ('postId' in post && post.postId && !isNested) {
-                // Try store first for fully hydrated user data
-                const fromStore = findFromStore(post.postId);
-                if (fromStore) {
-                    setParentPost(fromStore);
-                    return;
-                }
-                setIsLoadingParent(true);
-                try {
-                    const parent = await getPostById(post.postId);
-                    setParentPost(parent);
-                } catch (error) {
-                    console.error('Error loading parent post:', error);
-                } finally {
-                    setIsLoadingParent(false);
+                    console.error('Error loading original/quoted post:', error);
                 }
             }
         };
 
         loadOriginalPost();
-        loadParentPost();
-    }, [post, getPostById, isNested]);
+    }, [post, getPostById, isNested, findFromStore]);
 
 
     const handleLike = useCallback(async () => {
@@ -219,8 +191,8 @@ const PostItem: React.FC<PostItemProps> = ({
             <PostHeader
                 user={post.user}
                 date={post.date || 'Just now'}
-                showRepost={Boolean((post as any).originalPostId) && !isNested}
-                showReply={Boolean((post as any).postId) && !isNested}
+                showRepost={Boolean((post as any).originalPostId || (post as any).repostOf || (post as any).quoteOf) && !isNested}
+                showReply={false}
                 avatarUri={avatarUri}
                 onPressUser={goToUser}
                 onPressAvatar={goToUser}
@@ -256,10 +228,10 @@ const PostItem: React.FC<PostItemProps> = ({
                 />
             )}
 
-            {/* Middle: horizontal scroller with media and nested post (repost/parent) */}
+            {/* Middle: horizontal scroller with media and nested post (repost/quote only, not replies) */}
             <PostMiddle
                 media={(post as any).content?.media || []}
-                nestedPost={(originalPost || parentPost) ?? null}
+                nestedPost={originalPost ?? null}
                 leftOffset={BOTTOM_LEFT_PAD}
                 pollData={(post as any).content?.poll}
                 pollId={(() => {

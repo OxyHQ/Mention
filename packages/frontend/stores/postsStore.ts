@@ -4,7 +4,8 @@ import {
   FeedRequest, 
   CreateReplyRequest, 
   CreateRepostRequest, 
-  CreatePostRequest, 
+  CreatePostRequest,
+  CreateThreadRequest,
   LikeRequest, 
   UnlikeRequest,
   FeedType,
@@ -86,7 +87,8 @@ interface FeedState {
   loadMoreFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
   
   // Post actions
-  createPost: (request: CreatePostRequest) => Promise<void>;
+  createPost: (request: CreatePostRequest) => Promise<FeedItem | null>;
+  createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
   createReply: (request: CreateReplyRequest) => Promise<void>;
   createRepost: (request: CreateRepostRequest) => Promise<void>;
   repostPost: (request: { postId: string }) => Promise<void>;
@@ -507,9 +509,69 @@ export const usePostsStore = create<FeedState>()(
             isLoading: false,
             lastRefresh: Date.now()
           }));
+          
+          return newPost;
         }
+        return null;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to create post';
+        set({ isLoading: false, error: errorMessage });
+        throw error;
+      }
+    },
+
+    // Create thread
+    createThread: async (request: CreateThreadRequest) => {
+      set({ isLoading: true, error: null });
+
+      try {
+        const response = await feedService.createThread(request);
+        
+        if (response.success && response.posts) {
+          const newPosts: FeedItem[] = response.posts.map((post: any) => ({
+            id: post.id,
+            user: post.user,
+            content: post.content || { text: '' },
+            date: new Date().toISOString(),
+            engagement: { replies: 0, reposts: 0, likes: 0 },
+            media: post.content?.images || [],
+            type: post.type,
+            visibility: post.visibility,
+            hashtags: post.hashtags || [],
+            mentions: post.mentions || [],
+            parentPostId: post.parentPostId,
+            threadId: post.threadId,
+            isLocalNew: true
+          }));
+
+          set(state => ({
+            feeds: {
+              ...state.feeds,
+              posts: {
+                ...state.feeds.posts,
+                items: [...newPosts, ...state.feeds.posts.items],
+                totalCount: state.feeds.posts.totalCount + newPosts.length
+              },
+              mixed: {
+                ...state.feeds.mixed,
+                items: [...newPosts, ...state.feeds.mixed.items],
+                totalCount: state.feeds.mixed.totalCount + newPosts.length
+              },
+              for_you: {
+                ...state.feeds.for_you,
+                items: [...newPosts, ...(state.feeds.for_you?.items || [])],
+                totalCount: (state.feeds.for_you?.totalCount || 0) + newPosts.length
+              }
+            },
+            isLoading: false,
+            lastRefresh: Date.now()
+          }));
+          
+          return newPosts;
+        }
+        return [];
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create thread';
         set({ isLoading: false, error: errorMessage });
         throw error;
       }

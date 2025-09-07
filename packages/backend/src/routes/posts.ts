@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   createPost,
+  createThread,
   getPosts,
   getPostById,
   updatePost,
@@ -33,6 +34,7 @@ router.get('/location-stats', getLocationStats);
 
 // Protected routes - specific routes first (must be before parameterized routes)
 router.post('/', createPost);
+router.post('/thread', createThread);
 router.get('/drafts', getDrafts);
 router.get('/scheduled', getScheduledPosts);
 router.get('/saved', getSavedPosts);

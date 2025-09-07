@@ -97,6 +97,17 @@ export interface CreatePostRequest {
   hashtags?: string[];
 }
 
+export interface CreateThreadRequest {
+  mode: 'thread' | 'beast'; // thread = linked posts, beast = separate posts
+  posts: {
+    content: PostContent;
+    visibility?: PostVisibility;
+    tags?: string[];
+    mentions?: string[];
+    hashtags?: string[];
+  }[];
+}
+
 export interface UpdatePostRequest {
   content?: PostContent;
   visibility?: PostVisibility;

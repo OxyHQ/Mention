@@ -4,6 +4,7 @@ import {
   CreateReplyRequest, 
   CreateRepostRequest,
   CreatePostRequest,
+  CreateThreadRequest,
   LikeRequest,
   UnlikeRequest,
   FeedType
@@ -122,11 +123,28 @@ class FeedService {
         threadId: request.threadId
       };
       
+      console.log('📤 Sending post request to backend:', JSON.stringify(backendRequest, null, 2));
       const response = await authenticatedClient.post('/posts', backendRequest);
+      console.log('📥 Backend response:', response.data);
       return { success: true, post: response.data };
     } catch (error) {
       console.error('Error creating post:', error);
       throw new Error('Failed to create post');
+    }
+  }
+
+  /**
+   * Create a thread of posts
+   */
+  async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: any[] }> {
+    try {
+      console.log('📤 Sending thread request to backend:', JSON.stringify(request, null, 2));
+      const response = await authenticatedClient.post('/posts/thread', request);
+      console.log('📥 Backend thread response:', response.data);
+      return { success: true, posts: response.data };
+    } catch (error) {
+      console.error('Error creating thread:', error);
+      throw new Error('Failed to create thread');
     }
   }
 

@@ -32,6 +32,7 @@ export interface Post {
   isLiked?: boolean;
   isReposted?: boolean;
   isSaved?: boolean;
+  isThread?: boolean;
 }
 
 export interface Reply {
@@ -44,6 +45,7 @@ export interface Reply {
   isLiked?: boolean;
   isReposted?: boolean;
   isSaved?: boolean;
+  isThread?: boolean;
 }
 
 export interface FeedRepost {
@@ -55,6 +57,7 @@ export interface FeedRepost {
   isLiked?: boolean;
   isReposted?: boolean;
   isSaved?: boolean;
+  isThread?: boolean;
 }
 
 // Feed types and actions

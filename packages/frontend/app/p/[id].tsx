@@ -31,6 +31,7 @@ const PostDetailScreen: React.FC = () => {
     const { user } = useOxy();
 
     const [post, setPost] = useState<UIPost | Reply | Repost | null>(null);
+    const [parentPost, setParentPost] = useState<UIPost | Reply | Repost | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [content, setContent] = useState('');
@@ -85,6 +86,18 @@ const PostDetailScreen: React.FC = () => {
                     const response = await getPostById(id);
                     setPost(response);
                 }
+
+                // Fetch parent post if this is a reply
+                const currentPost = foundPost || await getPostById(id);
+                if (currentPost && (currentPost as any).parentPostId) {
+                    try {
+                        const parentResponse = await getPostById((currentPost as any).parentPostId);
+                        setParentPost(parentResponse);
+                    } catch (parentErr) {
+                        console.error('Error fetching parent post:', parentErr);
+                        // Continue without parent post
+                    }
+                }
             } catch (err) {
                 console.error('Error fetching post:', err);
                 setError('Failed to load post');
@@ -114,7 +127,7 @@ const PostDetailScreen: React.FC = () => {
             Alert.alert('Success', 'Your reply has been posted!');
             // Trigger filtered replies list reload
             setRepliesReloadKey(k => k + 1);
-        } catch (e) {
+        } catch {
             Alert.alert('Error', 'Failed to post reply. Please try again.');
         } finally {
             setIsSubmitting(false);
@@ -175,15 +188,29 @@ const PostDetailScreen: React.FC = () => {
                 <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Post</Text>
+                <Text style={styles.headerTitle}>{post?.isThread ? 'Thread' : 'Post'}</Text>
             </View>
 
             <View style={{ flex: 1 }}>
+                {/* Show parent post on top if this is a reply */}
+                {parentPost && (post as any)?.parentPostId && (
+                    <View style={styles.parentPostContainer}>
+                        <Text style={styles.parentPostLabel}>Replying to</Text>
+                        <PostItem
+                            post={parentPost}
+                            onReply={() => {
+                                try { textInputRef.current?.focus(); } catch { /* ignore focus errors */ }
+                            }}
+                        />
+                        <View style={styles.replyConnector} />
+                    </View>
+                )}
+                
                 <View style={styles.postContainer}>
                     <PostItem
                         post={post}
                         onReply={() => {
-                            try { textInputRef.current?.focus(); } catch { }
+                            try { textInputRef.current?.focus(); } catch { /* ignore focus errors */ }
                         }}
                     />
                 </View>
@@ -402,6 +429,26 @@ const styles = StyleSheet.create({
     characterCountWarning: {
         color: '#E0245E',
         fontWeight: '600',
+    },
+    parentPostContainer: {
+        borderBottomWidth: 1,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        paddingBottom: 12,
+        marginBottom: 8,
+    },
+    parentPostLabel: {
+        fontSize: 14,
+        color: colors.COLOR_BLACK_LIGHT_4,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        fontWeight: '500',
+    },
+    replyConnector: {
+        width: 2,
+        height: 12,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+        marginLeft: 32,
+        marginTop: 4,
     },
 });
 

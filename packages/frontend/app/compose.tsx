@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useOxy } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,8 +45,9 @@ const ComposeScreen = () => {
     address?: string;
   } | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const { user, showBottomSheet, oxyServices } = useOxy();
-  const { createPost } = usePostsStore();
+  const { createPost, createThread } = usePostsStore();
   const { t } = useTranslation();
 
   // Keep this in sync with PostItem constants
@@ -67,19 +69,22 @@ const ComposeScreen = () => {
 
     setIsPosting(true);
     try {
-      console.log('Attempting to create post...');
+      console.log('Attempting to create posts...');
 
-      // Create the main post request for the API
-      const postRequest = {
+      // Prepare all posts (main + thread items)
+      const allPosts = [];
+
+      // Main post
+      allPosts.push({
         content: {
           text: postContent.trim(),
           media: mediaIds.map(id => ({ id, type: 'image' as const })),
           // Include poll if user created one
           ...(hasPoll && {
             poll: {
-              question: postContent.trim() || 'Poll', // Use post text as question or default
+              question: postContent.trim() || 'Poll',
               options: pollOptions.filter(opt => opt.trim().length > 0),
-              endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+              endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
               votes: {},
               userVotes: {}
             }
@@ -95,60 +100,53 @@ const ComposeScreen = () => {
         },
         mentions: [],
         hashtags: []
-      };
+      });
 
-      // Remove old poll logging since we now include it in the request
-      if (hasPoll) {
-        console.log('Creating post with poll:', pollOptions.filter(opt => opt.trim().length > 0));
-      }
-
-      // Send main post to backend
-      await createPost(postRequest);
-
-      // If user added thread posts, create them sequentially linking to the main post
-      if (threadItems.length > 0) {
-        try {
-          // Get created post id (newest)
-          const newest = usePostsStore.getState().feeds.posts.items[0] || usePostsStore.getState().feeds.mixed.items[0];
-          const mainPostId = newest?.id;
-          if (mainPostId) {
-            for (const item of threadItems) {
-              const text = item.text;
-              if (!text || text.trim().length === 0) continue;
-              const threadReq = {
-                content: {
-                  text: text.trim(),
-                  // Include poll if this thread item has poll options
-                  ...(item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0) && {
-                    poll: {
-                      question: text.trim() || 'Poll',
-                      options: item.pollOptions.filter(opt => opt.trim().length > 0),
-                      endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                      votes: {},
-                      userVotes: {}
-                    }
-                  }),
-                  // Include location if user shared location for this thread item
-                  ...(item.location && {
-                    location: {
-                      type: 'Point' as const,
-                      coordinates: [item.location.longitude, item.location.latitude],
-                      address: item.location.address
-                    } as GeoJSONPoint
-                  })
-                },
-                parentPostId: mainPostId,
-                threadId: mainPostId,
-                mentions: [],
-                hashtags: []
-              };
-              // createPost will add to store locally as well
-              await createPost(threadReq as any);
-            }
-          }
-        } catch (err) {
-          console.error('Failed to create thread posts:', err);
+      // Add thread items if any
+      threadItems.forEach(item => {
+        if (item.text.trim().length > 0 || item.mediaIds.length > 0 ||
+          (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0))) {
+          allPosts.push({
+            content: {
+              text: item.text.trim(),
+              media: item.mediaIds.map(id => ({ id, type: 'image' as const })),
+              // Include poll if this thread item has poll options
+              ...(item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0) && {
+                poll: {
+                  question: item.text.trim() || 'Poll',
+                  options: item.pollOptions.filter(opt => opt.trim().length > 0),
+                  endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                  votes: {},
+                  userVotes: {}
+                }
+              }),
+              // Include location if user shared location for this thread item
+              ...(item.location && {
+                location: {
+                  type: 'Point' as const,
+                  coordinates: [item.location.longitude, item.location.latitude],
+                  address: item.location.address
+                } as GeoJSONPoint
+              })
+            },
+            mentions: [],
+            hashtags: []
+          });
         }
+      });
+
+      console.log(`📝 Creating ${allPosts.length} posts in ${postingMode} mode`);
+
+      // Send to backend based on whether we have multiple posts or just one
+      if (allPosts.length === 1) {
+        // Single post - use regular createPost
+        await createPost(allPosts[0] as any);
+      } else {
+        // Multiple posts - use createThread
+        await createThread({
+          mode: postingMode,
+          posts: allPosts
+        });
       }
 
       // Show success toast
@@ -429,9 +427,38 @@ const ComposeScreen = () => {
           </View>
         </View>
 
+        {/* Mode Toggle Section */}
+        <View style={styles.modeToggleContainer}>
+          <View style={styles.modeToggleRow}>
+            <View style={styles.modeOption}>
+              <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel]}>
+                {t('Thread')}
+              </Text>
+              <Text style={styles.modeDescription}>
+                {t('Post as linked thread')}
+              </Text>
+            </View>
+            <Switch
+              value={postingMode === 'beast'}
+              onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
+              trackColor={{ false: colors.COLOR_BLACK_LIGHT_6, true: colors.primaryColor }}
+              thumbColor={colors.primaryLight}
+              style={styles.modeSwitch}
+            />
+            <View style={styles.modeOption}>
+              <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel]}>
+                {t('Beast')}
+              </Text>
+              <Text style={styles.modeDescription}>
+                {t('Post all at once')}
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {/* Main composer and thread section */}
         <View style={styles.threadContainer}>
-          {/* Continuous timeline line for all items - from composer to Add to thread */}
+          {/* Continuous timeline line for all items - from composer to add button */}
           <View style={styles.continuousTimelineLine} />
 
           {/* Main composer */}
@@ -654,7 +681,7 @@ const ComposeScreen = () => {
             </View>
           ))}
 
-          {/* Add to thread button */}
+          {/* Add thread/post button */}
           <TouchableOpacity
             style={styles.postContainer}
             onPress={() => {
@@ -680,7 +707,9 @@ const ComposeScreen = () => {
               </TouchableOpacity>
               <View style={styles.headerMeta}>
                 <View style={styles.headerChildren}>
-                  <Text style={styles.addToThreadText}>{t('Add to thread')}</Text>
+                  <Text style={styles.addToThreadText}>
+                    {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -1055,7 +1084,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 35, // Center on avatar (16px padding + 20px avatar center - 1px)
     top: 20, // Start at center of main composer avatar (20px from top of PostHeader avatar)
-    bottom: 20, // End at center of "Add to thread" avatar (20px from bottom)
+    bottom: 20, // End at center of add button avatar (20px from bottom)
     width: 2,
     backgroundColor: colors.COLOR_BLACK_LIGHT_6,
     borderRadius: 1,
@@ -1136,6 +1165,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.COLOR_BLACK_LIGHT_2,
     fontWeight: '500',
+  },
+  // Mode toggle styles
+  modeToggleContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+  },
+  modeToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modeOption: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  modeLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.COLOR_BLACK_LIGHT_4,
+    marginBottom: 2,
+  },
+  activeModeLabel: {
+    color: colors.primaryColor,
+  },
+  modeDescription: {
+    fontSize: 12,
+    color: colors.COLOR_BLACK_LIGHT_5,
+    textAlign: 'center',
+  },
+  modeSwitch: {
+    marginHorizontal: 20,
   },
 });
 

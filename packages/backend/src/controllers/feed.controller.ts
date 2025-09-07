@@ -151,6 +151,39 @@ class FeedController {
         console.log('⚠️ No currentUserId provided, skipping user interaction checks');
       }
 
+      // Check which posts are threads (have replies from the same user)
+      const threadStatusMap = new Map();
+      try {
+        const postIds = postsWithPolls.map(post => {
+          const postObj = post.toObject ? post.toObject() : post;
+          return postObj._id.toString();
+        });
+
+        const threadChecks = await Promise.all(postIds.map(async (postId) => {
+          const postObj = postsWithPolls.find(p => {
+            const obj = p.toObject ? p.toObject() : p;
+            return obj._id.toString() === postId;
+          });
+          
+          if (postObj) {
+            const obj = postObj.toObject ? postObj.toObject() : postObj;
+            const repliesFromSameUser = await Post.findOne({
+              parentPostId: postId,
+              oxyUserId: obj.oxyUserId
+            }).lean();
+            
+            return { postId, isThread: !!repliesFromSameUser };
+          }
+          return { postId, isThread: false };
+        }));
+
+        threadChecks.forEach(({ postId, isThread }) => {
+          threadStatusMap.set(postId, isThread);
+        });
+      } catch (error) {
+        console.error('Error checking thread status:', error);
+      }
+
       // Transform posts with real user data and engagement stats
       const transformedPosts = postsWithPolls.map(post => {
         const postObj = post.toObject ? post.toObject() : post;
@@ -192,6 +225,7 @@ class FeedController {
         const isLiked = interactions.isLiked || false;
         const isReposted = interactions.isReposted || false;
         const isSaved = interactions.isSaved || false;
+        const isThread = threadStatusMap.get(postId) || false;
 
         console.log(`🔄 Post ${postId} user interactions:`, {
           currentUserId,
@@ -199,6 +233,7 @@ class FeedController {
           isLiked,
           isReposted,
           isSaved,
+          isThread,
           hasInteractionData: userInteractions.has(postId)
         });
 
@@ -234,6 +269,7 @@ class FeedController {
           date: postObj.createdAt, // Frontend expects 'date' field
           user: userData,
           engagement,
+          isThread,
         };
 
         console.log(`📄 Transformed post ${postId}:`, {

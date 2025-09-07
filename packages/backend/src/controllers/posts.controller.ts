@@ -17,7 +17,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     console.log('📝 Creating post with body:', JSON.stringify(req.body, null, 2));
 
-    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, contentLocation, postLocation } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation } = req.body;
+
+    console.log('🔗 Thread fields - parentPostId:', parentPostId, 'threadId:', threadId);
 
     // Support both new content structure and legacy text/media structure
     const text = content?.text || req.body.text;
@@ -172,7 +174,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       mentions: mentions || [],
       quoteOf: quoted_post_id || null,
       repostOf: repost_of || null,
-      parentPostId: in_reply_to_status_id || null
+      parentPostId: parentPostId || in_reply_to_status_id || null,
+      threadId: threadId || null
     });
 
     console.log('💾 Saving post to database...');
@@ -194,6 +197,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     // Transform the response to match frontend expectations
     const transformedPost = post.toObject() as any;
+    transformedPost.id = post._id.toString(); // Add string ID for frontend
     const userData = transformedPost.oxyUserId;
     
     transformedPost.user = {
@@ -205,10 +209,138 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     };
     delete transformedPost.oxyUserId;
 
-    res.status(201).json(transformedPost);
+    res.status(201).json({ success: true, post: transformedPost });
   } catch (error) {
     console.error('Error creating post:', error);
     res.status(500).json({ message: 'Error creating post', error });
+  }
+};
+
+// Create a thread of posts
+export const createThread = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    console.log('🧵 Creating thread with body:', JSON.stringify(req.body, null, 2));
+
+    const { mode, posts } = req.body;
+
+    if (!Array.isArray(posts) || posts.length === 0) {
+      return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
+    }
+
+    const createdPosts = [];
+    let mainPostId: string | null = null;
+
+    for (let i = 0; i < posts.length; i++) {
+      const postData = posts[i];
+      const { content, hashtags, mentions, visibility } = postData;
+
+      // Process content location data
+      let processedContentLocation = null;
+      if (content?.location) {
+        const locationData = content.location;
+        let longitude, latitude, address;
+        
+        if (locationData.type === 'Point' && Array.isArray(locationData.coordinates)) {
+          longitude = locationData.coordinates[0];
+          latitude = locationData.coordinates[1];
+          address = locationData.address;
+        }
+        
+        if (typeof longitude === 'number' && typeof latitude === 'number' &&
+            latitude >= -90 && latitude <= 90 &&
+            longitude >= -180 && longitude <= 180) {
+          processedContentLocation = {
+            type: 'Point',
+            coordinates: [longitude, latitude],
+            address: address || undefined
+          };
+        }
+      }
+
+      // Build post content
+      const postContent: any = {
+        text: content?.text || '',
+        media: content?.media || []
+      };
+
+      if (processedContentLocation) {
+        postContent.location = processedContentLocation;
+      }
+
+      // Handle poll creation
+      let pollId = null;
+      if (content?.poll) {
+        const poll = content.poll;
+        const newPoll = new Poll({
+          question: poll.question || 'Poll',
+          options: poll.options || [],
+          endTime: poll.endTime || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          votes: poll.votes || {},
+          userVotes: poll.userVotes || {},
+          createdBy: userId
+        });
+        await newPoll.save();
+        pollId = newPoll._id.toString();
+        postContent.pollId = pollId;
+      }
+
+      // Extract hashtags from text
+      const text = content?.text || '';
+      const extractedTags = Array.from(text.matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
+      const uniqueTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
+
+      // Create post
+      const post = new Post({
+        oxyUserId: userId,
+        content: postContent,
+        hashtags: uniqueTags,
+        mentions: mentions || [],
+        visibility: visibility || 'public',
+        // For thread mode: first post is main, others are linked to it
+        // For beast mode: all posts are independent
+        ...(mode === 'thread' && i > 0 && mainPostId ? {
+          parentPostId: mainPostId,
+          threadId: mainPostId
+        } : {})
+      });
+
+      await post.save();
+
+      // Update poll's postId
+      if (pollId) {
+        await Poll.findByIdAndUpdate(pollId, { postId: post._id.toString() });
+      }
+
+      // Store the first post ID as the main post for thread linking
+      if (i === 0) {
+        mainPostId = post._id.toString();
+      }
+
+      // Transform response
+      const transformedPost = post.toObject() as any;
+      transformedPost.id = post._id.toString();
+      transformedPost.user = {
+        id: userId,
+        name: 'User', // This would normally come from Oxy user data
+        handle: 'user',
+        avatar: '',
+        verified: false
+      };
+      delete transformedPost.oxyUserId;
+
+      createdPosts.push(transformedPost);
+    }
+
+    console.log(`✅ Created ${createdPosts.length} posts in ${mode} mode`);
+    res.status(201).json(createdPosts);
+  } catch (error) {
+    console.error('Error creating thread:', error);
+    res.status(500).json({ message: 'Error creating thread', error });
   }
 };
 
@@ -284,6 +416,18 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       isSaved = !!savedPost;
     }
 
+    // Check if this post is a thread (has replies from the same user)
+    let isThread = false;
+    try {
+      const repliesFromSameUser = await Post.findOne({
+        parentPostId: post._id.toString(),
+        oxyUserId: post.oxyUserId
+      }).lean();
+      isThread = !!repliesFromSameUser;
+    } catch (e) {
+      console.error('Error checking if post is thread:', e);
+    }
+
     // Transform post to match frontend expectations
     const oxyUserId = post.oxyUserId as any;
 
@@ -316,6 +460,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       ...post,
       user,
       isSaved,
+      isThread,
       oxyUserId: undefined,
     } as any;
 
