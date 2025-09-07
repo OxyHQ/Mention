@@ -47,8 +47,10 @@ const MentionProfile: React.FC = () => {
     const [profileData, setProfileData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const layoutScroll = useLayoutScroll();
-    const localScrollRef = useRef(new Animated.Value(0));
-    const scrollY = layoutScroll?.scrollY ?? localScrollRef.current;
+    // Always use the global scrollY from the app's LayoutScrollProvider so
+    // profile animations share the single source of truth and don't retain
+    // local scroll state between mounts.
+    const scrollY = layoutScroll.scrollY;
     const insets = useSafeAreaInsets();
 
     // Fetch profile data
@@ -365,11 +367,11 @@ const MentionProfile: React.FC = () => {
 
                     {/* Profile content + posts */}
                     {/* ScrollView with stickyHeaderIndices */}
-                    <Animated.ScrollView
+            <Animated.ScrollView
                         showsVerticalScrollIndicator={false}
                         onScroll={Animated.event(
-                            [{ nativeEvent: { contentOffset: { y: layoutScroll?.scrollY ?? localScrollRef.current } } }],
-                            { useNativeDriver: true }
+                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                { useNativeDriver: false }
                         )}
                         scrollEventThrottle={16}
                         style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
@@ -890,13 +892,8 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         ...Platform.select({
             web: {
-                position: 'sticky',
-                bottom: 24,
-                right: 24,
-                marginLeft: 'auto',
-                marginRight: '24px',
-                marginTop: 'auto',
-                marginBottom: '24px',
+                // web-only layout values (use `any` to satisfy RN typings)
+                ...( { position: 'sticky', bottom: 24, right: 24, marginLeft: 'auto', marginRight: 24, marginTop: 'auto', marginBottom: 24 } as any),
             },
             default: {
                 position: 'absolute',
