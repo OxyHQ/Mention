@@ -866,7 +866,7 @@ const styles = StyleSheet.create({
         marginTop: 10
     },
     viewButtonText: {
-        color: '#1D9BF0',
+        color: colors.primaryColor,
         fontSize: 15,
         fontWeight: '600',
         textAlign: "center"
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
         height: 56,
         borderRadius: 28,
         zIndex: 1000,
-        backgroundColor: '#1D9BF0',
+        backgroundColor: colors.primaryColor,
         alignItems: 'center',
         justifyContent: 'center',
         elevation: 8,
@@ -886,15 +886,20 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
-        ...(Platform.select({
+        ...Platform.select({
             web: {
-                cursor: 'pointer',
-                position: 'fixed',
+                position: 'sticky',
+                bottom: 24,
+                right: 24,
+                marginLeft: 'auto',
+                marginRight: '24px',
+                marginTop: 'auto',
+                marginBottom: '24px',
             },
             default: {
                 position: 'absolute',
             }
-        }) as any),
+        }),
     },
 
     stickyTabBar: {

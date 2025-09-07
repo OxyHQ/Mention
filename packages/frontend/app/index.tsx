@@ -5,6 +5,7 @@ import {
     TouchableOpacity,
     Text,
     Image,
+    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -279,6 +280,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         elevation: 8,
         ...shadowStyle({ elevation: 8, web: `0px 4px 8px ${colors.shadow}` }),
+        ...Platform.select({
+            web: {
+                position: 'sticky',
+                bottom: 24,
+                right: 24,
+                marginLeft: 'auto',
+                marginRight: '24px',
+                marginTop: 'auto',
+                marginBottom: '24px',
+            },
+        }),
     },
 });
 
