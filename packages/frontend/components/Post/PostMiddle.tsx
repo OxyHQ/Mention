@@ -40,6 +40,9 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      // allow nested scrolling on Android and improve horizontal gesture handling on native
+      nestedScrollEnabled={true}
+      directionalLockEnabled={true}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
       {items.map((item, idx) => {
@@ -79,9 +82,8 @@ const CARD_HEIGHT = 180;
 
 const styles = StyleSheet.create({
   scroller: {
-    paddingRight: 12,
-    gap: 12,
-    flex: 1,
+  paddingRight: 12,
+  gap: 12,
   },
   itemContainer: {
     borderWidth: 1,
