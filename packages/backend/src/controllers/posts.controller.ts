@@ -6,6 +6,7 @@ import Bookmark from '../models/Bookmark';
 import { AuthRequest } from '../types/auth';
 import mongoose from 'mongoose';
 import { oxy as oxyClient } from '../../server';
+import { createNotification, createMentionNotifications } from '../utils/notificationUtils';
 
 // Create a new post
 export const createPost = async (req: AuthRequest, res: Response) => {
@@ -179,7 +180,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     });
 
     console.log('💾 Saving post to database...');
-    await post.save();
+  await post.save();
     console.log('✅ Post saved successfully');
     
     // Update poll's postId with the actual post ID
@@ -208,6 +209,67 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         verified: typeof userData === 'object' ? userData.verified : false
     };
     delete transformedPost.oxyUserId;
+
+    // Fire mention notifications if any
+    try {
+      if (text && typeof text === 'string') {
+        await createMentionNotifications(text, post._id.toString(), userId);
+      }
+    } catch (e) {
+      console.error('Failed to create mention notifications:', e);
+    }
+
+    // Reply notification if replying to an existing post
+    try {
+      const replyParentId = parentPostId || in_reply_to_status_id || null;
+      if (replyParentId) {
+        const parent = await Post.findById(replyParentId).lean();
+        const recipientId = parent?.oxyUserId?.toString?.() || (parent as any)?.oxyUserId || null;
+        if (recipientId && recipientId !== userId) {
+          await createNotification({
+            recipientId,
+            actorId: userId,
+            type: 'reply',
+            entityId: post._id.toString(),
+            entityType: 'reply'
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to create reply notification:', e);
+    }
+
+    // Quote and Repost notifications if created via this endpoint
+    try {
+      if (quoted_post_id) {
+        const original = await Post.findById(quoted_post_id).lean();
+        const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
+        if (recipientId && recipientId !== userId) {
+          await createNotification({
+            recipientId,
+            actorId: userId,
+            type: 'quote',
+            entityId: original._id.toString(),
+            entityType: 'post'
+          });
+        }
+      }
+      if (repost_of) {
+        const original = await Post.findById(repost_of).lean();
+        const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
+        if (recipientId && recipientId !== userId) {
+          await createNotification({
+            recipientId,
+            actorId: userId,
+            type: 'repost',
+            entityId: original._id.toString(),
+            entityType: 'post'
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to create quote/repost notification:', e);
+    }
 
     res.status(201).json({ success: true, post: transformedPost });
   } catch (error) {
@@ -310,6 +372,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       });
 
       await post.save();
+
+      // Mentions per post in thread
+      try {
+        if (content?.text && typeof content.text === 'string') {
+          await createMentionNotifications(content.text, post._id.toString(), userId);
+        }
+      } catch (e) {
+        console.error('Failed to create mention notifications (thread):', e);
+      }
 
       // Update poll's postId
       if (pollId) {
@@ -600,9 +671,25 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     await Like.create({ userId, postId });
 
     // Update post stats
-    await Post.findByIdAndUpdate(postId, {
+    const likedPost = await Post.findByIdAndUpdate(postId, {
       $inc: { 'stats.likesCount': 1 }
-    });
+    }, { new: true }).lean();
+
+    // Create like notification to the post author
+    try {
+      const recipientId = likedPost?.oxyUserId?.toString?.() || (likedPost as any)?.oxyUserId || null;
+      if (recipientId && recipientId !== userId) {
+        await createNotification({
+          recipientId,
+          actorId: userId,
+          type: 'like',
+          entityId: postId,
+          entityType: 'post'
+        });
+      }
+    } catch (e) {
+      console.error('Failed to create like notification:', e);
+    }
 
     res.json({ message: 'Post liked successfully' });
   } catch (error) {
@@ -696,7 +783,7 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const originalPost = await Post.findById(req.params.id);
+  const originalPost = await Post.findById(req.params.id);
     if (!originalPost) {
       return res.status(404).json({ message: 'Original post not found' });
     }
@@ -709,6 +796,22 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
 
     await repost.save();
     await repost.populate('userID', 'username name avatar verified');
+
+    // Notify original author about repost
+    try {
+      const recipientId = (originalPost as any)?.oxyUserId?.toString?.() || (originalPost as any)?.oxyUserId || null;
+      if (recipientId && recipientId !== userId) {
+        await createNotification({
+          recipientId,
+          actorId: userId,
+          type: 'repost',
+          entityId: originalPost._id.toString(),
+          entityType: 'post'
+        });
+      }
+    } catch (e) {
+      console.error('Failed to create repost notification:', e);
+    }
 
     res.status(201).json(repost);
   } catch (error) {
@@ -725,7 +828,7 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const originalPost = await Post.findById(req.params.id);
+  const originalPost = await Post.findById(req.params.id);
     if (!originalPost) {
       return res.status(404).json({ message: 'Original post not found' });
     }
@@ -738,6 +841,22 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
 
     await quotePost.save();
     await quotePost.populate('userID', 'username name avatar verified');
+
+    // Notify original author about quote
+    try {
+      const recipientId = (originalPost as any)?.oxyUserId?.toString?.() || (originalPost as any)?.oxyUserId || null;
+      if (recipientId && recipientId !== userId) {
+        await createNotification({
+          recipientId,
+          actorId: userId,
+          type: 'quote',
+          entityId: originalPost._id.toString(),
+          entityType: 'post'
+        });
+      }
+    } catch (e) {
+      console.error('Failed to create quote notification:', e);
+    }
 
     res.status(201).json(quotePost);
   } catch (error) {

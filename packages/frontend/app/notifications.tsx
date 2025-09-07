@@ -18,11 +18,17 @@ import { colors } from '../styles/colors';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { NotificationItem } from '../components/NotificationItem';
 import { notificationService } from '../services/notificationService';
+import { useTranslation } from 'react-i18next';
+import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications';
 
 const NotificationsScreen: React.FC = () => {
     const { user, isAuthenticated } = useOxy();
     const queryClient = useQueryClient();
     const [refreshing, setRefreshing] = useState(false);
+    const { t } = useTranslation();
+
+    // Enable real-time notifications
+    useRealtimeNotifications();
 
     // Fetch notifications
     const {
@@ -73,17 +79,17 @@ const NotificationsScreen: React.FC = () => {
 
     const handleMarkAllAsRead = useCallback(() => {
         Alert.alert(
-            'Mark All as Read',
-            'Are you sure you want to mark all notifications as read?',
+            t('notification.mark_all_read'),
+            t('notification.mark_all_read'),
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Mark All',
+                    text: t('notification.mark_all_read'),
                     onPress: () => markAllAsReadMutation.mutate()
                 },
             ]
         );
-    }, [markAllAsReadMutation]);
+    }, [markAllAsReadMutation, t]);
 
     const unreadCount = notificationsData?.unreadCount || 0;
 
@@ -101,9 +107,9 @@ const NotificationsScreen: React.FC = () => {
                 size={64}
                 color={colors.COLOR_BLACK_LIGHT_4}
             />
-            <ThemedText style={styles.emptyTitle}>No notifications yet</ThemedText>
+            <ThemedText style={styles.emptyTitle}>{t('notification.empty.title')}</ThemedText>
             <ThemedText style={styles.emptySubtitle}>
-                When someone interacts with your posts, you&apos;ll see them here.
+                {t('notification.empty.subtitle')}
             </ThemedText>
         </ThemedView>
     );
@@ -115,9 +121,9 @@ const NotificationsScreen: React.FC = () => {
                 size={64}
                 color={colors.busy}
             />
-            <ThemedText style={styles.errorTitle}>Unable to load notifications</ThemedText>
+            <ThemedText style={styles.errorTitle}>{t('notification.error.load')}</ThemedText>
             <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
-                <ThemedText style={styles.retryText}>Try Again</ThemedText>
+                <ThemedText style={styles.retryText}>{t('notification.retry')}</ThemedText>
             </TouchableOpacity>
         </ThemedView>
     );
@@ -134,7 +140,7 @@ const NotificationsScreen: React.FC = () => {
                     />
                     <ThemedView style={styles.authContainer}>
                         <ThemedText style={styles.authText}>
-                            Please sign in to view notifications
+                            {t('state.no_session')}
                         </ThemedText>
                     </ThemedView>
                 </View>
@@ -147,8 +153,7 @@ const NotificationsScreen: React.FC = () => {
             <View style={styles.container}>
                 <Stack.Screen
                     options={{
-                        title: 'Notifications',
-                        headerShown: true,
+                        title: t('Notifications'),
                         headerRight: () => (
                             unreadCount > 0 ? (
                                 <TouchableOpacity
@@ -157,7 +162,7 @@ const NotificationsScreen: React.FC = () => {
                                     disabled={markAllAsReadMutation.isPending}
                                 >
                                     <ThemedText style={styles.markAllText}>
-                                        Mark all read
+                                        {t('notification.mark_all_read')}
                                     </ThemedText>
                                 </TouchableOpacity>
                             ) : null

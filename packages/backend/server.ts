@@ -303,6 +303,9 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 
 // --- Expose namespaces for use in routes ---
 app.set("io", io);
+// Expose io globally for utility modules that emit without direct access to req/app
+// Using any-cast to avoid augmenting global types across the project
+(global as any).io = io;
 app.set("notificationsNamespace", notificationsNamespace);
 app.set("postsNamespace", postsNamespace);
 
