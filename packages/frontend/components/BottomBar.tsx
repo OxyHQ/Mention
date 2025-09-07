@@ -1,5 +1,6 @@
-import { StyleSheet, View, Pressable, Text, ViewStyle, Platform, Vibration } from 'react-native';
+import { StyleSheet, View, Pressable, ViewStyle, Platform, Vibration } from 'react-native';
 import { Home, HomeActive, Search, SearchActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
+import { colors } from '@/styles/colors';
 import { useRouter, usePathname } from 'expo-router';
 import React from 'react';
 import Avatar from './Avatar';
@@ -20,12 +21,12 @@ export const BottomBar = () => {
         bottomBar: {
             width: '100%',
             height: 60 + insets.bottom,
-            backgroundColor: '#ffffff',
+            backgroundColor: colors.primaryLight,
             flexDirection: 'row',
             justifyContent: 'space-around',
             alignItems: 'center',
             borderTopWidth: 1,
-            borderTopColor: '#eeeeee',
+            borderTopColor: colors.COLOR_BLACK_LIGHT_6,
             elevation: 8,
             paddingBottom: insets.bottom,
             ...Platform.select({
@@ -53,30 +54,30 @@ export const BottomBar = () => {
         <View style={styles.bottomBar}>
             <Pressable onPress={() => handlePress('/')} style={[styles.tab, pathname === '/' && styles.active]}>
                 {pathname === '/' ? (
-                    <HomeActive size={28} color="#4E67EB" />
+                    <HomeActive size={28} color={colors.primaryColor} />
                 ) : (
-                    <Home size={28} color="#000" />
+                    <Home size={28} color={colors.COLOR_BLACK} />
                 )}
             </Pressable>
             <Pressable onPress={() => handlePress('/search')} style={[styles.tab, pathname === '/search' && styles.active]}>
                 {pathname === '/search' ? (
-                    <SearchActive size={28} color="#4E67EB" />
+                    <SearchActive size={28} color={colors.primaryColor} />
                 ) : (
-                    <Search size={28} color="#000" />
+                    <Search size={28} color={colors.COLOR_BLACK} />
                 )}
             </Pressable>
             <Pressable onPress={() => handlePress('/compose')} style={[styles.tab, pathname === '/compose' && styles.active]}>
                 {pathname === '/compose' ? (
-                    <ComposeIIconActive size={28} color="#4E67EB" />
+                    <ComposeIIconActive size={28} color={colors.primaryColor} />
                 ) : (
-                    <ComposeIcon size={28} color="#000" />
+                    <ComposeIcon size={28} color={colors.COLOR_BLACK} />
                 )}
             </Pressable>
             <Pressable onPress={() => handlePress('/notifications')} style={[styles.tab, pathname === '/notifications' && styles.active]}>
                 {pathname === '/notifications' ? (
-                    <BellActive size={28} color="#4E67EB" />
+                    <BellActive size={28} color={colors.primaryColor} />
                 ) : (
-                    <Bell size={28} color="#000" />
+                    <Bell size={28} color={colors.COLOR_BLACK} />
                 )}
             </Pressable>
             <Pressable
@@ -89,7 +90,7 @@ export const BottomBar = () => {
                     }
                 }}
                 onLongPress={() => {
-                    Vibration.vibrate(5);
+                    Vibration.vibrate(50);
                     showBottomSheet?.('AccountCenter');
                 }}
             >
