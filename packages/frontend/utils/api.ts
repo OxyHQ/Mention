@@ -5,20 +5,6 @@ import { API_URL } from '@/config';
 // API Configuration
 const API_CONFIG = {
   baseURL: API_URL,
-  endpoints: {
-    health: '/api/health',
-    profile: '/api/profiles',
-    data: '/api/data',
-    feed: '/api/feed',
-    users: undefined,
-    profiles: {
-      recentProperties: '/api/profiles/me/recent-properties',
-      savedProperties: '/api/profiles/me/saved-properties',
-      saveProperty: '/api/profiles/me/save-property',
-      savedSearches: '/api/profiles/me/saved-searches',
-      properties: '/api/profiles/me/properties',
-    },
-  },
 };
 
 // Initialize OxyServices - if it automatically adds /api prefix, we don't need it in baseURL
@@ -87,7 +73,7 @@ export function webAlert(
 
 export const healthApi = {
   async checkHealth() {
-    const response = await api.get(API_CONFIG.endpoints.health);
+    const response = await api.get('/api/health');
     return response.data;
   },
 };
