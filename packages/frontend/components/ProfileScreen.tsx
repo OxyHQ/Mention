@@ -12,7 +12,8 @@ import {
     TouchableOpacity,
     View,
     Share,
-    Platform
+    Platform,
+    useWindowDimensions,
 } from 'react-native';
 import Avatar from '@/components/Avatar';
 import UserName from './UserName';
@@ -52,6 +53,25 @@ const MentionProfile: React.FC = () => {
     // local scroll state between mounts.
     const scrollY = layoutScroll.scrollY;
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isWideWeb = Platform.OS === 'web' && width >= 500;
+
+    const fabPositionStyle: any = isWideWeb
+        ? {
+            // sticky layout for wide web viewports
+            position: 'sticky',
+            bottom: 24,
+            right: 24,
+            marginLeft: 'auto',
+            marginRight: 20,
+            marginBottom: 20,
+        }
+        : {
+            // absolute positioning for smaller screens / native
+            position: 'absolute',
+            right: 20,
+            bottom: 20,
+        };
 
     // Fetch profile data
     useEffect(() => {
@@ -367,11 +387,11 @@ const MentionProfile: React.FC = () => {
 
                     {/* Profile content + posts */}
                     {/* ScrollView with stickyHeaderIndices */}
-            <Animated.ScrollView
+                    <Animated.ScrollView
                         showsVerticalScrollIndicator={false}
                         onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                { useNativeDriver: false }
+                            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                            { useNativeDriver: false }
                         )}
                         scrollEventThrottle={16}
                         style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
@@ -575,7 +595,7 @@ const MentionProfile: React.FC = () => {
 
                     {/* FAB */}
                     <TouchableOpacity
-                        style={[styles.fab, { bottom: 20 + insets.bottom }]}
+                        style={[styles.fab, fabPositionStyle]}
                         onPress={() => router.push('/compose')}
                     >
                         <Ionicons name="add" size={24} color="#FFF" />
@@ -890,15 +910,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
-        ...Platform.select({
-            web: {
-                // web-only layout values (use `any` to satisfy RN typings)
-                ...( { position: 'sticky', bottom: 24, right: 24, marginLeft: 'auto', marginRight: 24, marginTop: 'auto', marginBottom: 24 } as any),
-            },
-            default: {
-                position: 'absolute',
-            }
-        }),
     },
 
     stickyTabBar: {

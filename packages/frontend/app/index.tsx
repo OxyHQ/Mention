@@ -6,8 +6,9 @@ import {
     Text,
     Image,
     Platform,
+    useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -65,6 +66,25 @@ const MainFeedScreen = () => {
         // Navigate to compose screen
         router.push('/compose');
     }, []);
+
+    const { width } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
+    const isWideWeb = Platform.OS === 'web' && width >= 500;
+
+    const fabPositionStyle: any = isWideWeb
+        ? {
+            position: 'sticky',
+            bottom: 24,
+            right: 24,
+            marginLeft: 'auto',
+            marginRight: 20,
+            marginBottom: 20,
+        }
+        : {
+            position: 'absolute',
+            right: 20,
+            bottom: 20,
+        };
 
     const loadPinned = useCallback(async () => {
         try {
@@ -209,7 +229,7 @@ const MainFeedScreen = () => {
                         )}
 
                         {/* Floating Action Button */}
-                        <TouchableOpacity style={styles.fab} onPress={handleComposePress}>
+                        <TouchableOpacity style={[styles.fab, fabPositionStyle]} onPress={handleComposePress}>
                             <Ionicons name="add" size={24} color={colors.COLOR_BLACK_LIGHT_9} />
                         </TouchableOpacity>
                     </>
