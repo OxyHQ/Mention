@@ -21,7 +21,6 @@ module.exports = function (api) {
         allowUndefined: true,
         safe: false,
       }],
-
       // resolver
       ['module-resolver', {
         root: ['.'],

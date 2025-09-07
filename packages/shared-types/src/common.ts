@@ -1,5 +1,5 @@
 /**
- * Common utility types and enums shared across Homiio frontend and backend
+ * Common utility types and enums shared across Mention frontend and backend
  */
 
 // Common enums

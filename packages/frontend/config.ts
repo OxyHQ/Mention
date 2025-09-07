@@ -1,5 +1,9 @@
 // Base URLs
-export const API_URL = process.env.API_URL || 'http://localhost:3000';
+// Base URLs (prod first → env → fallback)
+export const API_URL =
+  process.env.NODE_ENV === 'production'
+    ? 'https://api.mention.earth/api/'
+    : (process.env.API_URL ?? 'http://192.168.86.44:3000');
 export const SOCKET_URL = process.env.API_URL_SOCKET || 'ws://localhost:3000/';
 export const API_URL_SOCKET = process.env.API_URL_SOCKET || "ws://localhost:3000";
 

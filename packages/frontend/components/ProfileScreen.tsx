@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState, useEffect } from 'react';
+import { BlurView } from 'expo-blur';
 import {
     Animated,
     ImageBackground,
+    Image,
     StatusBar,
     StyleSheet,
     Text,
@@ -22,6 +23,7 @@ import { colors } from '../styles/colors';
 import { useAppearanceStore } from '@/store/appearanceStore';
 
 const HEADER_HEIGHT_EXPANDED = 80;
+// Keep the narrowed header height consistent across native and web
 const HEADER_HEIGHT_NARROWED = 50;
 
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
@@ -31,6 +33,8 @@ const AnimatedBlurView = Animated.createAnimatedComponent(BlurView as any);
 
 const MentionProfile: React.FC = () => {
     const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
+    // FollowButton from services may be untyped in this project; create an any alias for JSX usage
+    const FollowButtonAny: any = (FollowButton as any);
     let { username } = useLocalSearchParams<{ username: string }>();
     if (username && username.startsWith('@')) {
         username = username.slice(1);
@@ -73,7 +77,7 @@ const MentionProfile: React.FC = () => {
         fetchUserCounts,
         setFollowerCount,
         setFollowingCount,
-    } = useFollow(profileData?.id);
+    } = (useFollow as any)(profileData?.id);
 
     const avatarUri = profileData?.avatar ? oxyServices.getFileDownloadUrl(profileData.avatar as string, 'thumb') : undefined;
 
@@ -271,17 +275,44 @@ const MentionProfile: React.FC = () => {
                                 },
                             ]}
                         >
-                            <AnimatedBlurView
-                                tint="dark"
-                                intensity={50}
+                            {/* Cross-platform blur overlay: Animated Image (native blurRadius) or CSS filter (web) */}
+                            {/* Blurred overlay: shows only when scrolled — native uses blurRadius, web uses CSS filter */}
+                            <AnimatedImageBackground
+                                source={{ uri: bannerUri }}
+                                // native blurRadius prop applied directly; for web we'll use imageStyle filter
+                                blurRadius={Platform.OS === 'web' ? 0 : 12}
+                                imageStyle={Platform.OS === 'web' ? ({
+                                    // @ts-ignore: web-only styles
+                                    WebkitFilter: 'blur(8px)',
+                                    // @ts-ignore: web-only styles
+                                    filter: 'blur(8px)'
+                                } as any) : undefined}
                                 style={[
                                     StyleSheet.absoluteFillObject,
                                     {
                                         zIndex: 2,
                                         opacity: scrollY.interpolate({
-                                            inputRange: [-50, 0, 30, 100],
-                                            outputRange: [1, 0, 0, 0.7],
-                                        }),
+                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                            outputRange: [0, 1],
+                                            extrapolate: 'clamp',
+                                        }) as any,
+                                    } as any,
+                                ]}
+                            />
+
+                            {/* Dark overlay: make the banner darker as you scroll */}
+                            <Animated.View
+                                pointerEvents={'none' as any}
+                                style={[
+                                    StyleSheet.absoluteFillObject,
+                                    {
+                                        zIndex: 3,
+                                        backgroundColor: 'rgba(0,0,0,0.6)',
+                                        opacity: scrollY.interpolate({
+                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                            outputRange: [0, 0.6],
+                                            extrapolate: 'clamp',
+                                        }) as any,
                                     },
                                 ]}
                             />
@@ -388,7 +419,7 @@ const MentionProfile: React.FC = () => {
                                             </TouchableOpacity>
                                         </View>
                                     ) : (
-                                        <FollowButton userId={profileData?.id} />
+                                        <FollowButtonAny userId={profileData?.id} />
                                     )}
                                 </View>
                             </View>
@@ -399,7 +430,7 @@ const MentionProfile: React.FC = () => {
                                     handle={profileData?.username}
                                     verified={profileData?.verified}
                                     variant="default"
-                                    style={{ name: styles.profileName, handle: styles.profileHandle, container: undefined }}
+                                    style={{ name: styles.profileName, handle: styles.profileHandle, container: undefined } as any}
                                 />
                                 {profileData?.privacySettings?.isPrivateAccount && (
                                     <View style={styles.privateIndicator}>
@@ -474,7 +505,7 @@ const MentionProfile: React.FC = () => {
                                                         <View style={styles.communityIcon}>
                                                             <Image
                                                                 source={{ uri: community.icon }}
-                                                                style={styles.communityIconImage}
+                                                                style={styles.communityIconImage as any}
                                                             />
                                                         </View>
                                                     )}
@@ -849,7 +880,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
-        ...Platform.select({
+        ...(Platform.select({
             web: {
                 cursor: 'pointer',
                 position: 'fixed',
@@ -857,7 +888,7 @@ const styles = StyleSheet.create({
             default: {
                 position: 'absolute',
             }
-        }),
+        }) as any),
     },
 
     stickyTabBar: {

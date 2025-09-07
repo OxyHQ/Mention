@@ -152,6 +152,9 @@ const MainFeedScreen = () => {
                             <TouchableOpacity key="notifications" style={styles.headerButton} onPress={() => router.push('/notifications')}>
                                 <Ionicons name="notifications-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
                             </TouchableOpacity>,
+                            <TouchableOpacity key="settings" style={styles.headerButton} onPress={() => router.push('/settings')}>
+                                <Ionicons name="settings-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                            </TouchableOpacity>,
                             <TouchableOpacity key="profile" style={styles.headerButton} onPress={() => router.push('/profile')}>
                                 <Image
                                     source={{ uri: user?.avatar || 'https://via.placeholder.com/32' }}

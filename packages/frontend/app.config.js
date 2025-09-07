@@ -51,11 +51,19 @@ return {
                         data: [
                             {
                                 scheme: 'https',
-                                host: 'mention.com',
+                                host: 'mention.earth',
                             },
                             IS_DEV && {
                                 scheme: 'http',
                                 host: 'localhost:3001',
+                            },
+                            IS_DEV && {
+                                scheme: 'http',
+                                host: '192.168.86.44:3001',
+                            },
+                            IS_DEV && {
+                                scheme: 'http',
+                                host: '192.168.86.44:3000',
                             },
                             {
                                 scheme: 'https',
@@ -182,7 +190,7 @@ return {
         })(),
         extra: {
             eas: {
-                projectId: "a261857b-a404-45ce-983c-501242578074"
+                projectId: "47bac898-ae20-479b-ab0f-2d8ab2770c83"
             },
             router: {
                 origin: false

@@ -269,7 +269,7 @@ This package is part of the Mention monorepo and integrates with:
 - **@mention/shared-types**: Shared TypeScript type definitions
 
 ### Shared Dependencies
-- Uses `@homiio/shared-types` for type safety across packages
+- Uses `@mention/shared-types` for type safety across packages
 - Integrates with `@oxyhq/services` for common functionality
 
 ## Performance Optimization

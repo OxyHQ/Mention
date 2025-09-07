@@ -41,7 +41,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS and security headers
 app.use((req, res, next) => {
-  const allowedOrigins = [process.env.FRONTEND_URL || "https://mention.earth", "http://localhost:8081", "http://localhost:8082", "capacitor://localhost", "http://192.168.86.44:8081"];
+  const allowedOrigins = [process.env.FRONTEND_URL || "https://mention.earth", "http://localhost:8081", "http://localhost:8082", "http://192.168.86.44:8081"];
   const origin = req.headers.origin;
   if (origin && allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
