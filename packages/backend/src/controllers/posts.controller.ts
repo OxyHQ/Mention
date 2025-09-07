@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Post } from '../models/Post';
+import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import { AuthRequest } from '../types/auth';
@@ -14,7 +15,19 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { text, media, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id } = req.body;
+    console.log('📝 Creating post with body:', JSON.stringify(req.body, null, 2));
+
+    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, contentLocation, postLocation } = req.body;
+
+    // Support both new content structure and legacy text/media structure
+    const text = content?.text || req.body.text;
+    const media = content?.media || content?.images || req.body.media; // Support both new media field and legacy images
+    const video = content?.video;
+    const poll = content?.poll;
+    const contentLocationData = content?.location || contentLocation;
+
+    console.log('📍 Content location data:', contentLocationData);
+    console.log('📍 Post location data:', postLocation);
 
     // Extract hashtags from text if not provided
     const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
@@ -29,12 +42,132 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }).filter(Boolean);
     };
 
+    // Process content location data (user's shared location)
+    let processedContentLocation = null;
+    if (contentLocationData) {
+      let longitude, latitude, address;
+      
+      // Handle GeoJSON format: { type: 'Point', coordinates: [lng, lat], address?: string }
+      if (contentLocationData.type === 'Point' && Array.isArray(contentLocationData.coordinates) && contentLocationData.coordinates.length === 2) {
+        longitude = contentLocationData.coordinates[0];
+        latitude = contentLocationData.coordinates[1];
+        address = contentLocationData.address;
+        console.log('📍 Received GeoJSON format content location');
+      }
+      // Handle legacy format: { latitude: number, longitude: number, address?: string }
+      else if (typeof contentLocationData.latitude === 'number' && typeof contentLocationData.longitude === 'number') {
+        longitude = contentLocationData.longitude;
+        latitude = contentLocationData.latitude;
+        address = contentLocationData.address;
+        console.log('📍 Received legacy format content location');
+      }
+      
+      // Validate coordinates
+      if (typeof longitude === 'number' && typeof latitude === 'number' &&
+          latitude >= -90 && latitude <= 90 &&
+          longitude >= -180 && longitude <= 180) {
+        processedContentLocation = {
+          type: 'Point',
+          coordinates: [longitude, latitude], // GeoJSON format: [lng, lat]
+          address: address || undefined
+        };
+        console.log('✅ Processed content location:', processedContentLocation);
+      } else {
+        console.log('❌ Invalid content location coordinates:', { longitude, latitude });
+        return res.status(400).json({ 
+          error: 'Invalid location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.' 
+        });
+      }
+    }
+
+    // Process post location data (creation location metadata)
+    let processedPostLocation = null;
+    if (postLocation) {
+      let longitude, latitude, address;
+      
+      // Handle GeoJSON format: { type: 'Point', coordinates: [lng, lat], address?: string }
+      if (postLocation.type === 'Point' && Array.isArray(postLocation.coordinates) && postLocation.coordinates.length === 2) {
+        longitude = postLocation.coordinates[0];
+        latitude = postLocation.coordinates[1];
+        address = postLocation.address;
+        console.log('📍 Received GeoJSON format post location');
+      }
+      // Handle legacy format: { latitude: number, longitude: number, address?: string }
+      else if (typeof postLocation.latitude === 'number' && typeof postLocation.longitude === 'number') {
+        longitude = postLocation.longitude;
+        latitude = postLocation.latitude;
+        address = postLocation.address;
+        console.log('📍 Received legacy format post location');
+      }
+      
+      // Validate coordinates
+      if (typeof longitude === 'number' && typeof latitude === 'number' &&
+          latitude >= -90 && latitude <= 90 &&
+          longitude >= -180 && longitude <= 180) {
+        processedPostLocation = {
+          type: 'Point',
+          coordinates: [longitude, latitude], // GeoJSON format: [lng, lat]
+          address: address || undefined
+        };
+        console.log('✅ Processed post location:', processedPostLocation);
+      } else {
+        console.log('❌ Invalid post location coordinates:', { longitude, latitude });
+        return res.status(400).json({ 
+          error: 'Invalid post location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.' 
+        });
+      }
+    }
+
+    // Build complete content object
+    const postContent: any = {
+      text: text || '',
+      media: normalizeMedia(media || [])
+    };
+
+    // Add video to media array if provided
+    if (video) {
+      if (!postContent.media) postContent.media = [];
+      postContent.media.push({ id: video, type: 'video' });
+    }
+
+    // Create poll separately if provided and add pollId to content
+    let pollId = null;
+    if (poll) {
+      console.log('📊 Creating poll:', JSON.stringify(poll, null, 2));
+      
+      try {
+        const pollDoc = new Poll({
+          question: poll.question,
+          options: poll.options.map((option: string) => ({ text: option, votes: [] })),
+          postId: 'temp_' + Date.now(), // Temporary ID, will be updated after post creation
+          createdBy: userId,
+          endsAt: new Date(poll.endTime || Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days default
+          isMultipleChoice: poll.isMultipleChoice || false,
+          isAnonymous: poll.isAnonymous || false
+        });
+        
+        const savedPoll = await pollDoc.save();
+        pollId = savedPoll._id.toString();
+        postContent.pollId = pollId;
+        
+        console.log('📊 Poll created with ID:', pollId);
+      } catch (pollError) {
+        console.error('Failed to create poll:', pollError);
+        return res.status(400).json({ message: 'Failed to create poll', error: pollError });
+      }
+    }
+
+    // Add location if provided
+    if (processedContentLocation) {
+      postContent.location = processedContentLocation;
+    }
+
+    console.log('📦 Final post content:', JSON.stringify(postContent, null, 2));
+
     const post = new Post({
       oxyUserId: userId,
-      content: {
-        text: text || '',
-        images: normalizeMedia(media || [])
-      },
+      content: postContent,
+      location: processedPostLocation,
       hashtags: uniqueTags,
       mentions: mentions || [],
       quoteOf: quoted_post_id || null,
@@ -42,7 +175,21 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       parentPostId: in_reply_to_status_id || null
     });
 
+    console.log('💾 Saving post to database...');
     await post.save();
+    console.log('✅ Post saved successfully');
+    
+    // Update poll's postId with the actual post ID
+    if (pollId) {
+      try {
+        await Poll.findByIdAndUpdate(pollId, { postId: post._id.toString() });
+        console.log('📊 Poll updated with post ID:', post._id.toString());
+      } catch (pollUpdateError) {
+        console.error('Failed to update poll postId:', pollUpdateError);
+        // Continue execution - post was created successfully
+      }
+    }
+    
     // No populate needed since oxyUserId is just a string reference
 
     // Transform the response to match frontend expectations
@@ -169,7 +316,6 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       ...post,
       user,
       isSaved,
-      media: Array.isArray((post as any)?.content?.images) ? (post as any).content.images : [],
       oxyUserId: undefined,
     } as any;
 
@@ -193,7 +339,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const { text, media, hashtags, mentions } = req.body;
+    const { text, media, hashtags, mentions, contentLocation, postLocation } = req.body;
     
     if (text !== undefined) {
       post.content.text = text;
@@ -211,8 +357,39 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
           return null;
         }).filter(Boolean);
       };
-      post.content.images = normalizeMedia(media);
+      post.content.media = normalizeMedia(media);
     }
+    
+    // Handle content location updates (user's shared location)
+    if (contentLocation !== undefined) {
+      if (contentLocation === null) {
+        // Remove content location
+        post.content.location = undefined;
+      } else if (contentLocation.latitude !== undefined && contentLocation.longitude !== undefined) {
+        // Update content location
+        post.content.location = {
+          type: 'Point',
+          coordinates: [contentLocation.longitude, contentLocation.latitude], // GeoJSON format: [lng, lat]
+          address: contentLocation.address || undefined
+        };
+      }
+    }
+
+    // Handle post location updates (creation location metadata)
+    if (postLocation !== undefined) {
+      if (postLocation === null) {
+        // Remove post location
+        post.location = undefined;
+      } else if (postLocation.latitude !== undefined && postLocation.longitude !== undefined) {
+        // Update post location
+        post.location = {
+          type: 'Point',
+          coordinates: [postLocation.longitude, postLocation.latitude], // GeoJSON format: [lng, lat]
+          address: postLocation.address || undefined
+        };
+      }
+    }
+    
     if (hashtags !== undefined) post.hashtags = hashtags || [];
     if (mentions !== undefined) post.mentions = mentions || [];
 
@@ -582,3 +759,318 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: 'Error fetching scheduled posts', error });
   }
 }; 
+
+// Get nearby posts based on location
+export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
+  try {
+    const { lat, lng, radius = 10000, locationType = 'content' } = req.query; // radius in meters, default 10km
+    
+    if (!lat || !lng) {
+      return res.status(400).json({ message: 'Latitude and longitude are required' });
+    }
+
+    const latitude = parseFloat(lat as string);
+    const longitude = parseFloat(lng as string);
+    const radiusMeters = parseInt(radius as string);
+    const locationField = locationType === 'post' ? 'location' : 'content.location';
+
+    if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusMeters)) {
+      return res.status(400).json({ message: 'Invalid latitude, longitude, or radius' });
+    }
+
+    if (locationType !== 'content' && locationType !== 'post') {
+      return res.status(400).json({ message: 'locationType must be either "content" or "post"' });
+    }
+
+    // MongoDB geospatial query to find posts within radius
+    const posts = await Post.find({
+      visibility: 'public',
+      [locationField]: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [longitude, latitude] // GeoJSON format: [lng, lat]
+          },
+          $maxDistance: radiusMeters
+        }
+      }
+    })
+      .sort({ createdAt: -1 })
+      .limit(50) // Limit to prevent too many results
+      .lean();
+
+    // Get current user for liked/saved status
+    const currentUserId = req.user?.id;
+    let savedPostIds: string[] = [];
+    let likedPostIds: string[] = [];
+    
+    if (currentUserId) {
+      const savedPosts = await Bookmark.find({ userId: currentUserId }).lean();
+      savedPostIds = savedPosts.map(saved => saved.postId.toString());
+
+      const likedPosts = await Like.find({ userId: currentUserId }).lean();
+      likedPostIds = likedPosts.map(liked => liked.postId.toString());
+    }
+
+    // Transform posts to match frontend expectations
+    const transformedPosts = posts.map((post: any) => {
+      const userData = post.oxyUserId;
+      return {
+        ...post,
+        user: {
+          id: typeof userData === 'object' ? userData._id : userData,
+          name: typeof userData === 'object' ? userData.name?.full : 'Unknown User',
+          handle: typeof userData === 'object' ? userData.username : 'unknown',
+          avatar: typeof userData === 'object' ? userData.avatar : '',
+          verified: typeof userData === 'object' ? userData.verified : false
+        },
+        isLiked: likedPostIds.includes(post._id.toString()),
+        isSaved: savedPostIds.includes(post._id.toString())
+      };
+    });
+
+    // Remove oxyUserId from response
+    transformedPosts.forEach(post => delete post.oxyUserId);
+
+    res.json({
+      posts: transformedPosts,
+      center: { latitude, longitude },
+      radius: radiusMeters,
+      locationType,
+      count: transformedPosts.length
+    });
+  } catch (error) {
+    console.error('Error fetching nearby posts:', error);
+    res.status(500).json({ message: 'Error fetching nearby posts', error });
+  }
+};
+
+// Get posts within a bounding box area
+export const getPostsInArea = async (req: AuthRequest, res: Response) => {
+  try {
+    const { north, south, east, west, locationType = 'content' } = req.query;
+    
+    if (!north || !south || !east || !west) {
+      return res.status(400).json({ 
+        message: 'Bounding box coordinates (north, south, east, west) are required' 
+      });
+    }
+
+    const northLat = parseFloat(north as string);
+    const southLat = parseFloat(south as string);
+    const eastLng = parseFloat(east as string);
+    const westLng = parseFloat(west as string);
+    const locationField = locationType === 'post' ? 'location' : 'content.location';
+
+    if (isNaN(northLat) || isNaN(southLat) || isNaN(eastLng) || isNaN(westLng)) {
+      return res.status(400).json({ message: 'Invalid bounding box coordinates' });
+    }
+
+    if (locationType !== 'content' && locationType !== 'post') {
+      return res.status(400).json({ message: 'locationType must be either "content" or "post"' });
+    }
+
+    // MongoDB geospatial query to find posts within bounding box
+    const posts = await Post.find({
+      visibility: 'public',
+      [locationField]: {
+        $geoWithin: {
+          $box: [
+            [westLng, southLat], // bottom-left corner [lng, lat]
+            [eastLng, northLat]  // top-right corner [lng, lat]
+          ]
+        }
+      }
+    })
+      .sort({ createdAt: -1 })
+      .limit(100) // Limit to prevent too many results
+      .lean();
+
+    // Get current user for liked/saved status
+    const currentUserId = req.user?.id;
+    let savedPostIds: string[] = [];
+    let likedPostIds: string[] = [];
+    
+    if (currentUserId) {
+      const savedPosts = await Bookmark.find({ userId: currentUserId }).lean();
+      savedPostIds = savedPosts.map(saved => saved.postId.toString());
+
+      const likedPosts = await Like.find({ userId: currentUserId }).lean();
+      likedPostIds = likedPosts.map(liked => liked.postId.toString());
+    }
+
+    // Transform posts to match frontend expectations
+    const transformedPosts = posts.map((post: any) => {
+      const userData = post.oxyUserId;
+      return {
+        ...post,
+        user: {
+          id: typeof userData === 'object' ? userData._id : userData,
+          name: typeof userData === 'object' ? userData.name?.full : 'Unknown User',
+          handle: typeof userData === 'object' ? userData.username : 'unknown',
+          avatar: typeof userData === 'object' ? userData.avatar : '',
+          verified: typeof userData === 'object' ? userData.verified : false
+        },
+        isLiked: likedPostIds.includes(post._id.toString()),
+        isSaved: savedPostIds.includes(post._id.toString())
+      };
+    });
+
+    // Remove oxyUserId from response
+    transformedPosts.forEach(post => delete post.oxyUserId);
+
+    res.json({
+      posts: transformedPosts,
+      boundingBox: { north: northLat, south: southLat, east: eastLng, west: westLng },
+      locationType,
+      count: transformedPosts.length
+    });
+  } catch (error) {
+    console.error('Error fetching posts in area:', error);
+    res.status(500).json({ message: 'Error fetching posts in area', error });
+  }
+};
+
+// Get nearby posts based on both user and post locations
+export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Response) => {
+  try {
+    const { lat, lng, radius = 10000 } = req.query; // radius in meters, default 10km
+    
+    if (!lat || !lng) {
+      return res.status(400).json({ message: 'Latitude and longitude are required' });
+    }
+
+    const latitude = parseFloat(lat as string);
+    const longitude = parseFloat(lng as string);
+    const radiusMeters = parseInt(radius as string);
+
+    if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusMeters)) {
+      return res.status(400).json({ message: 'Invalid latitude, longitude, or radius' });
+    }
+
+    // MongoDB geospatial query to find posts within radius for either location type
+    const posts = await Post.find({
+      visibility: 'public',
+      $or: [
+        {
+          'content.location': {
+            $near: {
+              $geometry: {
+                type: 'Point',
+                coordinates: [longitude, latitude] // GeoJSON format: [lng, lat]
+              },
+              $maxDistance: radiusMeters
+            }
+          }
+        },
+        {
+          'location': {
+            $near: {
+              $geometry: {
+                type: 'Point',
+                coordinates: [longitude, latitude] // GeoJSON format: [lng, lat]
+              },
+              $maxDistance: radiusMeters
+            }
+          }
+        }
+      ]
+    })
+      .sort({ createdAt: -1 })
+      .limit(75) // Slightly higher limit since we're querying both location types
+      .lean();
+
+    // Get current user for liked/saved status
+    const currentUserId = req.user?.id;
+    let savedPostIds: string[] = [];
+    let likedPostIds: string[] = [];
+    
+    if (currentUserId) {
+      const savedPosts = await Bookmark.find({ userId: currentUserId }).lean();
+      savedPostIds = savedPosts.map(saved => saved.postId.toString());
+
+      const likedPosts = await Like.find({ userId: currentUserId }).lean();
+      likedPostIds = likedPosts.map(liked => liked.postId.toString());
+    }
+
+    // Transform posts to match frontend expectations
+    const transformedPosts = posts.map((post: any) => {
+      const userData = post.oxyUserId;
+      return {
+        ...post,
+        user: {
+          id: typeof userData === 'object' ? userData._id : userData,
+          name: typeof userData === 'object' ? userData.name?.full : 'Unknown User',
+          handle: typeof userData === 'object' ? userData.username : 'unknown',
+          avatar: typeof userData === 'object' ? userData.avatar : '',
+          verified: typeof userData === 'object' ? userData.verified : false
+        },
+        isLiked: likedPostIds.includes(post._id.toString()),
+        isSaved: savedPostIds.includes(post._id.toString())
+      };
+    });
+
+    // Remove oxyUserId from response
+    transformedPosts.forEach(post => delete post.oxyUserId);
+
+    res.json({
+      posts: transformedPosts,
+      center: { latitude, longitude },
+      radius: radiusMeters,
+      locationType: 'both',
+      count: transformedPosts.length
+    });
+  } catch (error) {
+    console.error('Error fetching nearby posts (both locations):', error);
+    res.status(500).json({ message: 'Error fetching nearby posts (both locations)', error });
+  }
+};
+
+// Get location statistics for analytics
+export const getLocationStats = async (req: AuthRequest, res: Response) => {
+  try {
+    // Count posts with content locations (user shared)
+    const contentLocationCount = await Post.countDocuments({
+      visibility: 'public',
+      'content.location': { $exists: true, $ne: null }
+    });
+
+    // Count posts with post locations (creation metadata)
+    const postLocationCount = await Post.countDocuments({
+      visibility: 'public',
+      'location': { $exists: true, $ne: null }
+    });
+
+    // Count posts with both location types
+    const bothLocationsCount = await Post.countDocuments({
+      visibility: 'public',
+      'content.location': { $exists: true, $ne: null },
+      'location': { $exists: true, $ne: null }
+    });
+
+    // Get total post count for percentage calculation
+    const totalPosts = await Post.countDocuments({ visibility: 'public' });
+
+    res.json({
+      total: totalPosts,
+      withContentLocation: contentLocationCount,
+      withPostLocation: postLocationCount,
+      withBothLocations: bothLocationsCount,
+      withAnyLocation: await Post.countDocuments({
+        visibility: 'public',
+        $or: [
+          { 'content.location': { $exists: true, $ne: null } },
+          { 'location': { $exists: true, $ne: null } }
+        ]
+      }),
+      percentages: {
+        contentLocation: totalPosts > 0 ? ((contentLocationCount / totalPosts) * 100).toFixed(2) : '0.00',
+        postLocation: totalPosts > 0 ? ((postLocationCount / totalPosts) * 100).toFixed(2) : '0.00',
+        bothLocations: totalPosts > 0 ? ((bothLocationsCount / totalPosts) * 100).toFixed(2) : '0.00'
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching location stats:', error);
+    res.status(500).json({ message: 'Error fetching location stats', error });
+  }
+};

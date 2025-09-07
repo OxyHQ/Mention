@@ -14,7 +14,11 @@ import {
   getPostsByHashtag,
   getSavedPosts,
   getDrafts,
-  getScheduledPosts
+  getScheduledPosts,
+  getNearbyPosts,
+  getPostsInArea,
+  getNearbyPostsBothLocations,
+  getLocationStats
 } from '../controllers/posts.controller';
 
 const router = Router();
@@ -22,6 +26,10 @@ const router = Router();
 // Public routes
 router.get('/', getPosts);
 router.get('/hashtag/:hashtag', getPostsByHashtag);
+router.get('/nearby', getNearbyPosts);
+router.get('/in-area', getPostsInArea);
+router.get('/nearby-all', getNearbyPostsBothLocations);
+router.get('/location-stats', getLocationStats);
 
 // Protected routes - specific routes first (must be before parameterized routes)
 router.post('/', createPost);

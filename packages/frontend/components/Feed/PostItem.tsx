@@ -7,6 +7,7 @@ import { usePostsStore } from '../../stores/postsStore';
 import PostHeader from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
+import PostLocation from '../Post/PostLocation';
 import { colors } from '../../styles/colors';
 import PostMiddle from '../Post/PostMiddle';
 import { useOxy } from '@oxyhq/services';
@@ -134,8 +135,13 @@ const PostItem: React.FC<PostItemProps> = ({
     const handleShare = useCallback(async () => {
         try {
             const postUrl = `https://mention.earth/p/${post.id}`;
-            const shareMessage = ('content' in post && post.content)
-                ? `${post.user.name} (@${post.user.handle}): ${post.content}`
+            const contentText = ('content' in post && typeof post.content === 'object' && post.content?.text)
+                ? post.content.text
+                : ('content' in post && typeof post.content === 'string')
+                ? post.content
+                : '';
+            const shareMessage = contentText
+                ? `${post.user.name} (@${post.user.handle}): ${contentText}`
                 : `${post.user.name} (@${post.user.handle}) shared a post`;
 
             if (Platform.OS === 'web') {
@@ -181,20 +187,20 @@ const PostItem: React.FC<PostItemProps> = ({
     const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
     const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET;
 
+    const avatarUri = post?.user?.avatar ? oxyServices.getFileDownloadUrl(post.user.avatar as string, 'thumb') : undefined;
+    const isPostDetail = (pathname || '').startsWith('/p/');
+    const goToPost = useCallback(() => {
+        if (!isPostDetail && post?.id) router.push(`/p/${post.id}`);
+    }, [router, post?.id, isPostDetail]);
+    const goToUser = useCallback(() => {
+        const handle = post?.user?.handle || '';
+        if (handle) router.push(`/@${handle}`);
+    }, [router, post?.user?.handle]);
+
     // Early return if post is invalid
     if (!post || !post.user) {
         return null;
     }
-
-    const avatarUri = post.user.avatar ? oxyServices.getFileDownloadUrl(post.user.avatar as string, 'thumb') : undefined;
-    const isPostDetail = (pathname || '').startsWith('/p/');
-    const goToPost = useCallback(() => {
-        if (!isPostDetail) router.push(`/p/${post.id}`);
-    }, [router, post.id, isPostDetail]);
-    const goToUser = useCallback(() => {
-        const handle = post.user?.handle || '';
-        if (handle) router.push(`/@${handle}`);
-    }, [router, post.user?.handle]);
 
     // Make whole post pressable (except in detail view).
     // Use Pressable and avoid capturing responder events so nested horizontal scrollers can receive gestures.
@@ -220,17 +226,50 @@ const PostItem: React.FC<PostItemProps> = ({
                 onPressAvatar={goToUser}
             >
                 {/* Top: text content */}
-                {'content' in post && !!post.content && (
-                    <PostContentText content={post.content} postId={post.id} />
+                {'content' in post && !!(post as any).content && (
+                    <PostContentText content={(post as any).content} postId={post.id} />
                 )}
             </PostHeader>
 
+            {/* Location information if available */}
+            {(() => {
+                const postContent = (post as any)?.content;
+                const location = postContent?.location;
+                const hasValidLocation = location?.coordinates && location.coordinates.length >= 2;
+                
+                // Debug logging for all posts to see location data
+                console.log('🗺️ Location check for post:', {
+                    postId: post.id,
+                    text: postContent?.text || 'No text',
+                    hasLocation: !!location,
+                    hasValidLocation,
+                    coordinates: location?.coordinates,
+                    address: location?.address,
+                    locationType: location?.type
+                });
+                
+                return hasValidLocation;
+            })() && (
+                <PostLocation 
+                    location={(post as any).content.location} 
+                    paddingHorizontal={BOTTOM_LEFT_PAD}
+                />
+            )}
+
             {/* Middle: horizontal scroller with media and nested post (repost/parent) */}
             <PostMiddle
-                media={(post as any).media}
+                media={(post as any).content?.media || []}
                 nestedPost={(originalPost || parentPost) ?? null}
                 leftOffset={BOTTOM_LEFT_PAD}
+                pollData={(post as any).content?.poll}
                 pollId={(() => {
+                    // Check for poll ID in content.pollId first (new structure)
+                    const postContent = (post as any).content;
+                    if (postContent?.pollId) {
+                        return postContent.pollId;
+                    }
+                    
+                    // Fallback to legacy metadata structure
                     const md: any = (post as any).metadata;
                     try {
                         if (!md) return null;

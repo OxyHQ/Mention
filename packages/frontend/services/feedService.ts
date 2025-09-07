@@ -106,9 +106,15 @@ class FeedService {
   async createPost(request: CreatePostRequest): Promise<{ success: boolean; post: any }> {
     try {
       // Map the request to match backend expectations
-      const backendRequest = {
-        text: request.content.text || '',
-        media: request.content.images || [],
+      const backendRequest: any = {
+        content: {
+          text: request.content.text || '',
+          media: request.content.media || [],
+          // Include poll if provided  
+          ...(request.content.poll && { poll: request.content.poll }),
+          // Include location if provided
+          ...(request.content.location && { location: request.content.location })
+        },
         hashtags: request.hashtags || [],
         mentions: request.mentions || [],
         visibility: request.visibility || 'public',
@@ -131,7 +137,7 @@ class FeedService {
     try {
       const backendRequest = {
         postId: request.postId,
-        content: request.content?.text || '',
+        content: request.content, // Send complete content structure
         mentions: request.mentions || [],
         hashtags: request.hashtags || []
       };

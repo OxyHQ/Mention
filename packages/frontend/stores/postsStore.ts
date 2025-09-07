@@ -2,14 +2,13 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { 
   FeedRequest, 
-  FeedResponse, 
   CreateReplyRequest, 
   CreateRepostRequest, 
   CreatePostRequest, 
   LikeRequest, 
   UnlikeRequest,
   FeedType,
-  Post as DomainPost
+  PostContent
 } from '@mention/shared-types';
 import { feedService } from '../services/feedService';
 
@@ -23,14 +22,14 @@ interface FeedItem {
     avatar: string;
     verified: boolean;
   };
-  content: string;
+  content: PostContent; // Use full PostContent structure instead of just string
   date: string;
   engagement: {
     replies: number;
     reposts: number;
     likes: number;
   };
-  media?: string[];
+  media?: string[]; // Keep for backward compatibility
   isLiked?: boolean;
   isReposted?: boolean;
   isSaved?: boolean;
@@ -143,7 +142,7 @@ const transformToUIItem = (raw: any) => {
   return {
     ...raw,
     id: String(raw?.id || raw?._id),
-    content: typeof raw?.content === 'string' ? raw.content : (raw?.content?.text || ''),
+    content: raw?.content || { text: '' }, // Keep full content object
     isSaved: raw?.isSaved !== undefined ? raw.isSaved : (raw?.metadata?.isSaved ?? false),
     isLiked: raw?.isLiked !== undefined ? raw.isLiked : (raw?.metadata?.isLiked ?? false),
     isReposted: raw?.isReposted !== undefined ? raw.isReposted : (raw?.metadata?.isReposted ?? false),
@@ -184,24 +183,11 @@ export const usePostsStore = create<FeedState>()(
         const response = await feedService.getFeed(request);
         console.log('📦 FeedService response:', response);
         
-        // Debug: Log the first item to see what data we're getting
-        if (response.items && response.items.length > 0) {
-          const firstItem = response.items[0];
-          console.log('🔍 First item raw data:', firstItem);
-          console.log('🔍 First item.data:', firstItem.data);
-          console.log('🔍 First item interaction flags:', {
-            isLiked: firstItem.data.isLiked,
-            isSaved: firstItem.data.isSaved,
-            isReposted: firstItem.data.isReposted
-          });
-          console.log('🔍 First item engagement:', firstItem.data.engagement);
-        }
-        
         set(state => ({
           feeds: {
             ...state.feeds,
             [type]: {
-              items: response.items?.map(item => transformToUIItem(item.data)) || [],
+              items: response.items?.map(item => transformToUIItem(item)) || [],
               hasMore: response.hasMore || false,
               nextCursor: response.nextCursor,
               totalCount: response.totalCount || 0,
@@ -252,7 +238,7 @@ export const usePostsStore = create<FeedState>()(
 
         set(state => {
           const prev = state.userFeeds[userId]?.[type] || createDefaultFeedState();
-          const newItems = response.items?.map(item => transformToUIItem(item.data)) || [];
+          const newItems = response.items?.map(item => transformToUIItem(item)) || [];
           const mergedItems = request.cursor ? [...(prev.items || []), ...newItems] : newItems;
 
           return ({
@@ -337,7 +323,7 @@ export const usePostsStore = create<FeedState>()(
             posts: {
               items: processedPosts,
               hasMore: response.data.hasMore || false,
-              nextCursor: null,
+              nextCursor: undefined,
               totalCount: processedPosts.length,
               isLoading: false,
               error: null,
@@ -392,7 +378,7 @@ export const usePostsStore = create<FeedState>()(
           feeds: {
             ...state.feeds,
             [type]: {
-              items: response.items?.map(item => transformToUIItem(item.data)) || [],
+              items: response.items?.map(item => transformToUIItem(item)) || [],
               hasMore: response.hasMore || false,
               nextCursor: response.nextCursor,
               totalCount: response.totalCount || 0,
@@ -450,7 +436,7 @@ export const usePostsStore = create<FeedState>()(
             [type]: {
               items: [
                 ...state.feeds[type].items,
-                ...(response.items?.map(item => transformToUIItem(item.data)) || [])
+                ...(response.items?.map(item => transformToUIItem(item)) || [])
               ],
               hasMore: response.hasMore || false,
               nextCursor: response.nextCursor,
@@ -488,10 +474,10 @@ export const usePostsStore = create<FeedState>()(
           const newPost: FeedItem = {
             id: response.post.id,
             user: response.post.user,
-            content: response.post.content?.text || '',
+            content: response.post.content || { text: '' }, // Use full content object
             date: new Date().toISOString(),
             engagement: { replies: 0, reposts: 0, likes: 0 },
-            media: response.post.content?.images || [],
+            media: response.post.content?.images || [], // Keep for backward compatibility
             type: response.post.type,
             visibility: response.post.visibility,
             hashtags: response.post.hashtags || [],
@@ -612,7 +598,6 @@ export const usePostsStore = create<FeedState>()(
       try {
         const response = await feedService.createRepost({
           originalPostId: request.postId,
-          comment: '',
           mentions: [],
           hashtags: []
         });

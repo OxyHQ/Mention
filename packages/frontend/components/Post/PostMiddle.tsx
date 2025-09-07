@@ -1,36 +1,39 @@
 import React, { useRef } from 'react';
-import { Image, ScrollView, StyleSheet, View, GestureResponderEvent } from 'react-native';
+import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent } from 'react-native';
 import PollCard from './PollCard';
 import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
 
-interface MediaObj { id?: string; type?: string; uri?: string; url?: string }
+interface MediaObj { id: string; type: 'image' | 'video' }
 interface Props {
-  media?: (string | MediaObj)[];
+  media?: MediaObj[];
   nestedPost?: any; // original (repost) or parent (reply)
   leftOffset?: number; // negative margin-left to offset avatar space
   pollId?: string;
+  pollData?: any; // Direct poll data from content.poll
 }
 
-const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId }) => {
-  type Item = { type: "nested" } | { type: "image"; src: string } | { type: "poll" };
+const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData }) => {
+  type Item = { type: "nested" } | { type: "image"; src: string } | { type: "video"; src: string } | { type: "poll" };
   const items: Item[] = [];
   const { oxyServices } = useOxy();
 
-  if (pollId) items.push({ type: "poll" });
+  if (pollId || pollData) items.push({ type: "poll" });
   if (nestedPost) items.push({ type: "nested" });
-  (media || []).forEach((m) => {
-    if (typeof m === 'string') {
-      const uri = oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(m) : m;
-      items.push({ type: 'image', src: uri });
-    } else if (m && (m as any).id) {
-      const id = (m as any).id;
-      const uri = oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(id) : id;
-      items.push({ type: 'image', src: uri });
-    } else if (m && (m as any).uri) {
-      items.push({ type: 'image', src: (m as any).uri });
-    } else if (m && (m as any).url) {
-      items.push({ type: 'image', src: (m as any).url });
+  
+  // Debug media processing
+  console.log('🖼️ PostMiddle media processing:', {
+    mediaCount: (media || []).length,
+    media: media
+  });
+  
+  (media || []).forEach((m, index) => {
+    if (m && m.id && m.type) {
+      const uri = oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(m.id) : m.id;
+      console.log(`🖼️ Processing media item ${index}:`, { id: m.id, type: m.type, uri });
+      items.push({ type: m.type, src: uri });
+    } else {
+      console.warn('🖼️ Invalid media item:', m);
     }
   });
 
@@ -75,7 +78,20 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
         if (item.type === 'poll') {
           return (
             <View key={`poll-${idx}`} style={styles.itemContainer}>
-              <PollCard pollId={pollId as string} />
+              {pollId ? (
+                // Use interactive PollCard when we have a pollId
+                <PollCard pollId={pollId as string} />
+              ) : pollData ? (
+                // Fallback to simple display if we only have poll data without ID
+                <View style={styles.pollContainer}>
+                  <Text style={styles.pollQuestion}>{pollData.question}</Text>
+                  {pollData.options?.map((option: string, optIdx: number) => (
+                    <View key={optIdx} style={styles.pollOption}>
+                      <Text style={styles.pollOptionText}>{option}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
           );
         }
@@ -120,5 +136,26 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     backgroundColor: '#EFEFEF',
+  },
+  pollContainer: {
+    padding: 16,
+    backgroundColor: colors.primaryLight,
+    borderRadius: 10,
+  },
+  pollQuestion: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.primaryDark,
+    marginBottom: 12,
+  },
+  pollOption: {
+    padding: 12,
+    backgroundColor: colors.primaryLight_1,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  pollOptionText: {
+    fontSize: 14,
+    color: colors.primaryDark,
   },
 });

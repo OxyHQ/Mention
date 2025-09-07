@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as Location from 'expo-location';
 import { colors } from '../styles/colors';
 import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
@@ -21,12 +22,28 @@ import PostMiddle from '@/components/Post/PostMiddle';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { usePostsStore } from '../stores/postsStore';
+import { GeoJSONPoint } from '@mention/shared-types';
 
 const ComposeScreen = () => {
   const [postContent, setPostContent] = useState('');
-  const [threadItems, setThreadItems] = useState<{ id: string; text: string }[]>([]);
+  const [threadItems, setThreadItems] = useState<{
+    id: string;
+    text: string;
+    mediaIds: string[];
+    pollOptions: string[];
+    showPollCreator: boolean;
+    location: { latitude: number; longitude: number; address?: string } | null;
+  }[]>([]);
   const [isPosting, setIsPosting] = useState(false);
   const [mediaIds, setMediaIds] = useState<string[]>([]);
+  const [pollOptions, setPollOptions] = useState<string[]>([]);
+  const [showPollCreator, setShowPollCreator] = useState(false);
+  const [location, setLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    address?: string;
+  } | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const { user, showBottomSheet, oxyServices } = useOxy();
   const { createPost } = usePostsStore();
   const { t } = useTranslation();
@@ -42,8 +59,9 @@ const ComposeScreen = () => {
     if (isPosting || !user) return;
     const hasText = postContent.trim().length > 0;
     const hasMedia = mediaIds.length > 0;
-    if (!(hasText || hasMedia)) {
-      toast.error(t('Add text or an image'));
+    const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
+    if (!(hasText || hasMedia || hasPoll)) {
+      toast.error(t('Add text, an image, or a poll'));
       return;
     }
 
@@ -55,12 +73,34 @@ const ComposeScreen = () => {
       const postRequest = {
         content: {
           text: postContent.trim(),
-          images: mediaIds,
-          thread: threadItems.map(t => ({ text: t.text.trim() })).filter(t => t.text?.length > 0)
+          media: mediaIds.map(id => ({ id, type: 'image' as const })),
+          // Include poll if user created one
+          ...(hasPoll && {
+            poll: {
+              question: postContent.trim() || 'Poll', // Use post text as question or default
+              options: pollOptions.filter(opt => opt.trim().length > 0),
+              endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+              votes: {},
+              userVotes: {}
+            }
+          }),
+          // Include location if user shared their location
+          ...(location && {
+            location: {
+              type: 'Point' as const,
+              coordinates: [location.longitude, location.latitude],
+              address: location.address
+            } as GeoJSONPoint
+          })
         },
         mentions: [],
         hashtags: []
       };
+
+      // Remove old poll logging since we now include it in the request
+      if (hasPoll) {
+        console.log('Creating post with poll:', pollOptions.filter(opt => opt.trim().length > 0));
+      }
 
       // Send main post to backend
       await createPost(postRequest);
@@ -76,7 +116,27 @@ const ComposeScreen = () => {
               const text = item.text;
               if (!text || text.trim().length === 0) continue;
               const threadReq = {
-                content: { text: text.trim() },
+                content: {
+                  text: text.trim(),
+                  // Include poll if this thread item has poll options
+                  ...(item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0) && {
+                    poll: {
+                      question: text.trim() || 'Poll',
+                      options: item.pollOptions.filter(opt => opt.trim().length > 0),
+                      endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                      votes: {},
+                      userVotes: {}
+                    }
+                  }),
+                  // Include location if user shared location for this thread item
+                  ...(item.location && {
+                    location: {
+                      type: 'Point' as const,
+                      coordinates: [item.location.longitude, item.location.latitude],
+                      address: item.location.address
+                    } as GeoJSONPoint
+                  })
+                },
                 parentPostId: mainPostId,
                 threadId: mainPostId,
                 mentions: [],
@@ -89,11 +149,6 @@ const ComposeScreen = () => {
         } catch (err) {
           console.error('Failed to create thread posts:', err);
         }
-      }
-
-      // If poll enabled, create poll linked to the new post
-      if (false) {
-        // Poll creation removed - using toolbar icons instead
       }
 
       // Show success toast
@@ -111,7 +166,8 @@ const ComposeScreen = () => {
 
   // back navigation
 
-  const canPostContent = postContent.trim().length > 0 || mediaIds.length > 0;
+  const canPostContent = postContent.trim().length > 0 || mediaIds.length > 0 || (pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0)) || location ||
+    threadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 || (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
   const isPostButtonEnabled = canPostContent && !isPosting;
 
   const openMediaPicker = () => {
@@ -146,7 +202,208 @@ const ComposeScreen = () => {
     });
   };
 
-  return (
+  const openPollCreator = () => {
+    setShowPollCreator(true);
+    // Initialize with 2 empty options
+    setPollOptions(['', '']);
+  };
+
+  const addPollOption = () => {
+    setPollOptions(prev => [...prev, '']);
+  };
+
+  const updatePollOption = (index: number, value: string) => {
+    setPollOptions(prev => prev.map((option, i) => i === index ? value : option));
+  };
+
+  const removePollOption = (index: number) => {
+    if (pollOptions.length > 2) {
+      setPollOptions(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const removePoll = () => {
+    setShowPollCreator(false);
+    setPollOptions([]);
+  };
+
+  // Location functions
+  const requestLocation = async () => {
+    setIsGettingLocation(true);
+    try {
+      // Request permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        toast.error(t('Location permission denied'));
+        return;
+      }
+
+      // Get current position
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      // Reverse geocode to get address
+      const reverseGeocode = await Location.reverseGeocodeAsync({
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      });
+
+      const address = reverseGeocode[0];
+      const locationData = {
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+        address: address
+          ? `${address.city || address.subregion || ''}, ${address.region || ''}`
+          : `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`
+      };
+
+      setLocation(locationData);
+      toast.success(t('Location added'));
+    } catch (error) {
+      console.error('Error getting location:', error);
+      toast.error(t('Failed to get location'));
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
+  const removeLocation = () => {
+    setLocation(null);
+    toast.success(t('Location removed'));
+  };
+
+  // Thread item functions
+  const openThreadMediaPicker = (threadId: string) => {
+    showBottomSheet?.({
+      screen: 'FileManagement',
+      props: {
+        selectMode: true,
+        multiSelect: true,
+        disabledMimeTypes: ['video/', 'audio/', 'application/pdf'],
+        afterSelect: 'back',
+        onSelect: async (file: any) => {
+          if (!file?.contentType?.startsWith?.('image/')) {
+            toast.error(t('Please select an image file'));
+            return;
+          }
+          try {
+            setThreadItems(prev => prev.map(item =>
+              item.id === threadId
+                ? { ...item, mediaIds: item.mediaIds.includes(file.id) ? item.mediaIds : [...item.mediaIds, file.id] }
+                : item
+            ));
+            toast.success(t('Image attached'));
+          } catch (e: any) {
+            toast.error(e?.message || t('Failed to attach image'));
+          }
+        },
+        onConfirmSelection: async (files: any[]) => {
+          const onlyImages = (files || []).filter(f => f?.contentType?.startsWith?.('image/'));
+          if (onlyImages.length !== (files || []).length) {
+            toast.error(t('Please select only image files'));
+          }
+          const ids = onlyImages.map(f => f.id);
+          setThreadItems(prev => prev.map(item =>
+            item.id === threadId
+              ? { ...item, mediaIds: Array.from(new Set([...item.mediaIds, ...ids])) }
+              : item
+          ));
+        }
+      }
+    });
+  };
+
+  const openThreadPollCreator = (threadId: string) => {
+    setThreadItems(prev => prev.map(item =>
+      item.id === threadId
+        ? { ...item, showPollCreator: true, pollOptions: item.pollOptions.length === 0 ? ['', ''] : item.pollOptions }
+        : item
+    ));
+  };
+
+  const addThreadPollOption = (threadId: string) => {
+    setThreadItems(prev => prev.map(item =>
+      item.id === threadId
+        ? { ...item, pollOptions: [...item.pollOptions, ''] }
+        : item
+    ));
+  };
+
+  const updateThreadPollOption = (threadId: string, index: number, value: string) => {
+    setThreadItems(prev => prev.map(item =>
+      item.id === threadId
+        ? { ...item, pollOptions: item.pollOptions.map((option, i) => i === index ? value : option) }
+        : item
+    ));
+  };
+
+  const removeThreadPollOption = (threadId: string, index: number) => {
+    setThreadItems(prev => prev.map(item =>
+      item.id === threadId && item.pollOptions.length > 2
+        ? { ...item, pollOptions: item.pollOptions.filter((_, i) => i !== index) }
+        : item
+    ));
+  };
+
+  const removeThreadPoll = (threadId: string) => {
+    setThreadItems(prev => prev.map(item =>
+      item.id === threadId
+        ? { ...item, showPollCreator: false, pollOptions: [] }
+        : item
+    ));
+  };
+
+  // Thread location functions
+  const requestThreadLocation = async (threadId: string) => {
+    try {
+      // Request permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        toast.error(t('Location permission denied'));
+        return;
+      }
+
+      // Get current position
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      // Reverse geocode to get address
+      const reverseGeocode = await Location.reverseGeocodeAsync({
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      });
+
+      const address = reverseGeocode[0];
+      const locationData = {
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+        address: address
+          ? `${address.city || address.subregion || ''}, ${address.region || ''}`
+          : `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`
+      };
+
+      setThreadItems(prev => prev.map(item =>
+        item.id === threadId
+          ? { ...item, location: locationData }
+          : item
+      ));
+      toast.success(t('Location added'));
+    } catch (error) {
+      console.error('Error getting location:', error);
+      toast.error(t('Failed to get location'));
+    }
+  };
+
+  const removeThreadLocation = (threadId: string) => {
+    setThreadItems(prev => prev.map(item =>
+      item.id === threadId
+        ? { ...item, location: null }
+        : item
+    ));
+    toast.success(t('Location removed'));
+  }; return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="light" />
 
@@ -172,26 +429,9 @@ const ComposeScreen = () => {
           </View>
         </View>
 
-        {/* User info with topic */}
-        <View style={styles.userInfoRow}>
-          <Avatar
-            source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
-            size={40}
-            verified={Boolean(user?.verified)}
-          />
-          <View style={styles.userDetails}>
-            <View style={styles.userNameRow}>
-              <Text style={styles.userName}>{user?.name?.full || user?.username}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.COLOR_BLACK_LIGHT_4} />
-              <Text style={styles.topicText}>{t('Add a topic')}</Text>
-            </View>
-            <Text style={styles.userHandle}>{t("What's new?")}</Text>
-          </View>
-        </View>
-
         {/* Main composer and thread section */}
         <View style={styles.threadContainer}>
-          {/* Continuous timeline line for all items - from What's new to Add to thread */}
+          {/* Continuous timeline line for all items - from composer to Add to thread */}
           <View style={styles.continuousTimelineLine} />
 
           {/* Main composer */}
@@ -209,7 +449,7 @@ const ComposeScreen = () => {
               >
                 <TextInput
                   style={styles.mainTextInput}
-                  placeholder={t("What's happening?")}
+                  placeholder={t("What's new?")}
                   placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
                   value={postContent}
                   onChangeText={setPostContent}
@@ -227,22 +467,74 @@ const ComposeScreen = () => {
                   <TouchableOpacity>
                     <Ionicons name="happy-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
                   </TouchableOpacity>
-                  <TouchableOpacity>
-                    <Ionicons name="list-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                  <TouchableOpacity onPress={openPollCreator}>
+                    <Ionicons name="stats-chart-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
                   </TouchableOpacity>
                   <TouchableOpacity>
                     <Ionicons name="document-text-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
                   </TouchableOpacity>
-                  <TouchableOpacity>
-                    <Ionicons name="location-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                  <TouchableOpacity onPress={requestLocation} disabled={isGettingLocation}>
+                    <Ionicons
+                      name="location-outline"
+                      size={20}
+                      color={location ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
+                    />
                   </TouchableOpacity>
                 </View>
               </PostHeader>
 
               <PostMiddle
-                media={mediaIds.map(id => ({ id, url: oxyServices.getFileDownloadUrl(id, 'thumb') }))}
+                media={mediaIds.map(id => ({ id, type: 'image' as const }))}
                 leftOffset={BOTTOM_LEFT_PAD}
               />
+
+              {/* Poll Creator */}
+              {showPollCreator && (
+                <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                  <View style={styles.pollHeader}>
+                    <Text style={styles.pollTitle}>{t('Create a poll')}</Text>
+                    <TouchableOpacity onPress={removePoll}>
+                      <Ionicons name="close" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                    </TouchableOpacity>
+                  </View>
+                  {pollOptions.map((option, index) => (
+                    <View key={index} style={styles.pollOptionRow}>
+                      <TextInput
+                        style={styles.pollOptionInput}
+                        placeholder={t(`Option ${index + 1}`)}
+                        placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+                        value={option}
+                        onChangeText={(value) => updatePollOption(index, value)}
+                        maxLength={50}
+                      />
+                      {pollOptions.length > 2 && (
+                        <TouchableOpacity onPress={() => removePollOption(index)}>
+                          <Ionicons name="close-circle" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                  {pollOptions.length < 4 && (
+                    <TouchableOpacity style={styles.addPollOptionBtn} onPress={addPollOption}>
+                      <Ionicons name="add" size={16} color={colors.primaryColor} />
+                      <Text style={styles.addPollOptionText}>{t('Add option')}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* Location Display */}
+              {location && (
+                <View style={[styles.locationDisplay, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                  <View style={styles.locationHeader}>
+                    <Ionicons name="location" size={16} color={colors.primaryColor} />
+                    <Text style={styles.locationText}>{location.address}</Text>
+                    <TouchableOpacity onPress={removeLocation}>
+                      <Ionicons name="close" size={16} color={colors.COLOR_BLACK_LIGHT_4} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
           </View>
 
@@ -270,7 +562,7 @@ const ComposeScreen = () => {
                         multiline
                       />
                       <View style={styles.toolbarRow}>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => openThreadMediaPicker(item.id)}>
                           <Ionicons name="image-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
                         </TouchableOpacity>
                         <TouchableOpacity>
@@ -279,14 +571,18 @@ const ComposeScreen = () => {
                         <TouchableOpacity>
                           <Ionicons name="happy-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
                         </TouchableOpacity>
-                        <TouchableOpacity>
-                          <Ionicons name="list-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <TouchableOpacity onPress={() => openThreadPollCreator(item.id)}>
+                          <Ionicons name="stats-chart-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
                         </TouchableOpacity>
                         <TouchableOpacity>
                           <Ionicons name="document-text-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
                         </TouchableOpacity>
-                        <TouchableOpacity>
-                          <Ionicons name="location-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <TouchableOpacity onPress={() => requestThreadLocation(item.id)}>
+                          <Ionicons
+                            name="location-outline"
+                            size={18}
+                            color={item.location ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
+                          />
                         </TouchableOpacity>
                       </View>
                       <TouchableOpacity
@@ -298,6 +594,62 @@ const ComposeScreen = () => {
                     </View>
                   </View>
                 </View>
+
+                {/* Thread item media */}
+                {item.mediaIds.length > 0 && (
+                  <PostMiddle
+                    media={item.mediaIds.map(id => ({ id, type: 'image' as const }))}
+                    leftOffset={BOTTOM_LEFT_PAD}
+                  />
+                )}
+
+                {/* Thread item poll creator */}
+                {item.showPollCreator && (
+                  <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                    <View style={styles.pollHeader}>
+                      <Text style={styles.pollTitle}>{t('Create a poll')}</Text>
+                      <TouchableOpacity onPress={() => removeThreadPoll(item.id)}>
+                        <Ionicons name="close" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                      </TouchableOpacity>
+                    </View>
+                    {item.pollOptions.map((option, index) => (
+                      <View key={index} style={styles.pollOptionRow}>
+                        <TextInput
+                          style={styles.pollOptionInput}
+                          placeholder={t(`Option ${index + 1}`)}
+                          placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+                          value={option}
+                          onChangeText={(value) => updateThreadPollOption(item.id, index, value)}
+                          maxLength={50}
+                        />
+                        {item.pollOptions.length > 2 && (
+                          <TouchableOpacity onPress={() => removeThreadPollOption(item.id, index)}>
+                            <Ionicons name="close-circle" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                    {item.pollOptions.length < 4 && (
+                      <TouchableOpacity style={styles.addPollOptionBtn} onPress={() => addThreadPollOption(item.id)}>
+                        <Ionicons name="add" size={16} color={colors.primaryColor} />
+                        <Text style={styles.addPollOptionText}>{t('Add option')}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Thread item location display */}
+                {item.location && (
+                  <View style={[styles.locationDisplay, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                    <View style={styles.locationHeader}>
+                      <Ionicons name="location" size={16} color={colors.primaryColor} />
+                      <Text style={styles.locationText}>{item.location.address}</Text>
+                      <TouchableOpacity onPress={() => removeThreadLocation(item.id)}>
+                        <Ionicons name="close" size={16} color={colors.COLOR_BLACK_LIGHT_4} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
           ))}
@@ -307,7 +659,14 @@ const ComposeScreen = () => {
             style={styles.postContainer}
             onPress={() => {
               const id = Date.now().toString();
-              setThreadItems(prev => [...prev, { id, text: '' }]);
+              setThreadItems(prev => [...prev, {
+                id,
+                text: '',
+                mediaIds: [],
+                pollOptions: [],
+                showPollCreator: false,
+                location: null
+              }]);
             }}
           >
             <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
@@ -393,14 +752,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  userDetails: {
-    marginLeft: 12,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.COLOR_BLACK_LIGHT_1,
   },
   userHandle: {
     fontSize: 14,
@@ -565,21 +916,6 @@ const styles = StyleSheet.create({
     color: colors.COLOR_BLACK_LIGHT_4,
   },
   // New styles for exact screenshot match
-  userInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 16,
-  },
-  userNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  topicText: {
-    fontSize: 14,
-    color: colors.COLOR_BLACK_LIGHT_4,
-  },
   mainComposer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -630,8 +966,6 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     gap: 12,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
   },
   headerRow: {
     flexDirection: 'row',
@@ -720,8 +1054,8 @@ const styles = StyleSheet.create({
   continuousTimelineLine: {
     position: 'absolute',
     left: 35, // Center on avatar (16px padding + 20px avatar center - 1px)
-    top: -32, // Start at center of "What's new?" avatar (center of 40px avatar)
-    height: '100%', // Use full height of container, no extending beyond
+    top: 20, // Start at center of main composer avatar (20px from top of PostHeader avatar)
+    bottom: 20, // End at center of "Add to thread" avatar (20px from bottom)
     width: 2,
     backgroundColor: colors.COLOR_BLACK_LIGHT_6,
     borderRadius: 1,
@@ -734,6 +1068,74 @@ const styles = StyleSheet.create({
   threadItemWithTimeline: {
     position: 'relative',
     zIndex: 2, // Above the timeline line
+  },
+  // Poll creator styles
+  pollCreator: {
+    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: colors.COLOR_BLACK_LIGHT_6,
+  },
+  pollHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  pollTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.COLOR_BLACK_LIGHT_1,
+  },
+  pollOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  pollOptionInput: {
+    flex: 1,
+    backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+    borderWidth: 1,
+    borderColor: colors.COLOR_BLACK_LIGHT_6,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: colors.COLOR_BLACK_LIGHT_1,
+  },
+  addPollOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  addPollOptionText: {
+    fontSize: 14,
+    color: colors.primaryColor,
+    fontWeight: '500',
+  },
+  // Location styles
+  locationDisplay: {
+    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.COLOR_BLACK_LIGHT_6,
+  },
+  locationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  locationText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.COLOR_BLACK_LIGHT_2,
+    fontWeight: '500',
   },
 });
 

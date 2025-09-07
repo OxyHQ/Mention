@@ -13,6 +13,7 @@ export interface Coordinates {
 export interface GeoJSONPoint {
   type: 'Point';
   coordinates: [number, number]; // [longitude, latitude]
+  address?: string; // Optional human-readable address
 }
 
 export interface Pagination {

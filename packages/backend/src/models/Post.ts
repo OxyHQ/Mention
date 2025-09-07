@@ -18,26 +18,62 @@ export interface IPost extends Document {
   threadId?: string; // for thread posts
   stats: PostStats;
   metadata: PostMetadata;
+  location?: { // Post creation location metadata
+    type: 'Point';
+    coordinates: [number, number]; // [longitude, latitude]
+    address?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
 
 const PostContentSchema = new Schema({
-  text: { type: String },
-  // Allow either string IDs or objects { id, type, mime }
-  images: [{ type: Schema.Types.Mixed }],
-  video: { type: String },
-  poll: {
-    question: { type: String },
-    options: [{ type: String }],
-    endTime: { type: String },
-    votes: { type: Map, of: Number, default: {} },
-    userVotes: { type: Map, of: String, default: {} }
-  },
+  text: { type: String, default: '', index: 'text' },
+  media: [{
+    // MediaItem objects with id and type
+    type: Schema.Types.Mixed,
+    validate: {
+      validator: function(item: any) {
+        // Only allow MediaItem objects with id and type
+        if (typeof item === 'object' && item !== null) {
+          return typeof item.id === 'string' && 
+                 (item.type === 'image' || item.type === 'video');
+        }
+        return false;
+      },
+      message: 'Media must be MediaItem objects with id and type fields'
+    }
+  }],
+  // Location shared by user as part of post content - visible to other users
   location: {
-    type: { type: String, enum: ['Point'], default: 'Point' },
-    coordinates: [{ type: Number }]
-  }
+    type: { 
+      type: String, 
+      enum: ['Point'], 
+      required: function() {
+        // Require type only if coordinates are provided
+        return this.coordinates && this.coordinates.length > 0;
+      }
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude] - longitude first for GeoJSON standard
+      required: false,
+      validate: {
+        validator: function(coords: number[]) {
+          // Allow empty arrays or undefined - no location data
+          if (!coords || coords.length === 0) return true;
+          // If coordinates provided, must be valid [lng, lat] format
+          return coords.length === 2 && 
+                 coords[0] >= -180 && coords[0] <= 180 && // longitude
+                 coords[1] >= -90 && coords[1] <= 90;    // latitude
+        },
+        message: 'Coordinates must be [longitude, latitude] with valid ranges'
+      }
+    },
+    // Optional address string for display purposes
+    address: { type: String, required: false }
+  },
+  // Poll ID reference to separate Poll collection
+  pollId: { type: String, required: false }
 });
 
 const PostStatsSchema = new Schema({
@@ -81,7 +117,35 @@ const PostSchema = new Schema<IPost>({
   parentPostId: { type: String, index: true },
   threadId: { type: String, index: true },
   stats: { type: PostStatsSchema, default: () => ({}) },
-  metadata: { type: PostMetadataSchema, default: () => ({}) }
+  metadata: { type: PostMetadataSchema, default: () => ({}) },
+  // Post creation location - metadata for analytics/discovery
+  location: {
+    type: { 
+      type: String, 
+      enum: ['Point'], 
+      required: function(this: any) {
+        // Require type only if coordinates are provided in this location object
+        return this.coordinates && this.coordinates.length > 0;
+      }
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude] - longitude first for GeoJSON standard
+      required: false,
+      validate: {
+        validator: function(coords: number[]) {
+          // Allow empty arrays or undefined - no location data
+          if (!coords || coords.length === 0) return true;
+          // If coordinates provided, must be valid [lng, lat] format
+          return coords.length === 2 && 
+                 coords[0] >= -180 && coords[0] <= 180 && // longitude
+                 coords[1] >= -90 && coords[1] <= 90;    // latitude
+        },
+        message: 'Coordinates must be [longitude, latitude] with valid ranges'
+      }
+    },
+    // Optional address string for display purposes
+    address: { type: String, required: false }
+  }
 }, {
   timestamps: {
     createdAt: 'createdAt',
@@ -91,13 +155,26 @@ const PostSchema = new Schema<IPost>({
   toJSON: { virtuals: true }
 });
 
+// Pre-save hook to clean up empty location objects
+PostSchema.pre('save', function() {
+  // Clean up content.location if it has empty coordinates
+  if (this.content?.location && (!this.content.location.coordinates || this.content.location.coordinates.length !== 2)) {
+    this.content.location = undefined;
+  }
+  
+  // Clean up post.location if it has empty coordinates
+  if (this.location && (!this.location.coordinates || this.location.coordinates.length !== 2)) {
+    this.location = undefined;
+  }
+});
+
 // Virtual fields for backward compatibility
 PostSchema.virtual('text').get(function() {
   return this.content?.text || '';
 });
 
 PostSchema.virtual('media').get(function() {
-  return this.content?.images || [];
+  return this.content?.media || [];
 });
 
 PostSchema.virtual('userID').get(function() {
@@ -114,14 +191,20 @@ PostSchema.index({ parentPostId: 1, createdAt: -1 });
 PostSchema.index({ threadId: 1, createdAt: -1 });
 PostSchema.index({ repostOf: 1, createdAt: -1 });
 PostSchema.index({ quoteOf: 1, createdAt: -1 });
-PostSchema.index({ 'content.images': 1, createdAt: -1 });
-PostSchema.index({ 'content.video': 1, createdAt: -1 });
+PostSchema.index({ 'content.media': 1, createdAt: -1 });
 PostSchema.index({ createdAt: -1 }); // Default sort order
+
+// Geospatial indexes for both location fields
+PostSchema.index({ 'content.location': '2dsphere' }); // User's shared location
+PostSchema.index({ 'location': '2dsphere' }); // Post creation location
 
 // Compound indexes for common query patterns
 PostSchema.index({ oxyUserId: 1, visibility: 1, createdAt: -1 });
 PostSchema.index({ type: 1, visibility: 1, createdAt: -1 });
 PostSchema.index({ hashtags: 1, visibility: 1, createdAt: -1 });
+// Geospatial compound indexes for location + time queries
+PostSchema.index({ 'content.location': '2dsphere', createdAt: -1 });
+PostSchema.index({ 'location': '2dsphere', createdAt: -1 });
 
 export const Post = mongoose.model<IPost>('Post', PostSchema);
 export default Post;

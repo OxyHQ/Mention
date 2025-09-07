@@ -25,7 +25,7 @@ export interface FeedEngagement {
 export interface Post {
   id: string;
   user: FeedUser;
-  content: string;
+  content: PostContent | string; // Support both new PostContent structure and legacy string
   date: string;
   engagement: FeedEngagement;
   media?: string[];
@@ -38,7 +38,7 @@ export interface Reply {
   id: string;
   postId: string;
   user: FeedUser;
-  content: string;
+  content: PostContent | string; // Support both new PostContent structure and legacy string
   date: string;
   engagement: FeedEngagement;
   isLiked?: boolean;

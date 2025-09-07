@@ -3,9 +3,10 @@ import { StyleSheet, Text } from 'react-native';
 import { colors } from '../../styles/colors';
 import LinkifiedText from '../common/LinkifiedText';
 import { useRouter, usePathname } from 'expo-router';
+import { PostContent } from '@mention/shared-types';
 
 interface Props {
-  content?: string;
+  content?: string | PostContent; // Support both legacy string and new PostContent object
   postId?: string;
   previewChars?: number;
 }
@@ -13,11 +14,15 @@ interface Props {
 const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280 }) => {
   const router = useRouter();
   const pathname = usePathname();
-  if (!content) return null;
+  
+  // Extract text from content (handle both string and PostContent object)
+  const textContent = typeof content === 'string' ? content : content?.text || '';
+  
+  if (!textContent) return null;
 
   const isDetailPage = pathname?.startsWith('/p');
-  const shouldTruncate = !isDetailPage && content.length > previewChars;
-  const displayed = shouldTruncate ? `${content.slice(0, previewChars).trimEnd()}…` : content;
+  const shouldTruncate = !isDetailPage && textContent.length > previewChars;
+  const displayed = shouldTruncate ? `${textContent.slice(0, previewChars).trimEnd()}…` : textContent;
 
   const suffix = shouldTruncate && postId ? (
     <Text style={styles.link} onPress={() => router.push(`/p/${postId}`)}>

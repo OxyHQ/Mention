@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { Post } from '../models/Post';
+import Poll from '../models/Poll';
 import Like from '../models/Like';
 import { 
   FeedRequest, 
@@ -30,8 +31,11 @@ class FeedController {
    */
   private async transformPostsWithProfiles(posts: any[], currentUserId?: string): Promise<any[]> {
     try {
+      // First, populate poll data for posts that have polls
+      const postsWithPolls = await this.populatePollData(posts);
+      
       // Get unique user IDs to fetch user data in batch
-      const userIds = [...new Set(posts.map(post => {
+      const userIds = [...new Set(postsWithPolls.map(post => {
         const postObj = post.toObject ? post.toObject() : post;
         return postObj.oxyUserId;
       }))];
@@ -70,7 +74,7 @@ class FeedController {
           console.log('🔍 Fetching user interactions for userId:', currentUserId);
           
           // Get all post IDs
-          const postIds = posts.map(post => {
+          const postIds = postsWithPolls.map(post => {
             const postObj = post.toObject ? post.toObject() : post;
             return postObj._id.toString();
           });
@@ -148,7 +152,7 @@ class FeedController {
       }
 
       // Transform posts with real user data and engagement stats
-      const transformedPosts = posts.map(post => {
+      const transformedPosts = postsWithPolls.map(post => {
         const postObj = post.toObject ? post.toObject() : post;
         const userId = postObj.oxyUserId;
         const postId = postObj._id.toString();
@@ -198,33 +202,38 @@ class FeedController {
           hasInteractionData: userInteractions.has(postId)
         });
 
+        // Return post in standard Post schema format
         const transformedPost = {
           id: postId,
-          user: userData,
-          content: postObj.content?.text || '',
-          date: postObj.createdAt,
-          engagement,
-          media: Array.isArray(postObj?.content?.images) ? postObj.content.images : [],
-          isLiked,
-          isReposted,
-          isSaved,
+          _id: postObj._id,
+          oxyUserId: postObj.oxyUserId,
           type: postObj.type,
+          content: postObj.content, // Return complete content structure
           visibility: postObj.visibility,
-          hashtags: postObj.hashtags || [],
+          isEdited: postObj.isEdited,
+          editHistory: postObj.editHistory,
+          language: postObj.language,
+          tags: postObj.tags || [],
           mentions: postObj.mentions || [],
-          parentPostId: postObj.parentPostId,
-          threadId: postObj.threadId,
+          hashtags: postObj.hashtags || [],
           repostOf: postObj.repostOf,
           quoteOf: postObj.quoteOf,
-          isEdited: postObj.isEdited,
-          language: postObj.language,
+          parentPostId: postObj.parentPostId,
+          threadId: postObj.threadId,
           stats: stats, // Use the processed stats object
           metadata: {
             ...postObj.metadata,
             isLiked,
             isReposted,
-            isSaved
-          }
+            isSaved,
+          },
+          location: postObj.location, // Post creation location metadata
+          createdAt: postObj.createdAt,
+          updatedAt: postObj.updatedAt,
+          // Additional fields for UI compatibility
+          date: postObj.createdAt, // Frontend expects 'date' field
+          user: userData,
+          engagement,
         };
 
         console.log(`📄 Transformed post ${postId}:`, {
@@ -339,6 +348,59 @@ class FeedController {
   }
 
   /**
+   * Populate poll data for posts
+   */
+  async populatePollData(posts: any[]): Promise<any[]> {
+    try {
+      // Get all poll IDs from posts
+      const pollIds = posts
+        .map(post => post.content?.pollId)
+        .filter(Boolean);
+
+      if (pollIds.length === 0) {
+        return posts;
+      }
+
+      // Fetch all polls in one query
+      const polls = await Poll.find({ _id: { $in: pollIds } }).lean();
+      
+      // Create a map for quick lookup
+      const pollMap = new Map();
+      polls.forEach(poll => {
+        pollMap.set(poll._id.toString(), {
+          question: poll.question,
+          options: poll.options.map((option: any) => option.text),
+          endTime: poll.endsAt.toISOString(),
+          votes: poll.options.reduce((acc: any, option: any, index: number) => {
+            acc[index] = option.votes.length;
+            return acc;
+          }, {}),
+          userVotes: poll.options.reduce((acc: any, option: any) => {
+            option.votes.forEach((userId: string) => {
+              acc[userId] = String(poll.options.indexOf(option));
+            });
+            return acc;
+          }, {})
+        });
+      });
+
+      // Add poll data to posts
+      return posts.map(post => {
+        if (post.content?.pollId) {
+          const pollData = pollMap.get(post.content.pollId);
+          if (pollData) {
+            post.content.poll = pollData;
+          }
+        }
+        return post;
+      });
+    } catch (error) {
+      console.error('Error populating poll data:', error);
+      return posts; // Return posts without poll data if population fails
+    }
+  }
+
+  /**
    * Get main feed with pagination and real-time updates
    */
   async getFeed(req: AuthRequest, res: Response) {
@@ -424,13 +486,7 @@ class FeedController {
       }
 
       const response: FeedResponse = {
-        items: transformedPosts.map(post => ({
-          id: post.id,
-          type: 'post',
-          data: post,
-          createdAt: post.date,
-          updatedAt: post.date
-        })),
+        items: transformedPosts, // Return posts directly in new schema format
         hasMore,
         nextCursor,
         totalCount: transformedPosts.length
@@ -526,13 +582,7 @@ class FeedController {
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts.map(post => ({
-          id: post.id,
-          type: 'post',
-          data: post,
-          createdAt: post.date,
-          updatedAt: post.date
-        })),
+        items: transformedPosts, // Return posts directly in new schema format
         hasMore,
         nextCursor,
         totalCount: transformedPosts.length
@@ -603,13 +653,7 @@ class FeedController {
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts.map(post => ({
-          id: post.id,
-          type: 'post',
-          data: post,
-          createdAt: post.date,
-          updatedAt: post.date
-        })),
+        items: transformedPosts, // Return posts directly in new schema format
         hasMore,
         nextCursor,
         totalCount: transformedPosts.length
@@ -669,13 +713,7 @@ class FeedController {
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts.map(post => ({
-          id: post.id,
-          type: 'post',
-          data: post,
-          createdAt: post.date,
-          updatedAt: post.date
-        })),
+        items: transformedPosts, // Return posts directly in new schema format
         hasMore,
         nextCursor,
         totalCount: transformedPosts.length
@@ -722,13 +760,7 @@ class FeedController {
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts.map(post => ({
-          id: post.id,
-          type: 'post',
-          data: post,
-          createdAt: post.date,
-          updatedAt: post.date
-        })),
+        items: transformedPosts, // Return posts directly in new schema format
         hasMore,
         nextCursor,
         totalCount: transformedPosts.length
@@ -792,13 +824,7 @@ class FeedController {
         const transformedPosts = await this.transformPostsWithProfiles(postsOrdered, currentUserId);
 
         const response: FeedResponse = {
-          items: transformedPosts.map(post => ({
-            id: post.id,
-            type: 'post',
-            data: post,
-            createdAt: post.date,
-            updatedAt: post.date
-          })),
+          items: transformedPosts, // Return posts directly in new schema format
           hasMore,
           nextCursor,
           totalCount: transformedPosts.length
@@ -846,13 +872,7 @@ class FeedController {
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts.map(post => ({
-          id: post.id,
-          type: 'post',
-          data: post,
-          createdAt: post.date,
-          updatedAt: post.date
-        })),
+        items: transformedPosts, // Return posts directly in new schema format
         hasMore,
         nextCursor,
         totalCount: transformedPosts.length

@@ -19,12 +19,17 @@ export enum PostVisibility {
   PRIVATE = 'private'
 }
 
+export interface MediaItem {
+  id: string;
+  type: 'image' | 'video';
+}
+
 export interface PostContent {
   text?: string;
-  images?: string[];
-  video?: string;
-  poll?: PollData;
-  location?: GeoJSONPoint;
+  media?: MediaItem[]; // Media items for images and videos
+  poll?: PollData; // Populated poll data for display
+  pollId?: string; // Reference to poll document
+  location?: GeoJSONPoint; // Location shared by user as part of post content
 }
 
 export interface PollData {
@@ -54,6 +59,7 @@ export interface Post {
   threadId?: string; // for thread posts
   stats: PostStats;
   metadata: PostMetadata;
+  location?: GeoJSONPoint; // Post creation location metadata
   createdAt: string;
   updatedAt: string;
 }
