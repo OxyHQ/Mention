@@ -190,6 +190,8 @@ const NotificationsScreen: React.FC = () => {
                                 ? styles.emptyListContainer
                                 : undefined
                         }
+                        recycleItems={true}
+                        maintainVisibleContentPosition={true}
                     />
                 )}
             </View>

@@ -95,6 +95,8 @@ export default function FollowersScreen() {
             <ThemedText>{t("No followers yet")}</ThemedText>
           </View>
         }
+  recycleItems={true}
+  maintainVisibleContentPosition={true}
       />
     </View>
   );

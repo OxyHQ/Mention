@@ -208,6 +208,8 @@ const FeedsScreen: React.FC = () => {
             />
           )}
           showsVerticalScrollIndicator={false}
+          recycleItems={true}
+          maintainVisibleContentPosition={true}
         />
 
         {/* Your Feeds */}

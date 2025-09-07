@@ -54,6 +54,8 @@ export const Trends = ({
                         numberOfPosts={item.score}
                     />
                 )}
+                recycleItems={true}
+                maintainVisibleContentPosition={true}
             />
         </View>
     );

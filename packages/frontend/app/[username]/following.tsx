@@ -90,6 +90,8 @@ export default function FollowingScreen() {
             <ThemedText>{t("No following yet")}</ThemedText>
           </View>
         }
+  recycleItems={true}
+  maintainVisibleContentPosition={true}
       />
     </View>
   );
