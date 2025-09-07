@@ -36,6 +36,8 @@ export default function ListTimelineScreen() {
         <Feed
           type={'mixed' as any}
           filters={{ authors: (list.memberOxyUserIds || []).join(',') }}
+          recycleItems={true}
+          maintainVisibleContentPosition={true}
           listHeaderComponent={(
             <View style={styles.headerBox}>
               {list.description ? <Text style={styles.desc}>{list.description}</Text> : null}

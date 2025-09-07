@@ -21,7 +21,7 @@ const SavedPostsScreen: React.FC = () => {
                 }}
             />
 
-            <Feed type="posts" showOnlySaved={true} onSavePress={handleSavePress} />
+            <Feed type="posts" showOnlySaved={true} onSavePress={handleSavePress} recycleItems={true} maintainVisibleContentPosition={true} />
         </View>
     );
 };

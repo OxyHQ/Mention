@@ -17,21 +17,21 @@ const ExploreScreen: React.FC = () => {
     switch (activeTab) {
       case 'media':
         return (
-          <Feed type="media" />
+          <Feed type="media" recycleItems={true} maintainVisibleContentPosition={true} />
         );
 
       case 'trending':
         return (
-          <Feed type="mixed" />
+          <Feed type="mixed" recycleItems={true} maintainVisibleContentPosition={true} />
         );
 
       case 'custom':
         return (
-          <Feed type="posts" />
+          <Feed type="posts" recycleItems={true} maintainVisibleContentPosition={true} />
         );
 
       default:
-        return <Feed type="mixed" />;
+  return <Feed type="mixed" recycleItems={true} maintainVisibleContentPosition={true} />;
     }
   };
 

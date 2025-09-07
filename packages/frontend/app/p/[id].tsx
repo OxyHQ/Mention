@@ -196,6 +196,8 @@ const PostDetailScreen: React.FC = () => {
                         contentContainerStyle={{ paddingBottom: 16 }}
                         filters={{ postId: String(id), parentPostId: String(id) }}
                         reloadKey={repliesReloadKey}
+                        recycleItems={true}
+                        maintainVisibleContentPosition={true}
                     />
                 </View>
             </View>

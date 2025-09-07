@@ -135,6 +135,8 @@ const MentionProfile: React.FC = () => {
                 hideHeader={true}
                 scrollEnabled={false}
                 contentContainerStyle={{ paddingBottom: 100 }}
+                recycleItems={true}
+                maintainVisibleContentPosition={true}
             />
         );
     };

@@ -58,12 +58,12 @@ const Feed = ({
     style,
     contentContainerStyle,
     scrollEnabled = true,
-    // Legend List props (pass-through)
-    recycleItems,
-    maintainScrollAtEnd,
-    maintainScrollAtEndThreshold,
-    alignItemsAtEnd,
-    maintainVisibleContentPosition,
+    // Legend List props (pass-through) with sensible defaults
+    recycleItems = true,
+    maintainScrollAtEnd = false,
+    maintainScrollAtEndThreshold = 0.1,
+    alignItemsAtEnd = false,
+    maintainVisibleContentPosition = true,
     filters,
     reloadKey,
     listHeaderComponent,

@@ -198,7 +198,7 @@ const MainFeedScreen = () => {
                                 const id = String(activeTab).split(':')[1];
                                 const list = pinnedLists.find((l) => l.id === id);
                                 return (
-                                    <Feed type={'mixed' as any} onSavePress={handleSavePress} filters={{ authors: (list?.memberOxyUserIds || []).join(',') }} />
+                                    <Feed type={'mixed' as any} onSavePress={handleSavePress} filters={{ authors: (list?.memberOxyUserIds || []).join(',') }} recycleItems={true} maintainVisibleContentPosition={true} />
                                 );
                             })()
                         ) : (
