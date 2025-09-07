@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
 import { useOxy } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,40 +16,34 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors } from '../styles/colors';
 import Avatar from '@/components/Avatar';
+import PostHeader from '@/components/Post/PostHeader';
+import PostMiddle from '@/components/Post/PostMiddle';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { usePostsStore } from '../stores/postsStore';
-import { pollService } from '../services/pollService';
 
 const ComposeScreen = () => {
   const [postContent, setPostContent] = useState('');
+  const [threadItems, setThreadItems] = useState<{ id: string; text: string }[]>([]);
   const [isPosting, setIsPosting] = useState(false);
-  const [showPoll, setShowPoll] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
-  const [pollEndsInDays, setPollEndsInDays] = useState(7); // simple duration control
   const [mediaIds, setMediaIds] = useState<string[]>([]);
   const { user, showBottomSheet, oxyServices } = useOxy();
   const { createPost } = usePostsStore();
   const { t } = useTranslation();
 
-  const validPoll = useMemo(() => {
-    if (!showPoll) return true;
-    const options = pollOptions.map(o => o.trim()).filter(Boolean);
-    return pollQuestion.trim().length > 0 && options.length >= 2;
-  }, [showPoll, pollQuestion, pollOptions]);
+  // Keep this in sync with PostItem constants
+  const HPAD = 16;
+  const AVATAR_SIZE = 40;
+  const AVATAR_GAP = 12;
+  const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
+  const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET; // 68
 
   const handlePost = async () => {
     if (isPosting || !user) return;
     const hasText = postContent.trim().length > 0;
     const hasMedia = mediaIds.length > 0;
-    const hasPoll = showPoll && validPoll;
-    if (!(hasText || hasMedia || hasPoll)) {
-      toast.error(t('Add text, an image, or a poll'));
-      return;
-    }
-    if (showPoll && !validPoll) {
-      toast.error(t('Please provide a question and at least 2 options'));
+    if (!(hasText || hasMedia)) {
+      toast.error(t('Add text or an image'));
       return;
     }
 
@@ -57,52 +51,49 @@ const ComposeScreen = () => {
     try {
       console.log('Attempting to create post...');
 
-      // Create the post request for the API
+      // Create the main post request for the API
       const postRequest = {
         content: {
           text: postContent.trim(),
           images: mediaIds,
+          thread: threadItems.map(t => ({ text: t.text.trim() })).filter(t => t.text?.length > 0)
         },
         mentions: [],
         hashtags: []
       };
 
-      // Send to backend API
+      // Send main post to backend
       await createPost(postRequest);
 
-      // If poll enabled, create poll linked to the new post
-      if (showPoll) {
+      // If user added thread posts, create them sequentially linking to the main post
+      if (threadItems.length > 0) {
         try {
-          const endsAt = new Date(Date.now() + pollEndsInDays * 24 * 60 * 60 * 1000).toISOString();
-          const options = pollOptions.map(o => o.trim()).filter(Boolean);
-          // Grab the newest post from store (createPost prepends it)
+          // Get created post id (newest)
           const newest = usePostsStore.getState().feeds.posts.items[0] || usePostsStore.getState().feeds.mixed.items[0];
-          const postId = newest?.id;
-          if (postId) {
-            const res = await pollService.createPoll({
-              question: pollQuestion.trim(),
-              options,
-              postId,
-              endsAt,
-              isMultipleChoice: false,
-              isAnonymous: false,
-            });
-            const pollId = res?.data?._id || res?.data?.id;
-            if (pollId) {
-              // Optionally reflect locally that post has a poll reference
-              try {
-                usePostsStore.getState().updatePostLocally(postId, {
-                  metadata: {
-                    ...(usePostsStore.getState().feeds.posts.items.find(p => p.id === postId)?.metadata || {}),
-                    pollId
-                  } as any
-                } as any);
-              } catch { }
+          const mainPostId = newest?.id;
+          if (mainPostId) {
+            for (const item of threadItems) {
+              const text = item.text;
+              if (!text || text.trim().length === 0) continue;
+              const threadReq = {
+                content: { text: text.trim() },
+                parentPostId: mainPostId,
+                threadId: mainPostId,
+                mentions: [],
+                hashtags: []
+              };
+              // createPost will add to store locally as well
+              await createPost(threadReq as any);
             }
           }
         } catch (err) {
-          console.error('Failed to create poll for post:', err);
+          console.error('Failed to create thread posts:', err);
         }
+      }
+
+      // If poll enabled, create poll linked to the new post
+      if (false) {
+        // Poll creation removed - using toolbar icons instead
       }
 
       // Show success toast
@@ -118,22 +109,10 @@ const ComposeScreen = () => {
     }
   };
 
-  const handleCancel = () => {
-    router.back();
-  };
+  // back navigation
 
-  const canPostContent = postContent.trim().length > 0 || mediaIds.length > 0 || (showPoll && validPoll);
+  const canPostContent = postContent.trim().length > 0 || mediaIds.length > 0;
   const isPostButtonEnabled = canPostContent && !isPosting;
-  const canAddOption = pollOptions.length < 4;
-  const handleAddOption = () => {
-    if (canAddOption) setPollOptions(prev => [...prev, '']);
-  };
-  const handleRemoveOption = (index: number) => {
-    setPollOptions(prev => prev.length > 2 ? prev.filter((_, i) => i !== index) : prev);
-  };
-  const handleChangeOption = (index: number, value: string) => {
-    setPollOptions(prev => prev.map((opt, i) => (i === index ? value : opt)));
-  };
 
   const openMediaPicker = () => {
     showBottomSheet?.({
@@ -169,150 +148,207 @@ const ComposeScreen = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
-          <Text style={styles.cancelText}>{t('Cancel')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={handlePost}
-          disabled={!isPostButtonEnabled}
-          style={[
-            styles.postButton,
-            !isPostButtonEnabled && styles.postButtonDisabled
-          ]}
-        >
-          {isPosting ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <Text style={styles.postButtonText}>{t('Post')}</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Compose Area */}
       <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.composeArea}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <View style={styles.userInfo}>
+
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t('New post')}</Text>
+          <View style={styles.headerIcons}>
+            <TouchableOpacity style={styles.iconBtn}>
+              <Ionicons name="reader-outline" size={20} color={colors.COLOR_BLACK_LIGHT_1} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn}>
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.COLOR_BLACK_LIGHT_1} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* User info with topic */}
+        <View style={styles.userInfoRow}>
           <Avatar
-            source={user?.avatar}
+            source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
             size={40}
-            verified={user?.verified}
+            verified={Boolean(user?.verified)}
           />
           <View style={styles.userDetails}>
-            <Text style={styles.userName}>{user?.name?.full || user?.username}</Text>
-            <Text style={styles.userHandle}>@{user?.username}</Text>
+            <View style={styles.userNameRow}>
+              <Text style={styles.userName}>{user?.name?.full || user?.username}</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.COLOR_BLACK_LIGHT_4} />
+              <Text style={styles.topicText}>{t('Add a topic')}</Text>
+            </View>
+            <Text style={styles.userHandle}>{t("What's new?")}</Text>
           </View>
         </View>
 
-        <TextInput
-          style={styles.textInput}
-          placeholder={t("What's happening?")}
-          placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
-          value={postContent}
-          onChangeText={setPostContent}
-          multiline
-          autoFocus
-          textAlignVertical="top"
-        />
+        {/* Main composer and thread section */}
+        <View style={styles.threadContainer}>
+          {/* Continuous timeline line for all items - from What's new to Add to thread */}
+          <View style={styles.continuousTimelineLine} />
 
-        {/* Media attach */}
-        <View style={styles.mediaRow}>
-          <TouchableOpacity style={styles.mediaButton} onPress={openMediaPicker}>
-            <Text style={styles.mediaButtonText}>{t('Add image')}</Text>
-          </TouchableOpacity>
-          {mediaIds.length > 0 && (
-            <Text style={styles.mediaInfoText}>
-              {mediaIds.length} {t('image selected')}
-            </Text>
-          )}
-        </View>
-        {mediaIds.length > 0 && (
-          <View style={styles.previewGrid}>
-            {mediaIds.map((id) => (
-              <View key={id} style={styles.previewItem}>
-                <Avatar source={oxyServices.getFileDownloadUrl(id, 'thumb')} size={64} />
-                <TouchableOpacity style={styles.removeBadge} onPress={() => setMediaIds(prev => prev.filter(x => x !== id))}>
-                  <Ionicons name="close" size={14} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Poll Composer */}
-        <View style={styles.pollContainer}>
-          {!showPoll ? (
-            <TouchableOpacity style={styles.addPollButton} onPress={() => setShowPoll(true)}>
-              <Text style={styles.addPollText}>{t('Add poll')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ gap: 12 }}>
-              <TextInput
-                style={styles.pollQuestion}
-                placeholder={t('Ask a question')}
-                placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
-                value={pollQuestion}
-                onChangeText={setPollQuestion}
-              />
-
-              {pollOptions.map((opt, idx) => (
-                <View key={idx} style={styles.pollOptionRow}>
-                  <TextInput
-                    style={styles.pollOption}
-                    placeholder={t('Option {{n}}', { n: idx + 1 })}
-                    placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
-                    value={opt}
-                    onChangeText={(v) => handleChangeOption(idx, v)}
-                  />
-                  {pollOptions.length > 2 && (
-                    <TouchableOpacity style={styles.removeOptionBtn} onPress={() => handleRemoveOption(idx)}>
-                      <Text style={styles.removeOptionText}>×</Text>
-                    </TouchableOpacity>
-                  )}
+          {/* Main composer */}
+          <View style={styles.postContainer}>
+            <View style={styles.composerWithTimeline}>
+              <PostHeader
+                user={{
+                  name: user?.name?.full || user?.username || '',
+                  handle: user?.username || '',
+                  verified: Boolean(user?.verified)
+                }}
+                avatarUri={user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined}
+                onPressUser={() => { }}
+                onPressAvatar={() => { }}
+              >
+                <TextInput
+                  style={styles.mainTextInput}
+                  placeholder={t("What's happening?")}
+                  placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+                  value={postContent}
+                  onChangeText={setPostContent}
+                  multiline
+                  autoFocus
+                  textAlignVertical="top"
+                />
+                <View style={styles.toolbarRow}>
+                  <TouchableOpacity onPress={openMediaPicker}>
+                    <Ionicons name="image-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                  </TouchableOpacity>
+                  <TouchableOpacity>
+                    <Ionicons name="gift" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                  </TouchableOpacity>
+                  <TouchableOpacity>
+                    <Ionicons name="happy-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                  </TouchableOpacity>
+                  <TouchableOpacity>
+                    <Ionicons name="list-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                  </TouchableOpacity>
+                  <TouchableOpacity>
+                    <Ionicons name="document-text-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                  </TouchableOpacity>
+                  <TouchableOpacity>
+                    <Ionicons name="location-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                  </TouchableOpacity>
                 </View>
-              ))}
+              </PostHeader>
 
-              <View style={styles.pollActionsRow}>
-                <TouchableOpacity
-                  onPress={handleAddOption}
-                  disabled={!canAddOption}
-                  style={[styles.smallBtn, !canAddOption && styles.smallBtnDisabled]}
-                >
-                  <Text style={styles.smallBtnText}>{t('Add option')}</Text>
-                </TouchableOpacity>
+              <PostMiddle
+                media={mediaIds.map(id => ({ id, url: oxyServices.getFileDownloadUrl(id, 'thumb') }))}
+                leftOffset={BOTTOM_LEFT_PAD}
+              />
+            </View>
+          </View>
 
-                <View style={{ flex: 1 }} />
-                <Text style={styles.endsInLabel}>{t('Ends in')}:</Text>
-                <TouchableOpacity style={styles.endsChip} onPress={() => setPollEndsInDays(1)}>
-                  <Text style={styles.endsChipText}>1d</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.endsChip} onPress={() => setPollEndsInDays(3)}>
-                  <Text style={styles.endsChipText}>3d</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.endsChip, pollEndsInDays === 7 && styles.endsChipActive]} onPress={() => setPollEndsInDays(7)}>
-                  <Text style={[styles.endsChipText, pollEndsInDays === 7 && styles.endsChipTextActive]}>7d</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.clearPollBtn} onPress={() => { setShowPoll(false); setPollQuestion(''); setPollOptions(['', '']); }}>
-                  <Text style={styles.clearPollText}>{t('Remove')}</Text>
-                </TouchableOpacity>
+          {/* Thread items */}
+          {threadItems.map((item, _index) => (
+            <View key={`thread-${item.id}`} style={styles.postContainer}>
+              <View style={styles.threadItemWithTimeline}>
+                <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
+                  <TouchableOpacity activeOpacity={0.7}>
+                    <Avatar
+                      source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
+                      size={40}
+                      verified={Boolean(user?.verified)}
+                      style={{ marginRight: 12 }}
+                    />
+                  </TouchableOpacity>
+                  <View style={styles.headerMeta}>
+                    <View style={styles.headerChildren}>
+                      <TextInput
+                        style={styles.threadTextInput}
+                        placeholder={t('Say more...')}
+                        placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+                        value={item.text}
+                        onChangeText={(v) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, text: v } : p))}
+                        multiline
+                      />
+                      <View style={styles.toolbarRow}>
+                        <TouchableOpacity>
+                          <Ionicons name="image-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                        <TouchableOpacity>
+                          <Ionicons name="gift" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                        <TouchableOpacity>
+                          <Ionicons name="happy-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                        <TouchableOpacity>
+                          <Ionicons name="list-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                        <TouchableOpacity>
+                          <Ionicons name="document-text-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                        <TouchableOpacity>
+                          <Ionicons name="location-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.removeThreadBtn}
+                        onPress={() => setThreadItems(prev => prev.filter(p => p.id !== item.id))}
+                      >
+                        <Ionicons name="close" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
               </View>
             </View>
-          )}
+          ))}
+
+          {/* Add to thread button */}
+          <TouchableOpacity
+            style={styles.postContainer}
+            onPress={() => {
+              const id = Date.now().toString();
+              setThreadItems(prev => [...prev, { id, text: '' }]);
+            }}
+          >
+            <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
+              <TouchableOpacity activeOpacity={0.7}>
+                <Avatar
+                  source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
+                  size={40}
+                  verified={Boolean(user?.verified)}
+                  style={{ marginRight: 12 }}
+                />
+              </TouchableOpacity>
+              <View style={styles.headerMeta}>
+                <View style={styles.headerChildren}>
+                  <Text style={styles.addToThreadText}>{t('Add to thread')}</Text>
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.characterCount}>
-            {postContent.length}
-          </Text>
+        <View style={styles.bottomBar}>
+          <Text style={styles.bottomText}>{t('Anyone can reply & quote')}</Text>
+          <Text style={styles.characterCount}>{postContent.length}</Text>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Floating post button */}
+      <TouchableOpacity
+        onPress={handlePost}
+        disabled={!isPostButtonEnabled}
+        style={[
+          styles.floatingPostButton,
+          !isPostButtonEnabled && styles.floatingPostButtonDisabled
+        ]}
+      >
+        {isPosting ? (
+          <ActivityIndicator size="small" color="#000" />
+        ) : (
+          <Text style={isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText}>{t('Post')}</Text>
+        )}
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -324,12 +360,8 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+    // keep header clean (no divider)
   },
   cancelButton: {
     padding: 8,
@@ -356,7 +388,6 @@ const styles = StyleSheet.create({
   },
   composeArea: {
     flex: 1,
-    padding: 16,
   },
   userInfo: {
     flexDirection: 'row',
@@ -435,138 +466,274 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mediaRow: {
+  /* header and icon tweaks */
+  headerTitle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.COLOR_BLACK_LIGHT_1,
+  },
+  headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 8,
+    marginLeft: 'auto',
   },
-  mediaButton: {
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-    borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+  iconBtn: {
+    paddingHorizontal: 8,
     paddingVertical: 6,
-  },
-  mediaButtonText: {
-    color: colors.COLOR_BLACK_LIGHT_3,
-    fontWeight: '600',
-  },
-  mediaInfoText: {
-    color: colors.COLOR_BLACK_LIGHT_4,
-    fontSize: 12,
-  },
-  pollContainer: {
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_9,
-  },
-  addPollButton: {
-    alignSelf: 'flex-start',
+    marginLeft: 8,
+    borderRadius: 20,
     backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-    borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  addPollText: {
-    color: colors.COLOR_BLACK_LIGHT_3,
-    fontWeight: '600',
-  },
-  pollQuestion: {
-    fontSize: 16,
-    color: colors.COLOR_BLACK_LIGHT_1,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-    paddingBottom: 8,
-  },
-  pollOptionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  pollOption: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.COLOR_BLACK_LIGHT_1,
-    borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
-  },
-  removeOptionBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_7,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  removeOptionText: {
-    color: colors.COLOR_BLACK_LIGHT_4,
-    fontSize: 18,
-    lineHeight: 18,
+  backBtn: {
+    padding: 10,
+    marginRight: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  pollActionsRow: {
+
+  /* bottom bar and floating post button */
+  bottomBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 26,
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+  },
+  bottomText: {
+    color: colors.COLOR_BLACK_LIGHT_4,
+    fontSize: 16,
+    flex: 1,
+  },
+  floatingPostButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    backgroundColor: '#fff',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  floatingPostButtonDisabled: {
+    backgroundColor: colors.COLOR_BLACK_LIGHT_5,
+    opacity: 0.7,
+  },
+  floatingPostText: {
+    color: colors.COLOR_BLACK_LIGHT_1,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  floatingPostTextDark: {
+    color: '#000',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  /* compose toolbar */
+  toolbarDividerArea: {
+    width: 28,
+    alignItems: 'center',
+  },
+  toolbarDivider: {
+    width: 1,
+    height: 48,
+    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+    borderRadius: 2,
+  },
+  toolbarIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingLeft: 8,
+  },
+  smallThreadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
     gap: 8,
   },
-  smallBtn: {
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-    borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  smallBtnDisabled: {
-    opacity: 0.5,
-  },
-  smallBtnText: {
-    color: colors.COLOR_BLACK_LIGHT_3,
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  endsInLabel: {
+  smallThreadText: {
     color: colors.COLOR_BLACK_LIGHT_4,
-    fontSize: 12,
   },
-  endsChip: {
+  // New styles for exact screenshot match
+  userInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  userNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  topicText: {
+    fontSize: 14,
+    color: colors.COLOR_BLACK_LIGHT_4,
+  },
+  mainComposer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  composerLeftCol: {
+    width: 48,
+    alignItems: 'center',
+  },
+  connector: {
+    width: 2,
+    flex: 1,
+    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+    marginTop: 0,
+    borderRadius: 1,
+    minHeight: 24,
+  },
+  mainTextInput: {
+    fontSize: 16,
+    color: colors.COLOR_BLACK_LIGHT_1,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  toolbarRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  addToThreadBtn: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  addToThreadContent: {
+    flex: 1,
+    paddingTop: 8,
+  },
+  addToThreadText: {
+    fontSize: 16,
+    color: colors.COLOR_BLACK_LIGHT_4,
+  },
+  // Post component structure styles
+  postContainer: {
+    flexDirection: 'column',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: colors.COLOR_BLACK_LIGHT_6,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  headerMeta: {
+    flex: 1,
+    paddingTop: 2,
+    gap: 8,
+  },
+  headerChildren: {
+  },
+  avatarContainer: {
+    alignItems: 'center',
+    marginRight: 12, // AVATAR_GAP
+  },
+  timelineConnector: {
+    position: 'absolute',
+    left: -32, // Position relative to headerMeta to align with avatar center
+    top: -20,
+    width: 2,
+    height: 32,
+    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+    borderRadius: 1,
+  },
+  // Media section styles (from PostMiddle)
+  mediaSection: {
+    // paddingLeft applied dynamically with BOTTOM_LEFT_PAD
+  },
+  mediaScroller: {
+    paddingRight: 12,
+    gap: 12,
+  },
+  mediaItemContainer: {
+    position: 'relative',
     borderWidth: 1,
     borderColor: colors.COLOR_BLACK_LIGHT_6,
+    borderRadius: 10,
+    width: 280,
+    height: 180,
+  },
+  mediaImage: {
+    width: 280,
+    height: 180,
+    backgroundColor: '#EFEFEF',
+    borderRadius: 10,
+  },
+  mediaRemoveBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  endsChipActive: {
-    backgroundColor: colors.primaryLight_2,
-    borderColor: colors.primaryColor,
+  mediaMoreBtn: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  endsChipText: {
-    color: colors.COLOR_BLACK_LIGHT_3,
-    fontWeight: '600',
-    fontSize: 12,
+  threadTextInput: {
+    fontSize: 16,
+    color: colors.COLOR_BLACK_LIGHT_1,
+    minHeight: 60,
+    textAlignVertical: 'top',
   },
-  endsChipTextActive: {
-    color: colors.primaryColor,
+  removeThreadBtn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    padding: 6,
   },
-  clearPollBtn: {
-    marginLeft: 8,
+  // Timeline connector styles
+  threadContainer: {
+    position: 'relative',
   },
-  clearPollText: {
-    color: colors.busy,
-    fontSize: 12,
-    fontWeight: '600',
+  continuousTimelineLine: {
+    position: 'absolute',
+    left: 35, // Center on avatar (16px padding + 20px avatar center - 1px)
+    top: -32, // Start at center of "What's new?" avatar (center of 40px avatar)
+    height: '100%', // Use full height of container, no extending beyond
+    width: 2,
+    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+    borderRadius: 1,
+    zIndex: -1, // Behind the avatars
+  },
+  composerWithTimeline: {
+    position: 'relative',
+    zIndex: 2, // Above the timeline line
+  },
+  threadItemWithTimeline: {
+    position: 'relative',
+    zIndex: 2, // Above the timeline line
   },
 });
 
