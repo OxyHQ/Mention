@@ -36,6 +36,12 @@ interface FeedProps {
     reloadKey?: string | number;
     // Optional: external header for embedding screens (e.g., Profile)
     listHeaderComponent?: React.ReactElement | null;
+    // Legend List specific options (optional)
+    recycleItems?: boolean;
+    maintainScrollAtEnd?: boolean;
+    maintainScrollAtEndThreshold?: number;
+    alignItemsAtEnd?: boolean;
+    maintainVisibleContentPosition?: boolean;
 }
 
 const Feed = ({
@@ -52,6 +58,12 @@ const Feed = ({
     style,
     contentContainerStyle,
     scrollEnabled = true,
+    // Legend List props (pass-through)
+    recycleItems,
+    maintainScrollAtEnd,
+    maintainScrollAtEndThreshold,
+    alignItemsAtEnd,
+    maintainVisibleContentPosition,
     filters,
     reloadKey,
     listHeaderComponent,
@@ -339,6 +351,12 @@ const Feed = ({
                     maxToRenderPerBatch={10}
                     windowSize={10}
                     initialNumToRender={10}
+                        // LegendList specific props (forwarded)
+                        recycleItems={recycleItems}
+                        maintainScrollAtEnd={maintainScrollAtEnd}
+                        maintainScrollAtEndThreshold={maintainScrollAtEndThreshold}
+                        alignItemsAtEnd={alignItemsAtEnd}
+                        maintainVisibleContentPosition={maintainVisibleContentPosition}
                 />
             </View>
         </ErrorBoundary>

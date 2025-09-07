@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { StyleSheet, View, Share, Platform, Alert, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Share, Platform, Alert, Pressable } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
@@ -196,13 +196,19 @@ const PostItem: React.FC<PostItemProps> = ({
         if (handle) router.push(`/@${handle}`);
     }, [router, post.user?.handle]);
 
-    // Make whole post pressable (except in detail view)
-    const Container: any = isPostDetail ? View : TouchableOpacity;
+    // Make whole post pressable (except in detail view).
+    // Use Pressable and avoid capturing responder events so nested horizontal scrollers can receive gestures.
+    const Container: any = isPostDetail ? View : Pressable;
 
     return (
         <Container
             style={[styles.postContainer, isNested && styles.nestedPostContainer, style]}
-            {...(isPostDetail ? {} : { onPress: goToPost, activeOpacity: 0.8 })}
+            {...(isPostDetail ? {} : { onPress: goToPost })}
+            // Don't capture start/move responder so child horizontal ScrollViews can become responder
+            onStartShouldSetResponderCapture={() => false}
+            onMoveShouldSetResponderCapture={() => false}
+            onStartShouldSetResponder={() => false}
+            onMoveShouldSetResponder={() => false}
         >
             <PostHeader
                 user={post.user}

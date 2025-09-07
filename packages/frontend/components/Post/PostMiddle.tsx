@@ -1,5 +1,5 @@
-import React from 'react';
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useRef } from 'react';
+import { Image, ScrollView, StyleSheet, View, GestureResponderEvent } from 'react-native';
 import PollCard from './PollCard';
 import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
@@ -34,6 +34,26 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
     }
   });
 
+  const startX = useRef<number | null>(null);
+  const startY = useRef<number | null>(null);
+
+  const onTouchStart = (e: GestureResponderEvent) => {
+    const t = e.nativeEvent.touches && e.nativeEvent.touches[0];
+    if (t) {
+      startX.current = t.pageX;
+      startY.current = t.pageY;
+    }
+  };
+
+  const onMoveShouldSetResponderCapture = (e: GestureResponderEvent) => {
+    const t = e.nativeEvent.touches && e.nativeEvent.touches[0];
+    if (!t || startX.current === null || startY.current === null) return false;
+    const dx = Math.abs(t.pageX - startX.current);
+    const dy = Math.abs(t.pageY - startY.current);
+    // capture when the gesture is predominantly horizontal
+    return dx > dy && dx > 5;
+  };
+
   if (items.length === 0) return null;
 
   return (
@@ -43,6 +63,12 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
       // allow nested scrolling on Android and improve horizontal gesture handling on native
       nestedScrollEnabled={true}
       directionalLockEnabled={true}
+      // capture horizontal gestures when drag is mostly horizontal so this scrollview wins
+      onTouchStart={onTouchStart}
+      onMoveShouldSetResponderCapture={onMoveShouldSetResponderCapture}
+      // try to capture responder at start so parent pressables/lists don't steal the gesture
+      onStartShouldSetResponderCapture={() => true}
+      onStartShouldSetResponder={() => true}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
       {items.map((item, idx) => {
@@ -82,8 +108,8 @@ const CARD_HEIGHT = 180;
 
 const styles = StyleSheet.create({
   scroller: {
-  paddingRight: 12,
-  gap: 12,
+    paddingRight: 12,
+    gap: 12,
   },
   itemContainer: {
     borderWidth: 1,
