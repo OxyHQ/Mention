@@ -17,26 +17,35 @@ import { colors } from '../../styles/colors';
 import { useOxy } from '@oxyhq/services';
 import { feedService } from '../../services/feedService';
 
+// Improved interface with better organization and type safety
 interface FeedProps {
+    // Core props
     type: FeedType;
+    userId?: string;
+    
+    // UI Configuration
     showComposeButton?: boolean;
     onComposePress?: () => void;
-    userId?: string;
+    hideHeader?: boolean;
+    hideRefreshControl?: boolean;
+    scrollEnabled?: boolean;
+    
+    // Data configuration
+    showOnlySaved?: boolean;
+    filters?: Record<string, any>;
+    reloadKey?: string | number;
+    
+    // Auto-refresh (currently unused - keeping for future)
     autoRefresh?: boolean;
     refreshInterval?: number;
     onSavePress?: (postId: string) => void;
-    showOnlySaved?: boolean;
-    // New configuration options for better reusability
-    hideHeader?: boolean;
-    hideRefreshControl?: boolean;
+    
+    // Style props
     style?: any;
     contentContainerStyle?: any;
-    scrollEnabled?: boolean;
-    filters?: Record<string, any>;
-    reloadKey?: string | number;
-    // Optional: external header for embedding screens (e.g., Profile)
     listHeaderComponent?: React.ReactElement | null;
-    // Legend List specific options (optional)
+    
+    // Legend List specific options with better defaults
     recycleItems?: boolean;
     maintainScrollAtEnd?: boolean;
     maintainScrollAtEndThreshold?: number;
@@ -44,30 +53,47 @@ interface FeedProps {
     maintainVisibleContentPosition?: boolean;
 }
 
-const Feed = ({
-    type,
-    showComposeButton = false,
-    onComposePress,
-    userId,
-    autoRefresh: _autoRefresh = false,
-    refreshInterval: _refreshInterval = 30000,
-    onSavePress: _onSavePress,
-    showOnlySaved = false,
-    hideHeader = false,
-    hideRefreshControl = false,
-    style,
-    contentContainerStyle,
-    scrollEnabled = true,
-    // Legend List props (pass-through) with sensible defaults
-    recycleItems = true,
-    maintainScrollAtEnd = false,
-    maintainScrollAtEndThreshold = 0.1,
-    alignItemsAtEnd = false,
-    maintainVisibleContentPosition = true,
-    filters,
-    reloadKey,
-    listHeaderComponent,
-}: FeedProps) => {
+// Default props for better maintainability
+const DEFAULT_FEED_PROPS = {
+    showComposeButton: false,
+    hideHeader: false,
+    hideRefreshControl: false,
+    scrollEnabled: true,
+    showOnlySaved: false,
+    autoRefresh: false,
+    refreshInterval: 30000,
+    recycleItems: true,
+    maintainScrollAtEnd: false,
+    maintainScrollAtEndThreshold: 0.1,
+    alignItemsAtEnd: false,
+    maintainVisibleContentPosition: true,
+} as const;
+
+const Feed = (props: FeedProps) => {
+    // Merge with defaults for cleaner code
+    const {
+        type,
+        userId,
+        showComposeButton,
+        onComposePress,
+        hideHeader,
+        hideRefreshControl,
+        scrollEnabled,
+        showOnlySaved,
+        filters,
+        reloadKey,
+        autoRefresh: _autoRefresh, // Unused but kept for API compatibility
+        refreshInterval: _refreshInterval, // Unused but kept for API compatibility
+        onSavePress: _onSavePress, // Unused but kept for API compatibility
+        style,
+        contentContainerStyle,
+        listHeaderComponent,
+        recycleItems,
+        maintainScrollAtEnd,
+        maintainScrollAtEndThreshold,
+        alignItemsAtEnd,
+        maintainVisibleContentPosition,
+    } = { ...DEFAULT_FEED_PROPS, ...props };
     const flatListRef = useRef<any>(null);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -194,23 +220,48 @@ const Feed = ({
             if (useScoped) {
                 if (!localHasMore || localLoading) return;
                 setLocalLoading(true);
-                const resp = await feedService.getFeed({ type, limit: 20, cursor: localNextCursor, filters } as any);
-                let items = resp.items || []; // Use items directly since backend returns proper schema
+                setLocalError(null);
+                
+                const resp = await feedService.getFeed({ 
+                    type, 
+                    limit: 20, 
+                    cursor: localNextCursor, 
+                    filters 
+                });
+                
+                let items = resp.items || [];
                 const pid = (filters || {}).postId || (filters || {}).parentPostId;
                 if (pid) {
-                    items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
+                    items = items.filter((item: any) => 
+                        String(item.postId || item.parentPostId) === String(pid)
+                    );
                 }
+                
                 setLocalItems(prev => [...prev, ...items]);
                 setLocalHasMore(!!resp.hasMore);
                 setLocalNextCursor(resp.nextCursor);
-                setLocalLoading(false);
             } else if (userId) {
-                await fetchUserFeed(userId, { type, limit: 20, cursor: feedData?.nextCursor, filters });
+                await fetchUserFeed(userId, { 
+                    type, 
+                    limit: 20, 
+                    cursor: feedData?.nextCursor, 
+                    filters 
+                });
             } else {
                 await loadMoreFeed(type, filters);
             }
         } catch (error) {
             console.error('Error loading more feed:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load more posts';
+            
+            if (useScoped) {
+                setLocalError(errorMessage);
+            }
+            // Global store errors are handled by the store itself
+        } finally {
+            if (useScoped) {
+                setLocalLoading(false);
+            }
         }
     }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, JSON.stringify(filters), useScoped, localHasMore, localLoading, localNextCursor]);
 

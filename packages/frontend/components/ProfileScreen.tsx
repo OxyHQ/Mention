@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 // BlurView removed — not used after switching to image overlay approach
 import {
     Animated,
@@ -24,29 +24,48 @@ import { Feed } from './Feed/index';
 import { colors } from '../styles/colors';
 import { useAppearanceStore } from '@/store/appearanceStore';
 
+// Constants for better maintainability
 const HEADER_HEIGHT_EXPANDED = 120;
-// Keep the narrowed header height consistent across native and web
 const HEADER_HEIGHT_NARROWED = 50;
+const FAB_POSITION_BOTTOM = 20;
+const FAB_POSITION_RIGHT = 20;
+
+// Type definitions for better type safety
+interface ProfileData {
+  id: string;
+  username: string;
+  displayName?: string;
+  bio?: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  isPrivate?: boolean;
+  [key: string]: any;
+}
+
+// Properly typed Follow Button component
+interface FollowButtonProps {
+  userId: string;
+  [key: string]: any;
+}
 
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 
-
-
 const MentionProfile: React.FC = () => {
-    const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
-    // FollowButton from services may be untyped in this project; create a permissive React component type
-    // @ts-ignore: FollowButton may be untyped in @oxyhq/services
-    const FollowButtonAny = (FollowButton as unknown) as React.ComponentType<any>;
-    const UserNameAny = UserName as unknown as React.ComponentType<any>;
+    const { user: currentUser, oxyServices, showBottomSheet } = useOxy();
+    
+    // Type-safe component references
+    const TypedFollowButton = FollowButton as React.ComponentType<FollowButtonProps>;
+    const TypedUserName = UserName as React.ComponentType<any>;
+    
     let { username } = useLocalSearchParams<{ username: string }>();
     if (username && username.startsWith('@')) {
         username = username.slice(1);
     }
 
-    const [activeTab, setActiveTab] = useState(0);
+    const [activeTab, setActiveTab] = useState<number>(0);
     const { byUserId, loadForUser } = useAppearanceStore();
-    const [profileData, setProfileData] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const [profileData, setProfileData] = useState<ProfileData | null>(null);
+    const [loading, setLoading] = useState<boolean>(true);
     const layoutScroll = useLayoutScroll();
     // Always use the global scrollY from the app's LayoutScrollProvider so
     // profile animations share the single source of truth and don't retain
@@ -56,22 +75,26 @@ const MentionProfile: React.FC = () => {
     const { width } = useWindowDimensions();
     const isWideWeb = Platform.OS === 'web' && width >= 500;
 
-    const fabPositionStyle: any = isWideWeb
-        ? {
-            // sticky layout for wide web viewports
-            position: 'sticky',
-            bottom: 24,
-            right: 24,
-            marginLeft: 'auto',
-            marginRight: 20,
-            marginBottom: 20,
-        }
-        : {
-            // absolute positioning for smaller screens / native
-            position: 'absolute',
-            right: 20,
-            bottom: 20,
-        };
+    // Improved FAB positioning with better type safety and readability
+    const fabPositionStyle = useMemo(() => ({
+        ...(isWideWeb 
+            ? {
+                // Sticky layout for wide web viewports
+                position: 'sticky' as const,
+                bottom: 24,
+                right: 24,
+                marginLeft: 'auto',
+                marginRight: FAB_POSITION_RIGHT,
+                marginBottom: FAB_POSITION_BOTTOM,
+            }
+            : {
+                // Absolute positioning for smaller screens / native
+                position: 'absolute' as const,
+                right: FAB_POSITION_RIGHT,
+                bottom: FAB_POSITION_BOTTOM,
+            }
+        )
+    }), [isWideWeb]);
 
     // Fetch profile data
     useEffect(() => {
@@ -271,7 +294,7 @@ const MentionProfile: React.FC = () => {
                             },
                         ]}
                     >
-                        <UserNameAny
+                        <TypedUserName
                             name={profileData?.name?.full || profileData?.username}
                             verified={profileData?.verified}
                             style={{ name: styles.headerTitle }}
@@ -450,13 +473,13 @@ const MentionProfile: React.FC = () => {
                                             </TouchableOpacity>
                                         </View>
                                     ) : (
-                                        <FollowButtonAny userId={profileData?.id} />
+                                        <TypedFollowButton userId={profileData?.id} />
                                     )}
                                 </View>
                             </View>
 
                             <View>
-                                <UserNameAny
+                                <TypedUserName
                                     name={profileData?.name?.full || profileData?.username}
                                     handle={profileData?.username}
                                     verified={profileData?.verified}

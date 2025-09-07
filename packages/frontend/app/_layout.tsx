@@ -221,43 +221,61 @@ export default function RootLayout() {
     }
   }, [loaded, splashState.initializationComplete, splashState.startFade]);
 
+  // Core app providers wrapper component for better organization
+  const AppProviders = useCallback(({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <OxyProvider
+        oxyServices={oxyServices}
+        initialScreen="SignIn"
+        autoPresent={false}
+        storageKeyPrefix="oxy_example"
+        theme="light"
+      >
+        <I18nextProvider i18n={i18n}>
+          <BottomSheetProvider>
+            <MenuProvider>
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
+            </MenuProvider>
+          </BottomSheetProvider>
+        </I18nextProvider>
+      </OxyProvider>
+    </QueryClientProvider>
+  ), [queryClient, oxyServices, i18n]);
+
+  // Main layout component for better organization
+  const MainLayout = useCallback(() => (
+    <LayoutScrollProvider
+      contentContainerStyle={styles.container}
+      style={{ flex: 1 }}
+      scrollEventThrottle={16}
+    >
+      <SideBar />
+      <View style={styles.mainContent}>
+        <View style={styles.mainContentWrapper}>
+          <Slot />
+        </View>
+        <RightBar />
+      </View>
+    </LayoutScrollProvider>
+  ), [styles]);
+
   return (
     <View style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <GestureRoot style={{ flex: 1 }}>
           {appIsReady ? (
-            <QueryClientProvider client={queryClient}>
-              <OxyProvider
-                oxyServices={oxyServices}
-                initialScreen="SignIn"
-                autoPresent={false}
-                storageKeyPrefix="oxy_example"
-                theme="light"
-              >
-                <I18nextProvider i18n={i18n}>
-                  <BottomSheetProvider>
-                    <MenuProvider>
-                      <ErrorBoundary>
-                        <LayoutScrollProvider
-                          contentContainerStyle={styles.container}
-                          style={{ flex: 1 }}
-                          scrollEventThrottle={16}
-                        >
-                          <SideBar />
-                          <View style={styles.mainContent}>
-                            <View style={styles.mainContentWrapper}>
-                              <Slot />
-                            </View>
-                            <RightBar />
-                          </View>
-                        </LayoutScrollProvider>
-                        <StatusBar style="auto" />
-                        <Toaster
-                          position="bottom-center"
-                          swipeToDismissDirection="left"
-                          offset={15}
-                        />
-                        {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+            <AppProviders>
+              <MainLayout />
+              <StatusBar style="auto" />
+              <Toaster
+                position="bottom-center"
+                swipeToDismissDirection="left"
+                offset={15}
+              />
+              {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+            </AppProviders>
                       </ErrorBoundary>
                     </MenuProvider>
                   </BottomSheetProvider>
