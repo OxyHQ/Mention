@@ -197,9 +197,7 @@ const PostDetailScreen: React.FC = () => {
             </View>
 
             {/* Inline Reply Composer */}
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+            <View
                 style={[styles.composerContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}
             >
                 <View style={styles.composer}>
@@ -234,7 +232,7 @@ const PostDetailScreen: React.FC = () => {
                         {characterCount}/{MAX_CHARACTERS}
                     </Text>
                 </View>
-            </KeyboardAvoidingView>
+            </View>
         </View>
     );
 };

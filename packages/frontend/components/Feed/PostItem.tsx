@@ -268,7 +268,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderColor: colors.COLOR_BLACK_LIGHT_6,
         backgroundColor: colors.primaryLight,
-        flex: 1,
+    // Do not force flex:1 here — on native this can cause the item to
+    // collapse or stretch unexpectedly inside scrolling containers.
+    paddingHorizontal: 16,
     },
     nestedPostContainer: {
         borderWidth: 1,
