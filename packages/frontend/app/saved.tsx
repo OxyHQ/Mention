@@ -14,7 +14,7 @@ const SavedPostsScreen: React.FC = () => {
     };
 
     return (
-        <ThemedView style={[styles.container, { paddingTop: insets.top }]}> 
+        <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
             <Stack.Screen
                 options={{
                     title: 'Saved Posts',

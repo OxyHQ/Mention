@@ -12,6 +12,7 @@ import {
   PostContent
 } from '@mention/shared-types';
 import { feedService } from '../services/feedService';
+import { useUsersStore } from './usersStore';
 import { markLocalAction } from '../services/echoGuard';
 
 // Types for the store
@@ -204,6 +205,8 @@ export const usePostsStore = create<FeedState>()(
         
         set(state => {
           const items = response.items?.map(item => transformToUIItem(item)) || [];
+          // Prime users cache from items
+          try { useUsersStore.getState().primeFromPosts(items as any); } catch {}
           const newCache = { ...state.postsById };
           items.forEach(p => {
             newCache[p.id] = p;
@@ -266,6 +269,8 @@ export const usePostsStore = create<FeedState>()(
         set(state => {
           const prev = state.userFeeds[userId]?.[type] || createDefaultFeedState();
           const mapped = response.items?.map(item => transformToUIItem(item)) || [];
+          // Prime users cache from items
+          try { useUsersStore.getState().primeFromPosts(mapped as any); } catch {}
 
           let mergedItems: FeedItem[] = mapped;
           let addedCount = mapped.length;
@@ -428,6 +433,8 @@ export const usePostsStore = create<FeedState>()(
 
         set(state => {
           const items = response.items?.map(item => transformToUIItem(item)) || [];
+          // Prime users cache from items
+          try { useUsersStore.getState().primeFromPosts(items as any); } catch {}
           const newCache = { ...state.postsById };
           items.forEach((p: FeedItem) => { newCache[p.id] = p; });
 
@@ -491,6 +498,8 @@ export const usePostsStore = create<FeedState>()(
 
         set(state => {
           const mapped = response.items?.map(item => transformToUIItem(item)) || [];
+          // Prime users cache from items
+          try { useUsersStore.getState().primeFromPosts(mapped as any); } catch {}
           const newCache = { ...state.postsById };
           mapped.forEach((p: FeedItem) => { newCache[p.id] = p; });
 
@@ -574,6 +583,7 @@ export const usePostsStore = create<FeedState>()(
             isLoading: false,
             lastRefresh: Date.now()
           }));
+          try { useUsersStore.getState().upsertUser(newPost.user as any); } catch {}
           
           return newPost;
         }
@@ -632,6 +642,7 @@ export const usePostsStore = create<FeedState>()(
             isLoading: false,
             lastRefresh: Date.now()
           }));
+          try { useUsersStore.getState().primeFromPosts(newPosts as any); } catch {}
           
           return newPosts;
         }

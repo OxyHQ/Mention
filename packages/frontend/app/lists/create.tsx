@@ -97,7 +97,7 @@ export default function CreateListScreen() {
           </View>
         )}
 
-        <TouchableOpacity disabled={saving || !title.trim()} onPress={onCreate} style={[styles.createBtn, (!title.trim()) && { opacity: 0.6 } ]}>
+        <TouchableOpacity disabled={saving || !title.trim()} onPress={onCreate} style={[styles.createBtn, (!title.trim()) && { opacity: 0.6 }]}>
           <Text style={styles.createBtnText}>{saving ? 'Saving…' : 'Create List'}</Text>
         </TouchableOpacity>
       </ScrollView>

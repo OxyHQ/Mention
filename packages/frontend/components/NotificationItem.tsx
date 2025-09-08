@@ -10,6 +10,7 @@ import { useOxy } from '@oxyhq/services';
 import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
+import { useUsersStore } from '@/stores/usersStore';
 
 interface NotificationItemProps {
     notification: RawNotification;
@@ -28,6 +29,18 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     // Transform the raw notification data
     const transformedNotification = transformSingleNotification(notification);
 
+    // Prime the users cache with any populated actor object present on the notification
+    useEffect(() => {
+        try {
+            const populated = (notification as any)?.actorId_populated;
+            const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
+            if (populated && (id || populated.id || populated._id)) {
+                const merged = { id: String(id || populated.id || populated._id), ...(populated as any) };
+                useUsersStore.getState().upsertUser(merged);
+            }
+        } catch {}
+    }, [notification]);
+
     // Module-local cache of actorId -> display name to avoid repeated calls
     const actorCacheRef = useRef<Map<string, { name: string; avatar?: string }>>(new Map());
 
@@ -43,40 +56,38 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
     useEffect(() => {
         let cancelled = false;
-        const id = typeof notification.actorId === 'string' ? notification.actorId : notification.actorId?._id;
+        const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
         if (!id || actorName) return; // nothing to resolve
 
-        // Check cache first
-        const cached = actorCacheRef.current!.get(id);
-        if (cached) {
-            setActorName(cached.name);
-            return;
-        }
+        // Try the shared users cache first for immediate value
+        try {
+            const cachedUser = useUsersStore.getState().getCachedById(String(id));
+            if (cachedUser?.name || cachedUser?.username) {
+                const displayName = (cachedUser as any)?.name?.full || (cachedUser as any)?.name || cachedUser.username || String(id);
+                setActorName(String(displayName));
+                actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: (cachedUser as any)?.avatar });
+                return;
+            }
+        } catch {}
 
+        // Otherwise ensure by ID via oxy services, then populate cache
         const resolve = async () => {
             try {
                 if (!oxyServices) return;
-                let profile: any = null;
-
-                // Try common method names safely
                 const svc: any = oxyServices as any;
-                if (typeof svc.getProfileById === 'function') {
-                    profile = await svc.getProfileById(id);
-                } else if (typeof svc.getProfile === 'function') {
-                    profile = await svc.getProfile(id);
-                } else if (typeof svc.getUserById === 'function') {
-                    profile = await svc.getUserById(id);
-                } else if (typeof svc.getUser === 'function') {
-                    profile = await svc.getUser(id);
-                } else {
-                    // No by-id lookup available; give up quietly
-                    return;
-                }
-
-                const displayName = profile?.name?.full || profile?.name || profile?.username || id;
+                const loader = (actorId: string) => {
+                    if (typeof svc.getProfileById === 'function') return svc.getProfileById(actorId);
+                    if (typeof svc.getProfile === 'function') return svc.getProfile(actorId);
+                    if (typeof svc.getUserById === 'function') return svc.getUserById(actorId);
+                    if (typeof svc.getUser === 'function') return svc.getUser(actorId);
+                    return Promise.resolve(null);
+                };
+                const ensured = await useUsersStore.getState().ensureById(String(id), loader);
+                const profile: any = ensured || null;
+                const displayName = profile?.name?.full || profile?.name || profile?.username || String(id);
                 if (!cancelled && displayName) {
-                    actorCacheRef.current!.set(id, { name: displayName, avatar: profile?.avatar });
-                    setActorName(displayName);
+                    actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: profile?.avatar });
+                    setActorName(String(displayName));
                 }
             } catch {
                 // Fallback: keep id or existing
@@ -162,7 +173,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         if (notification.entityType === 'post' || notification.entityType === 'reply') {
             router.push(`/p/${notification.entityId}`);
         } else if (notification.entityType === 'profile') {
-            router.push(`/${notification.actorId}`);
+            const id = typeof notification.actorId === 'string' ? notification.actorId : (notification.actorId as any)?._id;
+            let uname = '';
+            try {
+                if (id) uname = useUsersStore.getState().usersById[String(id)]?.data?.username || '';
+            } catch {}
+            const path = uname ? `/@${uname}` : `/${id}`;
+            router.push(path);
         }
     }, [notification, onMarkAsRead, router]);
 

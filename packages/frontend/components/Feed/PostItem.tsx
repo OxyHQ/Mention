@@ -182,9 +182,9 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [isSaved, viewPost, savePost, unsavePost]);
 
     // Keep this in sync with PostAvatar defaults
-    const HPAD = 16;
+    const HPAD = 8;
     const AVATAR_SIZE = 40;
-    const AVATAR_GAP = 12;
+    const AVATAR_GAP = 8;
     const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
     const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET;
 
@@ -223,13 +223,18 @@ const PostItem: React.FC<PostItemProps> = ({
                 user={(viewPost as any).user}
                 date={(viewPost as any).date || 'Just now'}
                 showRepost={Boolean((viewPost as any).originalPostId || (viewPost as any).repostOf || (viewPost as any).quoteOf) && !isNested}
+                repostedBy={(viewPost as any).repostedBy}
                 showReply={false}
                 avatarUri={avatarUri}
                 onPressUser={goToUser}
                 onPressAvatar={goToUser}
             >
-                {/* Top: text content */}
-                {'content' in (viewPost as any) && !!(viewPost as any).content && (
+                {/* Top: text content (supports both string and object content) */}
+                {(() => {
+                    const c = (viewPost as any)?.content;
+                    const hasText = typeof c === 'string' ? !!c : !!c?.text;
+                    return hasText;
+                })() && (
                     <PostContentText content={(viewPost as any).content} postId={(viewPost as any).id} />
                 )}
             </PostHeader>
@@ -311,8 +316,8 @@ const PostItem: React.FC<PostItemProps> = ({
 const styles = StyleSheet.create({
     postContainer: {
         flexDirection: 'column',
-        gap: 12,
-        paddingVertical: 12,
+        gap: 8,
+        paddingVertical: 8,
         borderBottomWidth: 1,
         borderColor: colors.COLOR_BLACK_LIGHT_6,
         backgroundColor: colors.primaryLight,

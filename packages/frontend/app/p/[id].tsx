@@ -206,7 +206,7 @@ const PostDetailScreen: React.FC = () => {
                         <View style={styles.replyConnector} />
                     </View>
                 )}
-                
+
                 <View style={styles.postContainer}>
                     <PostItem
                         post={post}

@@ -356,6 +356,16 @@ class FeedController {
         // Optionally embed original/quoted post
         const embeddedOriginal = originalObj ? buildEmbedded(originalObj) : undefined;
 
+        // Build lightweight actor label for reposts
+        const repostedBy = postObj.repostOf ? {
+          id: userData.id,
+          name: userData.name,
+          handle: userData.handle,
+          avatar: userData.avatar,
+          verified: userData.verified,
+          date: postObj.createdAt,
+        } : undefined;
+
         // Return post in standard Post schema format
         const transformedPost = {
           id: postId,
@@ -395,7 +405,8 @@ class FeedController {
           allMediaIds,
           // Embed original/quoted to avoid extra client roundtrips
           ...(postObj.repostOf ? { original: embeddedOriginal } : {}),
-          ...(postObj.quoteOf ? { quoted: embeddedOriginal } : {})
+          ...(postObj.quoteOf ? { quoted: embeddedOriginal } : {}),
+          ...(repostedBy ? { repostedBy } : {})
         };
 
         console.log(`📄 Transformed post ${postId}:`, {

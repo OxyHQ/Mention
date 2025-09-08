@@ -26,11 +26,11 @@ export default function CustomFeedTimelineScreen() {
             try {
               const l = await listsService.get(String(lid));
               (l.memberOxyUserIds || []).forEach((uid: string) => authors.add(uid));
-            } catch {}
+            } catch { }
           }
         }
         setAuthorsCsv(Array.from(authors).join(','));
-  } catch {
+      } catch {
         setError('Failed to load feed');
       } finally {
         setLoading(false);
@@ -48,13 +48,13 @@ export default function CustomFeedTimelineScreen() {
       ) : (
         <Feed
           type="mixed"
-          filters={{ 
-            authors: authorsCsv, 
-            keywords: (feed.keywords || []).join(','), 
-            includeReplies: feed.includeReplies, 
-            includeReposts: feed.includeReposts, 
-            includeMedia: feed.includeMedia, 
-            language: feed.language 
+          filters={{
+            authors: authorsCsv,
+            keywords: (feed.keywords || []).join(','),
+            includeReplies: feed.includeReplies,
+            includeReposts: feed.includeReposts,
+            includeMedia: feed.includeMedia,
+            language: feed.language
           }}
           recycleItems={true}
           maintainVisibleContentPosition={true}

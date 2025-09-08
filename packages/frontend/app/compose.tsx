@@ -413,253 +413,138 @@ const ComposeScreen = () => {
       >
         <ThemedView style={{ flex: 1 }}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('New post')}</Text>
-          <View style={styles.headerIcons}>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Ionicons name="reader-outline" size={20} color={colors.COLOR_BLACK_LIGHT_1} />
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn}>
-              <Ionicons name="ellipsis-horizontal" size={20} color={colors.COLOR_BLACK_LIGHT_1} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Mode Toggle Section */}
-        <View style={styles.modeToggleContainer}>
-          <View style={styles.modeToggleRow}>
-            <View style={styles.modeOption}>
-              <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel]}>
-                {t('Thread')}
-              </Text>
-              <Text style={styles.modeDescription}>
-                {t('Post as linked thread')}
-              </Text>
-            </View>
-            <Switch
-              value={postingMode === 'beast'}
-              onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
-              trackColor={{ false: colors.COLOR_BLACK_LIGHT_6, true: colors.primaryColor }}
-              thumbColor={colors.primaryLight}
-              style={styles.modeSwitch}
-            />
-            <View style={styles.modeOption}>
-              <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel]}>
-                {t('Beast')}
-              </Text>
-              <Text style={styles.modeDescription}>
-                {t('Post all at once')}
-              </Text>
+            <Text style={styles.headerTitle}>{t('New post')}</Text>
+            <View style={styles.headerIcons}>
+              <TouchableOpacity style={styles.iconBtn}>
+                <Ionicons name="reader-outline" size={20} color={colors.COLOR_BLACK_LIGHT_1} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconBtn}>
+                <Ionicons name="ellipsis-horizontal" size={20} color={colors.COLOR_BLACK_LIGHT_1} />
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
 
-        {/* Main composer and thread section */}
-        <View style={styles.threadContainer}>
-          {/* Continuous timeline line for all items - from composer to add button */}
-          <View style={styles.continuousTimelineLine} />
-
-          {/* Main composer */}
-          <View style={styles.postContainer}>
-            <View style={styles.composerWithTimeline}>
-              <PostHeader
-                user={{
-                  name: user?.name?.full || user?.username || '',
-                  handle: user?.username || '',
-                  verified: Boolean(user?.verified)
-                }}
-                avatarUri={user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined}
-                onPressUser={() => { }}
-                onPressAvatar={() => { }}
-              >
-                <TextInput
-                  style={styles.mainTextInput}
-                  placeholder={t("What's new?")}
-                  placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
-                  value={postContent}
-                  onChangeText={setPostContent}
-                  multiline
-                  autoFocus
-                  textAlignVertical="top"
-                />
-                <View style={styles.toolbarRow}>
-                  <TouchableOpacity onPress={openMediaPicker}>
-                    <Ionicons name="image-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                  </TouchableOpacity>
-                  <TouchableOpacity>
-                    <Ionicons name="gift" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                  </TouchableOpacity>
-                  <TouchableOpacity>
-                    <Ionicons name="happy-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={openPollCreator}>
-                    <Ionicons name="stats-chart-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                  </TouchableOpacity>
-                  <TouchableOpacity>
-                    <Ionicons name="document-text-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={requestLocation} disabled={isGettingLocation}>
-                    <Ionicons
-                      name="location-outline"
-                      size={20}
-                      color={location ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </PostHeader>
-
-              <PostMiddle
-                media={mediaIds.map(id => ({ id, type: 'image' as const }))}
-                leftOffset={BOTTOM_LEFT_PAD}
+          {/* Mode Toggle Section */}
+          <View style={styles.modeToggleContainer}>
+            <View style={styles.modeToggleRow}>
+              <View style={styles.modeOption}>
+                <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel]}>
+                  {t('Thread')}
+                </Text>
+                <Text style={styles.modeDescription}>
+                  {t('Post as linked thread')}
+                </Text>
+              </View>
+              <Switch
+                value={postingMode === 'beast'}
+                onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
+                trackColor={{ false: colors.COLOR_BLACK_LIGHT_6, true: colors.primaryColor }}
+                thumbColor={colors.primaryLight}
+                style={styles.modeSwitch}
               />
-
-              {/* Poll Creator */}
-              {showPollCreator && (
-                <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD }]}>
-                  <View style={styles.pollHeader}>
-                    <Text style={styles.pollTitle}>{t('Create a poll')}</Text>
-                    <TouchableOpacity onPress={removePoll}>
-                      <Ionicons name="close" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                    </TouchableOpacity>
-                  </View>
-                  {pollOptions.map((option, index) => (
-                    <View key={index} style={styles.pollOptionRow}>
-                      <TextInput
-                        style={styles.pollOptionInput}
-                        placeholder={t(`Option ${index + 1}`)}
-                        placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
-                        value={option}
-                        onChangeText={(value) => updatePollOption(index, value)}
-                        maxLength={50}
-                      />
-                      {pollOptions.length > 2 && (
-                        <TouchableOpacity onPress={() => removePollOption(index)}>
-                          <Ionicons name="close-circle" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
-                  {pollOptions.length < 4 && (
-                    <TouchableOpacity style={styles.addPollOptionBtn} onPress={addPollOption}>
-                      <Ionicons name="add" size={16} color={colors.primaryColor} />
-                      <Text style={styles.addPollOptionText}>{t('Add option')}</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              {/* Location Display */}
-              {location && (
-                <View style={[styles.locationDisplay, { marginLeft: BOTTOM_LEFT_PAD }]}>
-                  <View style={styles.locationHeader}>
-                    <Ionicons name="location" size={16} color={colors.primaryColor} />
-                    <Text style={styles.locationText}>{location.address}</Text>
-                    <TouchableOpacity onPress={removeLocation}>
-                      <Ionicons name="close" size={16} color={colors.COLOR_BLACK_LIGHT_4} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
+              <View style={styles.modeOption}>
+                <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel]}>
+                  {t('Beast')}
+                </Text>
+                <Text style={styles.modeDescription}>
+                  {t('Post all at once')}
+                </Text>
+              </View>
             </View>
           </View>
 
-          {/* Thread items */}
-          {threadItems.map((item, _index) => (
-            <View key={`thread-${item.id}`} style={styles.postContainer}>
-              <View style={styles.threadItemWithTimeline}>
-                <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
-                  <TouchableOpacity activeOpacity={0.7}>
-                    <Avatar
-                      source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
-                      size={40}
-                      verified={Boolean(user?.verified)}
-                      style={{ marginRight: 12 }}
-                    />
-                  </TouchableOpacity>
-                  <View style={styles.headerMeta}>
-                    <View style={styles.headerChildren}>
-                      <TextInput
-                        style={styles.threadTextInput}
-                        placeholder={t('Say more...')}
-                        placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
-                        value={item.text}
-                        onChangeText={(v) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, text: v } : p))}
-                        multiline
-                      />
-                      <View style={styles.toolbarRow}>
-                        <TouchableOpacity onPress={() => openThreadMediaPicker(item.id)}>
-                          <Ionicons name="image-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                        </TouchableOpacity>
-                        <TouchableOpacity>
-                          <Ionicons name="gift" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                        </TouchableOpacity>
-                        <TouchableOpacity>
-                          <Ionicons name="happy-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => openThreadPollCreator(item.id)}>
-                          <Ionicons name="stats-chart-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                        </TouchableOpacity>
-                        <TouchableOpacity>
-                          <Ionicons name="document-text-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => requestThreadLocation(item.id)}>
-                          <Ionicons
-                            name="location-outline"
-                            size={18}
-                            color={item.location ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.removeThreadBtn}
-                        onPress={() => setThreadItems(prev => prev.filter(p => p.id !== item.id))}
-                      >
-                        <Ionicons name="close" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
+          {/* Main composer and thread section */}
+          <View style={styles.threadContainer}>
+            {/* Continuous timeline line for all items - from composer to add button */}
+            <View style={styles.continuousTimelineLine} />
 
-                {/* Thread item media */}
-                {item.mediaIds.length > 0 && (
-                  <PostMiddle
-                    media={item.mediaIds.map(id => ({ id, type: 'image' as const }))}
-                    leftOffset={BOTTOM_LEFT_PAD}
+            {/* Main composer */}
+            <View style={styles.postContainer}>
+              <View style={styles.composerWithTimeline}>
+                <PostHeader
+                  user={{
+                    name: user?.name?.full || user?.username || '',
+                    handle: user?.username || '',
+                    verified: Boolean(user?.verified)
+                  }}
+                  avatarUri={user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined}
+                  onPressUser={() => { }}
+                  onPressAvatar={() => { }}
+                >
+                  <TextInput
+                    style={styles.mainTextInput}
+                    placeholder={t("What's new?")}
+                    placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+                    value={postContent}
+                    onChangeText={setPostContent}
+                    multiline
+                    autoFocus
+                    textAlignVertical="top"
                   />
-                )}
+                  <View style={styles.toolbarRow}>
+                    <TouchableOpacity onPress={openMediaPicker}>
+                      <Ionicons name="image-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                    </TouchableOpacity>
+                    <TouchableOpacity>
+                      <Ionicons name="gift" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                    </TouchableOpacity>
+                    <TouchableOpacity>
+                      <Ionicons name="happy-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={openPollCreator}>
+                      <Ionicons name="stats-chart-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                    </TouchableOpacity>
+                    <TouchableOpacity>
+                      <Ionicons name="document-text-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={requestLocation} disabled={isGettingLocation}>
+                      <Ionicons
+                        name="location-outline"
+                        size={20}
+                        color={location ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </PostHeader>
 
-                {/* Thread item poll creator */}
-                {item.showPollCreator && (
+                <PostMiddle
+                  media={mediaIds.map(id => ({ id, type: 'image' as const }))}
+                  leftOffset={BOTTOM_LEFT_PAD}
+                />
+
+                {/* Poll Creator */}
+                {showPollCreator && (
                   <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD }]}>
                     <View style={styles.pollHeader}>
                       <Text style={styles.pollTitle}>{t('Create a poll')}</Text>
-                      <TouchableOpacity onPress={() => removeThreadPoll(item.id)}>
+                      <TouchableOpacity onPress={removePoll}>
                         <Ionicons name="close" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
                       </TouchableOpacity>
                     </View>
-                    {item.pollOptions.map((option, index) => (
+                    {pollOptions.map((option, index) => (
                       <View key={index} style={styles.pollOptionRow}>
                         <TextInput
                           style={styles.pollOptionInput}
                           placeholder={t(`Option ${index + 1}`)}
                           placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
                           value={option}
-                          onChangeText={(value) => updateThreadPollOption(item.id, index, value)}
+                          onChangeText={(value) => updatePollOption(index, value)}
                           maxLength={50}
                         />
-                        {item.pollOptions.length > 2 && (
-                          <TouchableOpacity onPress={() => removeThreadPollOption(item.id, index)}>
+                        {pollOptions.length > 2 && (
+                          <TouchableOpacity onPress={() => removePollOption(index)}>
                             <Ionicons name="close-circle" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
                           </TouchableOpacity>
                         )}
                       </View>
                     ))}
-                    {item.pollOptions.length < 4 && (
-                      <TouchableOpacity style={styles.addPollOptionBtn} onPress={() => addThreadPollOption(item.id)}>
+                    {pollOptions.length < 4 && (
+                      <TouchableOpacity style={styles.addPollOptionBtn} onPress={addPollOption}>
                         <Ionicons name="add" size={16} color={colors.primaryColor} />
                         <Text style={styles.addPollOptionText}>{t('Add option')}</Text>
                       </TouchableOpacity>
@@ -667,13 +552,13 @@ const ComposeScreen = () => {
                   </View>
                 )}
 
-                {/* Thread item location display */}
-                {item.location && (
+                {/* Location Display */}
+                {location && (
                   <View style={[styles.locationDisplay, { marginLeft: BOTTOM_LEFT_PAD }]}>
                     <View style={styles.locationHeader}>
                       <Ionicons name="location" size={16} color={colors.primaryColor} />
-                      <Text style={styles.locationText}>{item.location.address}</Text>
-                      <TouchableOpacity onPress={() => removeThreadLocation(item.id)}>
+                      <Text style={styles.locationText}>{location.address}</Text>
+                      <TouchableOpacity onPress={removeLocation}>
                         <Ionicons name="close" size={16} color={colors.COLOR_BLACK_LIGHT_4} />
                       </TouchableOpacity>
                     </View>
@@ -681,47 +566,162 @@ const ComposeScreen = () => {
                 )}
               </View>
             </View>
-          ))}
 
-          {/* Add thread/post button */}
-          <TouchableOpacity
-            style={styles.postContainer}
-            onPress={() => {
-              const id = Date.now().toString();
-              setThreadItems(prev => [...prev, {
-                id,
-                text: '',
-                mediaIds: [],
-                pollOptions: [],
-                showPollCreator: false,
-                location: null
-              }]);
-            }}
-          >
-            <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
-              <TouchableOpacity activeOpacity={0.7}>
-                <Avatar
-                  source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
-                  size={40}
-                  verified={Boolean(user?.verified)}
-                  style={{ marginRight: 12 }}
-                />
-              </TouchableOpacity>
-              <View style={styles.headerMeta}>
-                <View style={styles.headerChildren}>
-                  <Text style={styles.addToThreadText}>
-                    {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
-                  </Text>
+            {/* Thread items */}
+            {threadItems.map((item, _index) => (
+              <View key={`thread-${item.id}`} style={styles.postContainer}>
+                <View style={styles.threadItemWithTimeline}>
+                  <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
+                    <TouchableOpacity activeOpacity={0.7}>
+                      <Avatar
+                        source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
+                        size={40}
+                        verified={Boolean(user?.verified)}
+                        style={{ marginRight: 12 }}
+                      />
+                    </TouchableOpacity>
+                    <View style={styles.headerMeta}>
+                      <View style={styles.headerChildren}>
+                        <TextInput
+                          style={styles.threadTextInput}
+                          placeholder={t('Say more...')}
+                          placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+                          value={item.text}
+                          onChangeText={(v) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, text: v } : p))}
+                          multiline
+                        />
+                        <View style={styles.toolbarRow}>
+                          <TouchableOpacity onPress={() => openThreadMediaPicker(item.id)}>
+                            <Ionicons name="image-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                          </TouchableOpacity>
+                          <TouchableOpacity>
+                            <Ionicons name="gift" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                          </TouchableOpacity>
+                          <TouchableOpacity>
+                            <Ionicons name="happy-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => openThreadPollCreator(item.id)}>
+                            <Ionicons name="stats-chart-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                          </TouchableOpacity>
+                          <TouchableOpacity>
+                            <Ionicons name="document-text-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => requestThreadLocation(item.id)}>
+                            <Ionicons
+                              name="location-outline"
+                              size={18}
+                              color={item.location ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
+                            />
+                          </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.removeThreadBtn}
+                          onPress={() => setThreadItems(prev => prev.filter(p => p.id !== item.id))}
+                        >
+                          <Ionicons name="close" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Thread item media */}
+                  {item.mediaIds.length > 0 && (
+                    <PostMiddle
+                      media={item.mediaIds.map(id => ({ id, type: 'image' as const }))}
+                      leftOffset={BOTTOM_LEFT_PAD}
+                    />
+                  )}
+
+                  {/* Thread item poll creator */}
+                  {item.showPollCreator && (
+                    <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                      <View style={styles.pollHeader}>
+                        <Text style={styles.pollTitle}>{t('Create a poll')}</Text>
+                        <TouchableOpacity onPress={() => removeThreadPoll(item.id)}>
+                          <Ionicons name="close" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                      </View>
+                      {item.pollOptions.map((option, index) => (
+                        <View key={index} style={styles.pollOptionRow}>
+                          <TextInput
+                            style={styles.pollOptionInput}
+                            placeholder={t(`Option ${index + 1}`)}
+                            placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+                            value={option}
+                            onChangeText={(value) => updateThreadPollOption(item.id, index, value)}
+                            maxLength={50}
+                          />
+                          {item.pollOptions.length > 2 && (
+                            <TouchableOpacity onPress={() => removeThreadPollOption(item.id, index)}>
+                              <Ionicons name="close-circle" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                      {item.pollOptions.length < 4 && (
+                        <TouchableOpacity style={styles.addPollOptionBtn} onPress={() => addThreadPollOption(item.id)}>
+                          <Ionicons name="add" size={16} color={colors.primaryColor} />
+                          <Text style={styles.addPollOptionText}>{t('Add option')}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Thread item location display */}
+                  {item.location && (
+                    <View style={[styles.locationDisplay, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                      <View style={styles.locationHeader}>
+                        <Ionicons name="location" size={16} color={colors.primaryColor} />
+                        <Text style={styles.locationText}>{item.location.address}</Text>
+                        <TouchableOpacity onPress={() => removeThreadLocation(item.id)}>
+                          <Ionicons name="close" size={16} color={colors.COLOR_BLACK_LIGHT_4} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
                 </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        </View>
+            ))}
 
-        <View style={styles.bottomBar}>
-          <Text style={styles.bottomText}>{t('Anyone can reply & quote')}</Text>
-          <Text style={styles.characterCount}>{postContent.length}</Text>
-        </View>
+            {/* Add thread/post button */}
+            <TouchableOpacity
+              style={styles.postContainer}
+              onPress={() => {
+                const id = Date.now().toString();
+                setThreadItems(prev => [...prev, {
+                  id,
+                  text: '',
+                  mediaIds: [],
+                  pollOptions: [],
+                  showPollCreator: false,
+                  location: null
+                }]);
+              }}
+            >
+              <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
+                <TouchableOpacity activeOpacity={0.7}>
+                  <Avatar
+                    source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
+                    size={40}
+                    verified={Boolean(user?.verified)}
+                    style={{ marginRight: 12 }}
+                  />
+                </TouchableOpacity>
+                <View style={styles.headerMeta}>
+                  <View style={styles.headerChildren}>
+                    <Text style={styles.addToThreadText}>
+                      {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.bottomBar}>
+            <Text style={styles.bottomText}>{t('Anyone can reply & quote')}</Text>
+            <Text style={styles.characterCount}>{postContent.length}</Text>
+          </View>
         </ThemedView>
       </KeyboardAvoidingView>
 
@@ -740,7 +740,7 @@ const ComposeScreen = () => {
           <Text style={isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText}>{t('Post')}</Text>
         )}
       </TouchableOpacity>
-  </SafeAreaView>
+    </SafeAreaView>
   );
 };
 

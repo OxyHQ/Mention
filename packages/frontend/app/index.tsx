@@ -57,69 +57,69 @@ const HomeScreen: React.FC = () => {
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
             <ThemedView style={{ flex: 1 }}>
-            <StatusBar style="dark" />
+                <StatusBar style="dark" />
 
-            {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Mention</Text>
-                <View style={styles.headerActions}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>Mention</Text>
+                    <View style={styles.headerActions}>
+                        <TouchableOpacity
+                            style={styles.headerButton}
+                            onPress={() => router.push('/search')}
+                        >
+                            <Ionicons name="search-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.headerButton}
+                            onPress={() => router.push('/notifications')}
+                        >
+                            <Ionicons name="notifications-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Tab Navigation */}
+                <View style={styles.tabsContainer}>
                     <TouchableOpacity
-                        style={styles.headerButton}
-                        onPress={() => router.push('/search')}
+                        style={[styles.tab, activeTab === 'for_you' && styles.activeTab]}
+                        onPress={() => setActiveTab('for_you')}
                     >
-                        <Ionicons name="search-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                        <Text style={[styles.tabText, activeTab === 'for_you' && styles.activeTabText]}>
+                            {t('For You')}
+                        </Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity
-                        style={styles.headerButton}
-                        onPress={() => router.push('/notifications')}
+                        style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+                        onPress={() => setActiveTab('following')}
                     >
-                        <Ionicons name="notifications-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                        <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
+                            {t('Following')}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
+                        onPress={() => setActiveTab('trending')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
+                            {t('Trending')}
+                        </Text>
                     </TouchableOpacity>
                 </View>
-            </View>
 
-            {/* Tab Navigation */}
-            <View style={styles.tabsContainer}>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'for_you' && styles.activeTab]}
-                    onPress={() => setActiveTab('for_you')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'for_you' && styles.activeTabText]}>
-                        {t('For You')}
-                    </Text>
-                </TouchableOpacity>
+                {/* Content */}
+                {renderContent()}
 
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-                    onPress={() => setActiveTab('following')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
-                        {t('Following')}
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
-                    onPress={() => setActiveTab('trending')}
-                >
-                    <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
-                        {t('Trending')}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Content */}
-            {renderContent()}
-
-            {/* Floating Action Button */}
-            {isAuthenticated && (
-                <TouchableOpacity
-                    style={styles.fab}
-                    onPress={() => router.push('/compose')}
-                >
-                    <Ionicons name="add" size={24} color={colors.COLOR_BLACK_LIGHT_9} />
-                </TouchableOpacity>
-            )}
+                {/* Floating Action Button */}
+                {isAuthenticated && (
+                    <TouchableOpacity
+                        style={styles.fab}
+                        onPress={() => router.push('/compose')}
+                    >
+                        <Ionicons name="add" size={24} color={colors.COLOR_BLACK_LIGHT_9} />
+                    </TouchableOpacity>
+                )}
             </ThemedView>
         </SafeAreaView>
     );

@@ -18,7 +18,7 @@ export default function ListTimelineScreen() {
       try {
         const l = await listsService.get(String(id));
         setList(l);
-  } catch {
+      } catch {
         setError('Failed to load list');
       } finally {
         setLoading(false);

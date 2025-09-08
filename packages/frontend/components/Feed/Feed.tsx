@@ -22,29 +22,29 @@ interface FeedProps {
     // Core props
     type: FeedType;
     userId?: string;
-    
+
     // UI Configuration
     showComposeButton?: boolean;
     onComposePress?: () => void;
     hideHeader?: boolean;
     hideRefreshControl?: boolean;
     scrollEnabled?: boolean;
-    
+
     // Data configuration
     showOnlySaved?: boolean;
     filters?: Record<string, any>;
     reloadKey?: string | number;
-    
+
     // Auto-refresh (currently unused - keeping for future)
     autoRefresh?: boolean;
     refreshInterval?: number;
     onSavePress?: (postId: string) => void;
-    
+
     // Style props
     style?: any;
     contentContainerStyle?: any;
     listHeaderComponent?: React.ReactElement | null;
-    
+
     // Legend List specific options with better defaults
     recycleItems?: boolean;
     maintainScrollAtEnd?: boolean;
@@ -151,9 +151,9 @@ const Feed = (props: FeedProps) => {
                     setLocalError(null);
                     const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
                     let items = resp.items || []; // Use items directly since backend returns proper schema
-                    
+
                     // debug logs removed for production
-                    
+
                     const pid = (filters || {}).postId || (filters || {}).parentPostId;
                     if (pid) {
                         items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
@@ -215,18 +215,18 @@ const Feed = (props: FeedProps) => {
                 if (!localHasMore || localLoading) return;
                 setLocalLoading(true);
                 setLocalError(null);
-                
-                const resp = await feedService.getFeed({ 
-                    type, 
-                    limit: 20, 
-                    cursor: localNextCursor, 
-                    filters 
+
+                const resp = await feedService.getFeed({
+                    type,
+                    limit: 20,
+                    cursor: localNextCursor,
+                    filters
                 });
-                
+
                 let items = resp.items || [];
                 const pid = (filters || {}).postId || (filters || {}).parentPostId;
                 if (pid) {
-                    items = items.filter((item: any) => 
+                    items = items.filter((item: any) =>
                         String(item.postId || item.parentPostId) === String(pid)
                     );
                 }
@@ -248,11 +248,11 @@ const Feed = (props: FeedProps) => {
                 setLocalHasMore(hasMoreSafe);
                 setLocalNextCursor(nextCursor);
             } else if (userId) {
-                await fetchUserFeed(userId, { 
-                    type, 
-                    limit: 20, 
-                    cursor: feedData?.nextCursor, 
-                    filters 
+                await fetchUserFeed(userId, {
+                    type,
+                    limit: 20,
+                    cursor: feedData?.nextCursor,
+                    filters
                 });
             } else {
                 await loadMoreFeed(type, filters);
@@ -260,7 +260,7 @@ const Feed = (props: FeedProps) => {
         } catch (error) {
             console.error('Error loading more feed:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to load more posts';
-            
+
             if (useScoped) {
                 setLocalError(errorMessage);
             }
@@ -288,9 +288,9 @@ const Feed = (props: FeedProps) => {
 
     const computeDisplayItems = useCallback(() => {
         const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
-        
-    // debug logs removed for production
-        
+
+        // debug logs removed for production
+
         if (type !== 'for_you' || !currentUser?.id) {
             // Deduplicate by key in case upstream merged duplicates
             const seen = new Set<string>();
@@ -336,7 +336,7 @@ const Feed = (props: FeedProps) => {
             seen.add(k);
             deduped.push(it);
         }
-    return deduped;
+        return deduped;
     }, [useScoped, localItems, filteredFeedData?.items, type, currentUser?.id, itemKey]);
 
     const renderEmptyState = useCallback(() => {
@@ -455,12 +455,12 @@ const Feed = (props: FeedProps) => {
                     maxToRenderPerBatch={10}
                     windowSize={10}
                     initialNumToRender={10}
-                        // LegendList specific props (forwarded)
-                        recycleItems={recycleItems}
-                        maintainScrollAtEnd={maintainScrollAtEnd}
-                        maintainScrollAtEndThreshold={maintainScrollAtEndThreshold}
-                        alignItemsAtEnd={alignItemsAtEnd}
-                        maintainVisibleContentPosition={maintainVisibleContentPosition}
+                    // LegendList specific props (forwarded)
+                    recycleItems={recycleItems}
+                    maintainScrollAtEnd={maintainScrollAtEnd}
+                    maintainScrollAtEndThreshold={maintainScrollAtEndThreshold}
+                    alignItemsAtEnd={alignItemsAtEnd}
+                    maintainVisibleContentPosition={maintainVisibleContentPosition}
                 />
             </View>
         </ErrorBoundary>

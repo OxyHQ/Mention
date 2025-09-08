@@ -29,30 +29,32 @@ const ListCard = ({ item }: { item: any }) => {
 
 export default function ListsScreen() {
   const [myLists, setMyLists] = useState<any[]>([]);
-  
+
 
   useEffect(() => {
     (async () => {
       try {
-  const mine = await listsService.list({ mine: true });
-  setMyLists(mine.items || []);
+        const mine = await listsService.list({ mine: true });
+        setMyLists(mine.items || []);
       } catch (e) {
         console.warn('load lists failed', e);
       }
     })();
   }, []);
 
-  
 
-  
+
+
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <Header options={{ title: 'Lists', showBackButton: true, rightComponents: [
-        <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={styles.newPill}>
-          <Text style={styles.newPillText}>+ New</Text>
-        </TouchableOpacity>
-      ] }} />
+      <Header options={{
+        title: 'Lists', showBackButton: true, rightComponents: [
+          <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={styles.newPill}>
+            <Text style={styles.newPillText}>+ New</Text>
+          </TouchableOpacity>
+        ]
+      }} />
 
       <View style={styles.content}>
         {myLists.length === 0 ? (
@@ -71,8 +73,8 @@ export default function ListsScreen() {
         )}
       </View>
 
-      
-  </ThemedView>
+
+    </ThemedView>
   );
 }
 
@@ -105,6 +107,6 @@ const styles = StyleSheet.create({
   emptyStateDescription: { fontSize: 14, color: colors.COLOR_BLACK_LIGHT_4, textAlign: 'center', marginTop: 8, lineHeight: 20 },
   emptyStateButton: { marginTop: 18, backgroundColor: colors.primaryColor, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
   emptyStateButtonText: { color: colors.primaryLight, fontWeight: '700' },
-  
+
 });
 

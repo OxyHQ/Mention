@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
-import { FollowButton, Models, useOxy } from '@oxyhq/services/full';
+import { useOxy } from '@oxyhq/services';
+import * as OxyServicesNS from '@oxyhq/services';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import { BaseWidget } from './BaseWidget';
+import { useUsersStore } from '@/stores/usersStore';
 
 export function WhoToFollowWidget() {
   const { oxyServices } = useOxy();
@@ -14,7 +16,7 @@ export function WhoToFollowWidget() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [recommendations, setRecommendations] = useState<Models.User[] | null>(null);
+  const [recommendations, setRecommendations] = useState<any[] | null>(null);
 
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -23,6 +25,11 @@ export function WhoToFollowWidget() {
         setError(null);
         const response = await oxyServices.getProfileRecommendations();
         setRecommendations(response || []);
+        try {
+          if (Array.isArray(response) && response.length) {
+            useUsersStore.getState().upsertMany(response as any);
+          }
+        } catch {}
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
         console.error('Error fetching recommendations:', err);
@@ -47,7 +54,7 @@ export function WhoToFollowWidget() {
         </View>
       ) : recommendations?.length ? (
         <View>
-          {recommendations.slice(0, 5).map((data, index) => (
+          {recommendations.slice(0, 5).map((data: any, index: number) => (
             <FollowRowComponent key={data.id || index} profileData={data} />
           ))}
           <TouchableOpacity onPress={() => router.push('/explore')} style={styles.showMoreBtn} activeOpacity={0.7}>
@@ -63,8 +70,10 @@ export function WhoToFollowWidget() {
   );
 }
 
-function FollowRowComponent({ profileData }: { profileData: Models.User }) {
+function FollowRowComponent({ profileData }: { profileData: any }) {
+  const router = useRouter();
   const { oxyServices } = useOxy();
+  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
   if (!profileData?.id) return null;
 
   const displayName = profileData.name?.first
@@ -76,7 +85,6 @@ function FollowRowComponent({ profileData }: { profileData: Models.User }) {
     : undefined;
   const username = profileData.username || profileData.id;
 
-  const router = useRouter();
   return (
     <View style={styles.row}>
       <View style={styles.rowLeft}>

@@ -10,6 +10,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
+import { useUsersStore } from '@/stores/usersStore';
 
 export default function FollowingScreen() {
   const insets = useSafeAreaInsets();
@@ -20,12 +21,15 @@ export default function FollowingScreen() {
   const [following, setFollowing] = useState<any[]>([]);
   const [profile, setProfile] = useState<any | null>(null);
   const { t } = useTranslation();
-  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string }>; 
+  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string }>;
 
   useEffect(() => {
     const loadFollowing = async () => {
       try {
-        const userProfile = await oxyServices.getProfileByUsername(cleanUsername);
+        const userProfile = await useUsersStore.getState().ensureByUsername(
+          cleanUsername,
+          (u) => oxyServices.getProfileByUsername(u)
+        );
         if (!userProfile) {
           throw new Error('User profile is null');
         }
@@ -39,6 +43,7 @@ export default function FollowingScreen() {
               ? followingList
               : [];
           setFollowing(list);
+          try { useUsersStore.getState().upsertMany(list as any); } catch {}
         }
       } catch (error) {
         console.error('Error loading following:', error);
@@ -88,14 +93,14 @@ export default function FollowingScreen() {
       <LegendList
         data={following}
         renderItem={renderUser}
-  keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
+        keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
         ListEmptyComponent={
           <View style={{ padding: 16, alignItems: 'center' }}>
             <ThemedText>{t("No following yet")}</ThemedText>
           </View>
         }
-  recycleItems={true}
-  maintainVisibleContentPosition={true}
+        recycleItems={true}
+        maintainVisibleContentPosition={true}
       />
     </ThemedView>
   );

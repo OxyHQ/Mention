@@ -602,19 +602,19 @@ export default function SettingsScreen() {
                     </TouchableOpacity>
                 </View>
             </View>
-    </ThemedView>
+        </ThemedView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-    flex: 1,
+        flex: 1,
     },
     header: {
         paddingHorizontal: 20,
         paddingTop: 20,
         paddingBottom: 16,
-    backgroundColor: colors.primaryLight,
+        backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
         borderBottomColor: '#e0e0e0',
     },

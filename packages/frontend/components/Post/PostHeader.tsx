@@ -6,7 +6,7 @@ import PostAvatar from './PostAvatar';
 import UserName from '../UserName';
 
 // Spacing tokens for consistent layout
-const HPAD = 16;         // horizontal padding
+const HPAD = 8;         // horizontal padding
 const ROW_GAP = 8;       // gap between inline header items
 
 interface User {
@@ -20,6 +20,7 @@ interface PostHeaderProps {
   date?: string;
   showRepost?: boolean;
   showReply?: boolean;
+  repostedBy?: { name: string; handle: string; verified?: boolean; date?: string };
   paddingHorizontal?: number;
   children?: React.ReactNode;
   avatarUri?: string;
@@ -34,10 +35,11 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   date,
   showRepost,
   showReply,
+  repostedBy,
   paddingHorizontal = HPAD,
   children,
   avatarUri,
-  avatarSize = 40,
+  avatarSize = 36,
 
   onPressUser,
   onPressAvatar,
@@ -64,6 +66,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   };
 
   const timeLabel = formatRelativeTime(date);
+  const repostLabel = repostedBy ? `${repostedBy.name} reposted` : undefined;
+  const repostTime = repostedBy?.date ? formatRelativeTime(repostedBy.date) : undefined;
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <View style={styles.headerRow}>
@@ -79,10 +83,12 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             />
             {user.handle ? <Text style={styles.postHandle}>@{user.handle}</Text> : null}
             {!!timeLabel && <Text style={styles.postDate}>· {timeLabel}</Text>}
-            {showRepost && (
+            {(repostLabel || showRepost) && (
               <View style={styles.metaIndicator}>
                 <Ionicons name="repeat" size={12} color={colors.COLOR_BLACK_LIGHT_4} />
-                <Text style={styles.metaIndicatorText}>Reposted</Text>
+                <Text style={styles.metaIndicatorText}>
+                  {repostLabel || 'Reposted'}{repostTime ? ` · ${repostTime}` : ''}
+                </Text>
               </View>
             )}
             {showReply && (
@@ -112,8 +118,7 @@ const styles = StyleSheet.create({
   },
   headerMeta: {
     flex: 1,
-    paddingTop: 2,
-    gap: 8,
+    gap: 4,
   },
   postHeader: {
     flexDirection: 'row',

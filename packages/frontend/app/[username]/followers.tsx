@@ -10,6 +10,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
+import { useUsersStore } from '@/stores/usersStore';
 
 export default function FollowersScreen() {
   const insets = useSafeAreaInsets();
@@ -25,7 +26,10 @@ export default function FollowersScreen() {
   useEffect(() => {
     const loadFollowers = async () => {
       try {
-        const userProfile = await oxyServices.getProfileByUsername(cleanUsername);
+        const userProfile = await useUsersStore.getState().ensureByUsername(
+          cleanUsername,
+          (u) => oxyServices.getProfileByUsername(u)
+        );
         if (!userProfile) {
           throw new Error('User profile is null');
         }
@@ -39,6 +43,7 @@ export default function FollowersScreen() {
               ? followersList
               : [];
           setFollowers(list);
+          try { useUsersStore.getState().upsertMany(list as any); } catch {}
         }
       } catch (error) {
         console.error('Error loading followers:', error);
@@ -99,8 +104,8 @@ export default function FollowersScreen() {
             <ThemedText>{t("No followers yet")}</ThemedText>
           </View>
         }
-  recycleItems={true}
-  maintainVisibleContentPosition={true}
+        recycleItems={true}
+        maintainVisibleContentPosition={true}
       />
     </ThemedView>
   );

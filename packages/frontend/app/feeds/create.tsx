@@ -10,7 +10,7 @@ import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { toast } from '@/lib/sonner';
 
-type MinimalUser = { id: string; username: string; name?: { full?: string } ; avatar?: any };
+type MinimalUser = { id: string; username: string; name?: { full?: string }; avatar?: any };
 
 const CreateFeedScreen: React.FC = () => {
   const { oxyServices } = useOxy();
@@ -30,7 +30,7 @@ const CreateFeedScreen: React.FC = () => {
   const [listsLoaded, setListsLoaded] = useState(false);
   const searchTimer = useRef<number | null>(null);
 
-  
+
 
   const doSearch = useCallback((q: string) => {
     setSearch(q);
@@ -122,8 +122,8 @@ const CreateFeedScreen: React.FC = () => {
           );
         })}
 
-  <Text style={[styles.label, { marginTop: 12 }]}>Add Members</Text>
-  <TextInput value={search} onChangeText={doSearch} placeholder="Search users" style={styles.input} />
+        <Text style={[styles.label, { marginTop: 12 }]}>Add Members</Text>
+        <TextInput value={search} onChangeText={doSearch} placeholder="Search users" style={styles.input} />
 
         {results.length > 0 && (
           <View style={styles.resultsBox}>
@@ -156,7 +156,7 @@ const CreateFeedScreen: React.FC = () => {
           </View>
         )}
 
-        <TouchableOpacity disabled={saving || !title.trim()} onPress={onCreate} style={[styles.createBtn, (!title.trim()) && { opacity: 0.6 } ]}>
+        <TouchableOpacity disabled={saving || !title.trim()} onPress={onCreate} style={[styles.createBtn, (!title.trim()) && { opacity: 0.6 }]}>
           {saving ? <ActivityIndicator color={colors.primaryLight} /> : <Text style={styles.createBtnText}>Create Feed</Text>}
         </TouchableOpacity>
       </ScrollView>

@@ -126,7 +126,7 @@ const FeedsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-  <ThemedView style={styles.container}>
+      <ThemedView style={styles.container}>
         <Header options={{
           title: t('Feeds'), rightComponents: [
             <TouchableOpacity key="create" onPress={() => router.push('/feeds/create')} style={{ padding: 8 }}>
@@ -243,7 +243,7 @@ const FeedsScreen: React.FC = () => {
           </View>
         ))}
 
-  </ThemedView>
+      </ThemedView>
     </SafeAreaView>
   );
 };
@@ -252,7 +252,7 @@ export default FeedsScreen;
 
 const styles = StyleSheet.create({
   container: {
-  flex: 1,
+    flex: 1,
   },
   sectionHeaderRow: {
     flexDirection: 'row',

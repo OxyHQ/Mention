@@ -23,6 +23,7 @@ import { useOxy } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Feed } from './Feed/index';
 import { usePostsStore } from '@/stores/postsStore';
+import { useUsersStore } from '@/stores/usersStore';
 import type { FeedType } from '@mention/shared-types';
 import MediaGrid from '@/components/Profile/MediaGrid';
 import { colors } from '../styles/colors';
@@ -120,9 +121,9 @@ const MentionProfile: React.FC = () => {
     // Track current feed type for the active tab
     const currentFeedType = useMemo<FeedType>(() => (
         activeTab === 0 ? 'posts' :
-        activeTab === 1 ? 'replies' :
-        activeTab === 2 ? 'media' :
-        activeTab === 3 ? 'likes' : 'reposts'
+            activeTab === 1 ? 'replies' :
+                activeTab === 2 ? 'media' :
+                    activeTab === 3 ? 'likes' : 'reposts'
     ) as FeedType, [activeTab]);
     const loadingMoreRef = useRef(false);
 
@@ -133,19 +134,28 @@ const MentionProfile: React.FC = () => {
                 setLoading(false);
                 return;
             }
-
             try {
                 setLoading(true);
-                const data = await oxyServices.getProfileByUsername(username);
-                console.log('Fetched profile data:', data);
-                setProfileData(data);
+                const usersState = useUsersStore.getState();
+                const cached = usersState.getCachedByUsername(username);
+                if (cached) setProfileData(cached as any);
+                const data = await usersState.ensureByUsername(username, (u) => oxyServices.getProfileByUsername(u));
+                if (data) {
+                    setProfileData(data as any);
+                } else {
+                    // Fallback direct call
+                    const fresh = await oxyServices.getProfileByUsername(username);
+                    if (fresh) {
+                        setProfileData(fresh);
+                        try { usersState.upsertUser(fresh as any); } catch {}
+                    }
+                }
             } catch (error) {
                 console.error('Error fetching profile data:', error);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchProfileData();
     }, [username, oxyServices]);
 
@@ -512,7 +522,7 @@ const MentionProfile: React.FC = () => {
                                                 }
                                             }
                                         }
-                                    } catch {}
+                                    } catch { }
                                 }
                             }
                         )}

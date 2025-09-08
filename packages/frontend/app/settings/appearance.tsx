@@ -13,7 +13,7 @@ export default function AppearanceSettingsScreen() {
   const { mySettings, loadMySettings, updateMySettings, loading } = useAppearanceStore();
   const { showBottomSheet, oxyServices } = useOxy();
 
-  const [themeMode, setThemeMode] = useState<'light'|'dark'|'system'>('system');
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('system');
   const [primaryColor, setPrimaryColor] = useState<string>('');
   const [headerImageId, setHeaderImageId] = useState<string>('');
   const [saving, setSaving] = useState(false);
@@ -64,7 +64,7 @@ export default function AppearanceSettingsScreen() {
         {/* Theme mode */}
         <Text style={styles.label}>Theme</Text>
         <View style={styles.segmentRow}>
-          {(['system','light','dark'] as const).map(mode => (
+          {(['system', 'light', 'dark'] as const).map(mode => (
             <TouchableOpacity key={mode} style={[styles.segmentBtn, themeMode === mode && [styles.segmentBtnActive, { borderColor: previewPrimaryColor }]]} onPress={() => setThemeMode(mode)}>
               <Text style={[styles.segmentText, themeMode === mode && { color: previewPrimaryColor }]}>
                 {mode.charAt(0).toUpperCase() + mode.slice(1)}

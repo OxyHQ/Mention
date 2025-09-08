@@ -32,61 +32,61 @@ const ExploreScreen: React.FC = () => {
         );
 
       default:
-  return <Feed type="mixed" recycleItems={true} maintainVisibleContentPosition={true} />;
+        return <Feed type="mixed" recycleItems={true} maintainVisibleContentPosition={true} />;
     }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ThemedView style={{ flex: 1 }}>
-      <StatusBar style="dark" />
+        <StatusBar style="dark" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('Explore')}</Text>
-      </View>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>{t('Explore')}</Text>
+        </View>
 
-      {/* Tab Navigation */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'all' && styles.activeTab]}
-          onPress={() => setActiveTab('all')}
-        >
-          <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
-            {t('All')}
-          </Text>
-        </TouchableOpacity>
+        {/* Tab Navigation */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'all' && styles.activeTab]}
+            onPress={() => setActiveTab('all')}
+          >
+            <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>
+              {t('All')}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'media' && styles.activeTab]}
-          onPress={() => setActiveTab('media')}
-        >
-          <Text style={[styles.tabText, activeTab === 'media' && styles.activeTabText]}>
-            📸 {t('Media')}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'media' && styles.activeTab]}
+            onPress={() => setActiveTab('media')}
+          >
+            <Text style={[styles.tabText, activeTab === 'media' && styles.activeTabText]}>
+              📸 {t('Media')}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
-          onPress={() => setActiveTab('trending')}
-        >
-          <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
-            🔥 {t('Trending')}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
+            onPress={() => setActiveTab('trending')}
+          >
+            <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
+              🔥 {t('Trending')}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'custom' && styles.activeTab]}
-          onPress={() => setActiveTab('custom')}
-        >
-          <Text style={[styles.tabText, activeTab === 'custom' && styles.activeTabText]}>
-            🎯 {t('Custom')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'custom' && styles.activeTab]}
+            onPress={() => setActiveTab('custom')}
+          >
+            <Text style={[styles.tabText, activeTab === 'custom' && styles.activeTabText]}>
+              🎯 {t('Custom')}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Content */}
-      {renderContent()}
+        {/* Content */}
+        {renderContent()}
       </ThemedView>
     </SafeAreaView>
   );
