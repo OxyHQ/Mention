@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
 import { FeedType } from '@mention/shared-types';
+import { API_URL_SOCKET } from '@/config';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -24,7 +25,7 @@ class SocketService {
 
     try {
       // Connect to the backend socket server
-      this.socket = io(process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000', {
+      this.socket = io(API_URL_SOCKET || process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000', {
         transports: ['websocket', 'polling'],
         auth: token ? { token } : undefined,
         autoConnect: true,
@@ -132,6 +133,21 @@ class SocketService {
       console.log('Post reposted:', data);
       this.handlePostReposted(data);
     });
+
+    this.socket.on('post:unreposted', (data) => {
+      console.log('Post unreposted:', data);
+      this.handlePostUnreposted(data);
+    });
+
+    this.socket.on('post:saved', (data) => {
+      console.log('Post saved:', data);
+      this.handlePostSaved(data);
+    });
+
+    this.socket.on('post:unsaved', (data) => {
+      console.log('Post unsaved:', data);
+      this.handlePostUnsaved(data);
+    });
   }
 
   /**
@@ -173,7 +189,7 @@ class SocketService {
    * Handle feed updates from socket
    */
   private handleFeedUpdate(data: any) {
-    const { type, posts, timestamp } = data;
+    const { type, posts } = data || {};
     
     // Type-safe feed type check
     if (!type || !Array.isArray(posts)) {
@@ -203,54 +219,90 @@ class SocketService {
    * Handle post liked event
    */
   private handlePostLiked(data: any) {
-    const { postId, likesCount } = data;
+    const { postId, likesCount } = data || {};
+    if (!postId) return;
     const store = usePostsStore.getState();
-    const current = store.feeds.posts.items.find(p => p.id === postId) || store.feeds.mixed.items.find(p => p.id === postId);
-    const prevEng = current?.engagement || { likes: 0, replies: 0, reposts: 0 };
-    store.updatePostLocally(postId, {
+    store.updatePostEverywhere(postId, (prev) => ({
+      ...prev,
       isLiked: true,
-      engagement: { ...prevEng, likes: likesCount }
-    });
+      engagement: { ...prev.engagement, likes: likesCount ?? (prev.engagement.likes + 1) }
+    }));
   }
 
   /**
    * Handle post unliked event
    */
   private handlePostUnliked(data: any) {
-    const { postId, likesCount } = data;
+    const { postId, likesCount } = data || {};
+    if (!postId) return;
     const store = usePostsStore.getState();
-    const current = store.feeds.posts.items.find(p => p.id === postId) || store.feeds.mixed.items.find(p => p.id === postId);
-    const prevEng = current?.engagement || { likes: 0, replies: 0, reposts: 0 };
-    store.updatePostLocally(postId, {
+    store.updatePostEverywhere(postId, (prev) => ({
+      ...prev,
       isLiked: false,
-      engagement: { ...prevEng, likes: likesCount }
-    });
+      engagement: { ...prev.engagement, likes: likesCount ?? Math.max(0, prev.engagement.likes - 1) }
+    }));
   }
 
   /**
    * Handle post replied event
    */
   private handlePostReplied(data: any) {
-    const { postId, reply } = data;
+    const { postId } = data || {};
+    if (!postId) return;
     const store = usePostsStore.getState();
-    const current = store.feeds.posts.items.find(p => p.id === postId) || store.feeds.mixed.items.find(p => p.id === postId);
-    const prevEng = current?.engagement || { likes: 0, replies: 0, reposts: 0 };
-    store.updatePostLocally(postId, {
-      engagement: { ...prevEng, replies: (prevEng.replies || 0) + 1 }
-    });
+    store.updatePostEverywhere(postId, (prev) => ({
+      ...prev,
+      engagement: { ...prev.engagement, replies: (prev.engagement.replies || 0) + 1 }
+    }));
   }
 
   /**
    * Handle post reposted event
    */
   private handlePostReposted(data: any) {
-    const { originalPostId, repost } = data;
+    const { originalPostId } = data || {};
+    if (!originalPostId) return;
     const store = usePostsStore.getState();
-    const current = store.feeds.posts.items.find(p => p.id === originalPostId) || store.feeds.mixed.items.find(p => p.id === originalPostId);
-    const prevEng = current?.engagement || { likes: 0, replies: 0, reposts: 0 };
-    store.updatePostLocally(originalPostId, {
-      engagement: { ...prevEng, reposts: (prevEng.reposts || 0) + 1 }
-    });
+    store.updatePostEverywhere(originalPostId, (prev) => ({
+      ...prev,
+      engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 },
+      isReposted: prev.isReposted || false
+    }));
+  }
+
+  /**
+   * Handle post unreposted event
+   */
+  private handlePostUnreposted(data: any) {
+    const { originalPostId } = data || {};
+    const postId = originalPostId || data?.postId;
+    if (!postId) return;
+    const store = usePostsStore.getState();
+    store.updatePostEverywhere(postId, (prev) => ({
+      ...prev,
+      engagement: { ...prev.engagement, reposts: Math.max(0, (prev.engagement.reposts || 0) - 1) },
+      isReposted: false
+    }));
+  }
+
+  /**
+   * Handle post saved event
+   */
+  private handlePostSaved(data: any) {
+    const { postId } = data || {};
+    if (!postId) return;
+    const store = usePostsStore.getState();
+    store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: true }));
+  }
+
+  /**
+   * Handle post unsaved event
+   */
+  private handlePostUnsaved(data: any) {
+    const { postId } = data || {};
+    if (!postId) return;
+    const store = usePostsStore.getState();
+    store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: false }));
   }
 
   /**

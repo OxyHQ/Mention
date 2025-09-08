@@ -104,6 +104,11 @@ interface FeedState {
   
   // Local state updates
   updatePostLocally: (postId: string, updates: Partial<FeedItem>) => void;
+  // Centralized deduped updater: updates postsById, all feeds, and userFeeds
+  updatePostEverywhere: (
+    postId: string,
+    updater: (prev: FeedItem) => FeedItem | null | undefined
+  ) => void;
   removePostLocally: (postId: string, feedType: FeedType) => void;
   addPostToFeed: (post: FeedItem, feedType: FeedType) => void;
   
@@ -1067,6 +1072,65 @@ export const usePostsStore = create<FeedState>()(
           }
         }
       }));
+    },
+
+    // Centralized deduped updater
+    updatePostEverywhere: (postId: string, updater: (prev: FeedItem) => FeedItem | null | undefined) => {
+      set(state => {
+        // Find base item: prefer cache, else search in feeds
+        let base: FeedItem | undefined = state.postsById[postId];
+        if (!base) {
+          const feedTypes = Object.keys(state.feeds) as FeedType[];
+          for (const ft of feedTypes) {
+            const found = state.feeds[ft]?.items?.find(p => p.id === postId);
+            if (found) { base = found; break; }
+          }
+        }
+        if (!base) {
+          // Still not found; nothing to update
+          return state;
+        }
+
+        const updated = updater(base);
+        if (!updated) return state;
+
+        const nextCache = { ...state.postsById, [postId]: updated };
+
+        // Update main feeds
+        const nextFeeds: typeof state.feeds = { ...state.feeds } as any;
+        (Object.keys(state.feeds) as (keyof typeof state.feeds)[]).forEach((ft) => {
+          const slice = state.feeds[ft];
+          if (!slice) return;
+          const items = slice.items?.length
+            ? slice.items.map(p => (p.id === postId ? updated : p))
+            : slice.items;
+          nextFeeds[ft] = { ...slice, items } as any;
+        });
+
+        // Update user feeds
+        const nextUserFeeds: typeof state.userFeeds = {} as any;
+        const userIds = Object.keys(state.userFeeds || {});
+        for (const uid of userIds) {
+          const userSlices = state.userFeeds[uid];
+          const nextSlices: any = {};
+          (Object.keys(userSlices || {}) as FeedType[]).forEach((ft) => {
+            const slice = userSlices[ft];
+            if (!slice) return;
+            const items = slice.items?.length
+              ? slice.items.map(p => (p.id === postId ? updated : p))
+              : slice.items;
+            nextSlices[ft] = { ...slice, items };
+          });
+          nextUserFeeds[uid] = nextSlices;
+        }
+
+        return {
+          ...state,
+          postsById: nextCache,
+          feeds: nextFeeds,
+          userFeeds: nextUserFeeds
+        };
+      });
     },
 
     removePostLocally: (postId: string, feedType: FeedType) => {
