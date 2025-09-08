@@ -1,5 +1,4 @@
 import { Platform } from "react-native";
-import { t } from 'i18next';
 
 // Do not statically import 'expo-notifications' to avoid bundling it on web.
 // Use a cached dynamic import so the package is only loaded on native platforms.
@@ -19,17 +18,16 @@ export async function requestNotificationPermissions() {
   return status === "granted";
 }
 
-export async function scheduleDemoNotification() {
+export async function hasNotificationPermission(): Promise<boolean> {
   const Notifications = await getNotifications();
-  if (!Notifications) return;
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: t("notification.welcome.title"),
-      body: t("notification.welcome.body"),
-      data: { screen: "notifications" },
-    },
-    trigger: null, // Shows notification immediately
-  });
+  if (!Notifications) return false;
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === 'granted';
+  } catch (e) {
+    console.warn('Failed to get notification permissions status:', e);
+    return false;
+  }
 }
 
 export async function createNotification(

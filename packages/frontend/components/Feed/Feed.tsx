@@ -152,14 +152,7 @@ const Feed = (props: FeedProps) => {
                     const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
                     let items = resp.items || []; // Use items directly since backend returns proper schema
                     
-                    console.log('🔍 Feed initial fetch (scoped):', {
-                        type,
-                        responseItemsCount: items.length,
-                        hasMore: resp.hasMore,
-                        nextCursor: resp.nextCursor,
-                        firstItem: items[0],
-                        resp: resp
-                    });
+                    // debug logs removed for production
                     
                     const pid = (filters || {}).postId || (filters || {}).parentPostId;
                     if (pid) {
@@ -169,10 +162,8 @@ const Feed = (props: FeedProps) => {
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
                 } else if (userId) {
-                    console.log('🔍 Feed initial fetch (user feed):', { userId, type });
                     await fetchUserFeed(userId, { type, limit: 20, filters });
                 } else {
-                    console.log('🔍 Feed initial fetch (global feed):', { type });
                     await fetchFeed({ type, limit: 20, filters });
                 }
             } catch (error) {
@@ -285,16 +276,7 @@ const Feed = (props: FeedProps) => {
     const computeDisplayItems = useCallback(() => {
         const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
         
-        // Debug logging to see what we have
-        console.log('🔍 Feed computeDisplayItems debug:', {
-            useScoped,
-            localItemsCount: localItems.length,
-            filteredFeedDataItemsCount: filteredFeedData?.items?.length || 0,
-            srcCount: src.length,
-            filteredFeedData: filteredFeedData,
-            localItems: localItems.slice(0, 2), // First 2 items for inspection
-            src: src.slice(0, 2) // First 2 items for inspection
-        });
+    // debug logs removed for production
         
         if (type !== 'for_you' || !currentUser?.id) {
             // Deduplicate by key in case upstream merged duplicates

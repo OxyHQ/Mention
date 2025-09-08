@@ -19,7 +19,7 @@ import { Toaster } from '@/lib/sonner';
 import {
   setupNotifications,
   requestNotificationPermissions,
-  scheduleDemoNotification,
+  hasNotificationPermission,
 } from '@/utils/notifications';
 import i18n, { use as i18nUse, init as i18nInit } from 'i18next';
 import { initReactI18next, I18nextProvider } from 'react-i18next';
@@ -33,6 +33,7 @@ import RegisterPush from '@/components/RegisterPushToken';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OxyProvider, OxyServices } from '@oxyhq/services';
 import '../styles/global.css';
@@ -140,10 +141,8 @@ export default function RootLayout() {
     try {
       if (Platform.OS !== 'web') {
         await setupNotifications();
-        const hasPermission = await requestNotificationPermissions();
-        if (hasPermission && __DEV__) {
-          await scheduleDemoNotification();
-        }
+  // We defer prompting to our bottom sheet UX; only preflight the current status
+  await hasNotificationPermission();
       }
 
       // Wait briefly for auth to be ready and warm up current user cache if possible.
@@ -247,21 +246,23 @@ export default function RootLayout() {
   ), [queryClient, oxyServices]);
 
   // Main layout component for better organization
-  const MainLayout = useCallback(() => (
-    <LayoutScrollProvider
-      contentContainerStyle={styles.container}
-      style={{ flex: 1 }}
-      scrollEventThrottle={16}
-    >
-      <SideBar />
-      <View style={styles.mainContent}>
-        <ThemedView style={styles.mainContentWrapper}>
-          <Slot />
-        </ThemedView>
-        <RightBar />
-      </View>
-    </LayoutScrollProvider>
-  ), [styles]);
+  const MainLayout = useCallback(() => {
+    return (
+      <LayoutScrollProvider
+        contentContainerStyle={styles.container}
+        style={{ flex: 1 }}
+        scrollEventThrottle={16}
+      >
+        <SideBar />
+        <View style={styles.mainContent}>
+          <ThemedView style={styles.mainContentWrapper}>
+            <Slot />
+          </ThemedView>
+          <RightBar />
+        </View>
+      </LayoutScrollProvider>
+    );
+  }, [styles]);
 
   return (
   <ThemedView style={{ flex: 1 }}>
