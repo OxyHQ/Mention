@@ -30,21 +30,54 @@ const emitNotification = async (req: Request, notification: any) => {
   } catch (e) {
     // ignore resolution errors
   }
-  // Attach preview for post notifications if applicable
+  // Attach preview and embedded post for post notifications if applicable
   let preview: string | undefined;
+  let embeddedPost: any | undefined;
   try {
     if (notification.type === 'post' && notification.entityType === 'post' && notification.entityId) {
-      const post: any = await Post.findById(notification.entityId, { 'content.text': 1 }).lean();
+      const post: any = await Post.findById(notification.entityId, {
+        _id: 1,
+        oxyUserId: 1,
+        content: 1,
+        stats: 1,
+        metadata: 1,
+        createdAt: 1
+      }).lean();
       if (post) {
         const text: string = post?.content?.text || '';
         const trimmed = typeof text === 'string' ? text.trim() : '';
         preview = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+        try {
+          const profile = await oxy.getUserById(post.oxyUserId);
+          embeddedPost = {
+            id: String(post._id),
+            user: {
+              id: profile?.id || post.oxyUserId,
+              name: profile?.name?.full || profile?.name || profile?.username || 'User',
+              handle: profile?.username || 'user',
+              avatar: profile?.avatar || '',
+              verified: !!profile?.verified,
+            },
+            content: post.content || { text: '' },
+            date: post.createdAt,
+            engagement: {
+              replies: post?.stats?.commentsCount || 0,
+              reposts: post?.stats?.repostsCount || 0,
+              likes: post?.stats?.likesCount || 0,
+            },
+            isLiked: false,
+            isReposted: false,
+            isSaved: false,
+            isThread: false,
+          };
+        } catch {}
       }
     }
   } catch {}
   const payload = {
     ...notification.toObject?.() || notification,
     preview,
+    post: embeddedPost,
     actorId_populated: actor ? {
       _id: actor.id || actor._id || notification.actorId,
       username: actor.username || notification.actorId,

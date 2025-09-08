@@ -254,8 +254,8 @@ const PostNotificationItem: React.FC<{
 }> = ({ notification, actorName, onMarkAsRead, handlePress }) => {
     const { t } = useTranslation();
     const { getPostById } = usePostsStore();
-    const [post, setPost] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const [post, setPost] = useState<any>((notification as any).post || null);
+    const [loading, setLoading] = useState(!(notification as any).post);
 
     const formatTimeAgo = (dateString: string): string => {
         const now = new Date();
@@ -270,6 +270,7 @@ const PostNotificationItem: React.FC<{
     };
 
     useEffect(() => {
+        if ((notification as any).post) return; // Backend provided embedded post
         const loadPost = async () => {
             try {
                 if (notification.entityId && notification.entityType === 'post') {
@@ -284,7 +285,7 @@ const PostNotificationItem: React.FC<{
         };
 
         loadPost();
-    }, [notification.entityId, notification.entityType, getPostById]);
+    }, [notification, notification.entityId, notification.entityType, getPostById]);
 
     const handleNotificationPress = useCallback(() => {
         if (!notification.read) {
@@ -337,21 +338,6 @@ const PostNotificationItem: React.FC<{
             onPress={handleNotificationPress}
             activeOpacity={0.95}
         >
-            {/* Notification header */}
-            <View style={styles.notificationHeader}>
-                <View style={styles.iconContainer}>
-                    <Ionicons name="create" size={16} color={colors.primaryColor} />
-                </View>
-                <ThemedText style={[styles.notificationText, !notification.read && styles.unreadText]}>
-                    {t('notification.post', { actorName, defaultValue: `${actorName} posted a new update` })}
-                </ThemedText>
-                <ThemedText style={styles.notificationTime}>
-                    {formatTimeAgo(notification.createdAt)}
-                </ThemedText>
-                {!notification.read && <View style={styles.smallUnreadIndicator} />}
-            </View>
-            
-            {/* Post content */}
             <View style={styles.postContainer}>
                 <PostItem 
                     post={post} 

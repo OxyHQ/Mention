@@ -12,6 +12,7 @@ export interface RawNotification {
   createdAt: string;
   updatedAt: string;
   preview?: string;
+  post?: any;
   actorId_populated?: {
     _id: string;
     username: string;

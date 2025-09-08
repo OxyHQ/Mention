@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     View,
     StyleSheet,
@@ -26,6 +26,7 @@ const NotificationsScreen: React.FC = () => {
     const queryClient = useQueryClient();
     const [refreshing, setRefreshing] = useState(false);
     const { t } = useTranslation();
+    const [category, setCategory] = useState<'all' | 'mentions' | 'follows' | 'likes' | 'posts'>('all');
 
     // Enable real-time notifications
     useRealtimeNotifications();
@@ -92,6 +93,22 @@ const NotificationsScreen: React.FC = () => {
     }, [markAllAsReadMutation, t]);
 
     const unreadCount = notificationsData?.unreadCount || 0;
+
+    const filteredNotifications = useMemo(() => {
+        const list = notificationsData?.notifications || [];
+        switch (category) {
+            case 'mentions':
+                return list.filter((n: any) => n.type === 'mention' || n.type === 'reply');
+            case 'follows':
+                return list.filter((n: any) => n.type === 'follow');
+            case 'likes':
+                return list.filter((n: any) => n.type === 'like' || n.type === 'repost' || n.type === 'quote');
+            case 'posts':
+                return list.filter((n: any) => n.type === 'post');
+            default:
+                return list;
+        }
+    }, [notificationsData, category]);
 
     const renderNotification = ({ item }: { item: any }) => (
         <NotificationItem
@@ -177,8 +194,13 @@ const NotificationsScreen: React.FC = () => {
                 ) : error ? (
                     renderErrorState()
                 ) : (
+                    <>
+                    <ChipsRow 
+                        category={category} 
+                        onChange={setCategory} 
+                    />
                     <LegendList
-                        data={notificationsData?.notifications || []}
+                        data={filteredNotifications}
                         keyExtractor={(item: any) => (item.id || item._id || item._id_str || item._id?.toString() || item.username || JSON.stringify(item)).toString()}
                         renderItem={renderNotification}
                         ListEmptyComponent={renderEmptyState}
@@ -190,14 +212,15 @@ const NotificationsScreen: React.FC = () => {
                             />
                         }
                         contentContainerStyle={
-                            (!notificationsData?.notifications ||
-                                notificationsData.notifications.length === 0)
+                            (!filteredNotifications ||
+                                filteredNotifications.length === 0)
                                 ? styles.emptyListContainer
                                 : undefined
                         }
                         recycleItems={true}
                         maintainVisibleContentPosition={true}
                     />
+                    </>
                 )}
             </View>
         </SafeAreaView>
@@ -282,6 +305,70 @@ const styles = StyleSheet.create({
     emptyListContainer: {
         flexGrow: 1,
     },
+    chipsContainer: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+    },
+    chipsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    chip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+    },
+    chipActive: {
+        backgroundColor: colors.primaryLight,
+        borderWidth: 1,
+        borderColor: colors.primaryColor,
+    },
+    chipText: {
+        color: colors.COLOR_BLACK_LIGHT_2,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    chipTextActive: {
+        color: colors.primaryColor,
+    },
 });
 
 export default NotificationsScreen;
+
+// Category chips component
+const ChipsRow: React.FC<{ 
+    category: 'all' | 'mentions' | 'follows' | 'likes' | 'posts'; 
+    onChange: (c: 'all' | 'mentions' | 'follows' | 'likes' | 'posts') => void 
+}> = ({ category, onChange }) => {
+    const tabs: { key: 'all' | 'mentions' | 'follows' | 'likes' | 'posts'; label: string }[] = [
+        { key: 'all', label: 'All' },
+        { key: 'mentions', label: 'Mentions' },
+        { key: 'follows', label: 'Follows' },
+        { key: 'likes', label: 'Likes' },
+        { key: 'posts', label: 'Posts' },
+    ];
+    return (
+        <View style={styles.chipsContainer}>
+            <View style={styles.chipsRow}>
+                {tabs.map(tab => {
+                    const active = category === tab.key;
+                    return (
+                        <TouchableOpacity key={tab.key} 
+                            style={[styles.chip, active && styles.chipActive]} 
+                            onPress={() => onChange(tab.key)}
+                        >
+                            <ThemedText style={[styles.chipText, active && styles.chipTextActive]}>
+                                {tab.label}
+                            </ThemedText>
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        </View>
+    );
+};
