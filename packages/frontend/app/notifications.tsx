@@ -110,6 +110,26 @@ const NotificationsScreen: React.FC = () => {
         }
     }, [notificationsData, category]);
 
+    // Ensure unique items by a stable key to prevent overlapping keys in LegendList
+    const getItemKey = useCallback((item: any) => {
+        return String(
+            item?._id || item?.id || item?.notificationId || `${item?.entityId || ''}:${item?.type || ''}:${item?.createdAt || ''}`
+        );
+    }, []);
+
+    const listItems = useMemo(() => {
+        const seen = new Set<string>();
+        const out: any[] = [];
+        for (const it of filteredNotifications) {
+            const k = getItemKey(it);
+            if (!seen.has(k)) {
+                seen.add(k);
+                out.push(it);
+            }
+        }
+        return out;
+    }, [filteredNotifications, getItemKey]);
+
     const renderNotification = ({ item }: { item: any }) => (
         <NotificationItem
             notification={item}
@@ -200,8 +220,8 @@ const NotificationsScreen: React.FC = () => {
                         onChange={setCategory} 
                     />
                     <LegendList
-                        data={filteredNotifications}
-                        keyExtractor={(item: any) => (item.id || item._id || item._id_str || item._id?.toString() || item.username || JSON.stringify(item)).toString()}
+                        data={listItems}
+                        keyExtractor={(item: any) => getItemKey(item)}
                         renderItem={renderNotification}
                         ListEmptyComponent={renderEmptyState}
                         refreshControl={
@@ -212,8 +232,7 @@ const NotificationsScreen: React.FC = () => {
                             />
                         }
                         contentContainerStyle={
-                            (!filteredNotifications ||
-                                filteredNotifications.length === 0)
+                            (!listItems || listItems.length === 0)
                                 ? styles.emptyListContainer
                                 : undefined
                         }

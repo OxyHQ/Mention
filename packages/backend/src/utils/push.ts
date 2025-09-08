@@ -33,6 +33,19 @@ export type PushPayload = {
   data?: Record<string, string>;
 };
 
+// Helper to safely create a concise single-line preview
+function buildPreview(text: string, limit: number = 200): string {
+  const trimmed = (text || '').replace(/\s+/g, ' ').trim();
+  if (!trimmed) return '';
+  return trimmed.length > limit ? `${trimmed.slice(0, limit)}…` : trimmed;
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 export async function sendPushToUser(userId: string, payload: PushPayload) {
   initFirebase();
   if (!firebaseInitialized) return;
@@ -41,38 +54,42 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
     if (!tokens.length) return;
     const fcmTokens = tokens.filter(t => t.type === 'fcm').map(t => t.token);
     if (!fcmTokens.length) return;
-    const message: admin.messaging.MulticastMessage = {
-      tokens: fcmTokens,
-      notification: {
-        title: payload.title,
-        body: payload.body,
-      },
-      data: payload.data || {},
-      android: {
-        priority: 'high',
-        notification: { channelId: 'default' },
-      },
-      apns: {
-        payload: { aps: { sound: 'default' } },
-      },
-    };
-    const resp = await admin.messaging().sendEachForMulticast(message);
-    // Cleanup invalid tokens
-    if (resp.responses) {
-      const toDisable: string[] = [];
-      resp.responses.forEach((r, idx) => {
-        if (!r.success) {
-          const code = (r.error as any)?.errorInfo?.code || r.error?.code;
-          if (code && (code.includes('registration-token-not-registered') || code.includes('invalid-argument'))) {
-            const bad = fcmTokens[idx];
-            if (bad) toDisable.push(bad);
+
+    const tokenChunks = chunk(fcmTokens, 500); // FCM limit per multicast
+    const toDisable: string[] = [];
+    for (const tkChunk of tokenChunks) {
+      const message: admin.messaging.MulticastMessage = {
+        tokens: tkChunk,
+        notification: {
+          title: payload.title,
+          body: payload.body,
+        },
+        data: payload.data || {},
+        android: {
+          priority: 'high',
+          notification: { channelId: 'default' },
+        },
+        apns: {
+          payload: { aps: { sound: 'default' } },
+        },
+      };
+      const resp = await admin.messaging().sendEachForMulticast(message);
+      // Cleanup invalid tokens in this chunk
+      if (resp.responses) {
+        resp.responses.forEach((r, idx) => {
+          if (!r.success) {
+            const code = (r.error as any)?.errorInfo?.code || r.error?.code;
+            if (code && (code.includes('registration-token-not-registered') || code.includes('invalid-argument'))) {
+              const bad = tkChunk[idx];
+              if (bad) toDisable.push(bad);
+            }
           }
-        }
-      });
-      if (toDisable.length) {
-        await PushToken.updateMany({ token: { $in: toDisable } }, { enabled: false });
-        console.log('Disabled invalid push tokens:', toDisable.length);
+        });
       }
+    }
+    if (toDisable.length) {
+      await PushToken.updateMany({ token: { $in: toDisable } }, { enabled: false });
+      console.log('Disabled invalid push tokens:', toDisable.length);
     }
   } catch (e) {
     console.error('Failed to send push:', e);
@@ -108,8 +125,7 @@ export async function formatPushForNotification(n: any) {
       const post: any = await Post.findById(n.entityId, { 'content.text': 1 }).lean();
       if (post) {
         const text: string = post?.content?.text || '';
-        const trimmed = typeof text === 'string' ? text.trim() : '';
-        preview = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+        preview = buildPreview(text, 200);
         if (preview) {
           f = { title: 'New post', body: `${actorName} posted: ${preview}` };
         }
@@ -117,10 +133,10 @@ export async function formatPushForNotification(n: any) {
     }
   } catch {}
   const data: Record<string, string> = {
-    type: n.type,
-    entityId: n.entityId,
-    entityType: n.entityType,
-    actorId: n.actorId,
+    type: String(n.type || ''),
+    entityId: String((n as any).entityId || ''),
+    entityType: String(n.entityType || ''),
+    actorId: String(n.actorId || ''),
     notificationId: String(n._id || ''),
   };
   if (preview) data.preview = preview;
