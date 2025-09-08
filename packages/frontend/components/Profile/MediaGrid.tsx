@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxyhq/services';
 import { colors } from '@/styles/colors';
@@ -26,7 +25,7 @@ const H_PADDING = 0;
 const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
   const { oxyServices } = useOxy();
   const router = useRouter();
-  const { fetchUserFeed } = usePostsStore();
+  const { fetchUserFeed, postsById } = usePostsStore();
   const mediaFeed = useUserFeedSelector(userId || '', 'media');
   const postsFeed = useUserFeedSelector(userId || '', 'posts');
   // Non-scrollable grid inside parent ScrollView; pull-to-refresh handled by parent
@@ -75,43 +74,53 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
 
   const mediaItems = useMemo(() => {
     const out: ({ postId: string; uri: string; isVideo: boolean; isCarousel: boolean; mediaIndex: number } | null)[] = [];
+    const globalSeen = new Set<string>(); // avoid duplicate URIs across posts
     // Prefer dedicated media feed if available; fallback to posts feed
     const items = (mediaFeed?.items?.length ? mediaFeed.items : (postsFeed?.items || [])) as any[];
-    for (const p of items as any[]) {
-      // Prefer modern content.media (array of objects or strings)
-      const mediaArr = (p?.content?.media as any[]) || [];
-      if (Array.isArray(mediaArr) && mediaArr.length) {
-        const uniq = new Set<string>();
-        const isCarousel = mediaArr.length > 1;
-        mediaArr.forEach((m: any, idx: number) => {
-          const raw = typeof m === 'string' ? m : (m?.id || m?.url);
-          if (!raw) return;
-          const uri = resolveImageUri(raw);
-          if (!uri || uniq.has(uri)) return;
-          uniq.add(uri);
-          const type = typeof m === 'string' ? undefined : m?.type;
-          const isVideo = type === 'video' || /\.(mp4|mov|m4v|webm)$/i.test(String(raw));
-          out.push({ postId: String(p.id), uri, isVideo, isCarousel, mediaIndex: idx });
+    const pickIdOrUrl = (x: any): string | undefined => {
+      if (!x) return undefined;
+      if (typeof x === 'string') return x;
+      return x.id || x.url || x.src || x.path || undefined;
+    };
+    const extractFrom = (post: any, targetId: string) => {
+      const collected: string[] = [];
+      const pushFromArray = (arr?: any[]) => {
+        if (!Array.isArray(arr) || !arr.length) return;
+        arr.forEach((m) => {
+          const raw = pickIdOrUrl(m);
+          if (raw) collected.push(raw);
         });
-        continue; // prefer content.media when present
-      }
+      };
+      pushFromArray(post?.content?.media);
+      pushFromArray(post?.content?.images);
+      pushFromArray(post?.content?.attachments);
+      pushFromArray(post?.content?.files);
+      pushFromArray(post?.media); // legacy
 
-      // Fallbacks: legacy content.images or root-level media string array
-      const imgs: string[] = (p?.content?.images as string[]) || (p?.media as string[]) || [];
-      if (imgs?.length) {
-        const uniq = new Set<string>();
-        const isCarousel = imgs.length > 1;
-        imgs.forEach((raw: string, idx: number) => {
-          const uri = resolveImageUri(raw);
-          if (!uri || uniq.has(uri)) return;
-          uniq.add(uri);
-          const isVideo = /\.(mp4|mov|m4v|webm)$/i.test(String(raw));
-          out.push({ postId: String(p.id), uri, isVideo, isCarousel, mediaIndex: idx });
-        });
+      // Deduplicate while preserving order
+      const seen = new Set<string>();
+      collected.forEach((raw, idx) => {
+        const uri = resolveImageUri(raw);
+        if (!uri || seen.has(uri) || globalSeen.has(uri)) return;
+        seen.add(uri);
+        globalSeen.add(uri);
+        const isVideo = /\.(mp4|mov|m4v|webm)$/i.test(String(raw));
+        const isCarousel = collected.length > 1;
+        out.push({ postId: targetId, uri, isVideo, isCarousel, mediaIndex: idx });
+      });
+    };
+
+    for (const p of items as any[]) {
+      extractFrom(p, String(p.id));
+      // If wrapper has no media, try original/quoted post in cache
+      const origId = p?.originalPostId || p?.repostOf || p?.quoteOf;
+      if (origId && (!p?.content?.media?.length && !p?.content?.images?.length && !p?.media?.length)) {
+        const orig = postsById?.[String(origId)];
+        if (orig) extractFrom(orig, String(p.id));
       }
     }
     return out.filter(Boolean) as { postId: string; uri: string; isVideo: boolean; isCarousel: boolean; mediaIndex: number }[];
-  }, [mediaFeed?.items, postsFeed?.items, resolveImageUri]);
+  }, [mediaFeed?.items, postsFeed?.items, resolveImageUri, postsById]);
 
   // Refresh handled outside by parent feed/scroll
 
@@ -123,21 +132,11 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
       style={{ width: itemSize, height: itemSize, backgroundColor: colors.COLOR_BLACK_LIGHT_8 }}
       onPress={() => router.push(`/p/${item.postId}`)}
     >
-      <Image
+  <Image
         source={{ uri: item.uri }}
         style={{ width: '100%', height: '100%' }}
         resizeMode="cover"
       />
-      {(item.isVideo || item.isCarousel) && (
-        <View style={styles.badges}>
-          {item.isCarousel ? (
-            <Ionicons name="images-outline" size={16} color="#fff" />
-          ) : null}
-          {item.isVideo ? (
-            <Ionicons name="film-outline" size={16} color="#fff" style={{ marginLeft: 6 }} />
-          ) : null}
-        </View>
-      )}
     </TouchableOpacity>
   ), [itemSize, router]);
 
@@ -198,17 +197,6 @@ const styles = StyleSheet.create({
   },
   loading: {
     paddingVertical: 24,
-  },
-  badges: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   empty: {
     alignItems: 'center',
