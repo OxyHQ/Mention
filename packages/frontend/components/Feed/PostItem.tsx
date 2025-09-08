@@ -11,6 +11,7 @@ import PostLocation from '../Post/PostLocation';
 import { colors } from '../../styles/colors';
 import PostMiddle from '../Post/PostMiddle';
 import { useOxy } from '@oxyhq/services';
+import { useUsersStore } from '@/stores/usersStore';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -103,6 +104,22 @@ const PostItem: React.FC<PostItemProps> = ({
         loadOriginalPost();
     }, [viewPost, getPostById, isNested, findFromStore]);
 
+    // Prime users cache from any embedded user objects (post user and original/quoted user)
+    React.useEffect(() => {
+        try {
+            const state: any = useUsersStore.getState();
+            const candidates: any[] = [];
+            const u = (viewPost as any)?.user;
+            if (u) candidates.push(u);
+            const ou = (originalPost as any)?.user;
+            if (ou) candidates.push(ou);
+            if (candidates.length) {
+                if (typeof state?.upsertMany === 'function') state.upsertMany(candidates);
+                else if (typeof state?.upsertUser === 'function') candidates.forEach((usr) => state.upsertUser(usr));
+            }
+        } catch { }
+    }, [viewPost, originalPost]);
+
 
     const handleLike = useCallback(async () => {
         try {
@@ -136,19 +153,22 @@ const PostItem: React.FC<PostItemProps> = ({
     const handleShare = useCallback(async () => {
         try {
             const postUrl = `https://mention.earth/p/${(viewPost as any).id}`;
-            const contentText = ('content' in (viewPost as any) && typeof (viewPost as any).content === 'object' && (viewPost as any).content?.text)
-                ? (viewPost as any).content.text
-                : ('content' in (viewPost as any) && typeof (viewPost as any).content === 'string')
-                    ? (viewPost as any).content
-                    : '';
+            const contentText = (viewPost as any)?.content?.text || '';
+            const user = (viewPost as any)?.user || {};
+            const id = String(user.id || user._id || '');
+            const name = (user?.name?.full) || (user?.name?.first ? `${user.name.first} ${user.name.last || ''}`.trim() : '') || user?.name || user?.username || user?.handle || id || 'Someone';
+            let handle = user?.handle || user?.username || '';
+            if (!handle && id) {
+                try { handle = useUsersStore.getState().usersById[id]?.data?.username || ''; } catch {}
+            }
             const shareMessage = contentText
-                ? `${(viewPost as any).user.name} (@${(viewPost as any).user.handle}): ${contentText}`
-                : `${(viewPost as any).user.name} (@${(viewPost as any).user.handle}) shared a post`;
+                ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
+                : `${name}${handle ? ` (@${handle})` : ''} shared a post`;
 
             if (Platform.OS === 'web') {
                 if (navigator.share) {
                     await navigator.share({
-                        title: `${(viewPost as any).user.name} on Mention`,
+                        title: `${name} on Mention`,
                         text: shareMessage,
                         url: postUrl
                     });
@@ -160,7 +180,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 await Share.share({
                     message: `${shareMessage}\n\n${postUrl}`,
                     url: postUrl,
-                    title: `${(viewPost as any).user.name} on Mention`
+                    title: `${name} on Mention`
                 });
             }
         } catch (error) {
@@ -196,9 +216,44 @@ const PostItem: React.FC<PostItemProps> = ({
         if (!isPostDetail && viewPostId) router.push(`/p/${viewPostId}`);
     }, [router, viewPostId, isPostDetail]);
     const goToUser = useCallback(() => {
-        const handle = viewPostHandle || '';
+        const user = (viewPost as any)?.user || {};
+        const id = String(user.id || user._id || '');
+        let handle = user.handle || user.username || viewPostHandle || '';
+        if (!handle && id) {
+            try { handle = useUsersStore.getState().usersById[id]?.data?.username || ''; } catch {}
+        }
         if (handle) router.push(`/@${handle}`);
-    }, [router, viewPostHandle]);
+        else if (id) router.push(`/${id}`);
+    }, [router, viewPost, viewPostHandle]);
+
+    // Memoized location data and validity (place before early return to respect hooks rules)
+    const locationMemo = React.useMemo(() => {
+        const postContent = (viewPost as any)?.content;
+        const location = postContent?.location;
+        const hasValidLocation = Boolean(location?.coordinates && location.coordinates.length >= 2);
+        // Reduce noisy logs in production
+        if (typeof __DEV__ !== 'undefined' && __DEV__ && location) {
+            // console.debug('Post location', { id: (viewPost as any)?.id, hasValidLocation });
+        }
+        return { location, hasValidLocation } as { location: any; hasValidLocation: boolean };
+    }, [viewPost]);
+
+    // Memoized poll id resolution across content and legacy metadata
+    const pollIdMemo = React.useMemo(() => {
+        const postContent = (viewPost as any)?.content;
+        if (postContent?.pollId) return postContent.pollId;
+        const md: any = (viewPost as any)?.metadata;
+        try {
+            if (!md) return null;
+            if (typeof md === 'string') {
+                const parsed = JSON.parse(md);
+                return parsed?.poll?.id || parsed?.pollId || null;
+            }
+            return md?.pollId || md?.poll?.id || null;
+        } catch {
+            return null;
+        }
+    }, [viewPost]);
 
     // Early return if post is invalid
     if (!viewPost || !(viewPost as any).user) {
@@ -229,40 +284,19 @@ const PostItem: React.FC<PostItemProps> = ({
                 onPressUser={goToUser}
                 onPressAvatar={goToUser}
             >
-                {/* Top: text content (supports both string and object content) */}
-                {(() => {
-                    const c = (viewPost as any)?.content;
-                    const hasText = typeof c === 'string' ? !!c : !!c?.text;
-                    return hasText;
-                })() && (
+                {/* Top: text content */}
+                {Boolean((viewPost as any)?.content?.text) && (
                     <PostContentText content={(viewPost as any).content} postId={(viewPost as any).id} />
                 )}
             </PostHeader>
 
             {/* Location information if available */}
-            {(() => {
-                const postContent = (viewPost as any)?.content;
-                const location = postContent?.location;
-                const hasValidLocation = location?.coordinates && location.coordinates.length >= 2;
-
-                // Debug logging for all posts to see location data
-                console.log('🗺️ Location check for post:', {
-                    postId: (viewPost as any).id,
-                    text: postContent?.text || 'No text',
-                    hasLocation: !!location,
-                    hasValidLocation,
-                    coordinates: location?.coordinates,
-                    address: location?.address,
-                    locationType: location?.type
-                });
-
-                return hasValidLocation;
-            })() && (
-                    <PostLocation
-                        location={(viewPost as any).content.location}
-                        paddingHorizontal={BOTTOM_LEFT_PAD}
-                    />
-                )}
+            {locationMemo.hasValidLocation && (
+                <PostLocation
+                    location={locationMemo.location}
+                    paddingHorizontal={BOTTOM_LEFT_PAD}
+                />
+            )}
 
             {/* Middle: horizontal scroller with media and nested post (repost/quote only, not replies) */}
             <PostMiddle
@@ -270,27 +304,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 nestedPost={originalPost ?? null}
                 leftOffset={BOTTOM_LEFT_PAD}
                 pollData={(viewPost as any).content?.poll}
-                pollId={(() => {
-                    // Check for poll ID in content.pollId first (new structure)
-                    const postContent = (viewPost as any).content;
-                    if (postContent?.pollId) {
-                        return postContent.pollId;
-                    }
-
-                    // Fallback to legacy metadata structure
-                    const md: any = (viewPost as any).metadata;
-                    try {
-                        if (!md) return null;
-                        // support object, stringified JSON, and direct pollId
-                        if (typeof md === 'string') {
-                            const parsed = JSON.parse(md);
-                            return parsed?.poll?.id || parsed?.pollId || null;
-                        }
-                        return md?.pollId || md?.poll?.id || null;
-                    } catch {
-                        return null;
-                    }
-                })() as any}
+                pollId={pollIdMemo as any}
             />
 
             {/* Only show engagement buttons for non-nested posts */}
