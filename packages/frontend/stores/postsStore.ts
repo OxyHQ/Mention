@@ -72,6 +72,9 @@ interface FeedState {
     error: string | null;
     lastUpdated: number;
   }>>;
+
+  // Entity cache for posts not present in current feeds
+  postsById: Record<string, FeedItem>;
   
   // Global state
   isLoading: boolean;
@@ -160,6 +163,7 @@ export const usePostsStore = create<FeedState>()(
     // Initial state
     feeds: createDefaultFeedsState(),
     userFeeds: {},
+  postsById: {},
     isLoading: false,
     error: null,
     lastRefresh: Date.now(),
@@ -185,21 +189,29 @@ export const usePostsStore = create<FeedState>()(
         const response = await feedService.getFeed(request);
         console.log('📦 FeedService response:', response);
         
-        set(state => ({
-          feeds: {
-            ...state.feeds,
-            [type]: {
-              items: response.items?.map(item => transformToUIItem(item)) || [],
-              hasMore: response.hasMore || false,
-              nextCursor: response.nextCursor,
-              totalCount: response.totalCount || 0,
-              isLoading: false,
-              error: null,
-              lastUpdated: Date.now()
-            }
-          },
-          lastRefresh: Date.now()
-        }));
+        set(state => {
+          const items = response.items?.map(item => transformToUIItem(item)) || [];
+          const newCache = { ...state.postsById };
+          items.forEach(p => {
+            newCache[p.id] = p;
+          });
+          return ({
+            feeds: {
+              ...state.feeds,
+              [type]: {
+                items,
+                hasMore: response.hasMore || false,
+                nextCursor: response.nextCursor,
+                totalCount: response.totalCount || 0,
+                isLoading: false,
+                error: null,
+                lastUpdated: Date.now()
+              }
+            },
+            postsById: newCache,
+            lastRefresh: Date.now()
+          });
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch feed';
         
@@ -243,6 +255,9 @@ export const usePostsStore = create<FeedState>()(
           const newItems = response.items?.map(item => transformToUIItem(item)) || [];
           const mergedItems = request.cursor ? [...(prev.items || []), ...newItems] : newItems;
 
+          const newCache = { ...state.postsById };
+          newItems.forEach(p => { newCache[p.id] = p; });
+
           return ({
             userFeeds: {
               ...state.userFeeds,
@@ -258,7 +273,8 @@ export const usePostsStore = create<FeedState>()(
                   lastUpdated: Date.now()
                 }
               }
-            }
+            },
+            postsById: newCache
           });
         });
       } catch (error) {
@@ -319,21 +335,27 @@ export const usePostsStore = create<FeedState>()(
 
         console.log('Store: Setting posts in store:', processedPosts.length, 'posts');
 
-        set(state => ({
-          feeds: {
-            ...state.feeds,
-            posts: {
-              items: processedPosts,
-              hasMore: response.data.hasMore || false,
-              nextCursor: undefined,
-              totalCount: processedPosts.length,
-              isLoading: false,
-              error: null,
-              lastUpdated: Date.now()
-            }
-          },
-          lastRefresh: Date.now()
-        }));
+        set(state => {
+          const newCache = { ...state.postsById };
+          processedPosts.forEach((p: FeedItem) => { newCache[p.id] = p; });
+
+          return ({
+            feeds: {
+              ...state.feeds,
+              posts: {
+                items: processedPosts,
+                hasMore: response.data.hasMore || false,
+                nextCursor: undefined,
+                totalCount: processedPosts.length,
+                isLoading: false,
+                error: null,
+                lastUpdated: Date.now()
+              }
+            },
+            postsById: newCache,
+            lastRefresh: Date.now()
+          });
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch saved posts';
         
@@ -376,21 +398,28 @@ export const usePostsStore = create<FeedState>()(
           filters
         } as any);
 
-        set(state => ({
-          feeds: {
-            ...state.feeds,
-            [type]: {
-              items: response.items?.map(item => transformToUIItem(item)) || [],
-              hasMore: response.hasMore || false,
-              nextCursor: response.nextCursor,
-              totalCount: response.totalCount || 0,
-              isLoading: false,
-              error: null,
-              lastUpdated: Date.now()
-            }
-          },
-          lastRefresh: Date.now()
-        }));
+        set(state => {
+          const items = response.items?.map(item => transformToUIItem(item)) || [];
+          const newCache = { ...state.postsById };
+          items.forEach((p: FeedItem) => { newCache[p.id] = p; });
+
+          return ({
+            feeds: {
+              ...state.feeds,
+              [type]: {
+                items,
+                hasMore: response.hasMore || false,
+                nextCursor: response.nextCursor,
+                totalCount: response.totalCount || 0,
+                isLoading: false,
+                error: null,
+                lastUpdated: Date.now()
+              }
+            },
+            postsById: newCache,
+            lastRefresh: Date.now()
+          });
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to refresh feed';
         
@@ -432,22 +461,29 @@ export const usePostsStore = create<FeedState>()(
           filters
         } as any);
 
-        set(state => ({
-          feeds: {
-            ...state.feeds,
-            [type]: {
-              items: [
-                ...state.feeds[type].items,
-                ...(response.items?.map(item => transformToUIItem(item)) || [])
-              ],
-              hasMore: response.hasMore || false,
-              nextCursor: response.nextCursor,
-              totalCount: state.feeds[type].totalCount + (response.items?.length || 0),
-              isLoading: false,
-              lastUpdated: Date.now()
-            }
-          }
-        }));
+        set(state => {
+          const mapped = response.items?.map(item => transformToUIItem(item)) || [];
+          const newCache = { ...state.postsById };
+          mapped.forEach((p: FeedItem) => { newCache[p.id] = p; });
+
+          return ({
+            feeds: {
+              ...state.feeds,
+              [type]: {
+                items: [
+                  ...state.feeds[type].items,
+                  ...mapped
+                ],
+                hasMore: response.hasMore || false,
+                nextCursor: response.nextCursor,
+                totalCount: state.feeds[type].totalCount + (response.items?.length || 0),
+                isLoading: false,
+                lastUpdated: Date.now()
+              }
+            },
+            postsById: newCache
+          });
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to load more feed';
         
@@ -506,6 +542,7 @@ export const usePostsStore = create<FeedState>()(
                 totalCount: (state.feeds.for_you?.totalCount || 0) + 1
               }
             },
+            postsById: { ...state.postsById, [newPost.id]: newPost },
             isLoading: false,
             lastRefresh: Date.now()
           }));
@@ -563,6 +600,7 @@ export const usePostsStore = create<FeedState>()(
                 totalCount: (state.feeds.for_you?.totalCount || 0) + newPosts.length
               }
             },
+            postsById: newPosts.reduce((acc, p) => ({ ...acc, [p.id]: p }), state.postsById),
             isLoading: false,
             lastRefresh: Date.now()
           }));
@@ -586,28 +624,45 @@ export const usePostsStore = create<FeedState>()(
         
         if (response.success) {
           // Update the parent post's reply count locally
-          set(state => ({
-            feeds: {
-              ...state.feeds,
-              posts: {
-                ...state.feeds.posts,
-                items: state.feeds.posts.items.map(post => 
-                  post.id === request.postId
-                    ? { ...post, engagement: { ...post.engagement, replies: post.engagement.replies + 1 } }
-                    : post
-                )
+          set(state => {
+            const postId = request.postId;
+            const updatedCache = state.postsById[postId]
+              ? {
+                  ...state.postsById,
+                  [postId]: {
+                    ...state.postsById[postId],
+                    engagement: {
+                      ...state.postsById[postId].engagement,
+                      replies: state.postsById[postId].engagement.replies + 1
+                    }
+                  }
+                }
+              : state.postsById;
+
+            return ({
+              feeds: {
+                ...state.feeds,
+                posts: {
+                  ...state.feeds.posts,
+                  items: state.feeds.posts.items.map(post => 
+                    post.id === postId
+                      ? { ...post, engagement: { ...post.engagement, replies: post.engagement.replies + 1 } }
+                      : post
+                  )
+                },
+                mixed: {
+                  ...state.feeds.mixed,
+                  items: state.feeds.mixed.items.map(post => 
+                    post.id === postId
+                      ? { ...post, engagement: { ...post.engagement, replies: post.engagement.replies + 1 } }
+                      : post
+                  )
+                }
               },
-              mixed: {
-                ...state.feeds.mixed,
-                items: state.feeds.mixed.items.map(post => 
-                  post.id === request.postId
-                    ? { ...post, engagement: { ...post.engagement, replies: post.engagement.replies + 1 } }
-                    : post
-                )
-              }
-            },
-            isLoading: false
-          }));
+              isLoading: false,
+              postsById: updatedCache
+            });
+          });
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to create reply';
@@ -625,28 +680,45 @@ export const usePostsStore = create<FeedState>()(
 
         if (response.success) {
           // Update the original post's repost count locally
-          set(state => ({
-            feeds: {
-              ...state.feeds,
-              posts: {
-                ...state.feeds.posts,
-                items: state.feeds.posts.items.map(post =>
-                  post.id === request.originalPostId
-                    ? { ...post, engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 } }
-                    : post
-                )
+          set(state => {
+            const pid = request.originalPostId;
+            const updatedCache = state.postsById[pid]
+              ? {
+                  ...state.postsById,
+                  [pid]: {
+                    ...state.postsById[pid],
+                    engagement: {
+                      ...state.postsById[pid].engagement,
+                      reposts: state.postsById[pid].engagement.reposts + 1
+                    }
+                  }
+                }
+              : state.postsById;
+
+            return ({
+              feeds: {
+                ...state.feeds,
+                posts: {
+                  ...state.feeds.posts,
+                  items: state.feeds.posts.items.map(post =>
+                    post.id === pid
+                      ? { ...post, engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 } }
+                      : post
+                  )
+                },
+                mixed: {
+                  ...state.feeds.mixed,
+                  items: state.feeds.mixed.items.map(post =>
+                    post.id === pid
+                      ? { ...post, engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 } }
+                      : post
+                  )
+                }
               },
-              mixed: {
-                ...state.feeds.mixed,
-                items: state.feeds.mixed.items.map(post =>
-                  post.id === request.originalPostId
-                    ? { ...post, engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 } }
-                    : post
-                )
-              }
-            },
-            isLoading: false
-          }));
+              isLoading: false,
+              postsById: updatedCache
+            });
+          });
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to create repost';
@@ -687,8 +759,19 @@ export const usePostsStore = create<FeedState>()(
               }
             });
 
+            const cached = state.postsById[request.postId];
+            const updatedCache = cached ? {
+              ...state.postsById,
+              [request.postId]: {
+                ...cached,
+                isReposted: true,
+                engagement: { ...cached.engagement, reposts: cached.engagement.reposts + 1 }
+              }
+            } : state.postsById;
+
             return {
-              feeds: updatedFeeds
+              feeds: updatedFeeds,
+              postsById: updatedCache
             };
           });
         }
@@ -729,8 +812,19 @@ export const usePostsStore = create<FeedState>()(
               }
             });
 
+            const cached = state.postsById[request.postId];
+            const updatedCache = cached ? {
+              ...state.postsById,
+              [request.postId]: {
+                ...cached,
+                isReposted: false,
+                engagement: { ...cached.engagement, reposts: Math.max(0, cached.engagement.reposts - 1) }
+              }
+            } : state.postsById;
+
             return {
-              feeds: updatedFeeds
+              feeds: updatedFeeds,
+              postsById: updatedCache
             };
           });
         }
@@ -769,8 +863,19 @@ export const usePostsStore = create<FeedState>()(
               }
             });
 
+            const cached = state.postsById[request.postId];
+            const updatedCache = cached ? {
+              ...state.postsById,
+              [request.postId]: {
+                ...cached,
+                isLiked: true,
+                engagement: { ...cached.engagement, likes: cached.engagement.likes + 1 }
+              }
+            } : state.postsById;
+
             return {
-              feeds: updatedFeeds
+              feeds: updatedFeeds,
+              postsById: updatedCache
             };
           });
         }
@@ -809,8 +914,19 @@ export const usePostsStore = create<FeedState>()(
               }
             });
 
+            const cached = state.postsById[request.postId];
+            const updatedCache = cached ? {
+              ...state.postsById,
+              [request.postId]: {
+                ...cached,
+                isLiked: false,
+                engagement: { ...cached.engagement, likes: Math.max(0, cached.engagement.likes - 1) }
+              }
+            } : state.postsById;
+
             return {
-              feeds: updatedFeeds
+              feeds: updatedFeeds,
+              postsById: updatedCache
             };
           });
         }
@@ -830,27 +946,36 @@ export const usePostsStore = create<FeedState>()(
         
         if (response.success) {
           // Update post save state locally
-          set(state => ({
-            feeds: {
-              ...state.feeds,
-              posts: {
-                ...state.feeds.posts,
-                items: state.feeds.posts.items.map(post => 
-                  post.id === request.postId 
-                    ? { ...post, isSaved: true }
-                    : post
-                )
+          set(state => {
+            const cached = state.postsById[request.postId];
+            const updatedCache = cached ? {
+              ...state.postsById,
+              [request.postId]: { ...cached, isSaved: true }
+            } : state.postsById;
+
+            return ({
+              feeds: {
+                ...state.feeds,
+                posts: {
+                  ...state.feeds.posts,
+                  items: state.feeds.posts.items.map(post => 
+                    post.id === request.postId 
+                      ? { ...post, isSaved: true }
+                      : post
+                  )
+                },
+                mixed: {
+                  ...state.feeds.mixed,
+                  items: state.feeds.mixed.items.map(post => 
+                    post.id === request.postId
+                      ? { ...post, isSaved: true }
+                      : post
+                  )
+                }
               },
-              mixed: {
-                ...state.feeds.mixed,
-                items: state.feeds.mixed.items.map(post => 
-                  post.id === request.postId
-                    ? { ...post, isSaved: true }
-                    : post
-                )
-              }
-            }
-          }));
+              postsById: updatedCache
+            });
+          });
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to save post';
@@ -868,27 +993,36 @@ export const usePostsStore = create<FeedState>()(
         
         if (response.success) {
           // Update post save state locally
-          set(state => ({
-            feeds: {
-              ...state.feeds,
-              posts: {
-                ...state.feeds.posts,
-                items: state.feeds.posts.items.map(post => 
-                  post.id === request.postId 
-                    ? { ...post, isSaved: false }
-                    : post
-                )
+          set(state => {
+            const cached = state.postsById[request.postId];
+            const updatedCache = cached ? {
+              ...state.postsById,
+              [request.postId]: { ...cached, isSaved: false }
+            } : state.postsById;
+
+            return ({
+              feeds: {
+                ...state.feeds,
+                posts: {
+                  ...state.feeds.posts,
+                  items: state.feeds.posts.items.map(post => 
+                    post.id === request.postId 
+                      ? { ...post, isSaved: false }
+                      : post
+                  )
+                },
+                mixed: {
+                  ...state.feeds.mixed,
+                  items: state.feeds.mixed.items.map(post => 
+                    post.id === request.postId
+                      ? { ...post, isSaved: false }
+                      : post
+                  )
+                }
               },
-              mixed: {
-                ...state.feeds.mixed,
-                items: state.feeds.mixed.items.map(post => 
-                  post.id === request.postId
-                    ? { ...post, isSaved: false }
-                    : post
-                )
-              }
-            }
-          }));
+              postsById: updatedCache
+            });
+          });
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to unsave post';
@@ -900,8 +1034,13 @@ export const usePostsStore = create<FeedState>()(
     // Get post by ID
     getPostById: async (postId: string) => {
       try {
+        const cached = get().postsById[postId];
+        if (cached) return cached;
+
         const response = await feedService.getPostById(postId);
-        return transformToUIItem(response);
+        const item = transformToUIItem(response);
+        set(state => ({ postsById: { ...state.postsById, [item.id]: item } }));
+        return item;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch post';
         set({ error: errorMessage });

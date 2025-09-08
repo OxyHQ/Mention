@@ -30,10 +30,25 @@ const PostItem: React.FC<PostItemProps> = ({
     const pathname = usePathname();
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
 
+    // Subscribe to latest post state by id across all feeds; fallback to prop
+    const postId = (post as any)?.id;
+    const storePost = usePostsStore(React.useCallback((state) => {
+        if (!postId) return null;
+        const types: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
+        for (const t of types) {
+            const match = state.feeds[t]?.items?.find((p: any) => p.id === postId);
+            if (match) return match;
+        }
+        return null;
+    }, [postId]));
+    const viewPost = storePost ?? post;
+    const viewPostId = (viewPost as any)?.id as string | undefined;
+    const viewPostHandle = (viewPost as any)?.user?.handle as string | undefined;
+
     // Safely extract boolean states with proper fallbacks
-    const isLiked = post?.isLiked ?? false;
-    const isReposted = post?.isReposted ?? false;
-    const isSaved = post?.isSaved ?? false;
+    const isLiked = (viewPost as any)?.isLiked ?? false;
+    const isReposted = (viewPost as any)?.isReposted ?? false;
+    const isSaved = (viewPost as any)?.isSaved ?? false;
 
     // Handle reposts and quotes - if this is a repost or quote, we need to get the original/quoted post
     const [originalPost, setOriginalPost] = React.useState<any>(null);
@@ -52,7 +67,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     React.useEffect(() => {
         const loadOriginalPost = async () => {
-            const postData = post as any;
+            const postData = viewPost as any;
             const targetId = postData.originalPostId || postData.repostOf || postData.quoteOf;
 
             if (!isNested && targetId) {
@@ -72,54 +87,54 @@ const PostItem: React.FC<PostItemProps> = ({
         };
 
         loadOriginalPost();
-    }, [post, getPostById, isNested, findFromStore]);
+    }, [viewPost, getPostById, isNested, findFromStore]);
 
 
     const handleLike = useCallback(async () => {
         try {
             if (isLiked) {
-                await unlikePost({ postId: post.id, type: 'post' });
+                await unlikePost({ postId: (viewPost as any).id, type: 'post' });
             } else {
-                await likePost({ postId: post.id, type: 'post' });
+                await likePost({ postId: (viewPost as any).id, type: 'post' });
             }
         } catch (error) {
             console.error('Error toggling like:', error);
         }
-    }, [isLiked, likePost, unlikePost, post.id]);
+    }, [isLiked, likePost, unlikePost, viewPost]);
 
     const handleReply = useCallback(() => {
         if (onReply) return onReply();
-        router.push(`/p/${post.id}/reply`);
-    }, [onReply, router, post.id]);
+        router.push(`/p/${(viewPost as any).id}/reply`);
+    }, [onReply, router, viewPost]);
 
     const handleRepost = useCallback(async () => {
         try {
             if (isReposted) {
-                await unrepostPost({ postId: post.id });
+                await unrepostPost({ postId: (viewPost as any).id });
             } else {
-                await repostPost({ postId: post.id });
+                await repostPost({ postId: (viewPost as any).id });
             }
         } catch (error) {
             console.error('Error toggling repost:', error);
         }
-    }, [isReposted, post.id, repostPost, unrepostPost]);
+    }, [isReposted, viewPost, repostPost, unrepostPost]);
 
     const handleShare = useCallback(async () => {
         try {
-            const postUrl = `https://mention.earth/p/${post.id}`;
-            const contentText = ('content' in post && typeof post.content === 'object' && post.content?.text)
-                ? post.content.text
-                : ('content' in post && typeof post.content === 'string')
-                    ? post.content
+            const postUrl = `https://mention.earth/p/${(viewPost as any).id}`;
+            const contentText = ('content' in (viewPost as any) && typeof (viewPost as any).content === 'object' && (viewPost as any).content?.text)
+                ? (viewPost as any).content.text
+                : ('content' in (viewPost as any) && typeof (viewPost as any).content === 'string')
+                    ? (viewPost as any).content
                     : '';
             const shareMessage = contentText
-                ? `${post.user.name} (@${post.user.handle}): ${contentText}`
-                : `${post.user.name} (@${post.user.handle}) shared a post`;
+                ? `${(viewPost as any).user.name} (@${(viewPost as any).user.handle}): ${contentText}`
+                : `${(viewPost as any).user.name} (@${(viewPost as any).user.handle}) shared a post`;
 
             if (Platform.OS === 'web') {
                 if (navigator.share) {
                     await navigator.share({
-                        title: `${post.user.name} on Mention`,
+                        title: `${(viewPost as any).user.name} on Mention`,
                         text: shareMessage,
                         url: postUrl
                     });
@@ -131,26 +146,26 @@ const PostItem: React.FC<PostItemProps> = ({
                 await Share.share({
                     message: `${shareMessage}\n\n${postUrl}`,
                     url: postUrl,
-                    title: `${post.user.name} on Mention`
+                    title: `${(viewPost as any).user.name} on Mention`
                 });
             }
         } catch (error) {
             console.error('Error sharing post:', error);
             Alert.alert('Error', 'Failed to share post');
         }
-    }, [post]);
+    }, [viewPost]);
 
     const handleSave = useCallback(async () => {
         try {
             if (isSaved) {
-                await unsavePost({ postId: post.id });
+                await unsavePost({ postId: (viewPost as any).id });
             } else {
-                await savePost({ postId: post.id });
+                await savePost({ postId: (viewPost as any).id });
             }
         } catch (error) {
             console.error('Error toggling save:', error);
         }
-    }, [isSaved, post.id, savePost, unsavePost]);
+    }, [isSaved, viewPost, savePost, unsavePost]);
 
     // Keep this in sync with PostAvatar defaults
     const HPAD = 16;
@@ -159,20 +174,20 @@ const PostItem: React.FC<PostItemProps> = ({
     const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
     const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET;
 
-    const avatarUri = (post?.user?.avatar && oxyServices && typeof (oxyServices as any).getFileDownloadUrl === 'function')
-        ? (oxyServices as any).getFileDownloadUrl(post.user.avatar as string, 'thumb')
+    const avatarUri = ((viewPost as any)?.user?.avatar && oxyServices && typeof (oxyServices as any).getFileDownloadUrl === 'function')
+        ? (oxyServices as any).getFileDownloadUrl((viewPost as any).user.avatar as string, 'thumb')
         : undefined;
     const isPostDetail = (pathname || '').startsWith('/p/');
     const goToPost = useCallback(() => {
-        if (!isPostDetail && post?.id) router.push(`/p/${post.id}`);
-    }, [router, post?.id, isPostDetail]);
+        if (!isPostDetail && viewPostId) router.push(`/p/${viewPostId}`);
+    }, [router, viewPostId, isPostDetail]);
     const goToUser = useCallback(() => {
-        const handle = post?.user?.handle || '';
+        const handle = viewPostHandle || '';
         if (handle) router.push(`/@${handle}`);
-    }, [router, post?.user?.handle]);
+    }, [router, viewPostHandle]);
 
     // Early return if post is invalid
-    if (!post || !post.user) {
+    if (!viewPost || !(viewPost as any).user) {
         return null;
     }
 
@@ -191,29 +206,29 @@ const PostItem: React.FC<PostItemProps> = ({
             onMoveShouldSetResponder={() => false}
         >
             <PostHeader
-                user={post.user}
-                date={post.date || 'Just now'}
-                showRepost={Boolean((post as any).originalPostId || (post as any).repostOf || (post as any).quoteOf) && !isNested}
+                user={(viewPost as any).user}
+                date={(viewPost as any).date || 'Just now'}
+                showRepost={Boolean((viewPost as any).originalPostId || (viewPost as any).repostOf || (viewPost as any).quoteOf) && !isNested}
                 showReply={false}
                 avatarUri={avatarUri}
                 onPressUser={goToUser}
                 onPressAvatar={goToUser}
             >
                 {/* Top: text content */}
-                {'content' in post && !!(post as any).content && (
-                    <PostContentText content={(post as any).content} postId={post.id} />
+                {'content' in (viewPost as any) && !!(viewPost as any).content && (
+                    <PostContentText content={(viewPost as any).content} postId={(viewPost as any).id} />
                 )}
             </PostHeader>
 
             {/* Location information if available */}
             {(() => {
-                const postContent = (post as any)?.content;
+                const postContent = (viewPost as any)?.content;
                 const location = postContent?.location;
                 const hasValidLocation = location?.coordinates && location.coordinates.length >= 2;
 
                 // Debug logging for all posts to see location data
                 console.log('🗺️ Location check for post:', {
-                    postId: post.id,
+                    postId: (viewPost as any).id,
                     text: postContent?.text || 'No text',
                     hasLocation: !!location,
                     hasValidLocation,
@@ -225,26 +240,26 @@ const PostItem: React.FC<PostItemProps> = ({
                 return hasValidLocation;
             })() && (
                     <PostLocation
-                        location={(post as any).content.location}
+                        location={(viewPost as any).content.location}
                         paddingHorizontal={BOTTOM_LEFT_PAD}
                     />
                 )}
 
             {/* Middle: horizontal scroller with media and nested post (repost/quote only, not replies) */}
             <PostMiddle
-                media={(post as any).content?.media || []}
+                media={(viewPost as any).content?.media || []}
                 nestedPost={originalPost ?? null}
                 leftOffset={BOTTOM_LEFT_PAD}
-                pollData={(post as any).content?.poll}
+                pollData={(viewPost as any).content?.poll}
                 pollId={(() => {
                     // Check for poll ID in content.pollId first (new structure)
-                    const postContent = (post as any).content;
+                    const postContent = (viewPost as any).content;
                     if (postContent?.pollId) {
                         return postContent.pollId;
                     }
 
                     // Fallback to legacy metadata structure
-                    const md: any = (post as any).metadata;
+                    const md: any = (viewPost as any).metadata;
                     try {
                         if (!md) return null;
                         // support object, stringified JSON, and direct pollId
@@ -263,7 +278,7 @@ const PostItem: React.FC<PostItemProps> = ({
             {!isNested && (
                 <View style={[{ paddingLeft: BOTTOM_LEFT_PAD, paddingRight: HPAD }]}>
                     <PostActions
-                        engagement={post.engagement}
+                        engagement={(viewPost as any).engagement}
                         isLiked={isLiked}
                         isReposted={isReposted}
                         isSaved={isSaved}

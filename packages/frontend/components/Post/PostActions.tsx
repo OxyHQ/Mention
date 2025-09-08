@@ -1,11 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { colors } from '../../styles/colors';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
 import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
+import AnimatedNumber from '../common/AnimatedNumber';
 
 interface Engagement {
   replies: number;
@@ -45,15 +46,21 @@ const PostActions: React.FC<Props> = ({
         ) : (
           <HeartIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
         )}
-        <Text style={[styles.engagementText, isLiked && styles.activeLikeText]}>
-          {engagement?.likes ?? 0}
-        </Text>
+        <AnimatedNumber
+          value={engagement?.likes ?? 0}
+          duration={180}
+          style={[styles.engagementText, isLiked && styles.activeLikeText]}
+        />
       </TouchableOpacity>
 
       {/* Reply (comment) */}
       <TouchableOpacity style={styles.engagementButton} onPress={onReply}>
         <CommentIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-        <Text style={styles.engagementText}>{engagement?.replies ?? 0}</Text>
+        <AnimatedNumber
+          value={engagement?.replies ?? 0}
+          duration={180}
+          style={styles.engagementText}
+        />
       </TouchableOpacity>
 
       {/* Repost */}
@@ -63,9 +70,11 @@ const PostActions: React.FC<Props> = ({
         ) : (
           <RepostIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
         )}
-        <Text style={[styles.engagementText, isReposted && styles.activeEngagementText]}>
-          {engagement?.reposts ?? 0}
-        </Text>
+        <AnimatedNumber
+          value={engagement?.reposts ?? 0}
+          duration={180}
+          style={[styles.engagementText, isReposted && styles.activeEngagementText]}
+        />
       </TouchableOpacity>
 
       {/* Share */}
