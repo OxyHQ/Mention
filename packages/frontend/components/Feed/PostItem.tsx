@@ -53,8 +53,12 @@ const PostItem: React.FC<PostItemProps> = ({
     const isReposted = (viewPost as any)?.isReposted ?? false;
     const isSaved = (viewPost as any)?.isSaved ?? false;
 
-    // Handle reposts and quotes - if this is a repost or quote, we need to get the original/quoted post
-    const [originalPost, setOriginalPost] = React.useState<any>(null);
+    // Handle reposts and quotes - prefer embedded original/quoted data from backend
+    const [originalPost, setOriginalPost] = React.useState<any>(() => {
+        const p: any = post;
+        // Support both 'original' and 'quoted' keys; 'original' takes precedence for reposts
+        return p?.original || p?.quoted || null;
+    });
 
     const findFromStore = useCallback((id: string) => {
         try {
@@ -70,6 +74,12 @@ const PostItem: React.FC<PostItemProps> = ({
     }, []);
 
     React.useEffect(() => {
+        // If backend embedded original/quoted data is present, skip fetching
+        if ((viewPost as any)?.original || (viewPost as any)?.quoted) {
+            setOriginalPost((viewPost as any).original || (viewPost as any).quoted);
+            return;
+        }
+
         const loadOriginalPost = async () => {
             const postData = viewPost as any;
             const targetId = postData.originalPostId || postData.repostOf || postData.quoteOf;

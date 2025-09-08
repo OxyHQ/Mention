@@ -33,7 +33,7 @@ class FeedController {
     try {
       // First, populate poll data for posts that have polls
       const postsWithPolls = await this.populatePollData(posts);
-      // Collect any referenced original/quoted posts to resolve their media in one go
+      // Collect any referenced original/quoted posts to resolve their media and embed originals
       const originalIds = Array.from(new Set(
         postsWithPolls
           .map((p: any) => {
@@ -47,18 +47,23 @@ class FeedController {
       const originalsMap = new Map<string, any>();
       if (originalIds.length) {
         try {
-          const originals = await Post.find({ _id: { $in: originalIds } }).select('_id content media').lean();
+          const originals = await Post.find({ _id: { $in: originalIds } })
+            .select('_id oxyUserId type content visibility stats metadata createdAt updatedAt repostOf quoteOf parentPostId threadId tags mentions hashtags media')
+            .lean();
           originals.forEach((op: any) => originalsMap.set(op._id.toString(), op));
         } catch (e) {
           console.warn('Failed fetching originals for media aggregation:', e);
         }
       }
       
-      // Get unique user IDs to fetch user data in batch
-      const userIds = [...new Set(postsWithPolls.map(post => {
-        const postObj = post.toObject ? post.toObject() : post;
-        return postObj.oxyUserId;
-      }))];
+      // Get unique user IDs to fetch user data in batch, include original authors
+      const userIds = [...new Set([
+        ...postsWithPolls.map(post => {
+          const postObj = post.toObject ? post.toObject() : post;
+          return postObj.oxyUserId;
+        }),
+        ...Array.from(originalsMap.values()).map((op: any) => op?.oxyUserId).filter(Boolean)
+      ])];
 
       // Fetch user data from Oxy in parallel
       const userDataMap = new Map();
@@ -230,6 +235,60 @@ class FeedController {
         return out.filter((id) => (seen.has(id) ? false : (seen.add(id), true)));
       };
 
+      // Helper to build a minimal transformed post for embedding (no nested originals)
+      const buildEmbedded = (obj: any) => {
+        if (!obj) return undefined;
+        const oid = obj._id?.toString?.() || String(obj._id || obj.id);
+        const u = userDataMap.get(obj.oxyUserId) || {
+          id: obj.oxyUserId,
+          name: 'User',
+          handle: 'user',
+          avatar: '',
+          verified: false
+        };
+        const stats = obj.stats || { likesCount: 0, repostsCount: 0, commentsCount: 0, viewsCount: 0, sharesCount: 0 };
+        const engagement = {
+          replies: stats.commentsCount || 0,
+          reposts: stats.repostsCount || 0,
+          likes: stats.likesCount || 0
+        };
+        const mediaIds = extractMediaIds(obj);
+        return {
+          id: oid,
+          _id: obj._id,
+          oxyUserId: obj.oxyUserId,
+          type: obj.type,
+          content: obj.content,
+          visibility: obj.visibility,
+          isEdited: obj.isEdited,
+          editHistory: obj.editHistory,
+          language: obj.language,
+          tags: obj.tags || [],
+          mentions: obj.mentions || [],
+          hashtags: obj.hashtags || [],
+          repostOf: obj.repostOf,
+          quoteOf: obj.quoteOf,
+          parentPostId: obj.parentPostId,
+          threadId: obj.threadId,
+          stats,
+          // Shallow metadata for flags; compute liked/saved for current user if arrays present
+          metadata: (() => {
+            const md = obj.metadata || {};
+            const likedBy: any[] = md.likedBy || [];
+            const savedBy: any[] = md.savedBy || [];
+            const liked = currentUserId ? (likedBy.includes(currentUserId) || likedBy.some((x: any) => x?.toString?.() === String(currentUserId))) : false;
+            const saved = currentUserId ? (savedBy.includes(currentUserId) || savedBy.some((x: any) => x?.toString?.() === String(currentUserId))) : false;
+            return { ...md, isLiked: liked, isSaved: saved };
+          })(),
+          createdAt: obj.createdAt,
+          updatedAt: obj.updatedAt,
+          date: obj.createdAt,
+          user: u,
+          engagement,
+          mediaIds
+        };
+      };
+
       // Transform posts with real user data and engagement stats
       const transformedPosts = postsWithPolls.map(post => {
         const postObj = post.toObject ? post.toObject() : post;
@@ -285,14 +344,17 @@ class FeedController {
 
         // Media aggregation for this post and its original/quoted if applicable
         const mediaIds = extractMediaIds(postObj);
-        const originalRef = postObj.repostOf || postObj.quoteOf;
-        const originalObj = originalRef ? originalsMap.get(originalRef.toString()) : undefined;
+  const originalRef = postObj.repostOf || postObj.quoteOf;
+  const originalObj = originalRef ? originalsMap.get(originalRef.toString()) : undefined;
         const originalMediaIds = extractMediaIds(originalObj);
         const allMediaIds = (() => {
           const seen = new Set<string>();
           const merged = [...mediaIds, ...originalMediaIds];
           return merged.filter((id) => (seen.has(id) ? false : (seen.add(id), true)));
         })();
+
+        // Optionally embed original/quoted post
+        const embeddedOriginal = originalObj ? buildEmbedded(originalObj) : undefined;
 
         // Return post in standard Post schema format
         const transformedPost = {
@@ -331,6 +393,9 @@ class FeedController {
           mediaIds,
           originalMediaIds,
           allMediaIds,
+          // Embed original/quoted to avoid extra client roundtrips
+          ...(postObj.repostOf ? { original: embeddedOriginal } : {}),
+          ...(postObj.quoteOf ? { quoted: embeddedOriginal } : {})
         };
 
         console.log(`📄 Transformed post ${postId}:`, {
