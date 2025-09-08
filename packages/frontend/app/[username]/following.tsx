@@ -7,10 +7,12 @@ import { Link, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
 
 export default function FollowingScreen() {
+  const insets = useSafeAreaInsets();
   const { username } = useLocalSearchParams<{ username: string }>();
   const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
   const { oxyServices } = (OxyServicesNS as any).useOxy();
@@ -73,7 +75,7 @@ export default function FollowingScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={{ flex: 1 }}>
+      <ThemedView style={{ flex: 1, paddingTop: insets.top }}>
         <Header options={{ title: t("Following"), showBackButton: true }} />
         <ActivityIndicator style={{ marginTop: 20 }} />
       </ThemedView>
@@ -81,12 +83,12 @@ export default function FollowingScreen() {
   }
 
   return (
-    <ThemedView style={{ flex: 1 }}>
+    <ThemedView style={{ flex: 1, paddingTop: insets.top }}>
       <Header options={{ title: `${profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : cleanUsername} ${t("Following")}`, showBackButton: true }} />
       <LegendList
         data={following}
         renderItem={renderUser}
-  keyExtractor={(item: any) => (item as any).id || (item as any)._id || (item as any).userID}
+  keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
         ListEmptyComponent={
           <View style={{ padding: 16, alignItems: 'center' }}>
             <ThemedText>{t("No following yet")}</ThemedText>

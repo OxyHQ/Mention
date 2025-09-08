@@ -5,6 +5,7 @@ import { colors as baseColors } from '@/styles/colors';
 import { Header } from '@/components/Header';
 import { Ionicons } from '@expo/vector-icons';
 import { useOxy } from '@oxyhq/services';
+import { ThemedView } from '@/components/ThemedView';
 
 const COLOR_CHOICES = ['#005c67', '#1D9BF0', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#0EA5E9'];
 
@@ -57,7 +58,7 @@ export default function AppearanceSettingsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ThemedView style={styles.container}>
       <Header options={{ title: 'Appearance', showBackButton: true }} />
       <ScrollView contentContainerStyle={styles.content}>
         {/* Theme mode */}
@@ -115,12 +116,12 @@ export default function AppearanceSettingsScreen() {
           {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save</Text>}
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: baseColors.primaryLight },
+  container: { flex: 1 },
   content: { padding: 16 },
   label: { fontSize: 16, fontWeight: '600', color: baseColors.COLOR_BLACK_LIGHT_2, marginTop: 16, marginBottom: 8 },
   segmentRow: { flexDirection: 'row', gap: 8 },

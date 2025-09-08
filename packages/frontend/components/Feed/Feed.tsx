@@ -8,7 +8,7 @@ import {
     ActivityIndicator
 } from 'react-native';
 import LegendList from '../../components/LegendList';
-import { usePostsStore, useFeedSelector, useFeedLoading, useFeedError, useFeedHasMore, useUserFeedSelector } from '../../stores/postsStore';
+import { usePostsStore, useFeedSelector, useUserFeedSelector } from '../../stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import PostItem from './PostItem';
 import ErrorBoundary from '../ErrorBoundary';
@@ -109,7 +109,8 @@ const Feed = (props: FeedProps) => {
 
     // Select appropriate feed slice (global vs user profile)
     const globalFeed = useFeedSelector(type);
-    const userFeed = userId ? useUserFeedSelector(userId, type) : undefined;
+    // Always call hooks in a stable order; pass empty string when no userId
+    const userFeed = useUserFeedSelector(userId || '', type);
     const feedData = userId ? userFeed : globalFeed;
     const isLoading = useScoped ? localLoading : !!feedData?.isLoading;
     const error = useScoped ? localError : feedData?.error;
@@ -136,6 +137,8 @@ const Feed = (props: FeedProps) => {
     } = usePostsStore();
 
     // Initial feed fetch
+    const filtersKey = JSON.stringify(filters || {});
+
     useEffect(() => {
         const fetchInitialFeed = async () => {
             try {
@@ -181,7 +184,7 @@ const Feed = (props: FeedProps) => {
         };
 
         fetchInitialFeed();
-    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, JSON.stringify(filters), useScoped, reloadKey]);
+    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, filtersKey, filters, useScoped, reloadKey]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -209,7 +212,7 @@ const Feed = (props: FeedProps) => {
         } finally {
             setRefreshing(false);
         }
-    }, [type, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts, JSON.stringify(filters), useScoped]);
+    }, [type, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts, filters, useScoped]);
 
     const handleLoadMore = useCallback(async () => {
         // Saved posts currently load as a single page; skip infinite scroll
@@ -263,7 +266,7 @@ const Feed = (props: FeedProps) => {
                 setLocalLoading(false);
             }
         }
-    }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, JSON.stringify(filters), useScoped, localHasMore, localLoading, localNextCursor]);
+    }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor]);
 
     const renderPostItem = useCallback(({ item }: { item: any }) => (
         <PostItem post={item} />
@@ -271,6 +274,14 @@ const Feed = (props: FeedProps) => {
 
     // Prioritize current user's fresh posts at the top (For You only)
     const { user: currentUser } = useOxy();
+
+    // Create a stable key for posts and use the same logic for deduping and keyExtractor
+    const itemKey = useCallback((it: any): string => (
+        String(
+            it?.id || it?._id || it?._id_str || it?.postId || it?.post?.id || it?.post?._id || it?.username || JSON.stringify(it)
+        )
+    ), []);
+
     const computeDisplayItems = useCallback(() => {
         const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
         
@@ -285,7 +296,18 @@ const Feed = (props: FeedProps) => {
             src: src.slice(0, 2) // First 2 items for inspection
         });
         
-        if (type !== 'for_you' || !currentUser?.id) return src;
+        if (type !== 'for_you' || !currentUser?.id) {
+            // Deduplicate by key in case upstream merged duplicates
+            const seen = new Set<string>();
+            const deduped: any[] = [];
+            for (const it of src) {
+                const k = itemKey(it);
+                if (seen.has(k)) continue;
+                seen.add(k);
+                deduped.push(it);
+            }
+            return deduped;
+        }
 
         const now = Date.now();
         const THRESHOLD_MS = 60 * 1000; // consider "posted now" within 60s
@@ -309,9 +331,19 @@ const Feed = (props: FeedProps) => {
             const ta = Date.parse(a?.date || a?.createdAt || '') || 0;
             return tb - ta;
         });
-        return [...mineNowSorted, ...others];
+        // Merge and dedupe to avoid overlapping keys in the list
+        const merged = [...mineNowSorted, ...others];
+        const seen = new Set<string>();
+        const deduped: any[] = [];
+        for (const it of merged) {
+            const k = itemKey(it);
+            if (seen.has(k)) continue;
+            seen.add(k);
+            deduped.push(it);
+        }
+        return deduped;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [useScoped, localItems, filteredFeedData?.items, type, currentUser?.id]);
+    }, [useScoped, localItems, filteredFeedData?.items, type, currentUser?.id, itemKey]);
 
     const renderEmptyState = useCallback(() => {
         // Avoid double loading UI; top spinner handles initial load
@@ -385,7 +417,7 @@ const Feed = (props: FeedProps) => {
         );
     }, [showComposeButton, onComposePress, hideHeader]);
 
-    const keyExtractor = useCallback((item: any) => item.id, []);
+    const keyExtractor = useCallback((item: any) => itemKey(item), [itemKey]);
 
     const getItemLayout = useCallback((data: any, index: number) => ({
         length: 200,
