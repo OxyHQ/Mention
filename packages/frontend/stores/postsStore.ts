@@ -32,6 +32,10 @@ interface FeedItem {
     likes: number;
   };
   media?: string[]; // Keep for backward compatibility
+  // Normalized media fields from backend (if available)
+  mediaIds?: string[];
+  originalMediaIds?: string[];
+  allMediaIds?: string[];
   isLiked?: boolean;
   isReposted?: boolean;
   isSaved?: boolean;
@@ -154,6 +158,9 @@ const transformToUIItem = (raw: any) => {
     ...raw,
     id: String(raw?.id || raw?._id),
     content: raw?.content || { text: '' }, // Keep full content object
+  mediaIds: raw?.mediaIds,
+  originalMediaIds: raw?.originalMediaIds,
+  allMediaIds: raw?.allMediaIds,
     isSaved: raw?.isSaved !== undefined ? raw.isSaved : (raw?.metadata?.isSaved ?? false),
     isLiked: raw?.isLiked !== undefined ? raw.isLiked : (raw?.metadata?.isLiked ?? false),
     isReposted: raw?.isReposted !== undefined ? raw.isReposted : (raw?.metadata?.isReposted ?? false),

@@ -33,6 +33,26 @@ class FeedController {
     try {
       // First, populate poll data for posts that have polls
       const postsWithPolls = await this.populatePollData(posts);
+      // Collect any referenced original/quoted posts to resolve their media in one go
+      const originalIds = Array.from(new Set(
+        postsWithPolls
+          .map((p: any) => {
+            const obj = p.toObject ? p.toObject() : p;
+            return obj.repostOf || obj.quoteOf;
+          })
+          .filter(Boolean)
+          .map((id: any) => id.toString())
+      ));
+
+      const originalsMap = new Map<string, any>();
+      if (originalIds.length) {
+        try {
+          const originals = await Post.find({ _id: { $in: originalIds } }).select('_id content media').lean();
+          originals.forEach((op: any) => originalsMap.set(op._id.toString(), op));
+        } catch (e) {
+          console.warn('Failed fetching originals for media aggregation:', e);
+        }
+      }
       
       // Get unique user IDs to fetch user data in batch
       const userIds = [...new Set(postsWithPolls.map(post => {
@@ -184,6 +204,32 @@ class FeedController {
         console.error('Error checking thread status:', error);
       }
 
+      // Helper to extract media ids from any raw post-like object
+      const extractMediaIds = (obj: any): string[] => {
+        if (!obj) return [];
+        const out: string[] = [];
+        const pushFrom = (arr?: any[]) => {
+          if (!Array.isArray(arr) || !arr.length) return;
+          arr.forEach((m: any) => {
+            if (!m) return;
+            if (typeof m === 'string') {
+              out.push(m);
+            } else if (typeof m === 'object') {
+              const id = m.id || m.url || m.src || m.path;
+              if (id) out.push(String(id));
+            }
+          });
+        };
+        pushFrom(obj?.content?.media);
+        pushFrom((obj as any)?.content?.images);
+        pushFrom((obj as any)?.content?.attachments);
+        pushFrom((obj as any)?.content?.files);
+        pushFrom((obj as any)?.media); // legacy
+        // unique preserve order
+        const seen = new Set<string>();
+        return out.filter((id) => (seen.has(id) ? false : (seen.add(id), true)));
+      };
+
       // Transform posts with real user data and engagement stats
       const transformedPosts = postsWithPolls.map(post => {
         const postObj = post.toObject ? post.toObject() : post;
@@ -237,6 +283,17 @@ class FeedController {
           hasInteractionData: userInteractions.has(postId)
         });
 
+        // Media aggregation for this post and its original/quoted if applicable
+        const mediaIds = extractMediaIds(postObj);
+        const originalRef = postObj.repostOf || postObj.quoteOf;
+        const originalObj = originalRef ? originalsMap.get(originalRef.toString()) : undefined;
+        const originalMediaIds = extractMediaIds(originalObj);
+        const allMediaIds = (() => {
+          const seen = new Set<string>();
+          const merged = [...mediaIds, ...originalMediaIds];
+          return merged.filter((id) => (seen.has(id) ? false : (seen.add(id), true)));
+        })();
+
         // Return post in standard Post schema format
         const transformedPost = {
           id: postId,
@@ -270,6 +327,10 @@ class FeedController {
           user: userData,
           engagement,
           isThread,
+          // Normalized media fields for clients
+          mediaIds,
+          originalMediaIds,
+          allMediaIds,
         };
 
         console.log(`📄 Transformed post ${postId}:`, {
@@ -306,12 +367,22 @@ class FeedController {
         query.parentPostId = null; // matches null or non-existent
         query.repostOf = null;
         break;
-      case 'media':
-        // Media posts (images/videos) that are not replies or reposts
-        query.type = { $in: [PostType.IMAGE, PostType.VIDEO] };
-        query.parentPostId = null;
-        query.repostOf = null;
+      case 'media': {
+        // Media posts: either typed as IMAGE/VIDEO OR have media arrays populated; exclude replies/reposts
+        query.$and = [
+          { $or: [
+            { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
+            { 'content.media.0': { $exists: true } },
+            { 'content.images.0': { $exists: true } },
+            { 'content.attachments.0': { $exists: true } },
+            { 'content.files.0': { $exists: true } },
+            { 'media.0': { $exists: true } }
+          ] },
+          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        ];
         break;
+      }
       case 'replies':
         // Replies have a parentPostId set (not null)
         query.parentPostId = { $ne: null };
@@ -775,9 +846,18 @@ class FeedController {
 
       const query: any = {
         visibility: PostVisibility.PUBLIC,
-        type: { $in: [PostType.IMAGE, PostType.VIDEO] },
-        parentPostId: { $exists: false },
-        repostOf: { $exists: false }
+        $and: [
+          { $or: [
+            { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
+            { 'content.media.0': { $exists: true } },
+            { 'content.images.0': { $exists: true } },
+            { 'content.attachments.0': { $exists: true } },
+            { 'content.files.0': { $exists: true } },
+            { 'media.0': { $exists: true } }
+          ] },
+          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        ]
       };
 
       if (cursor) {
@@ -883,10 +963,19 @@ class FeedController {
         // Replies
         query.parentPostId = { $ne: null };
       } else if (type === 'media') {
-        // Media-only top-level posts
-        query.type = { $in: [PostType.IMAGE, PostType.VIDEO] };
-        query.parentPostId = null;
-        query.repostOf = null;
+        // Media-only top-level posts: include posts typed TEXT but with media arrays
+        query.$and = [
+          { $or: [
+            { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
+            { 'content.media.0': { $exists: true } },
+            { 'content.images.0': { $exists: true } },
+            { 'content.attachments.0': { $exists: true } },
+            { 'content.files.0': { $exists: true } },
+            { 'media.0': { $exists: true } }
+          ] },
+          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        ];
       } else if (type === 'reposts') {
         // Reposts only
         query.repostOf = { $ne: null };

@@ -373,9 +373,12 @@ const Feed = (props: FeedProps) => {
         if (showOnlySaved) return null;
         if (!hasMore) return null;
 
-        // Don't show "Loading more posts..." during initial load when the list is empty
+        // Don't show any footer during initial load when the list is empty
         const hasItems = useScoped ? (localItems.length > 0) : !!(filteredFeedData?.items && filteredFeedData.items.length > 0);
-        if (isLoading && !hasItems) return null;
+        if (!hasItems) return null;
+
+        // Only show the loading footer when an actual load-more request is in progress
+        if (!isLoading) return null;
 
         return (
             <View style={styles.footer}>

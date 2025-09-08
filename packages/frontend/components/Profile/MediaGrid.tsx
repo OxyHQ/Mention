@@ -74,15 +74,38 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
 
   const mediaItems = useMemo(() => {
     const out: ({ postId: string; uri: string; isVideo: boolean; isCarousel: boolean; mediaIndex: number } | null)[] = [];
-    const globalSeen = new Set<string>(); // avoid duplicate URIs across posts
-    // Prefer dedicated media feed if available; fallback to posts feed
     const items = (mediaFeed?.items?.length ? mediaFeed.items : (postsFeed?.items || [])) as any[];
+
     const pickIdOrUrl = (x: any): string | undefined => {
       if (!x) return undefined;
       if (typeof x === 'string') return x;
       return x.id || x.url || x.src || x.path || undefined;
     };
+
+  const pushUris = (targetId: string, sources: (string | undefined)[]) => {
+      const collected = sources.filter(Boolean) as string[];
+      const seen = new Set<string>();
+      collected.forEach((raw, idx) => {
+        const uri = resolveImageUri(raw);
+    // Allow duplicates across different posts; only avoid duplicates within the same post
+    if (!uri || seen.has(uri)) return;
+        seen.add(uri);
+        const isVideo = /\.(mp4|mov|m4v|webm)$/i.test(String(raw));
+        const isCarousel = collected.length > 1;
+        out.push({ postId: targetId, uri, isVideo, isCarousel, mediaIndex: idx });
+      });
+    };
+
     const extractFrom = (post: any, targetId: string) => {
+      // Prefer normalized allMediaIds/mediaIds from backend
+      const normalized = (post?.allMediaIds && post.allMediaIds.length)
+        ? post.allMediaIds
+        : (post?.mediaIds || []);
+      if (normalized?.length) {
+        pushUris(targetId, normalized);
+        return;
+      }
+      // Fallback to legacy structures
       const collected: string[] = [];
       const pushFromArray = (arr?: any[]) => {
         if (!Array.isArray(arr) || !arr.length) return;
@@ -95,30 +118,19 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
       pushFromArray(post?.content?.images);
       pushFromArray(post?.content?.attachments);
       pushFromArray(post?.content?.files);
-      pushFromArray(post?.media); // legacy
-
-      // Deduplicate while preserving order
-      const seen = new Set<string>();
-      collected.forEach((raw, idx) => {
-        const uri = resolveImageUri(raw);
-        if (!uri || seen.has(uri) || globalSeen.has(uri)) return;
-        seen.add(uri);
-        globalSeen.add(uri);
-        const isVideo = /\.(mp4|mov|m4v|webm)$/i.test(String(raw));
-        const isCarousel = collected.length > 1;
-        out.push({ postId: targetId, uri, isVideo, isCarousel, mediaIndex: idx });
-      });
+      pushFromArray(post?.media);
+      pushUris(targetId, collected);
     };
 
-    for (const p of items as any[]) {
+    for (const p of (items || []) as any[]) {
       extractFrom(p, String(p.id));
-      // If wrapper has no media, try original/quoted post in cache
       const origId = p?.originalPostId || p?.repostOf || p?.quoteOf;
-      if (origId && (!p?.content?.media?.length && !p?.content?.images?.length && !p?.media?.length)) {
+      if (origId && (!p?.allMediaIds?.length && !p?.mediaIds?.length)) {
         const orig = postsById?.[String(origId)];
         if (orig) extractFrom(orig, String(p.id));
       }
     }
+
     return out.filter(Boolean) as { postId: string; uri: string; isVideo: boolean; isCarousel: boolean; mediaIndex: number }[];
   }, [mediaFeed?.items, postsFeed?.items, resolveImageUri, postsById]);
 
