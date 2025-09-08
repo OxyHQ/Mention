@@ -196,6 +196,10 @@
     "common.sendFeedback": "Send",
     "common.maybeLater": "Maybe later",
     "common.rateNow": "Rate now",
+        "permission.notifications.title": "Stay in the loop",
+        "permission.notifications.subtitle": "Enable notifications to get updates when people you follow post.",
+        "permission.notifications.enable": "Enable notifications",
+        "permission.notifications.later": "Not now",
     "notifications": {
         "tabs": {
             "all": "All",

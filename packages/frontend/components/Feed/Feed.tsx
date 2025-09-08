@@ -323,8 +323,7 @@ const Feed = (props: FeedProps) => {
             seen.add(k);
             deduped.push(it);
         }
-        return deduped;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+    return deduped;
     }, [useScoped, localItems, filteredFeedData?.items, type, currentUser?.id, itemKey]);
 
     const renderEmptyState = useCallback(() => {

@@ -32,8 +32,8 @@ import RegisterPush from '@/components/RegisterPushToken';
 
 import AppSplashScreen from '@/components/AppSplashScreen';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import { BottomSheetProvider } from '@/context/BottomSheetContext';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { BottomSheetProvider, BottomSheetContext } from '@/context/BottomSheetContext';
+import NotificationPermissionSheet from '@/components/NotificationPermissionSheet';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OxyProvider, OxyServices } from '@oxyhq/services';
 import '../styles/global.css';
@@ -141,8 +141,8 @@ export default function RootLayout() {
     try {
       if (Platform.OS !== 'web') {
         await setupNotifications();
-  // We defer prompting to our bottom sheet UX; only preflight the current status
-  await hasNotificationPermission();
+        // We defer prompting to our bottom sheet UX; only preflight the current status
+        await hasNotificationPermission();
       }
 
       // Wait briefly for auth to be ready and warm up current user cache if possible.
@@ -166,6 +166,7 @@ export default function RootLayout() {
       console.warn('Failed to initialize app:', error);
     }
   }, [loaded, oxyServices, waitForAuth]);
+
 
   // Initialize i18n once when the app mounts
   useEffect(() => {
@@ -215,6 +216,39 @@ export default function RootLayout() {
   useEffect(() => {
     initializeApp();
   }, [initializeApp]);
+
+  // Inline component that lives under BottomSheetProvider context
+  const NotificationPermissionGate: React.FC = () => {
+    const bs = React.useContext(BottomSheetContext);
+    useEffect(() => {
+      let didCancel = false;
+      const run = async () => {
+        if (Platform.OS === 'web') return;
+        if (!appIsReady || !splashState.initializationComplete) return;
+        const hasPerm = await hasNotificationPermission();
+        if (didCancel || hasPerm) return;
+        bs.setBottomSheetContent(
+          <NotificationPermissionSheet
+            onLater={() => bs.openBottomSheet(false)}
+            onEnable={async () => {
+              const granted = await requestNotificationPermissions();
+              bs.openBottomSheet(false);
+              if (granted) {
+                // token registration handled by <RegisterPush />
+              }
+            }}
+          />
+        );
+        bs.openBottomSheet(true);
+      };
+      const t = setTimeout(run, 400);
+      return () => {
+        didCancel = true;
+        clearTimeout(t);
+      };
+    }, [bs]);
+    return null;
+  };
 
   useEffect(() => {
     if (loaded && splashState.initializationComplete && !splashState.startFade) {
@@ -270,6 +304,8 @@ export default function RootLayout() {
         <GestureRoot style={{ flex: 1 }}>
           {appIsReady ? (
             <AppProviders>
+              {/* Shows bottom sheet permission prompt when needed (native only) */}
+              {Platform.OS !== 'web' && <NotificationPermissionGate />}
               <MainLayout />
               <StatusBar style="auto" />
               <RegisterPush />
