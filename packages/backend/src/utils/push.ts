@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import PushToken from '../models/PushToken';
+import Post from '../models/Post';
 import { oxy } from '../../server';
 
 let firebaseInitialized = false;
@@ -97,9 +98,24 @@ export async function formatPushForNotification(n: any) {
     quote: { title: 'Post quoted', body: `${actorName} quoted your post` },
     follow: { title: 'New follower', body: `${actorName} followed you` },
     welcome: { title: 'Welcome to Mention', body: 'Thanks for joining!' },
-  post: { title: 'New post', body: `${actorName} posted a new update` },
+    post: { title: 'New post', body: `${actorName} posted a new update` },
   };
-  const f = map[n.type] || { title: 'Notification', body: 'You have a new notification' };
+  let f = map[n.type] || { title: 'Notification', body: 'You have a new notification' };
+  let preview: string | undefined;
+  // For post notifications, try to include a short preview in the push body
+  try {
+    if (n.type === 'post' && n.entityType === 'post' && n.entityId) {
+      const post: any = await Post.findById(n.entityId, { 'content.text': 1 }).lean();
+      if (post) {
+        const text: string = post?.content?.text || '';
+        const trimmed = typeof text === 'string' ? text.trim() : '';
+        preview = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+        if (preview) {
+          f = { title: 'New post', body: `${actorName} posted: ${preview}` };
+        }
+      }
+    }
+  } catch {}
   const data: Record<string, string> = {
     type: n.type,
     entityId: n.entityId,
@@ -107,5 +123,6 @@ export async function formatPushForNotification(n: any) {
     actorId: n.actorId,
     notificationId: String(n._id || ''),
   };
+  if (preview) data.preview = preview;
   return { title: f.title, body: f.body, data };
 }
