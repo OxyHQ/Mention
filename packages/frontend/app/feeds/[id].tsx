@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams } from 'expo-router';
 import { Header } from '@/components/Header';
 import { colors } from '@/styles/colors';
@@ -10,7 +11,7 @@ import Feed from '@/components/Feed/Feed';
 export default function CustomFeedTimelineScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [feed, setFeed] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authorsCsv, setAuthorsCsv] = useState<string>('');
 
@@ -29,7 +30,7 @@ export default function CustomFeedTimelineScreen() {
           }
         }
         setAuthorsCsv(Array.from(authors).join(','));
-      } catch (e) {
+  } catch {
         setError('Failed to load feed');
       } finally {
         setLoading(false);
@@ -38,7 +39,7 @@ export default function CustomFeedTimelineScreen() {
   }, [id]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.primaryLight }}>
+    <ThemedView style={{ flex: 1 }}>
       <Header options={{ title: feed?.title || 'Feed', showBackButton: true }} />
       {error ? (
         <View style={styles.center}><Text style={{ color: colors.busy }}>{error}</Text></View>
@@ -65,7 +66,7 @@ export default function CustomFeedTimelineScreen() {
           )}
         />
       )}
-    </View>
+    </ThemedView>
   );
 }
 

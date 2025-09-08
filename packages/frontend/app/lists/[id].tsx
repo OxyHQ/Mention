@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams } from 'expo-router';
 import { Header } from '@/components/Header';
 import { colors } from '@/styles/colors';
@@ -9,7 +10,7 @@ import Feed from '@/components/Feed/Feed';
 export default function ListTimelineScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [list, setList] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -17,7 +18,7 @@ export default function ListTimelineScreen() {
       try {
         const l = await listsService.get(String(id));
         setList(l);
-      } catch (e) {
+  } catch {
         setError('Failed to load list');
       } finally {
         setLoading(false);
@@ -26,7 +27,7 @@ export default function ListTimelineScreen() {
   }, [id]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.primaryLight }}>
+    <ThemedView style={{ flex: 1 }}>
       <Header options={{ title: list?.title || 'List', showBackButton: true }} />
       {error ? (
         <View style={styles.center}><Text style={{ color: colors.busy }}>{error}</Text></View>
@@ -46,7 +47,7 @@ export default function ListTimelineScreen() {
           )}
         />
       )}
-    </View>
+    </ThemedView>
   );
 }
 

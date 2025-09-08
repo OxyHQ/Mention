@@ -13,6 +13,7 @@ import {
 import { useOxy } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
@@ -410,6 +411,7 @@ const ComposeScreen = () => {
         style={styles.composeArea}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
+        <ThemedView style={{ flex: 1 }}>
 
         {/* Header */}
         <View style={styles.header}>
@@ -720,6 +722,7 @@ const ComposeScreen = () => {
           <Text style={styles.bottomText}>{t('Anyone can reply & quote')}</Text>
           <Text style={styles.characterCount}>{postContent.length}</Text>
         </View>
+        </ThemedView>
       </KeyboardAvoidingView>
 
       {/* Floating post button */}
@@ -737,14 +740,13 @@ const ComposeScreen = () => {
           <Text style={isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText}>{t('Post')}</Text>
         )}
       </TouchableOpacity>
-    </SafeAreaView>
+  </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_9,
   },
   header: {
     flexDirection: 'row',

@@ -13,6 +13,7 @@ import {
   View
 } from "react-native";
 import { shadowStyle } from '@/utils/platformStyles';
+import { ThemedView } from '@/components/ThemedView';
 
 const KaanaClientPage = () => {
   const { user } = useOxy();
@@ -33,7 +34,7 @@ const KaanaClientPage = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
-      <View style={styles.container}>
+      <ThemedView style={styles.container}>
 
         {/* Main Content */}
         <View style={styles.mainContent}>
@@ -111,7 +112,7 @@ const KaanaClientPage = () => {
             </View>
           </View>
         </KeyboardAvoidingView>
-      </View>
+      </ThemedView>
     </SafeAreaView>
   );
 };
@@ -119,7 +120,6 @@ const KaanaClientPage = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
     borderRadius: 35,
   },
   container: { flex: 1 },

@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
@@ -54,7 +55,7 @@ export default function CreateListScreen() {
   }, [title, description, isPublic, members]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.primaryLight }}>
+    <ThemedView style={{ flex: 1 }}>
       <Header options={{ title: 'Create List', showBackButton: true }} />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text style={styles.label}>Title</Text>
@@ -100,7 +101,7 @@ export default function CreateListScreen() {
           <Text style={styles.createBtnText}>{saving ? 'Saving…' : 'Create List'}</Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </ThemedView>
   );
 }
 

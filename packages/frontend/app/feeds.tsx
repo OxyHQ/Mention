@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Header } from '@/components/Header';
+import { ThemedView } from '@/components/ThemedView';
 import { colors } from '@/styles/colors';
 import { router } from 'expo-router';
 import { getData, storeData } from '@/utils/storage';
@@ -74,7 +75,7 @@ const FeedsScreen: React.FC = () => {
   const [pinned, setPinned] = useState<string[]>([]);
   const [myFeeds, setMyFeeds] = useState<any[]>([]);
   const [publicFeeds, setPublicFeeds] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -125,7 +126,7 @@ const FeedsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <View style={styles.container}>
+  <ThemedView style={styles.container}>
         <Header options={{
           title: t('Feeds'), rightComponents: [
             <TouchableOpacity key="create" onPress={() => router.push('/feeds/create')} style={{ padding: 8 }}>
@@ -200,7 +201,7 @@ const FeedsScreen: React.FC = () => {
           keyExtractor={(item: any) => String(item._id || item.id)}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           contentContainerStyle={{ paddingBottom: 30 }}
-          renderItem={({ item }) => (
+          renderItem={({ item }: { item: any }) => (
             <PublicFeedCard
               item={item}
               pinned={pinned.includes(`custom:${item._id || item.id}`)}
@@ -242,7 +243,7 @@ const FeedsScreen: React.FC = () => {
           </View>
         ))}
 
-      </View>
+  </ThemedView>
     </SafeAreaView>
   );
 };
@@ -251,8 +252,7 @@ export default FeedsScreen;
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+  flex: 1,
   },
   sectionHeaderRow: {
     flexDirection: 'row',

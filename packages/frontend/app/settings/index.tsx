@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
 import { useOxy } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 
@@ -96,7 +97,7 @@ export default function SettingsScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <ThemedView style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>{t('settings.title')}</Text>
@@ -539,19 +540,19 @@ export default function SettingsScreen() {
                     </TouchableOpacity>
                 </View>
             </View>
-        </View>
+    </ThemedView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#f2f2f2',
+    flex: 1,
     },
     header: {
         paddingHorizontal: 20,
         paddingTop: 20,
         paddingBottom: 16,
-        backgroundColor: '#fff',
+    backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
         borderBottomColor: '#e0e0e0',
     },
@@ -582,7 +583,7 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     settingItem: {
-        backgroundColor: '#fff',
+        backgroundColor: colors.primaryLight,
         padding: 16,
         flexDirection: 'row',
         alignItems: 'center',

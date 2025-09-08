@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import Avatar from '@/components/Avatar';
 import { colors } from '@/styles/colors';
@@ -46,7 +47,7 @@ export default function ListsScreen() {
   
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.primaryLight }}>
+    <ThemedView style={{ flex: 1 }}>
       <Header options={{ title: 'Lists', showBackButton: true, rightComponents: [
         <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={styles.newPill}>
           <Text style={styles.newPillText}>+ New</Text>
@@ -71,7 +72,7 @@ export default function ListsScreen() {
       </View>
 
       
-    </View>
+  </ThemedView>
   );
 }
 

@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import Avatar from '@/components/Avatar';
 import { colors } from '@/styles/colors';
@@ -78,7 +79,7 @@ const CreateFeedScreen: React.FC = () => {
   }, [title, description, isPublic, members, keywords, includeReplies, includeReposts, includeMedia, selectedListIds]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.primaryLight }}>
+    <ThemedView style={{ flex: 1 }}>
       <Header options={{ title: 'Create Feed', showBackButton: true }} />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text style={styles.label}>Title</Text>
@@ -159,7 +160,7 @@ const CreateFeedScreen: React.FC = () => {
           {saving ? <ActivityIndicator color={colors.primaryLight} /> : <Text style={styles.createBtnText}>Create Feed</Text>}
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </ThemedView>
   );
 };
 

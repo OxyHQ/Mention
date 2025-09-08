@@ -2,21 +2,23 @@ import { Header } from '@/components/Header';
 import { ThemedText } from '@/components/ThemedText';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
-import { FollowButton, Models, useOxy } from '@oxyhq/services';
+import * as OxyServicesNS from '@oxyhq/services';
 import { Link, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, View } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
 
 export default function FollowingScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const cleanUsername = username.startsWith('@') ? username.slice(1) : username;
-  const { oxyServices } = useOxy();
+  const { oxyServices } = (OxyServicesNS as any).useOxy();
   const [loading, setLoading] = useState(true);
-  const [following, setFollowing] = useState<Models.User[]>([]);
-  const [profile, setProfile] = useState<Models.User | null>(null);
+  const [following, setFollowing] = useState<any[]>([]);
+  const [profile, setProfile] = useState<any | null>(null);
   const { t } = useTranslation();
+  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string }>; 
 
   useEffect(() => {
     const loadFollowing = async () => {
@@ -46,7 +48,7 @@ export default function FollowingScreen() {
     loadFollowing();
   }, [cleanUsername, oxyServices]);
 
-  const renderUser = ({ item }: { item: Models.User }) => (
+  const renderUser = ({ item }: { item: any }) => (
     <View style={{
       flexDirection: 'row',
       alignItems: 'center',
@@ -71,20 +73,20 @@ export default function FollowingScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1 }}>
+      <ThemedView style={{ flex: 1 }}>
         <Header options={{ title: t("Following"), showBackButton: true }} />
         <ActivityIndicator style={{ marginTop: 20 }} />
-      </View>
+      </ThemedView>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <ThemedView style={{ flex: 1 }}>
       <Header options={{ title: `${profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : cleanUsername} ${t("Following")}`, showBackButton: true }} />
       <LegendList
         data={following}
         renderItem={renderUser}
-        keyExtractor={(item) => (item as any).id || (item as any)._id || (item as any).userID}
+  keyExtractor={(item: any) => (item as any).id || (item as any)._id || (item as any).userID}
         ListEmptyComponent={
           <View style={{ padding: 16, alignItems: 'center' }}>
             <ThemedText>{t("No following yet")}</ThemedText>
@@ -93,6 +95,6 @@ export default function FollowingScreen() {
   recycleItems={true}
   maintainVisibleContentPosition={true}
       />
-    </View>
+    </ThemedView>
   );
 }

@@ -20,6 +20,7 @@ import Feed from '../../components/Feed/Feed';
 import { usePostsStore } from '../../stores/postsStore';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useOxy } from '@oxyhq/services';
+import { ThemedView } from '@/components/ThemedView';
 //
 
 const MAX_CHARACTERS = 280;
@@ -140,7 +141,7 @@ const PostDetailScreen: React.FC = () => {
 
     if (loading) {
         return (
-            <View style={[styles.container, { paddingTop: insets.top }]}>
+            <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
@@ -151,13 +152,13 @@ const PostDetailScreen: React.FC = () => {
                     <ActivityIndicator size="large" color={colors.primaryColor} />
                     <Text style={styles.loadingText}>Loading post...</Text>
                 </View>
-            </View>
+            </ThemedView>
         );
     }
 
     if (error || !post) {
         return (
-            <View style={[styles.container, { paddingTop: insets.top }]}>
+            <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
@@ -174,7 +175,7 @@ const PostDetailScreen: React.FC = () => {
                         <Text style={styles.retryButtonText}>Go Back</Text>
                     </TouchableOpacity>
                 </View>
-            </View>
+            </ThemedView>
         );
     }
 
@@ -184,12 +185,12 @@ const PostDetailScreen: React.FC = () => {
             keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
             style={[styles.container, { paddingTop: insets.top }]}
         >
-            <View style={styles.header}>
+            <ThemedView style={styles.header}>
                 <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{post?.isThread ? 'Thread' : 'Post'}</Text>
-            </View>
+            </ThemedView>
 
             <View style={{ flex: 1 }}>
                 {/* Show parent post on top if this is a reply */}
@@ -230,7 +231,7 @@ const PostDetailScreen: React.FC = () => {
             </View>
 
             {/* Inline Reply Composer */}
-            <View style={[styles.composerContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}
+            <ThemedView style={[styles.composerContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}
             >
                 <View style={styles.composer}>
                     <View style={styles.composerAvatarWrap}>
@@ -264,7 +265,7 @@ const PostDetailScreen: React.FC = () => {
                         {characterCount}/{MAX_CHARACTERS}
                     </Text>
                 </View>
-            </View>
+            </ThemedView>
         </KeyboardAvoidingView>
     );
 };
@@ -280,7 +281,6 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     backButton: {
         marginRight: 16,
@@ -371,7 +371,6 @@ const styles = StyleSheet.create({
         // Keep composer in normal layout so KeyboardAvoidingView can adjust it
         borderTopWidth: 1,
         borderTopColor: colors.COLOR_BLACK_LIGHT_6,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
         paddingHorizontal: 12,
         paddingTop: 8,
     },
