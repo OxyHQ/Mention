@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ThemedView } from '@/components/ThemedView';
 import { shadowStyle } from '@/utils/platformStyles';
 import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
@@ -55,6 +56,7 @@ const HomeScreen: React.FC = () => {
 
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
+            <ThemedView style={{ flex: 1 }}>
             <StatusBar style="dark" />
 
             {/* Header */}
@@ -118,6 +120,7 @@ const HomeScreen: React.FC = () => {
                     <Ionicons name="add" size={24} color={colors.COLOR_BLACK_LIGHT_9} />
                 </TouchableOpacity>
             )}
+            </ThemedView>
         </SafeAreaView>
     );
 };

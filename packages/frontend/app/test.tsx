@@ -1,4 +1,5 @@
-import { View, Text, Button } from 'react-native';
+import { Text, Button } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
 
 import { api } from '../utils/api';
 
@@ -23,10 +24,10 @@ const handleTest = async () => {
 
 const TestScreen = () => {
     return (
-        <View>
+        <ThemedView>
             <Text>Test</Text>
             <Button title="Test" onPress={handleTest} />
-        </View>
+        </ThemedView>
     );
 };
 

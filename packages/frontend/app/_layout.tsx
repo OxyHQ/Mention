@@ -5,6 +5,7 @@ import {
   initialWindowMetrics,
 } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ThemedView } from '@/components/ThemedView';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { Slot } from 'expo-router';
@@ -254,16 +255,16 @@ export default function RootLayout() {
     >
       <SideBar />
       <View style={styles.mainContent}>
-        <View style={styles.mainContentWrapper}>
+        <ThemedView style={styles.mainContentWrapper}>
           <Slot />
-        </View>
+        </ThemedView>
         <RightBar />
       </View>
     </LayoutScrollProvider>
   ), [styles]);
 
   return (
-    <View style={{ flex: 1 }}>
+  <ThemedView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <GestureRoot style={{ flex: 1 }}>
           {appIsReady ? (
@@ -286,6 +287,6 @@ export default function RootLayout() {
           )}
         </GestureRoot>
       </SafeAreaProvider>
-    </View>
+  </ThemedView>
   );
 }

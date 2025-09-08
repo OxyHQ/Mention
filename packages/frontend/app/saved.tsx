@@ -1,19 +1,20 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import Feed from '../components/Feed/Feed';
 import { colors } from '../styles/colors';
+import { ThemedView } from '@/components/ThemedView';
 
 const SavedPostsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
 
-    const handleSavePress = async (postId: string) => {
+    const handleSavePress = async (_postId: string) => {
         // This is handled by the Feed component's PostItem internally
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ThemedView style={[styles.container, { paddingTop: insets.top }]}> 
             <Stack.Screen
                 options={{
                     title: 'Saved Posts',
@@ -22,7 +23,7 @@ const SavedPostsScreen: React.FC = () => {
             />
 
             <Feed type="posts" showOnlySaved={true} onSavePress={handleSavePress} recycleItems={true} maintainVisibleContentPosition={true} />
-        </View>
+        </ThemedView>
     );
 };
 
