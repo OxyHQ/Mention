@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { useCallback, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Switch, Platform } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { useOxy } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,9 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { colors } from '../../styles/colors';
 import { LogoIcon } from '../../assets/logo';
+import { authenticatedClient } from '@/utils/api';
+// (already imported above)
+import { hasNotificationPermission, requestNotificationPermissions, getDevicePushToken } from '@/utils/notifications';
 
 // Type assertion for Ionicons compatibility with React 19
 const IconComponent = Ionicons as any;
@@ -46,6 +49,47 @@ export default function SettingsScreen() {
 
     // Settings state
     const [notifications, setNotifications] = useState(true);
+    const unregisterPushToken = useCallback(async () => {
+        try {
+            const tokenInfo = await getDevicePushToken();
+            if (!tokenInfo?.token) return;
+            await authenticatedClient.delete('/notifications/push-token', { data: { token: tokenInfo.token } });
+        } catch (e) {
+            console.warn('Failed to unregister push token:', e);
+        }
+    }, []);
+
+    const registerPushIfPermitted = useCallback(async () => {
+        if (Constants.appOwnership === 'expo') {
+            console.warn('expo-notifications: Remote push is unavailable in Expo Go. Use a development build.');
+            return false;
+        }
+        const granted = await hasNotificationPermission() || await requestNotificationPermissions();
+        if (!granted) return false;
+        try {
+            const tokenInfo = await getDevicePushToken();
+            if (!tokenInfo?.token) return false;
+            await authenticatedClient.post('/notifications/push-token', {
+                token: tokenInfo.token,
+                type: tokenInfo.type || (Platform.OS === 'ios' ? 'apns' : 'fcm'),
+                platform: Platform.OS,
+                locale: (Constants as any).locale || 'en-US',
+            });
+            return true;
+        } catch (e) {
+            console.warn('Failed to (re)register push token:', e);
+            return false;
+        }
+    }, []);
+
+    const onToggleNotifications = useCallback(async (value: boolean) => {
+        setNotifications(value);
+        if (value) {
+            await registerPushIfPermitted();
+        } else {
+            await unregisterPushToken();
+        }
+    }, [registerPushIfPermitted, unregisterPushToken]);
     const [darkMode, setDarkMode] = useState(false);
     const [autoSync, setAutoSync] = useState(true);
     const [offlineMode, setOfflineMode] = useState(false);
@@ -373,7 +417,7 @@ export default function SettingsScreen() {
                         </View>
                         <Switch
                             value={notifications}
-                            onValueChange={setNotifications}
+                            onValueChange={onToggleNotifications}
                             trackColor={{ false: '#f0f0f0', true: colors.primaryColor }}
                             thumbColor={notifications ? '#ffffff' : '#d1d5db'}
                             ios_backgroundColor="#f0f0f0"

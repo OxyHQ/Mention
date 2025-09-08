@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { useOxy } from '@oxyhq/services';
 import { authenticatedClient } from '@/utils/api';
 import { getDevicePushToken } from '@/utils/notifications';
@@ -14,6 +15,11 @@ export const RegisterPushToken: React.FC = () => {
         const register = async () => {
             if (!isAuthenticated) return;
             if (Platform.OS === 'web') return;
+            // Remote push notifications are not supported in Expo Go starting with SDK 53
+            if (Constants.appOwnership === 'expo') {
+                console.warn('expo-notifications: Remote push is unavailable in Expo Go. Use a development build.');
+                return;
+            }
             try {
                 const token = await getDevicePushToken();
                 if (!mounted || !token?.token) return;
