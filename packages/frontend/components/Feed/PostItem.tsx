@@ -30,10 +30,13 @@ const PostItem: React.FC<PostItemProps> = ({
     const pathname = usePathname();
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
 
-    // Subscribe to latest post state by id across all feeds; fallback to prop
+    // Subscribe to latest post state using entity cache first, then fallback to scanning feeds
     const postId = (post as any)?.id;
     const storePost = usePostsStore(React.useCallback((state) => {
         if (!postId) return null;
+        // Prefer entity cache for minimal updates and less scanning
+        const cached = state.postsById[postId as string];
+        if (cached) return cached as any;
         const types: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
         for (const t of types) {
             const match = state.feeds[t]?.items?.find((p: any) => p.id === postId);
@@ -55,7 +58,8 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const findFromStore = useCallback((id: string) => {
         try {
-            const { feeds } = usePostsStore.getState();
+            const { feeds, postsById } = usePostsStore.getState();
+            if (postsById[id]) return postsById[id];
             const types: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
             for (const t of types) {
                 const match = feeds[t]?.items?.find((p: any) => p.id === id);
@@ -310,4 +314,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default PostItem; 
+export default React.memo(PostItem);

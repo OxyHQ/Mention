@@ -22,6 +22,7 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useOxy } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Feed } from './Feed/index';
+import MediaGrid from '@/components/Profile/MediaGrid';
 import { colors } from '../styles/colors';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { subscriptionService } from '@/services/subscriptionService';
@@ -228,6 +229,12 @@ const MentionProfile: React.FC = () => {
 
     const renderTabContent = () => {
         const feedType = activeTab === 0 ? 'posts' : activeTab === 1 ? 'replies' : activeTab === 2 ? 'media' : activeTab === 3 ? 'likes' : 'reposts';
+
+        if (feedType === 'media') {
+            return (
+                <MediaGrid userId={profileData?.id} />
+            );
+        }
 
         return (
             <Feed

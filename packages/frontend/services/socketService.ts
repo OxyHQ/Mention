@@ -2,6 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import { API_URL_SOCKET } from '@/config';
+import { wasRecent } from './echoGuard';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -9,6 +10,8 @@ class SocketService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private currentUserId?: string;
+  // recentActions handled by echoGuard
 
   constructor() {
     this.setupEventListeners();
@@ -17,17 +20,18 @@ class SocketService {
   /**
    * Connect to the backend socket server
    */
-  connect(token?: string) {
+  connect(userId?: string, token?: string) {
     if (this.socket?.connected) {
       console.log('Socket already connected');
       return;
     }
 
     try {
+      if (userId) this.currentUserId = userId;
       // Connect to the backend socket server
       this.socket = io(API_URL_SOCKET || process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000', {
         transports: ['websocket', 'polling'],
-        auth: token ? { token } : undefined,
+        auth: token ? { token, userId } : (userId ? { userId } : undefined),
         autoConnect: true,
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
@@ -38,6 +42,13 @@ class SocketService {
     } catch (error) {
       console.error('Error connecting to socket:', error);
     }
+  }
+
+  private shouldIgnoreEcho(postId: string, action: string, actorId?: string) {
+    // If server includes actor identity and it's us, ignore
+    if (actorId && this.currentUserId && actorId === this.currentUserId) return true;
+    // Otherwise, ignore if we performed the same action very recently
+    return wasRecent(postId, action as any);
   }
 
   /**
@@ -219,36 +230,46 @@ class SocketService {
    * Handle post liked event
    */
   private handlePostLiked(data: any) {
-    const { postId, likesCount } = data || {};
+    const { postId, likesCount, userId: actorId, actorId: altActor } = data || {};
     if (!postId) return;
+    if (this.shouldIgnoreEcho(postId, 'like', actorId || altActor)) return;
     const store = usePostsStore.getState();
-    store.updatePostEverywhere(postId, (prev) => ({
-      ...prev,
-      isLiked: true,
-      engagement: { ...prev.engagement, likes: likesCount ?? (prev.engagement.likes + 1) }
-    }));
+    store.updatePostEverywhere(postId, (prev) => {
+      // If already liked and likesCount not increasing, skip
+      if (prev.isLiked && (likesCount == null || prev.engagement.likes >= likesCount)) return null as any;
+      return {
+        ...prev,
+        isLiked: true,
+        engagement: { ...prev.engagement, likes: likesCount ?? (prev.engagement.likes + 1) },
+      };
+    });
   }
 
   /**
    * Handle post unliked event
    */
   private handlePostUnliked(data: any) {
-    const { postId, likesCount } = data || {};
+    const { postId, likesCount, userId: actorId, actorId: altActor } = data || {};
     if (!postId) return;
+    if (this.shouldIgnoreEcho(postId, 'unlike', actorId || altActor)) return;
     const store = usePostsStore.getState();
-    store.updatePostEverywhere(postId, (prev) => ({
-      ...prev,
-      isLiked: false,
-      engagement: { ...prev.engagement, likes: likesCount ?? Math.max(0, prev.engagement.likes - 1) }
-    }));
+    store.updatePostEverywhere(postId, (prev) => {
+      if (!prev.isLiked && (likesCount == null || prev.engagement.likes <= likesCount)) return null as any;
+      return {
+        ...prev,
+        isLiked: false,
+        engagement: { ...prev.engagement, likes: likesCount ?? Math.max(0, prev.engagement.likes - 1) },
+      };
+    });
   }
 
   /**
    * Handle post replied event
    */
   private handlePostReplied(data: any) {
-    const { postId } = data || {};
+  const { postId, userId: actorId, actorId: altActor } = data || {};
     if (!postId) return;
+  if (this.shouldIgnoreEcho(postId, 'reply', actorId || altActor)) return;
     const store = usePostsStore.getState();
     store.updatePostEverywhere(postId, (prev) => ({
       ...prev,
@@ -260,13 +281,15 @@ class SocketService {
    * Handle post reposted event
    */
   private handlePostReposted(data: any) {
-    const { originalPostId } = data || {};
-    if (!originalPostId) return;
+    const { originalPostId, postId, userId: actorId, actorId: altActor } = data || {};
+    const targetId = originalPostId || postId;
+    if (!targetId) return;
+    if (this.shouldIgnoreEcho(targetId, 'repost', actorId || altActor)) return;
     const store = usePostsStore.getState();
-    store.updatePostEverywhere(originalPostId, (prev) => ({
+    store.updatePostEverywhere(targetId, (prev) => ({
       ...prev,
       engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 },
-      isReposted: prev.isReposted || false
+      isReposted: prev.isReposted || false,
     }));
   }
 
@@ -274,9 +297,10 @@ class SocketService {
    * Handle post unreposted event
    */
   private handlePostUnreposted(data: any) {
-    const { originalPostId } = data || {};
-    const postId = originalPostId || data?.postId;
-    if (!postId) return;
+  const { originalPostId, postId: pid, userId: actorId, actorId: altActor } = data || {};
+  const postId = originalPostId || pid;
+  if (!postId) return;
+  if (this.shouldIgnoreEcho(postId, 'unrepost', actorId || altActor)) return;
     const store = usePostsStore.getState();
     store.updatePostEverywhere(postId, (prev) => ({
       ...prev,
@@ -289,8 +313,9 @@ class SocketService {
    * Handle post saved event
    */
   private handlePostSaved(data: any) {
-    const { postId } = data || {};
-    if (!postId) return;
+  const { postId, userId: actorId, actorId: altActor } = data || {};
+  if (!postId) return;
+  if (this.shouldIgnoreEcho(postId, 'save', actorId || altActor)) return;
     const store = usePostsStore.getState();
     store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: true }));
   }
@@ -299,8 +324,9 @@ class SocketService {
    * Handle post unsaved event
    */
   private handlePostUnsaved(data: any) {
-    const { postId } = data || {};
-    if (!postId) return;
+  const { postId, userId: actorId, actorId: altActor } = data || {};
+  if (!postId) return;
+  if (this.shouldIgnoreEcho(postId, 'unsave', actorId || altActor)) return;
     const store = usePostsStore.getState();
     store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: false }));
   }

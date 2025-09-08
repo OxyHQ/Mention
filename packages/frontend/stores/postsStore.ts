@@ -12,6 +12,7 @@ import {
   PostContent
 } from '@mention/shared-types';
 import { feedService } from '../services/feedService';
+import { markLocalAction } from '../services/echoGuard';
 
 // Types for the store
 interface FeedItem {
@@ -625,6 +626,8 @@ export const usePostsStore = create<FeedState>()(
       set({ isLoading: true, error: null });
 
       try {
+  // Mark local action to suppress immediate echo from socket
+  markLocalAction(request.postId, 'reply');
         const response = await feedService.createReply(request);
         
         if (response.success) {
@@ -735,6 +738,7 @@ export const usePostsStore = create<FeedState>()(
     // Repost post (simple repost without comment)
     repostPost: async (request: { postId: string }) => {
       try {
+  markLocalAction(request.postId, 'repost');
         const response = await feedService.createRepost({
           originalPostId: request.postId,
           mentions: [],
@@ -742,43 +746,11 @@ export const usePostsStore = create<FeedState>()(
         });
 
         if (response.success) {
-          // Update post repost state locally in all feed types
-          set(state => {
-            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following'];
-            const updatedFeeds: any = { ...state.feeds };
-
-            feedTypes.forEach(feedType => {
-              if (state.feeds[feedType]) {
-                updatedFeeds[feedType] = {
-                  ...state.feeds[feedType],
-                  items: state.feeds[feedType].items.map(post =>
-                    post.id === request.postId
-                      ? {
-                          ...post,
-                          isReposted: true,
-                          engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 }
-                        }
-                      : post
-                  )
-                };
-              }
-            });
-
-            const cached = state.postsById[request.postId];
-            const updatedCache = cached ? {
-              ...state.postsById,
-              [request.postId]: {
-                ...cached,
-                isReposted: true,
-                engagement: { ...cached.engagement, reposts: cached.engagement.reposts + 1 }
-              }
-            } : state.postsById;
-
-            return {
-              feeds: updatedFeeds,
-              postsById: updatedCache
-            };
-          });
+          get().updatePostEverywhere(request.postId, (prev) => ({
+            ...prev,
+            isReposted: true,
+            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 }
+          }));
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to repost post';
@@ -791,47 +763,16 @@ export const usePostsStore = create<FeedState>()(
     unrepostPost: async (request: { postId: string }) => {
       try {
         console.log('🔄 PostsStore.unrepostPost called with:', request);
+  markLocalAction(request.postId, 'unrepost');
         const response = await feedService.unrepostItem(request);
         console.log('✅ Unrepost response:', response);
 
         if (response.success) {
-          // Update post repost state locally in all feed types
-          set(state => {
-            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following'];
-            const updatedFeeds: any = { ...state.feeds };
-
-            feedTypes.forEach(feedType => {
-              if (state.feeds[feedType]) {
-                updatedFeeds[feedType] = {
-                  ...state.feeds[feedType],
-                  items: state.feeds[feedType].items.map(post =>
-                    post.id === request.postId
-                      ? {
-                          ...post,
-                          isReposted: false,
-                          engagement: { ...post.engagement, reposts: Math.max(0, post.engagement.reposts - 1) }
-                        }
-                      : post
-                  )
-                };
-              }
-            });
-
-            const cached = state.postsById[request.postId];
-            const updatedCache = cached ? {
-              ...state.postsById,
-              [request.postId]: {
-                ...cached,
-                isReposted: false,
-                engagement: { ...cached.engagement, reposts: Math.max(0, cached.engagement.reposts - 1) }
-              }
-            } : state.postsById;
-
-            return {
-              feeds: updatedFeeds,
-              postsById: updatedCache
-            };
-          });
+          get().updatePostEverywhere(request.postId, (prev) => ({
+            ...prev,
+            isReposted: false,
+            engagement: { ...prev.engagement, reposts: Math.max(0, (prev.engagement.reposts || 0) - 1) }
+          }));
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to unrepost post';
@@ -843,46 +784,15 @@ export const usePostsStore = create<FeedState>()(
     // Like post
     likePost: async (request: LikeRequest) => {
       try {
+  markLocalAction(request.postId, 'like');
         const response = await feedService.likeItem(request);
 
         if (response.success) {
-          // Update post like state locally in all feed types
-          set(state => {
-            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following'];
-            const updatedFeeds: any = { ...state.feeds };
-
-            feedTypes.forEach(feedType => {
-              if (state.feeds[feedType]) {
-                updatedFeeds[feedType] = {
-                  ...state.feeds[feedType],
-                  items: state.feeds[feedType].items.map(post =>
-                    post.id === request.postId
-                      ? {
-                          ...post,
-                          isLiked: true,
-                          engagement: { ...post.engagement, likes: post.engagement.likes + 1 }
-                        }
-                      : post
-                  )
-                };
-              }
-            });
-
-            const cached = state.postsById[request.postId];
-            const updatedCache = cached ? {
-              ...state.postsById,
-              [request.postId]: {
-                ...cached,
-                isLiked: true,
-                engagement: { ...cached.engagement, likes: cached.engagement.likes + 1 }
-              }
-            } : state.postsById;
-
-            return {
-              feeds: updatedFeeds,
-              postsById: updatedCache
-            };
-          });
+          get().updatePostEverywhere(request.postId, (prev) => ({
+            ...prev,
+            isLiked: true,
+            engagement: { ...prev.engagement, likes: (prev.engagement.likes || 0) + 1 }
+          }));
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to like post';
@@ -894,46 +804,15 @@ export const usePostsStore = create<FeedState>()(
     // Unlike post
     unlikePost: async (request: UnlikeRequest) => {
       try {
+  markLocalAction(request.postId, 'unlike');
         const response = await feedService.unlikeItem(request);
 
         if (response.success) {
-          // Update post like state locally in all feed types
-          set(state => {
-            const feedTypes: FeedType[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following'];
-            const updatedFeeds: any = { ...state.feeds };
-
-            feedTypes.forEach(feedType => {
-              if (state.feeds[feedType]) {
-                updatedFeeds[feedType] = {
-                  ...state.feeds[feedType],
-                  items: state.feeds[feedType].items.map(post =>
-                    post.id === request.postId
-                      ? {
-                          ...post,
-                          isLiked: false,
-                          engagement: { ...post.engagement, likes: Math.max(0, post.engagement.likes - 1) }
-                        }
-                      : post
-                  )
-                };
-              }
-            });
-
-            const cached = state.postsById[request.postId];
-            const updatedCache = cached ? {
-              ...state.postsById,
-              [request.postId]: {
-                ...cached,
-                isLiked: false,
-                engagement: { ...cached.engagement, likes: Math.max(0, cached.engagement.likes - 1) }
-              }
-            } : state.postsById;
-
-            return {
-              feeds: updatedFeeds,
-              postsById: updatedCache
-            };
-          });
+          get().updatePostEverywhere(request.postId, (prev) => ({
+            ...prev,
+            isLiked: false,
+            engagement: { ...prev.engagement, likes: Math.max(0, (prev.engagement.likes || 0) - 1) }
+          }));
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to unlike post';
@@ -946,41 +825,12 @@ export const usePostsStore = create<FeedState>()(
     savePost: async (request: { postId: string }) => {
       try {
         console.log('💾 PostsStore.savePost called with:', request);
+  markLocalAction(request.postId, 'save');
         const response = await feedService.saveItem(request);
         console.log('✅ Save response:', response);
         
         if (response.success) {
-          // Update post save state locally
-          set(state => {
-            const cached = state.postsById[request.postId];
-            const updatedCache = cached ? {
-              ...state.postsById,
-              [request.postId]: { ...cached, isSaved: true }
-            } : state.postsById;
-
-            return ({
-              feeds: {
-                ...state.feeds,
-                posts: {
-                  ...state.feeds.posts,
-                  items: state.feeds.posts.items.map(post => 
-                    post.id === request.postId 
-                      ? { ...post, isSaved: true }
-                      : post
-                  )
-                },
-                mixed: {
-                  ...state.feeds.mixed,
-                  items: state.feeds.mixed.items.map(post => 
-                    post.id === request.postId
-                      ? { ...post, isSaved: true }
-                      : post
-                  )
-                }
-              },
-              postsById: updatedCache
-            });
-          });
+          get().updatePostEverywhere(request.postId, (prev) => ({ ...prev, isSaved: true }));
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to save post';
@@ -993,41 +843,12 @@ export const usePostsStore = create<FeedState>()(
     unsavePost: async (request: { postId: string }) => {
       try {
         console.log('🗑️ PostsStore.unsavePost called with:', request);
+  markLocalAction(request.postId, 'unsave');
         const response = await feedService.unsaveItem(request);
         console.log('✅ Unsave response:', response);
         
         if (response.success) {
-          // Update post save state locally
-          set(state => {
-            const cached = state.postsById[request.postId];
-            const updatedCache = cached ? {
-              ...state.postsById,
-              [request.postId]: { ...cached, isSaved: false }
-            } : state.postsById;
-
-            return ({
-              feeds: {
-                ...state.feeds,
-                posts: {
-                  ...state.feeds.posts,
-                  items: state.feeds.posts.items.map(post => 
-                    post.id === request.postId 
-                      ? { ...post, isSaved: false }
-                      : post
-                  )
-                },
-                mixed: {
-                  ...state.feeds.mixed,
-                  items: state.feeds.mixed.items.map(post => 
-                    post.id === request.postId
-                      ? { ...post, isSaved: false }
-                      : post
-                  )
-                }
-              },
-              postsById: updatedCache
-            });
-          });
+          get().updatePostEverywhere(request.postId, (prev) => ({ ...prev, isSaved: false }));
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to unsave post';
@@ -1074,61 +895,68 @@ export const usePostsStore = create<FeedState>()(
       }));
     },
 
-    // Centralized deduped updater
+    // Centralized deduped updater (only touches slices containing the postId)
     updatePostEverywhere: (postId: string, updater: (prev: FeedItem) => FeedItem | null | undefined) => {
-      set(state => {
+      set((state) => {
         // Find base item: prefer cache, else search in feeds
         let base: FeedItem | undefined = state.postsById[postId];
         if (!base) {
           const feedTypes = Object.keys(state.feeds) as FeedType[];
           for (const ft of feedTypes) {
-            const found = state.feeds[ft]?.items?.find(p => p.id === postId);
+            const found = state.feeds[ft]?.items?.find((p) => p.id === postId);
             if (found) { base = found; break; }
           }
         }
-        if (!base) {
-          // Still not found; nothing to update
-          return state;
-        }
+        if (!base) return state;
 
-        const updated = updater(base);
-        if (!updated) return state;
+        const next = updater(base);
+        if (!next) return state;
 
-        const nextCache = { ...state.postsById, [postId]: updated };
+        // Update cache
+        const nextCache = { ...state.postsById, [postId]: next };
 
-        // Update main feeds
-        const nextFeeds: typeof state.feeds = { ...state.feeds } as any;
+        // Update main feeds: only replace arrays for slices that contain the id
+        let feedsChanged = false;
+        const nextFeeds = { ...state.feeds } as typeof state.feeds;
         (Object.keys(state.feeds) as (keyof typeof state.feeds)[]).forEach((ft) => {
           const slice = state.feeds[ft];
-          if (!slice) return;
-          const items = slice.items?.length
-            ? slice.items.map(p => (p.id === postId ? updated : p))
-            : slice.items;
-          nextFeeds[ft] = { ...slice, items } as any;
+          if (!slice?.items?.length) return;
+          const idx = slice.items.findIndex((p) => p.id === postId);
+          if (idx === -1) return; // keep reference
+          const newItems = slice.items.slice();
+          newItems[idx] = next;
+          nextFeeds[ft] = { ...slice, items: newItems } as any;
+          feedsChanged = true;
         });
 
-        // Update user feeds
+        // Update user feeds similarly
+        let userFeedsChanged = false;
         const nextUserFeeds: typeof state.userFeeds = {} as any;
         const userIds = Object.keys(state.userFeeds || {});
         for (const uid of userIds) {
           const userSlices = state.userFeeds[uid];
+          if (!userSlices) continue;
+          let anySliceChanged = false;
           const nextSlices: any = {};
           (Object.keys(userSlices || {}) as FeedType[]).forEach((ft) => {
             const slice = userSlices[ft];
-            if (!slice) return;
-            const items = slice.items?.length
-              ? slice.items.map(p => (p.id === postId ? updated : p))
-              : slice.items;
-            nextSlices[ft] = { ...slice, items };
+            if (!slice?.items?.length) { if (slice) nextSlices[ft] = slice; return; }
+            const idx = slice.items.findIndex((p) => p.id === postId);
+            if (idx === -1) { nextSlices[ft] = slice; return; }
+            const newItems = slice.items.slice();
+            newItems[idx] = next;
+            nextSlices[ft] = { ...slice, items: newItems };
+            anySliceChanged = true;
           });
-          nextUserFeeds[uid] = nextSlices;
+          nextUserFeeds[uid] = anySliceChanged ? nextSlices : userSlices;
+          if (anySliceChanged) userFeedsChanged = true;
         }
 
         return {
           ...state,
           postsById: nextCache,
-          feeds: nextFeeds,
-          userFeeds: nextUserFeeds
+          feeds: feedsChanged ? nextFeeds : state.feeds,
+          userFeeds: userFeedsChanged ? nextUserFeeds : state.userFeeds,
         };
       });
     },

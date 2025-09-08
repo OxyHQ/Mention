@@ -29,11 +29,12 @@ import itIT from '@/locales/it.json';
 import { BottomBar } from '@/components/BottomBar';
 import { MenuProvider } from 'react-native-popup-menu';
 import RegisterPush from '@/components/RegisterPushToken';
+import useRealtimePosts from '@/hooks/useRealtimePosts';
 
 import AppSplashScreen from '@/components/AppSplashScreen';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider, BottomSheetContext } from '@/context/BottomSheetContext';
-import NotificationPermissionSheet from '@/components/NotificationPermissionSheet';
+import { NotificationPermissionSheet } from '@/components/NotificationPermissionSheet';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OxyProvider, OxyServices } from '@oxyhq/services';
 import '../styles/global.css';
@@ -298,14 +299,22 @@ export default function RootLayout() {
     );
   }, [styles]);
 
+  // Inline bridge component rendered under OxyProvider to safely access useOxy
+  const RealtimePostsBridge: React.FC = () => {
+    useRealtimePosts();
+    return null;
+  };
+
   return (
-  <ThemedView style={{ flex: 1 }}>
+    <ThemedView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <GestureRoot style={{ flex: 1 }}>
           {appIsReady ? (
             <AppProviders>
               {/* Shows bottom sheet permission prompt when needed (native only) */}
               {Platform.OS !== 'web' && <NotificationPermissionGate />}
+              {/* Keep posts socket connected (mounted under OxyProvider) */}
+              <RealtimePostsBridge />
               <MainLayout />
               <StatusBar style="auto" />
               <RegisterPush />
@@ -324,6 +333,6 @@ export default function RootLayout() {
           )}
         </GestureRoot>
       </SafeAreaProvider>
-  </ThemedView>
+    </ThemedView>
   );
 }
