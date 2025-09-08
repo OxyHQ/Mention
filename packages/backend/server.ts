@@ -23,6 +23,7 @@ import customFeedsRoutes from './src/routes/customFeeds.routes';
 import { OxyServices } from '@oxyhq/services/core';
 import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
+import subscriptionsRoutes from './src/routes/subscriptions';
 
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
@@ -371,6 +372,7 @@ authenticatedApiRouter.use("/feeds", customFeedsRoutes); // User-created feeds
 authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authentication
 authenticatedApiRouter.use("/test", testRoutes);
 authenticatedApiRouter.use("/profile", profileSettingsRoutes);
+authenticatedApiRouter.use("/subscriptions", subscriptionsRoutes);
 // You can add more protected routers here as needed
 
 // Mount public and authenticated API routers

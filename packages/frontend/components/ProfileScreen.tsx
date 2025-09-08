@@ -19,10 +19,12 @@ import Avatar from '@/components/Avatar';
 import UserName from './UserName';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { useOxy, FollowButton } from '@oxyhq/services';
+import { useOxy } from '@oxyhq/services';
+import * as OxyServicesNS from '@oxyhq/services';
 import { Feed } from './Feed/index';
 import { colors } from '../styles/colors';
 import { useAppearanceStore } from '@/store/appearanceStore';
+import { subscriptionService } from '@/services/subscriptionService';
 
 // Constants for better maintainability and responsive design
 const HEADER_HEIGHT_EXPANDED = 120;
@@ -61,7 +63,7 @@ const MentionProfile: React.FC = () => {
     const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
     
     // Type-safe component references
-    const TypedFollowButton = FollowButton as React.ComponentType<FollowButtonProps>;
+    const TypedFollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<FollowButtonProps>;
     const TypedUserName = UserName as React.ComponentType<any>;
     
     let { username } = useLocalSearchParams<{ username: string }>();
@@ -161,6 +163,44 @@ const MentionProfile: React.FC = () => {
 
     const tabs = ['Posts', 'Replies', 'Media', 'Likes', 'Reposts'];
 
+    // Subscription (post notifications) state
+    const [subscribed, setSubscribed] = useState<boolean>(false);
+    const [subLoading, setSubLoading] = useState<boolean>(false);
+
+    // Load subscription status when profile data is available
+    useEffect(() => {
+        let cancelled = false;
+        const load = async () => {
+            try {
+                if (!profileData?.id) return;
+                const { subscribed } = await subscriptionService.getStatus(profileData.id);
+                if (!cancelled) setSubscribed(!!subscribed);
+            } catch {
+                // silent fail; keep default false
+            }
+        };
+        load();
+        return () => { cancelled = true; };
+    }, [profileData?.id]);
+
+    const toggleSubscription = async () => {
+        if (!profileData?.id || subLoading) return;
+        setSubLoading(true);
+        const prev = subscribed;
+        setSubscribed(!prev);
+    try {
+            if (!prev) {
+                await subscriptionService.subscribe(profileData.id);
+            } else {
+                await subscriptionService.unsubscribe(profileData.id);
+            }
+    } catch {
+            // rollback on error
+            setSubscribed(prev);
+        } finally {
+            setSubLoading(false);
+        }
+    };
 
 
     const onTabPress = (index: number) => {
@@ -276,8 +316,8 @@ const MentionProfile: React.FC = () => {
 
                     {/* Header actions */}
                     <View style={[styles.headerActions, { top: insets.top + 5 }]}>
-                        <TouchableOpacity style={styles.headerIconButton}>
-                            <Ionicons name="notifications-outline" size={20} color={colors.primaryLight} />
+                        <TouchableOpacity style={styles.headerIconButton} onPress={toggleSubscription} disabled={subLoading}>
+                            <Ionicons name={subscribed ? 'notifications' : 'notifications-outline'} size={20} color={colors.primaryLight} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.headerIconButton}>
                             <Ionicons name="search-outline" size={20} color={colors.primaryLight} />
@@ -317,7 +357,7 @@ const MentionProfile: React.FC = () => {
                             unifiedColors={true}
                         />
                         <Text style={styles.headerSubtitle}>
-                            {profileData?.postCount || 0} posts
+                            {(profileData as any)?.postCount || 0} posts
                         </Text>
                     </Animated.View>
 
@@ -488,9 +528,9 @@ const MentionProfile: React.FC = () => {
                                                 <Ionicons name="color-palette-outline" size={20} color={colors.primaryDark} />
                                             </TouchableOpacity>
                                         </View>
-                                    ) : (
-                                        <TypedFollowButton userId={profileData?.id} />
-                                    )}
+                                    ) : profileData?.id ? (
+                                        <TypedFollowButton userId={profileData.id} />
+                                    ) : null}
                                 </View>
                             </View>
 
@@ -536,7 +576,7 @@ const MentionProfile: React.FC = () => {
                                 )}
                                 <View style={styles.metaItem}>
                                     <Ionicons name="calendar-outline" size={16} color="#666" />
-                                    <Text style={styles.metaText}>Joined {new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text>
+                                    <Text style={styles.metaText}>Joined {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''}</Text>
                                 </View>
                             </View>
 
@@ -634,7 +674,7 @@ const MentionProfile: React.FC = () => {
 
                     {/* FAB */}
                     <TouchableOpacity
-                        style={[styles.fab, fabPositionStyle]}
+                        style={[styles.fab, fabPositionStyle as any]}
                         onPress={() => router.push('/compose')}
                     >
                         <Ionicons name="add" size={24} color="#FFF" />

@@ -97,6 +97,7 @@ export async function formatPushForNotification(n: any) {
     quote: { title: 'Post quoted', body: `${actorName} quoted your post` },
     follow: { title: 'New follower', body: `${actorName} followed you` },
     welcome: { title: 'Welcome to Mention', body: 'Thanks for joining!' },
+  post: { title: 'New post', body: `${actorName} posted a new update` },
   };
   const f = map[n.type] || { title: 'Notification', body: 'You have a new notification' };
   const data: Record<string, string> = {

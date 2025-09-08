@@ -7,6 +7,8 @@ import { colors } from '../styles/colors';
 import { useTranslation } from 'react-i18next';
 import { useNotificationTransformer, RawNotification } from '../utils/notificationTransformer';
 import { useOxy } from '@oxyhq/services';
+import PostItem from './Feed/PostItem';
+import { usePostsStore } from '../stores/postsStore';
 
 interface NotificationItemProps {
     notification: RawNotification;
@@ -99,6 +101,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 return t('notification.repost', { actorName: display });
             case 'quote':
                 return t('notification.quote', { actorName: display });
+            case 'post':
+                // Use i18n key when available with a sensible default
+                return t('notification.post', { actorName: display, defaultValue: `${display} posted a new update` });
             case 'welcome':
                 return t('notification.welcome.title');
             default:
@@ -120,6 +125,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 return 'repeat';
             case 'quote':
                 return 'quote';
+            case 'post':
+                return 'create';
             case 'welcome':
                 return 'notifications';
             default:
@@ -136,6 +143,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             case 'mention':
                 return colors.primaryColor;
             case 'follow':
+                return colors.primaryColor;
+            case 'post':
                 return colors.primaryColor;
             default:
                 return colors.primaryColor;
@@ -186,6 +195,16 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         return date.toLocaleDateString();
     };
 
+    // For 'post' notifications, use PostItem component for rich UI
+    if (notification.type === 'post') {
+        return <PostNotificationItem 
+            notification={notification} 
+            actorName={actorName}
+            onMarkAsRead={onMarkAsRead}
+            handlePress={handlePress}
+        />;
+    }
+
     return (
         <TouchableOpacity
             style={[
@@ -222,6 +241,124 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             {!notification.read && (
                 <View style={styles.unreadIndicator} />
             )}
+        </TouchableOpacity>
+    );
+};
+
+// Component for post notifications using PostItem
+const PostNotificationItem: React.FC<{
+    notification: RawNotification;
+    actorName: string;
+    onMarkAsRead: (id: string) => void;
+    handlePress: () => void;
+}> = ({ notification, actorName, onMarkAsRead, handlePress }) => {
+    const { t } = useTranslation();
+    const { getPostById } = usePostsStore();
+    const [post, setPost] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    const formatTimeAgo = (dateString: string): string => {
+        const now = new Date();
+        const date = new Date(dateString);
+        const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+        if (diffInSeconds < 60) return t('notification.now');
+        if (diffInSeconds < 3600) return t('notification.minutes_ago', { count: Math.floor(diffInSeconds / 60) });
+        if (diffInSeconds < 86400) return t('notification.hours_ago', { count: Math.floor(diffInSeconds / 3600) });
+        if (diffInSeconds < 604800) return t('notification.days_ago', { count: Math.floor(diffInSeconds / 86400) });
+        return date.toLocaleDateString();
+    };
+
+    useEffect(() => {
+        const loadPost = async () => {
+            try {
+                if (notification.entityId && notification.entityType === 'post') {
+                    const postData = await getPostById(notification.entityId);
+                    setPost(postData);
+                }
+            } catch (error) {
+                console.error('Error loading post for notification:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadPost();
+    }, [notification.entityId, notification.entityType, getPostById]);
+
+    const handleNotificationPress = useCallback(() => {
+        if (!notification.read) {
+            onMarkAsRead(notification._id);
+        }
+        handlePress();
+    }, [notification.read, notification._id, onMarkAsRead, handlePress]);
+
+    if (loading) {
+        return (
+            <View style={[styles.container, !notification.read && styles.unreadContainer]}>
+                <View style={styles.iconContainer}>
+                    <Ionicons name="create" size={20} color={colors.primaryColor} />
+                </View>
+                <View style={styles.contentContainer}>
+                    <ThemedText style={styles.message}>Loading post...</ThemedText>
+                </View>
+            </View>
+        );
+    }
+
+    if (!post) {
+        return (
+            <TouchableOpacity
+                style={[styles.container, !notification.read && styles.unreadContainer]}
+                onPress={handleNotificationPress}
+            >
+                <View style={styles.iconContainer}>
+                    <Ionicons name="create" size={20} color={colors.primaryColor} />
+                </View>
+                <View style={styles.contentContainer}>
+                    <ThemedText style={[styles.message, !notification.read && styles.unreadText]}>
+                        {t('notification.post', { actorName, defaultValue: `${actorName} posted a new update` })}
+                    </ThemedText>
+                    <ThemedText style={styles.timestamp}>
+                        {formatTimeAgo(notification.createdAt)}
+                    </ThemedText>
+                </View>
+                {!notification.read && <View style={styles.unreadIndicator} />}
+            </TouchableOpacity>
+        );
+    }
+
+    return (
+        <TouchableOpacity
+            style={[
+                styles.postNotificationContainer,
+                !notification.read && styles.unreadContainer
+            ]}
+            onPress={handleNotificationPress}
+            activeOpacity={0.95}
+        >
+            {/* Notification header */}
+            <View style={styles.notificationHeader}>
+                <View style={styles.iconContainer}>
+                    <Ionicons name="create" size={16} color={colors.primaryColor} />
+                </View>
+                <ThemedText style={[styles.notificationText, !notification.read && styles.unreadText]}>
+                    {t('notification.post', { actorName, defaultValue: `${actorName} posted a new update` })}
+                </ThemedText>
+                <ThemedText style={styles.notificationTime}>
+                    {formatTimeAgo(notification.createdAt)}
+                </ThemedText>
+                {!notification.read && <View style={styles.smallUnreadIndicator} />}
+            </View>
+            
+            {/* Post content */}
+            <View style={styles.postContainer}>
+                <PostItem 
+                    post={post} 
+                    isNested={false}
+                    style={styles.nestedPost}
+                />
+            </View>
         </TouchableOpacity>
     );
 };
@@ -265,6 +402,49 @@ const styles = StyleSheet.create({
         color: colors.COLOR_BLACK_LIGHT_4,
         lineHeight: 18,
         marginBottom: 4,
+    },
+    preview: {
+        fontSize: 13,
+        color: colors.COLOR_BLACK_LIGHT_3,
+        lineHeight: 18,
+        marginBottom: 4,
+    },
+    postNotificationContainer: {
+        backgroundColor: 'transparent',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+    },
+    notificationHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+    },
+    notificationText: {
+        fontSize: 13,
+        color: colors.COLOR_BLACK_LIGHT_4,
+        flex: 1,
+        marginLeft: 8,
+    },
+    notificationTime: {
+        fontSize: 11,
+        color: colors.COLOR_BLACK_LIGHT_5,
+        marginLeft: 8,
+    },
+    smallUnreadIndicator: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: colors.primaryColor,
+        marginLeft: 8,
+    },
+    postContainer: {
+        backgroundColor: colors.primaryLight,
+    },
+    nestedPost: {
+        borderBottomWidth: 0,
+        marginTop: 0,
     },
     timestamp: {
         fontSize: 12,

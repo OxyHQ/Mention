@@ -75,9 +75,9 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, start
                 className="flex-1 items-center justify-center bg-primary-light dark:bg-primary-dark"
             >
                 <View style={logoContainerStyle}>
-                    <LogoIcon size={100} color={colors.secondaryColor} />
+                    <LogoIcon size={100} color={colors.primaryLight} />
                     <View style={spinnerContainerStyle}>
-                        <LoadingSpinner size={28} color={colors.secondaryColor} showText={false} />
+                        <LoadingSpinner size={28} color={colors.primaryLight} showText={false} />
                     </View>
                 </View>
             </LinearGradient>

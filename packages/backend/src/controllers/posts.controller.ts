@@ -6,7 +6,8 @@ import Bookmark from '../models/Bookmark';
 import { AuthRequest } from '../types/auth';
 import mongoose from 'mongoose';
 import { oxy as oxyClient } from '../../server';
-import { createNotification, createMentionNotifications } from '../utils/notificationUtils';
+import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
+import PostSubscription from '../models/PostSubscription';
 
 // Create a new post
 export const createPost = async (req: AuthRequest, res: Response) => {
@@ -239,7 +240,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       console.error('Failed to create reply notification:', e);
     }
 
-    // Quote and Repost notifications if created via this endpoint
+  // Quote and Repost notifications if created via this endpoint
     try {
       if (quoted_post_id) {
         const original = await Post.findById(quoted_post_id).lean();
@@ -269,6 +270,30 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     } catch (e) {
       console.error('Failed to create quote/repost notification:', e);
+    }
+
+    // Notify subscribers of a new post (only for top-level posts, not replies)
+    try {
+      const isTopLevelPost = !(parentPostId || in_reply_to_status_id);
+      if (isTopLevelPost) {
+        const subs = await PostSubscription.find({ authorId: userId }).lean();
+        if (subs && subs.length) {
+          const notifications = subs
+            .filter(s => s.subscriberId !== userId)
+            .map(s => ({
+              recipientId: s.subscriberId,
+              actorId: userId,
+              type: 'post' as const,
+              entityId: post._id.toString(),
+              entityType: 'post' as const,
+            }));
+          if (notifications.length) {
+            await createBatchNotifications(notifications, true);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to notify subscribers about new post:', e);
     }
 
     res.status(201).json({ success: true, post: transformedPost });

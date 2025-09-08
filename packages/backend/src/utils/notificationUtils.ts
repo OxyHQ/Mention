@@ -5,7 +5,7 @@ import { formatPushForNotification, sendPushToUser } from './push';
 export interface CreateNotificationData {
   recipientId: string;
   actorId: string;
-  type: 'like' | 'reply' | 'mention' | 'follow' | 'repost' | 'quote' | 'welcome';
+  type: 'like' | 'reply' | 'mention' | 'follow' | 'repost' | 'quote' | 'welcome' | 'post';
   entityId: string;
   entityType: 'post' | 'reply' | 'profile';
 }

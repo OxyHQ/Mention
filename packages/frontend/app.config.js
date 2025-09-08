@@ -1,6 +1,6 @@
 const pkg = require('./package.json')
 
-module.exports = function(config) {
+module.exports = function(_config) {
     
     /**
      * App version number. Should be incremented as part of a release cycle.
@@ -43,7 +43,10 @@ return {
                 "android.permission.CAMERA",
                 "android.permission.RECORD_AUDIO"
             ],
-            package: "com.mention.android",
+            // Must match google-services.json package_name
+            package: "com.mention.earth",
+            // Point to your google-services.json for FCM
+            googleServicesFile: "../../google-services.json",
             intentFilters: [
                     {
                         action: 'VIEW',

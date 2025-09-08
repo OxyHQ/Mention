@@ -11,6 +11,7 @@ export interface RawNotification {
   read: boolean;
   createdAt: string;
   updatedAt: string;
+  preview?: string;
   actorId_populated?: {
     _id: string;
     username: string;
@@ -109,6 +110,12 @@ export const transformNotification = (
         ...baseNotification,
         title: t('notification.welcome.title'),
         message: t('notification.welcome.body'),
+      };
+    case 'post':
+      return {
+        ...baseNotification,
+        title: t('notification.post', { actorName, defaultValue: `${actorName} posted a new update` }),
+        message: rawNotification.preview || getEntityDescription(rawNotification, t),
       };
 
     default:

@@ -1,8 +1,10 @@
 import express, { Request, Response } from "express";
 import Notification from "../models/Notification";
+import Post from "../models/Post";
 import { Server } from 'socket.io';
 import { oxy } from '../../server';
 import PushToken from '../models/PushToken';
+import { sendPushToUser } from '../utils/push';
 
 // Extend Request type to include user property
 interface AuthRequest extends Request {
@@ -28,8 +30,21 @@ const emitNotification = async (req: Request, notification: any) => {
   } catch (e) {
     // ignore resolution errors
   }
+  // Attach preview for post notifications if applicable
+  let preview: string | undefined;
+  try {
+    if (notification.type === 'post' && notification.entityType === 'post' && notification.entityId) {
+      const post: any = await Post.findById(notification.entityId, { 'content.text': 1 }).lean();
+      if (post) {
+        const text: string = post?.content?.text || '';
+        const trimmed = typeof text === 'string' ? text.trim() : '';
+        preview = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+      }
+    }
+  } catch {}
   const payload = {
     ...notification.toObject?.() || notification,
+    preview,
     actorId_populated: actor ? {
       _id: actor.id || actor._id || notification.actorId,
       username: actor.username || notification.actorId,
@@ -91,7 +106,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Resolve unique actor profiles from Oxy to enrich response
+  // Resolve unique actor profiles from Oxy to enrich response
     const uniqueActorIds = Array.from(new Set(
       notificationsRaw.map((n: any) => n.actorId).filter(Boolean)
     ));
@@ -110,10 +125,90 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
     }));
 
+    // For 'post' notifications, fetch post docs to provide a short preview and full post data
+    const postEntityIds = notificationsRaw
+      .filter((n: any) => n && n.type === 'post' && n.entityType === 'post' && n.entityId)
+      .map((n: any) => {
+        const ent: any = n.entityId;
+        if (!ent) return undefined as any;
+        if (typeof ent === 'string') return ent;
+        if (typeof ent === 'object') {
+          if (ent._id) return String(ent._id);
+          if (typeof ent.toString === 'function') return ent.toString();
+        }
+        return String(ent);
+      })
+      .filter(Boolean) as string[];
+
+    let postPreviewMap = new Map<string, string>();
+    let postMap = new Map<string, any>();
+    if (postEntityIds.length > 0) {
+      try {
+        const posts = await Post.find(
+          { _id: { $in: postEntityIds } },
+          { _id: 1, oxyUserId: 1, content: 1, stats: 1, metadata: 1, createdAt: 1 }
+        ).lean();
+
+        // Build preview map
+        postPreviewMap = new Map(
+          posts.map((p: any) => {
+            const text: string = p?.content?.text || '';
+            const trimmed = typeof text === 'string' ? text.trim() : '';
+            const truncated = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
+            return [String(p._id), truncated];
+          })
+        );
+
+        // Resolve unique author profiles for posts
+        const authorIds = Array.from(new Set(posts.map((p: any) => p.oxyUserId).filter(Boolean)));
+        const authorMap = new Map<string, any>();
+        await Promise.all(authorIds.map(async (id: string) => {
+          try {
+            const profile = await oxy.getUserById(id);
+            authorMap.set(id, profile);
+          } catch {}
+        }));
+
+        // Transform to UI post objects
+        posts.forEach((p: any) => {
+          const profile = authorMap.get(p.oxyUserId) || {};
+          const uiPost = {
+            id: String(p._id),
+            user: {
+              id: profile.id || p.oxyUserId,
+              name: profile?.name?.full || profile?.name || profile?.username || 'User',
+              handle: profile?.username || 'user',
+              avatar: profile?.avatar || '',
+              verified: !!profile?.verified,
+            },
+            content: p.content || { text: '' },
+            date: p.createdAt,
+            engagement: {
+              replies: p?.stats?.commentsCount || 0,
+              reposts: p?.stats?.repostsCount || 0,
+              likes: p?.stats?.likesCount || 0,
+            },
+            isLiked: false,
+            isReposted: false,
+            isSaved: false,
+            isThread: false,
+          };
+          postMap.set(String(p._id), uiPost);
+        });
+      } catch (e) {
+        // Non-fatal; proceed without post embedding if query fails
+      }
+    }
+
     const notifications = notificationsRaw.map((n: any) => {
       const actor = profilesMap.get(n.actorId);
+      const entIdStr = String((n as any).entityId?._id || (n as any).entityId || '');
+      const preview = (n.type === 'post' && n.entityType === 'post') ? postPreviewMap.get(entIdStr) : undefined;
+      const embeddedPost = (n.type === 'post' && n.entityType === 'post') ? postMap.get(entIdStr) : undefined;
       return {
         ...n,
+        preview,
+        post: embeddedPost,
         actorId_populated: actor ? {
           _id: actor.id || actor._id || n.actorId,
           username: actor.username || n.actorId,
@@ -320,6 +415,23 @@ router.delete('/push-token', async (req: AuthRequest, res: Response) => {
   } catch (e) {
     console.error('Failed to unregister push token', e);
     res.status(500).json({ message: 'Failed to unregister token' });
+  }
+});
+
+// Send a test push to the authenticated user
+router.post('/push-test', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    await sendPushToUser(userId, {
+      title: 'Test notification',
+      body: 'This is a test push from the server',
+      data: { type: 'test' },
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Failed to send test push', e);
+    res.status(500).json({ message: 'Failed to send test push' });
   }
 });
 
