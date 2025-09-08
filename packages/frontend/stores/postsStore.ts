@@ -920,33 +920,23 @@ export const usePostsStore = create<FeedState>()(
     // Centralized deduped updater (only touches slices containing the postId)
     updatePostEverywhere: (postId: string, updater: (prev: FeedItem) => FeedItem | null | undefined) => {
       set((state) => {
-        // Find base item: prefer cache, else search in feeds
-        let base: FeedItem | undefined = state.postsById[postId];
-        if (!base) {
-          const feedTypes = Object.keys(state.feeds) as FeedType[];
-          for (const ft of feedTypes) {
-            const found = state.feeds[ft]?.items?.find((p) => p.id === postId);
-            if (found) { base = found; break; }
-          }
-        }
-        if (!base) return state;
+        // Prepare updated cache item, if any
+        const cached = state.postsById[postId];
+        const updatedCached = cached ? updater(cached) : undefined;
 
-        const next = updater(base);
-        if (!next) return state;
-
-        // Update cache
-        const nextCache = { ...state.postsById, [postId]: next };
-
-        // Update main feeds: only replace arrays for slices that contain the id
+        // Update main feeds per-slice using each slice's own item to avoid shape loss (e.g., repost wrappers)
         let feedsChanged = false;
         const nextFeeds = { ...state.feeds } as typeof state.feeds;
         (Object.keys(state.feeds) as (keyof typeof state.feeds)[]).forEach((ft) => {
           const slice = state.feeds[ft];
           if (!slice?.items?.length) return;
           const idx = slice.items.findIndex((p) => p.id === postId);
-          if (idx === -1) return; // keep reference
+          if (idx === -1) return;
+          const prevItem = slice.items[idx];
+          const updated = updater(prevItem);
+          if (!updated) return;
           const newItems = slice.items.slice();
-          newItems[idx] = next;
+          newItems[idx] = updated;
           nextFeeds[ft] = { ...slice, items: newItems } as any;
           feedsChanged = true;
         });
@@ -965,14 +955,20 @@ export const usePostsStore = create<FeedState>()(
             if (!slice?.items?.length) { if (slice) nextSlices[ft] = slice; return; }
             const idx = slice.items.findIndex((p) => p.id === postId);
             if (idx === -1) { nextSlices[ft] = slice; return; }
+            const prevItem = slice.items[idx];
+            const updated = updater(prevItem);
+            if (!updated) { nextSlices[ft] = slice; return; }
             const newItems = slice.items.slice();
-            newItems[idx] = next;
+            newItems[idx] = updated;
             nextSlices[ft] = { ...slice, items: newItems };
             anySliceChanged = true;
           });
           nextUserFeeds[uid] = anySliceChanged ? nextSlices : userSlices;
           if (anySliceChanged) userFeedsChanged = true;
         }
+
+        // Merge cache update last to keep entity cache fresh
+        const nextCache = updatedCached ? { ...state.postsById, [postId]: updatedCached } : state.postsById;
 
         return {
           ...state,

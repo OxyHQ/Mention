@@ -956,9 +956,9 @@ class FeedController {
 
       // Filter by content type
       if (type === 'posts') {
-        // Regular posts (not replies or reposts)
+        // Profile Posts tab should include originals and reposts (exclude only replies)
+        // Show top-level items authored by the user; allow reposts/quotes to appear here like Twitter
         query.parentPostId = null;
-        query.repostOf = null;
       } else if (type === 'replies') {
         // Replies
         query.parentPostId = { $ne: null };
