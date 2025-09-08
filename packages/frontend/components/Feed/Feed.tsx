@@ -230,10 +230,23 @@ const Feed = (props: FeedProps) => {
                         String(item.postId || item.parentPostId) === String(pid)
                     );
                 }
-                
-                setLocalItems(prev => [...prev, ...items]);
-                setLocalHasMore(!!resp.hasMore);
-                setLocalNextCursor(resp.nextCursor);
+                // Dedupe against localItems and decide hasMore by cursor advance
+                setLocalItems(prev => {
+                    const seen = new Set(prev.map((p: any) => String(p.id || p._id || p.postId)));
+                    const uniqueNew = items.filter((p: any) => !seen.has(String(p.id || p._id || p.postId)));
+                    return prev.concat(uniqueNew);
+                });
+                const prevCursor = localNextCursor;
+                const nextCursor = resp.nextCursor;
+                const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
+                // If no unique items and no cursor advance, stop
+                const uniqueNewCount = (() => {
+                    const seen = new Set(localItems.map((p: any) => String(p.id || p._id || p.postId)));
+                    return items.filter((p: any) => !seen.has(String(p.id || p._id || p.postId))).length;
+                })();
+                const hasMoreSafe = (uniqueNewCount > 0 || cursorAdvanced) ? (!!resp.hasMore || cursorAdvanced) : false;
+                setLocalHasMore(hasMoreSafe);
+                setLocalNextCursor(nextCursor);
             } else if (userId) {
                 await fetchUserFeed(userId, { 
                     type, 
@@ -257,7 +270,7 @@ const Feed = (props: FeedProps) => {
                 setLocalLoading(false);
             }
         }
-    }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor]);
+    }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, localItems]);
 
     const renderPostItem = useCallback(({ item }: { item: any }) => (
         <PostItem post={item} />

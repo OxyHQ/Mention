@@ -22,6 +22,8 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useOxy } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Feed } from './Feed/index';
+import { usePostsStore } from '@/stores/postsStore';
+import type { FeedType } from '@mention/shared-types';
 import MediaGrid from '@/components/Profile/MediaGrid';
 import { colors } from '../styles/colors';
 import { useAppearanceStore } from '@/store/appearanceStore';
@@ -114,6 +116,15 @@ const MentionProfile: React.FC = () => {
             }
         )
     }), [isWideWeb, responsiveSpacing]);
+
+    // Track current feed type for the active tab
+    const currentFeedType = useMemo<FeedType>(() => (
+        activeTab === 0 ? 'posts' :
+        activeTab === 1 ? 'replies' :
+        activeTab === 2 ? 'media' :
+        activeTab === 3 ? 'likes' : 'reposts'
+    ) as FeedType, [activeTab]);
+    const loadingMoreRef = useRef(false);
 
     // Fetch profile data
     useEffect(() => {
@@ -477,7 +488,33 @@ const MentionProfile: React.FC = () => {
                         showsVerticalScrollIndicator={false}
                         onScroll={Animated.event(
                             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                            { useNativeDriver: false }
+                            {
+                                useNativeDriver: false,
+                                listener: async (e: any) => {
+                                    try {
+                                        const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent || {};
+                                        const y = contentOffset?.y || 0;
+                                        const viewH = layoutMeasurement?.height || 0;
+                                        const contentH = contentSize?.height || 0;
+                                        const distanceFromBottom = contentH - (y + viewH);
+                                        if (distanceFromBottom < 400) {
+                                            const uid = profileData?.id;
+                                            if (!uid || loadingMoreRef.current) return;
+                                            const state: any = (usePostsStore as any).getState?.();
+                                            const type = currentFeedType;
+                                            const slice = state?.userFeeds?.[uid]?.[type];
+                                            if (slice && slice.hasMore && !slice.isLoading) {
+                                                loadingMoreRef.current = true;
+                                                try {
+                                                    await state.fetchUserFeed(uid, { type, cursor: slice.nextCursor, limit: 20 });
+                                                } finally {
+                                                    loadingMoreRef.current = false;
+                                                }
+                                            }
+                                        }
+                                    } catch {}
+                                }
+                            }
                         )}
                         scrollEventThrottle={16}
                         style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}

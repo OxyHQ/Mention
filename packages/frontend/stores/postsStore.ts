@@ -265,11 +265,26 @@ export const usePostsStore = create<FeedState>()(
 
         set(state => {
           const prev = state.userFeeds[userId]?.[type] || createDefaultFeedState();
-          const newItems = response.items?.map(item => transformToUIItem(item)) || [];
-          const mergedItems = request.cursor ? [...(prev.items || []), ...newItems] : newItems;
+          const mapped = response.items?.map(item => transformToUIItem(item)) || [];
 
+          let mergedItems: FeedItem[] = mapped;
+          let addedCount = mapped.length;
+          if (request.cursor) {
+            const seen = new Set((prev.items || []).map(p => p.id));
+            const uniqueNew = mapped.filter(p => !seen.has(p.id));
+            mergedItems = (prev.items || []).concat(uniqueNew);
+            addedCount = uniqueNew.length;
+          }
+
+          // Update cache for everything we saw
           const newCache = { ...state.postsById };
-          newItems.forEach(p => { newCache[p.id] = p; });
+          mapped.forEach(p => { newCache[p.id] = p; });
+
+          const prevCursor = prev.nextCursor;
+          const nextCursor = response.nextCursor;
+          const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
+          const hasMore = Boolean(response.hasMore) || (cursorAdvanced && addedCount >= 0);
+          const safeHasMore = (addedCount > 0 || cursorAdvanced) ? hasMore : false;
 
           return ({
             userFeeds: {
@@ -278,9 +293,9 @@ export const usePostsStore = create<FeedState>()(
                 ...state.userFeeds[userId],
                 [type]: {
                   items: mergedItems,
-                  hasMore: response.hasMore || false,
-                  nextCursor: response.nextCursor,
-                  totalCount: (request.cursor ? (prev.totalCount || 0) : 0) + (newItems.length || 0),
+                  hasMore: safeHasMore,
+                  nextCursor,
+                  totalCount: mergedItems.length,
                   isLoading: false,
                   error: null,
                   lastUpdated: Date.now()
