@@ -228,8 +228,7 @@
   "common.ok": "OK",
   "common.sendFeedback": "Enviar",
   "common.maybeLater": "Quizás más tarde",
-  "common.rateNow": "Valorar ahora"
-  ,
+  "common.rateNow": "Valorar ahora",
   "notifications": {
     "tabs": {
       "all": "Todo",

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useColorScheme as useRNColorScheme } from 'react-native';
+import { useAppearanceStore } from '@/store/appearanceStore';
 
 /**
  * To support static rendering, this value needs to be re-calculated on the client side for web
  */
-export function useColorScheme() {
+export function useColorScheme(): 'light' | 'dark' {
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
@@ -12,10 +13,14 @@ export function useColorScheme() {
   }, []);
 
   const colorScheme = useRNColorScheme();
+  const { mySettings } = useAppearanceStore();
+  const pref = mySettings?.appearance?.themeMode ?? 'system';
 
   if (hasHydrated) {
-    return colorScheme;
+    if (pref === 'light' || pref === 'dark') return pref;
+    return (colorScheme ?? 'light');
   }
 
-  return 'light';
+  // During SSR/first render, default to light for consistent static HTML
+  return (pref === 'light' || pref === 'dark') ? pref : 'light';
 }

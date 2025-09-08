@@ -41,31 +41,31 @@ const BREAKPOINTS = {
 
 // Type definitions for better type safety
 interface ProfileData {
-  id: string;
-  username: string;
-  displayName?: string;
-  bio?: string;
-  avatarUrl?: string;
-  bannerUrl?: string;
-  isPrivate?: boolean;
-  [key: string]: any;
+    id: string;
+    username: string;
+    displayName?: string;
+    bio?: string;
+    avatarUrl?: string;
+    bannerUrl?: string;
+    isPrivate?: boolean;
+    [key: string]: any;
 }
 
 // Properly typed Follow Button component
 interface FollowButtonProps {
-  userId: string;
-  [key: string]: any;
+    userId: string;
+    [key: string]: any;
 }
 
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 
 const MentionProfile: React.FC = () => {
     const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
-    
+
     // Type-safe component references
     const TypedFollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<FollowButtonProps>;
     const TypedUserName = UserName as React.ComponentType<any>;
-    
+
     let { username } = useLocalSearchParams<{ username: string }>();
     if (username && username.startsWith('@')) {
         username = username.slice(1);
@@ -95,7 +95,7 @@ const MentionProfile: React.FC = () => {
 
     // Improved FAB positioning with better responsive design
     const fabPositionStyle = useMemo(() => ({
-        ...(isWideWeb 
+        ...(isWideWeb
             ? {
                 // Sticky layout for wide web viewports
                 position: 'sticky' as const,
@@ -188,13 +188,13 @@ const MentionProfile: React.FC = () => {
         setSubLoading(true);
         const prev = subscribed;
         setSubscribed(!prev);
-    try {
+        try {
             if (!prev) {
                 await subscriptionService.subscribe(profileData.id);
             } else {
                 await subscriptionService.unsubscribe(profileData.id);
             }
-    } catch {
+        } catch {
             // rollback on error
             setSubscribed(prev);
         } finally {

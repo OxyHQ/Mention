@@ -198,8 +198,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
 
     // For 'post' notifications, use PostItem component for rich UI
     if (notification.type === 'post') {
-        return <PostNotificationItem 
-            notification={notification} 
+        return <PostNotificationItem
+            notification={notification}
             actorName={actorName}
             onMarkAsRead={onMarkAsRead}
             handlePress={handlePress}
@@ -341,8 +341,8 @@ const PostNotificationItem: React.FC<{
             activeOpacity={0.95}
         >
             <View style={styles.postContainer}>
-                <PostItem 
-                    post={post} 
+                <PostItem
+                    post={post}
                     isNested={false}
                     style={styles.nestedPost}
                 />

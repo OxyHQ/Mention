@@ -10,6 +10,7 @@ import LegendList from '../components/LegendList';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { NoUpdatesIllustration } from '../assets/illustrations/NoUpdates';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import { ThemedText } from '../components/ThemedText';
@@ -144,11 +145,9 @@ const NotificationsScreen: React.FC = () => {
 
     const renderEmptyState = () => (
         <ThemedView style={styles.emptyContainer}>
-            <Ionicons
-                name="notifications-off-outline"
-                size={64}
-                color={colors.COLOR_BLACK_LIGHT_4}
-            />
+            <View style={styles.illustrationWrap}>
+                <NoUpdatesIllustration width={200} height={200} />
+            </View>
             <ThemedText style={styles.emptyTitle}>{t('notification.empty.title')}</ThemedText>
             <ThemedText style={styles.emptySubtitle}>
                 {t('notification.empty.subtitle')}
@@ -192,7 +191,7 @@ const NotificationsScreen: React.FC = () => {
 
     return (
         <SafeAreaView edges={['top']}>
-            <View style={styles.container}>
+            <ThemedView style={styles.container}>
                 <Stack.Screen
                     options={{
                         title: t('Notifications'),
@@ -220,33 +219,31 @@ const NotificationsScreen: React.FC = () => {
                     renderErrorState()
                 ) : (
                     <>
-                    <ChipsRow 
-                        category={category} 
-                        onChange={setCategory} 
-                    />
-                    <LegendList
-                        data={listItems}
-                        keyExtractor={(item: any) => getItemKey(item)}
-                        renderItem={renderNotification}
-                        ListEmptyComponent={renderEmptyState}
-                        refreshControl={
-                            <RefreshControl
-                                refreshing={refreshing}
-                                onRefresh={handleRefresh}
-                                tintColor={colors.primaryColor}
+                        <ChipsRow
+                            category={category}
+                            onChange={setCategory}
+                        />
+                        {(!listItems || listItems.length === 0) ? (
+                            renderEmptyState()
+                        ) : (
+                            <LegendList
+                                data={listItems}
+                                keyExtractor={(item: any) => getItemKey(item)}
+                                renderItem={renderNotification}
+                                refreshControl={
+                                    <RefreshControl
+                                        refreshing={refreshing}
+                                        onRefresh={handleRefresh}
+                                        tintColor={colors.primaryColor}
+                                    />
+                                }
+                                recycleItems={true}
+                                maintainVisibleContentPosition={true}
                             />
-                        }
-                        contentContainerStyle={
-                            (!listItems || listItems.length === 0)
-                                ? styles.emptyListContainer
-                                : undefined
-                        }
-                        recycleItems={true}
-                        maintainVisibleContentPosition={true}
-                    />
+                        )}
                     </>
                 )}
-            </View>
+            </ThemedView>
         </SafeAreaView>
     );
 };
@@ -254,7 +251,6 @@ const NotificationsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     authContainer: {
         flex: 1,
@@ -277,12 +273,17 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 40,
+        gap: 12,
+    },
+    illustrationWrap: {
+        width: 220,
+        height: 220,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     emptyTitle: {
         fontSize: 20,
         fontWeight: '600',
-        marginTop: 16,
-        marginBottom: 8,
         textAlign: 'center',
     },
     emptySubtitle: {
@@ -365,9 +366,9 @@ const styles = StyleSheet.create({
 export default NotificationsScreen;
 
 // Category chips component
-const ChipsRow: React.FC<{ 
-    category: 'all' | 'mentions' | 'follows' | 'likes' | 'posts'; 
-    onChange: (c: 'all' | 'mentions' | 'follows' | 'likes' | 'posts') => void 
+const ChipsRow: React.FC<{
+    category: 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
+    onChange: (c: 'all' | 'mentions' | 'follows' | 'likes' | 'posts') => void
 }> = ({ category, onChange }) => {
     const { t } = useTranslation();
     const tabs: { key: 'all' | 'mentions' | 'follows' | 'likes' | 'posts'; label: string }[] = [
@@ -383,8 +384,8 @@ const ChipsRow: React.FC<{
                 {tabs.map(tab => {
                     const active = category === tab.key;
                     return (
-                        <TouchableOpacity key={tab.key} 
-                            style={[styles.chip, active && styles.chipActive]} 
+                        <TouchableOpacity key={tab.key}
+                            style={[styles.chip, active && styles.chipActive]}
                             onPress={() => onChange(tab.key)}
                         >
                             <ThemedText style={[styles.chipText, active && styles.chipTextActive]}>
