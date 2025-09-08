@@ -369,12 +369,13 @@ const ChipsRow: React.FC<{
     category: 'all' | 'mentions' | 'follows' | 'likes' | 'posts'; 
     onChange: (c: 'all' | 'mentions' | 'follows' | 'likes' | 'posts') => void 
 }> = ({ category, onChange }) => {
+    const { t } = useTranslation();
     const tabs: { key: 'all' | 'mentions' | 'follows' | 'likes' | 'posts'; label: string }[] = [
-        { key: 'all', label: 'All' },
-        { key: 'mentions', label: 'Mentions' },
-        { key: 'follows', label: 'Follows' },
-        { key: 'likes', label: 'Likes' },
-        { key: 'posts', label: 'Posts' },
+        { key: 'all', label: t('notifications.tabs.all') },
+        { key: 'mentions', label: t('notifications.tabs.mentions') },
+        { key: 'follows', label: t('notifications.tabs.follows') },
+        { key: 'likes', label: t('notifications.tabs.likes') },
+        { key: 'posts', label: t('notifications.tabs.posts') },
     ];
     return (
         <View style={styles.chipsContainer}>

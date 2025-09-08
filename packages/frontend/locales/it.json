@@ -221,5 +221,15 @@
   "common.ok": "OK",
   "common.sendFeedback": "Invia",
   "common.maybeLater": "Forse più tardi",
-  "common.rateNow": "Valuta ora"
+  "common.rateNow": "Valuta ora",
+  "notification.post": "{{actorName}} ha pubblicato un nuovo aggiornamento",
+  "notifications": {
+    "tabs": {
+      "all": "Tutto",
+      "mentions": "Menzioni",
+      "follows": "Follower",
+      "likes": "Mi piace",
+      "posts": "Post"
+    }
+  }
 }

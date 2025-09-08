@@ -125,6 +125,7 @@
   "notification.recommendation.interests": "Basado en tus intereses: {{actorName}}",
   "notification.recommendation.location": "Personas cercanas: {{actorName}}",
   "notification.recommendation.activity": "Activo en tu red: {{actorName}}",
+  "notification.post": "{{actorName}} publicó una nueva actualización",
   "notification.mark_all_read": "Marcar todo como leído",
   "notification.mark_read": "Marcar como leído",
   "notification.delete": "Eliminar notificación",
@@ -228,4 +229,14 @@
   "common.sendFeedback": "Enviar",
   "common.maybeLater": "Quizás más tarde",
   "common.rateNow": "Valorar ahora"
+  ,
+  "notifications": {
+    "tabs": {
+      "all": "Todo",
+      "mentions": "Menciones",
+      "follows": "Seguimientos",
+      "likes": "Me gusta",
+      "posts": "Publicaciones"
+    }
+  }
 }

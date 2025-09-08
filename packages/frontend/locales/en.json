@@ -107,6 +107,7 @@
     "notification.recommendation.interests": "Based on your interests: {{actorName}}",
     "notification.recommendation.location": "People nearby: {{actorName}}",
     "notification.recommendation.activity": "Active in your network: {{actorName}}",
+        "notification.post": "{{actorName}} posted a new update",
     "notification.mark_all_read": "Mark all as read",
     "notification.mark_read": "Mark as read",
     "notification.delete": "Delete notification",
@@ -195,4 +196,14 @@
     "common.sendFeedback": "Send",
     "common.maybeLater": "Maybe later",
     "common.rateNow": "Rate now"
+        ,
+        "notifications": {
+            "tabs": {
+                "all": "All",
+                "mentions": "Mentions",
+                "follows": "Follows",
+                "likes": "Likes",
+                "posts": "Posts"
+            }
+        }
 }

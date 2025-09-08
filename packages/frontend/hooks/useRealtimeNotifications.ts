@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import { io, Socket } from 'socket.io-client';
 import { API_URL_SOCKET } from '../config';
+import { ZRawNotification } from '../types/validation';
 
 let socket: Socket | null = null;
 
@@ -31,17 +32,25 @@ export const useRealtimeNotifications = () => {
       });
 
       socket.on('notification', (notification: any) => {
-        console.log('New notification received:', notification);
+        // Validate payload before acting
+        const parsed = ZRawNotification.safeParse(notification);
+        if (!parsed.success) {
+          console.warn('Dropped invalid socket notification', parsed.error?.issues?.[0]);
+          return;
+        }
+        console.log('New notification received:', parsed.data);
 
         // Invalidate notifications query to refetch
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
-
-        // You could also show a local notification or toast here
-        // showNotificationToast(notification);
       });
 
       socket.on('notificationUpdated', (notification: any) => {
-        console.log('Notification updated:', notification);
+        const parsed = ZRawNotification.safeParse(notification);
+        if (!parsed.success) {
+          console.warn('Dropped invalid socket notificationUpdated', parsed.error?.issues?.[0]);
+          return;
+        }
+        console.log('Notification updated:', parsed.data);
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
       });
 
