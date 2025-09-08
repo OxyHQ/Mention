@@ -17,9 +17,11 @@ import { ThemedView } from '../components/ThemedView';
 import { colors } from '../styles/colors';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { NotificationItem } from '../components/NotificationItem';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { notificationService } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications';
+import { validateNotifications, TRawNotification } from '../types/validation';
 
 const NotificationsScreen: React.FC = () => {
     const { user, isAuthenticated } = useOxy();
@@ -95,7 +97,8 @@ const NotificationsScreen: React.FC = () => {
     const unreadCount = notificationsData?.unreadCount || 0;
 
     const filteredNotifications = useMemo(() => {
-        const list = notificationsData?.notifications || [];
+        const raw: any[] = notificationsData?.notifications || [];
+        const list: TRawNotification[] = validateNotifications(raw);
         switch (category) {
             case 'mentions':
                 return list.filter((n: any) => n.type === 'mention' || n.type === 'reply');
@@ -131,10 +134,12 @@ const NotificationsScreen: React.FC = () => {
     }, [filteredNotifications, getItemKey]);
 
     const renderNotification = ({ item }: { item: any }) => (
-        <NotificationItem
-            notification={item}
-            onMarkAsRead={handleMarkAsRead}
-        />
+        <ErrorBoundary>
+            <NotificationItem
+                notification={item}
+                onMarkAsRead={handleMarkAsRead}
+            />
+        </ErrorBoundary>
     );
 
     const renderEmptyState = () => (

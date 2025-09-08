@@ -54,7 +54,7 @@ const PostItem: React.FC<PostItemProps> = ({
         const loadOriginalPost = async () => {
             const postData = post as any;
             const targetId = postData.originalPostId || postData.repostOf || postData.quoteOf;
-            
+
             if (!isNested && targetId) {
                 // Try store first for fully hydrated user data
                 const fromStore = findFromStore(targetId);
@@ -110,8 +110,8 @@ const PostItem: React.FC<PostItemProps> = ({
             const contentText = ('content' in post && typeof post.content === 'object' && post.content?.text)
                 ? post.content.text
                 : ('content' in post && typeof post.content === 'string')
-                ? post.content
-                : '';
+                    ? post.content
+                    : '';
             const shareMessage = contentText
                 ? `${post.user.name} (@${post.user.handle}): ${contentText}`
                 : `${post.user.name} (@${post.user.handle}) shared a post`;
@@ -159,7 +159,9 @@ const PostItem: React.FC<PostItemProps> = ({
     const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
     const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET;
 
-    const avatarUri = post?.user?.avatar ? oxyServices.getFileDownloadUrl(post.user.avatar as string, 'thumb') : undefined;
+    const avatarUri = (post?.user?.avatar && oxyServices && typeof (oxyServices as any).getFileDownloadUrl === 'function')
+        ? (oxyServices as any).getFileDownloadUrl(post.user.avatar as string, 'thumb')
+        : undefined;
     const isPostDetail = (pathname || '').startsWith('/p/');
     const goToPost = useCallback(() => {
         if (!isPostDetail && post?.id) router.push(`/p/${post.id}`);
@@ -208,7 +210,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 const postContent = (post as any)?.content;
                 const location = postContent?.location;
                 const hasValidLocation = location?.coordinates && location.coordinates.length >= 2;
-                
+
                 // Debug logging for all posts to see location data
                 console.log('🗺️ Location check for post:', {
                     postId: post.id,
@@ -219,14 +221,14 @@ const PostItem: React.FC<PostItemProps> = ({
                     address: location?.address,
                     locationType: location?.type
                 });
-                
+
                 return hasValidLocation;
             })() && (
-                <PostLocation 
-                    location={(post as any).content.location} 
-                    paddingHorizontal={BOTTOM_LEFT_PAD}
-                />
-            )}
+                    <PostLocation
+                        location={(post as any).content.location}
+                        paddingHorizontal={BOTTOM_LEFT_PAD}
+                    />
+                )}
 
             {/* Middle: horizontal scroller with media and nested post (repost/quote only, not replies) */}
             <PostMiddle
@@ -240,7 +242,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     if (postContent?.pollId) {
                         return postContent.pollId;
                     }
-                    
+
                     // Fallback to legacy metadata structure
                     const md: any = (post as any).metadata;
                     try {
@@ -259,7 +261,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
             {/* Only show engagement buttons for non-nested posts */}
             {!isNested && (
-                <View style={[styles.bottomPadding, { paddingLeft: BOTTOM_LEFT_PAD, paddingRight: HPAD }]}>
+                <View style={[{ paddingLeft: BOTTOM_LEFT_PAD, paddingRight: HPAD }]}>
                     <PostActions
                         engagement={post.engagement}
                         isLiked={isLiked}
@@ -291,11 +293,6 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         width: '100%',
     },
-
-    bottomPadding: {
-        // Values injected from constants above
-    },
-
 });
 
 export default PostItem; 

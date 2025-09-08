@@ -9,6 +9,7 @@ import { useNotificationTransformer, RawNotification } from '../utils/notificati
 import { useOxy } from '@oxyhq/services';
 import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
+import { ZEmbeddedPost } from '../types/validation';
 
 interface NotificationItemProps {
     notification: RawNotification;
@@ -118,13 +119,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             case 'reply':
                 return 'chatbubble';
             case 'mention':
-                return 'at';
+                return 'chatbubble-ellipses';
             case 'follow':
                 return 'person-add';
             case 'repost':
                 return 'repeat';
             case 'quote':
-                return 'quote';
+                return 'chatbox-ellipses';
             case 'post':
                 return 'create';
             case 'welcome':
@@ -254,7 +255,8 @@ const PostNotificationItem: React.FC<{
 }> = ({ notification, actorName, onMarkAsRead, handlePress }) => {
     const { t } = useTranslation();
     const { getPostById } = usePostsStore();
-    const [post, setPost] = useState<any>((notification as any).post || null);
+    const embedded = (notification as any).post ? ZEmbeddedPost.safeParse((notification as any).post) : null;
+    const [post, setPost] = useState<any>(embedded?.success ? embedded.data : null);
     const [loading, setLoading] = useState(!(notification as any).post);
 
     const formatTimeAgo = (dateString: string): string => {
