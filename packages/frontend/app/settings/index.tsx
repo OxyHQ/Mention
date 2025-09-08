@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Switch, Platform } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { useOxy } from '@oxyhq/services';
@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { colors } from '../../styles/colors';
 import { LogoIcon } from '../../assets/logo';
 import { authenticatedClient } from '@/utils/api';
+import { getData, storeData } from '@/utils/storage';
 // (already imported above)
 import { hasNotificationPermission, requestNotificationPermissions, getDevicePushToken } from '@/utils/notifications';
 
@@ -84,12 +85,29 @@ export default function SettingsScreen() {
 
     const onToggleNotifications = useCallback(async (value: boolean) => {
         setNotifications(value);
+        const storageKey = `pref:${user?.id || 'global'}:notificationsEnabled`;
+        await storeData(storageKey, value);
         if (value) {
             await registerPushIfPermitted();
         } else {
             await unregisterPushToken();
         }
-    }, [registerPushIfPermitted, unregisterPushToken]);
+    }, [registerPushIfPermitted, unregisterPushToken, user?.id]);
+
+    // Load initial notifications toggle from storage
+    useEffect(() => {
+        let mounted = true;
+        const load = async () => {
+            const storageKey = `pref:${user?.id || 'global'}:notificationsEnabled`;
+            const saved = await getData<boolean>(storageKey);
+            if (!mounted) return;
+            if (typeof saved === 'boolean') {
+                setNotifications(saved);
+            }
+        };
+        load();
+        return () => { mounted = false; };
+    }, [user?.id]);
     const [darkMode, setDarkMode] = useState(false);
     const [autoSync, setAutoSync] = useState(true);
     const [offlineMode, setOfflineMode] = useState(false);
