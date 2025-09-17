@@ -83,6 +83,7 @@
     "react-native-web": "~0.20.0",
     "react-native-web-hover": "^0.2.9",
     "react-native-webview": "13.13.5",
+    "react-native-worklets-core": "^1.6.2",
     "react-responsive": "^10.0.1",
     "sonner": "^2.0.6",
     "sonner-native": "^0.21.0",

@@ -29,8 +29,8 @@ module.exports = function (api) {
       }],
 
       '@babel/plugin-transform-dynamic-import',
-      '@babel/plugin-proposal-export-namespace-from',
-
+  '@babel/plugin-proposal-export-namespace-from',
+	'react-native-worklets-core/plugin',
       // must be LAST
       'react-native-reanimated/plugin',
     ],
