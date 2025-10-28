@@ -49,13 +49,13 @@ const ReplyScreen: React.FC = () => {
 
             try {
                 // First try to find in the feeds
-                const feedTypes: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'];
+                const feedTypes = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'] as const;
 
                 let foundPost = null;
                 for (const feedType of feedTypes) {
-                    const feed = feeds[feedType];
+                    const feed = (feeds as any)[feedType];
                     if (feed?.items) {
-                        foundPost = feed.items.find(p => p.id === postId);
+                        foundPost = feed.items.find((p: any) => p.id === postId);
                         if (foundPost) break;
                     }
                 }

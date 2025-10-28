@@ -5,6 +5,7 @@
     "strict": true,
     "composite": true,
     "noEmit": false,
+    "skipLibCheck": true,
     "baseUrl": ".",
     "jsx": "react-jsx",
     "jsxImportSource": "nativewind",

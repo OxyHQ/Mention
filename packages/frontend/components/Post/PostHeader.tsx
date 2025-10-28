@@ -73,7 +73,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const repostLabel = useMemo(() => repostedBy ? `${repostedBy.name} reposted` : undefined, [repostedBy]);
   const repostTime = useMemo(() => repostedBy?.date ? formatRelativeTime(repostedBy.date) : undefined, [repostedBy?.date, formatRelativeTime]);
   return (
-    <View style={[styles.container, { paddingHorizontal }]}> 
+    <View style={[styles.container, { paddingHorizontal }]}>
       <View style={styles.headerRow}>
         <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
           <PostAvatar uri={avatarUri} size={avatarSize} />

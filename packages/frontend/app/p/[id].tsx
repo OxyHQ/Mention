@@ -61,13 +61,13 @@ const PostDetailScreen: React.FC = () => {
 
                 // Try to get post from feeds first
                 const { feeds } = usePostsStore.getState();
-                const feedTypes: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'];
+                const feedTypes = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'] as const;
 
                 let foundPost = null;
                 for (const feedType of feedTypes) {
-                    const feed = feeds[feedType];
+                    const feed = (feeds as any)[feedType];
                     if (feed?.items) {
-                        foundPost = feed.items.find(p => p.id === id);
+                        foundPost = feed.items.find((p: any) => p.id === id);
                         if (foundPost) break;
                     }
                 }

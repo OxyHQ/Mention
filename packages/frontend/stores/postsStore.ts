@@ -373,8 +373,8 @@ export const usePostsStore = create<FeedState>()(
       set(state => ({
         feeds: {
           ...state.feeds,
-          saved: {
-            ...state.feeds.saved,
+          ['saved']: {
+            ...(state.feeds as any)['saved'],
             isLoading: true,
             error: null
           }
@@ -389,11 +389,11 @@ export const usePostsStore = create<FeedState>()(
         // Fallback: if API returns empty, derive from currently loaded feeds
         if (!processedPosts.length) {
           const state = get();
-          const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'];
+          const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'] as const;
           const seen = new Set<string>();
           const localSaved: FeedItem[] = [];
-          types.forEach(t => {
-            state.feeds[t]?.items?.forEach((p: any) => {
+          types.forEach((t) => {
+            (state.feeds as any)[t]?.items?.forEach((p: any) => {
               if (p?.isSaved && !seen.has(p.id)) {
                 seen.add(p.id);
                 localSaved.push(p);
@@ -417,7 +417,7 @@ export const usePostsStore = create<FeedState>()(
           return ({
             feeds: {
               ...state.feeds,
-              saved: {
+              ['saved']: {
                 items: processedPosts,
                 hasMore: response.data.hasMore || false,
                 nextCursor: undefined,
@@ -437,8 +437,8 @@ export const usePostsStore = create<FeedState>()(
         set(state => ({
           feeds: {
             ...state.feeds,
-            saved: {
-              ...state.feeds.saved,
+            ['saved']: {
+              ...(state.feeds as any)['saved'],
               isLoading: false,
               error: errorMessage
             }

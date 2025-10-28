@@ -109,7 +109,7 @@ const Feed = (props: FeedProps) => {
     const [localError, setLocalError] = useState<string | null>(null);
 
     // Determine which feed slice to use (saved feed bypasses user feeds)
-    const effectiveType: FeedType = showOnlySaved ? 'saved' : type;
+    const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
     const globalFeed = useFeedSelector(effectiveType);
     // Always call hooks in a stable order; pass empty string when no userId
     const userFeed = useUserFeedSelector(userId || '', effectiveType);

@@ -1,12 +1,11 @@
 import React, { createContext, useState, ReactNode, useRef, useCallback } from 'react';
 import { StyleSheet, ScrollView, View } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import CustomBackground from '@/components/BottomSheet/CustomBackground';
 
 interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
     setBottomSheetContent: (content: ReactNode) => void;
-    bottomSheetRef: React.RefObject<BottomSheetModal>;
+    bottomSheetRef: React.RefObject<BottomSheetModal | null>;
 }
 
 export const BottomSheetContext = createContext<BottomSheetContextProps>({
@@ -17,7 +16,7 @@ export const BottomSheetContext = createContext<BottomSheetContextProps>({
 
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [bottomSheetContent, setBottomSheetContent] = useState<ReactNode>(null);
-    const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+    const bottomSheetModalRef = useRef<BottomSheetModal | null>(null);
 
     const renderBackdrop = useCallback(
         (props: BottomSheetBackdropProps) => (

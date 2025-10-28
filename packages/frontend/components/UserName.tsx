@@ -52,7 +52,6 @@ const UserName: React.FC<Props> = ({ name, verified, unifiedColors, onPress, var
     return content;
 };
 
-export default UserName;
 
 const styles = StyleSheet.create({
     container: {

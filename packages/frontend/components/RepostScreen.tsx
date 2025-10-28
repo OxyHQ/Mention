@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -28,10 +28,36 @@ const RepostScreen: React.FC = () => {
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [originalPost, setOriginalPost] = useState<any>(null);
     const textInputRef = useRef<TextInput>(null);
 
-    // Find the original post
-    const originalPost = posts.find(post => post.id === postId);
+    const { getPostById, createRepost, feeds } = usePostsStore();
+
+    useEffect(() => {
+        const loadOriginal = async () => {
+            try {
+                if (!postId) return;
+                // Try from store feeds first
+                const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'] as const;
+                let found: any = null;
+                for (const t of types) {
+                    const feed = (feeds as any)[t];
+                    if (feed?.items) {
+                        found = feed.items.find((p: any) => p.id === postId);
+                        if (found) break;
+                    }
+                }
+                if (found) setOriginalPost(found);
+                else {
+                    const fetched = await getPostById(String(postId));
+                    setOriginalPost(fetched);
+                }
+            } catch (e) {
+                console.error('Failed to load original post for repost:', e);
+            }
+        };
+        loadOriginal();
+    }, [postId, getPostById, feeds]);
 
     const characterCount = content.length;
     const isOverLimit = characterCount > MAX_CHARACTERS;
@@ -44,24 +70,9 @@ const RepostScreen: React.FC = () => {
 
         try {
             // Create new repost data
-            const avatarUrl = typeof user.avatar === 'string'
-                ? user.avatar
-                : user.avatar?.url || 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg';
-
-            const newRepostData = {
-                originalPostId: postId!,
-                user: {
-                    name: user.name?.full || user.username,
-                    handle: user.username,
-                    avatar: avatarUrl,
-                    verified: user.verified || false,
-                },
-                engagement: {
-                    replies: 0,
-                    reposts: 0,
-                    likes: 0,
-                },
-            };
+            const avatarUrl = typeof (user as any).avatar === 'string'
+                ? (user as any).avatar
+                : ((user as any).avatar || 'https://pbs.twimg.com/profile_images/1892333191295361024/VOz-zLq9_400x400.jpg');
 
             // Create repost request
             const repostRequest: CreateRepostRequest = {
@@ -71,8 +82,8 @@ const RepostScreen: React.FC = () => {
                 hashtags: []
             };
 
-            // Add to backend and store
-            await createRepostAPI(repostRequest);
+            // Add to backend and store using posts store
+            await createRepost(repostRequest);
 
             // Navigate back
             router.back();
@@ -165,7 +176,7 @@ const RepostScreen: React.FC = () => {
                 <View style={styles.repostSection}>
                     <View style={styles.userInfo}>
                         <Avatar
-                            source={oxyServices.getFileDownloadUrl(user?.avatar, 'thumb')}
+                            source={user?.avatar ? oxyServices.getFileDownloadUrl(String(user.avatar), 'thumb') : undefined}
                             size={48}
                             style={{ marginRight: 12 }}
                         />
