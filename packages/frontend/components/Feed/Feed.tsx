@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
     StyleSheet,
     Text,
@@ -117,14 +117,14 @@ const Feed = (props: FeedProps) => {
     const hasMore = useScoped ? localHasMore : !!feedData?.hasMore;
 
     // Filter posts to show only saved ones if showOnlySaved is true
-    const filteredFeedData = showOnlySaved
+    const filteredFeedData = useMemo(() => showOnlySaved
         ? {
             ...feedData,
             items: feedData?.items?.filter(item => {
                 return item.isSaved === true;
             }) || []
         }
-        : feedData;
+        : feedData, [showOnlySaved, feedData]);
 
 
     const {
@@ -136,8 +136,8 @@ const Feed = (props: FeedProps) => {
         clearError
     } = usePostsStore();
 
-    // Initial feed fetch
-    const filtersKey = JSON.stringify(filters || {});
+    // Initial feed fetch - memoize to avoid recreating on every render
+    const filtersKey = useMemo(() => JSON.stringify(filters || {}), [filters]);
 
     useEffect(() => {
         const fetchInitialFeed = async () => {
@@ -286,7 +286,7 @@ const Feed = (props: FeedProps) => {
         )
     ), []);
 
-    const computeDisplayItems = useCallback(() => {
+    const displayItems = useMemo(() => {
         const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
 
         // debug logs removed for production
@@ -428,7 +428,7 @@ const Feed = (props: FeedProps) => {
                 <LoadingTopSpinner showLoading={isLoading && !refreshing} />
                 <LegendList
                     ref={flatListRef}
-                    data={computeDisplayItems()}
+                    data={displayItems}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
                     getItemLayout={getItemLayout}

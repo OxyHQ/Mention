@@ -1,8 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent } from 'react-native';
 import PollCard from './PollCard';
 import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
+import PostItem from '../Feed/PostItem';
 
 interface MediaObj { id: string; type: 'image' | 'video' }
 interface Props {
@@ -11,29 +12,24 @@ interface Props {
   leftOffset?: number; // negative margin-left to offset avatar space
   pollId?: string;
   pollData?: any; // Direct poll data from content.poll
+  nestingDepth?: number; // Track nesting depth to prevent infinite nesting
 }
 
-const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData }) => {
+const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0 }) => {
+  // Prevent infinite nesting (max 2 levels deep)
+  const MAX_NESTING_DEPTH = 2;
   type Item = { type: "nested" } | { type: "image"; src: string } | { type: "video"; src: string } | { type: "poll" };
   const items: Item[] = [];
   const { oxyServices } = useOxy();
 
   if (pollId || pollData) items.push({ type: "poll" });
-  if (nestedPost) items.push({ type: "nested" });
-  
-  // Debug media processing
-  console.log('🖼️ PostMiddle media processing:', {
-    mediaCount: (media || []).length,
-    media: media
-  });
-  
-  (media || []).forEach((m, index) => {
+  // Only add nested post if we haven't exceeded max nesting depth
+  if (nestedPost && nestingDepth < MAX_NESTING_DEPTH) items.push({ type: "nested" });
+
+  (media || []).forEach((m) => {
     if (m && m.id && m.type) {
       const uri = oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(m.id) : m.id;
-      console.log(`🖼️ Processing media item ${index}:`, { id: m.id, type: m.type, uri });
       items.push({ type: m.type, src: uri });
-    } else {
-      console.warn('🖼️ Invalid media item:', m);
     }
   });
 
@@ -96,12 +92,12 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
           );
         }
         if (item.type === 'nested') {
-          // Render PostItem lazily to avoid require cycles on module evaluation
-          const PostItemComp = React.lazy(() => import('../Feed/PostItem'));
+          // Render PostItem directly for instant loading (no lazy loading)
+          // Pass nesting depth to prevent infinite recursion
           return (
-            <React.Suspense fallback={<View key={`nested-${idx}`} style={styles.itemContainer} />} key={`nested-${idx}`}>
-              <PostItemComp post={nestedPost} isNested={true} />
-            </React.Suspense>
+            <View key={`nested-${idx}`} style={styles.nestedContainer}>
+              <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />
+            </View>
           );
         }
         return (
@@ -157,5 +153,11 @@ const styles = StyleSheet.create({
   pollOptionText: {
     fontSize: 14,
     color: colors.primaryDark,
+  },
+  nestedContainer: {
+    width: CARD_WIDTH,
+    maxHeight: CARD_HEIGHT * 1.5,
+    backgroundColor: colors.primaryLight,
+    overflow: 'hidden',
   },
 });

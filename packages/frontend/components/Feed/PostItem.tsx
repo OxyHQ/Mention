@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { StyleSheet, View, Share, Platform, Alert, Pressable } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 
@@ -18,6 +18,7 @@ interface PostItemProps {
     isNested?: boolean; // Flag to indicate if this is a nested post (for reposts/replies)
     style?: object; // Additional styles for the post container
     onReply?: () => void; // Optional override for reply action
+    nestingDepth?: number; // Track nesting depth to prevent infinite recursion
 }
 
 const PostItem: React.FC<PostItemProps> = ({
@@ -25,26 +26,28 @@ const PostItem: React.FC<PostItemProps> = ({
     isNested = false,
     style,
     onReply,
+    nestingDepth = 0,
 }) => {
     const { oxyServices } = useOxy();
     const router = useRouter();
     const pathname = usePathname();
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
 
-    // Subscribe to latest post state using entity cache first, then fallback to scanning feeds
+    // Subscribe to latest post state using entity cache only for performance
     const postId = (post as any)?.id;
-    const storePost = usePostsStore(React.useCallback((state) => {
-        if (!postId) return null;
-        // Prefer entity cache for minimal updates and less scanning
-        const cached = state.postsById[postId as string];
-        if (cached) return cached as any;
-        const types: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
-        for (const t of types) {
-            const match = state.feeds[t]?.items?.find((p: any) => p.id === postId);
-            if (match) return match;
-        }
-        return null;
-    }, [postId]));
+
+    // Use a ref to cache the selector to prevent recreation
+    const selectorRef = useRef<((state: any) => any) | null>(null);
+    if (!selectorRef.current && postId) {
+        selectorRef.current = (state: any) => {
+            // Only check the entity cache - much faster than scanning feeds
+            return state.postsById[postId as string] || null;
+        };
+    }
+
+    // Fallback to scanning feeds only if not in cache (should rarely happen)
+    const storePost = usePostsStore(selectorRef.current || (() => null));
+
     const viewPost = storePost ?? post;
     const viewPostId = (viewPost as any)?.id as string | undefined;
     const viewPostHandle = (viewPost as any)?.user?.handle as string | undefined;
@@ -85,6 +88,12 @@ const PostItem: React.FC<PostItemProps> = ({
             const postData = viewPost as any;
             const targetId = postData.originalPostId || postData.repostOf || postData.quoteOf;
 
+            // Don't load nested content if we're at max nesting depth
+            if (isNested && nestingDepth >= 2) {
+                setOriginalPost(null);
+                return;
+            }
+
             if (!isNested && targetId) {
                 // Try store first for fully hydrated user data
                 const fromStore = findFromStore(targetId);
@@ -102,7 +111,7 @@ const PostItem: React.FC<PostItemProps> = ({
         };
 
         loadOriginalPost();
-    }, [viewPost, getPostById, isNested, findFromStore]);
+    }, [viewPost, getPostById, isNested, findFromStore, nestingDepth]);
 
     // Prime users cache from any embedded user objects (post user and original/quoted user)
     React.useEffect(() => {
@@ -159,7 +168,7 @@ const PostItem: React.FC<PostItemProps> = ({
             const name = (user?.name?.full) || (user?.name?.first ? `${user.name.first} ${user.name.last || ''}`.trim() : '') || user?.name || user?.username || user?.handle || id || 'Someone';
             let handle = user?.handle || user?.username || '';
             if (!handle && id) {
-                try { handle = useUsersStore.getState().usersById[id]?.data?.username || ''; } catch {}
+                try { handle = useUsersStore.getState().usersById[id]?.data?.username || ''; } catch { }
             }
             const shareMessage = contentText
                 ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
@@ -220,7 +229,7 @@ const PostItem: React.FC<PostItemProps> = ({
         const id = String(user.id || user._id || '');
         let handle = user.handle || user.username || viewPostHandle || '';
         if (!handle && id) {
-            try { handle = useUsersStore.getState().usersById[id]?.data?.username || ''; } catch {}
+            try { handle = useUsersStore.getState().usersById[id]?.data?.username || ''; } catch { }
         }
         if (handle) router.push(`/@${handle}`);
         else if (id) router.push(`/${id}`);
@@ -305,6 +314,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 leftOffset={BOTTOM_LEFT_PAD}
                 pollData={(viewPost as any).content?.poll}
                 pollId={pollIdMemo as any}
+                nestingDepth={nestingDepth}
             />
 
             {/* Only show engagement buttons for non-nested posts */}
@@ -340,7 +350,54 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: 16,
         width: '100%',
+        maxHeight: 300, // Prevent nested posts from growing too large
+        overflow: 'hidden',
     },
 });
 
-export default React.memo(PostItem);
+// Custom comparison function to prevent unnecessary re-renders
+const arePropsEqual = (prevProps: PostItemProps, nextProps: PostItemProps) => {
+    // Only re-render if the post ID changes or meaningful post data changes
+    const prevPost = prevProps.post as any;
+    const nextPost = nextProps.post as any;
+
+    // Check if it's the same post
+    if (prevPost?.id !== nextPost?.id) {
+        return false;
+    }
+
+    // Check if nested flag changed
+    if (prevProps.isNested !== nextProps.isNested) {
+        return false;
+    }
+
+    // Check if nesting depth changed
+    if (prevProps.nestingDepth !== nextProps.nestingDepth) {
+        return false;
+    }
+
+    // Check if style prop changed (shallow comparison)
+    if (prevProps.style !== nextProps.style) {
+        return false;
+    }
+
+    // For same post, check if engagement or interaction states changed
+    const prevEngagement = prevPost?.engagement;
+    const nextEngagement = nextPost?.engagement;
+
+    if (
+        prevEngagement?.likes !== nextEngagement?.likes ||
+        prevEngagement?.reposts !== nextEngagement?.reposts ||
+        prevEngagement?.replies !== nextEngagement?.replies ||
+        prevPost?.isLiked !== nextPost?.isLiked ||
+        prevPost?.isReposted !== nextPost?.isReposted ||
+        prevPost?.isSaved !== nextPost?.isSaved
+    ) {
+        return false;
+    }
+
+    // Props are equal, skip re-render
+    return true;
+};
+
+export default React.memo(PostItem, arePropsEqual);

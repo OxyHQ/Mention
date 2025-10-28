@@ -930,10 +930,26 @@ export const usePostsStore = create<FeedState>()(
 
     // Centralized deduped updater (only touches slices containing the postId)
     updatePostEverywhere: (postId: string, updater: (prev: FeedItem) => FeedItem | null | undefined) => {
+      // Fast shallow comparison function for posts
+      const arePostsEqual = (prev: FeedItem, next: FeedItem): boolean => {
+        if (!prev || !next) return prev === next;
+        return (
+          prev.isLiked === next.isLiked &&
+          prev.isReposted === next.isReposted &&
+          prev.isSaved === next.isSaved &&
+          prev.engagement?.likes === next.engagement?.likes &&
+          prev.engagement?.reposts === next.engagement?.reposts &&
+          prev.engagement?.replies === next.engagement?.replies
+        );
+      };
+      
       set((state) => {
         // Prepare updated cache item, if any
         const cached = state.postsById[postId];
         const updatedCached = cached ? updater(cached) : undefined;
+
+        // Fast shallow equality check for cache
+        const cacheChanged = updatedCached && cached && !arePostsEqual(cached, updatedCached);
 
         // Update main feeds per-slice using each slice's own item to avoid shape loss (e.g., repost wrappers)
         let feedsChanged = false;
@@ -946,6 +962,12 @@ export const usePostsStore = create<FeedState>()(
           const prevItem = slice.items[idx];
           const updated = updater(prevItem);
           if (!updated) return;
+          
+          // Fast shallow equality check - only update if data actually changed
+          if (arePostsEqual(prevItem, updated)) {
+            return;
+          }
+          
           const newItems = slice.items.slice();
           newItems[idx] = updated;
           nextFeeds[ft] = { ...slice, items: newItems } as any;
@@ -969,6 +991,13 @@ export const usePostsStore = create<FeedState>()(
             const prevItem = slice.items[idx];
             const updated = updater(prevItem);
             if (!updated) { nextSlices[ft] = slice; return; }
+            
+            // Fast shallow equality check - only update if data actually changed
+            if (arePostsEqual(prevItem, updated)) {
+              nextSlices[ft] = slice;
+              return;
+            }
+            
             const newItems = slice.items.slice();
             newItems[idx] = updated;
             nextSlices[ft] = { ...slice, items: newItems };
@@ -978,8 +1007,15 @@ export const usePostsStore = create<FeedState>()(
           if (anySliceChanged) userFeedsChanged = true;
         }
 
-        // Merge cache update last to keep entity cache fresh
-        const nextCache = updatedCached ? { ...state.postsById, [postId]: updatedCached } : state.postsById;
+        // Merge cache update last to keep entity cache fresh (only if changed)
+        const nextCache = (cacheChanged && updatedCached) 
+          ? { ...state.postsById, [postId]: updatedCached } 
+          : state.postsById;
+
+        // Early return if nothing changed
+        if (!feedsChanged && !userFeedsChanged && !cacheChanged) {
+          return state;
+        }
 
         return {
           ...state,
