@@ -23,7 +23,7 @@ import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { Ionicons } from '@expo/vector-icons';
 import { useOxy } from '@oxyhq/services';
-import { webAlert } from '@/utils/api';
+import { confirmDialog } from '@/utils/alerts';
 import { List, ListActive } from '@/assets/icons/list-icon';
 import { Video, VideoActive } from '@/assets/icons/video-icon';
 import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
@@ -42,25 +42,21 @@ export function SideBar() {
 
     const avatarUri = user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined;
 
-    const handleSignOut = () => {
-        webAlert(t('settings.signOut'), t('settings.signOutMessage'), [
-            {
-                text: t('cancel'),
-                style: 'cancel',
-            },
-            {
-                text: t('settings.signOut'),
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        await logout();
-                        router.replace('/');
-                    } catch (error) {
-                        console.error('Logout failed:', error);
-                    }
-                },
-            },
-        ]);
+    const handleSignOut = async () => {
+        const confirmed = await confirmDialog({
+            title: t('settings.signOut'),
+            message: t('settings.signOutMessage'),
+            okText: t('settings.signOut'),
+            cancelText: t('cancel'),
+            destructive: true,
+        });
+        if (!confirmed) return;
+        try {
+            await logout();
+            router.replace('/');
+        } catch (error) {
+            console.error('Logout failed:', error);
+        }
     };
 
     const sideBarData: {
