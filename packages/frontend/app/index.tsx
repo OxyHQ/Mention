@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { shadowStyle } from '@/utils/platformStyles';
@@ -7,21 +7,92 @@ import { useTranslation } from 'react-i18next';
 import { colors } from '@/styles/colors';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Feed from '../components/Feed/Feed';
 import { useOxy } from '@oxyhq/services';
 import SignInPrompt from '../components/SignInPrompt';
+import { getData } from '@/utils/storage';
+import { customFeedsService } from '@/services/customFeedsService';
 
-type HomeTab = 'for_you' | 'following' | 'trending';
+type HomeTab = 'for_you' | 'following' | 'trending' | string;
+
+interface PinnedFeed {
+    id: string;
+    title: string;
+    feedId: string;
+}
+
+const PINNED_KEY = 'mention.pinnedFeeds';
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
     const { isAuthenticated } = useOxy();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
+    const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
+    const [myFeeds, setMyFeeds] = useState<any[]>([]);
+
+    // Load pinned feeds function
+    const loadFeeds = React.useCallback(async () => {
+        if (!isAuthenticated) return;
+
+        try {
+            const pinned = (await getData<string[]>(PINNED_KEY)) || [];
+            const feeds = await customFeedsService.list({ mine: true });
+            setMyFeeds(feeds.items || []);
+
+            const pinnedFeedData = pinned
+                .map((id) => {
+                    const feedId = id.replace('custom:', '');
+                    const feed = feeds.items?.find((f: any) => String(f._id || f.id) === feedId);
+                    if (feed) {
+                        return {
+                            id,
+                            title: feed.title,
+                            feedId
+                        };
+                    }
+                    return null;
+                })
+                .filter(Boolean) as PinnedFeed[];
+
+            setPinnedFeeds(pinnedFeedData);
+        } catch (error) {
+            console.error('Failed to load pinned feeds:', error);
+        }
+    }, [isAuthenticated]);
+
+    // Load pinned feeds on mount and when screen is focused
+    useEffect(() => {
+        loadFeeds();
+    }, [loadFeeds]);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            loadFeeds();
+        }, [loadFeeds])
+    );
 
     const renderContent = () => {
         if (!isAuthenticated) {
             return <SignInPrompt />;
+        }
+
+        // Check if activeTab is a custom pinned feed
+        if (activeTab.startsWith('custom:')) {
+            const feedId = activeTab.replace('custom:', '');
+            const pinnedFeed = pinnedFeeds.find(f => f.feedId === feedId);
+            if (pinnedFeed) {
+                return (
+                    <Feed
+                        type="mixed"
+                        filters={{
+                            customFeedId: feedId
+                        }}
+                        recycleItems={true}
+                        maintainVisibleContentPosition={true}
+                    />
+                );
+            }
         }
 
         switch (activeTab) {
@@ -80,32 +151,51 @@ const HomeScreen: React.FC = () => {
 
                 {/* Tab Navigation */}
                 <View style={styles.tabsContainer}>
-                    <TouchableOpacity
-                        style={[styles.tab, activeTab === 'for_you' && styles.activeTab]}
-                        onPress={() => setActiveTab('for_you')}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.tabsScrollView}
                     >
-                        <Text style={[styles.tabText, activeTab === 'for_you' && styles.activeTabText]}>
-                            {t('For You')}
-                        </Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.tab, activeTab === 'for_you' && styles.activeTab]}
+                            onPress={() => setActiveTab('for_you')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'for_you' && styles.activeTabText]}>
+                                {t('For You')}
+                            </Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.tab, activeTab === 'following' && styles.activeTab]}
-                        onPress={() => setActiveTab('following')}
-                    >
-                        <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
-                            {t('Following')}
-                        </Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+                            onPress={() => setActiveTab('following')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
+                                {t('Following')}
+                            </Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
-                        onPress={() => setActiveTab('trending')}
-                    >
-                        <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
-                            {t('Trending')}
-                        </Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
+                            onPress={() => setActiveTab('trending')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
+                                {t('Trending')}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* Pinned Feeds Tabs */}
+                        {pinnedFeeds.map((feed) => (
+                            <TouchableOpacity
+                                key={feed.id}
+                                style={[styles.tab, activeTab === feed.id && styles.activeTab]}
+                                onPress={() => setActiveTab(feed.id)}
+                            >
+                                <Text style={[styles.tabText, activeTab === feed.id && styles.activeTabText]} numberOfLines={1}>
+                                    {feed.title}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
                 </View>
 
                 {/* Content */}
@@ -157,16 +247,17 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
     tabsContainer: {
-        flexDirection: 'row',
         backgroundColor: 'white',
         borderBottomWidth: 0.5,
         borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
     },
+    tabsScrollView: {
+        flexGrow: 0,
+    },
     tab: {
-        flex: 1,
         alignItems: 'center',
         paddingVertical: 14,
-        paddingHorizontal: 4,
+        paddingHorizontal: 20,
     },
     activeTab: {
         borderBottomWidth: 3,
