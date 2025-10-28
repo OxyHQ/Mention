@@ -149,20 +149,36 @@ const createDefaultFeedsState = () => ({
 });
 
 // Normalize backend payload to UI-friendly shape
-const transformToUIItem = (raw: any) => {
+type TransformOptions = {
+  skipRelated?: boolean;
+};
+
+const primeRelatedPosts = (cache: Record<string, FeedItem>, post: any) => {
+  if (!post) return;
+  const original = (post as any)?.original;
+  if (original?.id) {
+    cache[original.id] = original as FeedItem;
+  }
+  const quoted = (post as any)?.quoted;
+  if (quoted?.id) {
+    cache[quoted.id] = quoted as FeedItem;
+  }
+};
+
+const transformToUIItem = (raw: any, options: TransformOptions = {}) => {
   const engagement = raw?.engagement || {
     replies: raw?.stats?.commentsCount || 0,
     reposts: raw?.stats?.repostsCount || 0,
     likes: raw?.stats?.likesCount || 0,
   };
 
-  return {
+  const base = {
     ...raw,
     id: String(raw?.id || raw?._id),
     content: raw?.content || { text: '' }, // Keep full content object
-  mediaIds: raw?.mediaIds,
-  originalMediaIds: raw?.originalMediaIds,
-  allMediaIds: raw?.allMediaIds,
+    mediaIds: raw?.mediaIds,
+    originalMediaIds: raw?.originalMediaIds,
+    allMediaIds: raw?.allMediaIds,
     isSaved: raw?.isSaved !== undefined ? raw.isSaved : (raw?.metadata?.isSaved ?? false),
     isLiked: raw?.isLiked !== undefined ? raw.isLiked : (raw?.metadata?.isLiked ?? false),
     isReposted: raw?.isReposted !== undefined ? raw.isReposted : (raw?.metadata?.isReposted ?? false),
@@ -171,6 +187,23 @@ const transformToUIItem = (raw: any) => {
     originalPostId: raw?.originalPostId || raw?.repostOf,
     engagement,
   };
+
+  if (!options.skipRelated) {
+    if (raw?.original) {
+      const original = transformToUIItem(raw.original, { skipRelated: true });
+      if (original?.id) {
+        (base as any).original = original;
+      }
+    }
+    if (raw?.quoted) {
+      const quoted = transformToUIItem(raw.quoted, { skipRelated: true });
+      if (quoted?.id) {
+        (base as any).quoted = quoted;
+      }
+    }
+  }
+
+  return base;
 };
 
 export const usePostsStore = create<FeedState>()(
@@ -178,7 +211,7 @@ export const usePostsStore = create<FeedState>()(
     // Initial state
     feeds: createDefaultFeedsState(),
     userFeeds: {},
-  postsById: {},
+    postsById: {},
     isLoading: false,
     error: null,
     lastRefresh: Date.now(),
@@ -209,8 +242,9 @@ export const usePostsStore = create<FeedState>()(
           // Prime users cache from items
           try { useUsersStore.getState().primeFromPosts(items as any); } catch {}
           const newCache = { ...state.postsById };
-          items.forEach(p => {
+          items.forEach((p: FeedItem) => {
             newCache[p.id] = p;
+            primeRelatedPosts(newCache, p);
           });
           return ({
             feeds: {
@@ -284,7 +318,10 @@ export const usePostsStore = create<FeedState>()(
 
           // Update cache for everything we saw
           const newCache = { ...state.postsById };
-          mapped.forEach(p => { newCache[p.id] = p; });
+          mapped.forEach((p: FeedItem) => {
+            newCache[p.id] = p;
+            primeRelatedPosts(newCache, p);
+          });
 
           const prevCursor = prev.nextCursor;
           const nextCursor = response.nextCursor;
@@ -371,7 +408,10 @@ export const usePostsStore = create<FeedState>()(
 
         set(state => {
           const newCache = { ...state.postsById };
-          processedPosts.forEach((p: FeedItem) => { newCache[p.id] = p; });
+          processedPosts.forEach((p: FeedItem) => {
+            newCache[p.id] = p;
+            primeRelatedPosts(newCache, p);
+          });
 
           return ({
             feeds: {
@@ -437,7 +477,10 @@ export const usePostsStore = create<FeedState>()(
           // Prime users cache from items
           try { useUsersStore.getState().primeFromPosts(items as any); } catch {}
           const newCache = { ...state.postsById };
-          items.forEach((p: FeedItem) => { newCache[p.id] = p; });
+          items.forEach((p: FeedItem) => {
+            newCache[p.id] = p;
+            primeRelatedPosts(newCache, p);
+          });
 
           return ({
             feeds: {
@@ -502,7 +545,10 @@ export const usePostsStore = create<FeedState>()(
           // Prime users cache from items
           try { useUsersStore.getState().primeFromPosts(mapped as any); } catch {}
           const newCache = { ...state.postsById };
-          mapped.forEach((p: FeedItem) => { newCache[p.id] = p; });
+          mapped.forEach((p: FeedItem) => {
+            newCache[p.id] = p;
+            primeRelatedPosts(newCache, p);
+          });
 
           return ({
             feeds: {
@@ -899,7 +945,11 @@ export const usePostsStore = create<FeedState>()(
 
         const response = await feedService.getPostById(postId);
         const item = transformToUIItem(response);
-        set(state => ({ postsById: { ...state.postsById, [item.id]: item } }));
+        set(state => {
+          const newCache = { ...state.postsById, [item.id]: item } as Record<string, FeedItem>;
+          primeRelatedPosts(newCache, item);
+          return { postsById: newCache };
+        });
         return item;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch post';
