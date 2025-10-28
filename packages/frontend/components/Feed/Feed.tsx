@@ -16,6 +16,7 @@ import LoadingTopSpinner from '../LoadingTopSpinner';
 import { colors } from '../../styles/colors';
 import { useOxy } from '@oxyhq/services';
 import { feedService } from '../../services/feedService';
+import { useFocusEffect } from 'expo-router';
 
 // Improved interface with better organization and type safety
 interface FeedProps {
@@ -139,8 +140,17 @@ const Feed = (props: FeedProps) => {
     // Initial feed fetch - memoize to avoid recreating on every render
     const filtersKey = useMemo(() => JSON.stringify(filters || {}), [filters]);
 
+    // Get authentication state
+    const { user: currentUser, isAuthenticated } = useOxy();
+
     useEffect(() => {
         const fetchInitialFeed = async (retryCount = 0) => {
+            // Don't fetch if user is authenticated but user data isn't ready yet
+            if (isAuthenticated && !currentUser?.id) {
+                console.log('Waiting for user data to be available...');
+                return;
+            }
+
             try {
                 // Clear any previous errors
                 if (!useScoped) {
@@ -198,7 +208,7 @@ const Feed = (props: FeedProps) => {
         };
 
         fetchInitialFeed();
-    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, filtersKey, filters, useScoped, reloadKey, clearError]);
+    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, filtersKey, filters, useScoped, reloadKey, clearError, isAuthenticated, currentUser?.id]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -311,7 +321,7 @@ const Feed = (props: FeedProps) => {
     ), []);
 
     // Prioritize current user's fresh posts at the top (For You only)
-    const { user: currentUser } = useOxy();
+    // currentUser is already available from above
 
     // Create a stable key for posts and use the same logic for deduping and keyExtractor
     const itemKey = useCallback((it: any): string => (
