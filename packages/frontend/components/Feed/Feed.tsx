@@ -140,15 +140,21 @@ const Feed = (props: FeedProps) => {
     const filtersKey = useMemo(() => JSON.stringify(filters || {}), [filters]);
 
     useEffect(() => {
-        const fetchInitialFeed = async () => {
+        const fetchInitialFeed = async (retryCount = 0) => {
             try {
+                // Clear any previous errors
+                if (!useScoped) {
+                    clearError();
+                } else {
+                    setLocalError(null);
+                }
+
                 if (showOnlySaved) {
                     await fetchSavedPosts({ page: 1, limit: 50 });
                     return;
                 }
                 if (useScoped) {
                     setLocalLoading(true);
-                    setLocalError(null);
                     const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
                     let items = resp.items || []; // Use items directly since backend returns proper schema
 
@@ -168,28 +174,53 @@ const Feed = (props: FeedProps) => {
                 }
             } catch (error) {
                 console.error('Error fetching initial feed:', error);
-                if (useScoped) setLocalError('Failed to load');
+
+                // Retry logic - automatically retry once after a short delay
+                if (retryCount < 1) {
+                    console.log('Retrying feed fetch...');
+                    // Don't set error state yet, just retry
+                    setTimeout(() => {
+                        fetchInitialFeed(retryCount + 1);
+                    }, 1000);
+                    return;
+                }
+
+                // Only set error after all retries fail
+                if (useScoped) {
+                    setLocalError('Failed to load');
+                } else {
+                    // For store-based feeds, the error is already set in the store
+                    // We just need to ensure it's not showing during the retry
+                }
             } finally {
                 if (useScoped) setLocalLoading(false);
             }
         };
 
         fetchInitialFeed();
-    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, filtersKey, filters, useScoped, reloadKey]);
+    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, filtersKey, filters, useScoped, reloadKey, clearError]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
+            // Clear errors on refresh
+            if (!useScoped) {
+                clearError();
+            }
+
             if (showOnlySaved) {
                 await fetchSavedPosts({ page: 1, limit: 50 });
             } else if (useScoped) {
                 try {
-                    setLocalLoading(true);
+                    setLocalError(null);
                     const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
                     const items = resp.items || []; // Use items directly since backend returns proper schema
                     setLocalItems(items);
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
+                } catch (error) {
+                    console.error('Error refreshing scoped feed:', error);
+                    setLocalError('Failed to refresh');
                 } finally {
                     setLocalLoading(false);
                 }
@@ -200,10 +231,13 @@ const Feed = (props: FeedProps) => {
             }
         } catch (error) {
             console.error('Error refreshing feed:', error);
+            if (useScoped) {
+                setLocalError('Failed to refresh');
+            }
         } finally {
             setRefreshing(false);
         }
-    }, [type, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts, filters, useScoped]);
+    }, [type, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts, filters, useScoped, clearError]);
 
     const handleLoadMore = useCallback(async () => {
         // Saved posts currently load as a single page; skip infinite scroll
@@ -343,7 +377,11 @@ const Feed = (props: FeedProps) => {
         // Avoid double loading UI; top spinner handles initial load
         if (isLoading) return null;
 
-        if (error) {
+        // Only show error if there's an error AND no items to display
+        const hasError = error || (useScoped && localError);
+        const hasNoItems = displayItems.length === 0;
+
+        if (hasError && hasNoItems) {
             return (
                 <View style={styles.emptyState}>
                     <Text style={styles.errorText}>Failed to load posts</Text>
@@ -351,10 +389,11 @@ const Feed = (props: FeedProps) => {
                         style={styles.retryButton}
                         onPress={() => {
                             clearError();
+                            if (useScoped) setLocalError(null);
                             if (userId) {
-                                fetchUserFeed(userId, { type, limit: 20 });
+                                fetchUserFeed(userId, { type, limit: 20, filters });
                             } else {
-                                fetchFeed({ type, limit: 20 });
+                                fetchFeed({ type, limit: 20, filters });
                             }
                         }}
                     >
@@ -380,7 +419,7 @@ const Feed = (props: FeedProps) => {
                 </Text>
             </View>
         );
-    }, [isLoading, error, type, userId, clearError, fetchFeed, fetchUserFeed, showOnlySaved]);
+    }, [isLoading, error, localError, useScoped, type, userId, clearError, fetchFeed, fetchUserFeed, showOnlySaved, displayItems.length, filters]);
 
     const renderFooter = useCallback(() => {
         if (showOnlySaved) return null;
