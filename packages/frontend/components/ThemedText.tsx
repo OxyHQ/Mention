@@ -1,32 +1,43 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
-
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { colors } from '@/styles/colors';
+import { StyleSheet, Text, type TextProps } from "react-native";
+import { useTheme } from "@/hooks/useTheme";
 
 export type ThemedTextProps = TextProps & {
+  /**
+   * Override text color. Use theme.colors.xxx from useTheme() hook instead when possible
+   * @deprecated - Prefer using useTheme hook and theme.colors
+   */
   lightColor?: string;
+  /**
+   * Override text color. Use theme.colors.xxx from useTheme() hook instead when possible
+   * @deprecated - Prefer using useTheme hook and theme.colors
+   */
   darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+  type?: "default" | "title" | "defaultSemiBold" | "subtitle" | "link";
 };
 
 export function ThemedText({
   style,
   lightColor,
   darkColor,
-  type = 'default',
+  type = "default",
   ...rest
 }: ThemedTextProps) {
-  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+  const theme = useTheme();
+
+  // Support legacy lightColor/darkColor props but prefer theme colors
+  const color = lightColor || darkColor
+    ? (theme.isDark ? darkColor : lightColor) || theme.colors.text
+    : theme.colors.text;
 
   return (
     <Text
       style={[
         { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
+        type === "default" ? styles.default : undefined,
+        type === "title" ? styles.title : undefined,
+        type === "defaultSemiBold" ? styles.defaultSemiBold : undefined,
+        type === "subtitle" ? styles.subtitle : undefined,
+        type === "link" ? [styles.link, { color: theme.colors.primary }] : undefined,
         style,
       ]}
       {...rest}
@@ -51,11 +62,11 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   link: {
     lineHeight: 30,
     fontSize: 16,
-    color: colors.primaryColor,
+    // Color is applied via theme.colors.primary in component
   },
 });

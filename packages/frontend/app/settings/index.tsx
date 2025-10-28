@@ -1,19 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Switch, Platform } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
-import { useOxy } from '@oxyhq/services';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Switch, Platform } from "react-native";
+import { ThemedView } from "@/components/ThemedView";
+import { useOxy } from "@oxyhq/services";
+import { useTranslation } from "react-i18next";
 
-import { Ionicons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
-import { colors } from '../../styles/colors';
-import { LogoIcon } from '../../assets/logo';
-import { authenticatedClient } from '@/utils/api';
-import { confirmDialog, alertDialog } from '@/utils/alerts';
-import { getData, storeData } from '@/utils/storage';
+import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
+import { useRouter } from "expo-router";
+import { colors } from "../../styles/colors";
+import { LogoIcon } from "../../assets/logo";
+import { authenticatedClient } from "@/utils/api";
+import { confirmDialog, alertDialog } from "@/utils/alerts";
+import { getData, storeData } from "@/utils/storage";
 // (already imported above)
-import { hasNotificationPermission, requestNotificationPermissions, getDevicePushToken } from '@/utils/notifications';
+import { hasNotificationPermission, requestNotificationPermissions, getDevicePushToken } from "@/utils/notifications";
+import { useTheme } from "@/hooks/useTheme";
+import { getThemedBorder, getThemedShadow } from "@/utils/theme";
 
 // Type assertion for Ionicons compatibility with React 19
 const IconComponent = Ionicons as any;
@@ -22,6 +24,7 @@ export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
     const { user, showBottomSheet } = useOxy();
+    const theme = useTheme();
 
     // Determine Expo SDK/version information with safe fallbacks
     const expoSdkVersion =
@@ -153,70 +156,70 @@ export default function SettingsScreen() {
     return (
         <ThemedView style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>{t('settings.title')}</Text>
+            <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
+                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{t("settings.title")}</Text>
             </View>
 
             <View style={styles.content}>
                 {/* User Info */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('settings.sections.account')}</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("settings.sections.account")}</Text>
 
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem]}
-                        onPress={() => showBottomSheet?.('AccountSettings')}
+                        style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
+                        onPress={() => showBottomSheet?.("AccountSettings")}
                     >
-                        <View style={styles.userIcon}>
-                            <IconComponent name="person" size={24} color="#fff" />
+                        <View style={[styles.userIcon, { backgroundColor: theme.colors.primary }]}>
+                            <IconComponent name="person" size={24} color={theme.colors.card} />
                         </View>
                         <View style={styles.settingInfo}>
                             <View>
-                                <Text style={styles.settingLabel}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                                     {user
                                         ? typeof user.name === 'string'
                                             ? user.name
                                             : user.name?.full || user.name?.first || user.username
                                         : 'User'}
                                 </Text>
-                                <Text style={styles.settingDescription}>{user?.username || 'Username'}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem]}
-                        onPress={() => showBottomSheet?.('FileManagement')}
+                        style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
+                        onPress={() => showBottomSheet?.("FileManagement")}
                     >
-                        <View style={styles.userIcon}>
-                            <IconComponent name="person" size={24} color="#fff" />
+                        <View style={[styles.userIcon, { backgroundColor: theme.colors.primary }]}>
+                            <IconComponent name="person" size={24} color={theme.colors.card} />
                         </View>
                         <View style={styles.settingInfo}>
                             <View>
-                                <Text style={styles.settingLabel}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                                     {user
                                         ? typeof user.name === 'string'
                                             ? user.name
                                             : user.name?.full || user.name?.first || user.username
                                         : 'User'}
                                 </Text>
-                                <Text style={styles.settingDescription}>{user?.username || 'Username'}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
                 </View>
 
                 {/* About Mention */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('settings.sections.aboutMention')}</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.aboutMention')}</Text>
 
                     {/* App Title and Version */}
-                    <View style={[styles.settingItem, styles.firstSettingItem]}>
+                    <View style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
                             <LogoIcon size={24} color={colors.primaryColor} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.aboutMention.appName')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.appName')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.aboutMention.version', {
                                         version: Constants.expoConfig?.version || '1.0.0',
                                     })}
@@ -226,12 +229,12 @@ export default function SettingsScreen() {
                     </View>
 
                     {/* Build Info */}
-                    <View style={styles.settingItem}>
+                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="hammer" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="hammer" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.aboutMention.build')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.build')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {typeof Constants.expoConfig?.runtimeVersion === 'string'
                                         ? Constants.expoConfig.runtimeVersion
                                         : t('settings.aboutMention.buildVersion')}
@@ -241,17 +244,17 @@ export default function SettingsScreen() {
                     </View>
 
                     {/* Platform Info */}
-                    <View style={styles.settingItem}>
+                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
                             <IconComponent
                                 name="phone-portrait"
                                 size={20}
-                                color="#666"
+                                color={theme.colors.textSecondary}
                                 style={styles.settingIcon}
                             />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.aboutMention.platform')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.platform')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {Constants.platform?.ios
                                         ? 'iOS'
                                         : Constants.platform?.android
@@ -263,12 +266,12 @@ export default function SettingsScreen() {
                     </View>
 
                     {/* Oxy SDK */}
-                    <TouchableOpacity style={styles.settingItem} onPress={() => showBottomSheet?.('AppInfo')}>
+                    <TouchableOpacity style={[styles.settingItem, { backgroundColor: theme.colors.card }]} onPress={() => showBottomSheet?.('AppInfo')}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="code-slash" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.aboutMention.oxySDK')}</Text>
-                                <Text style={styles.settingDescription}>{oxySdkVersion}</Text>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.oxySDK')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{oxySdkVersion}</Text>
                             </View>
                         </View>
                     </TouchableOpacity>
@@ -276,21 +279,21 @@ export default function SettingsScreen() {
                     {/* Expo SDK */}
                     <View style={[styles.settingItem]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="code-slash" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.aboutMention.expoSDK')}</Text>
-                                <Text style={styles.settingDescription}>{expoSdkVersion}</Text>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.expoSDK')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{expoSdkVersion}</Text>
                             </View>
                         </View>
                     </View>
 
                     {/* API URL (from env/config) */}
-                    <View style={[styles.settingItem, styles.lastSettingItem]}>
+                    <View style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="globe" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="globe" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.aboutMention.apiUrl')}</Text>
-                                <Text style={styles.settingDescription}>{apiUrl}</Text>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.apiUrl')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{apiUrl}</Text>
                             </View>
                         </View>
                     </View>
@@ -298,10 +301,10 @@ export default function SettingsScreen() {
 
                 {/* Support & Feedback */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('settings.sections.supportFeedback')}</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.supportFeedback')}</Text>
 
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem]}
+                        style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}
                         onPress={() => {
                             Alert.alert(
                                 t('settings.supportFeedback.helpSupport'),
@@ -311,19 +314,19 @@ export default function SettingsScreen() {
                         }}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="help-circle" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="help-circle" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.supportFeedback.helpSupport')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.helpSupport')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.supportFeedback.helpSupportDesc')}
                                 </Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={styles.settingItem}
+                        style={[styles.settingItem, { backgroundColor: theme.colors.card }]}
                         onPress={() => {
                             Alert.alert(
                                 t('settings.supportFeedback.sendFeedback'),
@@ -344,21 +347,21 @@ export default function SettingsScreen() {
                         }}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="chatbubble" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="chatbubble" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                                     {t('settings.supportFeedback.sendFeedback')}
                                 </Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.supportFeedback.sendFeedbackDesc')}
                                 </Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.lastSettingItem]}
+                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
                         onPress={() => {
                             Alert.alert(
                                 t('settings.supportFeedback.rateApp'),
@@ -379,48 +382,48 @@ export default function SettingsScreen() {
                         }}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="star" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="star" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.supportFeedback.rateApp')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.rateApp')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.supportFeedback.rateAppDesc')}
                                 </Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
                 </View>
 
                 {/* App Preferences */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('settings.sections.preferences')}</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.preferences')}</Text>
 
                     {/* Language Selection */}
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem]}
+                        style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}
                         onPress={() => router.push('/settings/language')}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="language" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="language" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('Language')}</Text>
-                                <Text style={styles.settingDescription}>{t('Select your preferred language')}</Text>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('Language')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('Select your preferred language')}</Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
 
-                    <View style={styles.settingItem}>
+                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
                             <IconComponent
                                 name="notifications"
                                 size={20}
-                                color="#666"
+                                color={theme.colors.textSecondary}
                                 style={styles.settingIcon}
                             />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.preferences.notifications')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.notifications')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.preferences.notificationsDesc')}
                                 </Text>
                             </View>
@@ -429,17 +432,17 @@ export default function SettingsScreen() {
                             value={notifications}
                             onValueChange={onToggleNotifications}
                             trackColor={{ false: '#f0f0f0', true: colors.primaryColor }}
-                            thumbColor={notifications ? '#ffffff' : '#d1d5db'}
-                            ios_backgroundColor="#f0f0f0"
+                            thumbColor={theme.colors.card}
+                            ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
                     </View>
 
-                    <View style={styles.settingItem}>
+                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="moon" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="moon" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.preferences.darkMode')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.darkMode')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.preferences.darkModeDesc')}
                                 </Text>
                             </View>
@@ -448,17 +451,17 @@ export default function SettingsScreen() {
                             value={darkMode}
                             onValueChange={setDarkMode}
                             trackColor={{ false: '#f0f0f0', true: colors.primaryColor }}
-                            thumbColor={darkMode ? '#ffffff' : '#d1d5db'}
-                            ios_backgroundColor="#f0f0f0"
+                            thumbColor={theme.colors.card}
+                            ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
                     </View>
 
-                    <View style={styles.settingItem}>
+                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="sync" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="sync" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.preferences.autoSync')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.autoSync')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.preferences.autoSyncDesc')}
                                 </Text>
                             </View>
@@ -467,22 +470,22 @@ export default function SettingsScreen() {
                             value={autoSync}
                             onValueChange={setAutoSync}
                             trackColor={{ false: '#f0f0f0', true: colors.primaryColor }}
-                            thumbColor={autoSync ? '#ffffff' : '#d1d5db'}
-                            ios_backgroundColor="#f0f0f0"
+                            thumbColor={theme.colors.card}
+                            ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
                     </View>
 
-                    <View style={[styles.settingItem, styles.lastSettingItem]}>
+                    <View style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
                             <IconComponent
                                 name="cloud-offline"
                                 size={20}
-                                color="#666"
+                                color={theme.colors.textSecondary}
                                 style={styles.settingIcon}
                             />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.preferences.offlineMode')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.offlineMode')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.preferences.offlineModeDesc')}
                                 </Text>
                             </View>
@@ -491,83 +494,83 @@ export default function SettingsScreen() {
                             value={offlineMode}
                             onValueChange={setOfflineMode}
                             trackColor={{ false: '#f0f0f0', true: colors.primaryColor }}
-                            thumbColor={offlineMode ? '#ffffff' : '#d1d5db'}
-                            ios_backgroundColor="#f0f0f0"
+                            thumbColor={theme.colors.card}
+                            ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
                     </View>
                 </View>
 
                 {/* Quick Actions */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('settings.sections.quickActions')}</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.quickActions')}</Text>
 
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem]}
+                        style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}
                         onPress={() => router.push('/properties/create')}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="add" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="add" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.quickActions.createProperty')}</Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.quickActions.createProperty')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.quickActions.createPropertyDesc')}
                                 </Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.lastSettingItem]}
+                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
                         onPress={() => router.push('/search')}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="search" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="search" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                                     {t('settings.quickActions.searchProperties')}
                                 </Text>
-                                <Text style={styles.settingDescription}>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                     {t('settings.quickActions.searchPropertiesDesc')}
                                 </Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
                 </View>
 
                 {/* Data Management */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('settings.sections.data')}</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.data')}</Text>
 
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem]}
+                        style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}
                         onPress={handleExportData}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="download" size={20} color="#666" style={styles.settingIcon} />
+                            <IconComponent name="download" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingLabel}>{t('settings.data.exportData')}</Text>
-                                <Text style={styles.settingDescription}>{t('settings.data.exportDataDesc')}</Text>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.data.exportData')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('settings.data.exportDataDesc')}</Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.lastSettingItem]}
+                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
                         onPress={handleClearCache}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="trash" size={20} color="#ff4757" style={styles.settingIcon} />
+                            <IconComponent name="trash" size={20} color={theme.colors.error} style={styles.settingIcon} />
                             <View>
-                                <Text style={[styles.settingLabel, { color: '#ff4757' }]}>
-                                    {t('settings.data.clearCache')}
+                                <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                    {t("settings.data.clearCache")}
                                 </Text>
-                                <Text style={styles.settingDescription}>{t('settings.data.clearCacheDesc')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t("settings.data.clearCacheDesc")}</Text>
                             </View>
                         </View>
-                        <IconComponent name="chevron-forward" size={16} color="#ccc" />
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
                     </TouchableOpacity>
                 </View>
 
@@ -579,16 +582,17 @@ export default function SettingsScreen() {
                             styles.firstSettingItem,
                             styles.lastSettingItem,
                             styles.signOutButton,
+                            { backgroundColor: theme.colors.card, borderColor: theme.colors.error },
                         ]}
                         onPress={handleSignOut}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="log-out" size={20} color="#ff4757" style={styles.settingIcon} />
+                            <IconComponent name="log-out" size={20} color={theme.colors.error} style={styles.settingIcon} />
                             <View>
-                                <Text style={[styles.settingLabel, { color: '#ff4757' }]}>
-                                    {t('settings.signOut')}
+                                <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                    {t("settings.signOut")}
                                 </Text>
-                                <Text style={styles.settingDescription}>{t('settings.signOutDesc')}</Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t("settings.signOutDesc")}</Text>
                             </View>
                         </View>
                     </TouchableOpacity>
@@ -606,14 +610,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 20,
         paddingBottom: 16,
-        backgroundColor: colors.primaryLight,
+        // backgroundColor and borderColor will be applied inline with theme
         borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
     },
     headerTitle: {
         fontSize: 24,
-        fontWeight: 'bold',
-        color: '#000',
+        fontWeight: "bold",
+        // color will be applied inline with theme
     },
     content: {
         padding: 16,
@@ -622,9 +625,9 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: colors.primaryColor,
-        alignItems: 'center',
-        justifyContent: 'center',
+        // backgroundColor will be applied inline with theme
+        alignItems: "center",
+        justifyContent: "center",
         marginRight: 12,
     },
     section: {
@@ -632,16 +635,16 @@ const styles = StyleSheet.create({
     },
     sectionTitle: {
         fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
+        fontWeight: "600",
+        // color will be applied inline with theme
         marginBottom: 12,
     },
     settingItem: {
-        backgroundColor: colors.primaryLight,
+        // backgroundColor will be applied inline with theme
         padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         marginBottom: 2,
     },
     firstSettingItem: {
@@ -655,8 +658,8 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     settingInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         flex: 1,
     },
     settingIcon: {
@@ -664,16 +667,16 @@ const styles = StyleSheet.create({
     },
     settingLabel: {
         fontSize: 16,
-        fontWeight: '500',
-        color: '#333',
+        fontWeight: "500",
+        // color will be applied inline with theme
         marginBottom: 2,
     },
     settingDescription: {
         fontSize: 14,
-        color: '#666',
+        // color will be applied inline with theme
     },
     signOutButton: {
         borderWidth: 1,
-        borderColor: '#ff4757',
+        // borderColor will be applied inline with theme (error color)
     },
 });
