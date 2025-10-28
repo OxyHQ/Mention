@@ -115,6 +115,7 @@ class FeedController {
           console.log('📋 Post IDs requested:', postIds);
           console.log('📋 Post IDs found:', postsWithMetadata.map(p => p._id.toString()));
 
+          const postsMissingLikeMetadata: string[] = [];
           // Check likes and saves by examining the metadata arrays
           postsWithMetadata.forEach(post => {
             const postId = post._id.toString();
@@ -137,6 +138,8 @@ class FeedController {
                 ...userInteractions.get(postId),
                 isLiked: true
               });
+            } else if (currentUserId) {
+              postsMissingLikeMetadata.push(postId);
             }
 
             // Check saves with multiple formats for robust comparison  
@@ -152,6 +155,48 @@ class FeedController {
               });
             }
           });
+
+          if (postsMissingLikeMetadata.length) {
+            try {
+              const legacyLikes = await Like.find({
+                userId: currentUserId,
+                postId: { $in: postsMissingLikeMetadata }
+              }).select('postId').lean();
+
+              if (legacyLikes.length) {
+                const likedIds = legacyLikes
+                  .map((like: any) => like.postId?.toString?.())
+                  .filter(Boolean);
+
+                likedIds.forEach((likedId) => {
+                  userInteractions.set(likedId, {
+                    ...userInteractions.get(likedId),
+                    isLiked: true
+                  });
+                });
+
+                // Backfill metadata.likedBy so future requests do not rely on Like collection
+                const objectIds = likedIds
+                  .map((id) => {
+                    try {
+                      return new mongoose.Types.ObjectId(id);
+                    } catch {
+                      return null;
+                    }
+                  })
+                  .filter(Boolean) as mongoose.Types.ObjectId[];
+
+                if (objectIds.length) {
+                  await Post.updateMany(
+                    { _id: { $in: objectIds } },
+                    { $addToSet: { 'metadata.likedBy': currentUserId } }
+                  );
+                }
+              }
+            } catch (fallbackError) {
+              console.warn('Failed fallback like lookup for metadata sync:', fallbackError);
+            }
+          }
 
           // Check reposts for current user
           const repostedPosts = await Post.find({

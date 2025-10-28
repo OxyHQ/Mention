@@ -142,6 +142,7 @@ const createDefaultFeedsState = () => ({
   reposts: createDefaultFeedState(),
   media: createDefaultFeedState(),
   likes: createDefaultFeedState(),
+  saved: createDefaultFeedState(),
   mixed: createDefaultFeedState(),
   for_you: createDefaultFeedState(),
   following: createDefaultFeedState(),
@@ -334,8 +335,8 @@ export const usePostsStore = create<FeedState>()(
       set(state => ({
         feeds: {
           ...state.feeds,
-          posts: {
-            ...state.feeds.posts,
+          saved: {
+            ...state.feeds.saved,
             isLoading: true,
             error: null
           }
@@ -350,7 +351,7 @@ export const usePostsStore = create<FeedState>()(
         // Fallback: if API returns empty, derive from currently loaded feeds
         if (!processedPosts.length) {
           const state = get();
-          const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
+          const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'];
           const seen = new Set<string>();
           const localSaved: FeedItem[] = [];
           types.forEach(t => {
@@ -375,7 +376,7 @@ export const usePostsStore = create<FeedState>()(
           return ({
             feeds: {
               ...state.feeds,
-              posts: {
+              saved: {
                 items: processedPosts,
                 hasMore: response.data.hasMore || false,
                 nextCursor: undefined,
@@ -395,8 +396,8 @@ export const usePostsStore = create<FeedState>()(
         set(state => ({
           feeds: {
             ...state.feeds,
-            posts: {
-              ...state.feeds.posts,
+            saved: {
+              ...state.feeds.saved,
               isLoading: false,
               error: errorMessage
             }

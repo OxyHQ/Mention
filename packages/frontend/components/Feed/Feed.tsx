@@ -108,11 +108,12 @@ const Feed = (props: FeedProps) => {
     const [localLoading, setLocalLoading] = useState<boolean>(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
-    // Select appropriate feed slice (global vs user profile)
-    const globalFeed = useFeedSelector(type);
+    // Determine which feed slice to use (saved feed bypasses user feeds)
+    const effectiveType: FeedType = showOnlySaved ? 'saved' : type;
+    const globalFeed = useFeedSelector(effectiveType);
     // Always call hooks in a stable order; pass empty string when no userId
-    const userFeed = useUserFeedSelector(userId || '', type);
-    const feedData = userId ? userFeed : globalFeed;
+    const userFeed = useUserFeedSelector(userId || '', effectiveType);
+    const feedData = showOnlySaved ? globalFeed : (userId ? userFeed : globalFeed);
     const isLoading = useScoped ? localLoading : !!feedData?.isLoading;
     const error = useScoped ? localError : feedData?.error;
     const hasMore = useScoped ? localHasMore : !!feedData?.hasMore;
@@ -208,7 +209,7 @@ const Feed = (props: FeedProps) => {
         };
 
         fetchInitialFeed();
-    }, [type, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, filtersKey, filters, useScoped, reloadKey, clearError, isAuthenticated, currentUser?.id]);
+    }, [type, effectiveType, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, filtersKey, filters, useScoped, reloadKey, clearError, isAuthenticated, currentUser?.id]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -247,7 +248,7 @@ const Feed = (props: FeedProps) => {
         } finally {
             setRefreshing(false);
         }
-    }, [type, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts, filters, useScoped, clearError]);
+    }, [type, effectiveType, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts, filters, useScoped, clearError]);
 
     const handleLoadMore = useCallback(async () => {
         // Saved posts currently load as a single page; skip infinite scroll
@@ -293,13 +294,13 @@ const Feed = (props: FeedProps) => {
                 setLocalNextCursor(nextCursor);
             } else if (userId) {
                 await fetchUserFeed(userId, {
-                    type,
+                    type: effectiveType,
                     limit: 20,
                     cursor: feedData?.nextCursor,
                     filters
                 });
             } else {
-                await loadMoreFeed(type, filters);
+                await loadMoreFeed(effectiveType, filters);
             }
         } catch (error) {
             console.error('Error loading more feed:', error);
@@ -314,7 +315,7 @@ const Feed = (props: FeedProps) => {
                 setLocalLoading(false);
             }
         }
-    }, [showOnlySaved, hasMore, isLoading, type, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, localItems]);
+    }, [showOnlySaved, hasMore, isLoading, type, effectiveType, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, localItems]);
 
     const renderPostItem = useCallback(({ item }: { item: any }) => (
         <PostItem post={item} />
@@ -335,7 +336,7 @@ const Feed = (props: FeedProps) => {
 
         // debug logs removed for production
 
-        if (type !== 'for_you' || !currentUser?.id) {
+        if (effectiveType !== 'for_you' || !currentUser?.id) {
             // Deduplicate by key in case upstream merged duplicates
             const seen = new Set<string>();
             const deduped: any[] = [];
@@ -381,7 +382,7 @@ const Feed = (props: FeedProps) => {
             deduped.push(it);
         }
         return deduped;
-    }, [useScoped, localItems, filteredFeedData?.items, type, currentUser?.id, itemKey]);
+    }, [useScoped, localItems, filteredFeedData?.items, effectiveType, currentUser?.id, itemKey]);
 
     const renderEmptyState = useCallback(() => {
         // Avoid double loading UI; top spinner handles initial load
@@ -397,13 +398,19 @@ const Feed = (props: FeedProps) => {
                     <Text style={styles.errorText}>Failed to load posts</Text>
                     <TouchableOpacity
                         style={styles.retryButton}
-                        onPress={() => {
+                        onPress={async () => {
                             clearError();
                             if (useScoped) setLocalError(null);
-                            if (userId) {
-                                fetchUserFeed(userId, { type, limit: 20, filters });
-                            } else {
-                                fetchFeed({ type, limit: 20, filters });
+                            try {
+                                if (showOnlySaved) {
+                                    await fetchSavedPosts({ page: 1, limit: 50 });
+                                } else if (userId) {
+                                    await fetchUserFeed(userId, { type, limit: 20, filters });
+                                } else {
+                                    await fetchFeed({ type: effectiveType, limit: 20, filters });
+                                }
+                            } catch (retryError) {
+                                console.error('Retry failed:', retryError);
                             }
                         }}
                     >
@@ -429,7 +436,7 @@ const Feed = (props: FeedProps) => {
                 </Text>
             </View>
         );
-    }, [isLoading, error, localError, useScoped, type, userId, clearError, fetchFeed, fetchUserFeed, showOnlySaved, displayItems.length, filters]);
+    }, [isLoading, error, localError, useScoped, type, effectiveType, userId, clearError, fetchFeed, fetchUserFeed, fetchSavedPosts, showOnlySaved, displayItems.length, filters]);
 
     const renderFooter = useCallback(() => {
         if (showOnlySaved) return null;

@@ -18,6 +18,7 @@ import { colors } from '../../styles/colors';
 import PostItem from '../../components/Feed/PostItem';
 import Feed from '../../components/Feed/Feed';
 import { usePostsStore } from '../../stores/postsStore';
+import { FeedType } from '@mention/shared-types';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useOxy } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
@@ -60,9 +61,7 @@ const PostDetailScreen: React.FC = () => {
 
                 // Try to get post from feeds first
                 const { feeds } = usePostsStore.getState();
-                const feedTypes: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = [
-                    'posts', 'mixed', 'media', 'replies', 'reposts', 'likes'
-                ];
+                const feedTypes: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'];
 
                 let foundPost = null;
                 for (const feedType of feedTypes) {

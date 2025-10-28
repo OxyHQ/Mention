@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef } from 'react';
 import { StyleSheet, View, Share, Platform, Alert, Pressable } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 
-import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
+import { UIPost, Reply, FeedRepost as Repost, FeedType } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
 import PostHeader from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
@@ -68,7 +68,7 @@ const PostItem: React.FC<PostItemProps> = ({
         try {
             const { feeds, postsById } = usePostsStore.getState();
             if (postsById[id]) return postsById[id];
-            const types: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes'];
+            const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'];
             for (const t of types) {
                 const match = feeds[t]?.items?.find((p: any) => p.id === id);
                 if (match) return match;

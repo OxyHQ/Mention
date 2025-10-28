@@ -467,6 +467,25 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
     // Transform posts to match frontend expectations
     const transformedPosts = posts.map((post: any) => {
       const userData = post.oxyUserId;
+      const isSaved = savedPostIds.includes(post._id.toString());
+      const isLiked = likedPostIds.includes(post._id.toString());
+
+      const metadata = {
+        ...(post.metadata || {}),
+        isSaved,
+        isLiked
+      } as any;
+
+      if (isLiked && currentUserId) {
+        const likedSet = new Set(
+          Array.isArray(metadata.likedBy)
+            ? metadata.likedBy.map((id: any) => id?.toString?.() || String(id))
+            : []
+        );
+        likedSet.add(currentUserId);
+        metadata.likedBy = Array.from(likedSet);
+      }
+
       return {
         ...post,
         user: {
@@ -476,8 +495,9 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
           avatar: typeof userData === 'object' ? userData.avatar : '',
           verified: typeof userData === 'object' ? userData.verified : false
         },
-        isSaved: savedPostIds.includes(post._id.toString()),
-        isLiked: likedPostIds.includes(post._id.toString()),
+        isSaved,
+        isLiked,
+        metadata,
         oxyUserId: undefined
       };
     });
@@ -516,9 +536,24 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
         ? (post as any).metadata.likedBy
         : [];
       isLiked = likedBy.some((id: any) => id?.toString?.() === currentUserId);
+      let backfilledLike = false;
       if (!isLiked) {
         const likedPost = await Like.findOne({ userId: currentUserId, postId: post._id.toString() }).lean();
-        isLiked = !!likedPost;
+        if (likedPost) {
+          isLiked = true;
+          backfilledLike = true;
+        }
+      }
+
+      if (backfilledLike) {
+        try {
+          await Post.updateOne(
+            { _id: post._id },
+            { $addToSet: { 'metadata.likedBy': currentUserId } }
+          );
+        } catch (syncError) {
+          console.warn('Failed to backfill metadata.likedBy during getPostById:', syncError);
+        }
       }
     }
 
@@ -970,6 +1005,53 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    let likedPostSet = new Set<string>();
+    if (userId) {
+      try {
+        const likesForSaved = await Like.find({
+          userId,
+          postId: { $in: postIds }
+        }).select('postId').lean();
+        likedPostSet = new Set(
+          likesForSaved
+            .map((like: any) => like.postId?.toString?.())
+            .filter(Boolean) as string[]
+        );
+      } catch (e) {
+        console.error('Error fetching like status for saved posts:', e);
+      }
+    }
+
+    if (userId && likedPostSet.size) {
+      const postsNeedingMetadataSync = posts
+        .filter((post: any) => {
+          if (!likedPostSet.has(post._id.toString())) return false;
+          const likedBy = Array.isArray(post.metadata?.likedBy)
+            ? post.metadata.likedBy.map((id: any) => id?.toString?.())
+            : [];
+          return !likedBy.includes(userId);
+        })
+        .map((post: any) => {
+          try {
+            return new mongoose.Types.ObjectId(post._id);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean) as mongoose.Types.ObjectId[];
+
+      if (postsNeedingMetadataSync.length) {
+        try {
+          await Post.updateMany(
+            { _id: { $in: postsNeedingMetadataSync } },
+            { $addToSet: { 'metadata.likedBy': userId } }
+          );
+        } catch (syncError) {
+          console.warn('Failed to backfill metadata.likedBy for saved posts:', syncError);
+        }
+      }
+    }
+
     // Fetch profile data for unique oxyUserIds (same as feed controller)
     const uniqueUserIds = Array.from(new Set(posts.map((p: any) => p.oxyUserId).filter(Boolean)));
     const userDataMap = new Map<string, any>();
@@ -1005,10 +1087,34 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
         verified: false
       };
 
+      const likedBy = Array.isArray(post.metadata?.likedBy)
+        ? post.metadata.likedBy
+        : [];
+
+      const isLiked = likedBy.some((id: any) => id?.toString?.() === userId) || likedPostSet.has(post._id.toString());
+
+      const metadata = {
+        ...(post.metadata || {}),
+        isSaved: true,
+        isLiked
+      } as any;
+
+      if (isLiked && userId) {
+        const likedSet = new Set(
+          Array.isArray(metadata.likedBy)
+            ? metadata.likedBy.map((id: any) => id?.toString?.() || String(id))
+            : []
+        );
+        likedSet.add(userId);
+        metadata.likedBy = Array.from(likedSet);
+      }
+
       return {
         ...post,
         user: userProfile,
         isSaved: true, // All posts in this endpoint are saved
+        isLiked,
+        metadata,
         oxyUserId: undefined
       };
     });

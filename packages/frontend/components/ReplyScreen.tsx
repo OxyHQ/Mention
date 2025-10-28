@@ -16,7 +16,7 @@ import { useOxy } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
 import { colors } from '../styles/colors';
 import PostItem from './Feed/PostItem';
-import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
+import { UIPost, Reply, FeedRepost as Repost, FeedType } from '@mention/shared-types';
 import Avatar from './Avatar';
 import UserName from './UserName';
 
@@ -49,9 +49,7 @@ const ReplyScreen: React.FC = () => {
 
             try {
                 // First try to find in the feeds
-                const feedTypes: ('posts' | 'mixed' | 'media' | 'replies' | 'reposts' | 'likes')[] = [
-                    'posts', 'mixed', 'media', 'replies', 'reposts', 'likes'
-                ];
+                const feedTypes: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'];
 
                 let foundPost = null;
                 for (const feedType of feedTypes) {
