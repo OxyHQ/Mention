@@ -505,11 +505,21 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // Check if current user has saved this post
+    // Check if current user has saved/liked this post
     let isSaved = false;
+    let isLiked = false;
     if (currentUserId) {
       const savedPost = await Bookmark.findOne({ userId: currentUserId, postId: post._id.toString() });
       isSaved = !!savedPost;
+
+      const likedBy = Array.isArray((post as any)?.metadata?.likedBy)
+        ? (post as any).metadata.likedBy
+        : [];
+      isLiked = likedBy.some((id: any) => id?.toString?.() === currentUserId);
+      if (!isLiked) {
+        const likedPost = await Like.findOne({ userId: currentUserId, postId: post._id.toString() }).lean();
+        isLiked = !!likedPost;
+      }
     }
 
     // Check if this post is a thread (has replies from the same user)
@@ -556,7 +566,13 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       ...post,
       user,
       isSaved,
+      isLiked,
       isThread,
+      metadata: {
+        ...(post.metadata || {}),
+        isSaved,
+        isLiked,
+      },
       oxyUserId: undefined,
     } as any;
 
@@ -689,16 +705,26 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     // Check if already liked
     const existingLike = await Like.findOne({ userId, postId });
     if (existingLike) {
-      return res.json({ message: 'Post already liked' });
+      const currentPost = await Post.findById(postId).select('stats.likesCount metadata.likedBy').lean();
+      return res.json({ 
+        message: 'Post already liked',
+        likesCount: currentPost?.stats?.likesCount ?? 0,
+        liked: true
+      });
     }
 
-    // Create like record
+    // Create like record (legacy tracking)
     await Like.create({ userId, postId });
 
-    // Update post stats
-    const likedPost = await Post.findByIdAndUpdate(postId, {
-      $inc: { 'stats.likesCount': 1 }
-    }, { new: true }).lean();
+    // Update post stats and ensure metadata.likedBy is kept in sync
+    const likedPost = await Post.findByIdAndUpdate(
+      postId,
+      {
+        $inc: { 'stats.likesCount': 1 },
+        $addToSet: { 'metadata.likedBy': userId }
+      },
+      { new: true }
+    ).lean();
 
     // Create like notification to the post author
     try {
@@ -716,7 +742,13 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       console.error('Failed to create like notification:', e);
     }
 
-    res.json({ message: 'Post liked successfully' });
+    const likesCount = likedPost?.stats?.likesCount ?? 0;
+
+    res.json({ 
+      message: 'Post liked successfully',
+      likesCount,
+      liked: true
+    });
   } catch (error) {
     console.error('Error liking post:', error);
     res.status(500).json({ message: 'Error liking post', error });
@@ -736,15 +768,35 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
     // Remove like record
     const result = await Like.deleteOne({ userId, postId });
     if (result.deletedCount === 0) {
-      return res.json({ message: 'Post not liked' });
+      const currentPost = await Post.findById(postId).select('stats.likesCount metadata.likedBy').lean();
+      return res.json({ 
+        message: 'Post not liked',
+        likesCount: currentPost?.stats?.likesCount ?? 0,
+        liked: false
+      });
     }
 
-    // Update post stats
-    await Post.findByIdAndUpdate(postId, {
-      $inc: { 'stats.likesCount': -1 }
-    });
+    // Update post stats and keep metadata.likedBy synchronized
+    const updatedPost = await Post.findByIdAndUpdate(
+      postId,
+      {
+        $inc: { 'stats.likesCount': -1 },
+        $pull: { 'metadata.likedBy': userId }
+      },
+      { new: true }
+    ).lean();
 
-    res.json({ message: 'Post unliked successfully' });
+    let likesCount = updatedPost?.stats?.likesCount ?? 0;
+    if (likesCount < 0) {
+      likesCount = 0;
+      await Post.findByIdAndUpdate(postId, { $set: { 'stats.likesCount': 0 } });
+    }
+
+    res.json({ 
+      message: 'Post unliked successfully',
+      likesCount,
+      liked: false
+    });
   } catch (error) {
     console.error('Error unliking post:', error);
     res.status(500).json({ message: 'Error unliking post', error });
