@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState, useRef, useEffect } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useState, useRef, useEffect } from "react";
 import {
     View,
     Text,
@@ -11,13 +11,14 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-} from 'react-native';
-import Avatar from './Avatar';
-import UserName from './UserName';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useOxy } from '@oxyhq/services';
-import { usePostsStore } from '../stores/postsStore';
-import { CreateRepostRequest } from '@mention/shared-types';
+} from "react-native";
+import Avatar from "./Avatar";
+import UserName from "./UserName";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useOxy } from "@oxyhq/services";
+import { usePostsStore } from "../stores/postsStore";
+import { CreateRepostRequest } from "@mention/shared-types";
+import { useTheme } from "@/hooks/useTheme";
 
 const MAX_CHARACTERS = 280;
 
@@ -25,6 +26,7 @@ const RepostScreen: React.FC = () => {
     const { user, oxyServices } = useOxy();
     const { id: postId } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
+    const theme = useTheme();
 
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -119,7 +121,7 @@ const RepostScreen: React.FC = () => {
 
     if (!originalPost) {
         return (
-            <View style={styles.container}>
+            <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
                 <Text style={styles.errorText}>Post not found</Text>
             </View>
         );
@@ -127,13 +129,13 @@ const RepostScreen: React.FC = () => {
 
     return (
         <KeyboardAvoidingView
-            style={styles.container}
+            style={[styles.container, { backgroundColor: theme.colors.background }]}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top }]}>
+            <View style={[styles.header, { borderBottomColor: theme.colors.border }, { paddingTop: insets.top }]}>
                 <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
-                    <Text style={styles.cancelText}>Cancel</Text>
+                    <Text style={[styles.cancelText, { color: theme.colors.primary }]}>Cancel</Text>
                 </TouchableOpacity>
 
                 <View style={styles.headerActions}>
@@ -152,7 +154,7 @@ const RepostScreen: React.FC = () => {
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Repost Header */}
                 <View style={styles.repostHeader}>
-                    <Ionicons name="repeat" size={20} color="#1D9BF0" />
+                    <Ionicons name="repeat" size={20} color={theme.colors.primary} />
                     <Text style={styles.repostHeaderText}>Repost</Text>
                 </View>
 
@@ -192,7 +194,7 @@ const RepostScreen: React.FC = () => {
                         ref={textInputRef}
                         style={styles.textInput}
                         placeholder="Add a comment..."
-                        placeholderTextColor="#71767B"
+                        placeholderTextColor={theme.colors.textTertiary}
                         value={content}
                         onChangeText={setContent}
                         multiline
@@ -220,44 +222,44 @@ const RepostScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
+        // backgroundColor will be applied inline with theme
     },
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
         paddingHorizontal: 16,
         paddingBottom: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
+        // borderBottomColor will be applied inline with theme
     },
     cancelButton: {
         paddingVertical: 8,
         paddingHorizontal: 12,
     },
     cancelText: {
-        color: '#1D9BF0',
+        // color will be applied inline with theme
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: "600",
     },
     headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
     },
     repostButton: {
-        backgroundColor: '#1D9BF0',
+        // backgroundColor will be applied inline with theme
         paddingHorizontal: 20,
         paddingVertical: 8,
         borderRadius: 20,
     },
     repostButtonDisabled: {
-        backgroundColor: '#1D9BF0',
+        // backgroundColor will be applied inline with theme
         opacity: 0.5,
     },
     repostButtonText: {
-        color: '#FFF',
+        // color will be applied inline with theme
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: "700",
     },
     repostButtonTextDisabled: {
         opacity: 0.7,
