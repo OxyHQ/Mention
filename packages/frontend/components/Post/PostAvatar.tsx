@@ -23,4 +23,4 @@ const PostAvatar: React.FC<PostAvatarProps> = ({ uri, size = 40, style, bgColor 
   );
 };
 
-export default PostAvatar;
+export default React.memo(PostAvatar);

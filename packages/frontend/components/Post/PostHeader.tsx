@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
@@ -44,7 +44,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressUser,
   onPressAvatar,
 }) => {
-  const formatRelativeTime = (input?: string): string => {
+  // Move formatRelativeTime outside component to avoid recreation
+  const formatRelativeTime = React.useCallback((input?: string): string => {
     if (!input) return 'now';
     const ts = Date.parse(input);
     if (Number.isNaN(ts)) return 'now';
@@ -63,11 +64,12 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     if (months < 12) return `${months}mo`;
     const years = Math.floor(days / 365);
     return `${years}y`;
-  };
+  }, []);
 
-  const timeLabel = formatRelativeTime(date);
-  const repostLabel = repostedBy ? `${repostedBy.name} reposted` : undefined;
-  const repostTime = repostedBy?.date ? formatRelativeTime(repostedBy.date) : undefined;
+  // Memoize time labels to prevent recalculation on every render
+  const timeLabel = useMemo(() => formatRelativeTime(date), [date, formatRelativeTime]);
+  const repostLabel = useMemo(() => repostedBy ? `${repostedBy.name} reposted` : undefined, [repostedBy]);
+  const repostTime = useMemo(() => repostedBy?.date ? formatRelativeTime(repostedBy.date) : undefined, [repostedBy?.date, formatRelativeTime]);
   return (
     <View style={[styles.container, { paddingHorizontal }]}>
       <View style={styles.headerRow}>
@@ -153,3 +155,5 @@ const styles = StyleSheet.create({
     color: colors.COLOR_BLACK_LIGHT_4,
   },
 });
+
+export default React.memo(PostHeader);

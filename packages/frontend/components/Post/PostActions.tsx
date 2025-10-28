@@ -48,7 +48,6 @@ const PostActions: React.FC<Props> = ({
         )}
         <AnimatedNumber
           value={engagement?.likes ?? 0}
-          duration={180}
           style={[styles.engagementText, isLiked && styles.activeLikeText]}
         />
       </TouchableOpacity>
@@ -58,7 +57,6 @@ const PostActions: React.FC<Props> = ({
         <CommentIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
         <AnimatedNumber
           value={engagement?.replies ?? 0}
-          duration={180}
           style={styles.engagementText}
         />
       </TouchableOpacity>
@@ -72,7 +70,6 @@ const PostActions: React.FC<Props> = ({
         )}
         <AnimatedNumber
           value={engagement?.reposts ?? 0}
-          duration={180}
           style={[styles.engagementText, isReposted && styles.activeEngagementText]}
         />
       </TouchableOpacity>

@@ -113,4 +113,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Avatar;
+export default React.memo(Avatar);

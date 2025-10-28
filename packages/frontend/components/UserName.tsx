@@ -77,3 +77,5 @@ const styles = StyleSheet.create({
         marginLeft: 4,
     },
 });
+
+export default React.memo(UserName);

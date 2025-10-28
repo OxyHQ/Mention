@@ -217,23 +217,36 @@ const PostItem: React.FC<PostItemProps> = ({
     const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
     const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET;
 
-    const avatarUri = ((viewPost as any)?.user?.avatar && oxyServices && typeof (oxyServices as any).getFileDownloadUrl === 'function')
-        ? (oxyServices as any).getFileDownloadUrl((viewPost as any).user.avatar as string, 'thumb')
-        : undefined;
+    // Memoize avatar URI to prevent unnecessary re-renders
+    const avatarUri = React.useMemo(() => {
+        const avatarId = (viewPost as any)?.user?.avatar;
+        if (!avatarId || !oxyServices || typeof (oxyServices as any).getFileDownloadUrl !== 'function') {
+            return undefined;
+        }
+        return (oxyServices as any).getFileDownloadUrl(avatarId as string, 'thumb');
+    }, [(viewPost as any)?.user?.avatar, oxyServices]);
+
     const isPostDetail = (pathname || '').startsWith('/p/');
     const goToPost = useCallback(() => {
         if (!isPostDetail && viewPostId) router.push(`/p/${viewPostId}`);
     }, [router, viewPostId, isPostDetail]);
-    const goToUser = useCallback(() => {
+    // Memoize user data to prevent recreating goToUser callback
+    const userData = React.useMemo(() => {
         const user = (viewPost as any)?.user || {};
-        const id = String(user.id || user._id || '');
-        let handle = user.handle || user.username || viewPostHandle || '';
-        if (!handle && id) {
-            try { handle = useUsersStore.getState().usersById[id]?.data?.username || ''; } catch { }
+        return {
+            id: String(user.id || user._id || ''),
+            handle: user.handle || user.username || viewPostHandle || ''
+        };
+    }, [(viewPost as any)?.user?.id, (viewPost as any)?.user?.handle, (viewPost as any)?.user?.username, viewPostHandle]);
+
+    const goToUser = useCallback(() => {
+        let handle = userData.handle;
+        if (!handle && userData.id) {
+            try { handle = useUsersStore.getState().usersById[userData.id]?.data?.username || ''; } catch { }
         }
         if (handle) router.push(`/@${handle}`);
-        else if (id) router.push(`/${id}`);
-    }, [router, viewPost, viewPostHandle]);
+        else if (userData.id) router.push(`/${userData.id}`);
+    }, [router, userData]);
 
     // Memoized location data and validity (place before early return to respect hooks rules)
     const locationMemo = React.useMemo(() => {
