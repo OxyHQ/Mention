@@ -189,7 +189,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     });
                 } else {
                     await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
-                    Alert.alert('Link copied', 'Post link has been copied to clipboard');
+                    await (await import('@/utils/alerts')).alertDialog({ title: 'Link copied', message: 'Post link has been copied to clipboard' });
                 }
             } else {
                 await Share.share({
@@ -200,7 +200,9 @@ const PostItem: React.FC<PostItemProps> = ({
             }
         } catch (error) {
             console.error('Error sharing post:', error);
-            Alert.alert('Error', 'Failed to share post');
+            try { (await import('@/utils/alerts')).alertDialog({ title: 'Error', message: 'Failed to share post' }); } catch {
+                Alert.alert('Error', 'Failed to share post');
+            }
         }
     }, [viewPost]);
 

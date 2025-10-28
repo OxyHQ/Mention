@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { colors } from '../../styles/colors';
 import { LogoIcon } from '../../assets/logo';
 import { authenticatedClient } from '@/utils/api';
+import { confirmDialog, alertDialog } from '@/utils/alerts';
 import { getData, storeData } from '@/utils/storage';
 // (already imported above)
 import { hasNotificationPermission, requestNotificationPermissions, getDevicePushToken } from '@/utils/notifications';
@@ -112,50 +113,41 @@ export default function SettingsScreen() {
     const [autoSync, setAutoSync] = useState(true);
     const [offlineMode, setOfflineMode] = useState(false);
 
-    const handleSignOut = () => {
-        Alert.alert(t('settings.signOut'), t('settings.signOutMessage'), [
-            {
-                text: t('common.cancel'),
-                style: 'cancel',
-            },
-            {
-                text: t('settings.signOut'),
-                style: 'destructive',
-                onPress: () => {
-                    // For now, just navigate back - the actual sign out would depend on your auth system
-                    router.replace('/');
-                },
-            },
-        ]);
+    const handleSignOut = async () => {
+        const confirmed = await confirmDialog({
+            title: t('settings.signOut'),
+            message: t('settings.signOutMessage'),
+            okText: t('settings.signOut'),
+            cancelText: t('common.cancel'),
+            destructive: true,
+        });
+        if (!confirmed) return;
+        // For now, just navigate back - the actual sign out would depend on your auth system
+        router.replace('/');
     };
 
-    const handleClearCache = () => {
-        Alert.alert(t('settings.data.clearCache'), t('settings.data.clearCacheMessage'), [
-            {
-                text: t('common.cancel'),
-                style: 'cancel',
-            },
-            {
-                text: t('common.clear'),
-                style: 'destructive',
-                onPress: () => {
-                    // Implementation would clear app cache
-                    Alert.alert(t('common.success'), t('settings.data.clearCacheSuccess'));
-                },
-            },
-        ]);
+    const handleClearCache = async () => {
+        const confirmed = await confirmDialog({
+            title: t('settings.data.clearCache'),
+            message: t('settings.data.clearCacheMessage'),
+            okText: t('common.clear'),
+            cancelText: t('common.cancel'),
+            destructive: true,
+        });
+        if (!confirmed) return;
+        // Implementation would clear app cache
+        await alertDialog({ title: t('common.success'), message: t('settings.data.clearCacheSuccess') });
     };
 
-    const handleExportData = () => {
-        Alert.alert(t('settings.data.exportData'), t('settings.data.exportDataMessage'), [
-            { text: t('common.cancel'), style: 'cancel' },
-            {
-                text: t('common.export'),
-                onPress: () => {
-                    Alert.alert(t('common.success'), t('settings.data.exportDataSuccess'));
-                },
-            },
-        ]);
+    const handleExportData = async () => {
+        const confirmed = await confirmDialog({
+            title: t('settings.data.exportData'),
+            message: t('settings.data.exportDataMessage'),
+            okText: t('common.export'),
+            cancelText: t('common.cancel'),
+        });
+        if (!confirmed) return;
+        await alertDialog({ title: t('common.success'), message: t('settings.data.exportDataSuccess') });
     };
 
     return (
