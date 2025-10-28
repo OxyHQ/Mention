@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
   },
   nestedContainer: {
-    width: CARD_WIDTH,
+    width: '100%',
     maxHeight: CARD_HEIGHT * 1.5,
     backgroundColor: colors.primaryLight,
     overflow: 'hidden',
