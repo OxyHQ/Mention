@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef } from 'react';
-import { StyleSheet, View, Share, Platform, Alert, Pressable } from 'react-native';
+import React, { useCallback, useMemo, useRef, useContext } from 'react';
+import { StyleSheet, View, Share, Platform, Alert, Pressable, TouchableOpacity, Text } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 
 import { UIPost, Reply, FeedRepost as Repost, FeedType } from '@mention/shared-types';
@@ -12,6 +12,9 @@ import { colors } from '../../styles/colors';
 import PostMiddle from '../Post/PostMiddle';
 import { useOxy } from '@oxyhq/services';
 import { useUsersStore } from '@/stores/usersStore';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { Ionicons } from '@expo/vector-icons';
+import { feedService } from '../../services/feedService';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -28,10 +31,12 @@ const PostItem: React.FC<PostItemProps> = ({
     onReply,
     nestingDepth = 0,
 }) => {
-    const { oxyServices } = useOxy();
+    const { oxyServices, user } = useOxy();
     const router = useRouter();
     const pathname = usePathname();
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
+    const bottomSheet = useContext(BottomSheetContext);
+    const removePostEverywhere = usePostsStore((s: any) => (s as any).removePostEverywhere);
 
     // Subscribe to latest post state using entity cache only for performance
     const postId = (post as any)?.id;
@@ -68,9 +73,9 @@ const PostItem: React.FC<PostItemProps> = ({
         try {
             const { feeds, postsById } = usePostsStore.getState();
             if (postsById[id]) return postsById[id];
-            const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'];
+            const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'] as const;
             for (const t of types) {
-                const match = feeds[t]?.items?.find((p: any) => p.id === id);
+                const match = (feeds as any)[t]?.items?.find((p: any) => p.id === id);
                 if (match) return match;
             }
         } catch { }
@@ -305,6 +310,83 @@ const PostItem: React.FC<PostItemProps> = ({
                 avatarUri={avatarUri}
                 onPressUser={goToUser}
                 onPressAvatar={goToUser}
+                onPressMenu={() => {
+                    // Build and open bottom sheet actions for the post
+                    const isOwner = !!(user && ((user as any).id === (viewPost as any)?.user?.id || (user as any)._id === (viewPost as any)?.user?.id));
+                    const postId = (viewPost as any)?.id;
+                    const handleDelete = () => {
+                        Alert.alert(
+                            'Delete post',
+                            'Are you sure you want to delete this post? This action cannot be undone.',
+                            [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                    text: 'Delete',
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                        try {
+                                            await feedService.deletePost(postId);
+                                        } catch (e) {
+                                            console.error('Delete API failed', e);
+                                            Alert.alert('Error', 'Failed to delete post');
+                                            return;
+                                        }
+                                        try {
+                                            if (typeof removePostEverywhere === 'function') {
+                                                removePostEverywhere(postId);
+                                            } else {
+                                                // As a fallback, attempt to remove from common feeds
+                                                const store = usePostsStore.getState() as any;
+                                                const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved', 'for_you', 'following'] as const;
+                                                types.forEach((t) => {
+                                                    try { store.removePostLocally(postId, t as any); } catch { }
+                                                });
+                                            }
+                                            if (isPostDetail) router.back();
+                                            bottomSheet.openBottomSheet(false);
+                                        } catch (err) {
+                                            console.error('Error removing post locally:', err);
+                                        }
+                                    }
+                                }
+                            ]
+                        );
+                    };
+
+                    const postUrl = `https://mention.earth/p/${postId}`;
+                    const ActionRow: React.FC<{ icon: any; text: string; onPress: () => void; color?: string }> = ({ icon, text, onPress, color }) => (
+                        <TouchableOpacity style={styles.sheetItem} onPress={() => { onPress(); }}>
+                            <View style={styles.sheetItemLeft}>{icon}</View>
+                            <Text style={[styles.sheetItemText, color ? { color } : null]}>{text}</Text>
+                        </TouchableOpacity>
+                    );
+
+                    bottomSheet.setBottomSheetContent(
+                        <View style={styles.sheetContainer}>
+                            <ActionRow icon={<Ionicons name="link" size={18} color={colors.COLOR_BLACK_LIGHT_3} />} text="Copy link" onPress={async () => {
+                                try {
+                                    if (Platform.OS === 'web') {
+                                        await navigator.clipboard.writeText(postUrl);
+                                    } else {
+                                        const { Clipboard } = require('react-native');
+                                        Clipboard.setString(postUrl);
+                                    }
+                                } catch { }
+                                bottomSheet.openBottomSheet(false);
+                            }} />
+                            <ActionRow icon={<Ionicons name="share-outline" size={18} color={colors.COLOR_BLACK_LIGHT_3} />} text="Share" onPress={async () => { await handleShare(); bottomSheet.openBottomSheet(false); }} />
+                            {!isSaved ? (
+                                <ActionRow icon={<Ionicons name="bookmark-outline" size={18} color={colors.COLOR_BLACK_LIGHT_3} />} text="Save" onPress={async () => { await handleSave(); bottomSheet.openBottomSheet(false); }} />
+                            ) : (
+                                <ActionRow icon={<Ionicons name="bookmark" size={18} color={colors.COLOR_BLACK_LIGHT_3} />} text="Unsave" onPress={async () => { await handleSave(); bottomSheet.openBottomSheet(false); }} />
+                            )}
+                            {isOwner && (
+                                <ActionRow icon={<Ionicons name="trash-outline" size={18} color="#ef4444" />} text="Delete" onPress={handleDelete} color="#ef4444" />
+                            )}
+                        </View>
+                    );
+                    bottomSheet.openBottomSheet(true);
+                }}
             >
                 {/* Top: text content */}
                 {Boolean((viewPost as any)?.content?.text) && (
@@ -365,6 +447,24 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         maxHeight: 400, // Prevent nested posts from growing too large
         overflow: 'hidden',
+    },
+    sheetContainer: {
+        paddingVertical: 8,
+    },
+    sheetItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        gap: 12,
+    },
+    sheetItemLeft: {
+        width: 22,
+        alignItems: 'center',
+    },
+    sheetItemText: {
+        fontSize: 16,
+        color: colors.COLOR_BLACK_LIGHT_2,
     },
 });
 

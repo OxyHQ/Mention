@@ -28,6 +28,7 @@ interface PostHeaderProps {
   avatarGap?: number;
   onPressUser?: () => void;
   onPressAvatar?: () => void;
+  onPressMenu?: () => void; // optional three-dots menu action
 }
 
 const PostHeader: React.FC<PostHeaderProps> = ({
@@ -43,6 +44,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 
   onPressUser,
   onPressAvatar,
+  onPressMenu,
 }) => {
   // Move formatRelativeTime outside component to avoid recreation
   const formatRelativeTime = React.useCallback((input?: string): string => {
@@ -71,7 +73,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const repostLabel = useMemo(() => repostedBy ? `${repostedBy.name} reposted` : undefined, [repostedBy]);
   const repostTime = useMemo(() => repostedBy?.date ? formatRelativeTime(repostedBy.date) : undefined, [repostedBy?.date, formatRelativeTime]);
   return (
-    <View style={[styles.container, { paddingHorizontal }]}>
+    <View style={[styles.container, { paddingHorizontal }]}> 
       <View style={styles.headerRow}>
         <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar}>
           <PostAvatar uri={avatarUri} size={avatarSize} />
@@ -102,12 +104,20 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           </View>
           {children ? <View style={styles.headerChildren}>{children}</View> : null}
         </View>
+        {onPressMenu ? (
+          <TouchableOpacity
+            accessibilityLabel="Post options"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.menuButton}
+            onPress={onPressMenu}
+          >
+            <Ionicons name="ellipsis-horizontal" size={18} color={colors.COLOR_BLACK_LIGHT_3} />
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
 };
-
-export default PostHeader;
 
 const styles = StyleSheet.create({
   container: {
@@ -117,10 +127,15 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   headerMeta: {
     flex: 1,
     gap: 4,
+  },
+  menuButton: {
+    paddingHorizontal: 8,
+    paddingTop: 4,
   },
   postHeader: {
     flexDirection: 'row',

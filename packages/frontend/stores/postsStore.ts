@@ -115,6 +115,7 @@ interface FeedState {
     postId: string,
     updater: (prev: FeedItem) => FeedItem | null | undefined
   ) => void;
+  removePostEverywhere: (postId: string) => void;
   removePostLocally: (postId: string, feedType: FeedType) => void;
   addPostToFeed: (post: FeedItem, feedType: FeedType) => void;
   
@@ -1074,6 +1075,53 @@ export const usePostsStore = create<FeedState>()(
           feeds: feedsChanged ? nextFeeds : state.feeds,
           userFeeds: userFeedsChanged ? nextUserFeeds : state.userFeeds,
         };
+      });
+    },
+
+    removePostEverywhere: (postId: string) => {
+      set((state) => {
+        // Remove from global feeds
+        const nextFeeds: any = {};
+        (Object.keys(state.feeds) as (keyof typeof state.feeds)[]).forEach((ft) => {
+          const slice = state.feeds[ft];
+          const filtered = slice.items.filter((p) => p.id !== postId);
+          if (filtered.length !== slice.items.length) {
+            nextFeeds[ft] = {
+              ...slice,
+              items: filtered,
+              totalCount: Math.max(0, (slice.totalCount || 0) - 1),
+            };
+          } else {
+            nextFeeds[ft] = slice;
+          }
+        });
+
+        // Remove from user feeds
+        const nextUserFeeds: any = {};
+        Object.keys(state.userFeeds).forEach((uid) => {
+          const slices = state.userFeeds[uid];
+          const nextSlices: any = {};
+          (Object.keys(slices) as (keyof typeof slices)[]).forEach((ft) => {
+            const slice = slices[ft];
+            const filtered = slice.items.filter((p) => p.id !== postId);
+            if (filtered.length !== slice.items.length) {
+              nextSlices[ft] = {
+                ...slice,
+                items: filtered,
+                totalCount: Math.max(0, (slice.totalCount || 0) - 1),
+              };
+            } else {
+              nextSlices[ft] = slice;
+            }
+          });
+          nextUserFeeds[uid] = nextSlices;
+        });
+
+        // Remove from cache
+        const nextCache = { ...state.postsById };
+        delete nextCache[postId];
+
+        return { ...state, feeds: nextFeeds, userFeeds: nextUserFeeds, postsById: nextCache };
       });
     },
 
