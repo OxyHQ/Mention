@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import Avatar from '@/components/Avatar';
 import UserName from './UserName';
+import AnimatedTabBar from './common/AnimatedTabBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useOxy } from '@oxyhq/services';
@@ -147,7 +148,7 @@ const MentionProfile: React.FC = () => {
                     const fresh = await oxyServices.getProfileByUsername(username);
                     if (fresh) {
                         setProfileData(fresh);
-                        try { usersState.upsertUser(fresh as any); } catch {}
+                        try { usersState.upsertUser(fresh as any); } catch { }
                     }
                 }
             } catch (error) {
@@ -699,27 +700,11 @@ const MentionProfile: React.FC = () => {
                         </View>
 
                         {/* Tabs */}
-                        <View style={styles.tabBarContainer}>
-                            <View style={styles.tabBar}>
-                                {tabs.map((tab, i) => (
-                                    <TouchableOpacity
-                                        key={tab}
-                                        style={styles.tab}
-                                        onPress={() => onTabPress(i)}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.tabText,
-                                                activeTab === i && { color: primaryColor, fontWeight: '700' },
-                                            ]}
-                                        >
-                                            {tab}
-                                        </Text>
-                                        {activeTab === i && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
+                        <AnimatedTabBar
+                            tabs={tabs.map((tab, i) => ({ id: String(i), label: tab }))}
+                            activeTabId={String(activeTab)}
+                            onTabPress={(id) => onTabPress(parseInt(id))}
+                        />
 
                         {/* Tab Content */}
                         {renderTabContent()}
@@ -902,37 +887,6 @@ const styles = StyleSheet.create({
     followedBy: {
         fontSize: 15,
         color: colors.COLOR_BLACK_LIGHT_4,
-    },
-    tabBarContainer: {
-        borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-    },
-    tabBar: {
-        flexDirection: 'row',
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
-    },
-    tab: {
-        flex: 1,
-        paddingVertical: 16,
-        alignItems: 'center',
-        position: 'relative',
-    },
-    tabText: {
-        fontSize: 15,
-        fontWeight: '500',
-        color: colors.COLOR_BLACK_LIGHT_4,
-    },
-    activeTabText: {
-        color: colors.primaryColor,
-        fontWeight: '700',
-    },
-    tabIndicator: {
-        position: 'absolute',
-        bottom: 0,
-        width: 30,
-        height: 2,
-        backgroundColor: colors.primaryColor,
-        borderRadius: 1,
     },
 
     communitiesSection: {

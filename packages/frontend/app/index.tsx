@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Platform, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { shadowStyle } from '@/utils/platformStyles';
@@ -13,6 +13,7 @@ import { useOxy } from '@oxyhq/services';
 import SignInPrompt from '../components/SignInPrompt';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
+import AnimatedTabBar from '../components/common/AnimatedTabBar';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -150,57 +151,17 @@ const HomeScreen: React.FC = () => {
                 </View>
 
                 {/* Tab Navigation */}
-                <View style={styles.tabsContainer}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.tabsScrollView}
-                    >
-                        <TouchableOpacity
-                            style={styles.tab}
-                            onPress={() => setActiveTab('for_you')}
-                        >
-                            <Text style={[styles.tabText, activeTab === 'for_you' && styles.activeTabText]}>
-                                {t('For You')}
-                            </Text>
-                            {activeTab === 'for_you' && <View style={styles.tabIndicator} />}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.tab}
-                            onPress={() => setActiveTab('following')}
-                        >
-                            <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
-                                {t('Following')}
-                            </Text>
-                            {activeTab === 'following' && <View style={styles.tabIndicator} />}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.tab}
-                            onPress={() => setActiveTab('trending')}
-                        >
-                            <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
-                                {t('Trending')}
-                            </Text>
-                            {activeTab === 'trending' && <View style={styles.tabIndicator} />}
-                        </TouchableOpacity>
-
-                        {/* Pinned Feeds Tabs */}
-                        {pinnedFeeds.map((feed) => (
-                            <TouchableOpacity
-                                key={feed.id}
-                                style={styles.tab}
-                                onPress={() => setActiveTab(feed.id)}
-                            >
-                                <Text style={[styles.tabText, activeTab === feed.id && styles.activeTabText]} numberOfLines={1}>
-                                    {feed.title}
-                                </Text>
-                                {activeTab === feed.id && <View style={styles.tabIndicator} />}
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
+                <AnimatedTabBar
+                    tabs={[
+                        { id: 'for_you', label: t('For You') },
+                        { id: 'following', label: t('Following') },
+                        { id: 'trending', label: t('Trending') },
+                        ...pinnedFeeds.map((feed) => ({ id: feed.id, label: feed.title })),
+                    ]}
+                    activeTabId={activeTab}
+                    onTabPress={setActiveTab}
+                    scrollEnabled={pinnedFeeds.length > 0}
+                />
 
                 {/* Content */}
                 {renderContent()}
@@ -249,38 +210,6 @@ const styles = StyleSheet.create({
     headerButton: {
         padding: 8,
         marginLeft: 8,
-    },
-    tabsContainer: {
-        backgroundColor: 'white',
-        borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-    },
-    tabsScrollView: {
-        flexGrow: 0,
-    },
-    tab: {
-        alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-        position: 'relative',
-    },
-    tabText: {
-        fontSize: 15,
-        fontWeight: '500',
-        color: colors.COLOR_BLACK_LIGHT_4,
-        textAlign: 'center',
-    },
-    activeTabText: {
-        color: colors.primaryColor,
-        fontWeight: '700',
-    },
-    tabIndicator: {
-        position: 'absolute',
-        bottom: 0,
-        width: 30,
-        height: 2,
-        backgroundColor: colors.primaryColor,
-        borderRadius: 1,
     },
     fab: {
         position: 'absolute',
