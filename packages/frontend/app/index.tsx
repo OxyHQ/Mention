@@ -157,42 +157,46 @@ const HomeScreen: React.FC = () => {
                         style={styles.tabsScrollView}
                     >
                         <TouchableOpacity
-                            style={[styles.tab, activeTab === 'for_you' && styles.activeTab]}
+                            style={styles.tab}
                             onPress={() => setActiveTab('for_you')}
                         >
                             <Text style={[styles.tabText, activeTab === 'for_you' && styles.activeTabText]}>
                                 {t('For You')}
                             </Text>
+                            {activeTab === 'for_you' && <View style={styles.tabIndicator} />}
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+                            style={styles.tab}
                             onPress={() => setActiveTab('following')}
                         >
                             <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
                                 {t('Following')}
                             </Text>
+                            {activeTab === 'following' && <View style={styles.tabIndicator} />}
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[styles.tab, activeTab === 'trending' && styles.activeTab]}
+                            style={styles.tab}
                             onPress={() => setActiveTab('trending')}
                         >
                             <Text style={[styles.tabText, activeTab === 'trending' && styles.activeTabText]}>
                                 {t('Trending')}
                             </Text>
+                            {activeTab === 'trending' && <View style={styles.tabIndicator} />}
                         </TouchableOpacity>
 
                         {/* Pinned Feeds Tabs */}
                         {pinnedFeeds.map((feed) => (
                             <TouchableOpacity
                                 key={feed.id}
-                                style={[styles.tab, activeTab === feed.id && styles.activeTab]}
+                                style={styles.tab}
                                 onPress={() => setActiveTab(feed.id)}
                             >
                                 <Text style={[styles.tabText, activeTab === feed.id && styles.activeTabText]} numberOfLines={1}>
                                     {feed.title}
                                 </Text>
+                                {activeTab === feed.id && <View style={styles.tabIndicator} />}
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
@@ -248,7 +252,7 @@ const styles = StyleSheet.create({
     },
     tabsContainer: {
         backgroundColor: 'white',
-        borderBottomWidth: 0.5,
+        borderBottomWidth: 1,
         borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
     },
     tabsScrollView: {
@@ -256,22 +260,27 @@ const styles = StyleSheet.create({
     },
     tab: {
         alignItems: 'center',
-        paddingVertical: 14,
+        paddingVertical: 16,
         paddingHorizontal: 20,
-    },
-    activeTab: {
-        borderBottomWidth: 3,
-        borderBottomColor: colors.primaryColor,
+        position: 'relative',
     },
     tabText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: colors.COLOR_BLACK_LIGHT_3,
+        fontSize: 15,
+        fontWeight: '500',
+        color: colors.COLOR_BLACK_LIGHT_4,
         textAlign: 'center',
     },
     activeTabText: {
         color: colors.primaryColor,
-        fontWeight: 'bold',
+        fontWeight: '700',
+    },
+    tabIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        width: 30,
+        height: 2,
+        backgroundColor: colors.primaryColor,
+        borderRadius: 1,
     },
     fab: {
         position: 'absolute',
