@@ -15,6 +15,7 @@ import { useUsersStore } from '@/stores/usersStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Ionicons } from '@expo/vector-icons';
 import { feedService } from '../../services/feedService';
+import { confirmDialog } from '@/utils/alerts';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -314,77 +315,38 @@ const PostItem: React.FC<PostItemProps> = ({
                     // Build and open bottom sheet actions for the post
                     const isOwner = !!(user && ((user as any).id === (viewPost as any)?.user?.id || (user as any)._id === (viewPost as any)?.user?.id));
                     const postId = (viewPost as any)?.id;
-                    const handleDelete = () => {
-                        // Web doesn't support Alert button callbacks; use a native confirm()
-                        if (Platform.OS === 'web') {
-                            try { bottomSheet.openBottomSheet(false); } catch { }
-                            const confirmed = typeof window !== 'undefined' && window.confirm
-                                ? window.confirm('Delete post? This action cannot be undone.')
-                                : true;
-                            if (!confirmed) return;
-                            (async () => {
-                                try {
-                                    await feedService.deletePost(postId);
-                                } catch (e) {
-                                    console.error('Delete API failed', e);
-                                    Alert.alert('Error', 'Failed to delete post');
-                                    return;
-                                }
-                                try {
-                                    if (typeof removePostEverywhere === 'function') {
-                                        removePostEverywhere(postId);
-                                    } else {
-                                        const store = usePostsStore.getState() as any;
-                                        const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved', 'for_you', 'following'] as const;
-                                        types.forEach((t) => {
-                                            try { store.removePostLocally(postId, t as any); } catch { }
-                                        });
-                                    }
-                                    if (isPostDetail) router.back();
-                                } catch (err) {
-                                    console.error('Error removing post locally:', err);
-                                }
-                            })();
+                    const handleDelete = async () => {
+                        try { bottomSheet.openBottomSheet(false); } catch { }
+                        const confirmed = await confirmDialog({
+                            title: 'Delete post',
+                            message: 'Are you sure you want to delete this post? This action cannot be undone.',
+                            okText: 'Delete',
+                            cancelText: 'Cancel',
+                            destructive: true,
+                        });
+                        if (!confirmed) return;
+
+                        try {
+                            await feedService.deletePost(postId);
+                        } catch (e) {
+                            console.error('Delete API failed', e);
+                            Alert.alert('Error', 'Failed to delete post');
                             return;
                         }
-
-                        // Native: use Alert with destructive button
-                        Alert.alert(
-                            'Delete post',
-                            'Are you sure you want to delete this post? This action cannot be undone.',
-                            [
-                                { text: 'Cancel', style: 'cancel' },
-                                {
-                                    text: 'Delete',
-                                    style: 'destructive',
-                                    onPress: async () => {
-                                        try {
-                                            await feedService.deletePost(postId);
-                                        } catch (e) {
-                                            console.error('Delete API failed', e);
-                                            Alert.alert('Error', 'Failed to delete post');
-                                            return;
-                                        }
-                                        try {
-                                            if (typeof removePostEverywhere === 'function') {
-                                                removePostEverywhere(postId);
-                                            } else {
-                                                // As a fallback, attempt to remove from common feeds
-                                                const store = usePostsStore.getState() as any;
-                                                const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved', 'for_you', 'following'] as const;
-                                                types.forEach((t) => {
-                                                    try { store.removePostLocally(postId, t as any); } catch { }
-                                                });
-                                            }
-                                            if (isPostDetail) router.back();
-                                            bottomSheet.openBottomSheet(false);
-                                        } catch (err) {
-                                            console.error('Error removing post locally:', err);
-                                        }
-                                    }
-                                }
-                            ]
-                        );
+                        try {
+                            if (typeof removePostEverywhere === 'function') {
+                                removePostEverywhere(postId);
+                            } else {
+                                const store = usePostsStore.getState() as any;
+                                const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved', 'for_you', 'following'] as const;
+                                types.forEach((t) => {
+                                    try { store.removePostLocally(postId, t as any); } catch { }
+                                });
+                            }
+                            if (isPostDetail) router.back();
+                        } catch (err) {
+                            console.error('Error removing post locally:', err);
+                        }
                     };
 
                     const postUrl = `https://mention.earth/p/${postId}`;
