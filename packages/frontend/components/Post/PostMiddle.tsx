@@ -1,5 +1,5 @@
 import React, { useRef, useMemo } from 'react';
-import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent } from 'react-native';
+import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent, Dimensions } from 'react-native';
 import PollCard from './PollCard';
 import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
@@ -18,6 +18,7 @@ interface Props {
 const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0 }) => {
   // Prevent infinite nesting (max 2 levels deep)
   const MAX_NESTING_DEPTH = 2;
+  const screenWidth = Dimensions.get('window').width;
   type Item = { type: "nested" } | { type: "image"; src: string } | { type: "video"; src: string } | { type: "poll" };
   const items: Item[] = [];
   const { oxyServices } = useOxy();
@@ -94,8 +95,10 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
         if (item.type === 'nested') {
           // Render PostItem directly for instant loading (no lazy loading)
           // Pass nesting depth to prevent infinite recursion
+          // Calculate width: screen width minus left offset and right padding
+          const nestedWidth = screenWidth - leftOffset - 32;
           return (
-            <View key={`nested-${idx}`} style={styles.nestedContainer}>
+            <View key={`nested-${idx}`} style={[styles.nestedContainer, styles.itemContainer, { width: nestedWidth }]}>
               <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />
             </View>
           );
@@ -155,7 +158,6 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
   },
   nestedContainer: {
-    width: '100%',
     maxHeight: CARD_HEIGHT * 1.5,
     backgroundColor: colors.primaryLight,
     overflow: 'hidden',

@@ -360,9 +360,9 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primaryLight,
     },
     nestedPostContainer: {
+        flex: 1,
         borderWidth: 1,
         borderRadius: 16,
-        width: '100%',
         maxHeight: 400, // Prevent nested posts from growing too large
         overflow: 'hidden',
     },
