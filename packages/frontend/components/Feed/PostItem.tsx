@@ -301,7 +301,7 @@ const PostItem: React.FC<PostItemProps> = ({
             style={[
                 styles.postContainer,
                 { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background },
-                isNested && styles.nestedPostContainer,
+                isNested && [styles.nestedPostContainer, { borderColor: theme.colors.border }],
                 style
             ]}
             {...(isPostDetail ? {} : { onPress: goToPost })}
