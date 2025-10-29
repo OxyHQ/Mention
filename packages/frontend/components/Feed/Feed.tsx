@@ -530,7 +530,6 @@ export default Feed;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#FFFFFF",
     },
     list: {
         flex: 1,

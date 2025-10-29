@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
-import { shadowStyle } from '@/utils/platformStyles';
+import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
-import { colors } from '@/styles/colors';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -134,23 +133,27 @@ const HomeScreen: React.FC = () => {
                 <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                 {/* Header */}
-                <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Mention</Text>
-                    <View style={styles.headerActions}>
-                        <TouchableOpacity
-                            style={styles.headerButton}
-                            onPress={() => router.push('/search')}
-                        >
-                            <Ionicons name="search-outline" size={24} color={theme.colors.textSecondary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.headerButton}
-                            onPress={() => router.push('/notifications')}
-                        >
-                            <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                <Header 
+                    options={{ 
+                        title: 'Mention',
+                        rightComponents: [
+                            <TouchableOpacity
+                                key="search"
+                                style={styles.headerButton}
+                                onPress={() => router.push('/search')}
+                            >
+                                <Ionicons name="search-outline" size={24} color={theme.colors.textSecondary} />
+                            </TouchableOpacity>,
+                            <TouchableOpacity
+                                key="notifications"
+                                style={styles.headerButton}
+                                onPress={() => router.push('/notifications')}
+                            >
+                                <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
+                            </TouchableOpacity>
+                        ]
+                    }} 
+                />
 
                 {/* Tab Navigation */}
                 <AnimatedTabBar
@@ -187,28 +190,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#FFFFFF",
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        backgroundColor: "#FFFFFF",
-        borderBottomWidth: 0.5,
-        borderBottomColor: "#EFF3F4",
-        ...shadowStyle({ elevation: 1, web: `0px 1px 4px rgba(0,0,0,0.1)` }),
-        // sticky header on web
-        ...(Platform.OS === 'web' ? ({ position: 'sticky' as any, top: 0, zIndex: 1000 } as any) : {}),
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: "#0F1419",
-    },
-    headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
     headerButton: {
         padding: 8,
         marginLeft: 8,
@@ -224,10 +205,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 8,
-        ...shadowStyle({ elevation: 8, web: `0px 4px 8px rgba(0,0,0,0.2)` }),
-        ...(Platform.OS === 'web' ? {
-            position: 'fixed' as any,
-        } : {}),
     },
 });
 
