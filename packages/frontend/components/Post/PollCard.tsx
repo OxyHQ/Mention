@@ -130,7 +130,6 @@ const styles = StyleSheet.create({
   option: {
     position: 'relative',
     borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
     borderRadius: 15,
     paddingHorizontal: 12,
     paddingVertical: 10,

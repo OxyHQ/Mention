@@ -76,7 +76,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
       {items.map((item, idx) => {
         if (item.type === 'poll') {
           return (
-            <View key={`poll-${idx}`} style={styles.itemContainer}>
+            <View key={`poll-${idx}`} style={[styles.itemContainer, styles.pollWrapper, { borderColor: theme.colors.border }]}>
               {pollId ? (
                 // Use interactive PollCard when we have a pollId
                 <PollCard pollId={pollId as string} />
@@ -97,10 +97,13 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
         if (item.type === 'nested') {
           // Render PostItem directly for instant loading (no lazy loading)
           // Pass nesting depth to prevent infinite recursion
-          // Calculate width: screen width minus left offset and right padding
-          const nestedWidth = screenWidth - leftOffset - 32;
+          // Calculate available width: screen width minus all horizontal spacing
+          const scrollerPaddingRight = 12; // from styles.scroller
+          const scrollerPaddingLeft = Math.abs(leftOffset); // applied via contentContainerStyle
+          const extraMargin = 8; // Additional safety margin
+          const nestedWidth = screenWidth - scrollerPaddingLeft - scrollerPaddingRight - extraMargin;
           return (
-            <View key={`nested-${idx}`} style={[styles.nestedContainer, styles.itemContainer, { width: nestedWidth }]}>
+            <View key={`nested-${idx}`} style={[styles.nestedContainer, { width: nestedWidth }]}>
               <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />
             </View>
           );
@@ -109,7 +112,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
           <Image
             key={`img-${idx}`}
             source={{ uri: (item as any).src }}
-            style={[styles.mediaImage, styles.itemContainer]}
+            style={[styles.mediaImage, styles.itemContainer, { borderColor: theme.colors.border }]}
             resizeMode="cover"
           />
         );
@@ -130,8 +133,11 @@ const styles = StyleSheet.create({
   },
   itemContainer: {
     borderWidth: 1,
-    borderColor: "#EFF3F4",
     borderRadius: 15,
+    overflow: 'hidden', // Ensure content respects border radius
+  },
+  pollWrapper: {
+    width: CARD_WIDTH,
   },
   mediaImage: {
     width: CARD_WIDTH,
@@ -160,8 +166,6 @@ const styles = StyleSheet.create({
     color: "#000000",
   },
   nestedContainer: {
-    maxHeight: CARD_HEIGHT * 1.5,
-    backgroundColor: "#FFFFFF",
-    overflow: 'hidden',
+    // Width is set dynamically to fill available space
   },
 });

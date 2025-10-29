@@ -299,8 +299,9 @@ const PostItem: React.FC<PostItemProps> = ({
     return (
         <Container
             style={[
-                styles.postContainer,
-                { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background },
+                !isNested && styles.postContainer,
+                !isNested && { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background },
+                isNested && { backgroundColor: theme.colors.background },
                 isNested && [styles.nestedPostContainer, { borderColor: theme.colors.border }],
                 style
             ]}
@@ -447,6 +448,9 @@ const styles = StyleSheet.create({
         backgroundColor: "#FFFFFF",
     },
     nestedPostContainer: {
+        flexDirection: 'column',
+        gap: 8,
+        paddingVertical: 8,
         flex: 1,
         borderWidth: 1,
         borderRadius: 15,
