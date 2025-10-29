@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import Feed from '../components/Feed/Feed';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
 import { useTheme } from '@/hooks/useTheme';
@@ -44,7 +46,20 @@ const ExploreScreen: React.FC = () => {
         <StatusBar style={theme.isDark ? "light" : "dark"} />
 
         {/* Header */}
-        <Header options={{ title: t('Explore') }} />
+        <Header
+          options={{
+            title: t('Explore'),
+            rightComponents: [
+              <TouchableOpacity
+                key="search"
+                onPress={() => router.push('/search')}
+                style={{ padding: 8 }}
+              >
+                <Ionicons name="search-outline" size={24} color={theme.colors.textSecondary} />
+              </TouchableOpacity>,
+            ],
+          }}
+        />
 
         {/* Tab Navigation */}
         <AnimatedTabBar

@@ -4,11 +4,9 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   Platform,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -78,12 +76,10 @@ const PublicFeedCard = ({
 const FeedsScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
-  const [query, setQuery] = useState('');
   const [pinned, setPinned] = useState<string[]>([]);
   const [myFeeds, setMyFeeds] = useState<any[]>([]);
   const [publicFeeds, setPublicFeeds] = useState<any[]>([]);
-  const [_loading, setLoading] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -92,58 +88,24 @@ const FeedsScreen: React.FC = () => {
     })();
   }, []);
 
-  // Load myFeeds once on mount
   useEffect(() => {
-    const loadMyFeeds = async () => {
+    const loadFeeds = async () => {
       try {
+        setLoading(true);
         const mine = await customFeedsService.list({ mine: true });
         setMyFeeds(mine.items || []);
+        const pub = await customFeedsService.list({ publicOnly: true });
+        // filter out ones already mine
+        const mineIds = new Set((mine.items || []).map((f: any) => String(f._id || f.id)));
+        setPublicFeeds((pub.items || []).filter((f: any) => !mineIds.has(String(f._id || f.id))));
       } catch (e) {
-        console.warn('Failed loading my feeds', e);
-      }
-    };
-    loadMyFeeds();
-  }, []);
-
-  // Debounced search effect - handles both initial load and search
-  useEffect(() => {
-    const searchFeeds = async () => {
-      const searchQuery = query.trim();
-
-      if (!searchQuery) {
-        // If search is cleared, reload all public feeds (excluding user's own)
-        try {
-          setSearchLoading(true);
-          const mine = await customFeedsService.list({ mine: true });
-          const pub = await customFeedsService.list({ publicOnly: true });
-          const mineIds = new Set((mine.items || []).map((f: any) => String(f._id || f.id)));
-          setPublicFeeds((pub.items || []).filter((f: any) => !mineIds.has(String(f._id || f.id))));
-        } catch (e) {
-          console.warn('Failed reloading feeds', e);
-        } finally {
-          setSearchLoading(false);
-        }
-        return;
-      }
-
-      try {
-        setSearchLoading(true);
-        console.log('Searching feeds with query:', searchQuery);
-        const pub = await customFeedsService.list({ publicOnly: true, search: searchQuery });
-        console.log('Search results:', pub);
-        // During search, show all results including user's own feeds
-        setPublicFeeds(pub.items || []);
-      } catch (e) {
-        console.warn('Failed searching feeds', e);
+        console.warn('Failed loading feeds', e);
       } finally {
-        setSearchLoading(false);
+        setLoading(false);
       }
     };
-
-    // Debounce search by 500ms
-    const timeoutId = setTimeout(searchFeeds, 500);
-    return () => clearTimeout(timeoutId);
-  }, [query]);
+    loadFeeds();
+  }, []);
 
   const onTogglePin = useCallback(async (id: string) => {
     setPinned((prev) => {
@@ -164,6 +126,9 @@ const FeedsScreen: React.FC = () => {
       <ThemedView style={styles.container}>
         <Header options={{
           title: t('Feeds'), rightComponents: [
+            <TouchableOpacity key="search" onPress={() => router.push('/search')} style={{ padding: 8 }}>
+              <Ionicons name="search-outline" size={22} color={theme.colors.textSecondary} />
+            </TouchableOpacity>,
             <TouchableOpacity key="create" onPress={() => router.push('/feeds/create')} style={{ padding: 8 }}>
               <Ionicons name="add-circle-outline" size={22} color={theme.colors.primary} />
             </TouchableOpacity>
@@ -221,37 +186,14 @@ const FeedsScreen: React.FC = () => {
             </View>
           </View>
 
-          <View style={[styles.searchBox, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-            <Ionicons name="search" size={18} color={theme.colors.textSecondary} />
-            <TextInput
-              placeholder={t('Search feeds')}
-              value={query}
-              onChangeText={setQuery}
-              style={[styles.searchInput, { color: theme.colors.text }]}
-              placeholderTextColor={theme.colors.textSecondary}
+          {publicFeeds.map((item: any) => (
+            <PublicFeedCard
+              key={String(item._id || item.id)}
+              item={item}
+              pinned={pinned.includes(`custom:${item._id || item.id}`)}
+              onTogglePin={onTogglePin}
             />
-            {searchLoading && (
-              <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginLeft: 8 }} />
-            )}
-          </View>
-
-          {publicFeeds.length === 0 && query.trim().length > 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={48} color={theme.colors.textSecondary} />
-              <Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>
-                No feeds found matching "{query}"
-              </Text>
-            </View>
-          ) : (
-            publicFeeds.map((item: any) => (
-              <PublicFeedCard
-                key={String(item._id || item.id)}
-                item={item}
-                pinned={pinned.includes(`custom:${item._id || item.id}`)}
-                onTogglePin={onTogglePin}
-              />
-            ))
-          )}
+          ))}
 
           {/* Your Feeds */}
           {myFeeds.length > 0 && (
