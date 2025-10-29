@@ -58,7 +58,6 @@ const styles = StyleSheet.create({
     widgetTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: "#0F1419",
     },
     widgetContent: {
         padding: 15,

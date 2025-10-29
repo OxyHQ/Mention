@@ -70,7 +70,7 @@ export function SideBar() {
             {
                 title: 'Home',
                 icon: <Home color={theme.colors.text} />,
-                iconActive: <HomeActive />,
+                iconActive: <HomeActive color={theme.colors.primary} />,
                 route: '/',
             },
             ...(user ? [{
@@ -82,55 +82,55 @@ export function SideBar() {
             {
                 title: t("Explore"),
                 icon: <Search color={theme.colors.text} />,
-                iconActive: <SearchActive />,
+                iconActive: <SearchActive color={theme.colors.primary} />,
                 route: '/explore',
             },
             {
                 title: t("Notifications"),
                 icon: <Bell color={theme.colors.text} />,
-                iconActive: <BellActive />,
+                iconActive: <BellActive color={theme.colors.primary} />,
                 route: '/notifications',
             },
             {
                 title: 'Chat',
                 icon: <Chat color={theme.colors.text} />,
-                iconActive: <ChatActive />,
+                iconActive: <ChatActive color={theme.colors.primary} />,
                 route: '/chat',
             },
             {
                 title: t("Analytics"),
                 icon: <AnalyticsIcon color={theme.colors.text} />,
-                iconActive: <AnalyticsIconActive />,
+                iconActive: <AnalyticsIconActive color={theme.colors.primary} />,
                 route: '/analytics',
             },
             {
                 title: t("Saved"),
                 icon: <Bookmark color={theme.colors.text} />,
-                iconActive: <BookmarkActive />,
+                iconActive: <BookmarkActive color={theme.colors.primary} />,
                 route: '/saved',
             },
             {
                 title: t("Feeds"),
                 icon: <Hashtag color={theme.colors.text} />,
-                iconActive: <HashtagActive />,
+                iconActive: <HashtagActive color={theme.colors.primary} />,
                 route: '/feeds',
             },
             {
                 title: t("Lists"),
                 icon: <List color={theme.colors.text} />,
-                iconActive: <ListActive />,
+                iconActive: <ListActive color={theme.colors.primary} />,
                 route: '/lists',
             },
             {
                 title: t("Videos"),
                 icon: <Video color={theme.colors.text} />,
-                iconActive: <VideoActive />,
+                iconActive: <VideoActive color={theme.colors.primary} />,
                 route: '/videos',
             },
             {
                 title: t("Settings"),
                 icon: <Gear color={theme.colors.text} />,
-                iconActive: <GearActive />,
+                iconActive: <GearActive color={theme.colors.primary} />,
                 route: '/settings',
             },
         ];
