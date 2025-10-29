@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
-import { shadowStyle } from '@/utils/platformStyles';
+import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
-import { colors } from '@/styles/colors';
 import { StatusBar } from 'expo-status-bar';
 import Feed from '../components/Feed/Feed';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
@@ -45,9 +44,7 @@ const ExploreScreen: React.FC = () => {
         <StatusBar style={theme.isDark ? "light" : "dark"} />
 
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{t('Explore')}</Text>
-        </View>
+        <Header options={{ title: t('Explore') }} />
 
         {/* Tab Navigation */}
         <AnimatedTabBar
@@ -71,22 +68,6 @@ const ExploreScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#EFF3F4",
-    ...shadowStyle({ elevation: 1, web: `0px 1px 4px rgba(0,0,0,0.1)` }),
-    // sticky header on web
-    ...(Platform.OS === 'web' ? ({ position: 'sticky' as any, top: 0, zIndex: 1000 } as any) : {}),
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: "#0F1419",
   },
 });
 

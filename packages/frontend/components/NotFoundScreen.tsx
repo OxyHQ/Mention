@@ -1,21 +1,45 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/styles/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '@/hooks/useTheme';
+import { ThemedView } from '@/components/ThemedView';
+import { ThemedText } from '@/components/ThemedText';
+import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
+import { Button } from '@/components/common/Button';
 
 export default function NotFoundScreen() {
     const router = useRouter();
+    const theme = useTheme();
 
     return (
-        <View style={styles.container}>
-            <Ionicons name="alert-circle-outline" size={80} color={colors.primaryColor} />
-            <Text style={styles.title}>Page Not Found</Text>
-            <Text style={styles.message}>The page you are looking for does not exist.</Text>
-            <TouchableOpacity style={styles.button} onPress={() => router.back()}>
-                <Text style={styles.buttonText}>Go Back</Text>
-            </TouchableOpacity>
-        </View>
+        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+            <ThemedView style={styles.container}>
+                {/* Illustration */}
+                <View style={styles.illustrationWrap}>
+                    <NoUpdatesIllustration width={200} height={200} />
+                </View>
+
+                {/* Title */}
+                <ThemedText style={styles.title}>Page Not Found</ThemedText>
+
+                {/* Message */}
+                <ThemedText style={[styles.message, { color: theme.colors.textSecondary }]}>
+                    The page you're looking for doesn't exist or has been moved.
+                </ThemedText>
+
+                {/* Buttons */}
+                <View style={styles.buttonsContainer}>
+                    <Button variant="primary" onPress={() => router.back()}>
+                        Go Back
+                    </Button>
+
+                    <Button variant="secondary" onPress={() => router.push('/')}>
+                        Home
+                    </Button>
+                </View>
+            </ThemedView>
+        </SafeAreaView>
     );
 }
 
@@ -24,28 +48,32 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 16,
+        paddingHorizontal: 24,
+    },
+    illustrationWrap: {
+        width: 220,
+        height: 220,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 24,
     },
     title: {
         fontSize: 24,
-        fontWeight: 'bold',
-        marginVertical: 16,
+        fontWeight: '700',
+        textAlign: 'center',
+        marginBottom: 12,
     },
     message: {
         fontSize: 16,
-        color: '#666666',
         textAlign: 'center',
-        marginBottom: 24,
+        lineHeight: 24,
+        marginBottom: 32,
+        maxWidth: 320,
     },
-    button: {
-        backgroundColor: colors.primaryColor,
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 24,
-    },
-    buttonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: 'bold',
+    buttonsContainer: {
+        width: '100%',
+        maxWidth: 320,
+        gap: 12,
     },
 });
+

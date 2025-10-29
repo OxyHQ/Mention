@@ -151,7 +151,7 @@ const NotificationsScreen: React.FC = () => {
                 <NoUpdatesIllustration width={200} height={200} />
             </View>
             <ThemedText style={styles.emptyTitle}>{t('notification.empty.title')}</ThemedText>
-            <ThemedText style={styles.emptySubtitle}>
+            <ThemedText style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
                 {t('notification.empty.subtitle')}
             </ThemedText>
         </ThemedView>
@@ -182,7 +182,7 @@ const NotificationsScreen: React.FC = () => {
                         }}
                     />
                     <ThemedView style={styles.authContainer}>
-                        <ThemedText style={styles.authText}>
+                        <ThemedText style={[styles.authText, { color: theme.colors.textSecondary }]}>
                             {t('state.no_session')}
                         </ThemedText>
                     </ThemedView>
@@ -204,7 +204,7 @@ const NotificationsScreen: React.FC = () => {
                                     onPress={handleMarkAllAsRead}
                                     disabled={markAllAsReadMutation.isPending}
                                 >
-                                    <ThemedText style={styles.markAllText}>
+                                    <ThemedText style={[styles.markAllText, { color: theme.colors.primary }]}>
                                         {t('notification.mark_all_read')}
                                     </ThemedText>
                                 </TouchableOpacity>
@@ -236,7 +236,7 @@ const NotificationsScreen: React.FC = () => {
                                     <RefreshControl
                                         refreshing={refreshing}
                                         onRefresh={handleRefresh}
-                                        tintColor={colors.primaryColor}
+                                        tintColor={theme.colors.primary}
                                     />
                                 }
                                 recycleItems={true}

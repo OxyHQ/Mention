@@ -32,15 +32,18 @@ const MyFeedsRow = ({
   label: string;
   onPress?: () => void;
   chevron?: boolean;
-}) => (
-  <TouchableOpacity style={styles.myFeedRow} onPress={onPress} activeOpacity={0.7}>
-    <View style={styles.myFeedIcon}>{icon}</View>
-    <Text style={styles.myFeedLabel}>{label}</Text>
-    {chevron && (
-      <Ionicons name="chevron-forward" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-    )}
-  </TouchableOpacity>
-);
+}) => {
+  const theme = useTheme();
+  return (
+    <TouchableOpacity style={styles.myFeedRow} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.myFeedIcon}>{icon}</View>
+      <Text style={[styles.myFeedLabel, { color: theme.colors.text }]}>{label}</Text>
+      {chevron && (
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+      )}
+    </TouchableOpacity>
+  );
+};
 
 const PublicFeedCard = ({
   item,
@@ -50,25 +53,28 @@ const PublicFeedCard = ({
   item: any;
   pinned: boolean;
   onTogglePin: (id: string) => void;
-}) => (
-  <View style={styles.card}>
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <View style={styles.cardEmojiBubble}><Text style={{ fontSize: 18 }}>🧩</Text></View>
-      <View style={{ marginLeft: 10, flex: 1 }}>
-        <Text style={styles.cardTitle}>{item.title}</Text>
-        <Text style={styles.cardBy}>{(item.memberOxyUserIds || []).length} members • Public</Text>
+}) => {
+  const theme = useTheme();
+  return (
+    <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={[styles.cardEmojiBubble, { backgroundColor: theme.colors.backgroundSecondary }]}><Text style={{ fontSize: 18 }}>🧩</Text></View>
+        <View style={{ marginLeft: 10, flex: 1 }}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{item.title}</Text>
+          <Text style={[styles.cardBy, { color: theme.colors.textSecondary }]}>{(item.memberOxyUserIds || []).length} members • Public</Text>
+        </View>
+        <TouchableOpacity onPress={() => onTogglePin(`custom:${item._id || item.id}`)} style={[styles.pinBtn, { backgroundColor: pinned ? theme.colors.primary : theme.colors.backgroundSecondary, borderColor: theme.colors.primary }, pinned && styles.pinBtnActive]}>
+          <Ionicons name={pinned ? 'pin' : 'pin-outline'} size={16} color={pinned ? theme.colors.card : theme.colors.primary} />
+          <Text style={[styles.pinBtnText, { color: pinned ? theme.colors.card : theme.colors.primary }]}>{pinned ? 'Pinned' : 'Pin'}</Text>
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity onPress={() => onTogglePin(`custom:${item._id || item.id}`)} style={[styles.pinBtn, pinned ? styles.pinBtnActive : undefined]}>
-        <Ionicons name={pinned ? 'pin' : 'pin-outline'} size={16} color={pinned ? colors.primaryLight : colors.primaryColor} />
-        <Text style={[styles.pinBtnText, pinned ? { color: colors.primaryLight } : undefined]}>{pinned ? 'Pinned' : 'Pin'}</Text>
+      {item.description ? <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>{item.description}</Text> : null}
+      <TouchableOpacity onPress={() => router.push(`/feeds/${item._id || item.id}`)} style={{ marginTop: 8 }}>
+        <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Open feed</Text>
       </TouchableOpacity>
     </View>
-    {item.description ? <Text style={styles.cardDesc}>{item.description}</Text> : null}
-    <TouchableOpacity onPress={() => router.push(`/feeds/${item._id || item.id}`)} style={{ marginTop: 8 }}>
-      <Text style={{ color: colors.linkColor, fontWeight: '600' }}>Open feed</Text>
-    </TouchableOpacity>
-  </View>
-);
+  );
+};
 
 const FeedsScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -132,30 +138,30 @@ const FeedsScreen: React.FC = () => {
         <Header options={{
           title: t('Feeds'), rightComponents: [
             <TouchableOpacity key="create" onPress={() => router.push('/feeds/create')} style={{ padding: 8 }}>
-              <Ionicons name="add-circle-outline" size={22} color={colors.primaryColor} />
+              <Ionicons name="add-circle-outline" size={22} color={theme.colors.primary} />
             </TouchableOpacity>
           ]
         }} />
 
         {/* My Feeds */}
         <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderIcon}>
-            <Ionicons name="filter" size={18} color={colors.primaryLight} />
+          <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
+            <Ionicons name="filter" size={18} color={theme.colors.card} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle}>My Feeds</Text>
-            <Text style={styles.sectionSub}>All the feeds you’ve saved, right in one place.</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>My Feeds</Text>
+            <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>All the feeds you've saved, right in one place.</Text>
           </View>
         </View>
 
-        <View style={styles.myFeedsBox}>
+        <View style={[styles.myFeedsBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <MyFeedsRow
-            icon={<Ionicons name="people-outline" size={18} color={colors.primaryColor} />}
+            icon={<Ionicons name="people-outline" size={18} color={theme.colors.primary} />}
             label="Following"
             onPress={() => router.push('/')}
           />
           <MyFeedsRow
-            icon={<Ionicons name="sparkles-outline" size={18} color={colors.primaryColor} />}
+            icon={<Ionicons name="sparkles-outline" size={18} color={theme.colors.primary} />}
             label="For You"
             onPress={() => router.push('/')}
           />
@@ -175,26 +181,26 @@ const FeedsScreen: React.FC = () => {
 
         {/* Discover New Feeds (public) */}
         <View style={[styles.sectionHeaderRow, { marginTop: 10 }]}>
-          <View style={styles.sectionHeaderIcon}>
-            <Ionicons name="options" size={18} color={colors.primaryLight} />
+          <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
+            <Ionicons name="options" size={18} color={theme.colors.card} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle}>Discover New Feeds</Text>
-            <Text style={styles.sectionSub}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Discover New Feeds</Text>
+            <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>
               Choose your own timeline! Feeds built by the community help you find
               content you love.
             </Text>
           </View>
         </View>
 
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+        <View style={[styles.searchBox, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+          <Ionicons name="search" size={18} color={theme.colors.textSecondary} />
           <TextInput
             placeholder={t('Search feeds')}
             value={query}
             onChangeText={setQuery}
-            style={styles.searchInput}
-            placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+            style={[styles.searchInput, { color: theme.colors.text }]}
+            placeholderTextColor={theme.colors.textSecondary}
           />
         </View>
 
@@ -217,30 +223,30 @@ const FeedsScreen: React.FC = () => {
 
         {/* Your Feeds */}
         <View style={[styles.sectionHeaderRow, { marginTop: 10 }]}>
-          <View style={styles.sectionHeaderIcon}>
-            <Ionicons name="person-circle" size={18} color={colors.primaryLight} />
+          <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
+            <Ionicons name="person-circle" size={18} color={theme.colors.card} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle}>Your Feeds</Text>
-            <Text style={styles.sectionSub}>Custom timelines you created.</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Your Feeds</Text>
+            <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Custom timelines you created.</Text>
           </View>
         </View>
         {myFeeds.map((f: any) => (
-          <View key={String(f._id || f.id)} style={styles.card}>
+          <View key={String(f._id || f.id)} style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={styles.cardEmojiBubble}><Text style={{ fontSize: 18 }}>🧩</Text></View>
+              <View style={[styles.cardEmojiBubble, { backgroundColor: theme.colors.backgroundSecondary }]}><Text style={{ fontSize: 18 }}>🧩</Text></View>
               <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={styles.cardTitle}>{f.title}</Text>
-                <Text style={styles.cardBy}>{(f.memberOxyUserIds || []).length} members • {f.isPublic ? 'Public' : 'Private'}</Text>
+                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{f.title}</Text>
+                <Text style={[styles.cardBy, { color: theme.colors.textSecondary }]}>{(f.memberOxyUserIds || []).length} members • {f.isPublic ? 'Public' : 'Private'}</Text>
               </View>
-              <TouchableOpacity onPress={() => onTogglePin(`custom:${f._id || f.id}`)} style={[styles.pinBtn, pinned.includes(`custom:${f._id || f.id}`) ? styles.pinBtnActive : undefined]}>
-                <Ionicons name={pinned.includes(`custom:${f._id || f.id}`) ? 'pin' : 'pin-outline'} size={16} color={pinned.includes(`custom:${f._id || f.id}`) ? colors.primaryLight : colors.primaryColor} />
-                <Text style={[styles.pinBtnText, pinned.includes(`custom:${f._id || f.id}`) ? { color: colors.primaryLight } : undefined]}>{pinned.includes(`custom:${f._id || f.id}`) ? 'Pinned' : 'Pin'}</Text>
+              <TouchableOpacity onPress={() => onTogglePin(`custom:${f._id || f.id}`)} style={[styles.pinBtn, { backgroundColor: pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.primary : theme.colors.backgroundSecondary, borderColor: theme.colors.primary }, pinned.includes(`custom:${f._id || f.id}`) && styles.pinBtnActive]}>
+                <Ionicons name={pinned.includes(`custom:${f._id || f.id}`) ? 'pin' : 'pin-outline'} size={16} color={pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.card : theme.colors.primary} />
+                <Text style={[styles.pinBtnText, { color: pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.card : theme.colors.primary }]}>{pinned.includes(`custom:${f._id || f.id}`) ? 'Pinned' : 'Pin'}</Text>
               </TouchableOpacity>
             </View>
-            {f.description ? <Text style={styles.cardDesc}>{f.description}</Text> : null}
+            {f.description ? <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>{f.description}</Text> : null}
             <TouchableOpacity onPress={() => router.push(`/feeds/${f._id || f.id}`)} style={{ marginTop: 8 }}>
-              <Text style={{ color: colors.linkColor, fontWeight: '600' }}>Open feed</Text>
+              <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Open feed</Text>
             </TouchableOpacity>
           </View>
         ))}
