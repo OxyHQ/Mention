@@ -337,15 +337,7 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
   },
-  emptyState: {
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyStateText: {
-    marginTop: 12,
-    fontSize: 15,
-    textAlign: 'center',
-  },
+});
+
+export default FeedsScreen;
 });
