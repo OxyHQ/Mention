@@ -193,17 +193,17 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 16,
         paddingHorizontal: 16,
-        backgroundColor: 'white',
+        backgroundColor: "#FFFFFF",
         borderBottomWidth: 0.5,
-        borderBottomColor: "#2F3336",
-        ...shadowStyle({ elevation: 1, web: `0px 1px 4px #000` }),
+        borderBottomColor: "#EFF3F4",
+        ...shadowStyle({ elevation: 1, web: `0px 1px 4px rgba(0,0,0,0.1)` }),
         // sticky header on web
         ...(Platform.OS === 'web' ? ({ position: 'sticky' as any, top: 0, zIndex: 1000 } as any) : {}),
     },
     headerTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: "#E7E9EA",
+        color: "#0F1419",
     },
     headerActions: {
         flexDirection: 'row',
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 8,
-        ...shadowStyle({ elevation: 8, web: `0px 4px 8px #000` }),
+        ...shadowStyle({ elevation: 8, web: `0px 4px 8px rgba(0,0,0,0.2)` }),
         ...(Platform.OS === 'web' ? {
             position: 'fixed' as any,
         } : {}),
