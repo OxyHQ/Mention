@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { View, StyleSheet, ImageStyle } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { Loading } from "@/assets/icons/loading-icon";
+import { useTheme } from "@/hooks/useTheme";
 
 interface AvatarProps {
     size?: number;
@@ -11,6 +12,7 @@ interface AvatarProps {
 }
 
 const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, style, showLoading = true }) => {
+    const theme = useTheme();
     const targetHeight = Math.max(0, iconSize + size);
 
     // Reanimated shared values
@@ -53,7 +55,7 @@ const LoadingTopSpinner: React.FC<AvatarProps> = ({ size = 40, iconSize = 25, st
     return (
         <Animated.View style={[styles.container, containerAnimated]}>
             <Animated.View style={[styles.loadingView, { height: targetHeight }, innerAnimated, style]}>
-                <Loading size={iconSize} />
+                <Loading size={iconSize} color={theme.colors.primary} />
             </Animated.View>
         </Animated.View>
     );

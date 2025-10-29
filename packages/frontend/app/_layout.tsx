@@ -31,6 +31,7 @@ import { MenuProvider } from "react-native-popup-menu";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import RegisterPush from '@/components/RegisterPushToken';
 import useRealtimePosts from '@/hooks/useRealtimePosts';
+import { useTheme } from '@/hooks/useTheme';
 
 import AppSplashScreen from '@/components/AppSplashScreen';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -61,33 +62,6 @@ export default function RootLayout() {
   const isScreenNotMobile = useIsScreenNotMobile();
   const colorScheme = useColorScheme(); // Get system theme for OxyProvider
 
-  const styles = useMemo(() => StyleSheet.create({
-    container: {
-      ...(isScreenNotMobile ? {
-      } : {
-        flex: 1,
-      }),
-      width: '100%',
-      marginHorizontal: 'auto',
-      flexDirection: isScreenNotMobile ? 'row' : 'column',
-    },
-    mainContent: {
-      maxWidth: 1100,
-      marginHorizontal: isScreenNotMobile ? 'auto' : 0,
-      justifyContent: 'space-between',
-      flexDirection: isScreenNotMobile ? 'row' : 'column',
-      flex: 1,
-    },
-    mainContentWrapper: {
-      flex: isScreenNotMobile ? 2.2 : 1,
-      ...(isScreenNotMobile ? {
-        borderLeftWidth: 0.5,
-        borderRightWidth: 0.5,
-        borderColor: '#0d0d0d0d',
-      } : {}),
-      backgroundColor: colors.primaryLight,
-    },
-  }), [isScreenNotMobile]);
   // layout scroll is now handled inside LayoutScrollProvider
   const queryClient = useMemo(() => new QueryClient({
     defaultOptions: {
@@ -284,6 +258,36 @@ export default function RootLayout() {
 
   // Main layout component for better organization
   const MainLayout = useCallback(() => {
+    const theme = useTheme();
+
+    const styles = useMemo(() => StyleSheet.create({
+      container: {
+        ...(isScreenNotMobile ? {
+        } : {
+          flex: 1,
+        }),
+        width: '100%',
+        marginHorizontal: 'auto',
+        flexDirection: isScreenNotMobile ? 'row' : 'column',
+      },
+      mainContent: {
+        maxWidth: 1100,
+        marginHorizontal: isScreenNotMobile ? 'auto' : 0,
+        justifyContent: 'space-between',
+        flexDirection: isScreenNotMobile ? 'row' : 'column',
+        flex: 1,
+      },
+      mainContentWrapper: {
+        flex: isScreenNotMobile ? 2.2 : 1,
+        ...(isScreenNotMobile ? {
+          borderLeftWidth: 0.5,
+          borderRightWidth: 0.5,
+          borderColor: theme.colors.border,
+        } : {}),
+        backgroundColor: theme.colors.background,
+      },
+    }), [isScreenNotMobile, theme.colors]);
+
     return (
       <LayoutScrollProvider
         contentContainerStyle={styles.container}
@@ -299,7 +303,7 @@ export default function RootLayout() {
         </View>
       </LayoutScrollProvider>
     );
-  }, [styles]);
+  }, [isScreenNotMobile]);
 
   // Inline bridge component rendered under OxyProvider to safely access useOxy
   const RealtimePostsBridge: React.FC = () => {

@@ -2,6 +2,7 @@ import React, { ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { colors } from '@/styles/colors';
 import { ThemedText } from '@/components/ThemedText';
+import { useTheme } from '@/hooks/useTheme';
 
 type BaseWidgetProps = {
     title?: string;
@@ -11,10 +12,21 @@ type BaseWidgetProps = {
 };
 
 export function BaseWidget({ title, icon, children, noPadding = false }: BaseWidgetProps) {
+    const theme = useTheme();
+
     return (
-        <View style={styles.widgetContainer}>
+        <View style={[
+            styles.widgetContainer,
+            {
+                backgroundColor: theme.colors.card,
+                borderColor: theme.colors.border,
+            }
+        ]}>
             {title && (
-                <View style={styles.widgetHeader}>
+                <View style={[
+                    styles.widgetHeader,
+                    { borderBottomColor: theme.colors.border }
+                ]}>
                     <ThemedText style={styles.widgetTitle}>{title}</ThemedText>
                     {icon && <View>{icon}</View>}
                 </View>
@@ -26,12 +38,12 @@ export function BaseWidget({ title, icon, children, noPadding = false }: BaseWid
 
 const styles = StyleSheet.create({
     widgetContainer: {
-        backgroundColor: colors.primaryLight,
+        backgroundColor: "#FFFFFF",
         borderRadius: 15,
         overflow: 'hidden',
         pointerEvents: 'auto' as any,
         borderWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        borderColor: "#EFF3F4",
     },
     widgetHeader: {
         flexDirection: 'row',
@@ -39,14 +51,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingBottom: 12,
         borderBottomWidth: 0.5,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        borderBottomColor: "#EFF3F4",
         margin: 15,
         marginBottom: 6,
     },
     widgetTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: colors.COLOR_BLACK_LIGHT_1,
+        color: "#0F1419",
     },
     widgetContent: {
         padding: 15,

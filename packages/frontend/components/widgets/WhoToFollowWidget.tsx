@@ -8,11 +8,13 @@ import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import { BaseWidget } from './BaseWidget';
 import { useUsersStore } from '@/stores/usersStore';
+import { useTheme } from '@/hooks/useTheme';
 
 export function WhoToFollowWidget() {
   const { oxyServices } = useOxy();
   const { t } = useTranslation();
   const router = useRouter();
+  const theme = useTheme();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export function WhoToFollowWidget() {
           if (Array.isArray(response) && response.length) {
             useUsersStore.getState().upsertMany(response as any);
           }
-        } catch {}
+        } catch { }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
         console.error('Error fetching recommendations:', err);
@@ -45,12 +47,12 @@ export function WhoToFollowWidget() {
     <BaseWidget title={t('Who to follow')}>
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={colors.primaryColor} />
-          <Text style={styles.loadingText}>Loading recommendations...</Text>
+          <ActivityIndicator size="small" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading recommendations...</Text>
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Error: {error}</Text>
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>Error: {error}</Text>
         </View>
       ) : recommendations?.length ? (
         <View>
@@ -58,12 +60,12 @@ export function WhoToFollowWidget() {
             <FollowRowComponent key={data.id || index} profileData={data} />
           ))}
           <TouchableOpacity onPress={() => router.push('/explore')} style={styles.showMoreBtn} activeOpacity={0.7}>
-            <Text style={styles.showMoreText}>{t('Show more')}</Text>
+            <Text style={[styles.showMoreText, { color: theme.colors.primary }]}>{t('Show more')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.loadingContainer}>
-          <Text>No recommendations available</Text>
+          <Text style={{ color: theme.colors.textSecondary }}>No recommendations available</Text>
         </View>
       )}
     </BaseWidget>
@@ -73,6 +75,7 @@ export function WhoToFollowWidget() {
 function FollowRowComponent({ profileData }: { profileData: any }) {
   const router = useRouter();
   const { oxyServices } = useOxy();
+  const theme = useTheme();
   const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
   if (!profileData?.id) return null;
 
@@ -86,14 +89,14 @@ function FollowRowComponent({ profileData }: { profileData: any }) {
   const username = profileData.username || profileData.id;
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
       <View style={styles.rowLeft}>
         <Avatar source={avatarUri} />
         <View style={styles.rowTextWrap}>
-          <Text style={styles.rowTitle} onPress={() => router.push(`/@${username}`)}>{displayName}</Text>
-          <Text style={styles.rowSub} onPress={() => router.push(`/@${username}`)}>@{username}</Text>
+          <Text style={[styles.rowTitle, { color: theme.colors.text }]} onPress={() => router.push(`/@${username}`)}>{displayName}</Text>
+          <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]} onPress={() => router.push(`/@${username}`)}>@{username}</Text>
           {profileData.bio && (
-            <Text style={styles.rowBio} numberOfLines={2}>{profileData.bio}</Text>
+            <Text style={[styles.rowBio, { color: theme.colors.textSecondary }]} numberOfLines={2}>{profileData.bio}</Text>
           )}
         </View>
       </View>
@@ -110,31 +113,31 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   loadingText: {
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: "#71767B",
   },
   errorContainer: {
     paddingVertical: 12,
   },
-  errorText: { color: 'red' },
+  errorText: { color: "#F91880" },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 0.01,
-    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+    borderBottomColor: "#EFF3F4",
     paddingVertical: 10,
     ...Platform.select({ web: { cursor: 'pointer' } }),
   },
   rowLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   rowTextWrap: { marginRight: 'auto', marginLeft: 13, flex: 1 },
-  rowTitle: { fontWeight: 'bold', fontSize: 15, color: colors.COLOR_BLACK_LIGHT_1 },
-  rowSub: { color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4 },
-  rowBio: { color: colors.COLOR_BLACK_LIGHT_4, paddingTop: 4, fontSize: 13 },
+  rowTitle: { fontWeight: 'bold', fontSize: 15, color: "#0F1419" },
+  rowSub: { color: "#71767B", paddingTop: 4 },
+  rowBio: { color: "#71767B", paddingTop: 4, fontSize: 13 },
   showMoreBtn: {
     paddingTop: 10,
   },
   showMoreText: {
     fontSize: 15,
-    color: colors.primaryColor,
+    color: "#d169e5",
   },
 });

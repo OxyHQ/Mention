@@ -5,11 +5,13 @@ import { useRouter } from 'expo-router';
 import { colors } from '@/styles/colors';
 import { BaseWidget } from './BaseWidget';
 import { useTrendsStore } from '@/store/trendsStore';
+import { useTheme } from '@/hooks/useTheme';
 
 export function TrendsWidget() {
   const { t } = useTranslation();
   const { trends, isLoading, error, fetchTrends } = useTrendsStore();
   const router = useRouter();
+  const theme = useTheme();
 
   useEffect(() => {
     fetchTrends();
@@ -27,11 +29,11 @@ export function TrendsWidget() {
     <BaseWidget title={t('Trending')}>
       {isLoading ? (
         <View style={styles.centerRow}>
-          <ActivityIndicator size="small" color={colors.primaryColor} />
-          <Text style={styles.muted}>Loading trends…</Text>
+          <ActivityIndicator size="small" color={theme.colors.primary} />
+          <Text style={[styles.muted, { color: theme.colors.textSecondary }]}>Loading trends…</Text>
         </View>
       ) : error ? (
-        <Text style={styles.error}>{t('error.fetch_trends')}</Text>
+        <Text style={[styles.error, { color: theme.colors.error }]}>{t('error.fetch_trends')}</Text>
       ) : (
         <View style={styles.chipsWrap}>
           {(trends || []).slice(0, 10).map((trend: any) => {
@@ -39,11 +41,11 @@ export function TrendsWidget() {
             return (
               <TouchableOpacity
                 key={trend.id}
-                style={styles.chip}
+                style={[styles.chip, { borderColor: theme.colors.text }]}
                 onPress={() => handleTrendPress(trend)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.chipText}>#{tag?.replace(/^#/, '')}</Text>
+                <Text style={[styles.chipText, { color: theme.colors.text }]}>#{tag?.replace(/^#/, '')}</Text>
               </TouchableOpacity>
             );
           })}
@@ -55,8 +57,8 @@ export function TrendsWidget() {
 
 const styles = StyleSheet.create({
   centerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  muted: { color: colors.COLOR_BLACK_LIGHT_4, fontSize: 13 },
-  error: { color: 'red' },
+  muted: { color: "#71767B", fontSize: 13 },
+  error: { color: "#F91880" },
   chipsWrap: {
     paddingTop: 4,
     paddingBottom: 1,
@@ -69,15 +71,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_1,
-  paddingHorizontal: 10,
-  paddingVertical: 4,
-  marginRight: 4,
+    borderColor: "#0F1419",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 4,
     ...Platform.select({ web: { cursor: 'pointer' } }),
   },
   chipText: {
     fontWeight: '600',
     fontSize: 13,
-    color: colors.COLOR_BLACK_LIGHT_1,
+    color: "#0F1419",
   },
 });
