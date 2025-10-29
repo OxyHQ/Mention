@@ -2,6 +2,7 @@ import React from 'react';
 import { View,      <Ionicons
   name="location-outline"
   size={14}
+import { useTheme } from '@/hooks/useTheme';
   color={theme.colors.textSecondary}
   style={styles.icon}
 />
@@ -71,7 +72,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 13,
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: "#71767B",
     flex: 1,
   },
 });
