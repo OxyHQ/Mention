@@ -42,8 +42,29 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
   async loadMySettings() {
     try {
       set({ loading: true, error: null });
+      
+      // Try to load from cache first for instant theme application
+      try {
+        const cached = await AsyncStorage.getItem(APPEARANCE_CACHE_KEY);
+        if (cached) {
+          const cachedSettings = JSON.parse(cached);
+          set({ mySettings: cachedSettings });
+        }
+      } catch (cacheErr) {
+        console.warn('Failed to load cached appearance settings:', cacheErr);
+      }
+
+      // Then fetch fresh data from API
       const res = await api.get<UserAppearance>('profile/settings/me');
       const doc = res.data;
+      
+      // Cache the settings for next time
+      try {
+        await AsyncStorage.setItem(APPEARANCE_CACHE_KEY, JSON.stringify(doc));
+      } catch (cacheErr) {
+        console.warn('Failed to cache appearance settings:', cacheErr);
+      }
+      
       set((state) => ({
         mySettings: doc,
         byUserId: { ...state.byUserId, [doc.oxyUserId]: doc },
