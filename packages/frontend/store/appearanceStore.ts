@@ -97,6 +97,14 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
       }
       const res = await api.put<UserAppearance>('profile/settings', payload);
       const doc = res.data;
+      
+      // Update cache when settings change
+      try {
+        await AsyncStorage.setItem(APPEARANCE_CACHE_KEY, JSON.stringify(doc));
+      } catch (cacheErr) {
+        console.warn('Failed to update cached appearance settings:', cacheErr);
+      }
+      
       set((state) => ({
         mySettings: doc,
         byUserId: { ...state.byUserId, [doc.oxyUserId]: doc },
