@@ -150,18 +150,15 @@ const styles = StyleSheet.create({
   postUserName: {
     fontSize: 15,
     fontWeight: '700',
-    color: "#E7E9EA",
   },
   verifiedIcon: {
     // icon sits inline with text; spacing handled by gap/text layout
   },
   postHandle: {
     fontSize: 15,
-    color: "#71767B",
   },
   postDate: {
     fontSize: 15,
-    color: "#71767B",
   },
   metaIndicator: {
     flexDirection: 'row',
@@ -170,7 +167,6 @@ const styles = StyleSheet.create({
   },
   metaIndicatorText: {
     fontSize: 12,
-    color: "#71767B",
   },
 });
 

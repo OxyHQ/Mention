@@ -102,9 +102,7 @@ export default AnimatedTabBar;
 const styles = StyleSheet.create({
     container: {
         position: 'relative',
-        backgroundColor: 'white',
         borderBottomWidth: 1,
-        borderBottomColor: "#2F3336",
     },
     tabsContainer: {
         flexDirection: 'row',
@@ -118,17 +116,14 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 15,
         fontWeight: '500',
-        color: "#71767B",
     },
     activeTabText: {
-        color: "#d169e5",
         fontWeight: '700',
     },
     indicator: {
         position: 'absolute',
         bottom: 0,
         height: 2,
-        backgroundColor: "#d169e5",
         borderRadius: 1,
     },
 });

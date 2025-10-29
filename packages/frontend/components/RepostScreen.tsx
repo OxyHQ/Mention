@@ -153,13 +153,13 @@ const RepostScreen: React.FC = () => {
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Repost Header */}
-                <View style={styles.repostHeader}>
+                <View style={[styles.repostHeader, { borderBottomColor: theme.colors.border }]}>
                     <Ionicons name="repeat" size={20} color={theme.colors.primary} />
-                    <Text style={styles.repostHeaderText}>Repost</Text>
+                    <Text style={[styles.repostHeaderText, { color: theme.colors.primary }]}>Repost</Text>
                 </View>
 
                 {/* Original Post */}
-                <View style={styles.originalPost}>
+                <View style={[styles.originalPost, { borderBottomColor: theme.colors.border }]}>
                     <View style={styles.originalPostHeader}>
                         <Avatar source={originalPost.user.avatar} size={32} style={{ marginRight: 8 }} />
                         <View style={styles.originalPostInfo}>
@@ -168,10 +168,10 @@ const RepostScreen: React.FC = () => {
                                 verified={originalPost.user.verified}
                                 variant="small"
                             />
-                            {originalPost.user.handle ? <Text style={styles.originalPostHandle}>@{originalPost.user.handle}</Text> : null}
+                            {originalPost.user.handle ? <Text style={[styles.originalPostHandle, { color: theme.colors.textSecondary }]}>@{originalPost.user.handle}</Text> : null}
                         </View>
                     </View>
-                    <Text style={styles.originalPostContent}>{originalPost.content}</Text>
+                    <Text style={[styles.originalPostContent, { color: theme.colors.text }]}>{originalPost.content}</Text>
                 </View>
 
                 {/* Repost Input */}
@@ -183,16 +183,16 @@ const RepostScreen: React.FC = () => {
                             style={{ marginRight: 12 }}
                         />
                         <View style={styles.userDetails}>
-                            <Text style={styles.userName}>
+                            <Text style={[styles.userName, { color: theme.colors.text }]}>
                                 {user?.name?.full || user?.username}
                             </Text>
-                            <Text style={styles.userHandle}>@{user?.username}</Text>
+                            <Text style={[styles.userHandle, { color: theme.colors.textSecondary }]}>@{user?.username}</Text>
                         </View>
                     </View>
 
                     <TextInput
                         ref={textInputRef}
-                        style={styles.textInput}
+                        style={[styles.textInput, { color: theme.colors.text }]}
                         placeholder="Add a comment..."
                         placeholderTextColor={theme.colors.textTertiary}
                         value={content}
@@ -207,11 +207,12 @@ const RepostScreen: React.FC = () => {
                     <View style={styles.characterCount}>
                         <Text style={[
                             styles.characterCountText,
-                            isOverLimit && styles.characterCountOverLimit
+                            { color: theme.colors.textSecondary },
+                            isOverLimit && { color: theme.colors.error }
                         ]}>
                             {characterCount}
                         </Text>
-                        <Text style={styles.characterCountMax}>/{MAX_CHARACTERS}</Text>
+                        <Text style={[styles.characterCountMax, { color: theme.colors.textSecondary }]}>/{MAX_CHARACTERS}</Text>
                     </View>
                 </View>
             </ScrollView>
@@ -273,11 +274,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
         marginBottom: 16,
     },
     repostHeaderText: {
-        color: '#1D9BF0',
         fontSize: 16,
         fontWeight: '600',
         marginLeft: 8,
@@ -285,7 +284,6 @@ const styles = StyleSheet.create({
     originalPost: {
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
         marginBottom: 16,
     },
     originalPostHeader: {
@@ -305,7 +303,6 @@ const styles = StyleSheet.create({
     originalPostName: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#FFF',
         marginRight: 4,
     },
     verifiedIcon: {
@@ -313,11 +310,9 @@ const styles = StyleSheet.create({
     },
     originalPostHandle: {
         fontSize: 13,
-        color: '#71767B',
     },
     originalPostContent: {
         fontSize: 15,
-        color: '#FFF',
         lineHeight: 20,
     },
     repostSection: {
@@ -339,16 +334,13 @@ const styles = StyleSheet.create({
     userName: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#FFF',
         marginBottom: 2,
     },
     userHandle: {
         fontSize: 14,
-        color: '#71767B',
     },
     textInput: {
         fontSize: 20,
-        color: '#FFF',
         lineHeight: 28,
         minHeight: 120,
         textAlignVertical: 'top',
@@ -362,19 +354,15 @@ const styles = StyleSheet.create({
     },
     characterCountText: {
         fontSize: 14,
-        color: '#71767B',
         fontWeight: '500',
     },
     characterCountOverLimit: {
-        color: '#F4212E',
     },
     characterCountMax: {
         fontSize: 14,
-        color: '#71767B',
         marginLeft: 2,
     },
     errorText: {
-        color: '#FFF',
         fontSize: 18,
         textAlign: 'center',
         marginTop: 100,

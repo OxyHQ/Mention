@@ -108,13 +108,10 @@ const styles = StyleSheet.create({
   },
   engagementText: {
     fontSize: 13,
-    color: "#71767B",
     marginLeft: 4,
   },
   activeEngagementText: {
-    color: "#00BA7C",
   },
   activeLikeText: {
-    color: "#F91880",
   },
 });

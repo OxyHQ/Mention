@@ -42,10 +42,8 @@ export default PostContentText;
 const styles = StyleSheet.create({
   postText: {
     fontSize: 15,
-    color: "#E7E9EA",
     lineHeight: 20,
   },
   link: {
-    color: "#d169e5",
   },
 });

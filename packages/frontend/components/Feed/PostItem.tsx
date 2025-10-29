@@ -444,8 +444,6 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderColor: "#2F3336",
-        backgroundColor: "#FFFFFF",
     },
     nestedPostContainer: {
         flexDirection: 'column',
@@ -473,7 +471,6 @@ const styles = StyleSheet.create({
     },
     sheetItemText: {
         fontSize: 16,
-        color: "#E7E9EA",
     },
 });
 

@@ -124,7 +124,6 @@ const styles = StyleSheet.create({
   question: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.COLOR_BLACK_LIGHT_1,
     marginBottom: 8,
   },
   option: {
@@ -133,7 +132,6 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#fff',
     overflow: 'hidden',
   },
   progressBg: {
@@ -142,14 +140,12 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: '100%',
-    backgroundColor: colors.COLOR_BLACK_LIGHT_7,
   },
   progressFill: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.primaryLight_1,
   },
   optionRow: {
     flexDirection: 'row',
@@ -158,13 +154,11 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 14,
-    color: colors.COLOR_BLACK_LIGHT_1,
     flex: 1,
     marginRight: 8,
   },
   optionPct: {
     fontSize: 14,
-    color: colors.COLOR_BLACK_LIGHT_3,
     fontWeight: '600',
   },
   metaRow: {
@@ -174,10 +168,8 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    color: colors.COLOR_BLACK_LIGHT_4,
   },
   dot: {
-    color: colors.COLOR_BLACK_LIGHT_4,
   },
 });
 

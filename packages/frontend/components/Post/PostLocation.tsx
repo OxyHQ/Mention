@@ -62,7 +62,6 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 13,
-    color: "#71767B",
     flex: 1,
   },
 });

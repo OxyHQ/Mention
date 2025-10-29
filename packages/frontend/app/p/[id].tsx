@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import {
     View,
     Text,
@@ -22,6 +22,7 @@ import { FeedType } from '@mention/shared-types';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useOxy } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
+import { useTheme } from '@/hooks/useTheme';
 //
 
 const MAX_CHARACTERS = 280;
@@ -31,6 +32,7 @@ const PostDetailScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { getPostById, createReply } = usePostsStore();
     const { user } = useOxy();
+    const theme = useTheme();
 
     const [post, setPost] = useState<UIPost | Reply | Repost | null>(null);
     const [parentPost, setParentPost] = useState<UIPost | Reply | Repost | null>(null);
@@ -44,6 +46,26 @@ const PostDetailScreen: React.FC = () => {
     const characterCount = content.length;
     const isOverLimit = characterCount > MAX_CHARACTERS;
     const canReply = content.trim().length > 0 && !isOverLimit && !isSubmitting;
+
+    // Memoize filters to prevent Feed re-renders on every keystroke
+    const feedFilters = useMemo(() => ({ 
+        postId: String(id), 
+        parentPostId: String(id) 
+    }), [id]);
+
+    // Memoize contentContainerStyle to prevent Feed re-renders
+    const feedContentStyle = useMemo(() => ({ 
+        paddingBottom: 16 
+    }), []);
+
+    // Memoize callbacks to prevent child re-renders
+    const handleFocusInput = useCallback(() => {
+        try { 
+            textInputRef.current?.focus(); 
+        } catch { 
+            /* ignore focus errors */ 
+        }
+    }, []);
 
     // Using Feed component with filters for replies
 
@@ -141,15 +163,15 @@ const PostDetailScreen: React.FC = () => {
     if (loading) {
         return (
             <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-                <View style={styles.header}>
+                <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
                     <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
+                        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Post</Text>
+                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Post</Text>
                 </View>
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primaryColor} />
-                    <Text style={styles.loadingText}>Loading post...</Text>
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading post...</Text>
                 </View>
             </ThemedView>
         );
@@ -158,20 +180,20 @@ const PostDetailScreen: React.FC = () => {
     if (error || !post) {
         return (
             <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-                <View style={styles.header}>
+                <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
                     <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
+                        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Post</Text>
+                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Post</Text>
                 </View>
                 <View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle-outline" size={48} color={colors.busy} />
-                    <Text style={styles.errorTitle}>Post Not Found</Text>
-                    <Text style={styles.errorText}>
+                    <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
+                    <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Post Not Found</Text>
+                    <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
                         {error || 'The post you\'re looking for doesn\'t exist or has been deleted.'}
                     </Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
-                        <Text style={styles.retryButtonText}>Go Back</Text>
+                    <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={() => router.back()}>
+                        <Text style={[styles.retryButtonText, { color: theme.colors.card }]}>Go Back</Text>
                     </TouchableOpacity>
                 </View>
             </ThemedView>
@@ -184,44 +206,40 @@ const PostDetailScreen: React.FC = () => {
             keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
             style={[styles.container, { paddingTop: insets.top }]}
         >
-            <ThemedView style={styles.header}>
+            <ThemedView style={[styles.header, { borderBottomColor: theme.colors.border }]}>
                 <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
+                    <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{post?.isThread ? 'Thread' : 'Post'}</Text>
+                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{post?.isThread ? 'Thread' : 'Post'}</Text>
             </ThemedView>
 
             <View style={{ flex: 1 }}>
                 {/* Show parent post on top if this is a reply */}
                 {parentPost && (post as any)?.parentPostId && (
-                    <View style={styles.parentPostContainer}>
-                        <Text style={styles.parentPostLabel}>Replying to</Text>
+                    <View style={[styles.parentPostContainer, { borderBottomColor: theme.colors.border }]}>
+                        <Text style={[styles.parentPostLabel, { color: theme.colors.textSecondary }]}>Replying to</Text>
                         <PostItem
                             post={parentPost}
-                            onReply={() => {
-                                try { textInputRef.current?.focus(); } catch { /* ignore focus errors */ }
-                            }}
+                            onReply={handleFocusInput}
                         />
-                        <View style={styles.replyConnector} />
+                        <View style={[styles.replyConnector, { backgroundColor: theme.colors.border }]} />
                     </View>
                 )}
 
                 <View style={styles.postContainer}>
                     <PostItem
                         post={post}
-                        onReply={() => {
-                            try { textInputRef.current?.focus(); } catch { /* ignore focus errors */ }
-                        }}
+                        onReply={handleFocusInput}
                     />
                 </View>
                 <View style={styles.repliesSection}>
-                    <Text style={styles.repliesTitle}>Replies</Text>
+                    <Text style={[styles.repliesTitle, { color: theme.colors.text }]}>Replies</Text>
                     <Feed
                         type={'replies' as any}
                         hideHeader={true}
                         style={styles.repliesFeed}
-                        contentContainerStyle={{ paddingBottom: 16 }}
-                        filters={{ postId: String(id), parentPostId: String(id) }}
+                        contentContainerStyle={feedContentStyle}
+                        filters={feedFilters}
                         reloadKey={repliesReloadKey}
                         recycleItems={true}
                         maintainVisibleContentPosition={true}
@@ -230,20 +248,24 @@ const PostDetailScreen: React.FC = () => {
             </View>
 
             {/* Inline Reply Composer */}
-            <ThemedView style={[styles.composerContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}
+            <ThemedView style={[styles.composerContainer, { borderTopColor: theme.colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}
             >
                 <View style={styles.composer}>
                     <View style={styles.composerAvatarWrap}>
                         <Image
                             source={{ uri: (user as any)?.avatar || 'https://via.placeholder.com/40' }}
-                            style={styles.composerAvatar}
+                            style={[styles.composerAvatar, { backgroundColor: theme.colors.backgroundSecondary }]}
                         />
                     </View>
                     <TextInput
                         ref={textInputRef}
-                        style={styles.composerInput}
+                        style={[styles.composerInput, { 
+                            borderColor: theme.colors.border,
+                            color: theme.colors.text,
+                            backgroundColor: theme.colors.background
+                        }]}
                         placeholder="Post your reply"
-                        placeholderTextColor={colors.COLOR_BLACK_LIGHT_4}
+                        placeholderTextColor={theme.colors.textSecondary}
                         value={content}
                         onChangeText={setContent}
                         multiline
@@ -252,14 +274,22 @@ const PostDetailScreen: React.FC = () => {
                     <TouchableOpacity
                         onPress={handleReply}
                         disabled={!canReply}
-                        style={[styles.composerButton, !canReply && styles.composerButtonDisabled]}
+                        style={[
+                            styles.composerButton,
+                            { backgroundColor: theme.colors.primary },
+                            !canReply && styles.composerButtonDisabled
+                        ]}
                     >
-                        <Text style={styles.composerButtonText}>{isSubmitting ? '...' : 'Reply'}</Text>
+                        <Text style={[styles.composerButtonText, { color: theme.colors.card }]}>{isSubmitting ? '...' : 'Reply'}</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={styles.composerMeta}>
                     <Text
-                        style={[styles.characterCountText, isOverLimit && styles.characterCountWarning]}
+                        style={[
+                            styles.characterCountText,
+                            { color: theme.colors.textSecondary },
+                            isOverLimit && [styles.characterCountWarning, { color: theme.colors.error }]
+                        ]}
                     >
                         {characterCount}/{MAX_CHARACTERS}
                     </Text>
@@ -279,7 +309,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
     },
     backButton: {
         marginRight: 16,
@@ -288,7 +317,6 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: colors.COLOR_BLACK_LIGHT_1,
     },
     scrollView: {
         flex: 1,
@@ -308,7 +336,6 @@ const styles = StyleSheet.create({
     loadingText: {
         marginTop: 16,
         fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_4,
     },
     errorContainer: {
         flex: 1,
@@ -319,25 +346,21 @@ const styles = StyleSheet.create({
     errorTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: colors.COLOR_BLACK_LIGHT_1,
         marginTop: 16,
         marginBottom: 8,
     },
     errorText: {
         fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_4,
         textAlign: 'center',
         lineHeight: 22,
         marginBottom: 24,
     },
     retryButton: {
-        backgroundColor: colors.primaryColor,
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 8,
     },
     retryButtonText: {
-        color: colors.COLOR_BLACK_LIGHT_9,
         fontSize: 16,
         fontWeight: '600',
     },
@@ -347,7 +370,6 @@ const styles = StyleSheet.create({
     repliesTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: colors.COLOR_BLACK_LIGHT_1,
         marginBottom: 12,
         paddingHorizontal: 16,
         paddingTop: 16,
@@ -363,13 +385,10 @@ const styles = StyleSheet.create({
     },
     footerText: {
         fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_4,
         marginLeft: 8,
     },
     composerContainer: {
-        // Keep composer in normal layout so KeyboardAvoidingView can adjust it
         borderTopWidth: 1,
-        borderTopColor: colors.COLOR_BLACK_LIGHT_6,
         paddingHorizontal: 12,
         paddingTop: 8,
     },
@@ -385,7 +404,6 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
     },
     composerInput: {
         flex: 1,
@@ -394,12 +412,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
         borderRadius: 16,
-        color: colors.COLOR_BLACK_LIGHT_1,
     },
     composerButton: {
-        backgroundColor: colors.primaryColor,
         paddingHorizontal: 14,
         paddingVertical: 8,
         borderRadius: 16,
@@ -407,10 +422,9 @@ const styles = StyleSheet.create({
         marginLeft: 4,
     },
     composerButtonDisabled: {
-        backgroundColor: colors.COLOR_BLACK_LIGHT_5,
+        opacity: 0.5,
     },
     composerButtonText: {
-        color: colors.primaryLight,
         fontWeight: '600',
     },
     composerMeta: {
@@ -422,21 +436,17 @@ const styles = StyleSheet.create({
     },
     characterCountText: {
         fontSize: 12,
-        color: colors.COLOR_BLACK_LIGHT_4,
     },
     characterCountWarning: {
-        color: '#E0245E',
         fontWeight: '600',
     },
     parentPostContainer: {
         borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
         paddingBottom: 12,
         marginBottom: 8,
     },
     parentPostLabel: {
         fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_4,
         paddingHorizontal: 16,
         paddingVertical: 8,
         fontWeight: '500',
@@ -444,7 +454,6 @@ const styles = StyleSheet.create({
     replyConnector: {
         width: 2,
         height: 12,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_6,
         marginLeft: 32,
         marginTop: 4,
     },

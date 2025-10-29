@@ -143,28 +143,23 @@ const styles = StyleSheet.create({
   mediaImage: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    backgroundColor: "#1a1a1a",
   },
   pollContainer: {
     padding: 16,
-    backgroundColor: "#FFFFFF",
     borderRadius: 15,
   },
   pollQuestion: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: "#000000",
     marginBottom: 12,
   },
   pollOption: {
     padding: 12,
-    backgroundColor: "#F7F9F9",
     borderRadius: 8,
     marginBottom: 8,
   },
   pollOptionText: {
     fontSize: 14,
-    color: "#000000",
   },
   nestedContainer: {
     // Width is set dynamically to fill available space
