@@ -21,6 +21,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
   // Prevent infinite nesting (max 2 levels deep)
   const MAX_NESTING_DEPTH = 2;
   const screenWidth = Dimensions.get('window').width;
+  const [scrollViewWidth, setScrollViewWidth] = React.useState(screenWidth);
   type Item = { type: "nested" } | { type: "image"; src: string } | { type: "video"; src: string } | { type: "poll" };
   const items: Item[] = [];
   const { oxyServices } = useOxy();
@@ -71,6 +72,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
       // try to capture responder at start so parent pressables/lists don't steal the gesture
       onStartShouldSetResponderCapture={() => true}
       onStartShouldSetResponder={() => true}
+      onLayout={(e) => setScrollViewWidth(e.nativeEvent.layout.width)}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
       {items.map((item, idx) => {
@@ -97,11 +99,10 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
         if (item.type === 'nested') {
           // Render PostItem directly for instant loading (no lazy loading)
           // Pass nesting depth to prevent infinite recursion
-          // Calculate available width: screen width minus all horizontal spacing
+          // Use the measured ScrollView width minus the applied paddings
           const scrollerPaddingRight = 12; // from styles.scroller
           const scrollerPaddingLeft = Math.abs(leftOffset); // applied via contentContainerStyle
-          const extraMargin = 8; // Additional safety margin
-          const nestedWidth = screenWidth - scrollerPaddingLeft - scrollerPaddingRight - extraMargin;
+          const nestedWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
           return (
             <View key={`nested-${idx}`} style={[styles.nestedContainer, { width: nestedWidth }]}>
               <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />
