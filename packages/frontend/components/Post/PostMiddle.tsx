@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   itemContainer: {
     borderWidth: 1,
     borderColor: "#EFF3F4",
-    borderRadius: 10,
+    borderRadius: 15,
   },
   mediaImage: {
     width: CARD_WIDTH,
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   pollContainer: {
     padding: 16,
     backgroundColor: "#FFFFFF",
-    borderRadius: 10,
+    borderRadius: 15,
   },
   pollQuestion: {
     fontSize: 16,

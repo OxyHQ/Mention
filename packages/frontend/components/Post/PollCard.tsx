@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { colors } from '@/styles/colors';
 import { pollService } from '@/services/pollService';
 import { useOxy } from '@oxyhq/services';
+import { useTheme } from '@/hooks/useTheme';
 
 interface PollCardProps {
   pollId: string;
@@ -11,6 +12,7 @@ interface PollCardProps {
 
 const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   const { user } = useOxy();
+  const theme = useTheme();
   const [poll, setPoll] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
@@ -65,16 +67,16 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   };
 
   if (loading) return (
-    <View style={[styles.card, { width }]}>
-      <ActivityIndicator color={colors.primaryColor} />
+    <View style={[styles.card, { width, backgroundColor: theme.colors.background }]}>
+      <ActivityIndicator color={theme.colors.primary} />
     </View>
   );
 
   if (error || !poll) return null;
 
   return (
-    <View style={[styles.card, { width }]}>
-      <Text style={styles.question} numberOfLines={3}>{poll.question}</Text>
+    <View style={[styles.card, { width, backgroundColor: theme.colors.background }]}>
+      <Text style={[styles.question, { color: theme.colors.text }]} numberOfLines={3}>{poll.question}</Text>
       <View style={{ gap: 8 }}>
         {(poll.options || []).map((opt: any) => {
           const votes = opt.votes?.length || 0;
@@ -86,6 +88,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
               disabled={ended || (hasVoted && !poll.isMultipleChoice) || voting}
               style={({ pressed }) => [
                 styles.option,
+                { borderColor: theme.colors.border, backgroundColor: theme.colors.background },
                 pressed ? { opacity: 0.9 } : null,
                 ended || (hasVoted && !poll.isMultipleChoice) ? { opacity: 0.9 } : null,
               ]}
@@ -94,17 +97,17 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
                 <View style={[styles.progressFill, { width: `${pct * 100}%` }]} />
               </View>
               <View style={styles.optionRow}>
-                <Text style={styles.optionText} numberOfLines={1}>{opt.text}</Text>
-                <Text style={styles.optionPct}>{Math.round(pct * 100)}%</Text>
+                <Text style={[styles.optionText, { color: theme.colors.text }]} numberOfLines={1}>{opt.text}</Text>
+                <Text style={[styles.optionPct, { color: theme.colors.text }]}>{Math.round(pct * 100)}%</Text>
               </View>
             </Pressable>
           );
         })}
       </View>
       <View style={styles.metaRow}>
-        <Text style={styles.metaText}>{totalVotes} votes</Text>
-        <Text style={styles.dot}>·</Text>
-        <Text style={styles.metaText}>{ended ? 'Ended' : 'Active'}</Text>
+        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{totalVotes} votes</Text>
+        <Text style={[styles.dot, { color: theme.colors.textSecondary }]}>·</Text>
+        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{ended ? 'Ended' : 'Active'}</Text>
       </View>
     </View>
   );
@@ -128,7 +131,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderWidth: 1,
     borderColor: colors.COLOR_BLACK_LIGHT_6,
-    borderRadius: 10,
+    borderRadius: 15,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: '#fff',

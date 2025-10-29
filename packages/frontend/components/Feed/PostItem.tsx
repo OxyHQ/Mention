@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     nestedPostContainer: {
         flex: 1,
         borderWidth: 1,
-        borderRadius: 16,
+        borderRadius: 15,
         maxHeight: 400, // Prevent nested posts from growing too large
         overflow: 'hidden',
     },
