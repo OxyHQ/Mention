@@ -1,7 +1,5 @@
 import { authenticatedClient } from "@/utils/api";
-import { OxyServices } from "@oxyhq/services";
-
-const oxyServices = new OxyServices({ baseURL: "https://cloud.oxy.so" });
+import { oxyServices } from "@/lib/oxyServices";
 
 export interface SearchResults {
   posts?: any[];
@@ -28,14 +26,19 @@ class SearchService {
   // Search users via Oxy services
   async searchUsers(query: string): Promise<any[]> {
     try {
-      // Use Oxy API to search users
-      const results = await oxyServices.getProfileByUsername(query);
-      return results ? [results] : [];
+      // Use OxyServices searchProfiles method
+      const results = await oxyServices.searchProfiles(query, { limit: 20 });
+      return results || [];
     } catch (error) {
-      // If exact match fails, return empty array
-      // TODO: Implement proper user search when available in OxyServices
       console.warn("Failed searching users", error);
-      return [];
+      
+      // Fallback: try to get exact username match
+      try {
+        const exactMatch = await oxyServices.getProfileByUsername(query);
+        return exactMatch ? [exactMatch] : [];
+      } catch (e) {
+        return [];
+      }
     }
   }
 

@@ -36,6 +36,7 @@ import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 
 // Utils & Config
 import { OXY_BASE_URL } from '@/config';
+import { oxyServices } from '@/lib/oxyServices';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { Toaster } from "@/lib/sonner";
 import {
@@ -97,7 +98,7 @@ export default function RootLayout() {
 
   // Memoized instances
   const queryClient = useMemo(() => new QueryClient(QUERY_CLIENT_CONFIG), []);
-  const oxyServices = useMemo(() => new OxyServices({ baseURL: OXY_BASE_URL }), []);
+  // oxyServices is now imported from shared instance
 
   // Font Loading
   const [fontsLoaded] = useFonts({
