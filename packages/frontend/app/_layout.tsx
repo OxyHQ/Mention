@@ -1,91 +1,106 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Platform, View, StyleSheet, AppState, AppStateStatus } from "react-native";
-import {
-  SafeAreaProvider,
-  initialWindowMetrics,
-} from "react-native-safe-area-context";
+import { Platform, View, StyleSheet, AppState, type AppStateStatus } from "react-native";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { ThemedView } from "@/components/ThemedView";
+import { QueryClient, QueryClientProvider, onlineManager, focusManager } from '@tanstack/react-query';
+import { OxyProvider, OxyServices } from '@oxyhq/services';
+import i18n, { use as i18nUse, init as i18nInit } from "i18next";
+import { initReactI18next, I18nextProvider } from "react-i18next";
+import { MenuProvider } from "react-native-popup-menu";
+import NetInfo from '@react-native-community/netinfo';
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import { Slot } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
+
+// Components
+import { ThemedView } from "@/components/ThemedView";
 import { SideBar } from "@/components/SideBar";
 import { RightBar } from "@/components/RightBar";
-import { colors } from "@/styles/colors";
+import { BottomBar } from "@/components/BottomBar";
+import RegisterPush from '@/components/RegisterPushToken';
+import AppSplashScreen from '@/components/AppSplashScreen';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import { NotificationPermissionSheet } from '@/components/NotificationPermissionSheet';
+
+// Hooks
+import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import useRealtimePosts from '@/hooks/useRealtimePosts';
+import { useTheme } from '@/hooks/useTheme';
+
+// Context
+import { BottomSheetProvider, BottomSheetContext } from '@/context/BottomSheetContext';
+import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
+
+// Utils & Config
+import { OXY_BASE_URL } from '@/config';
+import { useAppearanceStore } from '@/store/appearanceStore';
 import { Toaster } from "@/lib/sonner";
 import {
   setupNotifications,
   requestNotificationPermissions,
   hasNotificationPermission,
 } from "@/utils/notifications";
-import i18n, { use as i18nUse, init as i18nInit } from "i18next";
-import { initReactI18next, I18nextProvider } from "react-i18next";
+
+// Locales
 import enUS from "@/locales/en.json";
 import esES from "@/locales/es.json";
 import itIT from "@/locales/it.json";
-import { BottomBar } from "@/components/BottomBar";
-import { MenuProvider } from "react-native-popup-menu";
-import { useColorScheme } from "@/hooks/useColorScheme";
-import RegisterPush from '@/components/RegisterPushToken';
-import useRealtimePosts from '@/hooks/useRealtimePosts';
-import { useTheme } from '@/hooks/useTheme';
 
-import AppSplashScreen from '@/components/AppSplashScreen';
-import ErrorBoundary from '@/components/ErrorBoundary';
-import { BottomSheetProvider, BottomSheetContext } from '@/context/BottomSheetContext';
-import { NotificationPermissionSheet } from '@/components/NotificationPermissionSheet';
-import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
-import { OxyProvider, OxyServices } from '@oxyhq/services';
+// Styles
 import '../styles/global.css';
-import { OXY_BASE_URL } from '@/config';
-import { QueryClient, QueryClientProvider, onlineManager, focusManager } from '@tanstack/react-query';
-import NetInfo from '@react-native-community/netinfo';
-import { useAppearanceStore } from '@/store/appearanceStore';
 
-// i18n will be initialized on app startup inside RootLayout
+// Types
+interface SplashState {
+  initializationComplete: boolean;
+  startFade: boolean;
+}
 
+// Constants
+const QUERY_CLIENT_CONFIG = {
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 1000 * 30,
+      gcTime: 1000 * 60 * 10,
+      refetchOnReconnect: true,
+      refetchOnWindowFocus: true,
+    },
+  },
+} as const;
 
+const I18N_CONFIG = {
+  resources: {
+    'en-US': { translation: enUS },
+    'es-ES': { translation: esES },
+    'it-IT': { translation: itIT },
+  },
+  lng: 'en-US',
+  fallbackLng: 'en-US',
+  interpolation: { escapeValue: false },
+} as const;
 
 export default function RootLayout() {
-  type SplashState = {
-    initializationComplete: boolean;
-    startFade: boolean;
-  };
-
+  // State
   const [appIsReady, setAppIsReady] = useState(false);
   const [splashState, setSplashState] = useState<SplashState>({
     initializationComplete: false,
     startFade: false,
   });
+
+  // Hooks
   const isScreenNotMobile = useIsScreenNotMobile();
-  const colorScheme = useColorScheme(); // Get system theme for OxyProvider
+  const colorScheme = useColorScheme();
+  const keyboardVisible = useKeyboardVisibility();
 
-  // Eagerly load appearance settings on mount (uses cache for instant theme)
-  useEffect(() => {
-    useAppearanceStore.getState().loadMySettings().catch(err => {
-      console.warn('Early appearance settings load failed:', err);
-    });
-  }, []);
+  // Memoized instances
+  const queryClient = useMemo(() => new QueryClient(QUERY_CLIENT_CONFIG), []);
+  const oxyServices = useMemo(() => new OxyServices({ baseURL: OXY_BASE_URL }), []);
 
-  // layout scroll is now handled inside LayoutScrollProvider
-  const queryClient = useMemo(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: 2,
-        staleTime: 1000 * 30,
-        gcTime: 1000 * 60 * 10,
-        refetchOnReconnect: true,
-        refetchOnWindowFocus: true,
-      },
-    },
-  }), []);
-
-  // --- Font Loading ---
-  const [loaded] = useFonts({
-    // ... keep Inter and Phudu fonts for fallback or legacy
+  // Font Loading
+  const [fontsLoaded] = useFonts({
     'Inter-Black': require('@/assets/fonts/inter/Inter-Black.otf'),
     'Inter-Bold': require('@/assets/fonts/inter/Inter-Bold.otf'),
     'Inter-ExtraBold': require('@/assets/fonts/inter/Inter-ExtraBold.otf'),
@@ -102,12 +117,12 @@ export default function RootLayout() {
     'Phudu-Bold': require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),
   });
 
-  // --- Keyboard State ---
-  const keyboardVisible = useKeyboardVisibility();
+  // Callbacks
+  const handleSplashFadeComplete = useCallback(() => {
+    setAppIsReady(true);
+  }, []);
 
-  const oxyServices = useMemo(() => new OxyServices({ baseURL: OXY_BASE_URL }), []);
-  // Helper: call runtime waitForAuth if available on the OxyServices instance
-  const waitForAuth = useCallback(async (services: OxyServices, timeoutMs = 5000) => {
+  const waitForAuth = useCallback(async (services: OxyServices, timeoutMs = 5000): Promise<boolean> => {
     const maybe = services as unknown as { waitForAuth?: (ms?: number) => Promise<boolean> };
     if (typeof maybe.waitForAuth === 'function') {
       try {
@@ -121,16 +136,16 @@ export default function RootLayout() {
   }, []);
 
   const initializeApp = useCallback(async () => {
-    if (!loaded) return;
+    if (!fontsLoaded) return;
 
     try {
+      // Setup notifications for native platforms
       if (Platform.OS !== 'web') {
         await setupNotifications();
-        // We defer prompting to our bottom sheet UX; only preflight the current status
         await hasNotificationPermission();
       }
 
-      // Wait briefly for auth to be ready and warm up current user cache if possible.
+      // Wait for auth to be ready
       const authReady = await waitForAuth(oxyServices, 5000);
 
       if (authReady) {
@@ -141,13 +156,11 @@ export default function RootLayout() {
         }
       }
 
-      // Always try to load appearance settings, even if auth isn't ready
-      // This ensures theme is applied as soon as possible
+      // Load appearance settings (uses cache for instant theme)
       try {
         await useAppearanceStore.getState().loadMySettings();
       } catch (err) {
         console.warn('Failed to load appearance settings during init:', err);
-        // Settings will load when user opens appearance screen
       }
 
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
@@ -160,7 +173,7 @@ export default function RootLayout() {
     } catch (error) {
       console.warn('Failed to initialize app:', error);
     }
-  }, [loaded, oxyServices, waitForAuth]);
+  }, [fontsLoaded, oxyServices, waitForAuth]);
 
 
   // Initialize i18n once when the app mounts
@@ -182,13 +195,16 @@ export default function RootLayout() {
     }
   }, []);
 
-  // --- Splash Fade Handler ---
-  const handleSplashFadeComplete = useCallback(() => {
-    setAppIsReady(true);
-  }, []);
-
   // Alias GestureHandlerRootView to a permissive component type to avoid children typing issues
   const GestureRoot = GestureHandlerRootView as unknown as React.ComponentType<any>;
+
+  // Effects
+  // Load appearance settings eagerly on mount (uses cache for instant theme)
+  useEffect(() => {
+    useAppearanceStore.getState().loadMySettings().catch(err => {
+      console.warn('Early appearance settings load failed:', err);
+    });
+  }, []);
 
   useEffect(() => {
     // React Query online manager using NetInfo
@@ -246,10 +262,10 @@ export default function RootLayout() {
   };
 
   useEffect(() => {
-    if (loaded && splashState.initializationComplete && !splashState.startFade) {
+    if (fontsLoaded && splashState.initializationComplete && !splashState.startFade) {
       setSplashState((prev) => ({ ...prev, startFade: true }));
     }
-  }, [loaded, splashState.initializationComplete, splashState.startFade]);
+  }, [fontsLoaded, splashState.initializationComplete, splashState.startFade]);
 
   // Main layout component for better organization
   const MainLayout = useCallback(() => {

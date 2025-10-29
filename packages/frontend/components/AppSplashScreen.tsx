@@ -1,28 +1,35 @@
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Animated } from 'react-native';
-import { LogoIcon } from '@/assets/logo';
-import LoadingSpinner from './LoadingSpinner';
-import { colors } from '@/styles/colors';
+import { View, Animated, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
+import { LogoIcon } from '@/assets/logo';
+import LoadingSpinner from './LoadingSpinner';
 import { useTheme } from '@/hooks/useTheme';
+
+// Configure LinearGradient for NativeWind
+cssInterop(LinearGradient, {
+    className: {
+        target: 'style',
+    },
+});
 
 interface AppSplashScreenProps {
     onFadeComplete?: () => void;
     startFade?: boolean;
 }
 
-const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, startFade = false }) => {
+const FADE_DURATION = 500;
+const LOGO_SIZE = 100;
+const SPINNER_SIZE = 28;
+
+const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
+    onFadeComplete,
+    startFade = false
+}) => {
     const theme = useTheme();
-    cssInterop(LinearGradient, {
-        className: {
-            target: 'style',
-        },
-    });
-    const fadeAnim = useRef(new Animated.Value(1)).current; // Use useRef to prevent recreation
+    const fadeAnim = useRef(new Animated.Value(1)).current;
     const animationRef = useRef<Animated.CompositeAnimation | null>(null);
 
-    // Memoize the fade completion callback to prevent recreating it
     const handleFadeComplete = useCallback(
         (finished: boolean) => {
             if (finished && onFadeComplete) {
@@ -35,14 +42,12 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, start
     useEffect(() => {
         if (startFade) {
             // Cancel any existing animation
-            if (animationRef.current) {
-                animationRef.current.stop();
-            }
+            animationRef.current?.stop();
 
-            // Start fade out immediately when startFade becomes true, taking 500ms to complete
+            // Start fade out animation
             animationRef.current = Animated.timing(fadeAnim, {
                 toValue: 0,
-                duration: 500,
+                duration: FADE_DURATION,
                 useNativeDriver: true,
             });
 
@@ -51,41 +56,56 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, start
             });
         }
 
-        // Cleanup function to stop animation if component unmounts
         return () => {
-            if (animationRef.current) {
-                animationRef.current.stop();
-            }
+            animationRef.current?.stop();
         };
     }, [startFade, fadeAnim, handleFadeComplete]);
 
-    // Memoize styles to prevent recreation on every render
-    const containerStyle = useMemo(() => ({ flex: 1, opacity: fadeAnim }), [fadeAnim]);
-    const logoContainerStyle = useMemo(
-        () => ({ alignItems: 'center' as const, justifyContent: 'center' as const }),
-        [],
+    // Memoized styles
+    const containerStyle = useMemo(
+        () => [styles.container, { opacity: fadeAnim }],
+        [fadeAnim]
     );
-    const spinnerContainerStyle = useMemo(() => ({ marginTop: 32 }), []);
 
-    // Memoize gradient colors to prevent array recreation
-    // Use background to primary color gradient for visual depth
-    const gradientColors = useMemo(() => [theme.colors.background, theme.colors.primary] as const, [theme.colors.background, theme.colors.primary]);
+    // Gradient colors: background to primary for visual depth
+    const gradientColors = useMemo(
+        () => [theme.colors.background, theme.colors.primary] as const,
+        [theme.colors.background, theme.colors.primary]
+    );
 
     return (
         <Animated.View style={containerStyle}>
             <LinearGradient
                 colors={gradientColors}
-                className="flex-1 items-center justify-center bg-primary-light dark:bg-primary-dark"
+                style={styles.gradient}
             >
-                <View style={logoContainerStyle}>
-                    <LogoIcon size={100} color="white" />
-                    <View style={spinnerContainerStyle}>
-                        <LoadingSpinner size={28} color="white" showText={false} />
+                <View style={styles.logoContainer}>
+                    <LogoIcon size={LOGO_SIZE} color="white" />
+                    <View style={styles.spinnerContainer}>
+                        <LoadingSpinner size={SPINNER_SIZE} color="white" showText={false} />
                     </View>
                 </View>
             </LinearGradient>
         </Animated.View>
     );
 };
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+    gradient: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    logoContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    spinnerContainer: {
+        marginTop: 32,
+    },
+});
 
 export default React.memo(AppSplashScreen);
