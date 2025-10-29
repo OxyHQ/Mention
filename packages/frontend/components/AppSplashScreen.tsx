@@ -68,8 +68,8 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, start
     const spinnerContainerStyle = useMemo(() => ({ marginTop: 32 }), []);
 
     // Memoize gradient colors to prevent array recreation
-    // Use single color gradient (same color twice for solid background)
-    const gradientColors = useMemo(() => [theme.colors.primary, theme.colors.primary] as const, [theme.colors.primary]);
+    // Use background to primary color gradient for visual depth
+    const gradientColors = useMemo(() => [theme.colors.background, theme.colors.primary] as const, [theme.colors.background, theme.colors.primary]);
 
     return (
         <Animated.View style={containerStyle}>

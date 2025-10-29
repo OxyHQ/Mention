@@ -62,8 +62,6 @@ export default function RootLayout() {
   });
   const isScreenNotMobile = useIsScreenNotMobile();
   const colorScheme = useColorScheme(); // Get system theme for OxyProvider
-  // Use selector to only subscribe to loadMySettings function, preventing re-renders on store changes
-  const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
 
   // layout scroll is now handled inside LayoutScrollProvider
   const queryClient = useMemo(() => new QueryClient({
@@ -127,14 +125,22 @@ export default function RootLayout() {
 
       // Wait briefly for auth to be ready and warm up current user cache if possible.
       const authReady = await waitForAuth(oxyServices, 5000);
+
       if (authReady) {
         try {
           await oxyServices.getCurrentUser();
-          // Load user appearance settings after auth is ready
-          await loadMySettings();
         } catch (err) {
           console.warn('Failed to fetch current user during init:', err);
         }
+      }
+
+      // Always try to load appearance settings, even if auth isn't ready
+      // This ensures theme is applied as soon as possible
+      try {
+        await useAppearanceStore.getState().loadMySettings();
+      } catch (err) {
+        console.warn('Failed to load appearance settings during init:', err);
+        // Settings will load when user opens appearance screen
       }
 
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
@@ -147,7 +153,7 @@ export default function RootLayout() {
     } catch (error) {
       console.warn('Failed to initialize app:', error);
     }
-  }, [loaded, oxyServices, waitForAuth, loadMySettings]);
+  }, [loaded, oxyServices, waitForAuth]);
 
 
   // Initialize i18n once when the app mounts

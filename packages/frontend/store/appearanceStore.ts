@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { api } from '@/utils/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const APPEARANCE_CACHE_KEY = 'oxy_appearance_settings';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
