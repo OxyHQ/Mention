@@ -83,7 +83,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
               ) : pollData ? (
                 // Fallback to simple display if we only have poll data without ID
                 <View style={[styles.pollContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                  <Text style={[styles.pollQuestion, { color: theme.colors.text }]}>{ pollData.question}</Text>
+                  <Text style={[styles.pollQuestion, { color: theme.colors.text }]}>{pollData.question}</Text>
                   {pollData.options?.map((option: string, optIdx: number) => (
                     <View key={optIdx} style={[styles.pollOption, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
                       <Text style={[styles.pollOptionText, { color: theme.colors.text }]}>{option}</Text>

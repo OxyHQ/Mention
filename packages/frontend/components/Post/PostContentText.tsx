@@ -16,10 +16,10 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280 
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
-  
+
   // Extract text from content (handle both string and PostContent object)
   const textContent = typeof content === 'string' ? content : content?.text || '';
-  
+
   if (!textContent) return null;
 
   const isDetailPage = pathname?.startsWith('/p');

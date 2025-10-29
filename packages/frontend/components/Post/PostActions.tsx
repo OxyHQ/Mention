@@ -39,7 +39,7 @@ const PostActions: React.FC<Props> = ({
   onShare,
 }) => {
   const theme = useTheme();
-  
+
   return (
     <View style={styles.postEngagement}>
       {/* Heart (like) */}

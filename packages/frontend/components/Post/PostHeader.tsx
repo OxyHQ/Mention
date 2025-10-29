@@ -48,7 +48,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressMenu,
 }) => {
   const theme = useTheme();
-  
+
   // Move formatRelativeTime outside component to avoid recreation
   const formatRelativeTime = React.useCallback((input?: string): string => {
     if (!input) return 'now';
