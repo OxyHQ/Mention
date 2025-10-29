@@ -166,7 +166,7 @@ const NotificationsScreen: React.FC = () => {
             />
             <ThemedText style={[styles.errorTitle, { color: theme.colors.error }]}>{t('notification.error.load')}</ThemedText>
             <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={() => refetch()}>
-                <ThemedText style={styles.retryText}>{t('notification.retry')}</ThemedText>
+                <ThemedText style={[styles.retryText, { color: theme.colors.card }]}>{t('notification.retry')}</ThemedText>
             </TouchableOpacity>
         </ThemedView>
     );
@@ -263,7 +263,6 @@ const styles = StyleSheet.create({
     authText: {
         fontSize: 16,
         textAlign: 'center',
-        color: "#71767B", // theme.colors.textSecondary
     },
     loadingContainer: {
         flex: 1,
@@ -291,7 +290,6 @@ const styles = StyleSheet.create({
     emptySubtitle: {
         fontSize: 16,
         textAlign: 'center',
-        color: "#71767B", // theme.colors.textSecondary
         lineHeight: 24,
     },
     errorContainer: {
@@ -306,17 +304,14 @@ const styles = StyleSheet.create({
         marginTop: 16,
         marginBottom: 16,
         textAlign: 'center',
-        color: "#F91880", // theme.colors.error
     },
     retryButton: {
         paddingHorizontal: 20,
         paddingVertical: 10,
-        backgroundColor: "#d169e5", // theme.colors.primary
         borderRadius: 8,
         marginTop: 16,
     },
     retryText: {
-        color: 'white',
         fontSize: 16,
         fontWeight: '600',
     },
@@ -326,7 +321,6 @@ const styles = StyleSheet.create({
     },
     markAllText: {
         fontSize: 14,
-        color: "#d169e5", // theme.colors.primary
         fontWeight: '500',
     },
     emptyListContainer: {
@@ -336,8 +330,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderBottomColor: "#EFF3F4", // theme.colors.border
-        backgroundColor: "#F7F9F9", // theme.colors.backgroundSecondary
     },
     chipsRow: {
         flexDirection: 'row',
@@ -348,20 +340,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 16,
-        backgroundColor: "#E1E8ED", // theme.isDark ? 'rgba(255,255,255,0.1)' : '#E1E8ED'
     },
     chipActive: {
-        backgroundColor: "#F4E5F7", // `${theme.colors.primary}15`
         borderWidth: 1,
-        borderColor: "#d169e5", // theme.colors.primary
     },
     chipText: {
-        color: "#536471", // theme.colors.textSecondary
         fontSize: 13,
         fontWeight: '600',
     },
     chipTextActive: {
-        color: "#d169e5", // theme.colors.primary
     },
 });
 

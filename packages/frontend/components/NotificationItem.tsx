@@ -11,6 +11,7 @@ import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
 import { useUsersStore } from '@/stores/usersStore';
+import { useTheme } from '@/hooks/useTheme';
 
 interface NotificationItemProps {
     notification: RawNotification;
@@ -25,6 +26,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     const { t } = useTranslation();
     const { transformSingleNotification } = useNotificationTransformer();
     const { oxyServices } = useOxy();
+    const theme = useTheme();
 
     // Transform the raw notification data
     const transformedNotification = transformSingleNotification(notification);
@@ -38,7 +40,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 const merged = { id: String(id || populated.id || populated._id), ...(populated as any) };
                 useUsersStore.getState().upsertUser(merged);
             }
-        } catch {}
+        } catch { }
     }, [notification]);
 
     // Module-local cache of actorId -> display name to avoid repeated calls
@@ -68,7 +70,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: (cachedUser as any)?.avatar });
                 return;
             }
-        } catch {}
+        } catch { }
 
         // Otherwise ensure by ID via oxy services, then populate cache
         const resolve = async () => {
@@ -177,7 +179,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             let uname = '';
             try {
                 if (id) uname = useUsersStore.getState().usersById[String(id)]?.data?.username || '';
-            } catch {}
+            } catch { }
             const path = uname ? `/@${uname}` : `/${id}`;
             router.push(path);
         }
@@ -227,12 +229,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         <TouchableOpacity
             style={[
                 styles.container,
-                !notification.read && styles.unreadContainer
+                { borderBottomColor: theme.colors.border },
+                !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
             ]}
             onPress={handlePress}
             onLongPress={handleLongPress}
         >
-            <View style={styles.iconContainer}>
+            <View style={[styles.iconContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
                 <Ionicons
                     name={getNotificationIcon(notification.type) as any}
                     size={20}
@@ -244,20 +247,21 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 <ThemedText
                     style={[
                         styles.message,
-                        !notification.read && styles.unreadText
+                        { color: theme.colors.textSecondary },
+                        !notification.read && [styles.unreadText, { color: theme.colors.text }]
                     ]}
                     numberOfLines={2}
                 >
                     {buildTitle(notification.type, actorName)}
                 </ThemedText>
 
-                <ThemedText style={styles.timestamp}>
+                <ThemedText style={[styles.timestamp, { color: theme.colors.textTertiary }]}>
                     {formatTimeAgo(notification.createdAt)}
                 </ThemedText>
             </View>
 
             {!notification.read && (
-                <View style={styles.unreadIndicator} />
+                <View style={[styles.unreadIndicator, { backgroundColor: theme.colors.primary }]} />
             )}
         </TouchableOpacity>
     );
@@ -272,6 +276,7 @@ const PostNotificationItem: React.FC<{
 }> = ({ notification, actorName, onMarkAsRead, handlePress }) => {
     const { t } = useTranslation();
     const { getPostById } = usePostsStore();
+    const theme = useTheme();
     const embedded = (notification as any).post ? ZEmbeddedPost.safeParse((notification as any).post) : null;
     const [post, setPost] = useState<any>(embedded?.success ? embedded.data : null);
     const [loading, setLoading] = useState(!(notification as any).post);
@@ -315,12 +320,16 @@ const PostNotificationItem: React.FC<{
 
     if (loading) {
         return (
-            <View style={[styles.container, !notification.read && styles.unreadContainer]}>
-                <View style={styles.iconContainer}>
-                    <Ionicons name="create" size={20} color={colors.primaryColor} />
+            <View style={[
+                styles.container,
+                { borderBottomColor: theme.colors.border },
+                !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
+            ]}>
+                <View style={[styles.iconContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <Ionicons name="create" size={20} color={theme.colors.primary} />
                 </View>
                 <View style={styles.contentContainer}>
-                    <ThemedText style={styles.message}>Loading post...</ThemedText>
+                    <ThemedText style={[styles.message, { color: theme.colors.textSecondary }]}>Loading post...</ThemedText>
                 </View>
             </View>
         );
@@ -329,21 +338,29 @@ const PostNotificationItem: React.FC<{
     if (!post) {
         return (
             <TouchableOpacity
-                style={[styles.container, !notification.read && styles.unreadContainer]}
+                style={[
+                    styles.container,
+                    { borderBottomColor: theme.colors.border },
+                    !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
+                ]}
                 onPress={handleNotificationPress}
             >
-                <View style={styles.iconContainer}>
-                    <Ionicons name="create" size={20} color={colors.primaryColor} />
+                <View style={[styles.iconContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <Ionicons name="create" size={20} color={theme.colors.primary} />
                 </View>
                 <View style={styles.contentContainer}>
-                    <ThemedText style={[styles.message, !notification.read && styles.unreadText]}>
+                    <ThemedText style={[
+                        styles.message,
+                        { color: theme.colors.textSecondary },
+                        !notification.read && [styles.unreadText, { color: theme.colors.text }]
+                    ]}>
                         {t('notification.post', { actorName, defaultValue: `${actorName} posted a new update` })}
                     </ThemedText>
-                    <ThemedText style={styles.timestamp}>
+                    <ThemedText style={[styles.timestamp, { color: theme.colors.textTertiary }]}>
                         {formatTimeAgo(notification.createdAt)}
                     </ThemedText>
                 </View>
-                {!notification.read && <View style={styles.unreadIndicator} />}
+                {!notification.read && <View style={[styles.unreadIndicator, { backgroundColor: theme.colors.primary }]} />}
             </TouchableOpacity>
         );
     }
@@ -352,12 +369,13 @@ const PostNotificationItem: React.FC<{
         <TouchableOpacity
             style={[
                 styles.postNotificationContainer,
-                !notification.read && styles.unreadContainer
+                { borderBottomColor: theme.colors.border },
+                !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
             ]}
             onPress={handleNotificationPress}
             activeOpacity={0.95}
         >
-            <View style={styles.postContainer}>
+            <View style={[styles.postContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
                 <PostItem
                     post={post}
                     isNested={false}
@@ -374,17 +392,14 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
         backgroundColor: 'transparent',
     },
     unreadContainer: {
-        backgroundColor: colors.primaryLight_1,
     },
     iconContainer: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -396,56 +411,46 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         marginBottom: 2,
-        color: colors.COLOR_BLACK_LIGHT_2,
     },
     unreadText: {
-        color: colors.COLOR_BLACK,
         fontWeight: '700',
     },
     message: {
         fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_4,
         lineHeight: 18,
         marginBottom: 4,
     },
     preview: {
         fontSize: 13,
-        color: colors.COLOR_BLACK_LIGHT_3,
         lineHeight: 18,
         marginBottom: 4,
     },
     postNotificationContainer: {
         backgroundColor: 'transparent',
         borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
     },
     notificationHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 8,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
     },
     notificationText: {
         fontSize: 13,
-        color: colors.COLOR_BLACK_LIGHT_4,
         flex: 1,
         marginLeft: 8,
     },
     notificationTime: {
         fontSize: 11,
-        color: colors.COLOR_BLACK_LIGHT_5,
         marginLeft: 8,
     },
     smallUnreadIndicator: {
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: colors.primaryColor,
         marginLeft: 8,
     },
     postContainer: {
-        backgroundColor: colors.primaryLight,
     },
     nestedPost: {
         borderBottomWidth: 0,
@@ -453,13 +458,11 @@ const styles = StyleSheet.create({
     },
     timestamp: {
         fontSize: 12,
-        color: colors.COLOR_BLACK_LIGHT_5,
     },
     unreadIndicator: {
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: colors.primaryColor,
         alignSelf: 'center',
     },
 });

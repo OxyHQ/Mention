@@ -14,15 +14,20 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import { colors } from '../../styles/colors';
 import PostItem from '../../components/Feed/PostItem';
 import Feed from '../../components/Feed/Feed';
+import PostMiddle from '../../components/Post/PostMiddle';
 import { usePostsStore } from '../../stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useOxy } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
+import ComposeToolbar from '@/components/ComposeToolbar';
+import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 //
 
 const MAX_CHARACTERS = 280;
@@ -31,8 +36,9 @@ const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
     const { getPostById, createReply } = usePostsStore();
-    const { user } = useOxy();
+    const { user, showBottomSheet } = useOxy();
     const theme = useTheme();
+    const { t } = useTranslation();
 
     const [post, setPost] = useState<UIPost | Reply | Repost | null>(null);
     const [parentPost, setParentPost] = useState<UIPost | Reply | Repost | null>(null);
@@ -40,12 +46,22 @@ const PostDetailScreen: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [mediaIds, setMediaIds] = useState<string[]>([]);
+    const [pollOptions, setPollOptions] = useState<string[]>([]);
+    const [showPollCreator, setShowPollCreator] = useState(false);
+    const [location, setLocation] = useState<{
+        latitude: number;
+        longitude: number;
+        address?: string;
+    } | null>(null);
+    const [isGettingLocation, setIsGettingLocation] = useState(false);
     const textInputRef = useRef<TextInput>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);
 
     const characterCount = content.length;
     const isOverLimit = characterCount > MAX_CHARACTERS;
-    const canReply = content.trim().length > 0 && !isOverLimit && !isSubmitting;
+    const hasContent = content.trim().length > 0 || mediaIds.length > 0 || (pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0));
+    const canReply = hasContent && !isOverLimit && !isSubmitting;
 
     // Memoize filters to prevent Feed re-renders on every keystroke
     const feedFilters = useMemo(() => ({
@@ -66,6 +82,115 @@ const PostDetailScreen: React.FC = () => {
             /* ignore focus errors */
         }
     }, []);
+
+    // Media picker handler
+    const openMediaPicker = useCallback(() => {
+        if (showPollCreator) {
+            toast.error(t('Cannot add media to a poll'));
+            return;
+        }
+        showBottomSheet?.({
+            screen: 'FileManagement',
+            props: {
+                selectMode: true,
+                multiSelect: true,
+                disabledMimeTypes: ['video/', 'audio/', 'application/pdf'],
+                afterSelect: 'back',
+                onSelect: async (file: any) => {
+                    if (!file?.contentType?.startsWith?.('image/')) {
+                        toast.error(t('Please select an image file'));
+                        return;
+                    }
+                    try {
+                        setMediaIds(prev => prev.includes(file.id) ? prev : [...prev, file.id]);
+                        toast.success(t('Image attached'));
+                    } catch (e: any) {
+                        toast.error(e?.message || t('Failed to attach image'));
+                    }
+                },
+                onConfirmSelection: async (files: any[]) => {
+                    const onlyImages = (files || []).filter(f => f?.contentType?.startsWith?.('image/'));
+                    if (onlyImages.length !== (files || []).length) {
+                        toast.error(t('Please select only image files'));
+                    }
+                    const ids = onlyImages.map(f => f.id);
+                    setMediaIds(prev => Array.from(new Set([...(prev || []), ...ids])));
+                }
+            }
+        });
+    }, [showBottomSheet, showPollCreator, t]);
+
+    // Poll creator handler
+    const openPollCreator = useCallback(() => {
+        if (mediaIds.length > 0) {
+            toast.error(t('Cannot add poll with media'));
+            return;
+        }
+        setShowPollCreator(true);
+        setPollOptions(['', '']);
+    }, [mediaIds.length, t]);
+
+    const addPollOption = useCallback(() => {
+        setPollOptions(prev => [...prev, '']);
+    }, []);
+
+    const updatePollOption = useCallback((index: number, value: string) => {
+        setPollOptions(prev => prev.map((option, i) => i === index ? value : option));
+    }, []);
+
+    const removePollOption = useCallback((index: number) => {
+        if (pollOptions.length > 2) {
+            setPollOptions(prev => prev.filter((_, i) => i !== index));
+        }
+    }, [pollOptions.length]);
+
+    const removePoll = useCallback(() => {
+        setShowPollCreator(false);
+        setPollOptions([]);
+    }, []);
+
+    // Location handler
+    const requestLocation = useCallback(async () => {
+        setIsGettingLocation(true);
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                toast.error(t('Location permission denied'));
+                return;
+            }
+
+            const currentLocation = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+            });
+
+            const reverseGeocode = await Location.reverseGeocodeAsync({
+                latitude: currentLocation.coords.latitude,
+                longitude: currentLocation.coords.longitude,
+            });
+
+            const address = reverseGeocode[0];
+            const locationData = {
+                latitude: currentLocation.coords.latitude,
+                longitude: currentLocation.coords.longitude,
+                address: address
+                    ? `${address.city || address.subregion || ''}, ${address.region || ''}`
+                    : `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`
+            };
+
+            setLocation(locationData);
+            toast.success(t('Location added'));
+        } catch (error) {
+            console.error('Error getting location:', error);
+            toast.error(t('Failed to get location'));
+        } finally {
+            setIsGettingLocation(false);
+        }
+    }, [t]);
+
+    const removeLocation = useCallback(() => {
+        setLocation(null);
+        toast.success(t('Location removed'));
+    }, [t]);
 
     // Using Feed component with filters for replies
 
@@ -139,18 +264,49 @@ const PostDetailScreen: React.FC = () => {
         if (!canReply || !id) return;
         try {
             setIsSubmitting(true);
+
+            const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
+
             await createReply({
                 postId: String(id),
-                content: { text: content.trim() } as any,
+                content: {
+                    text: content.trim(),
+                    media: mediaIds.map(id => ({ id, type: 'image' as const })),
+                    ...(hasPoll && {
+                        poll: {
+                            question: content.trim() || 'Poll',
+                            options: pollOptions.filter(opt => opt.trim().length > 0),
+                            endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                            votes: {},
+                            userVotes: {}
+                        }
+                    }),
+                    ...(location && {
+                        location: {
+                            type: 'Point' as const,
+                            coordinates: [location.longitude, location.latitude],
+                            address: location.address
+                        }
+                    })
+                } as any,
                 mentions: [],
                 hashtags: [],
             });
+
+            // Reset all form state
             setContent('');
-            Alert.alert('Success', 'Your reply has been posted!');
+            setMediaIds([]);
+            setPollOptions([]);
+            setShowPollCreator(false);
+            setLocation(null);
+
+            toast.success(t('Reply posted!'));
+
             // Trigger filtered replies list reload
             setRepliesReloadKey(k => k + 1);
-        } catch {
-            Alert.alert('Error', 'Failed to post reply. Please try again.');
+        } catch (error) {
+            console.error('Failed to post reply:', error);
+            toast.error(t('Failed to post reply. Please try again.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -250,49 +406,128 @@ const PostDetailScreen: React.FC = () => {
             {/* Inline Reply Composer */}
             <ThemedView style={[styles.composerContainer, { borderTopColor: theme.colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}
             >
-                <View style={styles.composer}>
-                    <View style={styles.composerAvatarWrap}>
-                        <Image
-                            source={{ uri: (user as any)?.avatar || 'https://via.placeholder.com/40' }}
-                            style={[styles.composerAvatar, { backgroundColor: theme.colors.backgroundSecondary }]}
-                        />
+                <View style={styles.composerContent}>
+                    <View style={styles.composer}>
+                        <View style={styles.composerAvatarWrap}>
+                            <Image
+                                source={{ uri: (user as any)?.avatar || 'https://via.placeholder.com/40' }}
+                                style={[styles.composerAvatar, { backgroundColor: theme.colors.backgroundSecondary }]}
+                            />
+                        </View>
+                        <View style={styles.composerInputContainer}>
+                            <TextInput
+                                ref={textInputRef}
+                                style={[styles.composerInput, {
+                                    color: theme.colors.text,
+                                    backgroundColor: theme.colors.background
+                                }]}
+                                placeholder="Post your reply"
+                                placeholderTextColor={theme.colors.textSecondary}
+                                value={content}
+                                onChangeText={setContent}
+                                multiline
+                                maxLength={MAX_CHARACTERS}
+                            />
+
+                            {/* Media Preview */}
+                            {mediaIds.length > 0 && (
+                                <View style={styles.mediaPreview}>
+                                    <PostMiddle
+                                        media={mediaIds.map(id => ({ id, type: 'image' as const }))}
+                                        leftOffset={0}
+                                    />
+                                </View>
+                            )}
+
+                            {/* Poll Creator */}
+                            {showPollCreator && (
+                                <View style={[styles.pollCreator, { borderColor: theme.colors.border }]}>
+                                    <View style={styles.pollHeader}>
+                                        <Text style={[styles.pollTitle, { color: theme.colors.text }]}>{t('Create a poll')}</Text>
+                                        <TouchableOpacity onPress={removePoll}>
+                                            <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
+                                        </TouchableOpacity>
+                                    </View>
+                                    {pollOptions.map((option, index) => (
+                                        <View key={index} style={styles.pollOptionRow}>
+                                            <TextInput
+                                                style={[styles.pollOptionInput, {
+                                                    borderColor: theme.colors.border,
+                                                    color: theme.colors.text,
+                                                    backgroundColor: theme.colors.background
+                                                }]}
+                                                placeholder={t(`Option ${index + 1}`)}
+                                                placeholderTextColor={theme.colors.textSecondary}
+                                                value={option}
+                                                onChangeText={(value) => updatePollOption(index, value)}
+                                                maxLength={50}
+                                            />
+                                            {pollOptions.length > 2 && (
+                                                <TouchableOpacity onPress={() => removePollOption(index)}>
+                                                    <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    ))}
+                                    {pollOptions.length < 4 && (
+                                        <TouchableOpacity style={styles.addPollOptionBtn} onPress={addPollOption}>
+                                            <Ionicons name="add" size={16} color={theme.colors.primary} />
+                                            <Text style={[styles.addPollOptionText, { color: theme.colors.primary }]}>
+                                                {t('Add option')}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            )}
+
+                            {/* Location Display */}
+                            {location && (
+                                <View style={[styles.locationDisplay, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+                                    <Ionicons name="location" size={16} color={theme.colors.primary} />
+                                    <Text style={[styles.locationText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                        {location.address}
+                                    </Text>
+                                    <TouchableOpacity onPress={removeLocation}>
+                                        <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {/* Compose Toolbar */}
+                            <ComposeToolbar
+                                onMediaPress={openMediaPicker}
+                                onPollPress={openPollCreator}
+                                onLocationPress={requestLocation}
+                                hasLocation={!!location}
+                                isGettingLocation={isGettingLocation}
+                                hasPoll={showPollCreator}
+                                hasMedia={mediaIds.length > 0}
+                                disabled={isSubmitting}
+                            />
+                        </View>
+                        <TouchableOpacity
+                            onPress={handleReply}
+                            disabled={!canReply}
+                            style={[
+                                styles.composerButton,
+                                { backgroundColor: theme.colors.primary },
+                                !canReply && styles.composerButtonDisabled
+                            ]}
+                        >
+                            <Text style={[styles.composerButtonText, { color: theme.colors.card }]}>{isSubmitting ? '...' : 'Reply'}</Text>
+                        </TouchableOpacity>
                     </View>
-                    <TextInput
-                        ref={textInputRef}
-                        style={[styles.composerInput, {
-                            borderColor: theme.colors.border,
-                            color: theme.colors.text,
-                            backgroundColor: theme.colors.background
-                        }]}
-                        placeholder="Post your reply"
-                        placeholderTextColor={theme.colors.textSecondary}
-                        value={content}
-                        onChangeText={setContent}
-                        multiline
-                        maxLength={MAX_CHARACTERS}
-                    />
-                    <TouchableOpacity
-                        onPress={handleReply}
-                        disabled={!canReply}
-                        style={[
-                            styles.composerButton,
-                            { backgroundColor: theme.colors.primary },
-                            !canReply && styles.composerButtonDisabled
-                        ]}
-                    >
-                        <Text style={[styles.composerButtonText, { color: theme.colors.card }]}>{isSubmitting ? '...' : 'Reply'}</Text>
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.composerMeta}>
-                    <Text
-                        style={[
-                            styles.characterCountText,
-                            { color: theme.colors.textSecondary },
-                            isOverLimit && [styles.characterCountWarning, { color: theme.colors.error }]
-                        ]}
-                    >
-                        {characterCount}/{MAX_CHARACTERS}
-                    </Text>
+                    <View style={styles.composerMeta}>
+                        <Text
+                            style={[
+                                styles.characterCountText,
+                                { color: theme.colors.textSecondary },
+                                isOverLimit && [styles.characterCountWarning, { color: theme.colors.error }]
+                            ]}
+                        >
+                            {characterCount}/{MAX_CHARACTERS}
+                        </Text>
+                    </View>
                 </View>
             </ThemedView>
         </KeyboardAvoidingView>
@@ -392,40 +627,102 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingTop: 8,
     },
+    composerContent: {
+        flex: 1,
+    },
     composer: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
+        alignItems: 'flex-start',
         gap: 8,
     },
     composerAvatarWrap: {
-        paddingBottom: 6,
+        paddingTop: 8,
     },
     composerAvatar: {
         width: 36,
         height: 36,
         borderRadius: 18,
     },
-    composerInput: {
+    composerInputContainer: {
         flex: 1,
+    },
+    composerInput: {
         minHeight: 40,
         maxHeight: 120,
+        fontSize: 16,
+        paddingVertical: 8,
+    },
+    mediaPreview: {
+        marginTop: 8,
+        marginBottom: 8,
+    },
+    pollCreator: {
+        marginTop: 12,
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+    },
+    pollHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    pollTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    pollOptionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    pollOptionInput: {
+        flex: 1,
         paddingHorizontal: 12,
         paddingVertical: 8,
+        borderRadius: 8,
         borderWidth: 1,
-        borderRadius: 16,
+        fontSize: 14,
+    },
+    addPollOptionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 8,
+    },
+    addPollOptionText: {
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    locationDisplay: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginTop: 8,
+        borderRadius: 8,
+        borderWidth: 1,
+    },
+    locationText: {
+        flex: 1,
+        fontSize: 14,
     },
     composerButton: {
         paddingHorizontal: 14,
         paddingVertical: 8,
         borderRadius: 16,
-        alignSelf: 'center',
-        marginLeft: 4,
+        alignSelf: 'flex-start',
+        marginTop: 8,
     },
     composerButtonDisabled: {
         opacity: 0.5,
     },
     composerButtonText: {
         fontWeight: '600',
+        fontSize: 14,
     },
     composerMeta: {
         flexDirection: 'row',

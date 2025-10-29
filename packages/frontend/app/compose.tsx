@@ -21,6 +21,7 @@ import { colors } from '../styles/colors';
 import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
 import PostMiddle from '@/components/Post/PostMiddle';
+import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { usePostsStore } from '../stores/postsStore';
@@ -488,30 +489,16 @@ const ComposeScreen = () => {
                     autoFocus
                     textAlignVertical="top"
                   />
-                  <View style={styles.toolbarRow}>
-                    <TouchableOpacity onPress={openMediaPicker}>
-                      <Ionicons name="image-outline" size={20} color={theme.colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity>
-                      <Ionicons name="gift" size={20} color={theme.colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity>
-                      <Ionicons name="happy-outline" size={20} color={theme.colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={openPollCreator}>
-                      <Ionicons name="stats-chart-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                    </TouchableOpacity>
-                    <TouchableOpacity>
-                      <Ionicons name="document-text-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={requestLocation} disabled={isGettingLocation}>
-                      <Ionicons
-                        name="location-outline"
-                        size={20}
-                        color={location ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
-                      />
-                    </TouchableOpacity>
-                  </View>
+                  <ComposeToolbar
+                    onMediaPress={openMediaPicker}
+                    onPollPress={openPollCreator}
+                    onLocationPress={requestLocation}
+                    hasLocation={!!location}
+                    isGettingLocation={isGettingLocation}
+                    hasPoll={showPollCreator}
+                    hasMedia={mediaIds.length > 0}
+                    disabled={isPosting}
+                  />
                 </PostHeader>
 
                 <PostMiddle
@@ -592,30 +579,15 @@ const ComposeScreen = () => {
                           onChangeText={(v) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, text: v } : p))}
                           multiline
                         />
-                        <View style={styles.toolbarRow}>
-                          <TouchableOpacity onPress={() => openThreadMediaPicker(item.id)}>
-                            <Ionicons name="image-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                          </TouchableOpacity>
-                          <TouchableOpacity>
-                            <Ionicons name="gift" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                          </TouchableOpacity>
-                          <TouchableOpacity>
-                            <Ionicons name="happy-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => openThreadPollCreator(item.id)}>
-                            <Ionicons name="stats-chart-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                          </TouchableOpacity>
-                          <TouchableOpacity>
-                            <Ionicons name="document-text-outline" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => requestThreadLocation(item.id)}>
-                            <Ionicons
-                              name="location-outline"
-                              size={18}
-                              color={item.location ? colors.primaryColor : colors.COLOR_BLACK_LIGHT_4}
-                            />
-                          </TouchableOpacity>
-                        </View>
+                        <ComposeToolbar
+                          onMediaPress={() => openThreadMediaPicker(item.id)}
+                          onPollPress={() => openThreadPollCreator(item.id)}
+                          onLocationPress={() => requestThreadLocation(item.id)}
+                          hasLocation={!!item.location}
+                          hasPoll={item.showPollCreator}
+                          hasMedia={item.mediaIds.length > 0}
+                          disabled={isPosting}
+                        />
                         <TouchableOpacity
                           style={styles.removeThreadBtn}
                           onPress={() => setThreadItems(prev => prev.filter(p => p.id !== item.id))}
@@ -973,12 +945,6 @@ const styles = StyleSheet.create({
     color: colors.COLOR_BLACK_LIGHT_1,
     minHeight: 80,
     textAlignVertical: 'top',
-  },
-  toolbarRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 8,
-    paddingVertical: 4,
   },
   addToThreadBtn: {
     flexDirection: 'row',
