@@ -63,6 +63,13 @@ export default function RootLayout() {
   const isScreenNotMobile = useIsScreenNotMobile();
   const colorScheme = useColorScheme(); // Get system theme for OxyProvider
 
+  // Eagerly load appearance settings on mount (uses cache for instant theme)
+  useEffect(() => {
+    useAppearanceStore.getState().loadMySettings().catch(err => {
+      console.warn('Early appearance settings load failed:', err);
+    });
+  }, []);
+
   // layout scroll is now handled inside LayoutScrollProvider
   const queryClient = useMemo(() => new QueryClient({
     defaultOptions: {
