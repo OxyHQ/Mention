@@ -8,20 +8,22 @@ import { listsService } from '@/services/listsService';
 // storage no longer used
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/hooks/useTheme';
 
 
 const ListCard = ({ item }: { item: any }) => {
+  const theme = useTheme();
   const owner = item.owner || item.createdBy || item.creator;
   const username = owner?.username || (owner?.handle) || '';
   return (
     <TouchableOpacity onPress={() => router.push(`/lists/${item._id || item.id}`)} style={styles.listRow}>
       <Avatar source={item.avatar || owner?.avatar} size={40} />
       <View style={{ marginLeft: 12, flex: 1 }}>
-        <Text style={styles.cardTitle}>{item.title}</Text>
-        <Text style={styles.cardBy}>{`List by ${username ? `@${username}` : (owner?.displayName || '')}`}</Text>
+        <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{item.title}</Text>
+        <Text style={[styles.cardBy, { color: theme.colors.textSecondary }]}>{`List by ${username ? `@${username}` : (owner?.displayName || '')}`}</Text>
       </View>
       <View style={{ width: 56, alignItems: 'flex-end' }}>
-        <Ionicons name="chevron-forward" size={22} color={colors.COLOR_BLACK_LIGHT_5} />
+        <Ionicons name="chevron-forward" size={22} color={theme.colors.textSecondary} />
       </View>
     </TouchableOpacity>
   );
@@ -29,6 +31,7 @@ const ListCard = ({ item }: { item: any }) => {
 
 export default function ListsScreen() {
   const [myLists, setMyLists] = useState<any[]>([]);
+  const theme = useTheme();
 
 
   useEffect(() => {

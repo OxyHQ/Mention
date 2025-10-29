@@ -25,8 +25,10 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { usePostsStore } from '../stores/postsStore';
 import { GeoJSONPoint } from '@mention/shared-types';
+import { useTheme } from '@/hooks/useTheme';
 
 const ComposeScreen = () => {
+  const theme = useTheme();
   const [postContent, setPostContent] = useState('');
   const [threadItems, setThreadItems] = useState<{
     id: string;
@@ -414,44 +416,44 @@ const ComposeScreen = () => {
         <ThemedView style={{ flex: 1 }}>
 
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK_LIGHT_1} />
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{t('New post')}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{t('New post')}</Text>
             <View style={styles.headerIcons}>
               <TouchableOpacity style={styles.iconBtn}>
-                <Ionicons name="reader-outline" size={20} color={colors.COLOR_BLACK_LIGHT_1} />
+                <Ionicons name="reader-outline" size={20} color={theme.colors.text} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconBtn}>
-                <Ionicons name="ellipsis-horizontal" size={20} color={colors.COLOR_BLACK_LIGHT_1} />
+                <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Mode Toggle Section */}
-          <View style={styles.modeToggleContainer}>
+          <View style={[styles.modeToggleContainer, { backgroundColor: theme.colors.backgroundSecondary, borderBottomColor: theme.colors.border }]}>
             <View style={styles.modeToggleRow}>
               <View style={styles.modeOption}>
-                <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel]}>
+                <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel, { color: theme.colors.text }]}>
                   {t('Thread')}
                 </Text>
-                <Text style={styles.modeDescription}>
+                <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
                   {t('Post as linked thread')}
                 </Text>
               </View>
               <Switch
                 value={postingMode === 'beast'}
                 onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
-                trackColor={{ false: colors.COLOR_BLACK_LIGHT_6, true: colors.primaryColor }}
-                thumbColor={colors.primaryLight}
+                trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                thumbColor={theme.colors.card}
                 style={styles.modeSwitch}
               />
               <View style={styles.modeOption}>
-                <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel]}>
+                <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel, { color: theme.colors.text }]}>
                   {t('Beast')}
                 </Text>
-                <Text style={styles.modeDescription}>
+                <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
                   {t('Post all at once')}
                 </Text>
               </View>
@@ -477,9 +479,9 @@ const ComposeScreen = () => {
                   onPressAvatar={() => { }}
                 >
                   <TextInput
-                    style={styles.mainTextInput}
+                    style={[styles.mainTextInput, { color: theme.colors.text }]}
                     placeholder={t("What's new?")}
-                    placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
+                    placeholderTextColor={theme.colors.textSecondary}
                     value={postContent}
                     onChangeText={setPostContent}
                     multiline
@@ -488,13 +490,13 @@ const ComposeScreen = () => {
                   />
                   <View style={styles.toolbarRow}>
                     <TouchableOpacity onPress={openMediaPicker}>
-                      <Ionicons name="image-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                      <Ionicons name="image-outline" size={20} color={theme.colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity>
-                      <Ionicons name="gift" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                      <Ionicons name="gift" size={20} color={theme.colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity>
-                      <Ionicons name="happy-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                      <Ionicons name="happy-outline" size={20} color={theme.colors.textSecondary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={openPollCreator}>
                       <Ionicons name="stats-chart-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
@@ -731,13 +733,14 @@ const ComposeScreen = () => {
         disabled={!isPostButtonEnabled}
         style={[
           styles.floatingPostButton,
-          !isPostButtonEnabled && styles.floatingPostButtonDisabled
+          { backgroundColor: theme.colors.primary },
+          !isPostButtonEnabled && [styles.floatingPostButtonDisabled, { backgroundColor: theme.colors.border }]
         ]}
       >
         {isPosting ? (
-          <ActivityIndicator size="small" color="#000" />
+          <ActivityIndicator size="small" color={theme.colors.card} />
         ) : (
-          <Text style={isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText}>{t('Post')}</Text>
+          <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{t('Post')}</Text>
         )}
       </TouchableOpacity>
     </SafeAreaView>
