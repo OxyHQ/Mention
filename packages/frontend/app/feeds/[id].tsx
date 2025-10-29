@@ -3,12 +3,13 @@ import { View, Text, StyleSheet } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams } from 'expo-router';
 import { Header } from '@/components/Header';
-import { colors } from '@/styles/colors';
+import { useTheme } from '@/hooks/useTheme';
 import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
 import Feed from '@/components/Feed/Feed';
 
 export default function CustomFeedTimelineScreen() {
+  const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [feed, setFeed] = useState<any | null>(null);
   const [_loading, setLoading] = useState(true);
@@ -42,9 +43,13 @@ export default function CustomFeedTimelineScreen() {
     <ThemedView style={{ flex: 1 }}>
       <Header options={{ title: feed?.title || 'Feed', showBackButton: true }} />
       {error ? (
-        <View style={styles.center}><Text style={{ color: colors.busy }}>{error}</Text></View>
+        <View style={styles.center}>
+          <Text style={{ color: theme.colors.error || theme.colors.textSecondary }}>{error}</Text>
+        </View>
       ) : !feed ? (
-        <View style={styles.center}><Text>Loading…</Text></View>
+        <View style={styles.center}>
+          <Text style={{ color: theme.colors.text }}>Loading…</Text>
+        </View>
       ) : (
         <Feed
           type="mixed"
@@ -59,9 +64,15 @@ export default function CustomFeedTimelineScreen() {
           recycleItems={true}
           maintainVisibleContentPosition={true}
           listHeaderComponent={(
-            <View style={styles.headerBox}>
-              {feed.description ? <Text style={styles.desc}>{feed.description}</Text> : null}
-              <Text style={styles.meta}>{(feed.memberOxyUserIds || []).length} members • {feed.isPublic ? 'Public' : 'Private'}</Text>
+            <View style={[styles.headerBox, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              {feed.description ? (
+                <Text style={[styles.desc, { color: theme.colors.text }]}>
+                  {feed.description}
+                </Text>
+              ) : null}
+              <Text style={[styles.meta, { color: theme.colors.textSecondary }]}>
+                {(feed.memberOxyUserIds || []).length} members • {feed.isPublic ? 'Public' : 'Private'}
+              </Text>
             </View>
           )}
         />
@@ -71,8 +82,22 @@ export default function CustomFeedTimelineScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  headerBox: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: colors.primaryLight },
-  desc: { color: colors.COLOR_BLACK_LIGHT_3 },
-  meta: { marginTop: 6, color: colors.COLOR_BLACK_LIGHT_5, fontSize: 12 },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  headerBox: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8
+  },
+  desc: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  meta: {
+    marginTop: 6,
+    fontSize: 12
+  },
 });
