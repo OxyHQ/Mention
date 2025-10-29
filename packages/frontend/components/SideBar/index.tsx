@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
     Dimensions,
     Platform,
@@ -6,28 +6,29 @@ import {
     View,
     ViewStyle,
     StyleSheet,
-} from 'react-native';
-import { Pressable } from 'react-native-web-hover';
-import { usePathname, useRouter } from 'expo-router';
-import { useMediaQuery } from 'react-responsive';
-import { useTranslation } from 'react-i18next';
-import { SideBarItem } from './SideBarItem';
-import { colors } from '@/styles/colors';
-import { Button } from '@/components/SideBar/Button';
-import { Logo } from '@/components/Logo';
-import Avatar from '@/components/Avatar';
-import { Home, HomeActive } from '@/assets/icons/home-icon';
-import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
-import { Gear, GearActive } from '@/assets/icons/gear-icon';
-import { Search, SearchActive } from '@/assets/icons/search-icon';
-import { ComposeIcon } from '@/assets/icons/compose-icon';
-import { Ionicons } from '@expo/vector-icons';
-import { useOxy } from '@oxyhq/services';
-import { confirmDialog } from '@/utils/alerts';
-import { List, ListActive } from '@/assets/icons/list-icon';
-import { Video, VideoActive } from '@/assets/icons/video-icon';
-import { Hashtag, HashtagActive } from '@/assets/icons/hashtag-icon';
-import { AnalyticsIcon, AnalyticsIconActive } from '@/assets/icons/analytics-icon';
+} from "react-native";
+import { Pressable } from "react-native-web-hover";
+import { usePathname, useRouter } from "expo-router";
+import { useMediaQuery } from "react-responsive";
+import { useTranslation } from "react-i18next";
+import { SideBarItem } from "./SideBarItem";
+import { colors } from "@/styles/colors";
+import { Button } from "@/components/SideBar/Button";
+import { Logo } from "@/components/Logo";
+import Avatar from "@/components/Avatar";
+import { Home, HomeActive } from "@/assets/icons/home-icon";
+import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
+import { Gear, GearActive } from "@/assets/icons/gear-icon";
+import { Search, SearchActive } from "@/assets/icons/search-icon";
+import { ComposeIcon } from "@/assets/icons/compose-icon";
+import { Ionicons } from "@expo/vector-icons";
+import { useOxy } from "@oxyhq/services";
+import { confirmDialog } from "@/utils/alerts";
+import { List, ListActive } from "@/assets/icons/list-icon";
+import { Video, VideoActive } from "@/assets/icons/video-icon";
+import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
+import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
+import { useTheme } from "@/hooks/useTheme";
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 
@@ -341,24 +342,24 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
     },
     signUpButtonText: {
-        color: '#fff',
+        // color will be applied inline with theme
         fontSize: 13,
-        fontWeight: 'bold',
-        fontFamily: 'Phudu',
+        fontWeight: "bold",
+        fontFamily: "Phudu",
     },
     signInButton: {
-        justifyContent: 'center',
-        alignItems: 'center',
+        justifyContent: "center",
+        alignItems: "center",
         backgroundColor: colors.primaryColor,
         borderRadius: 25,
         paddingHorizontal: 12,
         paddingVertical: 6,
     },
     signInButtonText: {
-        color: '#fff',
+        // color will be applied inline with theme
         fontSize: 13,
-        fontWeight: 'bold',
-        fontFamily: 'Phudu',
+        fontWeight: "bold",
+        fontFamily: "Phudu",
     },
     navigationSection: {
         flex: 1,

@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
     StyleSheet,
     View,
     Text,
     ViewStyle,
     Platform,
-} from 'react-native'
-import { Pressable } from 'react-native'
+} from "react-native"
+import { Pressable } from "react-native"
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from '@/styles/colors'
-import { useRouter } from 'expo-router'
-import { ReactNode } from 'react'
+import { colors } from "@/styles/colors"
+import { useRouter } from "expo-router"
+import { ReactNode } from "react"
+import { useTheme } from "@/hooks/useTheme";
 
 interface Props {
     style?: ViewStyle
@@ -27,8 +28,9 @@ interface Props {
 export const Header: React.FC<Props> = ({ options }) => {
     const router = useRouter();
     const [isSticky, setIsSticky] = useState(false);
+    const theme = useTheme();
 
-    const titlePosition = options?.titlePosition || 'left';
+    const titlePosition = options?.titlePosition || "left";
 
     useEffect(() => {
         if (Platform.OS === 'web') {
@@ -48,36 +50,36 @@ export const Header: React.FC<Props> = ({ options }) => {
     }, []);
 
     return (
-        <View style={[styles.topRow, isSticky && styles.stickyHeader]}>
+        <View style={[styles.topRow, isSticky && styles.stickyHeader, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
             <View style={styles.leftContainer}>
                 {options?.showBackButton && (
                     <Pressable onPress={() => router.back()} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={colors.COLOR_BLACK} />
+                        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
                     </Pressable>
                 )}
                 {options?.leftComponents?.map((component, index) => (
                     <React.Fragment key={index}>{component}</React.Fragment>
                 ))}
-                {titlePosition === 'left' && (
+                {titlePosition === "left" && (
                     <View>
                         {options?.title && (
-                            <Text style={[styles.topRowText, options?.subtitle && { fontSize: 14 }]}>
+                            <Text style={[styles.topRowText, options?.subtitle && { fontSize: 14 }, { color: theme.colors.text }]}>
                                 {options.title}
                             </Text>
                         )}
-                        {options?.subtitle && <Text>{options.subtitle}</Text>}
+                        {options?.subtitle && <Text style={{ color: theme.colors.textSecondary }}>{options.subtitle}</Text>}
                     </View>
                 )}
 
             </View>
-            {titlePosition === 'center' && (
+            {titlePosition === "center" && (
                 <View style={styles.centerContainer}>
                     {options?.title && (
-                        <Text style={[styles.topRowText, options?.subtitle && { fontSize: 14 }]}>
+                        <Text style={[styles.topRowText, options?.subtitle && { fontSize: 14 }, { color: theme.colors.text }]}>
                             {options.title}
                         </Text>
                     )}
-                    {options?.subtitle && <Text>{options.subtitle}</Text>}
+                    {options?.subtitle && <Text style={{ color: theme.colors.textSecondary }}>{options.subtitle}</Text>}
                 </View>
             )}
             <View style={styles.rightContainer}>
@@ -91,32 +93,32 @@ export const Header: React.FC<Props> = ({ options }) => {
 
 const styles = StyleSheet.create({
     container: {
-        width: '100%',
+        width: "100%",
         paddingBottom: 10,
     },
     topRow: {
         minHeight: 60,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
         borderBottomWidth: 0.01,
         paddingHorizontal: 15,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        // borderBottomColor and backgroundColor applied inline with theme
         paddingVertical: 5,
-        position: 'relative',
+        position: "relative",
         ...Platform.select({
             web: {
-                position: 'sticky',
+                position: "sticky",
             },
         }),
         top: 0,
-        backgroundColor: colors.primaryLight,
+        // backgroundColor applied inline with theme
         zIndex: 100,
     } as ViewStyle,
     topRowText: {
         fontSize: 20,
-        color: colors.COLOR_BLACK,
-        fontWeight: '800',
+        // color applied inline with theme
+        fontWeight: "800",
         paddingStart: 1,
     },
     startContainer: {
@@ -127,20 +129,20 @@ const styles = StyleSheet.create({
         marginRight: 10,
     },
     leftContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         flex: 1,
         gap: 10,
     },
     centerContainer: {
         flex: 1,
-        alignItems: 'center',
+        alignItems: "center",
     },
     rightContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         flex: 1,
-        justifyContent: 'flex-end',
+        justifyContent: "flex-end",
         gap: 10,
     },
     stickyHeader: {

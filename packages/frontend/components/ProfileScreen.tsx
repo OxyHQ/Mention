@@ -1,3 +1,4 @@
+import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState, useEffect, useMemo } from 'react';
@@ -66,6 +67,7 @@ const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground
 
 const MentionProfile: React.FC = () => {
     const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
+    const theme = useTheme();
 
     // Type-safe component references
     const TypedFollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<FollowButtonProps>;
@@ -329,7 +331,7 @@ const MentionProfile: React.FC = () => {
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
             <StatusBar barStyle="light-content" />
 
             {loading ? (
@@ -339,20 +341,20 @@ const MentionProfile: React.FC = () => {
                     {/* Back button */}
                     <View style={[styles.backButton, { top: insets.top + 5 }]}>
                         <TouchableOpacity onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={20} color={colors.primaryLight} />
+                            <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                     </View>
 
                     {/* Header actions */}
                     <View style={[styles.headerActions, { top: insets.top + 5 }]}>
                         <TouchableOpacity style={styles.headerIconButton} onPress={toggleSubscription} disabled={subLoading}>
-                            <Ionicons name={subscribed ? 'notifications' : 'notifications-outline'} size={20} color={colors.primaryLight} />
+                            <Ionicons name={subscribed ? 'notifications' : 'notifications-outline'} size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.headerIconButton}>
-                            <Ionicons name="search-outline" size={20} color={colors.primaryLight} />
+                            <Ionicons name="search-outline" size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.headerIconButton} onPress={handleShare}>
-                            <Ionicons name="share-outline" size={20} color={colors.primaryLight} />
+                            <Ionicons name="share-outline" size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                     </View>
 
@@ -565,7 +567,7 @@ const MentionProfile: React.FC = () => {
                                     {currentUser?.username === username ? (
                                         <View style={styles.actionButtons}>
                                             <TouchableOpacity
-                                                style={styles.followButton}
+                                                style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
                                                 onPress={() => showBottomSheet?.('EditProfile')}
                                             >
                                                 <Text style={styles.followButtonText}>Edit Profile</Text>
@@ -574,13 +576,13 @@ const MentionProfile: React.FC = () => {
                                                 style={styles.settingsButton}
                                                 onPress={() => showBottomSheet?.('PrivacySettings')}
                                             >
-                                                <Ionicons name="settings-outline" size={20} color={colors.primaryDark} />
+                                                <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={styles.settingsButton}
                                                 onPress={() => router.push('/settings/appearance')}
                                             >
-                                                <Ionicons name="color-palette-outline" size={20} color={colors.primaryDark} />
+                                                <Ionicons name="color-palette-outline" size={20} color={theme.colors.text} />
                                             </TouchableOpacity>
                                         </View>
                                     ) : profileData?.id ? (
@@ -599,7 +601,7 @@ const MentionProfile: React.FC = () => {
                                 />
                                 {profileData?.privacySettings?.isPrivateAccount && (
                                     <View style={styles.privateIndicator}>
-                                        <Ionicons name="lock-closed" size={12} color="#666" />
+                                        <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
                                         <Text style={styles.privateText}>Private</Text>
                                     </View>
                                 )}
@@ -613,7 +615,7 @@ const MentionProfile: React.FC = () => {
                             <View style={styles.profileMeta}>
                                 {profileData?.primaryLocation && (
                                     <View style={styles.metaItem}>
-                                        <Ionicons name="location-outline" size={16} color="#666" />
+                                        <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
                                         <Text style={styles.metaText}>{profileData.primaryLocation}</Text>
                                     </View>
                                 )}
@@ -624,13 +626,13 @@ const MentionProfile: React.FC = () => {
                                                 transform: [{ rotate: '-45deg' }],
                                             }}
                                         >
-                                            <Ionicons name="link-outline" size={16} color="#666" />
+                                            <Ionicons name="link-outline" size={16} color={theme.colors.textSecondary} />
                                         </View>
                                         <Text style={[styles.metaText, styles.linkText]}>{profileData.links[0]}</Text>
                                     </View>
                                 )}
                                 <View style={styles.metaItem}>
-                                    <Ionicons name="calendar-outline" size={16} color="#666" />
+                                    <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
                                     <Text style={styles.metaText}>Joined {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''}</Text>
                                 </View>
                             </View>
@@ -716,7 +718,7 @@ const MentionProfile: React.FC = () => {
                         style={[styles.fab, fabPositionStyle as any]}
                         onPress={() => router.push('/compose')}
                     >
-                        <Ionicons name="add" size={24} color="#FFF" />
+                        <Ionicons name="add" size={24} color={theme.colors.card} />
                     </TouchableOpacity>
                 </>
             )}
@@ -785,7 +787,7 @@ const styles = StyleSheet.create({
     profileContent: {
         paddingHorizontal: 16,
         paddingBottom: 16,
-        backgroundColor: colors.primaryLight,
+        backgroundColor: "#FFFFFF",
     },
     avatarRow: {
         flexDirection: 'row',
@@ -799,8 +801,8 @@ const styles = StyleSheet.create({
         height: 80,
         borderRadius: 40,
         borderWidth: 3,
-        borderColor: colors.COLOR_BLACK_LIGHT_9,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_8,
+        borderColor: "#FFFFFF",
+        backgroundColor: "#2F3336",
     },
     profileActions: {
         flexDirection: 'row',
@@ -811,7 +813,7 @@ const styles = StyleSheet.create({
         height: 36,
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: '#2F3336',
+        borderColor: "#2F3336",
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 8,
@@ -821,28 +823,28 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        borderColor: "#2F3336",
     },
     followButtonText: {
         fontSize: 14,
         fontWeight: '600',
-        color: colors.COLOR_BLACK_LIGHT_1,
+        color: "#E7E9EA",
     },
     profileName: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: colors.COLOR_BLACK_LIGHT_1,
+        color: "#E7E9EA",
         marginTop: 10,
         marginBottom: 4,
     },
     profileHandle: {
         fontSize: 15,
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
         marginBottom: 12,
     },
     profileBio: {
         fontSize: 15,
-        color: colors.COLOR_BLACK_LIGHT_1,
+        color: "#E7E9EA",
         lineHeight: 20,
         marginBottom: 12,
     },
@@ -859,11 +861,11 @@ const styles = StyleSheet.create({
     },
     metaText: {
         fontSize: 15,
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
         marginLeft: 4,
     },
     linkText: {
-        color: colors.primaryColor,
+        color: "#d169e5",
     },
     followStats: {
         flexDirection: 'row',
@@ -877,16 +879,16 @@ const styles = StyleSheet.create({
     statNumber: {
         fontSize: 15,
         fontWeight: '700',
-        color: colors.COLOR_BLACK_LIGHT_1,
+        color: "#E7E9EA",
         marginRight: 4,
     },
     statLabel: {
         fontSize: 15,
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
     },
     followedBy: {
         fontSize: 15,
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
     },
 
     communitiesSection: {
@@ -904,12 +906,12 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     communityCard: {
-        backgroundColor: '#16181C',
+        backgroundColor: "#16181C",
         borderRadius: 12,
         padding: 12,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: '#2F3336',
+        borderColor: "#2F3336",
     },
     communityHeader: {
         flexDirection: 'row',
@@ -924,7 +926,7 @@ const styles = StyleSheet.create({
     },
     communityIconGradient: {
         flex: 1,
-        backgroundColor: '#1D9BF0',
+        backgroundColor: colors.primaryColor,
         borderRadius: 8,
     },
     communityInfo: {
@@ -977,7 +979,7 @@ const styles = StyleSheet.create({
         marginTop: 10
     },
     viewButtonText: {
-        color: colors.primaryColor,
+        color: "#d169e5",
         fontSize: 15,
         fontWeight: '600',
         textAlign: "center"
@@ -993,7 +995,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         elevation: 8,
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -1007,7 +1009,7 @@ const styles = StyleSheet.create({
     },
     stickyTabBarContent: {
         flexDirection: 'row',
-        backgroundColor: '#000',
+        backgroundColor: colors.primaryDark,
         borderBottomWidth: 1,
         borderBottomColor: '#2F3336',
     },
@@ -1045,7 +1047,7 @@ const styles = StyleSheet.create({
         borderRadius: 48,
         backgroundColor: colors.COLOR_BLACK_LIGHT_7,
         borderWidth: 2,
-        borderColor: colors.COLOR_BLACK_LIGHT_9,
+        borderColor: "#FFFFFF",
     },
     skeletonBtn: {
         width: 120,
@@ -1087,7 +1089,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderTopWidth: 1,
         borderBottomWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        borderColor: "#2F3336",
     },
     skeletonTab: {
         flex: 1,
@@ -1127,7 +1129,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
+        borderColor: "#2F3336",
     },
 
 });

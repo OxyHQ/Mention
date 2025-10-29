@@ -16,6 +16,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Ionicons } from '@expo/vector-icons';
 import { feedService } from '../../services/feedService';
 import { confirmDialog } from '@/utils/alerts';
+import { useTheme } from '@/hooks/useTheme';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -33,6 +34,7 @@ const PostItem: React.FC<PostItemProps> = ({
     nestingDepth = 0,
 }) => {
     const { oxyServices, user } = useOxy();
+    const theme = useTheme();
     const router = useRouter();
     const pathname = usePathname();
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
@@ -296,7 +298,12 @@ const PostItem: React.FC<PostItemProps> = ({
 
     return (
         <Container
-            style={[styles.postContainer, isNested && styles.nestedPostContainer, style]}
+            style={[
+                styles.postContainer, 
+                { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background },
+                isNested && styles.nestedPostContainer, 
+                style
+            ]}
             {...(isPostDetail ? {} : { onPress: goToPost })}
             // Don't capture start/move responder so child horizontal ScrollViews can become responder
             onStartShouldSetResponderCapture={() => false}
@@ -361,7 +368,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
                     bottomSheet.setBottomSheetContent(
                         <View style={styles.sheetContainer}>
-                            <ActionRow icon={<Ionicons name="link" size={18} color={colors.COLOR_BLACK_LIGHT_3} />} text="Copy link" onPress={async () => {
+                            <ActionRow icon={<Ionicons name="link" size={18} color={theme.colors.textSecondary} />} text="Copy link" onPress={async () => {
                                 try {
                                     if (Platform.OS === 'web') {
                                         await navigator.clipboard.writeText(postUrl);
@@ -372,14 +379,14 @@ const PostItem: React.FC<PostItemProps> = ({
                                 } catch { }
                                 bottomSheet.openBottomSheet(false);
                             }} />
-                            <ActionRow icon={<Ionicons name="share-outline" size={18} color={colors.COLOR_BLACK_LIGHT_3} />} text="Share" onPress={async () => { await handleShare(); bottomSheet.openBottomSheet(false); }} />
+                            <ActionRow icon={<Ionicons name="share-outline" size={18} color={theme.colors.textSecondary} />} text="Share" onPress={async () => { await handleShare(); bottomSheet.openBottomSheet(false); }} />
                             {!isSaved ? (
-                                <ActionRow icon={<Ionicons name="bookmark-outline" size={18} color={colors.COLOR_BLACK_LIGHT_3} />} text="Save" onPress={async () => { await handleSave(); bottomSheet.openBottomSheet(false); }} />
+                                <ActionRow icon={<Ionicons name="bookmark-outline" size={18} color={theme.colors.textSecondary} />} text="Save" onPress={async () => { await handleSave(); bottomSheet.openBottomSheet(false); }} />
                             ) : (
-                                <ActionRow icon={<Ionicons name="bookmark" size={18} color={colors.COLOR_BLACK_LIGHT_3} />} text="Unsave" onPress={async () => { await handleSave(); bottomSheet.openBottomSheet(false); }} />
+                                <ActionRow icon={<Ionicons name="bookmark" size={18} color={theme.colors.textSecondary} />} text="Unsave" onPress={async () => { await handleSave(); bottomSheet.openBottomSheet(false); }} />
                             )}
                             {isOwner && (
-                                <ActionRow icon={<Ionicons name="trash-outline" size={18} color="#ef4444" />} text="Delete" onPress={handleDelete} color="#ef4444" />
+                                <ActionRow icon={<Ionicons name="trash-outline" size={18} color={theme.colors.error} />} text="Delete" onPress={handleDelete} color={theme.colors.error} />
                             )}
                         </View>
                     );
@@ -436,8 +443,8 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
-        backgroundColor: colors.primaryLight,
+        borderColor: "#2F3336",
+        backgroundColor: "#FFFFFF",
     },
     nestedPostContainer: {
         flex: 1,
@@ -462,7 +469,7 @@ const styles = StyleSheet.create({
     },
     sheetItemText: {
         fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_2,
+        color: "#E7E9EA",
     },
 });
 

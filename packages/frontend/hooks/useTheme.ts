@@ -6,6 +6,9 @@ import { colors as baseColors } from "@/styles/colors";
 /**
  * Centralized theme system that provides consistent theming across the app
  * Following Oxy AI Development Instructions for theming
+ * 
+ * This hook does NOT depend on OxyProvider to avoid context errors.
+ * It uses the local appearance store which syncs with Oxy settings.
  */
 
 export interface ThemeColors {
@@ -58,12 +61,16 @@ export interface Theme {
 /**
  * Main theme hook - use this throughout the app for consistent theming
  * Instead of hardcoded colors, always use theme.colors.xxx
+ * 
+ * This hook uses the local appearance store which is synced with Oxy user settings,
+ * so it indirectly integrates with OxyProvider without requiring the context.
  */
 export function useTheme(): Theme {
   const colorScheme = useColorScheme();
   const { mySettings } = useAppearanceStore();
   
   // Get user's custom primary color (if set) or use default
+  // This comes from Oxy user settings via the appearance store
   const customPrimaryColor = mySettings?.appearance?.primaryColor || baseColors.primaryColor;
   
   const isDark = colorScheme === "dark";

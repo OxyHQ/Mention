@@ -1,33 +1,34 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Platform, View, StyleSheet, AppState, AppStateStatus } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { Platform, View, StyleSheet, AppState, AppStateStatus } from "react-native";
 import {
   SafeAreaProvider,
   initialWindowMetrics,
-} from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ThemedView } from '@/components/ThemedView';
-import * as SplashScreen from 'expo-splash-screen';
-import { useFonts } from 'expo-font';
-import { Slot } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
-import { SideBar } from '@/components/SideBar';
-import { RightBar } from '@/components/RightBar';
-import { colors } from '@/styles/colors';
-import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
-import { Toaster } from '@/lib/sonner';
+} from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { ThemedView } from "@/components/ThemedView";
+import * as SplashScreen from "expo-splash-screen";
+import { useFonts } from "expo-font";
+import { Slot } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
+import { SideBar } from "@/components/SideBar";
+import { RightBar } from "@/components/RightBar";
+import { colors } from "@/styles/colors";
+import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
+import { Toaster } from "@/lib/sonner";
 import {
   setupNotifications,
   requestNotificationPermissions,
   hasNotificationPermission,
-} from '@/utils/notifications';
-import i18n, { use as i18nUse, init as i18nInit } from 'i18next';
-import { initReactI18next, I18nextProvider } from 'react-i18next';
-import enUS from '@/locales/en.json';
-import esES from '@/locales/es.json';
-import itIT from '@/locales/it.json';
-import { BottomBar } from '@/components/BottomBar';
-import { MenuProvider } from 'react-native-popup-menu';
+} from "@/utils/notifications";
+import i18n, { use as i18nUse, init as i18nInit } from "i18next";
+import { initReactI18next, I18nextProvider } from "react-i18next";
+import enUS from "@/locales/en.json";
+import esES from "@/locales/es.json";
+import itIT from "@/locales/it.json";
+import { BottomBar } from "@/components/BottomBar";
+import { MenuProvider } from "react-native-popup-menu";
+import { useColorScheme } from "@/hooks/useColorScheme";
 import RegisterPush from '@/components/RegisterPushToken';
 import useRealtimePosts from '@/hooks/useRealtimePosts';
 
@@ -58,6 +59,7 @@ export default function RootLayout() {
     startFade: false,
   });
   const isScreenNotMobile = useIsScreenNotMobile();
+  const colorScheme = useColorScheme(); // Get system theme for OxyProvider
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -265,7 +267,7 @@ export default function RootLayout() {
         initialScreen="SignIn"
         autoPresent={false}
         storageKeyPrefix="oxy_example"
-        theme="light"
+        theme={colorScheme}
       >
         <I18nextProvider i18n={i18n}>
           <BottomSheetProvider>
@@ -278,7 +280,7 @@ export default function RootLayout() {
         </I18nextProvider>
       </OxyProvider>
     </QueryClientProvider>
-  ), [queryClient, oxyServices]);
+  ), [queryClient, oxyServices, colorScheme]);
 
   // Main layout component for better organization
   const MainLayout = useCallback(() => {

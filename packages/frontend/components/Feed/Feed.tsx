@@ -17,6 +17,7 @@ import { colors } from '../../styles/colors';
 import { useOxy } from '@oxyhq/services';
 import { feedService } from '../../services/feedService';
 import { useFocusEffect } from 'expo-router';
+import { useTheme } from '@/hooks/useTheme';
 
 // Improved interface with better organization and type safety
 interface FeedProps {
@@ -95,6 +96,7 @@ const Feed = (props: FeedProps) => {
         alignItemsAtEnd,
         maintainVisibleContentPosition,
     } = { ...DEFAULT_FEED_PROPS, ...props };
+    const theme = useTheme();
     const flatListRef = useRef<any>(null);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -394,10 +396,10 @@ const Feed = (props: FeedProps) => {
 
         if (hasError && hasNoItems) {
             return (
-                <View style={styles.emptyState}>
-                    <Text style={styles.errorText}>Failed to load posts</Text>
+                <View style={[styles.emptyState, { backgroundColor: theme.colors.background }]}>
+                    <Text style={[styles.errorText, { color: theme.colors.error }]}>Failed to load posts</Text>
                     <TouchableOpacity
-                        style={styles.retryButton}
+                        style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
                         onPress={async () => {
                             clearError();
                             if (useScoped) setLocalError(null);
@@ -414,18 +416,18 @@ const Feed = (props: FeedProps) => {
                             }
                         }}
                     >
-                        <Text style={styles.retryButtonText}>Retry</Text>
+                        <Text style={[styles.retryButtonText, { color: theme.colors.card }]}>Retry</Text>
                     </TouchableOpacity>
                 </View>
             );
         }
 
         return (
-            <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
+            <View style={[styles.emptyState, { backgroundColor: theme.colors.background }]}>
+                <Text style={[styles.emptyStateText, { color: theme.colors.text }]}>
                     {showOnlySaved ? 'No saved posts yet' : 'No posts yet'}
                 </Text>
-                <Text style={styles.emptyStateSubtext}>
+                <Text style={[styles.emptyStateSubtext, { color: theme.colors.textSecondary }]}>
                     {showOnlySaved
                         ? 'Posts you save will appear here. Tap the bookmark icon on any post to save it.'
                         : type === 'posts' ? 'Be the first to share something!' :
@@ -436,7 +438,7 @@ const Feed = (props: FeedProps) => {
                 </Text>
             </View>
         );
-    }, [isLoading, error, localError, useScoped, type, effectiveType, userId, clearError, fetchFeed, fetchUserFeed, fetchSavedPosts, showOnlySaved, displayItems.length, filters]);
+    }, [isLoading, error, localError, useScoped, type, effectiveType, userId, clearError, fetchFeed, fetchUserFeed, fetchSavedPosts, showOnlySaved, displayItems.length, filters, theme]);
 
     const renderFooter = useCallback(() => {
         if (showOnlySaved) return null;
@@ -451,8 +453,8 @@ const Feed = (props: FeedProps) => {
 
         return (
             <View style={styles.footer}>
-                <ActivityIndicator size="small" color={colors.primaryColor} />
-                <Text style={styles.footerText}>Loading more posts...</Text>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>Loading more posts...</Text>
             </View>
         );
     }, [showOnlySaved, hasMore, isLoading, filteredFeedData?.items, useScoped, localItems.length]);
@@ -462,13 +464,13 @@ const Feed = (props: FeedProps) => {
 
         return (
             <TouchableOpacity
-                style={styles.composeButton}
+                style={[styles.composeButton, { backgroundColor: theme.colors.backgroundSecondary }]}
                 onPress={onComposePress}
             >
-                <Text style={styles.composeButtonText}>What&apos;s happening?</Text>
+                <Text style={[styles.composeButtonText, { color: theme.colors.textSecondary }]}>What&apos;s happening?</Text>
             </TouchableOpacity>
         );
-    }, [showComposeButton, onComposePress, hideHeader]);
+    }, [showComposeButton, onComposePress, hideHeader, theme]);
 
     const keyExtractor = useCallback((item: any) => itemKey(item), [itemKey]);
 
@@ -497,8 +499,8 @@ const Feed = (props: FeedProps) => {
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={handleRefresh}
-                                colors={[colors.primaryColor]}
-                                tintColor={colors.primaryColor}
+                                colors={[theme.colors.primary]}
+                                tintColor={theme.colors.primary}
                             />
                         )
                     }
@@ -528,7 +530,7 @@ export default Feed;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.primaryLight,
+        backgroundColor: "#FFFFFF",
     },
     list: {
         flex: 1,
@@ -546,14 +548,14 @@ const styles = StyleSheet.create({
     emptyStateText: {
         fontSize: 20,
         fontWeight: '700',
-        color: colors.COLOR_BLACK_LIGHT_2,
+        color: "#E7E9EA",
         marginTop: 24,
         textAlign: 'center',
         letterSpacing: -0.5,
     },
     emptyStateSubtext: {
         fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
         marginTop: 12,
         textAlign: 'center',
         lineHeight: 24,
@@ -561,24 +563,24 @@ const styles = StyleSheet.create({
     },
     errorText: {
         fontSize: 16,
-        color: colors.busy,
+        color: "#FFA500",
         marginBottom: 20,
         textAlign: 'center',
         fontWeight: '500',
     },
     retryButton: {
-        backgroundColor: colors.primaryColor,
+        backgroundColor: "#d169e5",
         paddingHorizontal: 28,
         paddingVertical: 14,
         borderRadius: 24,
-        shadowColor: colors.shadow,
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
     },
     retryButtonText: {
-        color: colors.primaryLight,
+        color: "#FFFFFF",
         fontSize: 16,
         fontWeight: '600',
     },
@@ -591,18 +593,18 @@ const styles = StyleSheet.create({
     },
     footerText: {
         fontSize: 14,
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
         fontWeight: '500',
     },
     composeButton: {
-        backgroundColor: colors.primaryLight,
+        backgroundColor: "#FFFFFF",
         marginHorizontal: 16,
         marginVertical: 12,
         padding: 16,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: colors.COLOR_BLACK_LIGHT_6,
-        shadowColor: colors.shadow,
+        borderColor: "#2F3336",
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
@@ -610,7 +612,7 @@ const styles = StyleSheet.create({
     },
     composeButtonText: {
         fontSize: 16,
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
         fontWeight: '400',
     },
 });

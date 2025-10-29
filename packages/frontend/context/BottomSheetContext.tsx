@@ -1,6 +1,7 @@
-import React, { createContext, useState, ReactNode, useRef, useCallback } from 'react';
-import { StyleSheet, ScrollView, View } from 'react-native';
-import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import React, { createContext, useState, ReactNode, useRef, useCallback } from "react";
+import { StyleSheet, ScrollView, View } from "react-native";
+import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+import { useTheme } from "@/hooks/useTheme";
 
 interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
@@ -17,6 +18,7 @@ export const BottomSheetContext = createContext<BottomSheetContextProps>({
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [bottomSheetContent, setBottomSheetContent] = useState<ReactNode>(null);
     const bottomSheetModalRef = useRef<BottomSheetModal | null>(null);
+    const theme = useTheme();
 
     const renderBackdrop = useCallback(
         (props: BottomSheetBackdropProps) => (
@@ -49,7 +51,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
                 android_keyboardInputMode="adjustResize"
                 keyboardBehavior="extend"
                 style={styles.contentContainer}
-                handleIndicatorStyle={{ backgroundColor: '#000', width: 40 }}
+                handleIndicatorStyle={{ backgroundColor: theme.colors.text, width: 40 }}
                 backdropComponent={renderBackdrop}
                 enableContentPanningGesture={true}
                 enableHandlePanningGesture={true}

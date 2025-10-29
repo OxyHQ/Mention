@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { colors } from '@/styles/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 interface Tab {
     id: string;
@@ -23,6 +24,7 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
     scrollEnabled = false,
     style,
 }) => {
+    const theme = useTheme();
     const indicatorPosition = useSharedValue(0);
     const indicatorWidth = useSharedValue(0);
     const tabRefs = useRef<{ [key: string]: View }>({});
@@ -66,7 +68,7 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
         : {};
 
     return (
-        <View style={[styles.container, style]}>
+        <View style={[styles.container, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }, style]}>
             <Container style={styles.tabsContainer} {...containerProps}>
                 {tabs.map((tab, index) => (
                     <TouchableOpacity
@@ -80,7 +82,8 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
                         <Text
                             style={[
                                 styles.tabText,
-                                activeTabId === tab.id && styles.activeTabText,
+                                { color: theme.colors.textSecondary },
+                                activeTabId === tab.id && [styles.activeTabText, { color: theme.colors.primary }],
                             ]}
                             numberOfLines={1}
                         >
@@ -89,7 +92,7 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
                     </TouchableOpacity>
                 ))}
             </Container>
-            <Animated.View style={[styles.indicator, animatedIndicatorStyle]} />
+            <Animated.View style={[styles.indicator, { backgroundColor: theme.colors.primary }, animatedIndicatorStyle]} />
         </View>
     );
 };
@@ -101,7 +104,7 @@ const styles = StyleSheet.create({
         position: 'relative',
         backgroundColor: 'white',
         borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
+        borderBottomColor: "#2F3336",
     },
     tabsContainer: {
         flexDirection: 'row',
@@ -115,17 +118,17 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 15,
         fontWeight: '500',
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
     },
     activeTabText: {
-        color: colors.primaryColor,
+        color: "#d169e5",
         fontWeight: '700',
     },
     indicator: {
         position: 'absolute',
         bottom: 0,
         height: 2,
-        backgroundColor: colors.primaryColor,
+        backgroundColor: "#d169e5",
         borderRadius: 1,
     },
 });

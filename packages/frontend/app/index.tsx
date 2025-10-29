@@ -14,6 +14,7 @@ import SignInPrompt from '../components/SignInPrompt';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
+import { useTheme } from '@/hooks/useTheme';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -28,6 +29,7 @@ const PINNED_KEY = 'mention.pinnedFeeds';
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
     const { isAuthenticated } = useOxy();
+    const theme = useTheme();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
@@ -127,25 +129,25 @@ const HomeScreen: React.FC = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={["top"]}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
             <ThemedView style={{ flex: 1 }}>
-                <StatusBar style="dark" />
+                <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                 {/* Header */}
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Mention</Text>
+                <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
+                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Mention</Text>
                     <View style={styles.headerActions}>
                         <TouchableOpacity
                             style={styles.headerButton}
                             onPress={() => router.push('/search')}
                         >
-                            <Ionicons name="search-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                            <Ionicons name="search-outline" size={24} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.headerButton}
                             onPress={() => router.push('/notifications')}
                         >
-                            <Ionicons name="notifications-outline" size={24} color={colors.COLOR_BLACK_LIGHT_3} />
+                            <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -169,10 +171,10 @@ const HomeScreen: React.FC = () => {
                 {/* Floating Action Button */}
                 {isAuthenticated && (
                     <TouchableOpacity
-                        style={styles.fab}
+                        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
                         onPress={() => router.push('/compose')}
                     >
-                        <Ionicons name="add" size={24} color={colors.COLOR_BLACK_LIGHT_9} />
+                        <Ionicons name="add" size={24} color={theme.colors.card} />
                     </TouchableOpacity>
                 )}
             </ThemedView>
@@ -183,7 +185,7 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+        backgroundColor: "#FFFFFF",
     },
     header: {
         flexDirection: 'row',
@@ -193,15 +195,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         backgroundColor: 'white',
         borderBottomWidth: 0.5,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-        ...shadowStyle({ elevation: 1, web: `0px 1px 4px ${colors.shadow}` }),
+        borderBottomColor: "#2F3336",
+        ...shadowStyle({ elevation: 1, web: `0px 1px 4px #000` }),
         // sticky header on web
         ...(Platform.OS === 'web' ? ({ position: 'sticky' as any, top: 0, zIndex: 1000 } as any) : {}),
     },
     headerTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: colors.COLOR_BLACK_LIGHT_1,
+        color: "#E7E9EA",
     },
     headerActions: {
         flexDirection: 'row',
@@ -218,11 +220,11 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: colors.primaryColor,
+        backgroundColor: "#d169e5",
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 8,
-        ...shadowStyle({ elevation: 8, web: `0px 4px 8px ${colors.shadow}` }),
+        ...shadowStyle({ elevation: 8, web: `0px 4px 8px #000` }),
         ...(Platform.OS === 'web' ? {
             position: 'fixed' as any,
         } : {}),
