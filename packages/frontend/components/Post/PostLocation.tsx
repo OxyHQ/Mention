@@ -12,14 +12,14 @@ interface PostLocationProps {
   onPress?: () => void;
 }
 
-const PostLocation: React.FC<PostLocationProps> = ({ 
-  location, 
-  paddingHorizontal = 16, 
+const PostLocation: React.FC<PostLocationProps> = ({
+  location,
+  paddingHorizontal = 16,
   style,
-  onPress 
+  onPress
 }) => {
   const theme = useTheme();
-  
+
   if (!location?.coordinates?.[0] || !location?.coordinates?.[1]) {
     return null;
   }
@@ -33,15 +33,15 @@ const PostLocation: React.FC<PostLocationProps> = ({
   const Container = onPress ? TouchableOpacity : View;
 
   return (
-    <Container 
+    <Container
       style={[styles.container, { paddingHorizontal }, style]}
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
     >
-      <Ionicons 
-        name="location-outline" 
-        size={14} 
-        color={theme.colors.textSecondary} 
+      <Ionicons
+        name="location-outline"
+        size={14}
+        color={theme.colors.textSecondary}
         style={styles.icon}
       />
       <Text style={[styles.locationText, { color: theme.colors.textSecondary }]} numberOfLines={1}>

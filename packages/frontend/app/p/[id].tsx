@@ -48,22 +48,22 @@ const PostDetailScreen: React.FC = () => {
     const canReply = content.trim().length > 0 && !isOverLimit && !isSubmitting;
 
     // Memoize filters to prevent Feed re-renders on every keystroke
-    const feedFilters = useMemo(() => ({ 
-        postId: String(id), 
-        parentPostId: String(id) 
+    const feedFilters = useMemo(() => ({
+        postId: String(id),
+        parentPostId: String(id)
     }), [id]);
 
     // Memoize contentContainerStyle to prevent Feed re-renders
-    const feedContentStyle = useMemo(() => ({ 
-        paddingBottom: 16 
+    const feedContentStyle = useMemo(() => ({
+        paddingBottom: 16
     }), []);
 
     // Memoize callbacks to prevent child re-renders
     const handleFocusInput = useCallback(() => {
-        try { 
-            textInputRef.current?.focus(); 
-        } catch { 
-            /* ignore focus errors */ 
+        try {
+            textInputRef.current?.focus();
+        } catch {
+            /* ignore focus errors */
         }
     }, []);
 
@@ -259,7 +259,7 @@ const PostDetailScreen: React.FC = () => {
                     </View>
                     <TextInput
                         ref={textInputRef}
-                        style={[styles.composerInput, { 
+                        style={[styles.composerInput, {
                             borderColor: theme.colors.border,
                             color: theme.colors.text,
                             backgroundColor: theme.colors.background
