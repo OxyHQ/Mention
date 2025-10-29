@@ -289,22 +289,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  searchBox: {
-    marginHorizontal: 12,
-    marginVertical: 12,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'web' ? 10 : 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
-    paddingVertical: 4,
-  },
   card: {
     paddingHorizontal: 16,
     paddingVertical: 14,
