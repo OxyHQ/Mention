@@ -23,12 +23,14 @@ import { notificationService } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications';
 import { validateNotifications, TRawNotification } from '../types/validation';
+import { useTheme } from '../hooks/useTheme';
 
 const NotificationsScreen: React.FC = () => {
     const { user, isAuthenticated } = useOxy();
     const queryClient = useQueryClient();
     const [refreshing, setRefreshing] = useState(false);
     const { t } = useTranslation();
+    const theme = useTheme();
     const [category, setCategory] = useState<'all' | 'mentions' | 'follows' | 'likes' | 'posts'>('all');
 
     // Enable real-time notifications
@@ -160,10 +162,10 @@ const NotificationsScreen: React.FC = () => {
             <Ionicons
                 name="alert-circle-outline"
                 size={64}
-                color={colors.busy}
+                color={theme.colors.error}
             />
-            <ThemedText style={styles.errorTitle}>{t('notification.error.load')}</ThemedText>
-            <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+            <ThemedText style={[styles.errorTitle, { color: theme.colors.error }]}>{t('notification.error.load')}</ThemedText>
+            <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={() => refetch()}>
                 <ThemedText style={styles.retryText}>{t('notification.retry')}</ThemedText>
             </TouchableOpacity>
         </ThemedView>
@@ -261,7 +263,7 @@ const styles = StyleSheet.create({
     authText: {
         fontSize: 16,
         textAlign: 'center',
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
     },
     loadingContainer: {
         flex: 1,
@@ -289,7 +291,7 @@ const styles = StyleSheet.create({
     emptySubtitle: {
         fontSize: 16,
         textAlign: 'center',
-        color: colors.COLOR_BLACK_LIGHT_4,
+        color: "#71767B",
         lineHeight: 24,
     },
     errorContainer: {
@@ -304,12 +306,12 @@ const styles = StyleSheet.create({
         marginTop: 16,
         marginBottom: 16,
         textAlign: 'center',
-        color: colors.busy,
+        color: "#F91880",
     },
     retryButton: {
         paddingHorizontal: 20,
         paddingVertical: 10,
-        backgroundColor: colors.primaryColor,
+        backgroundColor: "#d169e5",
         borderRadius: 8,
         marginTop: 16,
     },
@@ -324,7 +326,7 @@ const styles = StyleSheet.create({
     },
     markAllText: {
         fontSize: 14,
-        color: colors.primaryColor,
+        color: "#d169e5",
         fontWeight: '500',
     },
     emptyListContainer: {
@@ -334,8 +336,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
+        borderBottomColor: "#EFF3F4",
+        backgroundColor: "#F7F9F9",
     },
     chipsRow: {
         flexDirection: 'row',
@@ -346,20 +348,20 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 16,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
+        backgroundColor: "#E1E8ED",
     },
     chipActive: {
-        backgroundColor: colors.primaryLight,
+        backgroundColor: "#F4E5F7",
         borderWidth: 1,
-        borderColor: colors.primaryColor,
+        borderColor: "#d169e5",
     },
     chipText: {
-        color: colors.COLOR_BLACK_LIGHT_2,
+        color: "#536471",
         fontSize: 13,
         fontWeight: '600',
     },
     chipTextActive: {
-        color: colors.primaryColor,
+        color: "#d169e5",
     },
 });
 
@@ -371,6 +373,7 @@ const ChipsRow: React.FC<{
     onChange: (c: 'all' | 'mentions' | 'follows' | 'likes' | 'posts') => void
 }> = ({ category, onChange }) => {
     const { t } = useTranslation();
+    const theme = useTheme();
     const tabs: { key: 'all' | 'mentions' | 'follows' | 'likes' | 'posts'; label: string }[] = [
         { key: 'all', label: t('notifications.tabs.all') },
         { key: 'mentions', label: t('notifications.tabs.mentions') },
@@ -379,16 +382,20 @@ const ChipsRow: React.FC<{
         { key: 'posts', label: t('notifications.tabs.posts') },
     ];
     return (
-        <View style={styles.chipsContainer}>
+        <View style={[styles.chipsContainer, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}>
             <View style={styles.chipsRow}>
                 {tabs.map(tab => {
                     const active = category === tab.key;
                     return (
                         <TouchableOpacity key={tab.key}
-                            style={[styles.chip, active && styles.chipActive]}
+                            style={[
+                                styles.chip,
+                                { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.1)' : '#E1E8ED' },
+                                active && { backgroundColor: `${theme.colors.primary}15`, borderWidth: 1, borderColor: theme.colors.primary }
+                            ]}
                             onPress={() => onChange(tab.key)}
                         >
-                            <ThemedText style={[styles.chipText, active && styles.chipTextActive]}>
+                            <ThemedText style={[styles.chipText, active && { color: theme.colors.primary }]}>
                                 {tab.label}
                             </ThemedText>
                         </TouchableOpacity>

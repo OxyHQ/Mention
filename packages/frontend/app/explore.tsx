@@ -8,11 +8,13 @@ import { colors } from '@/styles/colors';
 import { StatusBar } from 'expo-status-bar';
 import Feed from '../components/Feed/Feed';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
+import { useTheme } from '@/hooks/useTheme';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'custom';
 
 const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
+  const theme = useTheme();
   const [activeTab, setActiveTab] = useState<ExploreTab>('all');
 
   const renderContent = () => {
@@ -38,13 +40,13 @@ const ExploreScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
       <ThemedView style={{ flex: 1 }}>
-        <StatusBar style="dark" />
+        <StatusBar style={theme.isDark ? "light" : "dark"} />
 
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{t('Explore')}</Text>
+        <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{t('Explore')}</Text>
         </View>
 
         {/* Tab Navigation */}
@@ -69,21 +71,22 @@ const ExploreScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#FFFFFF",
   },
   header: {
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: 'white',
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 0.5,
-    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
-    ...shadowStyle({ elevation: 1, web: `0px 1px 4px ${colors.shadow}` }),
+    borderBottomColor: "#EFF3F4",
+    ...shadowStyle({ elevation: 1, web: `0px 1px 4px rgba(0,0,0,0.1)` }),
     // sticky header on web
     ...(Platform.OS === 'web' ? ({ position: 'sticky' as any, top: 0, zIndex: 1000 } as any) : {}),
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.COLOR_BLACK_LIGHT_1,
+    color: "#0F1419",
   },
 });
 
