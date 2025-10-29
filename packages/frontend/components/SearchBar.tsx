@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Platform, Text, TextInput, TouchableOpacity, View, ViewStyle } from 'react-native'
 import { colors } from '../styles/colors'
+import { useTheme } from '@/hooks/useTheme'
 
 const debounce = (func: Function, wait: number) => {
     let timeout: NodeJS.Timeout;
@@ -23,6 +24,7 @@ export const SearchBar = () => {
     const [showFilters, setShowFilters] = useState(false);
     const router = useRouter();
     const { t } = useTranslation();
+    const theme = useTheme();
 
     const handleSearch = useCallback(
         debounce(async (query: string) => {
@@ -44,7 +46,7 @@ export const SearchBar = () => {
 
     return (
         <View style={{
-            backgroundColor: colors.COLOR_BACKGROUND,
+            backgroundColor: theme.colors.background,
             flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
@@ -59,7 +61,7 @@ export const SearchBar = () => {
             gap: 10,
         } as ViewStyle}>
             <View style={{
-                backgroundColor: colors.primaryLight,
+                backgroundColor: theme.colors.backgroundSecondary,
                 borderRadius: 100,
                 height: 45,
                 flexDirection: 'row',
@@ -70,18 +72,19 @@ export const SearchBar = () => {
                 width: '100%',
             }}>
                 {isLoading ? (
-                    <ActivityIndicator size="small" color={colors.COLOR_BLACK_LIGHT_4} />
+                    <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                 ) : (
-                    <Ionicons name="search" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                    <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
                 )}
                 <TextInput
                     style={{
                         fontSize: 16,
-                        color: colors.COLOR_BLACK_LIGHT_4,
+                        color: theme.colors.text,
                         marginHorizontal: 17,
                         flex: 1,
                     }}
                     placeholder={t("Search Mention")}
+                    placeholderTextColor={theme.colors.textSecondary}
                     value={searchQuery}
                     onChangeText={handleSearchChange}
                     returnKeyType="search"
@@ -94,19 +97,19 @@ export const SearchBar = () => {
                         marginRight: 5,
                     }}
                 >
-                    <Ionicons name="options-outline" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                    <Ionicons name="options-outline" size={20} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
             </View>
 
             {showFilters && (
                 <View style={{
-                    backgroundColor: colors.primaryLight,
+                    backgroundColor: theme.colors.card,
                     width: '100%',
                     padding: 15,
                     borderRadius: 15,
                     marginTop: 5,
                 }}>
-                    <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>
+                    <Text style={{ fontWeight: 'bold', marginBottom: 10, color: theme.colors.text }}>
                         {t("Filter by")}
                     </Text>
 
@@ -121,7 +124,7 @@ export const SearchBar = () => {
 
                     <TouchableOpacity
                         style={{
-                            backgroundColor: colors.primaryColor,
+                            backgroundColor: theme.colors.primary,
                             padding: 10,
                             borderRadius: 20,
                             alignItems: 'center',
@@ -144,6 +147,7 @@ export const SearchBar = () => {
 
 const FilterPill = ({ label }: { label: string }) => {
     const [isSelected, setIsSelected] = useState(false);
+    const theme = useTheme();
 
     return (
         <TouchableOpacity
@@ -151,14 +155,14 @@ const FilterPill = ({ label }: { label: string }) => {
                 paddingVertical: 6,
                 paddingHorizontal: 12,
                 borderRadius: 20,
-                backgroundColor: isSelected ? colors.primaryColor : '#f0f0f0',
+                backgroundColor: isSelected ? theme.colors.primary : theme.colors.backgroundSecondary,
                 borderWidth: isSelected ? 0 : 1,
-                borderColor: '#e0e0e0',
+                borderColor: theme.colors.border,
             }}
             onPress={() => setIsSelected(!isSelected)}
         >
             <Text style={{
-                color: isSelected ? 'white' : colors.COLOR_BLACK_LIGHT_4,
+                color: isSelected ? 'white' : theme.colors.text,
                 fontSize: 14,
                 fontWeight: isSelected ? '600' : 'normal',
             }}>

@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
   itemContainer: {
     borderWidth: 1,
-    borderColor: "#2F3336",
+    borderColor: "#EFF3F4",
     borderRadius: 10,
   },
   mediaImage: {

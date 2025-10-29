@@ -5,6 +5,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { colors } from '@/styles/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
+import { useTheme } from '@/hooks/useTheme';
 
 interface AppSplashScreenProps {
     onFadeComplete?: () => void;
@@ -12,6 +13,7 @@ interface AppSplashScreenProps {
 }
 
 const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, startFade = false }) => {
+    const theme = useTheme();
     cssInterop(LinearGradient, {
         className: {
             target: 'style',
@@ -66,7 +68,7 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, start
     const spinnerContainerStyle = useMemo(() => ({ marginTop: 32 }), []);
 
     // Memoize gradient colors to prevent array recreation
-    const gradientColors = useMemo(() => [colors.primaryColor, colors.secondaryLight] as const, []);
+    const gradientColors = useMemo(() => [theme.colors.primary, '#8B5CF6'] as const, [theme.colors.primary]);
 
     return (
         <Animated.View style={containerStyle}>
@@ -75,9 +77,9 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, start
                 className="flex-1 items-center justify-center bg-primary-light dark:bg-primary-dark"
             >
                 <View style={logoContainerStyle}>
-                    <LogoIcon size={100} color={colors.primaryLight} />
+                    <LogoIcon size={100} color="white" />
                     <View style={spinnerContainerStyle}>
-                        <LoadingSpinner size={28} color={colors.primaryLight} showText={false} />
+                        <LoadingSpinner size={28} color="white" showText={false} />
                     </View>
                 </View>
             </LinearGradient>

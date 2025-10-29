@@ -464,7 +464,7 @@ const MentionProfile: React.FC = () => {
                                 styles.banner,
                                 {
                                     height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
-                                    backgroundColor: `${colors.primaryColor}20`,
+                                    backgroundColor: `${theme.colors.primary}20`,
                                     transform: [
                                         {
                                             scale: scrollY.interpolate({
@@ -766,12 +766,12 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: colors.primaryLight,
+        color: "#FFFFFF",
         marginBottom: -3,
     },
     headerSubtitle: {
         fontSize: 13,
-        color: colors.primaryLight,
+        color: "#FFFFFF",
     },
     banner: {
         position: 'absolute',
@@ -802,7 +802,7 @@ const styles = StyleSheet.create({
         borderRadius: 40,
         borderWidth: 3,
         borderColor: "#FFFFFF",
-        backgroundColor: "#2F3336",
+        backgroundColor: "#EFF3F4",
     },
     profileActions: {
         flexDirection: 'row',
@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
         height: 36,
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: "#2F3336",
+        borderColor: "#EFF3F4",
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 8,
@@ -823,7 +823,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: "#2F3336",
+        borderColor: "#EFF3F4",
     },
     followButtonText: {
         fontSize: 14,
