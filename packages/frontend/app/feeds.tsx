@@ -35,8 +35,8 @@ const MyFeedsRow = ({
 }) => {
   const theme = useTheme();
   return (
-    <TouchableOpacity style={styles.myFeedRow} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.myFeedIcon}>{icon}</View>
+    <TouchableOpacity style={[styles.myFeedRow, { borderBottomColor: theme.colors.border }]} onPress={onPress} activeOpacity={0.7}>
+      <View style={[styles.myFeedIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>{icon}</View>
       <Text style={[styles.myFeedLabel, { color: theme.colors.text }]}>{label}</Text>
       {chevron && (
         <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
@@ -207,7 +207,7 @@ const FeedsScreen: React.FC = () => {
         <LegendList
           data={filteredPublic}
           keyExtractor={(item: any) => String(item._id || item.id)}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />}
           contentContainerStyle={{ paddingBottom: 30 }}
           renderItem={({ item }: { item: any }) => (
             <PublicFeedCard
@@ -272,7 +272,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.primaryColor,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -280,19 +279,15 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: colors.COLOR_BLACK_LIGHT_1,
   },
   sectionSub: {
     fontSize: 13,
-    color: colors.COLOR_BLACK_LIGHT_4,
     marginTop: 3,
   },
   myFeedsBox: {
     marginTop: 10,
-    backgroundColor: colors.primaryLight,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
   },
   myFeedRow: {
     flexDirection: 'row',
@@ -300,13 +295,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
   },
   myFeedIcon: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -314,7 +307,6 @@ const styles = StyleSheet.create({
   myFeedLabel: {
     flex: 1,
     fontSize: 15,
-    color: colors.COLOR_BLACK_LIGHT_1,
     fontWeight: '600',
   },
   searchBox: {
@@ -325,19 +317,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 10,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
     borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
     fontSize: 14,
-    color: colors.COLOR_BLACK_LIGHT_1,
     paddingVertical: 4,
   },
   card: {
-    backgroundColor: colors.primaryLight,
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 12,
@@ -346,53 +334,43 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.COLOR_BLACK_LIGHT_1,
   },
   cardBy: {
     marginTop: 2,
     fontSize: 12,
-    color: colors.COLOR_BLACK_LIGHT_4,
   },
   cardDesc: {
     marginTop: 10,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.COLOR_BLACK_LIGHT_3,
   },
   cardLikes: {
     marginTop: 8,
     fontSize: 12,
-    color: colors.COLOR_BLACK_LIGHT_5,
   },
   pinBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primaryLight,
     borderWidth: 1,
-    borderColor: colors.primaryColor,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
   },
   pinBtnActive: {
-    backgroundColor: colors.primaryColor,
-    borderColor: colors.primaryColor,
+    // Active state handled inline with theme
   },
   pinBtnText: {
     marginLeft: 6,
     fontSize: 12,
     fontWeight: '700',
-    color: colors.primaryColor,
   },
   separator: {
     height: 1,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_6,
   },
 });
