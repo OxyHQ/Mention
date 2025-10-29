@@ -2,6 +2,7 @@ import React from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, TextStyle } from 'react-native';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { colors } from '../styles/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 interface Props {
     name?: string | null;
@@ -16,7 +17,8 @@ interface Props {
 }
 
 const UserName: React.FC<Props> = ({ name, verified, unifiedColors, onPress, variant = 'default', style }) => {
-    const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
+    const theme = useTheme();
+    const nameStyle = [styles.name, { color: theme.colors.text }, variant === 'small' && styles.nameSmall, style?.name];
 
     // Determine icon size from passed name fontSize (supports StyleSheet refs) so icon matches text size.
     const flattenedNameStyle = style?.name ? (StyleSheet.flatten(style.name) as TextStyle) : undefined;
@@ -35,7 +37,7 @@ const UserName: React.FC<Props> = ({ name, verified, unifiedColors, onPress, var
                     {name}
                 </Text>
                 {verified && (
-                    <VerifiedIcon size={iconSize} color={unifiedColors ? colors.COLOR_BLACK : colors.primaryColor} style={[styles.verifiedIcon, { transform: [{ translateY: baselineNudge }] }]} />
+                    <VerifiedIcon size={iconSize} color={unifiedColors ? theme.colors.text : theme.colors.primary} style={[styles.verifiedIcon, { transform: [{ translateY: baselineNudge }] }]} />
                 )}
             </View>
         </View>
@@ -66,7 +68,7 @@ const styles = StyleSheet.create({
     name: {
         fontSize: 15,
         fontWeight: '700',
-        color: colors.COLOR_BLACK,
+        color: "#E7E9EA",
     },
     nameSmall: {
         fontSize: 14,

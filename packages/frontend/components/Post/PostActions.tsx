@@ -7,6 +7,7 @@ import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import AnimatedNumber from '../common/AnimatedNumber';
+import { useTheme } from '@/hooks/useTheme';
 
 interface Engagement {
   replies: number;
@@ -37,54 +38,56 @@ const PostActions: React.FC<Props> = ({
   onSave,
   onShare,
 }) => {
+  const theme = useTheme();
+  
   return (
     <View style={styles.postEngagement}>
       {/* Heart (like) */}
       <TouchableOpacity style={styles.engagementButton} onPress={onLike}>
         {isLiked ? (
-          <HeartIconActive size={18} color={colors.busy} />
+          <HeartIconActive size={18} color={theme.colors.error} />
         ) : (
-          <HeartIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+          <HeartIcon size={18} color={theme.colors.textSecondary} />
         )}
         <AnimatedNumber
           value={engagement?.likes ?? 0}
-          style={[styles.engagementText, isLiked && styles.activeLikeText]}
+          style={[styles.engagementText, { color: theme.colors.textSecondary }, isLiked && { color: theme.colors.error }]}
         />
       </TouchableOpacity>
 
       {/* Reply (comment) */}
       <TouchableOpacity style={styles.engagementButton} onPress={onReply}>
-        <CommentIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+        <CommentIcon size={18} color={theme.colors.textSecondary} />
         <AnimatedNumber
           value={engagement?.replies ?? 0}
-          style={styles.engagementText}
+          style={[styles.engagementText, { color: theme.colors.textSecondary }]}
         />
       </TouchableOpacity>
 
       {/* Repost */}
       <TouchableOpacity style={styles.engagementButton} onPress={onRepost}>
         {isReposted ? (
-          <RepostIconActive size={18} color={colors.online} />
+          <RepostIconActive size={18} color={theme.colors.success} />
         ) : (
-          <RepostIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+          <RepostIcon size={18} color={theme.colors.textSecondary} />
         )}
         <AnimatedNumber
           value={engagement?.reposts ?? 0}
-          style={[styles.engagementText, isReposted && styles.activeEngagementText]}
+          style={[styles.engagementText, { color: theme.colors.textSecondary }, isReposted && { color: theme.colors.success }]}
         />
       </TouchableOpacity>
 
       {/* Share */}
       <TouchableOpacity style={styles.engagementButton} onPress={onShare}>
-        <ShareIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+        <ShareIcon size={18} color={theme.colors.textSecondary} />
       </TouchableOpacity>
 
       {/* Save */}
       <TouchableOpacity style={styles.engagementButton} onPress={onSave}>
         {isSaved ? (
-          <BookmarkActive size={18} color={colors.primaryColor} />
+          <BookmarkActive size={18} color={theme.colors.primary} />
         ) : (
-          <Bookmark size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+          <Bookmark size={18} color={theme.colors.textSecondary} />
         )}
       </TouchableOpacity>
     </View>
@@ -105,13 +108,13 @@ const styles = StyleSheet.create({
   },
   engagementText: {
     fontSize: 13,
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: "#71767B",
     marginLeft: 4,
   },
   activeEngagementText: {
-    color: colors.online,
+    color: "#00BA7C",
   },
   activeLikeText: {
-    color: colors.busy,
+    color: "#F91880",
   },
 });

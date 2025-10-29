@@ -3,6 +3,7 @@ import { View, Text, Platform } from 'react-native';
 import { Pressable } from 'react-native-web-hover';
 import { useRouter } from 'expo-router';
 import { colors } from '@/styles/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 export function SideBarItem({
     isActive,
@@ -22,6 +23,7 @@ export function SideBarItem({
     onPress?: () => void;
 }) {
     const router = useRouter();
+    const theme = useTheme();
     const [isHovered, setIsHovered] = React.useState(false);
     return (
         <Pressable
@@ -49,11 +51,11 @@ export function SideBarItem({
                     paddingHorizontal: isExpanded ? 16 : 12,
                     marginLeft: 0,
                     backgroundColor: pressed
-                        ? `${colors.primaryColor}20`
+                        ? `${theme.colors.primary}20`
                         : isHovered
-                            ? `${colors.primaryColor}0F`
+                            ? `${theme.colors.primary}0F`
                             : isActive
-                                ? `${colors.primaryColor}15`
+                                ? `${theme.colors.primary}15`
                                 : 'transparent',
                     ...(Platform.select({
                         web: {
@@ -89,7 +91,7 @@ export function SideBarItem({
                         style={{
                             fontSize: 15,
                             fontWeight: isActive ? '600' : '500',
-                            color: isActive || isHovered ? colors.primaryColor : colors.COLOR_BLACK,
+                            color: isActive || isHovered ? theme.colors.primary : theme.colors.text,
                             ...(Platform.select({
                                 web: {
                                     transition: 'color 200ms cubic-bezier(0.2, 0, 0, 1)',

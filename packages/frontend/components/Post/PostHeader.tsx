@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
 import PostAvatar from './PostAvatar';
 import UserName from '../UserName';
+import { useTheme } from '@/hooks/useTheme';
 
 // Spacing tokens for consistent layout
 const HPAD = 8;         // horizontal padding
@@ -46,6 +47,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressAvatar,
   onPressMenu,
 }) => {
+  const theme = useTheme();
+  
   // Move formatRelativeTime outside component to avoid recreation
   const formatRelativeTime = React.useCallback((input?: string): string => {
     if (!input) return 'now';
@@ -85,20 +88,20 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               verified={user.verified}
               onPress={onPressUser}
             />
-            {user.handle ? <Text style={styles.postHandle}>@{user.handle}</Text> : null}
-            {!!timeLabel && <Text style={styles.postDate}>· {timeLabel}</Text>}
+            {user.handle ? <Text style={[styles.postHandle, { color: theme.colors.textSecondary }]}>@{user.handle}</Text> : null}
+            {!!timeLabel && <Text style={[styles.postDate, { color: theme.colors.textSecondary }]}>· {timeLabel}</Text>}
             {(repostLabel || showRepost) && (
               <View style={styles.metaIndicator}>
-                <Ionicons name="repeat" size={12} color={colors.COLOR_BLACK_LIGHT_4} />
-                <Text style={styles.metaIndicatorText}>
+                <Ionicons name="repeat" size={12} color={theme.colors.textSecondary} />
+                <Text style={[styles.metaIndicatorText, { color: theme.colors.textSecondary }]}>
                   {repostLabel || 'Reposted'}{repostTime ? ` · ${repostTime}` : ''}
                 </Text>
               </View>
             )}
             {showReply && (
               <View style={styles.metaIndicator}>
-                <Ionicons name="chatbubble" size={12} color={colors.COLOR_BLACK_LIGHT_4} />
-                <Text style={styles.metaIndicatorText}>Replied</Text>
+                <Ionicons name="chatbubble" size={12} color={theme.colors.textSecondary} />
+                <Text style={[styles.metaIndicatorText, { color: theme.colors.textSecondary }]}>Replied</Text>
               </View>
             )}
           </View>
@@ -111,7 +114,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             style={styles.menuButton}
             onPress={onPressMenu}
           >
-            <Ionicons name="ellipsis-horizontal" size={18} color={colors.COLOR_BLACK_LIGHT_3} />
+            <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -147,18 +150,18 @@ const styles = StyleSheet.create({
   postUserName: {
     fontSize: 15,
     fontWeight: '700',
-    color: colors.COLOR_BLACK_LIGHT_1,
+    color: "#E7E9EA",
   },
   verifiedIcon: {
     // icon sits inline with text; spacing handled by gap/text layout
   },
   postHandle: {
     fontSize: 15,
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: "#71767B",
   },
   postDate: {
     fontSize: 15,
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: "#71767B",
   },
   metaIndicator: {
     flexDirection: 'row',
@@ -167,7 +170,7 @@ const styles = StyleSheet.create({
   },
   metaIndicatorText: {
     fontSize: 12,
-    color: colors.COLOR_BLACK_LIGHT_4,
+    color: "#71767B",
   },
 });
 

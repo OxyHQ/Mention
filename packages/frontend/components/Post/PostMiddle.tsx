@@ -4,6 +4,7 @@ import PollCard from './PollCard';
 import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
 import PostItem from '../Feed/PostItem';
+import { useTheme } from '@/hooks/useTheme';
 
 interface MediaObj { id: string; type: 'image' | 'video' }
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 }
 
 const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0 }) => {
+  const theme = useTheme();
   // Prevent infinite nesting (max 2 levels deep)
   const MAX_NESTING_DEPTH = 2;
   const screenWidth = Dimensions.get('window').width;
@@ -80,11 +82,11 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
                 <PollCard pollId={pollId as string} />
               ) : pollData ? (
                 // Fallback to simple display if we only have poll data without ID
-                <View style={styles.pollContainer}>
-                  <Text style={styles.pollQuestion}>{pollData.question}</Text>
+                <View style={[styles.pollContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                  <Text style={[styles.pollQuestion, { color: theme.colors.text }]}>{ pollData.question}</Text>
                   {pollData.options?.map((option: string, optIdx: number) => (
-                    <View key={optIdx} style={styles.pollOption}>
-                      <Text style={styles.pollOptionText}>{option}</Text>
+                    <View key={optIdx} style={[styles.pollOption, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+                      <Text style={[styles.pollOptionText, { color: theme.colors.text }]}>{option}</Text>
                     </View>
                   ))}
                 </View>
@@ -128,38 +130,38 @@ const styles = StyleSheet.create({
   },
   itemContainer: {
     borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
+    borderColor: "#2F3336",
     borderRadius: 10,
   },
   mediaImage: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    backgroundColor: '#EFEFEF',
+    backgroundColor: "#1a1a1a",
   },
   pollContainer: {
     padding: 16,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: "#FFFFFF",
     borderRadius: 10,
   },
   pollQuestion: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: colors.primaryDark,
+    color: "#000000",
     marginBottom: 12,
   },
   pollOption: {
     padding: 12,
-    backgroundColor: colors.primaryLight_1,
+    backgroundColor: "#F7F9F9",
     borderRadius: 8,
     marginBottom: 8,
   },
   pollOptionText: {
     fontSize: 14,
-    color: colors.primaryDark,
+    color: "#000000",
   },
   nestedContainer: {
     maxHeight: CARD_HEIGHT * 1.5,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: "#FFFFFF",
     overflow: 'hidden',
   },
 });

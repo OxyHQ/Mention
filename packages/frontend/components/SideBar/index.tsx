@@ -40,6 +40,7 @@ export function SideBar() {
     const { t } = useTranslation();
     const router = useRouter();
     const { isAuthenticated: _isAuthenticated, user, showBottomSheet, logout, oxyServices } = useOxy();
+    const theme = useTheme();
 
     const avatarUri = user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined;
 
@@ -164,6 +165,7 @@ export function SideBar() {
                 {...({ onHoverIn: handleHoverIn, onHoverOut: handleHoverOut } as any)}
                 style={[
                     styles.container,
+                    { backgroundColor: theme.colors.background },
                     {
                         width: isExpanded ? 240 : 60,
                         padding: 6,
@@ -174,7 +176,7 @@ export function SideBar() {
                             },
                         }) as ViewStyle),
                         ...(pathname === '/search' ? {
-                            shadowColor: colors.primaryDark,
+                            shadowColor: theme.colors.shadow,
                             shadowOffset: { width: 0, height: 2 },
                             shadowOpacity: 0.25,
                             shadowRadius: 3.84,
@@ -234,11 +236,12 @@ export function SideBar() {
                                             },
                                         }) as any),
                                     }}>
-                                        <ComposeIcon size={20} color={colors.primaryLight} />
+                                        <ComposeIcon size={20} color={theme.colors.card} />
                                     </View>
                                 )}
                                 containerStyle={() => ({
                                     ...styles.addPropertyButton,
+                                    backgroundColor: theme.colors.primary,
                                     height: isExpanded ? 40 : 48,
                                     width: isExpanded ? '100%' : 48,
                                     alignSelf: isExpanded ? 'stretch' : 'center',
@@ -257,7 +260,7 @@ export function SideBar() {
                         {user && user.id ? (
                             <SideBarItem
                                 isActive={false}
-                                icon={<IconComponent name="log-out-outline" size={20} color={colors.COLOR_BLACK} />}
+                                icon={<IconComponent name="log-out-outline" size={20} color={theme.colors.text} />}
                                 text={t('settings.signOut')}
                                 isExpanded={isExpanded}
                                 onHoverExpand={handleHoverIn}
@@ -266,7 +269,7 @@ export function SideBar() {
                         ) : (
                             <SideBarItem
                                 isActive={false}
-                                icon={<IconComponent name="log-in-outline" size={20} color={colors.COLOR_BLACK} />}
+                                icon={<IconComponent name="log-in-outline" size={20} color={theme.colors.text} />}
                                 text={t('sidebar.actions.signIn')}
                                 isExpanded={isExpanded}
                                 onHoverExpand={handleHoverIn}
@@ -284,7 +287,7 @@ export function SideBar() {
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: colors.primaryLight,
+        backgroundColor: "#FFFFFF",
         padding: 12,
         ...(Platform.select({
             web: {
@@ -318,7 +321,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     heroTagline: {
-        color: colors.COLOR_BLACK,
+        color: "#000000",
         fontSize: 20,
         fontWeight: 'bold',
         fontFamily: 'Phudu',
@@ -336,7 +339,7 @@ const styles = StyleSheet.create({
     signUpButton: {
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: colors.COLOR_BLACK,
+        backgroundColor: "#000000",
         borderRadius: 25,
         paddingHorizontal: 12,
         paddingVertical: 6,
@@ -350,7 +353,7 @@ const styles = StyleSheet.create({
     signInButton: {
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: colors.primaryColor,
+        backgroundColor: "#d169e5",
         borderRadius: 25,
         paddingHorizontal: 12,
         paddingVertical: 6,
@@ -373,7 +376,7 @@ const styles = StyleSheet.create({
     addPropertyButton: {
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: colors.primaryColor,
+        backgroundColor: "#d169e5",
         borderRadius: 100,
         display: 'flex',
         alignSelf: 'flex-start',
@@ -402,17 +405,17 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 24,
-        color: colors.primaryDark,
+        color: "#000000",
         marginBottom: 16,
     },
     menuItemText: {
         fontSize: 16,
-        color: colors.primaryDark,
+        color: "#000000",
         marginLeft: 12,
     },
     footerText: {
         fontSize: 14,
-        color: colors.primaryDark_2,
+        color: "#333333",
         textAlign: 'center',
     },
 });

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/styles/colors';
 import { GeoJSONPoint } from '@mention/shared-types';
+import { useTheme } from '@/hooks/useTheme';
 
 interface PostLocationProps {
   location: GeoJSONPoint;
@@ -17,6 +18,8 @@ const PostLocation: React.FC<PostLocationProps> = ({
   style,
   onPress 
 }) => {
+  const theme = useTheme();
+  
   if (!location?.coordinates?.[0] || !location?.coordinates?.[1]) {
     return null;
   }
