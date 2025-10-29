@@ -53,8 +53,8 @@ export default function ListsScreen() {
     <ThemedView style={{ flex: 1 }}>
       <Header options={{
         title: 'Lists', showBackButton: true, rightComponents: [
-          <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={styles.newPill}>
-            <Text style={styles.newPillText}>+ New</Text>
+          <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={[styles.newPill, { backgroundColor: theme.colors.primary }]}>
+            <Text style={[styles.newPillText, { color: theme.colors.card }]}>+ New</Text>
           </TouchableOpacity>
         ]
       }} />
@@ -62,11 +62,11 @@ export default function ListsScreen() {
       <View style={styles.content}>
         {myLists.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="list" size={64} color={colors.COLOR_BLACK_LIGHT_6} />
-            <Text style={styles.emptyStateTitle}>No lists yet</Text>
-            <Text style={styles.emptyStateDescription}>Create a list to group accounts you follow and keep organized.</Text>
-            <TouchableOpacity style={styles.emptyStateButton} onPress={() => router.push('/lists/create')}>
-              <Text style={styles.emptyStateButtonText}>Create list</Text>
+            <Ionicons name="list" size={64} color={theme.colors.border} />
+            <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>No lists yet</Text>
+            <Text style={[styles.emptyStateDescription, { color: theme.colors.textSecondary }]}>Create a list to group accounts you follow and keep organized.</Text>
+            <TouchableOpacity style={[styles.emptyStateButton, { backgroundColor: theme.colors.primary }]} onPress={() => router.push('/lists/create')}>
+              <Text style={[styles.emptyStateButtonText, { color: theme.colors.card }]}>Create list</Text>
             </TouchableOpacity>
           </View>
         ) : (

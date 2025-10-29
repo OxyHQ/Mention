@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { getData, storeData } from '@/utils/storage';
 import LegendList from '@/components/LegendList';
 import { customFeedsService } from '@/services/customFeedsService';
+import { useTheme } from '@/hooks/useTheme';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
@@ -71,6 +72,7 @@ const PublicFeedCard = ({
 
 const FeedsScreen: React.FC = () => {
   const { t } = useTranslation();
+  const theme = useTheme();
   const [query, setQuery] = useState('');
   const [pinned, setPinned] = useState<string[]>([]);
   const [myFeeds, setMyFeeds] = useState<any[]>([]);
