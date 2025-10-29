@@ -43,6 +43,7 @@ import '../styles/global.css';
 import { OXY_BASE_URL } from '@/config';
 import { QueryClient, QueryClientProvider, onlineManager, focusManager } from '@tanstack/react-query';
 import NetInfo from '@react-native-community/netinfo';
+import { useAppearanceStore } from '@/store/appearanceStore';
 
 // i18n will be initialized on app startup inside RootLayout
 
@@ -61,6 +62,8 @@ export default function RootLayout() {
   });
   const isScreenNotMobile = useIsScreenNotMobile();
   const colorScheme = useColorScheme(); // Get system theme for OxyProvider
+  // Use selector to only subscribe to loadMySettings function, preventing re-renders on store changes
+  const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
 
   // layout scroll is now handled inside LayoutScrollProvider
   const queryClient = useMemo(() => new QueryClient({
@@ -127,6 +130,8 @@ export default function RootLayout() {
       if (authReady) {
         try {
           await oxyServices.getCurrentUser();
+          // Load user appearance settings after auth is ready
+          await loadMySettings();
         } catch (err) {
           console.warn('Failed to fetch current user during init:', err);
         }
@@ -142,7 +147,7 @@ export default function RootLayout() {
     } catch (error) {
       console.warn('Failed to initialize app:', error);
     }
-  }, [loaded, oxyServices, waitForAuth]);
+  }, [loaded, oxyServices, waitForAuth, loadMySettings]);
 
 
   // Initialize i18n once when the app mounts
@@ -233,29 +238,6 @@ export default function RootLayout() {
     }
   }, [loaded, splashState.initializationComplete, splashState.startFade]);
 
-  // Core app providers wrapper component for better organization
-  const AppProviders = useCallback(({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      <OxyProvider
-        oxyServices={oxyServices}
-        initialScreen="SignIn"
-        autoPresent={false}
-        storageKeyPrefix="oxy_example"
-        theme={colorScheme}
-      >
-        <I18nextProvider i18n={i18n}>
-          <BottomSheetProvider>
-            <MenuProvider>
-              <ErrorBoundary>
-                {children}
-              </ErrorBoundary>
-            </MenuProvider>
-          </BottomSheetProvider>
-        </I18nextProvider>
-      </OxyProvider>
-    </QueryClientProvider>
-  ), [queryClient, oxyServices, colorScheme]);
-
   // Main layout component for better organization
   const MainLayout = useCallback(() => {
     const theme = useTheme();
@@ -316,21 +298,37 @@ export default function RootLayout() {
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <GestureRoot style={{ flex: 1 }}>
           {appIsReady ? (
-            <AppProviders>
-              {/* Shows bottom sheet permission prompt when needed (native only) */}
-              {Platform.OS !== 'web' && <NotificationPermissionGate />}
-              {/* Keep posts socket connected (mounted under OxyProvider) */}
-              <RealtimePostsBridge />
-              <MainLayout />
-              <StatusBar style="auto" />
-              <RegisterPush />
-              <Toaster
-                position="bottom-center"
-                swipeToDismissDirection="left"
-                offset={15}
-              />
-              {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
-            </AppProviders>
+            <QueryClientProvider client={queryClient}>
+              <OxyProvider
+                oxyServices={oxyServices}
+                initialScreen="SignIn"
+                autoPresent={false}
+                storageKeyPrefix="oxy_example"
+                theme={colorScheme}
+              >
+                <I18nextProvider i18n={i18n}>
+                  <BottomSheetProvider>
+                    <MenuProvider>
+                      <ErrorBoundary>
+                        {/* Shows bottom sheet permission prompt when needed (native only) */}
+                        {Platform.OS !== 'web' && <NotificationPermissionGate />}
+                        {/* Keep posts socket connected (mounted under OxyProvider) */}
+                        <RealtimePostsBridge />
+                        <MainLayout />
+                        <StatusBar style="auto" />
+                        <RegisterPush />
+                        <Toaster
+                          position="bottom-center"
+                          swipeToDismissDirection="left"
+                          offset={15}
+                        />
+                        {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                      </ErrorBoundary>
+                    </MenuProvider>
+                  </BottomSheetProvider>
+                </I18nextProvider>
+              </OxyProvider>
+            </QueryClientProvider>
           ) : (
             <AppSplashScreen
               startFade={splashState.startFade}

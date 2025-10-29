@@ -10,7 +10,11 @@ import { ThemedView } from '@/components/ThemedView';
 const COLOR_CHOICES = ['#005c67', '#1D9BF0', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#0EA5E9'];
 
 export default function AppearanceSettingsScreen() {
-  const { mySettings, loadMySettings, updateMySettings, loading } = useAppearanceStore();
+  // Use selectors to only subscribe to the parts we need
+  const mySettings = useAppearanceStore((state) => state.mySettings);
+  const loading = useAppearanceStore((state) => state.loading);
+  const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
+  const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
   const { showBottomSheet, oxyServices } = useOxy();
 
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('system');
@@ -41,6 +45,16 @@ export default function AppearanceSettingsScreen() {
     setSaving(false);
   };
 
+  // Immediately save theme mode changes for instant feedback
+  const onThemeModeChange = async (mode: 'light' | 'dark' | 'system') => {
+    setThemeMode(mode);
+    // Save immediately so theme changes right away
+    // Only update appearance settings, not other fields
+    await updateMySettings({
+      appearance: { themeMode: mode, primaryColor: primaryColor || undefined },
+    } as any);
+  };
+
   const openHeaderPicker = () => {
     showBottomSheet?.({
       screen: 'FileManagement',
@@ -65,7 +79,7 @@ export default function AppearanceSettingsScreen() {
         <Text style={styles.label}>Theme</Text>
         <View style={styles.segmentRow}>
           {(['system', 'light', 'dark'] as const).map(mode => (
-            <TouchableOpacity key={mode} style={[styles.segmentBtn, themeMode === mode && [styles.segmentBtnActive, { borderColor: previewPrimaryColor }]]} onPress={() => setThemeMode(mode)}>
+            <TouchableOpacity key={mode} style={[styles.segmentBtn, themeMode === mode && [styles.segmentBtnActive, { borderColor: previewPrimaryColor }]]} onPress={() => onThemeModeChange(mode)}>
               <Text style={[styles.segmentText, themeMode === mode && { color: previewPrimaryColor }]}>
                 {mode.charAt(0).toUpperCase() + mode.slice(1)}
               </Text>

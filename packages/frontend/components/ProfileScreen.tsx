@@ -79,7 +79,9 @@ const MentionProfile: React.FC = () => {
     }
 
     const [activeTab, setActiveTab] = useState<number>(0);
-    const { byUserId, loadForUser } = useAppearanceStore();
+    // Use selectors to only subscribe to the specific data we need
+    const byUserId = useAppearanceStore((state) => state.byUserId);
+    const loadForUser = useAppearanceStore((state) => state.loadForUser);
     const [profileData, setProfileData] = useState<ProfileData | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const layoutScroll = useLayoutScroll();

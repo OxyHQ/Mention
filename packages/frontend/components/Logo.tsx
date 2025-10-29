@@ -3,21 +3,22 @@ import { View, TouchableOpacity, StyleSheet, AccessibilityInfo, Pressable, Platf
 import { Stack, Link, useRouter } from "expo-router";
 
 import { LogoIcon } from "@/assets/logo";
-import { colors } from '@/styles/colors'
+import { useTheme } from '@/hooks/useTheme';
 
 export const Logo = () => {
   const router = useRouter();
+  const theme = useTheme();
 
   return (
     <Pressable
       onPress={() => router.push("/")}
       style={({ pressed }) => [
-        pressed ? { backgroundColor: `${colors.primaryColor}33`, } : {},
+        pressed ? { backgroundColor: `${theme.colors.primary}33` } : {},
         styles.container,
       ]}>
       <View style={styles.logo}>
         <LogoIcon style={styles.logoSvg} size={27}
-          color={colors.primaryColor} />
+          color={theme.colors.primary} />
       </View>
     </Pressable>
   );

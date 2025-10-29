@@ -26,6 +26,11 @@ interface AppearanceStore {
   updateMySettings: (partial: Partial<UserAppearance>) => Promise<UserAppearance | null>;
 }
 
+/**
+ * Appearance store with optimized selectors to prevent unnecessary re-renders.
+ * Always use selectors when subscribing: useAppearanceStore(state => state.mySettings)
+ * instead of useAppearanceStore() to avoid re-rendering on unrelated state changes.
+ */
 export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
   mySettings: null,
   byUserId: {},

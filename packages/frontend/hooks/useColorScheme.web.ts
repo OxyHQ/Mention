@@ -13,7 +13,8 @@ export function useColorScheme(): 'light' | 'dark' {
   }, []);
 
   const colorScheme = useRNColorScheme();
-  const { mySettings } = useAppearanceStore();
+  // Use selector to only subscribe to mySettings
+  const mySettings = useAppearanceStore((state) => state.mySettings);
   const pref = mySettings?.appearance?.themeMode ?? 'system';
 
   if (hasHydrated) {

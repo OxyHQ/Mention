@@ -67,7 +67,8 @@ export interface Theme {
  */
 export function useTheme(): Theme {
   const colorScheme = useColorScheme();
-  const { mySettings } = useAppearanceStore();
+  // Use selector to only subscribe to mySettings.appearance, not the entire store
+  const mySettings = useAppearanceStore((state) => state.mySettings);
   
   // Get user's custom primary color (if set) or use default
   // This comes from Oxy user settings via the appearance store

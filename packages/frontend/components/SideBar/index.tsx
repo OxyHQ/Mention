@@ -287,7 +287,7 @@ export function SideBar() {
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "#FFFFFF", // theme.colors.background
         padding: 12,
         ...(Platform.select({
             web: {
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     heroTagline: {
-        color: "#000000",
+        color: "#000000", // theme.colors.text
         fontSize: 20,
         fontWeight: 'bold',
         fontFamily: 'Phudu',
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     signUpButton: {
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: "#000000",
+        backgroundColor: "#000000", // theme.colors.text (inverted for button)
         borderRadius: 25,
         paddingHorizontal: 12,
         paddingVertical: 6,
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     signInButton: {
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#d169e5",
+        backgroundColor: "#d169e5", // theme.colors.primary
         borderRadius: 25,
         paddingHorizontal: 12,
         paddingVertical: 6,
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     addPropertyButton: {
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: "#d169e5",
+        backgroundColor: "#d169e5", // theme.colors.primary
         borderRadius: 100,
         display: 'flex',
         alignSelf: 'flex-start',
@@ -405,17 +405,17 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 24,
-        color: "#000000",
+        color: "#000000", // theme.colors.text
         marginBottom: 16,
     },
     menuItemText: {
         fontSize: 16,
-        color: "#000000",
+        color: "#000000", // theme.colors.text
         marginLeft: 12,
     },
     footerText: {
         fontSize: 14,
-        color: "#333333",
+        color: "#333333", // theme.colors.textSecondary
         textAlign: 'center',
     },
 });
