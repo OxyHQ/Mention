@@ -133,8 +133,8 @@ const HomeScreen: React.FC = () => {
                 <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                 {/* Header */}
-                <Header 
-                    options={{ 
+                <Header
+                    options={{
                         title: 'Mention',
                         rightComponents: [
                             <TouchableOpacity
@@ -152,7 +152,7 @@ const HomeScreen: React.FC = () => {
                                 <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
                             </TouchableOpacity>
                         ]
-                    }} 
+                    }}
                 />
 
                 {/* Tab Navigation */}
