@@ -537,13 +537,14 @@ const MentionProfile: React.FC = () => {
                         stickyHeaderIndices={[1]}
                     >
                         {/* Profile info */}
-                        <View style={styles.profileContent}>
+                        <View style={[styles.profileContent, { backgroundColor: theme.colors.background }]}>
                             <View style={styles.avatarRow}>
                                 <Avatar
                                     source={avatarUri}
                                     size={80}
                                     useAnimated
                                     style={[styles.avatar, {
+                                        borderColor: theme.colors.background,
                                         transform: [
                                             {
                                                 scale: scrollY.interpolate({
@@ -599,17 +600,17 @@ const MentionProfile: React.FC = () => {
                                     handle={profileData?.username}
                                     verified={profileData?.verified}
                                     variant="default"
-                                    style={{ name: styles.profileName, handle: styles.profileHandle, container: undefined } as any}
+                                    style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
                                 />
                                 {profileData?.privacySettings?.isPrivateAccount && (
                                     <View style={styles.privateIndicator}>
                                         <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
-                                        <Text style={styles.privateText}>Private</Text>
+                                        <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>Private</Text>
                                     </View>
                                 )}
                             </View>
                             {profileData?.bio && (
-                                <Text style={styles.profileBio}>
+                                <Text style={[styles.profileBio, { color: theme.colors.text }]}>
                                     {profileData.bio}
                                 </Text>
                             )}
@@ -618,7 +619,7 @@ const MentionProfile: React.FC = () => {
                                 {profileData?.primaryLocation && (
                                     <View style={styles.metaItem}>
                                         <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
-                                        <Text style={styles.metaText}>{profileData.primaryLocation}</Text>
+                                        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{profileData.primaryLocation}</Text>
                                     </View>
                                 )}
                                 {profileData?.links && profileData.links.length > 0 && (
@@ -630,12 +631,12 @@ const MentionProfile: React.FC = () => {
                                         >
                                             <Ionicons name="link-outline" size={16} color={theme.colors.textSecondary} />
                                         </View>
-                                        <Text style={[styles.metaText, styles.linkText]}>{profileData.links[0]}</Text>
+                                        <Text style={[styles.metaText, styles.linkText, { color: theme.colors.primary }]}>{profileData.links[0]}</Text>
                                     </View>
                                 )}
                                 <View style={styles.metaItem}>
                                     <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
-                                    <Text style={styles.metaText}>Joined {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''}</Text>
+                                    <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>Joined {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''}</Text>
                                 </View>
                             </View>
 
@@ -645,19 +646,19 @@ const MentionProfile: React.FC = () => {
                                         style={styles.statItem}
                                         onPress={() => router.push(`/@${profileData?.username || username}/following`)}
                                     >
-                                        <Text style={styles.statNumber}>
+                                        <Text style={[styles.statNumber, { color: theme.colors.text }]}>
                                             {followingCount ?? 0}
                                         </Text>
-                                        <Text style={styles.statLabel}>Following</Text>
+                                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Following</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={styles.statItem}
                                         onPress={() => router.push(`/@${profileData?.username || username}/followers`)}
                                     >
-                                        <Text style={styles.statNumber}>
+                                        <Text style={[styles.statNumber, { color: theme.colors.text }]}>
                                             {followerCount ?? 0}
                                         </Text>
-                                        <Text style={styles.statLabel}>Followers</Text>
+                                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Followers</Text>
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -666,9 +667,9 @@ const MentionProfile: React.FC = () => {
                             {profileData?.communities && profileData.communities.length > 0 &&
                                 (!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
                                     <View style={styles.communitiesSection}>
-                                        <Text style={styles.communitiesTitle}>Communities</Text>
+                                        <Text style={[styles.communitiesTitle, { color: theme.colors.text }]}>Communities</Text>
                                         {profileData.communities.map((community: any, index: number) => (
-                                            <View key={community.id || index} style={styles.communityCard}>
+                                            <View key={community.id || index} style={[styles.communityCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
                                                 <View style={styles.communityHeader}>
                                                     {community.icon && (
                                                         <View style={styles.communityIcon}>
@@ -679,15 +680,15 @@ const MentionProfile: React.FC = () => {
                                                         </View>
                                                     )}
                                                     <View style={styles.communityInfo}>
-                                                        <Text style={styles.communityName}>{community.name}</Text>
+                                                        <Text style={[styles.communityName, { color: theme.colors.text }]}>{community.name}</Text>
                                                         {community.description && (
-                                                            <Text style={styles.communityDescription}>
+                                                            <Text style={[styles.communityDescription, { color: theme.colors.textSecondary }]}>
                                                                 {community.description}
                                                             </Text>
                                                         )}
                                                         {community.memberCount && (
                                                             <View style={styles.communityMembers}>
-                                                                <Text style={styles.memberCount}>
+                                                                <Text style={[styles.memberCount, { color: theme.colors.textSecondary }]}>
                                                                     {community.memberCount} Members
                                                                 </Text>
                                                             </View>
@@ -695,7 +696,7 @@ const MentionProfile: React.FC = () => {
                                                     </View>
                                                 </View>
                                                 <TouchableOpacity style={styles.viewButtonInCard}>
-                                                    <Text style={styles.viewButtonText}>View</Text>
+                                                    <Text style={[styles.viewButtonText, { color: theme.colors.primary }]}>View</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         ))}

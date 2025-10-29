@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useOxy } from '@oxyhq/services';
 import { Logo } from './Logo';
 import { colors } from '../styles/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 interface SignInPromptProps {
     onSignInPress?: () => void;
@@ -16,6 +17,7 @@ interface SignInPromptProps {
 
 const SignInPrompt: React.FC<SignInPromptProps> = ({ onSignInPress }) => {
     const { showBottomSheet } = useOxy();
+    const theme = useTheme();
 
     const handleSignInPress = () => {
         if (onSignInPress) {
@@ -26,38 +28,38 @@ const SignInPrompt: React.FC<SignInPromptProps> = ({ onSignInPress }) => {
     };
 
     return (
-        <View style={styles.signInContainer}>
-            <View style={styles.signInCard}>
+        <View style={[styles.signInContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <View style={[styles.signInCard, { backgroundColor: theme.colors.background }]}>
                 <View style={styles.logoContainer}>
                     <Logo />
                 </View>
 
-                <Text style={styles.signInTitle}>Welcome to Mention</Text>
-                <Text style={styles.signInSubtitle}>
+                <Text style={[styles.signInTitle, { color: theme.colors.text }]}>Welcome to Mention</Text>
+                <Text style={[styles.signInSubtitle, { color: theme.colors.textSecondary }]}>
                     Join the conversation and connect with people who share your interests
                 </Text>
 
                 <View style={styles.featuresContainer}>
                     <View style={styles.featureItem}>
-                        <Ionicons name="chatbubble-outline" size={20} color={colors.primaryColor} />
-                        <Text style={styles.featureText}>Share your thoughts</Text>
+                        <Ionicons name="chatbubble-outline" size={20} color={theme.colors.primary} />
+                        <Text style={[styles.featureText, { color: theme.colors.text }]}>Share your thoughts</Text>
                     </View>
                     <View style={styles.featureItem}>
-                        <Ionicons name="people-outline" size={20} color={colors.primaryColor} />
-                        <Text style={styles.featureText}>Connect with others</Text>
+                        <Ionicons name="people-outline" size={20} color={theme.colors.primary} />
+                        <Text style={[styles.featureText, { color: theme.colors.text }]}>Connect with others</Text>
                     </View>
                     <View style={styles.featureItem}>
-                        <Ionicons name="heart-outline" size={20} color={colors.primaryColor} />
-                        <Text style={styles.featureText}>Discover new ideas</Text>
+                        <Ionicons name="heart-outline" size={20} color={theme.colors.primary} />
+                        <Text style={[styles.featureText, { color: theme.colors.text }]}>Discover new ideas</Text>
                     </View>
                 </View>
 
-                <TouchableOpacity style={styles.signInButton} onPress={handleSignInPress}>
-                    <Text style={styles.signInButtonText}>Get Started</Text>
-                    <Ionicons name="arrow-forward" size={18} color={colors.COLOR_BLACK_LIGHT_9} />
+                <TouchableOpacity style={[styles.signInButton, { backgroundColor: theme.colors.primary }]} onPress={handleSignInPress}>
+                    <Text style={[styles.signInButtonText, { color: theme.colors.card }]}>Get Started</Text>
+                    <Ionicons name="arrow-forward" size={18} color={theme.colors.card} />
                 </TouchableOpacity>
 
-                <Text style={styles.signInFooter}>
+                <Text style={[styles.signInFooter, { color: theme.colors.textSecondary }]}>
                     By signing in, you agree to our Terms of Service and Privacy Policy
                 </Text>
             </View>

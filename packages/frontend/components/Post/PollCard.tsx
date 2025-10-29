@@ -93,8 +93,8 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
                 ended || (hasVoted && !poll.isMultipleChoice) ? { opacity: 0.9 } : null,
               ]}
             >
-              <View style={styles.progressBg}>
-                <View style={[styles.progressFill, { width: `${pct * 100}%` }]} />
+              <View style={[styles.progressBg, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <View style={[styles.progressFill, { width: `${pct * 100}%`, backgroundColor: `${theme.colors.primary}40` }]} />
               </View>
               <View style={styles.optionRow}>
                 <Text style={[styles.optionText, { color: theme.colors.text }]} numberOfLines={1}>{opt.text}</Text>
