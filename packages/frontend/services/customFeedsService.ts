@@ -2,7 +2,7 @@ import { authenticatedClient } from '@/utils/api';
 import { FeedResponse } from '@mention/shared-types';
 
 class CustomFeedsService {
-  async list(params?: { mine?: boolean; publicOnly?: boolean }): Promise<{ items: any[]; total: number }> {
+  async list(params?: { mine?: boolean; publicOnly?: boolean; search?: string }): Promise<{ items: any[]; total: number }> {
     const res = await authenticatedClient.get('/feeds', { params });
     return res.data;
     }

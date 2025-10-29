@@ -47,7 +47,7 @@ router.get('/', async (req: any, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { mine, publicOnly } = req.query as any;
+    const { mine, publicOnly, search } = req.query as any;
     const q: any = {};
     if (mine === 'true') q.ownerOxyUserId = userId;
     if (publicOnly === 'true') q.isPublic = true;
@@ -56,7 +56,32 @@ router.get('/', async (req: any, res) => {
       q.$or = [{ ownerOxyUserId: userId }, { isPublic: true }];
     }
 
+    // Add search functionality
+    if (search && typeof search === 'string' && search.trim()) {
+      const searchTerm = search.trim();
+      const searchRegex = new RegExp(searchTerm, 'i');
+      const searchCondition = {
+        $or: [
+          { title: searchRegex },
+          { description: searchRegex },
+          { keywords: searchRegex }
+        ]
+      };
+      
+      // Combine with existing query conditions
+      if (q.$or) {
+        // If there's already an $or (for mine/public), wrap both in $and
+        q.$and = [{ $or: q.$or }, searchCondition];
+        delete q.$or;
+      } else {
+        // If there's no $or, add search conditions directly
+        q.$or = searchCondition.$or;
+      }
+    }
+
     const items = await CustomFeed.find(q).sort({ updatedAt: -1 }).lean();
+    console.log('Feed search query:', JSON.stringify(q, null, 2));
+    console.log('Feed search results:', items.length, 'items');
     res.json({ items, total: items.length });
   } catch (error) {
     console.error('List custom feeds error:', error);

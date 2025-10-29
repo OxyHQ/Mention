@@ -5,18 +5,17 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  // FlatList replaced with LegendList for performance
   TouchableOpacity,
   Platform,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Header } from '@/components/Header';
 import { ThemedView } from '@/components/ThemedView';
-import { colors } from '@/styles/colors';
 import { router } from 'expo-router';
 import { getData, storeData } from '@/utils/storage';
-import LegendList from '@/components/LegendList';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -56,14 +55,14 @@ const PublicFeedCard = ({
 }) => {
   const theme = useTheme();
   return (
-    <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+    <View style={[styles.card, { backgroundColor: theme.colors.card }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={[styles.cardEmojiBubble, { backgroundColor: theme.colors.backgroundSecondary }]}><Text style={{ fontSize: 18 }}>🧩</Text></View>
         <View style={{ marginLeft: 10, flex: 1 }}>
           <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{item.title}</Text>
           <Text style={[styles.cardBy, { color: theme.colors.textSecondary }]}>{(item.memberOxyUserIds || []).length} members • Public</Text>
         </View>
-        <TouchableOpacity onPress={() => onTogglePin(`custom:${item._id || item.id}`)} style={[styles.pinBtn, { backgroundColor: pinned ? theme.colors.primary : theme.colors.backgroundSecondary, borderColor: theme.colors.primary }, pinned && styles.pinBtnActive]}>
+        <TouchableOpacity onPress={() => onTogglePin(`custom:${item._id || item.id}`)} style={[styles.pinBtn, { backgroundColor: pinned ? theme.colors.primary : theme.colors.backgroundSecondary, borderColor: theme.colors.primary }]}>
           <Ionicons name={pinned ? 'pin' : 'pin-outline'} size={16} color={pinned ? theme.colors.card : theme.colors.primary} />
           <Text style={[styles.pinBtnText, { color: pinned ? theme.colors.card : theme.colors.primary }]}>{pinned ? 'Pinned' : 'Pin'}</Text>
         </TouchableOpacity>
@@ -84,6 +83,7 @@ const FeedsScreen: React.FC = () => {
   const [myFeeds, setMyFeeds] = useState<any[]>([]);
   const [publicFeeds, setPublicFeeds] = useState<any[]>([]);
   const [_loading, setLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -92,24 +92,58 @@ const FeedsScreen: React.FC = () => {
     })();
   }, []);
 
+  // Load myFeeds once on mount
   useEffect(() => {
-    const load = async () => {
+    const loadMyFeeds = async () => {
       try {
-        setLoading(true);
         const mine = await customFeedsService.list({ mine: true });
         setMyFeeds(mine.items || []);
-        const pub = await customFeedsService.list({ publicOnly: true });
-        // filter out ones already mine
-        const mineIds = new Set((mine.items || []).map((f: any) => String(f._id || f.id)));
-        setPublicFeeds((pub.items || []).filter((f: any) => !mineIds.has(String(f._id || f.id))));
       } catch (e) {
-        console.warn('Failed loading feeds', e);
-      } finally {
-        setLoading(false);
+        console.warn('Failed loading my feeds', e);
       }
-    }
-    load();
+    };
+    loadMyFeeds();
   }, []);
+
+  // Debounced search effect - handles both initial load and search
+  useEffect(() => {
+    const searchFeeds = async () => {
+      const searchQuery = query.trim();
+
+      if (!searchQuery) {
+        // If search is cleared, reload all public feeds (excluding user's own)
+        try {
+          setSearchLoading(true);
+          const mine = await customFeedsService.list({ mine: true });
+          const pub = await customFeedsService.list({ publicOnly: true });
+          const mineIds = new Set((mine.items || []).map((f: any) => String(f._id || f.id)));
+          setPublicFeeds((pub.items || []).filter((f: any) => !mineIds.has(String(f._id || f.id))));
+        } catch (e) {
+          console.warn('Failed reloading feeds', e);
+        } finally {
+          setSearchLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setSearchLoading(true);
+        console.log('Searching feeds with query:', searchQuery);
+        const pub = await customFeedsService.list({ publicOnly: true, search: searchQuery });
+        console.log('Search results:', pub);
+        // During search, show all results including user's own feeds
+        setPublicFeeds(pub.items || []);
+      } catch (e) {
+        console.warn('Failed searching feeds', e);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+
+    // Debounce search by 500ms
+    const timeoutId = setTimeout(searchFeeds, 500);
+    return () => clearTimeout(timeoutId);
+  }, [query]);
 
   const onTogglePin = useCallback(async (id: string) => {
     setPinned((prev) => {
@@ -119,13 +153,6 @@ const FeedsScreen: React.FC = () => {
       return next;
     });
   }, []);
-
-  const filteredPublic = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const src = publicFeeds || [];
-    if (!q) return src;
-    return src.filter((f: any) => [f.title, f.description].filter(Boolean).some((s: string) => s.toLowerCase().includes(q)));
-  }, [query, publicFeeds]);
 
   const pinnedObjects = useMemo(() => {
     const customPinned = myFeeds.filter((f: any) => pinned.includes(`custom:${f._id || f.id}`));
@@ -143,114 +170,125 @@ const FeedsScreen: React.FC = () => {
           ]
         }} />
 
-        {/* My Feeds */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
-            <Ionicons name="filter" size={18} color={theme.colors.card} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>My Feeds</Text>
-            <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>All the feeds you've saved, right in one place.</Text>
-          </View>
-        </View>
-
-        <View style={[styles.myFeedsBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <MyFeedsRow
-            icon={<Ionicons name="people-outline" size={18} color={theme.colors.primary} />}
-            label="Following"
-            onPress={() => router.push('/')}
-          />
-          <MyFeedsRow
-            icon={<Ionicons name="sparkles-outline" size={18} color={theme.colors.primary} />}
-            label="For You"
-            onPress={() => router.push('/')}
-          />
-          {pinnedObjects.map((f) => (
-            <MyFeedsRow
-              key={f.id}
-              icon={<Text style={{ fontSize: 14 }}>{(f as any).emoji || '🧩'}</Text>}
-              label={(f as any).title}
-              onPress={() => {
-                const id = String(f.id).startsWith('custom:') ? String(f.id).split(':')[1] : undefined;
-                if (id) router.push(`/feeds/${id}`);
-              }}
-              chevron
-            />
-          ))}
-        </View>
-
-        {/* Discover New Feeds (public) */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 10 }]}>
-          <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
-            <Ionicons name="options" size={18} color={theme.colors.card} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Discover New Feeds</Text>
-            <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>
-              Choose your own timeline! Feeds built by the community help you find
-              content you love.
-            </Text>
-          </View>
-        </View>
-
-        <View style={[styles.searchBox, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-          <Ionicons name="search" size={18} color={theme.colors.textSecondary} />
-          <TextInput
-            placeholder={t('Search feeds')}
-            value={query}
-            onChangeText={setQuery}
-            style={[styles.searchInput, { color: theme.colors.text }]}
-            placeholderTextColor={theme.colors.textSecondary}
-          />
-        </View>
-
-        <LegendList
-          data={filteredPublic}
-          keyExtractor={(item: any) => String(item._id || item.id)}
-          ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />}
-          contentContainerStyle={{ paddingBottom: 30 }}
-          renderItem={({ item }: { item: any }) => (
-            <PublicFeedCard
-              item={item}
-              pinned={pinned.includes(`custom:${item._id || item.id}`)}
-              onTogglePin={onTogglePin}
-            />
-          )}
-          showsVerticalScrollIndicator={false}
-          recycleItems={true}
-          maintainVisibleContentPosition={true}
-        />
-
-        {/* Your Feeds */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 10 }]}>
-          <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
-            <Ionicons name="person-circle" size={18} color={theme.colors.card} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Your Feeds</Text>
-            <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Custom timelines you created.</Text>
-          </View>
-        </View>
-        {myFeeds.map((f: any) => (
-          <View key={String(f._id || f.id)} style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={[styles.cardEmojiBubble, { backgroundColor: theme.colors.backgroundSecondary }]}><Text style={{ fontSize: 18 }}>🧩</Text></View>
-              <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{f.title}</Text>
-                <Text style={[styles.cardBy, { color: theme.colors.textSecondary }]}>{(f.memberOxyUserIds || []).length} members • {f.isPublic ? 'Public' : 'Private'}</Text>
-              </View>
-              <TouchableOpacity onPress={() => onTogglePin(`custom:${f._id || f.id}`)} style={[styles.pinBtn, { backgroundColor: pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.primary : theme.colors.backgroundSecondary, borderColor: theme.colors.primary }, pinned.includes(`custom:${f._id || f.id}`) && styles.pinBtnActive]}>
-                <Ionicons name={pinned.includes(`custom:${f._id || f.id}`) ? 'pin' : 'pin-outline'} size={16} color={pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.card : theme.colors.primary} />
-                <Text style={[styles.pinBtnText, { color: pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.card : theme.colors.primary }]}>{pinned.includes(`custom:${f._id || f.id}`) ? 'Pinned' : 'Pin'}</Text>
-              </TouchableOpacity>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* My Feeds */}
+          <View style={styles.sectionHeaderRow}>
+            <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
+              <Ionicons name="filter" size={18} color={theme.colors.card} />
             </View>
-            {f.description ? <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>{f.description}</Text> : null}
-            <TouchableOpacity onPress={() => router.push(`/feeds/${f._id || f.id}`)} style={{ marginTop: 8 }}>
-              <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Open feed</Text>
-            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>My Feeds</Text>
+              <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>All the feeds you've saved, right in one place.</Text>
+            </View>
           </View>
-        ))}
 
+          <View style={[styles.myFeedsBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <MyFeedsRow
+              icon={<Ionicons name="people-outline" size={18} color={theme.colors.primary} />}
+              label="Following"
+              onPress={() => router.push('/')}
+            />
+            <MyFeedsRow
+              icon={<Ionicons name="sparkles-outline" size={18} color={theme.colors.primary} />}
+              label="For You"
+              onPress={() => router.push('/')}
+            />
+            {pinnedObjects.map((f) => (
+              <MyFeedsRow
+                key={f.id}
+                icon={<Text style={{ fontSize: 14 }}>{(f as any).emoji || '🧩'}</Text>}
+                label={(f as any).title}
+                onPress={() => {
+                  const id = String(f.id).startsWith('custom:') ? String(f.id).split(':')[1] : undefined;
+                  if (id) router.push(`/feeds/${id}`);
+                }}
+                chevron
+              />
+            ))}
+          </View>
+
+          {/* Discover New Feeds (public) */}
+          <View style={[styles.sectionHeaderRow, { marginTop: 16 }]}>
+            <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
+              <Ionicons name="options" size={18} color={theme.colors.card} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Discover New Feeds</Text>
+              <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>
+                Choose your own timeline! Feeds built by the community help you find
+                content you love.
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.searchBox, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+            <Ionicons name="search" size={18} color={theme.colors.textSecondary} />
+            <TextInput
+              placeholder={t('Search feeds')}
+              value={query}
+              onChangeText={setQuery}
+              style={[styles.searchInput, { color: theme.colors.text }]}
+              placeholderTextColor={theme.colors.textSecondary}
+            />
+            {searchLoading && (
+              <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginLeft: 8 }} />
+            )}
+          </View>
+
+          {publicFeeds.length === 0 && query.trim().length > 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="search-outline" size={48} color={theme.colors.textSecondary} />
+              <Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>
+                No feeds found matching "{query}"
+              </Text>
+            </View>
+          ) : (
+            publicFeeds.map((item: any) => (
+              <PublicFeedCard
+                key={String(item._id || item.id)}
+                item={item}
+                pinned={pinned.includes(`custom:${item._id || item.id}`)}
+                onTogglePin={onTogglePin}
+              />
+            ))
+          )}
+
+          {/* Your Feeds */}
+          {myFeeds.length > 0 && (
+            <>
+              <View style={[styles.sectionHeaderRow, { marginTop: 16 }]}>
+                <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
+                  <Ionicons name="person-circle" size={18} color={theme.colors.card} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Your Feeds</Text>
+                  <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Custom timelines you created.</Text>
+                </View>
+              </View>
+              {myFeeds.map((f: any) => (
+                <View key={String(f._id || f.id)} style={[styles.card, { backgroundColor: theme.colors.card }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={[styles.cardEmojiBubble, { backgroundColor: theme.colors.backgroundSecondary }]}><Text style={{ fontSize: 18 }}>🧩</Text></View>
+                    <View style={{ marginLeft: 10, flex: 1 }}>
+                      <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{f.title}</Text>
+                      <Text style={[styles.cardBy, { color: theme.colors.textSecondary }]}>{(f.memberOxyUserIds || []).length} members • {f.isPublic ? 'Public' : 'Private'}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => onTogglePin(`custom:${f._id || f.id}`)} style={[styles.pinBtn, { backgroundColor: pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.primary : theme.colors.backgroundSecondary, borderColor: theme.colors.primary }]}>
+                      <Ionicons name={pinned.includes(`custom:${f._id || f.id}`) ? 'pin' : 'pin-outline'} size={16} color={pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.card : theme.colors.primary} />
+                      <Text style={[styles.pinBtnText, { color: pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.card : theme.colors.primary }]}>{pinned.includes(`custom:${f._id || f.id}`) ? 'Pinned' : 'Pin'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {f.description ? <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>{f.description}</Text> : null}
+                  <TouchableOpacity onPress={() => router.push(`/feeds/${f._id || f.id}`)} style={{ marginTop: 8 }}>
+                    <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Open feed</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </>
+          )}
+
+          <View style={{ height: 20 }} />
+        </ScrollView>
       </ThemedView>
     </SafeAreaView>
   );
@@ -327,8 +365,8 @@ const styles = StyleSheet.create({
   },
   card: {
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 12,
+    paddingVertical: 14,
+    marginBottom: 1,
   },
   cardEmojiBubble: {
     width: 34,
@@ -372,5 +410,16 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 1,
+  },
+  emptyState: {
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateText: {
+    marginTop: 12,
+    fontSize: 15,
+    textAlign: 'center',
   },
 });
