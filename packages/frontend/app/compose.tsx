@@ -27,10 +27,12 @@ import { toast } from 'sonner';
 import { usePostsStore } from '../stores/postsStore';
 import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
+import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 
 const ComposeScreen = () => {
   const theme = useTheme();
   const [postContent, setPostContent] = useState('');
+  const [mentions, setMentions] = useState<MentionData[]>([]);
   const [threadItems, setThreadItems] = useState<{
     id: string;
     text: string;
@@ -38,6 +40,7 @@ const ComposeScreen = () => {
     pollOptions: string[];
     showPollCreator: boolean;
     location: { latitude: number; longitude: number; address?: string } | null;
+    mentions: MentionData[];
   }[]>([]);
   const [isPosting, setIsPosting] = useState(false);
   const [mediaIds, setMediaIds] = useState<string[]>([]);
@@ -102,7 +105,7 @@ const ComposeScreen = () => {
             } as GeoJSONPoint
           })
         },
-        mentions: [],
+        mentions: mentions.map(m => m.userId),
         hashtags: []
       });
 
@@ -133,7 +136,7 @@ const ComposeScreen = () => {
                 } as GeoJSONPoint
               })
             },
-            mentions: [],
+            mentions: item.mentions?.map(m => m.userId) || [],
             hashtags: []
           });
         }
@@ -479,15 +482,14 @@ const ComposeScreen = () => {
                   onPressUser={() => { }}
                   onPressAvatar={() => { }}
                 >
-                  <TextInput
+                  <MentionTextInput
                     style={[styles.mainTextInput, { color: theme.colors.text }]}
                     placeholder={t("What's new?")}
-                    placeholderTextColor={theme.colors.textSecondary}
                     value={postContent}
                     onChangeText={setPostContent}
+                    onMentionsChange={setMentions}
                     multiline
                     autoFocus
-                    textAlignVertical="top"
                   />
                   <ComposeToolbar
                     onMediaPress={openMediaPicker}
@@ -571,12 +573,12 @@ const ComposeScreen = () => {
                     </TouchableOpacity>
                     <View style={styles.headerMeta}>
                       <View style={styles.headerChildren}>
-                        <TextInput
+                        <MentionTextInput
                           style={styles.threadTextInput}
                           placeholder={t('Say more...')}
-                          placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
                           value={item.text}
                           onChangeText={(v) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, text: v } : p))}
+                          onMentionsChange={(m) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, mentions: m } : p))}
                           multiline
                         />
                         <ComposeToolbar
@@ -668,7 +670,8 @@ const ComposeScreen = () => {
                   mediaIds: [],
                   pollOptions: [],
                   showPollCreator: false,
-                  location: null
+                  location: null,
+                  mentions: []
                 }]);
               }}
             >

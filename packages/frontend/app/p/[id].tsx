@@ -28,6 +28,7 @@ import { useTheme } from '@/hooks/useTheme';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 //
 
 const MAX_CHARACTERS = 280;
@@ -45,6 +46,7 @@ const PostDetailScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [content, setContent] = useState('');
+    const [mentions, setMentions] = useState<MentionData[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [mediaIds, setMediaIds] = useState<string[]>([]);
     const [pollOptions, setPollOptions] = useState<string[]>([]);
@@ -289,12 +291,13 @@ const PostDetailScreen: React.FC = () => {
                         }
                     })
                 } as any,
-                mentions: [],
+                mentions: mentions.map(m => m.userId),
                 hashtags: [],
             });
 
             // Reset all form state
             setContent('');
+            setMentions([]);
             setMediaIds([]);
             setPollOptions([]);
             setShowPollCreator(false);
@@ -415,16 +418,15 @@ const PostDetailScreen: React.FC = () => {
                             />
                         </View>
                         <View style={styles.composerInputContainer}>
-                            <TextInput
-                                ref={textInputRef}
+                            <MentionTextInput
                                 style={[styles.composerInput, {
                                     color: theme.colors.text,
                                     backgroundColor: theme.colors.background
                                 }]}
                                 placeholder="Post your reply"
-                                placeholderTextColor={theme.colors.textSecondary}
                                 value={content}
                                 onChangeText={setContent}
+                                onMentionsChange={setMentions}
                                 multiline
                                 maxLength={MAX_CHARACTERS}
                             />

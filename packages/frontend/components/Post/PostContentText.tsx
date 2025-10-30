@@ -33,7 +33,12 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars = 280 
   ) : null;
 
   return (
-    <LinkifiedText text={displayed} style={[styles.postText, { color: theme.colors.text }]} linkStyle={[styles.link, { color: theme.colors.primary }]} suffix={suffix} />
+    <LinkifiedText
+      text={displayed}
+      style={[styles.postText, { color: theme.colors.text }]}
+      linkStyle={[styles.link, { color: theme.colors.primary }]}
+      suffix={suffix}
+    />
   );
 };
 

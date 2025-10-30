@@ -18,9 +18,10 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
 
     const elements: React.ReactNode[] = [];
 
-    // 1) URLs: http(s)://... or www....
-    // 2) Entities with preceding boundary capture to avoid emails/usernames: mentions, hashtags, cashtags
-    const pattern = /(https?:\/\/[^\s]+|www\.[^\s]+)|(^|[^A-Za-z0-9_])(@[A-Za-z0-9_]{1,30}|#[A-Za-z][A-Za-z0-9_]*|\$[A-Z]{1,6}(?:\.[A-Z]{1,2})?)/g;
+    // 1) Mentions in format [@DisplayName](username) - from backend
+    // 2) URLs: http(s)://... or www....
+    // 3) Entities with preceding boundary capture: hashtags, cashtags
+    const pattern = /(\[@([^\]]+)\]\(([^)]+)\))|(https?:\/\/[^\s]+|www\.[^\s]+)|(^|[^A-Za-z0-9_])(#[A-Za-z][A-Za-z0-9_]*|\$[A-Z]{1,6}(?:\.[A-Z]{1,2})?)/g;
 
     let lastIndex = 0;
     let match: RegExpExecArray | null;
@@ -43,11 +44,29 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
 
     while ((match = pattern.exec(text)) !== null) {
       const full = match[0];
-      const urlCandidate = match[1];
-      const boundary = match[2] ?? '';
-      const entity = match[3];
+      const mentionFull = match[1];      // [@DisplayName](username)
+      const mentionDisplay = match[2];   // DisplayName
+      const mentionUsername = match[3];  // username
+      const urlCandidate = match[4];
+      const boundary = match[5] ?? '';
+      const entity = match[6];
 
-      if (urlCandidate) {
+      if (mentionFull) {
+        // Handle mention: display "DisplayName" (without @) but make it clickable
+        const start = match.index;
+        pushText(text.slice(lastIndex, start));
+
+        elements.push(
+          <Text
+            key={`m-${key++}`}
+            style={[{ color: colors.linkColor }, linkStyle]}
+            onPress={() => router.push(`/@${mentionUsername}`)}
+          >
+            {mentionDisplay}
+          </Text>
+        );
+        lastIndex = start + full.length;
+      } else if (urlCandidate) {
         const start = match.index;
         pushText(text.slice(lastIndex, start));
 
@@ -69,18 +88,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
         pushText(text.slice(lastIndex, match.index));
         pushText(boundary);
 
-        if (entity.startsWith('@')) {
-          const handle = entity.slice(1);
-          elements.push(
-            <Text
-              key={`m-${key++}`}
-              style={[{ color: colors.linkColor }, linkStyle]}
-              onPress={() => router.push(`/@${handle}`)}
-            >
-              {entity}
-            </Text>
-          );
-        } else if (entity.startsWith('#')) {
+        if (entity.startsWith('#')) {
           const tag = entity.slice(1);
           const q = encodeURIComponent(`#${tag}`);
           elements.push(

@@ -85,30 +85,29 @@ export const createNotification = async (
 
 /**
  * Creates notifications for mentions in content
+ * @param mentionUserIds - Array of Oxy user IDs who were mentioned
+ * @param postId - ID of the post containing the mentions
+ * @param actorId - ID of the user who created the post
+ * @param entityType - Type of entity ('post' or 'reply')
+ * @param emitEvent - Whether to emit real-time events
  */
 export const createMentionNotifications = async (
-  content: string,
+  mentionUserIds: string[],
   postId: string,
   actorId: string,
+  entityType: 'post' | 'reply' = 'post',
   emitEvent: boolean = true
 ): Promise<void> => {
   try {
-    // Extract mentions from content (simple regex for @username)
-    const mentionRegex = /@(\w+)/g;
-    const mentions = content.match(mentionRegex);
+    if (!mentionUserIds || mentionUserIds.length === 0) return;
 
-    if (!mentions) return;
+    // Get unique user IDs
+    const uniqueUserIds = [...new Set(mentionUserIds)];
 
-    // Get unique usernames
-    const usernames = [...new Set(mentions.map(mention => mention.slice(1)))];
-
-    // For each mentioned user, resolve username to Oxy userId and create a notification
-    for (const username of usernames) {
+    // Create notification for each mentioned user
+    for (const recipientId of uniqueUserIds) {
       try {
-        // Resolve Oxy user by username
-        const profile: any = await oxy.getProfileByUsername(username);
-        const recipientId = profile?.id || profile?._id || profile?.user?.id;
-        if (!recipientId) continue;
+        // Skip if user is mentioning themselves
         if (recipientId === actorId) continue;
 
         await createNotification({
@@ -116,11 +115,11 @@ export const createMentionNotifications = async (
           actorId,
           type: 'mention',
           entityId: postId,
-          entityType: 'post',
+          entityType,
         }, emitEvent);
       } catch (e) {
-        // If resolution fails, skip silently
-        console.error('Mention resolution failed for', username, e);
+        // If notification creation fails, log and continue
+        console.error('Failed to create mention notification for user', recipientId, e);
       }
     }
   } catch (error) {

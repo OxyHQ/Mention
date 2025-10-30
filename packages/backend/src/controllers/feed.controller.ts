@@ -27,6 +27,39 @@ interface AuthRequest extends Request {
 
 class FeedController {
   /**
+   * Replace [mention:userId] placeholders in text with [@displayName](username) format
+   * This allows the frontend to render the display name without @ but keep it clickable
+   */
+  private async replaceMentionPlaceholders(text: string, mentions: string[]): Promise<string> {
+    if (!text || !mentions || mentions.length === 0) {
+      return text;
+    }
+
+    let result = text;
+    
+    // Fetch user data for all mentioned users
+    for (const userId of mentions) {
+      try {
+        const userData = await oxyClient.getUserById(userId);
+        const username = userData.username || 'user';
+        const displayName = userData.name?.full || username;
+        
+        // Replace [mention:userId] with [@displayName](username) format
+        // This allows LinkifiedText to detect and render mentions properly
+        const placeholder = `[mention:${userId}]`;
+        result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `[@${displayName}](${username})`);
+      } catch (error) {
+        console.error(`Error fetching user data for mention ${userId}:`, error);
+        // If user fetch fails, replace with generic mention
+        const placeholder = `[mention:${userId}]`;
+        result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[@User](user)');
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Transform posts to include full profile data and engagement stats
    */
   private async transformPostsWithProfiles(posts: any[], currentUserId?: string): Promise<any[]> {
@@ -281,7 +314,7 @@ class FeedController {
       };
 
       // Helper to build a minimal transformed post for embedding (no nested originals)
-      const buildEmbedded = (obj: any) => {
+      const buildEmbedded = async (obj: any) => {
         if (!obj) return undefined;
         const oid = obj._id?.toString?.() || String(obj._id || obj.id);
         const u = userDataMap.get(obj.oxyUserId) || {
@@ -298,12 +331,20 @@ class FeedController {
           likes: stats.likesCount || 0
         };
         const mediaIds = extractMediaIds(obj);
+        
+        // Replace mention placeholders in embedded post content
+        const embeddedContentText = obj.content?.text || '';
+        const embeddedReplacedText = await this.replaceMentionPlaceholders(embeddedContentText, obj.mentions || []);
+        
         return {
           id: oid,
           _id: obj._id,
           oxyUserId: obj.oxyUserId,
           type: obj.type,
-          content: obj.content,
+          content: {
+            ...obj.content,
+            text: embeddedReplacedText
+          },
           visibility: obj.visibility,
           isEdited: obj.isEdited,
           editHistory: obj.editHistory,
@@ -335,7 +376,7 @@ class FeedController {
       };
 
       // Transform posts with real user data and engagement stats
-      const transformedPosts = postsWithPolls.map(post => {
+      const transformedPosts = await Promise.all(postsWithPolls.map(async post => {
         const postObj = post.toObject ? post.toObject() : post;
         const userId = postObj.oxyUserId;
         const postId = postObj._id.toString();
@@ -399,7 +440,7 @@ class FeedController {
         })();
 
         // Optionally embed original/quoted post
-        const embeddedOriginal = originalObj ? buildEmbedded(originalObj) : undefined;
+        const embeddedOriginal = originalObj ? await buildEmbedded(originalObj) : undefined;
 
         // Build lightweight actor label for reposts
         const repostedBy = postObj.repostOf ? {
@@ -411,13 +452,20 @@ class FeedController {
           date: postObj.createdAt,
         } : undefined;
 
+        // Replace mention placeholders in post content text
+        const contentText = postObj.content?.text || '';
+        const replacedText = await this.replaceMentionPlaceholders(contentText, postObj.mentions || []);
+
         // Return post in standard Post schema format
         const transformedPost = {
           id: postId,
           _id: postObj._id,
           oxyUserId: postObj.oxyUserId,
           type: postObj.type,
-          content: postObj.content, // Return complete content structure
+          content: {
+            ...postObj.content,
+            text: replacedText
+          }, // Return complete content structure with replaced mentions
           visibility: postObj.visibility,
           isEdited: postObj.isEdited,
           editHistory: postObj.editHistory,
@@ -463,7 +511,7 @@ class FeedController {
         });
 
         return transformedPost;
-      });
+      }));
 
       return transformedPosts;
     } catch (error) {

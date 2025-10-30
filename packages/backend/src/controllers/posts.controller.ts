@@ -213,8 +213,14 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     // Fire mention notifications if any
     try {
-      if (text && typeof text === 'string') {
-        await createMentionNotifications(text, post._id.toString(), userId);
+      if (mentions && mentions.length > 0) {
+        const isReply = Boolean(parentPostId || in_reply_to_status_id);
+        await createMentionNotifications(
+          mentions,
+          post._id.toString(),
+          userId,
+          isReply ? 'reply' : 'post'
+        );
       }
     } catch (e) {
       console.error('Failed to create mention notifications:', e);
@@ -400,8 +406,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Mentions per post in thread
       try {
-        if (content?.text && typeof content.text === 'string') {
-          await createMentionNotifications(content.text, post._id.toString(), userId);
+        if (mentions && mentions.length > 0) {
+          await createMentionNotifications(
+            mentions,
+            post._id.toString(),
+            userId,
+            'post'
+          );
         }
       } catch (e) {
         console.error('Failed to create mention notifications (thread):', e);
