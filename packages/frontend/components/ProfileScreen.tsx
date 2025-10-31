@@ -30,6 +30,7 @@ import type { FeedType } from '@mention/shared-types';
 import MediaGrid from '@/components/Profile/MediaGrid';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { subscriptionService } from '@/services/subscriptionService';
+import { FloatingActionButton } from '@/components/FloatingActionButton';
 
 // Constants for better maintainability and responsive design
 const HEADER_HEIGHT_EXPANDED = 120;
@@ -102,25 +103,12 @@ const MentionProfile: React.FC = () => {
         headerPadding: isWideWeb ? 24 : 16,
     }), [isDesktop, isTablet, isWideWeb]);
 
-    // Improved FAB positioning with better responsive design
+    // Improved FAB positioning - use absolute positioning for consistency
     const fabPositionStyle = useMemo(() => ({
-        ...(isWideWeb
-            ? {
-                // Sticky layout for wide web viewports
-                position: 'sticky' as const,
-                bottom: responsiveSpacing.vertical,
-                right: responsiveSpacing.horizontal,
-                marginLeft: 'auto',
-                marginRight: FAB_POSITION_RIGHT,
-                marginBottom: FAB_POSITION_BOTTOM,
-            }
-            : {
-                // Absolute positioning for smaller screens / native
-                position: 'absolute' as const,
-                right: FAB_POSITION_RIGHT,
-                bottom: FAB_POSITION_BOTTOM,
-            }
-        )
+        position: 'absolute' as const,
+        right: isWideWeb ? responsiveSpacing.horizontal : FAB_POSITION_RIGHT,
+        bottom: isWideWeb ? responsiveSpacing.vertical : FAB_POSITION_BOTTOM,
+        zIndex: 1000,
     }), [isWideWeb, responsiveSpacing]);
 
     // Track current feed type for the active tab
@@ -752,12 +740,10 @@ const MentionProfile: React.FC = () => {
 
 
                     {/* FAB */}
-                    <TouchableOpacity
-                        style={[styles.fab, fabPositionStyle as any, { backgroundColor: theme.colors.primary, shadowColor: theme.colors.shadow }]}
+                    <FloatingActionButton
                         onPress={() => router.push('/compose')}
-                    >
-                        <Ionicons name="add" size={24} color={theme.colors.card} />
-                    </TouchableOpacity>
+                        style={fabPositionStyle as any}
+                    />
                 </>
             )}
         </View>
@@ -996,26 +982,15 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textAlign: "center"
     },
-    fab: {
-        bottom: 20,
-        right: 20,
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        zIndex: 1000,
-        alignItems: 'center',
-        justifyContent: 'center',
-        elevation: 8,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+    skeletonTab: {
+        flex: 1,
+        height: 28,
+        borderRadius: 14,
     },
-
-    stickyTabBar: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        zIndex: 1000,
+    handleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     stickyTabBarContent: {
         flexDirection: 'row',
@@ -1039,7 +1014,7 @@ const styles = StyleSheet.create({
         marginTop: 16,
     },
     skeletonBanner: {
-        height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
+        height: 170, // HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED
     },
     skeletonAvatarRow: {
         flexDirection: 'row',

@@ -16,6 +16,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, interpolate } from 'react-native-reanimated';
+import { FloatingActionButton } from '@/components/FloatingActionButton';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -301,14 +302,10 @@ const HomeScreen: React.FC = () => {
 
                 {/* Floating Action Button */}
                 {isAuthenticated && (
-                    <Animated.View style={fabAnimatedStyle}>
-                        <TouchableOpacity
-                            style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-                            onPress={() => router.push('/compose')}
-                        >
-                            <Ionicons name="add" size={24} color={theme.colors.card} />
-                        </TouchableOpacity>
-                    </Animated.View>
+                    <FloatingActionButton
+                        onPress={() => router.push('/compose')}
+                        animatedTranslateY={fabTranslateY}
+                    />
                 )}
             </ThemedView>
         </SafeAreaView>
@@ -347,17 +344,6 @@ const styles = StyleSheet.create({
     tabBarSpacer: {
         // Spacer maintains space for header when it's visible
         // This ensures tabs don't jump when header slides up
-    },
-    fab: {
-        position: 'absolute',
-        bottom: 24,
-        right: 24,
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
-        elevation: 8,
     },
 });
 
