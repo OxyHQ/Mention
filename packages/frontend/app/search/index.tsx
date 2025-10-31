@@ -232,6 +232,7 @@ export default function SearchIndex() {
                         title: t("search.title", "Search"),
                         showBackButton: true,
                     }}
+                    hideBottomBorder={true}
                 />
 
                 <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>

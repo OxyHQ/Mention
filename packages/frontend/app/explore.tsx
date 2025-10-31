@@ -59,6 +59,7 @@ const ExploreScreen: React.FC = () => {
               </TouchableOpacity>,
             ],
           }}
+          hideBottomBorder={true}
         />
 
         {/* Tab Navigation */}

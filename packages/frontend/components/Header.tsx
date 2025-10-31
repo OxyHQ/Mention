@@ -23,9 +23,10 @@ interface Props {
         leftComponents?: ReactNode[]
         rightComponents?: ReactNode[]
     }
+    hideBottomBorder?: boolean
 }
 
-export const Header: React.FC<Props> = ({ options }) => {
+export const Header: React.FC<Props> = ({ options, hideBottomBorder = false }) => {
     const router = useRouter();
     const [isSticky, setIsSticky] = useState(false);
     const theme = useTheme();
@@ -49,8 +50,15 @@ export const Header: React.FC<Props> = ({ options }) => {
         }
     }, []);
 
+    const headerStyle = [
+        styles.topRow,
+        isSticky && styles.stickyHeader,
+        { backgroundColor: theme.colors.background },
+        hideBottomBorder ? { borderBottomWidth: 0 } : { borderBottomColor: theme.colors.border }
+    ];
+
     return (
-        <View style={[styles.topRow, isSticky && styles.stickyHeader, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
+        <View style={headerStyle}>
             <View style={styles.leftContainer}>
                 {options?.showBackButton && (
                     <Pressable onPress={() => router.back()} style={styles.backButton}>

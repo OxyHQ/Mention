@@ -361,6 +361,7 @@ const NotificationsScreen: React.FC = () => {
                             ) : null,
                         ].filter(Boolean),
                     }}
+                    hideBottomBorder={isAuthenticated}
                 />
 
                 {/* Tab Navigation */}

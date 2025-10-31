@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedScrollHandler } from 'react-native-reanimated';
 import { colors } from '@/styles/colors';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -27,22 +27,63 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
     const theme = useTheme();
     const indicatorPosition = useSharedValue(0);
     const indicatorWidth = useSharedValue(0);
+    const scrollOffset = useSharedValue(0);
     const tabRefs = useRef<{ [key: string]: View }>({});
-    const scrollRef = useRef<ScrollView>(null);
+    const textRefs = useRef<{ [key: string]: Text }>({});
+    const scrollRef = useRef<Animated.ScrollView>(null);
 
     const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+
+    // Track scroll offset when scrolling horizontally
+    const scrollHandler = useAnimatedScrollHandler({
+        onScroll: (event) => {
+            scrollOffset.value = event.contentOffset.x;
+        },
+    });
 
     // Animate indicator when active tab changes
     useEffect(() => {
         const updateIndicator = async () => {
             const activeTab = tabRefs.current[activeTabId];
-            if (!activeTab) return;
+            const activeText = textRefs.current[activeTabId];
+            if (!activeTab || !activeText) return;
 
-            activeTab.measure((x, y, width, height, pageX, pageY) => {
-                indicatorPosition.value = withTiming(x + width / 2 - 15, {
-                    duration: 250,
-                });
-                indicatorWidth.value = withTiming(30, { duration: 250 });
+            // Measure text layout relative to tab container
+            activeText.measureLayout(
+                activeTab,
+                (textX, textY, textWidth, textHeight) => {
+                    // Measure tab container position relative to ScrollView/content
+                    activeTab.measure((x, y, width, height, pageX, pageY) => {
+                        // Add padding on each side (8px on each side = 16px total)
+                        const padding = 16;
+                        const indicatorWidthValue = textWidth + padding;
+                        
+                        // Center the indicator under the text
+                        // textX is relative to tab container, so add it to tab's x position
+                        const textCenterX = x + textX + textWidth / 2;
+                        const basePosition = textCenterX - indicatorWidthValue / 2;
+                        
+                        indicatorPosition.value = withTiming(basePosition, {
+                            duration: 250,
+                        });
+                        indicatorWidth.value = withTiming(indicatorWidthValue, { duration: 250 });
+                    },
+                    () => {
+                        // Fallback: if measureLayout fails, use simple measure
+                        activeText.measure((textX, textY, textWidth, textHeight, textPageX, textPageY) => {
+                            activeTab.measure((x, y, width, height, pageX, pageY) => {
+                                const padding = 16;
+                                const indicatorWidthValue = textWidth + padding;
+                                const basePosition = x + width / 2 - indicatorWidthValue / 2;
+                                
+                                indicatorPosition.value = withTiming(basePosition, {
+                                    duration: 250,
+                                });
+                                indicatorWidth.value = withTiming(indicatorWidthValue, { duration: 250 });
+                            });
+                        });
+                    }
+                );
             });
         };
 
@@ -52,18 +93,25 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
     }, [activeTabId, tabs, indicatorPosition, indicatorWidth]);
 
     const animatedIndicatorStyle = useAnimatedStyle(() => {
+        // Adjust indicator position by subtracting scroll offset when scrollEnabled
+        const adjustedPosition = scrollEnabled 
+            ? indicatorPosition.value - scrollOffset.value 
+            : indicatorPosition.value;
+        
         return {
-            transform: [{ translateX: indicatorPosition.value }],
+            transform: [{ translateX: adjustedPosition }],
             width: indicatorWidth.value,
         };
     });
 
-    const Container = scrollEnabled ? ScrollView : View;
+    const Container = scrollEnabled ? Animated.ScrollView : View;
     const containerProps = scrollEnabled
         ? {
             horizontal: true,
             showsHorizontalScrollIndicator: false,
             ref: scrollRef,
+            onScroll: scrollHandler,
+            scrollEventThrottle: 16,
         }
         : {};
 
@@ -80,6 +128,9 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
                         onPress={() => onTabPress(tab.id)}
                     >
                         <Text
+                            ref={(ref) => {
+                                if (ref) textRefs.current[tab.id] = ref;
+                            }}
                             style={[
                                 styles.tabText,
                                 { color: theme.colors.textSecondary },
@@ -102,6 +153,7 @@ export default AnimatedTabBar;
 const styles = StyleSheet.create({
     container: {
         position: 'relative',
+        borderTopWidth: 0,
         borderBottomWidth: 1,
     },
     tabsContainer: {
@@ -109,7 +161,8 @@ const styles = StyleSheet.create({
     },
     tab: {
         alignItems: 'center',
-        paddingVertical: 16,
+        paddingTop: 8,
+        paddingBottom: 16,
         paddingHorizontal: 20,
         minWidth: 80,
     },
@@ -124,7 +177,8 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 0,
         height: 2,
-        borderRadius: 1,
+        borderTopLeftRadius: 4,
+        borderTopRightRadius: 4,
     },
 });
 

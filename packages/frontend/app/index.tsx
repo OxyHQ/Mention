@@ -205,6 +205,7 @@ const HomeScreen: React.FC = () => {
                             </TouchableOpacity>
                         ]
                     }}
+                    hideBottomBorder={true}
                 />
 
                 {/* Tab Navigation */}
