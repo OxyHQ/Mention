@@ -2,7 +2,7 @@ import express, { Request, Response } from "express";
 import Post from "../models/Post";
 import { logger } from '../utils/logger';
 import { feedController } from '../controllers/feed.controller';
-import { AuthRequest } from '../middleware/auth';
+import { AuthRequest } from '../types/auth';
 
 const router = express.Router();
 
