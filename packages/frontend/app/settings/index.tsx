@@ -181,9 +181,9 @@ export default function SettingsScreen() {
 
     const handleResetPersonalization = async () => {
         const confirmed = await confirmDialog({
-            title: t('settings.data.resetPersonalization') || 'Reset Feed Preferences',
-            message: t('settings.data.resetPersonalizationMessage') || 'This will clear all your feed preferences, including:\n\n• Author preferences\n• Topic interests\n• Post type preferences\n• Active hours and language preferences\n\nYour feed will start learning your preferences again from scratch. This action cannot be undone.',
-            okText: t('common.reset') || 'Reset',
+            title: t('settings.data.resetPersonalization'),
+            message: t('settings.data.resetPersonalizationMessage'),
+            okText: t('common.reset'),
             cancelText: t('common.cancel'),
             destructive: true,
         });
@@ -192,14 +192,14 @@ export default function SettingsScreen() {
         try {
             await authenticatedClient.delete('/profile/settings/behavior');
             await alertDialog({ 
-                title: t('common.success') || 'Success', 
-                message: t('settings.data.resetPersonalizationSuccess') || 'Your personalization data has been reset successfully. Your feed will start learning your preferences again.' 
+                title: t('common.success'), 
+                message: t('settings.data.resetPersonalizationSuccess')
             });
         } catch (error) {
             console.error('Error resetting personalization:', error);
             await alertDialog({ 
-                title: t('common.error') || 'Error', 
-                message: t('settings.data.resetPersonalizationError') || 'Failed to reset personalization data. Please try again.' 
+                title: t('common.error'), 
+                message: t('settings.data.resetPersonalizationError')
             });
         }
     };
@@ -605,16 +605,16 @@ export default function SettingsScreen() {
 
                     <TouchableOpacity
                         style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => router.push('/properties/create')}
+                        onPress={() => router.push('/compose')}
                     >
                         <View style={styles.settingInfo}>
                             <View style={styles.settingIcon}>
-                                <IconComponent name="add" size={20} color={theme.colors.textSecondary} />
+                                <IconComponent name="create" size={20} color={theme.colors.textSecondary} />
                             </View>
                             <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.quickActions.createProperty')}</Text>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.quickActions.createPost')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.quickActions.createPropertyDesc')}
+                                    {t('settings.quickActions.createPostDesc')}
                                 </Text>
                             </View>
                         </View>
@@ -622,7 +622,7 @@ export default function SettingsScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
+                        style={[styles.settingItem, { backgroundColor: theme.colors.card }]}
                         onPress={() => router.push('/search')}
                     >
                         <View style={styles.settingInfo}>
@@ -631,10 +631,30 @@ export default function SettingsScreen() {
                             </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                                    {t('settings.quickActions.searchProperties')}
+                                    {t('settings.quickActions.search')}
                                 </Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.quickActions.searchPropertiesDesc')}
+                                    {t('settings.quickActions.searchDesc')}
+                                </Text>
+                            </View>
+                        </View>
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
+                        onPress={() => router.push('/explore')}
+                    >
+                        <View style={styles.settingInfo}>
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="compass" size={20} color={theme.colors.textSecondary} />
+                            </View>
+                            <View>
+                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                    {t('settings.quickActions.explore')}
+                                </Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    {t('settings.quickActions.exploreDesc')}
                                 </Text>
                             </View>
                         </View>
@@ -690,10 +710,10 @@ export default function SettingsScreen() {
                             </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
-                                    {t("settings.data.resetPersonalization") || "Reset Feed Preferences"}
+                                    {t("settings.data.resetPersonalization")}
                                 </Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t("settings.data.resetPersonalizationDesc") || "Clear all your feed personalization data and start fresh"}
+                                    {t("settings.data.resetPersonalizationDesc")}
                                 </Text>
                             </View>
                         </View>
