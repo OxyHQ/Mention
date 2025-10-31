@@ -237,7 +237,7 @@ export default function SearchIndex() {
         <TouchableOpacity
             key={user.id || user.username}
             style={[styles.userItem, { borderBottomColor: theme.colors.border }]}
-            onPress={() => router.push(`/${user.username}`)}
+            onPress={() => router.push(`/@${user.username}`)}
         >
             <Avatar
                 source={user.avatarUrl ? { uri: user.avatarUrl } : undefined}
@@ -332,10 +332,10 @@ export default function SearchIndex() {
         { id: "all", label: t("search.tabs.all", "All") },
         { id: "posts", label: t("search.tabs.posts", "Posts") },
         { id: "users", label: t("search.tabs.users", "Users") },
+        { id: "saved", label: t("search.tabs.saved", "Saved") },
         { id: "feeds", label: t("search.tabs.feeds", "Feeds") },
         { id: "hashtags", label: t("search.tabs.hashtags", "Hashtags") },
         { id: "lists", label: t("search.tabs.lists", "Lists") },
-        { id: "saved", label: t("search.tabs.saved", "Saved") },
     ];
 
     const hasResults =
@@ -432,6 +432,17 @@ export default function SearchIndex() {
                                 </View>
                             )}
 
+                            {(activeTab === "all" || activeTab === "saved") && results.saved.length > 0 && (
+                                <View style={styles.section}>
+                                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                                        {t("search.sections.saved", "Saved")}
+                                    </Text>
+                                    {results.saved.map((post: any) => (
+                                        <PostItem key={post.id || post._id} post={post} />
+                                    ))}
+                                </View>
+                            )}
+
                             {(activeTab === "all" || activeTab === "feeds") && results.feeds.length > 0 && (
                                 <View style={styles.section}>
                                     <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
@@ -456,17 +467,6 @@ export default function SearchIndex() {
                                         {t("search.sections.lists", "Lists")}
                                     </Text>
                                     {results.lists.map(renderListItem)}
-                                </View>
-                            )}
-
-                            {(activeTab === "all") && results.saved.length > 0 && (
-                                <View style={styles.section}>
-                                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                                        {t("search.sections.saved", "Saved")}
-                                    </Text>
-                                    {results.saved.map((post: any) => (
-                                        <PostItem key={post.id || post._id} post={post} />
-                                    ))}
                                 </View>
                             )}
 
