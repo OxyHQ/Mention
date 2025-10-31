@@ -1,6 +1,5 @@
 import React, { ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { colors } from '@/styles/colors';
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -38,12 +37,10 @@ export function BaseWidget({ title, icon, children, noPadding = false }: BaseWid
 
 const styles = StyleSheet.create({
     widgetContainer: {
-        backgroundColor: "#FFFFFF",
         borderRadius: 15,
         overflow: 'hidden',
         pointerEvents: 'auto' as any,
         borderWidth: 1,
-        borderColor: "#EFF3F4",
     },
     widgetHeader: {
         flexDirection: 'row',
@@ -51,7 +48,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingBottom: 12,
         borderBottomWidth: 0.5,
-        borderBottomColor: "#EFF3F4",
         margin: 15,
         marginBottom: 6,
     },

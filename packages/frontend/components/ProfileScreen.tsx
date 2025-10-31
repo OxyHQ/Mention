@@ -28,7 +28,6 @@ import { usePostsStore } from '@/stores/postsStore';
 import { useUsersStore } from '@/stores/usersStore';
 import type { FeedType } from '@mention/shared-types';
 import MediaGrid from '@/components/Profile/MediaGrid';
-import { colors } from '../styles/colors';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { subscriptionService } from '@/services/subscriptionService';
 
@@ -244,7 +243,7 @@ const MentionProfile: React.FC = () => {
     }, [profileData?.id, loadForUser]);
 
     const userAppearance = profileData?.id ? byUserId[profileData.id] : undefined;
-    const primaryColor = userAppearance?.appearance?.primaryColor || colors.primaryColor;
+    const primaryColor = userAppearance?.appearance?.primaryColor || theme.colors.primary;
     const bannerUri = userAppearance?.profileHeaderImage
         ? oxyServices.getFileDownloadUrl(userAppearance.profileHeaderImage, 'full')
         : undefined;
@@ -350,42 +349,42 @@ const MentionProfile: React.FC = () => {
         }, [pulse]);
 
         const Shimmer = ({ style }: { style?: any }) => (
-            <Animated.View style={[styles.skeletonBlock, style, { opacity: pulse }]} />
+            <Animated.View style={[styles.skeletonBlock, style, { opacity: pulse, backgroundColor: theme.colors.backgroundSecondary }]} />
         );
 
         return (
-            <View style={styles.skeletonContainer}>
+            <View style={[styles.skeletonContainer, { backgroundColor: theme.colors.background }]}>
                 {/* Banner placeholder */}
-                <Shimmer style={[styles.skeletonBanner]} />
+                <Shimmer style={[styles.skeletonBanner, { backgroundColor: theme.colors.backgroundSecondary }]} />
 
                 <View style={styles.skeletonContent}>
                     {/* Avatar row */}
                     <View style={styles.skeletonAvatarRow}>
-                        <Shimmer style={styles.skeletonAvatar} />
+                        <Shimmer style={[styles.skeletonAvatar, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.background }]} />
                         <View style={{ flex: 1 }} />
-                        <Shimmer style={styles.skeletonBtn} />
-                        <Shimmer style={styles.skeletonIconBtn} />
+                        <Shimmer style={[styles.skeletonBtn, { backgroundColor: theme.colors.backgroundSecondary }]} />
+                        <Shimmer style={[styles.skeletonIconBtn, { backgroundColor: theme.colors.backgroundSecondary }]} />
                     </View>
 
                     {/* Name + handle */}
-                    <Shimmer style={[styles.skeletonLine, { width: '40%', height: 20 }]} />
-                    <Shimmer style={[styles.skeletonLine, { width: '30%', marginTop: 8 }]} />
+                    <Shimmer style={[styles.skeletonLine, { width: '40%', height: 20, backgroundColor: theme.colors.backgroundSecondary }]} />
+                    <Shimmer style={[styles.skeletonLine, { width: '30%', marginTop: 8, backgroundColor: theme.colors.backgroundSecondary }]} />
 
                     {/* Bio lines */}
-                    <Shimmer style={[styles.skeletonLine, { width: '90%', marginTop: 12 }]} />
-                    <Shimmer style={[styles.skeletonLine, { width: '80%', marginTop: 8 }]} />
+                    <Shimmer style={[styles.skeletonLine, { width: '90%', marginTop: 12, backgroundColor: theme.colors.backgroundSecondary }]} />
+                    <Shimmer style={[styles.skeletonLine, { width: '80%', marginTop: 8, backgroundColor: theme.colors.backgroundSecondary }]} />
 
                     {/* Meta */}
                     <View style={[styles.skeletonMetaRow]}>
-                        <Shimmer style={[styles.skeletonChip, { width: 120 }]} />
-                        <Shimmer style={[styles.skeletonChip, { width: 160 }]} />
-                        <Shimmer style={[styles.skeletonChip, { width: 180 }]} />
+                        <Shimmer style={[styles.skeletonChip, { width: 120, backgroundColor: theme.colors.backgroundSecondary }]} />
+                        <Shimmer style={[styles.skeletonChip, { width: 160, backgroundColor: theme.colors.backgroundSecondary }]} />
+                        <Shimmer style={[styles.skeletonChip, { width: 180, backgroundColor: theme.colors.backgroundSecondary }]} />
                     </View>
 
                     {/* Tabs */}
-                    <View style={styles.skeletonTabs}>
+                    <View style={[styles.skeletonTabs, { borderColor: theme.colors.border }]}>
                         {[...Array(5)].map((_, i) => (
-                            <Shimmer key={i} style={styles.skeletonTab} />
+                            <Shimmer key={i} style={[styles.skeletonTab, { backgroundColor: theme.colors.backgroundSecondary }]} />
                         ))}
                     </View>
                 </View>
@@ -402,7 +401,7 @@ const MentionProfile: React.FC = () => {
             ) : (
                 <>
                     {/* Back button */}
-                    <View style={[styles.backButton, { top: insets.top + 5 }]}>
+                    <View style={[styles.backButton, { backgroundColor: theme.colors.overlay }]}>
                         <TouchableOpacity onPress={() => router.back()}>
                             <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
                         </TouchableOpacity>
@@ -410,50 +409,50 @@ const MentionProfile: React.FC = () => {
 
                     {/* Header actions */}
                     <View style={[styles.headerActions, { top: insets.top + 5 }]}>
-                        <TouchableOpacity style={styles.headerIconButton} onPress={toggleSubscription} disabled={subLoading}>
+                        <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]} onPress={toggleSubscription} disabled={subLoading}>
                             <Ionicons name={subscribed ? 'notifications' : 'notifications-outline'} size={20} color={theme.colors.text} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.headerIconButton}>
+                        <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]}>
                             <Ionicons name="search-outline" size={20} color={theme.colors.text} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.headerIconButton} onPress={handleShare}>
+                        <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]} onPress={handleShare}>
                             <Ionicons name="share-outline" size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                     </View>
 
                     {/* Name + posts count */}
-                    <Animated.View
-                        style={[
-                            styles.headerNameOverlay,
-                            {
-                                top: insets.top + 6,
-                                opacity: scrollY.interpolate({
-                                    inputRange: [-50, 80, 120],
-                                    outputRange: [0, 0, 1],
-                                    extrapolate: 'clamp',
-                                }),
-                                transform: [
-                                    {
-                                        translateY: scrollY.interpolate({
-                                            inputRange: [-50, 100, 180],
-                                            outputRange: [0, 200, 0],
-                                            extrapolate: 'clamp',
-                                        }),
-                                    },
-                                ],
-                            },
-                        ]}
-                    >
-                        <TypedUserName
-                            name={profileData?.name?.full || profileData?.username}
-                            verified={profileData?.verified}
-                            style={{ name: styles.headerTitle }}
-                            unifiedColors={true}
-                        />
-                        <Text style={styles.headerSubtitle}>
-                            {(profileData as any)?.postCount || 0} posts
-                        </Text>
-                    </Animated.View>
+                        <Animated.View
+                            style={[
+                                styles.headerNameOverlay,
+                                {
+                                    top: insets.top + 6,
+                                    opacity: scrollY.interpolate({
+                                        inputRange: [-50, 80, 120],
+                                        outputRange: [0, 0, 1],
+                                        extrapolate: 'clamp',
+                                    }),
+                                    transform: [
+                                        {
+                                            translateY: scrollY.interpolate({
+                                                inputRange: [-50, 100, 180],
+                                                outputRange: [0, 200, 0],
+                                                extrapolate: 'clamp',
+                                            }),
+                                        },
+                                    ],
+                                },
+                            ]}
+                        >
+                            <TypedUserName
+                                name={profileData?.name?.full || profileData?.username}
+                                verified={profileData?.verified}
+                                style={{ name: [styles.headerTitle, { color: theme.colors.text }] }}
+                                unifiedColors={true}
+                            />
+                            <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
+                                {(profileData as any)?.postCount || 0} posts
+                            </Text>
+                        </Animated.View>
 
                     {/* Banner */}
                     {bannerUri ? (
@@ -579,6 +578,7 @@ const MentionProfile: React.FC = () => {
                                     useAnimated
                                     style={[styles.avatar, {
                                         borderColor: theme.colors.background,
+                                        backgroundColor: theme.colors.backgroundSecondary,
                                         transform: [
                                             {
                                                 scale: scrollY.interpolate({
@@ -610,13 +610,13 @@ const MentionProfile: React.FC = () => {
                                                 <Text style={styles.followButtonText}>Edit Profile</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
-                                                style={styles.settingsButton}
+                                                style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
                                                 onPress={() => showBottomSheet?.('PrivacySettings')}
                                             >
                                                 <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
                                             </TouchableOpacity>
                                             <TouchableOpacity
-                                                style={styles.settingsButton}
+                                                style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
                                                 onPress={() => router.push('/settings/appearance')}
                                             >
                                                 <Ionicons name="color-palette-outline" size={20} color={theme.colors.text} />
@@ -753,7 +753,7 @@ const MentionProfile: React.FC = () => {
 
                     {/* FAB */}
                     <TouchableOpacity
-                        style={[styles.fab, fabPositionStyle as any]}
+                        style={[styles.fab, fabPositionStyle as any, { backgroundColor: theme.colors.primary, shadowColor: theme.colors.shadow }]}
                         onPress={() => router.push('/compose')}
                     >
                         <Ionicons name="add" size={24} color={theme.colors.card} />
@@ -772,7 +772,6 @@ const styles = StyleSheet.create({
         zIndex: 2,
         position: 'absolute',
         left: 12,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
         height: 36,
         width: 36,
         borderRadius: 18,
@@ -790,7 +789,6 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
         alignItems: 'center',
         justifyContent: 'center',
         marginHorizontal: 4,
@@ -804,12 +802,10 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: "#FFFFFF",
         marginBottom: -3,
     },
     headerSubtitle: {
         fontSize: 13,
-        color: "#FFFFFF",
     },
     banner: {
         position: 'absolute',
@@ -825,7 +821,6 @@ const styles = StyleSheet.create({
     profileContent: {
         paddingHorizontal: 16,
         paddingBottom: 16,
-        backgroundColor: "#FFFFFF",
     },
     avatarRow: {
         flexDirection: 'row',
@@ -839,8 +834,6 @@ const styles = StyleSheet.create({
         height: 80,
         borderRadius: 40,
         borderWidth: 3,
-        borderColor: "#FFFFFF",
-        backgroundColor: "#EFF3F4",
     },
     profileActions: {
         flexDirection: 'row',
@@ -861,28 +854,23 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: "#EFF3F4",
     },
     followButtonText: {
         fontSize: 14,
         fontWeight: '600',
-        color: "#E7E9EA",
     },
     profileName: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: "#E7E9EA",
         marginTop: 10,
         marginBottom: 4,
     },
     profileHandle: {
         fontSize: 15,
-        color: "#71767B",
         marginBottom: 12,
     },
     profileBio: {
         fontSize: 15,
-        color: "#E7E9EA",
         lineHeight: 20,
         marginBottom: 12,
     },
@@ -899,11 +887,9 @@ const styles = StyleSheet.create({
     },
     metaText: {
         fontSize: 15,
-        color: "#71767B",
         marginLeft: 4,
     },
     linkText: {
-        color: "#d169e5",
     },
     followStats: {
         flexDirection: 'row',
@@ -917,16 +903,13 @@ const styles = StyleSheet.create({
     statNumber: {
         fontSize: 15,
         fontWeight: '700',
-        color: "#E7E9EA",
         marginRight: 4,
     },
     statLabel: {
         fontSize: 15,
-        color: "#71767B",
     },
     followedBy: {
         fontSize: 15,
-        color: "#71767B",
     },
 
     communitiesSection: {
@@ -939,16 +922,13 @@ const styles = StyleSheet.create({
     communitiesTitle: {
         fontSize: 14,
         fontWeight: 'bold',
-        color: '#FFF',
         marginBottom: 12,
     },
     communityCard: {
-        backgroundColor: "#16181C",
         borderRadius: 12,
         padding: 12,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: "#2F3336",
     },
     communityHeader: {
         flexDirection: 'row',
@@ -963,7 +943,6 @@ const styles = StyleSheet.create({
     },
     communityIconGradient: {
         flex: 1,
-        backgroundColor: colors.primaryColor,
         borderRadius: 8,
     },
     communityInfo: {
@@ -972,12 +951,10 @@ const styles = StyleSheet.create({
     communityName: {
         fontSize: 16,
         fontWeight: 'bold',
-        color: '#FFF',
         marginBottom: 4,
     },
     communityDescription: {
         fontSize: 14,
-        color: '#71767B',
         lineHeight: 18,
         marginBottom: 8,
     },
@@ -1004,7 +981,6 @@ const styles = StyleSheet.create({
     },
     memberCount: {
         fontSize: 13,
-        color: '#71767B',
     },
     viewButtonInCard: {
         backgroundColor: 'transparent',
@@ -1016,7 +992,6 @@ const styles = StyleSheet.create({
         marginTop: 10
     },
     viewButtonText: {
-        color: "#d169e5",
         fontSize: 15,
         fontWeight: '600',
         textAlign: "center"
@@ -1028,11 +1003,9 @@ const styles = StyleSheet.create({
         height: 56,
         borderRadius: 28,
         zIndex: 1000,
-        backgroundColor: colors.primaryColor,
         alignItems: 'center',
         justifyContent: 'center',
         elevation: 8,
-        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -1046,9 +1019,7 @@ const styles = StyleSheet.create({
     },
     stickyTabBarContent: {
         flexDirection: 'row',
-        backgroundColor: colors.primaryDark,
         borderBottomWidth: 1,
-        borderBottomColor: '#2F3336',
     },
     loadingContainer: {
         flex: 1,
@@ -1056,14 +1027,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loadingText: {
-        color: '#FFF',
         fontSize: 18,
         fontWeight: 'bold',
     },
     // Skeleton styles
     skeletonContainer: {
         flex: 1,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
     },
     skeletonContent: {
         paddingHorizontal: 16,
@@ -1071,7 +1040,6 @@ const styles = StyleSheet.create({
     },
     skeletonBanner: {
         height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
     },
     skeletonAvatarRow: {
         flexDirection: 'row',
@@ -1082,31 +1050,25 @@ const styles = StyleSheet.create({
         width: 96,
         height: 96,
         borderRadius: 48,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
         borderWidth: 2,
-        borderColor: "#FFFFFF",
     },
     skeletonBtn: {
         width: 120,
         height: 36,
         borderRadius: 18,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
         marginRight: 8,
     },
     skeletonIconBtn: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
     },
     skeletonBlock: {
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
         borderRadius: 8,
     },
     skeletonLine: {
         height: 14,
         borderRadius: 7,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
     },
     skeletonMetaRow: {
         flexDirection: 'row',
@@ -1117,7 +1079,6 @@ const styles = StyleSheet.create({
     skeletonChip: {
         height: 20,
         borderRadius: 10,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
     },
     skeletonTabs: {
         flexDirection: 'row',
@@ -1126,13 +1087,11 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderTopWidth: 1,
         borderBottomWidth: 1,
-        borderColor: "#2F3336",
     },
     skeletonTab: {
         flex: 1,
         height: 28,
         borderRadius: 14,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_7,
     },
     handleRow: {
         flexDirection: 'row',
@@ -1149,7 +1108,6 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     privateText: {
-        color: '#666',
         fontSize: 12,
         fontWeight: '500',
     },
@@ -1162,11 +1120,9 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: colors.COLOR_BLACK_LIGHT_9,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: "#2F3336",
     },
 
 });

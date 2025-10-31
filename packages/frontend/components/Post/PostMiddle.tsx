@@ -1,7 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent, Dimensions } from 'react-native';
 import PollCard from './PollCard';
-import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
 import PostItem from '../Feed/PostItem';
 import { useTheme } from '@/hooks/useTheme';

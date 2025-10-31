@@ -1,7 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedScrollHandler } from 'react-native-reanimated';
-import { colors } from '@/styles/colors';
 import { useTheme } from '@/hooks/useTheme';
 
 interface Tab {

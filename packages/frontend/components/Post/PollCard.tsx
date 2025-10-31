@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/styles/colors';
 import { pollService } from '@/services/pollService';
 import { useOxy } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';

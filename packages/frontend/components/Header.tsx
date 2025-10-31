@@ -8,7 +8,6 @@ import {
 } from "react-native"
 import { Pressable } from "react-native"
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "@/styles/colors"
 import { useRouter } from "expo-router"
 import { ReactNode } from "react"
 import { useTheme } from "@/hooks/useTheme";
@@ -105,14 +104,14 @@ const styles = StyleSheet.create({
         paddingBottom: 10,
     },
     topRow: {
-        minHeight: 60,
+        minHeight: 48,
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
         borderBottomWidth: 0.01,
-        paddingHorizontal: 15,
+        paddingHorizontal: 20,
         // borderBottomColor and backgroundColor applied inline with theme
-        paddingVertical: 5,
+        paddingVertical: 4,
         position: "relative",
         ...Platform.select({
             web: {
@@ -124,23 +123,23 @@ const styles = StyleSheet.create({
         zIndex: 100,
     } as ViewStyle,
     topRowText: {
-        fontSize: 20,
+        fontSize: 18,
         // color applied inline with theme
         fontWeight: "800",
-        paddingStart: 1,
+        paddingStart: 0,
     },
     startContainer: {
         borderRadius: 100,
         padding: 10,
     },
     backButton: {
-        marginRight: 10,
+        marginRight: 8,
     },
     leftContainer: {
         flexDirection: "row",
         alignItems: "center",
         flex: 1,
-        gap: 10,
+        gap: 8,
     },
     centerContainer: {
         flex: 1,
@@ -151,7 +150,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         flex: 1,
         justifyContent: "flex-end",
-        gap: 10,
+        gap: 8,
     },
     stickyHeader: {
         borderTopEndRadius: 0,

@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, Platform } from 'react-native';
 import { Pressable } from 'react-native-web-hover';
 import { useRouter } from 'expo-router';
-import { colors } from '@/styles/colors';
 import { useTheme } from '@/hooks/useTheme';
 
 export function SideBarItem({

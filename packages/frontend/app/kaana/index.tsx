@@ -14,9 +14,11 @@ import {
 } from "react-native";
 import { shadowStyle } from '@/utils/platformStyles';
 import { ThemedView } from '@/components/ThemedView';
+import { useTheme } from '@/hooks/useTheme';
 
 const KaanaClientPage = () => {
   const { user } = useOxy();
+  const theme = useTheme();
   const [inputText, setInputText] = useState("");
   const [inputHeight, setInputHeight] = useState(40);
 
@@ -38,37 +40,37 @@ const KaanaClientPage = () => {
 
         {/* Main Content */}
         <View style={styles.mainContent}>
-          <Text style={styles.title}>Hello, {user?.username || "Nate"}.</Text>
-          <Text style={styles.subtitle}>How can I help you today?</Text>
+          <Text style={[styles.title, { color: theme.colors.text }]}>Hello, {user?.username || "Nate"}.</Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>How can I help you today?</Text>
 
           {/* Action Buttons */}
           <View style={styles.buttonGrid}>
             <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="image-outline" size={22} color="#fff" />
-                <Text style={styles.buttonText}>Editar imagen</Text>
+              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <Ionicons name="image-outline" size={22} color={theme.colors.text} />
+                <Text style={[styles.buttonText, { color: theme.colors.text }]}>Editar imagen</Text>
                 <View style={styles.dropdownIndicator}>
-                  <Ionicons name="chevron-down" size={16} color="#fff" />
+                  <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="newspaper-outline" size={22} color="#fff" />
-                <Text style={styles.buttonText}>Noticias más recientes</Text>
+              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <Ionicons name="newspaper-outline" size={22} color={theme.colors.text} />
+                <Text style={[styles.buttonText, { color: theme.colors.text }]}>Noticias más recientes</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="person-outline" size={22} color="#fff" />
-                <Text style={styles.buttonText}>Personalidades</Text>
+              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <Ionicons name="person-outline" size={22} color={theme.colors.text} />
+                <Text style={[styles.buttonText, { color: theme.colors.text }]}>Personalidades</Text>
                 <View style={styles.dropdownIndicator}>
-                  <Ionicons name="chevron-down" size={16} color="#fff" />
+                  <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="briefcase-outline" size={22} color="#fff" />
-                <Text style={styles.buttonText}>Áreas de trabajo</Text>
+              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <Ionicons name="briefcase-outline" size={22} color={theme.colors.text} />
+                <Text style={[styles.buttonText, { color: theme.colors.text }]}>Áreas de trabajo</Text>
                 <View style={styles.dropdownIndicator}>
-                  <Ionicons name="chevron-down" size={16} color="#fff" />
+                  <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -80,21 +82,21 @@ const KaanaClientPage = () => {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.inputContainer}
         >
-          <View style={styles.inputBar}>
+          <View style={[styles.inputBar, { backgroundColor: theme.colors.backgroundSecondary }]}>
             <TouchableOpacity style={styles.inputIcon}>
-              <Ionicons name="attach-outline" size={22} color="#aaa" />
+              <Ionicons name="attach-outline" size={22} color={theme.colors.textTertiary} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.inputIcon}>
-              <Ionicons name="refresh-outline" size={22} color="#aaa" />
+              <Ionicons name="refresh-outline" size={22} color={theme.colors.textTertiary} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.inputIcon}>
-              <Ionicons name="bulb-outline" size={22} color="#aaa" />
+              <Ionicons name="bulb-outline" size={22} color={theme.colors.textTertiary} />
             </TouchableOpacity>
 
             <TextInput
-              style={[styles.input, { height: inputHeight }]}
+              style={[styles.input, { height: inputHeight, color: theme.colors.text }]}
               placeholder="¿Qué quieres saber?"
-              placeholderTextColor="#aaa"
+              placeholderTextColor={theme.colors.textTertiary}
               multiline
               value={inputText}
               onChangeText={handleTextChange}
@@ -102,12 +104,12 @@ const KaanaClientPage = () => {
             />
 
             <View style={styles.inputRightButtons}>
-              <TouchableOpacity style={styles.modelSelector}>
-                <Text style={styles.modelText}>Kaana o1</Text>
-                <Ionicons name="chevron-down" size={16} color="#fff" />
+              <TouchableOpacity style={[styles.modelSelector, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <Text style={[styles.modelText, { color: theme.colors.text }]}>Kaana o1</Text>
+                <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.sendButton}>
-                <Ionicons name="arrow-up" size={22} color="#fff" />
+              <TouchableOpacity style={[styles.sendButton, { backgroundColor: theme.colors.primary }]}>
+                <Ionicons name="arrow-up" size={22} color={theme.colors.card} />
               </TouchableOpacity>
             </View>
           </View>
@@ -131,21 +133,21 @@ const styles = StyleSheet.create({
   avatarContainer: { marginLeft: 20, width: 36, height: 36, borderRadius: 18, overflow: 'hidden' },
   avatar: { width: 36, height: 36 },
   mainContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
-  title: { fontSize: 32, fontWeight: '600', color: '#fff', textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontSize: 24, fontWeight: '400', color: '#a0a0a0', textAlign: 'center', marginBottom: 40 },
+  title: { fontSize: 32, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
+  subtitle: { fontSize: 24, fontWeight: '400', textAlign: 'center', marginBottom: 40 },
   buttonGrid: { width: '100%', maxWidth: 500 },
   buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(60, 60, 60, 0.5)', borderRadius: 30, padding: 16, marginHorizontal: 8, ...shadowStyle({ elevation: 3, web: '0px 2px 4px rgba(0,0,0,0.2)' }), position: 'relative' },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '500', marginLeft: 8, flex: 1 },
+  actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 30, padding: 16, marginHorizontal: 8, ...shadowStyle({ elevation: 3, web: '0px 2px 4px rgba(0,0,0,0.2)' }), position: 'relative' },
+  buttonText: { fontSize: 15, fontWeight: '500', marginLeft: 8, flex: 1 },
   dropdownIndicator: { marginLeft: 4 },
   inputContainer: { width: '100%', padding: 16, backgroundColor: 'transparent', position: 'absolute', bottom: 0, left: 0, right: 0 },
-  inputBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(40, 40, 40, 0.7)', borderRadius: 30, paddingHorizontal: 12, paddingVertical: 8 },
+  inputBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 30, paddingHorizontal: 12, paddingVertical: 8 },
   inputIcon: { marginHorizontal: 8 },
-  input: { flex: 1, fontSize: 16, color: '#fff', paddingHorizontal: 12, minHeight: 40, marginRight: 8 },
+  input: { flex: 1, fontSize: 16, paddingHorizontal: 12, minHeight: 40, marginRight: 8 },
   inputRightButtons: { flexDirection: 'row', alignItems: 'center' },
-  modelSelector: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(60, 60, 60, 0.5)', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, marginRight: 8 },
-  modelText: { color: '#fff', fontSize: 14, marginRight: 4 },
-  sendButton: { backgroundColor: 'rgba(60, 60, 60, 0.8)', width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  modelSelector: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, marginRight: 8 },
+  modelText: { fontSize: 14, marginRight: 4 },
+  sendButton: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
 });
 
 export default KaanaClientPage;

@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { Loading } from '@/assets/icons/loading-icon';
-import { colors } from '@/styles/colors';
 import { useTheme } from '@/hooks/useTheme';
 
 interface LoadingSpinnerProps {

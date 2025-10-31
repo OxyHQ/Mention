@@ -3,8 +3,8 @@ import { View, StyleSheet, TouchableOpacity, Text, Platform } from "react-native
 import { Link } from "expo-router";
 import { Pressable } from 'react-native-web-hover'
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "@/styles/colors";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "@/hooks/useTheme";
 
 export const TrendItem = ({
     topHeader,
@@ -16,20 +16,21 @@ export const TrendItem = ({
     numberOfPosts: number
 }) => {
     const { t } = useTranslation();
+    const theme = useTheme();
     return (
-        <Link href={`/search/%23${mainTitle}`} style={styles.trendItem}>
+        <Link href={`/search/%23${mainTitle}`} style={[styles.trendItem, { borderBottomColor: theme.colors.border }]}>
             <View
                 style={{
                     flex: 1,
                     justifyContent: 'space-between',
                 }}>
-                <Text style={{ fontSize: 13, color: colors.COLOR_BLACK_LIGHT_4 }}>
+                <Text style={{ fontSize: 13, color: theme.colors.textTertiary }}>
                     {topHeader}
                 </Text>
-                <Text style={{ fontSize: 15, fontWeight: 'bold', paddingVertical: 3 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', paddingVertical: 3, color: theme.colors.text }}>
                     {`#${mainTitle}`}
                 </Text>
-                <Text style={{ fontSize: 14, color: colors.COLOR_BLACK_LIGHT_4 }}>
+                <Text style={{ fontSize: 14, color: theme.colors.textTertiary }}>
                     {numberOfPosts} {t("posts")}
                 </Text>
             </View>
@@ -37,7 +38,7 @@ export const TrendItem = ({
                 style={({ hovered }) => [
                     hovered
                         ? {
-                            backgroundColor: colors.COLOR_BLACK_LIGHT_6,
+                            backgroundColor: theme.colors.backgroundSecondary,
                         }
                         : {},
                     {
@@ -53,7 +54,7 @@ export const TrendItem = ({
                     name="ellipsis-horizontal"
                     style={{
                         fontSize: 20,
-                        color: colors.COLOR_BLACK_LIGHT_5,
+                        color: theme.colors.textSecondary,
                     }}
                 />
             </Pressable>
@@ -71,7 +72,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 12,
         borderBottomWidth: 0.01,
-        borderBottomColor: colors.COLOR_BLACK_LIGHT_6,
         ...Platform.select({
             web: {
                 cursor: 'pointer',

@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
-import { colors } from '@/styles/colors';
 import { BaseWidget } from './BaseWidget';
 import { useTrendsStore } from '@/store/trendsStore';
 import { useTheme } from '@/hooks/useTheme';
@@ -57,8 +56,8 @@ export function TrendsWidget() {
 
 const styles = StyleSheet.create({
   centerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  muted: { color: "#71767B", fontSize: 13 },
-  error: { color: "#F91880" },
+  muted: { fontSize: 13 },
+  error: {},
   chipsWrap: {
     paddingTop: 4,
     paddingBottom: 1,
@@ -71,7 +70,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#0F1419",
     paddingHorizontal: 10,
     paddingVertical: 4,
     marginRight: 4,
@@ -80,6 +78,5 @@ const styles = StyleSheet.create({
   chipText: {
     fontWeight: '600',
     fontSize: 13,
-    color: "#0F1419",
   },
 });

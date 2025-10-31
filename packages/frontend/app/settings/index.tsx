@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Switch, Platform } from "react-native";
+import { useCallback, useEffect, useState, useRef, useMemo } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Switch, Platform, ScrollView, Animated } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
+import { Header } from "@/components/Header";
 import { useOxy } from "@oxyhq/services";
 import { useTranslation } from "react-i18next";
+import { useLayoutScroll } from "@/context/LayoutScrollContext";
 
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import { colors } from "../../styles/colors";
 import { LogoIcon } from "../../assets/logo";
 import { authenticatedClient } from "@/utils/api";
 import { confirmDialog, alertDialog } from "@/utils/alerts";
@@ -25,6 +26,24 @@ export default function SettingsScreen() {
     const router = useRouter();
     const { user, showBottomSheet } = useOxy();
     const theme = useTheme();
+    const scrollViewRef = useRef<ScrollView>(null);
+    const unregisterScrollableRef = useRef<(() => void) | null>(null);
+    const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent, createAnimatedScrollHandler } = useLayoutScroll();
+
+    const clearScrollRegistration = useCallback(() => {
+        if (unregisterScrollableRef.current) {
+            unregisterScrollableRef.current();
+            unregisterScrollableRef.current = null;
+        }
+    }, []);
+
+    const assignScrollViewRef = useCallback((node: any) => {
+        scrollViewRef.current = node;
+        clearScrollRegistration();
+        if (node && registerScrollable) {
+            unregisterScrollableRef.current = registerScrollable(node);
+        }
+    }, [clearScrollRegistration, registerScrollable]);
 
     // Determine Expo SDK/version information with safe fallbacks
     const expoSdkVersion =
@@ -112,6 +131,24 @@ export default function SettingsScreen() {
         load();
         return () => { mounted = false; };
     }, [user?.id]);
+
+    useEffect(() => {
+        return () => {
+            clearScrollRegistration();
+        };
+    }, [clearScrollRegistration]);
+
+    const onScroll = useMemo(
+        () => createAnimatedScrollHandler(handleScroll),
+        [createAnimatedScrollHandler, handleScroll]
+    );
+
+    // Handle wheel events for web
+    const handleWheelEvent = useCallback((event: any) => {
+        if (forwardWheelEvent) {
+            forwardWheelEvent(event);
+        }
+    }, [forwardWheelEvent]);
     const [darkMode, setDarkMode] = useState(false);
     const [autoSync, setAutoSync] = useState(true);
     const [offlineMode, setOfflineMode] = useState(false);
@@ -156,11 +193,23 @@ export default function SettingsScreen() {
     return (
         <ThemedView style={styles.container}>
             {/* Header */}
-            <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{t("settings.title")}</Text>
-            </View>
+            <Header
+                options={{
+                    title: t("settings.title"),
+                    showBackButton: true,
+                }}
+                hideBottomBorder={false}
+            />
 
-            <View style={styles.content}>
+            <Animated.ScrollView
+                ref={assignScrollViewRef}
+                style={styles.scrollView}
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                onScroll={onScroll}
+                scrollEventThrottle={scrollEventThrottle}
+                {...(Platform.OS === 'web' ? { dataSet: { layoutscroll: 'true' } } : {}) as any}
+            >
                 {/* User Info */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("settings.sections.account")}</Text>
@@ -216,7 +265,7 @@ export default function SettingsScreen() {
                     {/* App Title and Version */}
                     <View style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <LogoIcon size={24} color={colors.primaryColor} style={styles.settingIcon} />
+                            <LogoIcon size={24} color={theme.colors.primary} style={styles.settingIcon} />
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.appName')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -431,7 +480,7 @@ export default function SettingsScreen() {
                         <Switch
                             value={notifications}
                             onValueChange={onToggleNotifications}
-                            trackColor={{ false: '#f0f0f0', true: colors.primaryColor }}
+                            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
                             thumbColor={theme.colors.card}
                             ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
@@ -450,7 +499,7 @@ export default function SettingsScreen() {
                         <Switch
                             value={darkMode}
                             onValueChange={setDarkMode}
-                            trackColor={{ false: '#f0f0f0', true: colors.primaryColor }}
+                            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
                             thumbColor={theme.colors.card}
                             ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
@@ -469,7 +518,7 @@ export default function SettingsScreen() {
                         <Switch
                             value={autoSync}
                             onValueChange={setAutoSync}
-                            trackColor={{ false: '#f0f0f0', true: colors.primaryColor }}
+                            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
                             thumbColor={theme.colors.card}
                             ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
@@ -493,7 +542,7 @@ export default function SettingsScreen() {
                         <Switch
                             value={offlineMode}
                             onValueChange={setOfflineMode}
-                            trackColor={{ false: '#f0f0f0', true: colors.primaryColor }}
+                            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
                             thumbColor={theme.colors.card}
                             ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
@@ -597,7 +646,7 @@ export default function SettingsScreen() {
                         </View>
                     </TouchableOpacity>
                 </View>
-            </View>
+            </Animated.ScrollView>
         </ThemedView>
     );
 }
@@ -606,20 +655,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    header: {
-        paddingHorizontal: 20,
-        paddingTop: 20,
-        paddingBottom: 16,
-        // backgroundColor and borderColor will be applied inline with theme
-        borderBottomWidth: 1,
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: "bold",
-        // color will be applied inline with theme
+    scrollView: {
+        flex: 1,
     },
     content: {
-        padding: 16,
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 16,
     },
     userIcon: {
         width: 40,
@@ -631,17 +673,19 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     section: {
-        marginBottom: 24,
+        marginBottom: 32,
     },
     sectionTitle: {
         fontSize: 16,
         fontWeight: "600",
         // color will be applied inline with theme
         marginBottom: 12,
+        paddingHorizontal: 0,
     },
     settingItem: {
         // backgroundColor will be applied inline with theme
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
@@ -664,6 +708,10 @@ const styles = StyleSheet.create({
     },
     settingIcon: {
         marginRight: 12,
+        width: 20,
+        height: 20,
+        alignItems: "center",
+        justifyContent: "center",
     },
     settingLabel: {
         fontSize: 16,

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, StyleProp, TextStyle, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors } from '@/styles/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 interface LinkifiedTextProps {
   text: string;
@@ -13,6 +13,7 @@ interface LinkifiedTextProps {
 // Renders text with clickable @mentions, #hashtags, $cashtags, and URLs
 export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkStyle, suffix }) => {
   const router = useRouter();
+  const theme = useTheme();
   const nodes = useMemo(() => {
     if (!text) return null;
 
@@ -59,7 +60,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
         elements.push(
           <Text
             key={`m-${key++}`}
-            style={[{ color: colors.linkColor }, linkStyle]}
+            style={[{ color: theme.colors.primary }, linkStyle]}
             onPress={() => router.push(`/@${mentionUsername}`)}
           >
             {mentionDisplay}
@@ -75,7 +76,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
         elements.push(
           <Text
             key={`u-${key++}`}
-            style={[{ color: colors.linkColor }, linkStyle]}
+            style={[{ color: theme.colors.primary }, linkStyle]}
             onPress={() => Linking.openURL(href)}
           >
             {url}
@@ -94,7 +95,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
           elements.push(
             <Text
               key={`h-${key++}`}
-              style={[{ color: colors.linkColor }, linkStyle]}
+              style={[{ color: theme.colors.primary }, linkStyle]}
               onPress={() => router.push(`/search/${q}`)}
             >
               {entity}
@@ -106,7 +107,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
           elements.push(
             <Text
               key={`c-${key++}`}
-              style={[{ color: colors.linkColor }, linkStyle]}
+              style={[{ color: theme.colors.primary }, linkStyle]}
               onPress={() => router.push(`/search/${q}`)}
             >
               {entity}
@@ -122,7 +123,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, linkS
 
     pushText(text.slice(lastIndex));
     return elements;
-  }, [text, linkStyle, router]);
+  }, [text, linkStyle, router, theme.colors.primary]);
 
   if (!text) return null;
   return <Text style={style}>{nodes}{suffix}</Text>;

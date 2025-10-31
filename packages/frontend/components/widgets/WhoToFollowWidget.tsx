@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
-import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import { BaseWidget } from './BaseWidget';
 import { useUsersStore } from '@/stores/usersStore';
@@ -112,32 +111,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  loadingText: {
-    color: "#71767B",
-  },
+  loadingText: {},
   errorContainer: {
     paddingVertical: 12,
   },
-  errorText: { color: "#F91880" },
+  errorText: {},
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 0.01,
-    borderBottomColor: "#EFF3F4",
     paddingVertical: 10,
     ...Platform.select({ web: { cursor: 'pointer' } }),
   },
   rowLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   rowTextWrap: { marginRight: 'auto', marginLeft: 13, flex: 1 },
-  rowTitle: { fontWeight: 'bold', fontSize: 15, color: "#0F1419" },
-  rowSub: { color: "#71767B", paddingTop: 4 },
-  rowBio: { color: "#71767B", paddingTop: 4, fontSize: 13 },
+  rowTitle: { fontWeight: 'bold', fontSize: 15 },
+  rowSub: { paddingTop: 4 },
+  rowBio: { paddingTop: 4, fontSize: 13 },
   showMoreBtn: {
     paddingTop: 10,
   },
   showMoreText: {
     fontSize: 15,
-    color: "#d169e5",
   },
 });

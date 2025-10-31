@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { Ionicons } from '@expo/vector-icons';
 import { useOxy } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
+import { useTheme } from '@/hooks/useTheme';
 
 const COLOR_CHOICES = ['#005c67', '#1D9BF0', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#0EA5E9'];
 
@@ -16,6 +17,7 @@ export default function AppearanceSettingsScreen() {
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
   const { showBottomSheet, oxyServices } = useOxy();
+  const theme = useTheme();
 
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('system');
   const [primaryColor, setPrimaryColor] = useState<string>('');
@@ -76,11 +78,11 @@ export default function AppearanceSettingsScreen() {
       <Header options={{ title: 'Appearance', showBackButton: true }} />
       <ScrollView contentContainerStyle={styles.content}>
         {/* Theme mode */}
-        <Text style={styles.label}>Theme</Text>
+        <Text style={[styles.label, { color: theme.colors.text }]}>Theme</Text>
         <View style={styles.segmentRow}>
           {(['system', 'light', 'dark'] as const).map(mode => (
-            <TouchableOpacity key={mode} style={[styles.segmentBtn, themeMode === mode && [styles.segmentBtnActive, { borderColor: previewPrimaryColor }]]} onPress={() => onThemeModeChange(mode)}>
-              <Text style={[styles.segmentText, themeMode === mode && { color: previewPrimaryColor }]}>
+            <TouchableOpacity key={mode} style={[styles.segmentBtn, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }, themeMode === mode && [styles.segmentBtnActive, { borderColor: previewPrimaryColor }]]} onPress={() => onThemeModeChange(mode)}>
+              <Text style={[styles.segmentText, { color: theme.colors.textSecondary }, themeMode === mode && { color: previewPrimaryColor }]}>
                 {mode.charAt(0).toUpperCase() + mode.slice(1)}
               </Text>
             </TouchableOpacity>
@@ -88,41 +90,41 @@ export default function AppearanceSettingsScreen() {
         </View>
 
         {/* Primary color */}
-        <Text style={styles.label}>Primary Color</Text>
+        <Text style={[styles.label, { color: theme.colors.text }]}>Primary Color</Text>
         <View style={styles.colorsRow}>
           {COLOR_CHOICES.map(c => (
-            <TouchableOpacity key={c} style={[styles.colorSwatch, { backgroundColor: c }, primaryColor === c && styles.colorSwatchSelected]} onPress={() => setPrimaryColor(c)} />
+            <TouchableOpacity key={c} style={[styles.colorSwatch, { backgroundColor: c, borderColor: theme.colors.border }, primaryColor === c && { borderColor: theme.colors.text }]} onPress={() => setPrimaryColor(c)} />
           ))}
         </View>
         <View style={styles.inputRow}>
           <TextInput
             placeholder="#005c67"
-            placeholderTextColor={baseColors.COLOR_BLACK_LIGHT_5}
+            placeholderTextColor={theme.colors.textTertiary}
             value={primaryColor}
             onChangeText={setPrimaryColor}
-            style={styles.textInput}
+            style={[styles.textInput, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.background }]}
             autoCapitalize="none"
           />
           {primaryColor ? (
-            <TouchableOpacity style={styles.clearBtn} onPress={() => setPrimaryColor('')}>
-              <Ionicons name="close" size={18} color="#fff" />
+            <TouchableOpacity style={[styles.clearBtn, { backgroundColor: theme.colors.textTertiary }]} onPress={() => setPrimaryColor('')}>
+              <Ionicons name="close" size={18} color={theme.colors.card} />
             </TouchableOpacity>
           ) : null}
         </View>
 
         {/* Header image selector */}
-        <Text style={styles.label}>Profile Header Image</Text>
+        <Text style={[styles.label, { color: theme.colors.text }]}>Profile Header Image</Text>
         {headerImageId ? (
-          <View style={styles.headerPreviewWrap}>
-            <Image source={{ uri: oxyServices.getFileDownloadUrl(headerImageId, 'full') }} style={styles.headerPreview} />
-            <TouchableOpacity style={styles.clearBtn} onPress={() => setHeaderImageId('')}>
-              <Ionicons name="close" size={18} color="#fff" />
+          <View style={[styles.headerPreviewWrap, { borderColor: theme.colors.border }]}>
+            <Image source={{ uri: oxyServices.getFileDownloadUrl(headerImageId, 'full') }} style={[styles.headerPreview, { backgroundColor: theme.colors.backgroundSecondary }]} />
+            <TouchableOpacity style={[styles.clearBtn, { backgroundColor: theme.colors.textTertiary }]} onPress={() => setHeaderImageId('')}>
+              <Ionicons name="close" size={18} color={theme.colors.card} />
             </TouchableOpacity>
           </View>
         ) : (
-          <TouchableOpacity style={styles.mediaPickerBtn} onPress={openHeaderPicker}>
-            <Ionicons name="image-outline" size={18} color={baseColors.COLOR_BLACK_LIGHT_3} />
-            <Text style={styles.mediaPickerText}>Choose header image</Text>
+          <TouchableOpacity style={[styles.mediaPickerBtn, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]} onPress={openHeaderPicker}>
+            <Ionicons name="image-outline" size={18} color={theme.colors.textTertiary} />
+            <Text style={[styles.mediaPickerText, { color: theme.colors.textSecondary }]}>Choose header image</Text>
           </TouchableOpacity>
         )}
 
@@ -137,21 +139,21 @@ export default function AppearanceSettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16 },
-  label: { fontSize: 16, fontWeight: '600', color: baseColors.COLOR_BLACK_LIGHT_2, marginTop: 16, marginBottom: 8 },
+  label: { fontSize: 16, fontWeight: '600', marginTop: 16, marginBottom: 8 },
   segmentRow: { flexDirection: 'row', gap: 8 },
-  segmentBtn: { flex: 1, paddingVertical: 10, borderWidth: 1, borderColor: baseColors.COLOR_BLACK_LIGHT_6, borderRadius: 10, alignItems: 'center', backgroundColor: baseColors.COLOR_BLACK_LIGHT_9 },
-  segmentBtnActive: { backgroundColor: baseColors.COLOR_BLACK_LIGHT_9 },
-  segmentText: { color: baseColors.COLOR_BLACK_LIGHT_3, fontWeight: '600' },
+  segmentBtn: { flex: 1, paddingVertical: 10, borderWidth: 1, borderRadius: 10, alignItems: 'center' },
+  segmentBtnActive: {},
+  segmentText: { fontWeight: '600' },
   colorsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  colorSwatch: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: '#fff' },
-  colorSwatchSelected: { borderColor: '#000' },
+  colorSwatch: { width: 32, height: 32, borderRadius: 16, borderWidth: 2 },
+  colorSwatchSelected: {},
   inputRow: { flexDirection: 'row', alignItems: 'center' },
-  textInput: { flex: 1, borderWidth: 1, borderColor: baseColors.COLOR_BLACK_LIGHT_6, borderRadius: 10, padding: 12, color: baseColors.COLOR_BLACK_LIGHT_2, backgroundColor: baseColors.COLOR_BLACK_LIGHT_9 },
-  clearBtn: { marginLeft: 8, width: 36, height: 36, borderRadius: 18, backgroundColor: baseColors.COLOR_BLACK_LIGHT_5, alignItems: 'center', justifyContent: 'center' },
+  textInput: { flex: 1, borderWidth: 1, borderRadius: 10, padding: 12 },
+  clearBtn: { marginLeft: 8, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   saveBtn: { marginTop: 24, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   saveText: { color: '#fff', fontWeight: '700' },
-  mediaPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: baseColors.COLOR_BLACK_LIGHT_6, backgroundColor: baseColors.COLOR_BLACK_LIGHT_9, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10 },
-  mediaPickerText: { color: baseColors.COLOR_BLACK_LIGHT_3, fontWeight: '600' },
-  headerPreviewWrap: { position: 'relative', borderWidth: 1, borderColor: baseColors.COLOR_BLACK_LIGHT_6, borderRadius: 10, overflow: 'hidden' },
-  headerPreview: { width: '100%', height: 140, backgroundColor: baseColors.COLOR_BLACK_LIGHT_7 },
+  mediaPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10 },
+  mediaPickerText: { fontWeight: '600' },
+  headerPreviewWrap: { position: 'relative', borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
+  headerPreview: { width: '100%', height: 140 },
 });

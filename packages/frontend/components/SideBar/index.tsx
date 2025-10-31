@@ -12,7 +12,6 @@ import { usePathname, useRouter } from "expo-router";
 import { useMediaQuery } from "react-responsive";
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from "./SideBarItem";
-import { colors } from "@/styles/colors";
 import { Button } from "@/components/SideBar/Button";
 import { Logo } from "@/components/Logo";
 import Avatar from "@/components/Avatar";
