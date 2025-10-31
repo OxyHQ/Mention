@@ -23,9 +23,10 @@ interface Props {
         rightComponents?: ReactNode[]
     }
     hideBottomBorder?: boolean
+    disableSticky?: boolean
 }
 
-export const Header: React.FC<Props> = ({ options, hideBottomBorder = false }) => {
+export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, disableSticky = false }) => {
     const router = useRouter();
     const [isSticky, setIsSticky] = useState(false);
     const theme = useTheme();
@@ -53,7 +54,8 @@ export const Header: React.FC<Props> = ({ options, hideBottomBorder = false }) =
         styles.topRow,
         isSticky && styles.stickyHeader,
         { backgroundColor: theme.colors.background },
-        hideBottomBorder ? { borderBottomWidth: 0 } : { borderBottomColor: theme.colors.border }
+        hideBottomBorder ? { borderBottomWidth: 0 } : { borderBottomColor: theme.colors.border },
+        disableSticky && Platform.OS === 'web' ? { position: 'relative' as const } : {},
     ];
 
     return (

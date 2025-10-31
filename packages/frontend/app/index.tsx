@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -14,6 +14,8 @@ import { customFeedsService } from '@/services/customFeedsService';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
 import { useTheme } from '@/hooks/useTheme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming, interpolate } from 'react-native-reanimated';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -30,10 +32,13 @@ const HomeScreen: React.FC = () => {
     const { isAuthenticated } = useOxy();
     const theme = useTheme();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
+    const { scrollY } = useLayoutScroll();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
+    const headerTranslateY = useSharedValue(0);
+    const headerHeight = 48; // Match header minHeight
 
     // Load pinned feeds function
     const loadFeeds = React.useCallback(async () => {
@@ -94,6 +99,57 @@ const HomeScreen: React.FC = () => {
             unregisterHomeRefreshHandler();
         };
     }, [registerHomeRefreshHandler, unregisterHomeRefreshHandler]);
+
+    // Track scroll direction and animate header
+    useEffect(() => {
+        let isScrollingDown = false;
+        let lastKnownScrollY = 0;
+        
+        const listenerId = scrollY.addListener(({ value }) => {
+            const currentScrollY = typeof value === 'number' ? value : 0;
+            const scrollDelta = currentScrollY - lastKnownScrollY;
+            
+            // Determine scroll direction (only update if movement is significant)
+            if (Math.abs(scrollDelta) > 1) {
+                isScrollingDown = scrollDelta > 0;
+            }
+            
+            if (currentScrollY > 50) { // Only hide after scrolling past threshold
+                if (isScrollingDown) {
+                    // Scrolling down - hide header
+                    headerTranslateY.value = withTiming(-headerHeight, { duration: 200 });
+                } else {
+                    // Scrolling up - show header
+                    headerTranslateY.value = withTiming(0, { duration: 200 });
+                }
+            } else {
+                // Near top - always show header
+                headerTranslateY.value = withTiming(0, { duration: 200 });
+            }
+            
+            lastKnownScrollY = currentScrollY;
+        });
+        
+        return () => {
+            scrollY.removeListener(listenerId);
+        };
+    }, [scrollY, headerTranslateY, headerHeight]);
+
+    const headerAnimatedStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ translateY: headerTranslateY.value }],
+        };
+    });
+
+    const tabBarSpacerStyle = useAnimatedStyle(() => {
+        // When header is visible (translateY = 0), reserve space for header height
+        // When header slides up (translateY < 0), reduce spacer height accordingly
+        // This allows tabs to move up smoothly as header disappears
+        const spacerHeight = Math.max(0, headerHeight + headerTranslateY.value);
+        return {
+            height: spacerHeight,
+        };
+    });
 
     const handleTabPress = (tabId: HomeTab) => {
         // If pressing the same tab - scroll to top and refresh
@@ -184,32 +240,39 @@ const HomeScreen: React.FC = () => {
             <ThemedView style={{ flex: 1 }}>
                 <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-                {/* Header */}
-                <Header
-                    options={{
-                        title: 'Mention',
-                        rightComponents: [
-                            <TouchableOpacity
-                                key="search"
-                                style={styles.headerButton}
-                                onPress={() => router.push('/search')}
-                            >
-                                <Ionicons name="search-outline" size={24} color={theme.colors.textSecondary} />
-                            </TouchableOpacity>,
-                            <TouchableOpacity
-                                key="notifications"
-                                style={styles.headerButton}
-                                onPress={() => router.push('/notifications')}
-                            >
-                                <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
-                            </TouchableOpacity>
-                        ]
-                    }}
-                    hideBottomBorder={true}
-                />
+                {/* Header - animated */}
+                <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
+                    <Header
+                        options={{
+                            title: 'Mention',
+                            rightComponents: [
+                                <TouchableOpacity
+                                    key="search"
+                                    style={styles.headerButton}
+                                    onPress={() => router.push('/search')}
+                                >
+                                    <Ionicons name="search-outline" size={24} color={theme.colors.textSecondary} />
+                                </TouchableOpacity>,
+                                <TouchableOpacity
+                                    key="notifications"
+                                    style={styles.headerButton}
+                                    onPress={() => router.push('/notifications')}
+                                >
+                                    <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
+                                </TouchableOpacity>
+                            ]
+                        }}
+                        hideBottomBorder={true}
+                        disableSticky={true}
+                    />
+                </Animated.View>
 
-                {/* Tab Navigation */}
-                <AnimatedTabBar
+                {/* Spacer for header - maintains layout space */}
+                <Animated.View style={[styles.tabBarSpacer, tabBarSpacerStyle]} />
+                
+                {/* Tab Navigation - sticky */}
+                <View style={styles.stickyTabBar}>
+                    <AnimatedTabBar
                     tabs={[
                         { id: 'for_you', label: t('For You') },
                         ...(isAuthenticated ? [{ id: 'following', label: t('Following') }] : []),
@@ -220,6 +283,7 @@ const HomeScreen: React.FC = () => {
                     onTabPress={handleTabPress}
                     scrollEnabled={isAuthenticated && pinnedFeeds.length > 0}
                 />
+                </View>
 
                 {/* Content */}
                 {renderContent()}
@@ -245,6 +309,31 @@ const styles = StyleSheet.create({
     headerButton: {
         padding: 8,
         marginLeft: 8,
+    },
+    headerContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 101,
+        backgroundColor: 'transparent',
+    },
+    stickyTabBar: {
+        ...Platform.select({
+            web: {
+                position: 'sticky',
+            },
+            default: {
+                position: 'relative',
+            },
+        }),
+        top: 0,
+        zIndex: 100,
+        backgroundColor: 'transparent',
+    },
+    tabBarSpacer: {
+        // Spacer maintains space for header when it's visible
+        // This ensures tabs don't jump when header slides up
     },
     fab: {
         position: 'absolute',

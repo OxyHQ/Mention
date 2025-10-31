@@ -265,7 +265,9 @@ export default function SettingsScreen() {
                     {/* App Title and Version */}
                     <View style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <LogoIcon size={24} color={theme.colors.primary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <LogoIcon size={20} color={theme.colors.primary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.appName')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -280,7 +282,9 @@ export default function SettingsScreen() {
                     {/* Build Info */}
                     <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="hammer" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="hammer" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.build')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -295,12 +299,13 @@ export default function SettingsScreen() {
                     {/* Platform Info */}
                     <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent
-                                name="phone-portrait"
-                                size={20}
-                                color={theme.colors.textSecondary}
-                                style={styles.settingIcon}
-                            />
+                            <View style={styles.settingIcon}>
+                                <IconComponent
+                                    name="phone-portrait"
+                                    size={20}
+                                    color={theme.colors.textSecondary}
+                                />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.platform')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -317,7 +322,9 @@ export default function SettingsScreen() {
                     {/* Oxy SDK */}
                     <TouchableOpacity style={[styles.settingItem, { backgroundColor: theme.colors.card }]} onPress={() => showBottomSheet?.('AppInfo')}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.oxySDK')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{oxySdkVersion}</Text>
@@ -328,7 +335,9 @@ export default function SettingsScreen() {
                     {/* Expo SDK */}
                     <View style={[styles.settingItem]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.expoSDK')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{expoSdkVersion}</Text>
@@ -339,7 +348,9 @@ export default function SettingsScreen() {
                     {/* API URL (from env/config) */}
                     <View style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="globe" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="globe" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.apiUrl')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{apiUrl}</Text>
@@ -363,7 +374,9 @@ export default function SettingsScreen() {
                         }}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="help-circle" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="help-circle" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.helpSupport')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -396,7 +409,9 @@ export default function SettingsScreen() {
                         }}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="chatbubble" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="chatbubble" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                                     {t('settings.supportFeedback.sendFeedback')}
@@ -431,7 +446,9 @@ export default function SettingsScreen() {
                         }}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="star" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="star" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.rateApp')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -453,7 +470,9 @@ export default function SettingsScreen() {
                         onPress={() => router.push('/settings/language')}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="language" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="language" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('Language')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('Select your preferred language')}</Text>
@@ -464,12 +483,13 @@ export default function SettingsScreen() {
 
                     <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent
-                                name="notifications"
-                                size={20}
-                                color={theme.colors.textSecondary}
-                                style={styles.settingIcon}
-                            />
+                            <View style={styles.settingIcon}>
+                                <IconComponent
+                                    name="notifications"
+                                    size={20}
+                                    color={theme.colors.textSecondary}
+                                />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.notifications')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -488,7 +508,9 @@ export default function SettingsScreen() {
 
                     <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="moon" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="moon" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.darkMode')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -507,7 +529,9 @@ export default function SettingsScreen() {
 
                     <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent name="sync" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="sync" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.autoSync')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -526,12 +550,13 @@ export default function SettingsScreen() {
 
                     <View style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}>
                         <View style={styles.settingInfo}>
-                            <IconComponent
-                                name="cloud-offline"
-                                size={20}
-                                color={theme.colors.textSecondary}
-                                style={styles.settingIcon}
-                            />
+                            <View style={styles.settingIcon}>
+                                <IconComponent
+                                    name="cloud-offline"
+                                    size={20}
+                                    color={theme.colors.textSecondary}
+                                />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.offlineMode')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -558,7 +583,9 @@ export default function SettingsScreen() {
                         onPress={() => router.push('/properties/create')}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="add" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="add" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.quickActions.createProperty')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
@@ -574,7 +601,9 @@ export default function SettingsScreen() {
                         onPress={() => router.push('/search')}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="search" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="search" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                                     {t('settings.quickActions.searchProperties')}
@@ -597,7 +626,9 @@ export default function SettingsScreen() {
                         onPress={handleExportData}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="download" size={20} color={theme.colors.textSecondary} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="download" size={20} color={theme.colors.textSecondary} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.data.exportData')}</Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('settings.data.exportDataDesc')}</Text>
@@ -611,7 +642,9 @@ export default function SettingsScreen() {
                         onPress={handleClearCache}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="trash" size={20} color={theme.colors.error} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="trash" size={20} color={theme.colors.error} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
                                     {t("settings.data.clearCache")}
@@ -636,7 +669,9 @@ export default function SettingsScreen() {
                         onPress={handleSignOut}
                     >
                         <View style={styles.settingInfo}>
-                            <IconComponent name="log-out" size={20} color={theme.colors.error} style={styles.settingIcon} />
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="log-out" size={20} color={theme.colors.error} />
+                            </View>
                             <View>
                                 <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
                                     {t("settings.signOut")}
@@ -708,8 +743,6 @@ const styles = StyleSheet.create({
     },
     settingIcon: {
         marginRight: 12,
-        width: 20,
-        height: 20,
         alignItems: "center",
         justifyContent: "center",
     },
