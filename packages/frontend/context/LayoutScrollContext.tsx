@@ -114,7 +114,7 @@ export function LayoutScrollProvider({
                 [{ nativeEvent: { contentOffset: { y: scrollY } } }],
                 {
                     useNativeDriver: false,
-                    listener: (event: ScrollEvent) => {
+                    listener: (event: any) => {
                         // The Animated.event mapping can no-op on some RN Web builds,
                         // so always mirror the value to keep the shared state in sync.
                         handleScroll(event);
@@ -169,11 +169,9 @@ export function LayoutScrollProvider({
             }
         }
 
-        if (typeof event.preventDefault === 'function') {
-            event.preventDefault();
-        } else if (typeof event.nativeEvent?.preventDefault === 'function') {
-            event.nativeEvent.preventDefault();
-        }
+        // Don't call preventDefault() - modern browsers use passive wheel listeners by default
+        // We'll handle scrolling programmatically below, which works fine even without preventDefault
+        // Calling preventDefault() in a passive listener causes console warnings
 
         const nextOffset = Math.max(0, scrollPositionRef.current + deltaY);
         if (typeof scroller.scrollToOffset === 'function') {
