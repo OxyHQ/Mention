@@ -101,6 +101,9 @@ class FeedService {
         case 'posts':
           endpoint = '/feed/posts';
           break;
+        case 'explore':
+          endpoint = '/feed/explore';
+          break;
         case 'mixed':
         default:
           endpoint = '/feed/feed';
@@ -141,11 +144,21 @@ class FeedService {
         statusText: error?.response?.statusText,
         data: error?.response?.data,
         endpoint,
-        params
+        params,
+        stack: error?.stack
       });
+      
+      // Log the full error for debugging
+      if (error?.response?.data) {
+        console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+      }
+      
       // Re-throw with more context
-      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to fetch feed';
-      throw new Error(errorMessage);
+      const errorMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Failed to fetch feed';
+      const errorToThrow = new Error(errorMessage);
+      (errorToThrow as any).status = error?.response?.status;
+      (errorToThrow as any).originalError = error;
+      throw errorToThrow;
     }
   }
 

@@ -61,7 +61,7 @@ export interface FeedRepost {
 }
 
 // Feed types and actions
-export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'mixed' | 'for_you' | 'following' | 'saved';
+export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'reposts' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore';
 
 export type PostAction = 'reply' | 'repost' | 'like' | 'share';
 

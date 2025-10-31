@@ -1252,19 +1252,25 @@ class FeedController {
       const currentUserId = req.user?.id;
 
       // Build query for trending posts (high engagement)
-      const query: any = {
+      const match: any = {
         visibility: PostVisibility.PUBLIC,
-        parentPostId: { $exists: false },
-        repostOf: { $exists: false }
+        $and: [
+          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+        ]
       };
 
       if (cursor) {
-        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+        try {
+          match._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+        } catch (e) {
+          console.warn('Invalid cursor format for explore feed:', cursor);
+        }
       }
 
       // Sort by engagement score (likes + reposts + comments)
       const posts = await Post.aggregate([
-        { $match: query },
+        { $match: match },
         {
           $addFields: {
             engagementScore: {
@@ -1277,12 +1283,14 @@ class FeedController {
           }
         },
         { $sort: { engagementScore: -1, createdAt: -1 } },
-        { $limit: limit + 1 }
+        { $limit: Number(limit) + 1 }
       ]);
 
-      const hasMore = posts.length > limit;
-      const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
-      const nextCursor = hasMore ? posts[limit - 1]._id.toString() : undefined;
+      const hasMore = posts.length > Number(limit);
+      const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
+      const nextCursor = hasMore && postsToReturn.length > 0 
+        ? postsToReturn[postsToReturn.length - 1]._id.toString() 
+        : undefined;
 
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
 
@@ -1296,6 +1304,7 @@ class FeedController {
       res.json(response);
     } catch (error) {
       console.error('Error fetching explore feed:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).json({ 
         error: 'Failed to fetch explore feed',
         message: error instanceof Error ? error.message : 'Unknown error'

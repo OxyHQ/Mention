@@ -27,7 +27,7 @@ const ExploreScreen: React.FC = () => {
 
       case 'trending':
         return (
-          <Feed type="mixed" recycleItems={true} maintainVisibleContentPosition={true} />
+          <Feed type="explore" recycleItems={true} maintainVisibleContentPosition={true} />
         );
 
       case 'custom':
@@ -36,7 +36,7 @@ const ExploreScreen: React.FC = () => {
         );
 
       default:
-        return <Feed type="mixed" recycleItems={true} maintainVisibleContentPosition={true} />;
+        return <Feed type="explore" recycleItems={true} maintainVisibleContentPosition={true} />;
     }
   };
 
