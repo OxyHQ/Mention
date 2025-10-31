@@ -15,6 +15,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
 import { useTheme } from "@/hooks/useTheme";
+import { oxyServices } from "@/lib/oxyServices";
 import { searchService } from "@/services/searchService";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import Avatar from "@/components/Avatar";
@@ -233,35 +234,56 @@ export default function SearchIndex() {
         return () => clearTimeout(timeoutId);
     }, [query, activeTab, cleanupCache]);
 
-    const renderUserItem = (user: any) => (
-        <TouchableOpacity
-            key={user.id || user.username}
-            style={[styles.userItem, { borderBottomColor: theme.colors.border }]}
-            onPress={() => router.push(`/@${user.username}`)}
-        >
-            <Avatar
-                source={user.avatarUrl ? { uri: user.avatarUrl } : undefined}
-                size={48}
-                label={user.displayName?.[0] || user.username?.[0]}
-            />
-            <View style={styles.userInfo}>
-                <Text style={[styles.userName, { color: theme.colors.text }]}>
-                    {user.displayName || user.username}
-                </Text>
-                <Text style={[styles.userHandle, { color: theme.colors.textSecondary }]}>
-                    @{user.username}
-                </Text>
-                {user.bio && (
-                    <Text
-                        style={[styles.userBio, { color: theme.colors.textSecondary }]}
-                        numberOfLines={2}
-                    >
-                        {user.bio}
+    const renderUserItem = (user: any) => {
+        // Extract display name similar to MentionPicker
+        let displayName = user.username || user.handle;
+        if (typeof user.name === 'string') {
+            displayName = user.name;
+        } else if (user.name?.full) {
+            displayName = user.name.full;
+        } else if (user.name?.first) {
+            displayName = `${user.name.first} ${user.name.last || ''}`.trim();
+        } else if (user.displayName) {
+            displayName = user.displayName;
+        }
+
+        const username = user.username || user.handle || '';
+        
+        // Get avatar URL using oxyServices
+        const avatarUri = user?.avatar 
+            ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb')
+            : undefined;
+
+        return (
+            <TouchableOpacity
+                key={user.id || user.username}
+                style={[styles.userItem, { borderBottomColor: theme.colors.border }]}
+                onPress={() => router.push(`/@${username}`)}
+            >
+                <Avatar
+                    source={avatarUri ? { uri: avatarUri } : undefined}
+                    size={48}
+                    label={displayName?.[0] || username?.[0]}
+                />
+                <View style={styles.userInfo}>
+                    <Text style={[styles.userName, { color: theme.colors.text }]}>
+                        {displayName}
                     </Text>
-                )}
-            </View>
-        </TouchableOpacity>
-    );
+                    <Text style={[styles.userHandle, { color: theme.colors.textSecondary }]}>
+                        @{username}
+                    </Text>
+                    {user.bio && (
+                        <Text
+                            style={[styles.userBio, { color: theme.colors.textSecondary }]}
+                            numberOfLines={2}
+                        >
+                            {user.bio}
+                        </Text>
+                    )}
+                </View>
+            </TouchableOpacity>
+        );
+    };
 
     const renderFeedItem = (feed: any) => (
         <TouchableOpacity
