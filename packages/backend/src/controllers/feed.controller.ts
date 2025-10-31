@@ -1310,7 +1310,7 @@ class FeedController {
       // No filtering by following - shows trending posts from everyone including yourself
       // Exclude replies and reposts - only show original top-level posts
       // Use $and to properly combine conditions
-      const match: any = {
+      let match: any = {
         visibility: PostVisibility.PUBLIC,
         // NO oxyUserId filter - includes posts from ALL users (including current user)
         $and: [
