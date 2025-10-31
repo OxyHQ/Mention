@@ -49,6 +49,8 @@ export default function SearchIndex() {
         lists: [],
         saved: [],
     });
+    // Cache results per tab per query to avoid refetching when switching tabs
+    const [resultsCache, setResultsCache] = useState<Record<string, LocalSearchResults>>({});
 
     // Initialize query from URL parameter
     useEffect(() => {
@@ -68,48 +70,73 @@ export default function SearchIndex() {
                 lists: [],
                 saved: [],
             });
+            setResultsCache({});
         }
     }, [query]);
 
-    // Debounced search
+    // Debounced search - checks cache first, only fetches if needed
     useEffect(() => {
         const performSearch = async () => {
             const searchQuery = query.trim();
             if (!searchQuery) {
+                setResults({
+                    posts: [],
+                    users: [],
+                    feeds: [],
+                    hashtags: [],
+                    lists: [],
+                    saved: [],
+                });
+                return;
+            }
+
+            const cacheKey = `${activeTab}-${searchQuery}`;
+            // Load from cache if exists - no need to fetch again
+            if (resultsCache[cacheKey]) {
+                setResults(resultsCache[cacheKey]);
                 return;
             }
 
             setLoading(true);
             try {
+                let newResults: LocalSearchResults = { ...results };
+                
                 if (activeTab === "all") {
                     const allResults = await searchService.searchAll(searchQuery);
-                    setResults({
+                    newResults = {
                         posts: allResults.posts || [],
                         users: allResults.users || [],
                         feeds: allResults.feeds || [],
                         hashtags: allResults.hashtags || [],
                         lists: allResults.lists || [],
                         saved: allResults.saved || [],
-                    });
+                    };
                 } else if (activeTab === "posts") {
                     const posts = await searchService.searchPosts(searchQuery);
-                    setResults(prev => ({ ...prev, posts: posts || [] }));
+                    newResults = { ...results, posts: posts || [] };
                 } else if (activeTab === "users") {
                     const users = await searchService.searchUsers(searchQuery);
-                    setResults(prev => ({ ...prev, users: users || [] }));
+                    newResults = { ...results, users: users || [] };
                 } else if (activeTab === "feeds") {
                     const feeds = await searchService.searchFeeds(searchQuery);
-                    setResults(prev => ({ ...prev, feeds: feeds || [] }));
+                    newResults = { ...results, feeds: feeds || [] };
                 } else if (activeTab === "hashtags") {
                     const hashtags = await searchService.searchHashtags(searchQuery);
-                    setResults(prev => ({ ...prev, hashtags: hashtags || [] }));
+                    newResults = { ...results, hashtags: hashtags || [] };
                 } else if (activeTab === "lists") {
                     const lists = await searchService.searchLists(searchQuery);
-                    setResults(prev => ({ ...prev, lists: lists || [] }));
+                    newResults = { ...results, lists: lists || [] };
                 } else if (activeTab === "saved") {
                     const saved = await searchService.searchSaved(searchQuery);
-                    setResults(prev => ({ ...prev, saved: saved || [] }));
+                    newResults = { ...results, saved: saved || [] };
                 }
+
+                // Cache the results for this tab+query combination
+                setResultsCache(prev => ({
+                    ...prev,
+                    [cacheKey]: newResults
+                }));
+                setResults(newResults);
             } catch (error) {
                 console.warn("Search error:", error);
             } finally {
