@@ -32,7 +32,7 @@ import { useTheme } from '@/hooks/useTheme';
 
 // Context
 import { BottomSheetProvider, BottomSheetContext } from '@/context/BottomSheetContext';
-import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
+import { LayoutScrollProvider, useLayoutScroll } from '@/context/LayoutScrollContext';
 
 // Utils & Config
 import { OXY_BASE_URL } from '@/config';
@@ -82,6 +82,58 @@ const I18N_CONFIG = {
   fallbackLng: 'en-US',
   interpolation: { escapeValue: false },
 } as const;
+
+interface MainLayoutProps {
+  isScreenNotMobile: boolean;
+}
+
+const MainLayout: React.FC<MainLayoutProps> = ({ isScreenNotMobile }) => {
+  const theme = useTheme();
+  const { forwardWheelEvent } = useLayoutScroll();
+
+  const styles = useMemo(() => StyleSheet.create({
+    container: {
+      flex: 1,
+      width: '100%',
+      marginHorizontal: 'auto',
+      flexDirection: isScreenNotMobile ? 'row' : 'column',
+    },
+    mainContent: {
+      maxWidth: 1100,
+      marginHorizontal: isScreenNotMobile ? 'auto' : 0,
+      justifyContent: 'space-between',
+      flexDirection: isScreenNotMobile ? 'row' : 'column',
+      flex: 1,
+    },
+    mainContentWrapper: {
+      flex: isScreenNotMobile ? 2.2 : 1,
+      ...(isScreenNotMobile ? {
+        borderLeftWidth: 0.5,
+        borderRightWidth: 0.5,
+        borderColor: theme.colors.border,
+      } : {}),
+      backgroundColor: theme.colors.background,
+    },
+  }), [isScreenNotMobile, theme.colors]);
+
+  const handleWheel = useCallback((event: any) => {
+    forwardWheelEvent(event);
+  }, [forwardWheelEvent]);
+
+  const containerProps = Platform.OS === 'web' ? { onWheel: handleWheel } : {};
+
+  return (
+    <View style={styles.container} {...containerProps}>
+      <SideBar />
+      <View style={styles.mainContent}>
+        <ThemedView style={styles.mainContentWrapper}>
+          <Slot />
+        </ThemedView>
+        <RightBar />
+      </View>
+    </View>
+  );
+};
 
 export default function RootLayout() {
   // State
@@ -269,54 +321,6 @@ export default function RootLayout() {
   }, [fontsLoaded, splashState.initializationComplete, splashState.startFade]);
 
   // Main layout component for better organization
-  const MainLayout = useCallback(() => {
-    const theme = useTheme();
-
-    const styles = useMemo(() => StyleSheet.create({
-      container: {
-        ...(isScreenNotMobile ? {
-        } : {
-          flex: 1,
-        }),
-        width: '100%',
-        marginHorizontal: 'auto',
-        flexDirection: isScreenNotMobile ? 'row' : 'column',
-      },
-      mainContent: {
-        maxWidth: 1100,
-        marginHorizontal: isScreenNotMobile ? 'auto' : 0,
-        justifyContent: 'space-between',
-        flexDirection: isScreenNotMobile ? 'row' : 'column',
-        flex: 1,
-      },
-      mainContentWrapper: {
-        flex: isScreenNotMobile ? 2.2 : 1,
-        ...(isScreenNotMobile ? {
-          borderLeftWidth: 0.5,
-          borderRightWidth: 0.5,
-          borderColor: theme.colors.border,
-        } : {}),
-        backgroundColor: theme.colors.background,
-      },
-    }), [isScreenNotMobile, theme.colors]);
-
-    return (
-      <LayoutScrollProvider
-        contentContainerStyle={styles.container}
-        style={{ flex: 1 }}
-        scrollEventThrottle={16}
-      >
-        <SideBar />
-        <View style={styles.mainContent}>
-          <ThemedView style={styles.mainContentWrapper}>
-            <Slot />
-          </ThemedView>
-          <RightBar />
-        </View>
-      </LayoutScrollProvider>
-    );
-  }, [isScreenNotMobile]);
-
   // Inline bridge component rendered under OxyProvider to safely access useOxy
   const RealtimePostsBridge: React.FC = () => {
     useRealtimePosts();
@@ -340,19 +344,21 @@ export default function RootLayout() {
                   <BottomSheetProvider>
                     <MenuProvider>
                       <ErrorBoundary>
-                        {/* Shows bottom sheet permission prompt when needed (native only) */}
-                        {Platform.OS !== 'web' && <NotificationPermissionGate />}
-                        {/* Keep posts socket connected (mounted under OxyProvider) */}
-                        <RealtimePostsBridge />
-                        <MainLayout />
-                        <StatusBar style="auto" />
-                        <RegisterPush />
-                        <Toaster
-                          position="bottom-center"
-                          swipeToDismissDirection="left"
-                          offset={15}
-                        />
-                        {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                        <LayoutScrollProvider>
+                          {/* Shows bottom sheet permission prompt when needed (native only) */}
+                          {Platform.OS !== 'web' && <NotificationPermissionGate />}
+                          {/* Keep posts socket connected (mounted under OxyProvider) */}
+                          <RealtimePostsBridge />
+                          <MainLayout isScreenNotMobile={isScreenNotMobile} />
+                          <StatusBar style="auto" />
+                          <RegisterPush />
+                          <Toaster
+                            position="bottom-center"
+                            swipeToDismissDirection="left"
+                            offset={15}
+                          />
+                          {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                        </LayoutScrollProvider>
                       </ErrorBoundary>
                     </MenuProvider>
                   </BottomSheetProvider>

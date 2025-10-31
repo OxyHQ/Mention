@@ -1,7 +1,7 @@
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 // BlurView removed — not used after switching to image overlay approach
 import {
     Animated,
@@ -84,11 +84,12 @@ const MentionProfile: React.FC = () => {
     const loadForUser = useAppearanceStore((state) => state.loadForUser);
     const [profileData, setProfileData] = useState<ProfileData | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
-    const layoutScroll = useLayoutScroll();
-    // Always use the global scrollY from the app's LayoutScrollProvider so
-    // profile animations share the single source of truth and don't retain
-    // local scroll state between mounts.
-    const scrollY = layoutScroll.scrollY;
+    const {
+        scrollY,
+        createAnimatedScrollHandler,
+        scrollEventThrottle,
+        registerScrollable,
+    } = useLayoutScroll();
     const insets = useSafeAreaInsets();
     const { width } = useWindowDimensions();
     const isWideWeb = Platform.OS === 'web' && width >= BREAKPOINTS.mobile;
@@ -131,6 +132,66 @@ const MentionProfile: React.FC = () => {
                     activeTab === 3 ? 'likes' : 'reposts'
     ) as FeedType, [activeTab]);
     const loadingMoreRef = useRef(false);
+    const profileScrollRef = useRef<any>(null);
+    const unregisterScrollableRef = useRef<(() => void) | null>(null);
+    const clearProfileRegistration = useCallback(() => {
+        if (unregisterScrollableRef.current) {
+            unregisterScrollableRef.current();
+            unregisterScrollableRef.current = null;
+        }
+    }, []);
+    const assignProfileScrollRef = useCallback((node: any) => {
+        profileScrollRef.current = node;
+        clearProfileRegistration();
+        if (node) {
+            unregisterScrollableRef.current = registerScrollable(node);
+        }
+    }, [clearProfileRegistration, registerScrollable]);
+    const handleProfileScrollEvent = useCallback((event: any) => {
+        try {
+            const nativeEvent = event?.nativeEvent ?? {};
+            const contentOffset = nativeEvent.contentOffset ?? {};
+            const layoutMeasurement = nativeEvent.layoutMeasurement ?? {};
+            const contentSize = nativeEvent.contentSize ?? {};
+            const fallbackY = typeof nativeEvent.target?.scrollTop === 'number'
+                ? nativeEvent.target.scrollTop
+                : typeof event?.target?.scrollTop === 'number'
+                    ? event.target.scrollTop
+                    : 0;
+            const y = typeof contentOffset.y === 'number' ? contentOffset.y : fallbackY;
+            const viewH = layoutMeasurement?.height || 0;
+            const contentH = contentSize?.height || 0;
+            const distanceFromBottom = contentH - (y + viewH);
+            if (distanceFromBottom < 400) {
+                const uid = profileData?.id;
+                if (!uid || loadingMoreRef.current) return;
+                const state: any = (usePostsStore as any).getState?.();
+                if (!state) return;
+                const type = currentFeedType;
+                const slice = state?.userFeeds?.[uid]?.[type];
+                if (slice && slice.hasMore && !slice.isLoading) {
+                    loadingMoreRef.current = true;
+                    void (async () => {
+                        try {
+                            await state.fetchUserFeed(uid, { type, cursor: slice.nextCursor, limit: 20 });
+                        } finally {
+                            loadingMoreRef.current = false;
+                        }
+                    })();
+                }
+            }
+        } catch {
+            // ignore scroll read errors
+        }
+    }, [currentFeedType, profileData?.id]);
+    const onProfileScroll = useMemo(
+        () => createAnimatedScrollHandler(handleProfileScrollEvent),
+        [createAnimatedScrollHandler, handleProfileScrollEvent]
+    );
+
+    useEffect(() => () => {
+        clearProfileRegistration();
+    }, [clearProfileRegistration]);
 
     // Fetch profile data
     useEffect(() => {
@@ -500,39 +561,12 @@ const MentionProfile: React.FC = () => {
                     {/* Profile content + posts */}
                     {/* ScrollView with stickyHeaderIndices */}
                     <Animated.ScrollView
+                        ref={assignProfileScrollRef}
                         showsVerticalScrollIndicator={false}
-                        onScroll={Animated.event(
-                            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                            {
-                                useNativeDriver: false,
-                                listener: async (e: any) => {
-                                    try {
-                                        const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent || {};
-                                        const y = contentOffset?.y || 0;
-                                        const viewH = layoutMeasurement?.height || 0;
-                                        const contentH = contentSize?.height || 0;
-                                        const distanceFromBottom = contentH - (y + viewH);
-                                        if (distanceFromBottom < 400) {
-                                            const uid = profileData?.id;
-                                            if (!uid || loadingMoreRef.current) return;
-                                            const state: any = (usePostsStore as any).getState?.();
-                                            const type = currentFeedType;
-                                            const slice = state?.userFeeds?.[uid]?.[type];
-                                            if (slice && slice.hasMore && !slice.isLoading) {
-                                                loadingMoreRef.current = true;
-                                                try {
-                                                    await state.fetchUserFeed(uid, { type, cursor: slice.nextCursor, limit: 20 });
-                                                } finally {
-                                                    loadingMoreRef.current = false;
-                                                }
-                                            }
-                                        }
-                                    } catch { }
-                                }
-                            }
-                        )}
-                        scrollEventThrottle={16}
+                        onScroll={onProfileScroll}
+                        scrollEventThrottle={scrollEventThrottle}
                         style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
+                        dataSet={{ layoutscroll: 'true' }}
                         contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED - insets.top }}
                         stickyHeaderIndices={[1]}
                     >
