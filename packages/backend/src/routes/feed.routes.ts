@@ -3,10 +3,9 @@ import { feedController } from '../controllers/feed.controller';
 
 const router = Router();
 
-// Public routes
+// Public routes (accessible without authentication)
 router.get('/feed', feedController.getFeed.bind(feedController));
 router.get('/for-you', feedController.getForYouFeed.bind(feedController));
-router.get('/following', feedController.getFollowingFeed.bind(feedController));
 router.get('/explore', feedController.getExploreFeed.bind(feedController));
 router.get('/media', feedController.getMediaFeed.bind(feedController));
 router.get('/quotes', feedController.getQuotesFeed.bind(feedController));
@@ -23,7 +22,10 @@ router.get('/user/:userId', feedController.getUserProfileFeed.bind(feedControlle
 // Single feed item with full transformation
 router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 
-// Protected routes (authentication handled by server middleware)
+// Protected routes (require authentication)
+// Note: These routes should be on the authenticated router in server.ts
+// Keeping them here for organization, but they'll be protected by oxy.auth() middleware
+router.get('/following', feedController.getFollowingFeed.bind(feedController)); // Requires auth
 router.post('/reply', feedController.createReply.bind(feedController));
 router.post('/repost', feedController.createRepost.bind(feedController));
 router.delete('/:postId/repost', feedController.unrepostItem.bind(feedController));

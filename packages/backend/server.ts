@@ -385,11 +385,14 @@ publicApiRouter.use("/hashtags", hashtagsRoutes);
 // publicApiRouter.use("/polls", pollsRoutes);
 // Debug route removed for production
 
-// Feed routes with optional authentication (allow unauthenticated access)
+// Feed routes with optional authentication (allow unauthenticated access for GET routes)
+// POST/PUT/DELETE routes in feedRoutes require authentication
 publicApiRouter.use("/feed", optionalAuth, feedRoutes);
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
+// Note: The feed routes that require auth (like, save, repost, etc.) are in feedRoutes
+// They're protected by the oxy.auth() middleware applied to authenticatedApiRouter
 authenticatedApiRouter.use("/posts", postsRouter); // All post routes require authentication
 authenticatedApiRouter.use("/lists", listsRoutes);
 authenticatedApiRouter.use("/notifications", notificationsRouter);
@@ -421,7 +424,23 @@ mongoose.connect(process.env.MONGODB_URI || "", { autoIndex: true, autoCreate: t
 const db = mongoose.connection;
 db.on("error", (error) => { console.error("MongoDB connection error:", error); });
 db.once("open", () => { console.log("Connected to MongoDB successfully"); });
-db.once("open", () => { require("./src/models/Post"); require("./src/models/Block"); });
+db.once("open", () => { 
+  require("./src/models/Post"); 
+  require("./src/models/Block"); 
+  require("./src/models/UserBehavior"); // Load UserBehavior model
+});
+
+// --- Initialize Feed Services ---
+db.once("open", () => {
+  // Start feed job scheduler for background feed computation
+  try {
+    const { feedJobScheduler } = require("./src/services/FeedJobScheduler");
+    feedJobScheduler.start();
+    console.log("Feed job scheduler started");
+  } catch (error) {
+    console.warn("Failed to start feed job scheduler:", error);
+  }
+});
 
 // --- Server Listen ---
 const PORT = process.env.PORT || 3000;

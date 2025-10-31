@@ -18,6 +18,10 @@ import {
 import mongoose from 'mongoose';
 import { io } from '../../server';
 import { oxy as oxyClient } from '../../server';
+import { feedRankingService } from '../services/FeedRankingService';
+import { feedCacheService } from '../services/FeedCacheService';
+import { userPreferenceService } from '../services/UserPreferenceService';
+import UserBehavior from '../models/UserBehavior';
 
 interface AuthRequest extends Request {
   user?: {
@@ -1034,16 +1038,25 @@ class FeedController {
         return res.json(response);
       }
 
-      // Following for personalization (authenticated users only)
+      // Use advanced feed ranking service for authenticated users
+      // Get following list and user behavior for personalization
       let followingIds: string[] = [];
+      let userBehavior: any = null;
+      
       try {
         if (currentUserId) {
+          // Get following list
           const followingRes = await oxyClient.getUserFollowing(currentUserId);
           const followingUsers = (followingRes as any)?.following || [];
-          followingIds = followingUsers.map((u: any) => u.id).filter(Boolean);
+          followingIds = followingUsers.map((u: any) => 
+            typeof u === 'string' ? u : (u?.id || u?._id || u?.userId)
+          ).filter(Boolean);
+          
+          // Get user behavior for personalization
+          userBehavior = await UserBehavior.findOne({ oxyUserId: currentUserId }).lean();
         }
       } catch (e) {
-        console.error('ForYou: getUserFollowing failed; continuing without follow boost', e);
+        console.error('ForYou: Failed to load user data; continuing with basic ranking', e);
       }
 
       const match: any = {
@@ -1091,96 +1104,78 @@ class FeedController {
         console.log('📌 No cursor - first page request');
       }
 
-      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      // Get candidate posts (fetch more than needed for ranking)
+      const candidateLimit = Number(limit) * 3; // Get 3x posts for ranking/filtering
+      
+      // Apply cursor pagination to initial query if using simple cursor
+      if (cursorId && minFinalScore === undefined) {
+        match._id = { $lt: new mongoose.Types.ObjectId(cursorId) };
+      }
 
-      const posts = await Post.aggregate([
-        { $match: match },
-        // CRITICAL: Group by _id to ensure no duplicates from aggregation
-        // This is a defensive measure to prevent any potential duplicate documents
+      let candidatePosts = await Post.find(match)
+        .sort({ createdAt: -1 })
+        .limit(candidateLimit)
+        .lean();
+
+      // Use advanced ranking service to rank and sort posts
+      const rankedPosts = await feedRankingService.rankPosts(
+        candidatePosts,
+        currentUserId,
         {
-          $group: {
-            _id: '$_id',
-            doc: { $first: '$$ROOT' }
-          }
-        },
-        {
-          $replaceRoot: { newRoot: '$doc' }
-        },
-        {
-          $addFields: {
-            engagementScore: {
-              $add: [
-                { $ifNull: ['$stats.likesCount', 0] },
-                { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
-                { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
-              ]
-            },
-            followBoost: { $cond: [{ $in: ['$oxyUserId', followingIds] }, 1.5, 1] },
-            interactionBoost: {
-              $cond: [
-                { $or: [
-                  { $in: [currentUserId || '', '$metadata.likedBy'] },
-                  { $in: [currentUserId || '', '$metadata.savedBy'] }
-                ]}, 1.2, 1]
-            },
-            recencyBoost: {
-              $cond: [
-                { $gte: ['$createdAt', threeDaysAgo] }, 1.3,
-                { $cond: [ { $gte: ['$createdAt', sevenDaysAgo] }, 1.15, 1 ] }
-              ]
-            }
-          }
-        },
-        {
-          $addFields: {
-            finalScore: {
-              $multiply: ['$engagementScore', '$followBoost', '$interactionBoost', '$recencyBoost']
-            }
-          }
-        },
-        // Apply compound filtering to prevent duplicates when paginating
-        // CRITICAL: We must filter by BOTH finalScore and _id together to prevent duplicates
-        // For engagement-sorted feeds, we exclude posts that appeared on page 1:
-        //   - Posts with finalScore > lastPostScore (definitely appeared on page 1)
-        //   - Posts with finalScore = lastPostScore AND _id >= cursorId (appeared on page 1)
-        // We include only posts that haven't been shown:
-        //   - Posts with finalScore < lastPostScore (always include, no _id check needed), OR
-        //   - Posts with finalScore = lastPostScore AND _id < cursorId (include if lower _id)
-        // This ensures no posts appear on multiple pages
-        ...(minFinalScore !== undefined && cursorId ? [{
-          $match: {
-            $or: [
-              { finalScore: { $lt: minFinalScore } },
-              {
-                $and: [
-                  { finalScore: minFinalScore },
-                  { _id: { $lt: new mongoose.Types.ObjectId(cursorId) } }
-                ]
-              }
-            ]
-          }
-        }] : []),
-        { $sort: { finalScore: -1, _id: -1 } },
-        { $limit: Number(limit) + 1 }
-      ]);
+          followingIds,
+          userBehavior
+        }
+      );
+
+      // Apply compound cursor filtering if using advanced cursor
+      let posts = rankedPosts;
+      if (minFinalScore !== undefined && cursorId) {
+        // Filter by score and _id for compound cursor
+        const postsWithScores = await Promise.all(
+          rankedPosts.map(async (post) => {
+            const score = await feedRankingService.calculatePostScore(
+              post,
+              currentUserId,
+              { followingIds, userBehavior }
+            );
+            return { post, score };
+          })
+        );
+
+        // Filter out posts that appeared on previous page
+        posts = postsWithScores
+          .filter(({ post, score }) => {
+            const postId = post._id.toString();
+            // Include posts with lower score, or same score but lower _id
+            return score < minFinalScore! || 
+              (score === minFinalScore && postId < cursorId);
+          })
+          .map(item => item.post);
+
+        // Re-sort after filtering
+        posts = await feedRankingService.rankPosts(
+          posts,
+          currentUserId,
+          { followingIds, userBehavior }
+        );
+      }
 
       const hasMore = posts.length > Number(limit);
       const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
       
-      // Calculate cursor with last post's finalScore for proper pagination
-      // This ensures we exclude higher-scoring posts on subsequent pages
-      // We use the LAST post's score (not minimum) to ensure correct pagination
+      // Calculate cursor with last post's score for proper pagination
       let nextCursor: string | undefined;
       if (postsToReturn.length > 0) {
         const lastPost = postsToReturn[postsToReturn.length - 1];
-        const lastPostScore = typeof lastPost.finalScore === 'number' && !isNaN(lastPost.finalScore) 
-          ? lastPost.finalScore 
-          : 0;
         
-        // Encode as compound cursor (lastPostScore + _id) for engagement-based feeds
-        // This allows us to properly paginate engagement-sorted feeds
-        // The cursor represents: "show me posts with score < lastPostScore OR (score = lastPostScore AND _id < lastPost._id)"
+        // Calculate final score for last post
+        const lastPostScore = await feedRankingService.calculatePostScore(
+          lastPost,
+          currentUserId,
+          { followingIds, userBehavior }
+        );
+        
+        // Encode as compound cursor (score + _id) for engagement-based feeds
         const cursorData = {
           _id: lastPost._id.toString(),
           minScore: lastPostScore
@@ -1903,6 +1898,15 @@ class FeedController {
         $inc: { 'stats.repostsCount': 1 }
       });
 
+      // Record interaction for user preference learning
+      try {
+        await userPreferenceService.recordInteraction(currentUserId, originalPostId, 'repost');
+        // Invalidate cached feed for this user
+        await feedCacheService.invalidateUserCache(currentUserId);
+      } catch (error) {
+        console.warn('Failed to record interaction for preferences:', error);
+      }
+
       // Emit real-time update
       io.emit('post:reposted', {
         originalPostId,
@@ -1931,6 +1935,8 @@ class FeedController {
       const { postId, type } = req.body as LikeRequest;
       const currentUserId = req.user?.id;
 
+      console.log(`[Like] Like request received: userId=${currentUserId}, postId=${postId}`);
+
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
@@ -1948,6 +1954,14 @@ class FeedController {
       const alreadyLiked = existingPost.metadata?.likedBy?.includes(currentUserId);
       
       if (alreadyLiked) {
+        console.log(`[Like] Post ${postId} already liked by user ${currentUserId}`);
+        // Still record the interaction even if already liked (user expressed interest)
+        try {
+          await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
+          console.log(`[Like] Recorded interaction for already-liked post`);
+        } catch (error) {
+          console.warn(`[Like] Failed to record interaction for already-liked post:`, error);
+        }
         return res.json({ 
           success: true, 
           liked: true,
@@ -1955,6 +1969,8 @@ class FeedController {
           message: 'Already liked'
         });
       }
+
+      console.log(`[Like] User ${currentUserId} liking post ${postId} (not already liked)`);
 
       // Update post like count and add user to likedBy array
       const updateResult = await Post.findByIdAndUpdate(
@@ -1965,6 +1981,19 @@ class FeedController {
         },
         { new: true }
       );
+
+      // Record interaction for user preference learning
+      console.log(`[Like] Recording interaction for user ${currentUserId}, post ${postId}`);
+      try {
+        await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
+        console.log(`[Like] Successfully recorded interaction`);
+        // Invalidate cached feed for this user
+        await feedCacheService.invalidateUserCache(currentUserId);
+      } catch (error) {
+        console.error(`[Like] Failed to record interaction for preferences:`, error);
+        console.error(`[Like] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+        // Don't fail the request if preference tracking fails, but log the error
+      }
 
       // Emit real-time update
       io.emit('post:liked', {
@@ -2030,6 +2059,13 @@ class FeedController {
         },
         { new: true }
       );
+
+      // Invalidate cached feed for this user
+      try {
+        await feedCacheService.invalidateUserCache(currentUserId);
+      } catch (error) {
+        console.warn('Failed to invalidate cache:', error);
+      }
 
       // Emit real-time update
       io.emit('post:unliked', {
@@ -2116,7 +2152,7 @@ class FeedController {
       const { postId } = req.params;
       const currentUserId = req.user?.id;
 
-      console.log('💾 Save endpoint called:', { postId, currentUserId, user: req.user });
+      console.log(`[Save] Save request received: userId=${currentUserId}, postId=${postId}`);
 
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -2135,6 +2171,14 @@ class FeedController {
       const alreadySaved = existingPost.metadata?.savedBy?.includes(currentUserId);
       
       if (alreadySaved) {
+        console.log(`[Save] Post ${postId} already saved by user ${currentUserId}`);
+        // Still record the interaction even if already saved (user expressed interest)
+        try {
+          await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
+          console.log(`[Save] Recorded interaction for already-saved post`);
+        } catch (error) {
+          console.warn(`[Save] Failed to record interaction for already-saved post:`, error);
+        }
         return res.json({ 
           success: true, 
           saved: true,
@@ -2150,6 +2194,18 @@ class FeedController {
         },
         { new: true }
       );
+
+      // Record interaction for user preference learning
+      console.log(`[Save] Recording interaction for user ${currentUserId}, post ${postId}`);
+      try {
+        await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
+        console.log(`[Save] Successfully recorded interaction`);
+        // Invalidate cached feed for this user
+        await feedCacheService.invalidateUserCache(currentUserId);
+      } catch (error) {
+        console.error(`[Save] Failed to record interaction for preferences:`, error);
+        console.error(`[Save] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      }
 
       // Emit real-time update
       io.emit('post:saved', {

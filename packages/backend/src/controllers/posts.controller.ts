@@ -10,6 +10,8 @@ import { createNotification, createMentionNotifications, createBatchNotification
 import PostSubscription from '../models/PostSubscription';
 import { PostVisibility } from '@mention/shared-types';
 import { feedController } from './feed.controller';
+import { userPreferenceService } from '../services/UserPreferenceService';
+import { feedCacheService } from '../services/FeedCacheService';
 
 // Create a new post
 export const createPost = async (req: AuthRequest, res: Response) => {
@@ -745,16 +747,30 @@ export const likePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id;
 
+    console.log(`[Posts Controller] Like request received: userId=${userId}, postId=${postId}`);
+
     // Check if already liked
     const existingLike = await Like.findOne({ userId, postId });
     if (existingLike) {
+      console.log(`[Posts Controller] Post ${postId} already liked by user ${userId}`);
       const currentPost = await Post.findById(postId).select('stats.likesCount metadata.likedBy').lean();
+      
+      // Still record the interaction even if already liked (user expressed interest)
+      try {
+        await userPreferenceService.recordInteraction(userId, postId, 'like');
+        console.log(`[Posts Controller] Recorded interaction for already-liked post`);
+      } catch (error) {
+        console.warn(`[Posts Controller] Failed to record interaction for already-liked post:`, error);
+      }
+      
       return res.json({ 
         message: 'Post already liked',
         likesCount: currentPost?.stats?.likesCount ?? 0,
         liked: true
       });
     }
+
+    console.log(`[Posts Controller] User ${userId} liking post ${postId} (not already liked)`);
 
     // Create like record (legacy tracking)
     await Like.create({ userId, postId });
@@ -768,6 +784,19 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       },
       { new: true }
     ).lean();
+
+    // Record interaction for user preference learning
+    console.log(`[Posts Controller] Recording interaction for user ${userId}, post ${postId}`);
+    try {
+      await userPreferenceService.recordInteraction(userId, postId, 'like');
+      console.log(`[Posts Controller] Successfully recorded interaction`);
+      // Invalidate cached feed for this user
+      await feedCacheService.invalidateUserCache(userId);
+    } catch (error) {
+      console.error(`[Posts Controller] Failed to record interaction for preferences:`, error);
+      console.error(`[Posts Controller] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      // Don't fail the request if preference tracking fails, but log the error
+    }
 
     // Create like notification to the post author
     try {
@@ -829,6 +858,13 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
       { new: true }
     ).lean();
 
+    // Invalidate cached feed for this user
+    try {
+      await feedCacheService.invalidateUserCache(userId);
+    } catch (error) {
+      console.warn(`[Posts Controller] Failed to invalidate cache:`, error);
+    }
+
     let likesCount = updatedPost?.stats?.likesCount ?? 0;
     if (likesCount < 0) {
       likesCount = 0;
@@ -856,21 +892,56 @@ export const savePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id;
 
+    console.log(`[Posts Controller] Save request received: userId=${userId}, postId=${postId}`);
+
     // Check if already saved
     const existingSave = await Bookmark.findOne({ userId, postId });
     if (existingSave) {
+      console.log(`[Posts Controller] Post ${postId} already saved by user ${userId}`);
+      
+      // Still record the interaction even if already saved (user expressed interest)
+      try {
+        await userPreferenceService.recordInteraction(userId, postId, 'save');
+        console.log(`[Posts Controller] Recorded interaction for already-saved post`);
+      } catch (error) {
+        console.warn(`[Posts Controller] Failed to record interaction for already-saved post:`, error);
+      }
+      
       return res.json({ message: 'Post already saved' });
     }
 
+    console.log(`[Posts Controller] User ${userId} saving post ${postId} (not already saved)`);
+
     // Create save record
     await Bookmark.create({ userId, postId });
+
+    // Also update post metadata.savedBy for consistency
+    await Post.findByIdAndUpdate(
+      postId,
+      {
+        $addToSet: { 'metadata.savedBy': userId }
+      }
+    );
+
+    // Record interaction for user preference learning
+    console.log(`[Posts Controller] Recording interaction for user ${userId}, post ${postId}`);
+    try {
+      await userPreferenceService.recordInteraction(userId, postId, 'save');
+      console.log(`[Posts Controller] Successfully recorded interaction`);
+      // Invalidate cached feed for this user
+      await feedCacheService.invalidateUserCache(userId);
+    } catch (error) {
+      console.error(`[Posts Controller] Failed to record interaction for preferences:`, error);
+      console.error(`[Posts Controller] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      // Don't fail the request if preference tracking fails, but log the error
+    }
 
     res.json({ message: 'Post saved successfully' });
   } catch (error) {
     console.error('Error saving post:', error);
     res.status(500).json({ message: 'Error saving post', error });
   }
- };
+};
 
 // Unsave post
 export const unsavePost = async (req: AuthRequest, res: Response) => {
@@ -886,6 +957,21 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
     const result = await Bookmark.deleteOne({ userId, postId });
     if (result.deletedCount === 0) {
       return res.json({ message: 'Post not saved' });
+    }
+
+    // Also update post metadata.savedBy for consistency
+    await Post.findByIdAndUpdate(
+      postId,
+      {
+        $pull: { 'metadata.savedBy': userId }
+      }
+    );
+
+    // Invalidate cached feed for this user
+    try {
+      await feedCacheService.invalidateUserCache(userId);
+    } catch (error) {
+      console.warn(`[Posts Controller] Failed to invalidate cache:`, error);
     }
 
     res.json({ message: 'Post unsaved successfully' });
@@ -916,6 +1002,16 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
 
     await repost.save();
     await repost.populate('userID', 'username name avatar verified');
+
+    // Record interaction for user preference learning
+    try {
+      await userPreferenceService.recordInteraction(userId, req.params.id, 'repost');
+      console.log(`[Posts Controller] Successfully recorded repost interaction`);
+      // Invalidate cached feed for this user
+      await feedCacheService.invalidateUserCache(userId);
+    } catch (error) {
+      console.warn(`[Posts Controller] Failed to record repost interaction:`, error);
+    }
 
     // Notify original author about repost
     try {
