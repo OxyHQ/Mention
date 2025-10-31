@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
+import Bookmark from '../models/Bookmark';
 import { 
   FeedRequest, 
   CreateReplyRequest, 
@@ -417,7 +418,15 @@ class FeedController {
 
         // Replace mention placeholders in post content text
         const contentText = postObj.content?.text || '';
-        const replacedText = await this.replaceMentionPlaceholders(contentText, postObj.mentions || []);
+        const mentionsArray = postObj.mentions || [];
+        if (mentionsArray.length > 0 && contentText.includes('[mention:')) {
+          console.log(`[Feed Transform] Processing mentions for post ${postId}:`, mentionsArray);
+          console.log(`[Feed Transform] Content before:`, contentText.substring(0, 100));
+        }
+        const replacedText = await this.replaceMentionPlaceholders(contentText, mentionsArray);
+        if (mentionsArray.length > 0 && contentText.includes('[mention:') && replacedText !== contentText) {
+          console.log(`[Feed Transform] Content after:`, replacedText.substring(0, 100));
+        }
 
         // Return post in standard Post schema format
         const transformedPost = {
@@ -667,8 +676,37 @@ class FeedController {
   async getFeed(req: AuthRequest, res: Response) {
     try {
       const { type = 'mixed', cursor, limit = 20 } = req.query as any;
-      let { filters } = req.query as any;
+      let filters: any = req.query.filters as any;
       const currentUserId = req.user?.id;
+
+      // Parse filters - Express should parse filters[searchQuery]=value automatically
+      // But handle cases where it might be a string or need manual parsing
+      if (typeof filters === 'string') {
+        try {
+          filters = JSON.parse(filters);
+        } catch (e) {
+          console.warn('Failed to parse filters JSON:', e);
+          filters = {};
+        }
+      }
+      
+      // If filters is not an object, try to parse from query params with filters[] prefix
+      if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
+        filters = {};
+        // Extract all query params that start with 'filters['
+        Object.keys(req.query).forEach(key => {
+          if (key.startsWith('filters[') && key.endsWith(']')) {
+            const filterKey = key.slice(8, -1); // Remove 'filters[' and ']'
+            filters[filterKey] = (req.query as any)[key];
+          }
+        });
+      }
+      
+      // Debug logging for saved posts
+      if (type === 'saved') {
+        console.log('[Saved Feed] Raw query params:', JSON.stringify(req.query, null, 2));
+        console.log('[Saved Feed] Parsed filters:', JSON.stringify(filters, null, 2));
+      }
 
       // Handle customFeedId filter - expand to custom feed configuration
       try {
@@ -750,12 +788,93 @@ class FeedController {
         console.warn('Optional listIds expansion failed:', e?.message || e);
       }
 
-      // Build query
-      const query = this.buildFeedQuery(type, filters, currentUserId);
+      // Handle saved posts type
+      let savedPostIds: mongoose.Types.ObjectId[] = [];
+      if (type === 'saved') {
+        if (!currentUserId) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
+        // Get saved post IDs for the user
+        const savedPosts = await Bookmark.find({ userId: currentUserId })
+          .sort({ createdAt: -1 })
+          .lean();
+        savedPostIds = savedPosts.map(saved => {
+          try {
+            return saved.postId instanceof mongoose.Types.ObjectId 
+              ? saved.postId 
+              : new mongoose.Types.ObjectId(saved.postId);
+          } catch (e) {
+            console.error('Invalid postId in bookmark:', saved.postId, e);
+            return null;
+          }
+        }).filter((id): id is mongoose.Types.ObjectId => id !== null);
+        
+        console.log(`[Saved Feed] Found ${savedPostIds.length} saved posts for user ${currentUserId}`);
+        
+        if (savedPostIds.length === 0) {
+          return res.json({
+            items: [],
+            hasMore: false,
+            nextCursor: undefined,
+            totalCount: 0
+          });
+        }
+      }
 
-      // Add cursor-based pagination
+      // Build query
+      let query: any;
+      if (type === 'saved' && savedPostIds.length > 0) {
+        // For saved posts, use a simple query that only filters by saved post IDs
+        // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
+        query = {
+          _id: { $in: savedPostIds }
+        };
+        
+        // Apply search query filter if provided
+        if (filters?.searchQuery) {
+          const searchQuery = String(filters.searchQuery).trim();
+          console.log(`[Saved Feed] Applying search filter: "${searchQuery}"`);
+          if (searchQuery) {
+            // Use MongoDB $regex for partial text matching (case-insensitive)
+            // Escape special regex characters but allow partial matching
+            const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query['content.text'] = {
+              $regex: escapedQuery,
+              $options: 'i' // case-insensitive
+            };
+          }
+        }
+        
+        console.log(`[Saved Feed] Final query:`, JSON.stringify(query, null, 2));
+      } else {
+        query = this.buildFeedQuery(type, filters, currentUserId);
+      }
+
+      // Add cursor-based pagination (handle conflict with saved posts _id filter)
       if (cursor) {
-        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+        if (type === 'saved' && savedPostIds.length > 0) {
+          // For saved posts with cursor, filter savedPostIds to only include those before cursor
+          const cursorId = new mongoose.Types.ObjectId(cursor);
+          const filteredSavedIds = savedPostIds.filter(id => id < cursorId);
+          if (filteredSavedIds.length === 0) {
+            return res.json({
+              items: [],
+              hasMore: false,
+              nextCursor: undefined,
+              totalCount: 0
+            });
+          }
+          // Preserve search query and other filters if they exist
+          const searchQuery = query['content.text'];
+          query = {
+            _id: { $in: filteredSavedIds }
+          };
+          if (searchQuery) {
+            query['content.text'] = searchQuery;
+          }
+        } else {
+          query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+        }
       }
 
       // For unauthenticated users, return popular posts sorted by engagement
@@ -781,21 +900,51 @@ class FeedController {
         ]);
       } else {
         // Authenticated users get chronological feed
-        posts = await Post.find(query)
-          .sort({ createdAt: -1 })
-          .limit(limit + 1)
-          .lean();
+        // For saved posts, sort by bookmark creation date (when saved), not post creation date
+        if (type === 'saved' && savedPostIds.length > 0) {
+          console.log(`[Saved Feed] Query:`, JSON.stringify(query, null, 2));
+          posts = await Post.find(query)
+            .sort({ createdAt: -1 })
+            .limit(limit + 1)
+            .lean();
+          console.log(`[Saved Feed] Found ${posts.length} posts matching query`);
+          // Log mentions for debugging
+          if (posts.length > 0) {
+            const samplePost = posts[0];
+            console.log(`[Saved Feed] Sample post mentions:`, samplePost?.mentions);
+            console.log(`[Saved Feed] Sample post content.text:`, samplePost?.content?.text?.substring(0, 100));
+          }
+        } else {
+          posts = await Post.find(query)
+            .sort({ createdAt: -1 })
+            .limit(limit + 1)
+            .lean();
+        }
       }
-
-      // Post structure logging removed for production
 
       // Check if there are more posts
       const hasMore = posts.length > limit;
       const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
       const nextCursor = hasMore ? posts[limit - 1]._id.toString() : undefined;
 
+      if (type === 'saved') {
+        console.log(`[Saved Feed] Returning ${postsToReturn.length} posts, hasMore: ${hasMore}`);
+      }
+
       // Transform posts with user data
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+      
+      // For saved posts, mark all posts as saved
+      if (type === 'saved') {
+        transformedPosts.forEach((post: any) => {
+          post.isSaved = true;
+          if (post.metadata) {
+            post.metadata.isSaved = true;
+          } else {
+            post.metadata = { isSaved: true };
+          }
+        });
+      }
 
       // Emit real-time update to connected clients
       if (postsToReturn.length > 0) {

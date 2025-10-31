@@ -1,25 +1,33 @@
 import express, { Request, Response } from "express";
 import Post from "../models/Post";
 import { logger } from '../utils/logger';
+import { feedController } from '../controllers/feed.controller';
+import { AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const { query, type = "all" } = req.query;
     const searchQuery = { $regex: query as string, $options: "i" };
+    const currentUserId = req.user?.id;
     
     const results: any = { posts: [] };
 
     if (type === "all" || type === "posts") {
-      results.posts = await Post.find({ 
+      const posts = await Post.find({ 
         $or: [
-          { text: searchQuery },
+          { 'content.text': searchQuery },
           { hashtags: searchQuery }
         ]
       })
-      .sort({ created_at: -1 })
-      .limit(10);
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+      // Transform posts with user profiles and mention transformation
+      const transformedPosts = await (feedController as any).transformPostsWithProfiles(posts, currentUserId);
+      results.posts = transformedPosts;
     }
 
     res.json(results);

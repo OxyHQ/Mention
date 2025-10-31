@@ -247,20 +247,24 @@ export const usePostsStore = create<FeedState>()(
         return;
       }
       
+      // Check if filters changed - if so, clear old items before fetching
+      const filtersChanged = !request.cursor && currentFeed?.items && currentFeed.items.length > 0 &&
+        JSON.stringify(request.filters || {}) !== JSON.stringify(currentFeed.filters || {});
+      
       // Only skip if we have items AND no cursor AND no filters change
       // This prevents stale data when switching between feed types
-      if (!request.cursor && currentFeed?.items && currentFeed.items.length > 0) {
-        // Check if filters changed - if so, force refresh
-        const filtersChanged = JSON.stringify(request.filters || {}) !== JSON.stringify(currentFeed.filters || {});
-        if (!filtersChanged) {
-          return;
-        }
+      if (!request.cursor && currentFeed?.items && currentFeed.items.length > 0 && !filtersChanged) {
+        return;
       }
+      
+      // If filters changed, clear old items to show new filtered results
+      // Clear items immediately so UI doesn't show stale data
       set(state => ({
         feeds: {
           ...state.feeds,
           [type]: {
             ...state.feeds[type],
+            items: filtersChanged ? [] : state.feeds[type]?.items || [], // Clear items when filters change
             isLoading: true,
             error: null
           }
@@ -270,9 +274,20 @@ export const usePostsStore = create<FeedState>()(
       try {
         const response = await feedService.getFeed(request);
         
+        console.log(`[Store] fetchFeed response for type="${type}":`, {
+          itemsCount: response.items?.length || 0,
+          hasMore: response.hasMore,
+          filters: request.filters
+        });
+        
         set(state => {
           const items = response.items?.map(item => transformToUIItem(item)) || [];
           const uniqueItems = deduplicateItems(items);
+          
+          console.log(`[Store] After transform for type="${type}":`, {
+            itemsCount: items.length,
+            uniqueItemsCount: uniqueItems.length
+          });
           
           try { useUsersStore.getState().primeFromPosts(uniqueItems as any); } catch {}
           const newCache = { ...state.postsById };
@@ -284,19 +299,26 @@ export const usePostsStore = create<FeedState>()(
             }
           });
           
+          // When filters change, replace items completely (don't merge with old items)
+          const filtersChanged = JSON.stringify(request.filters || {}) !== JSON.stringify(state.feeds[type]?.filters || {});
+          
+          const updatedFeed = {
+            items: uniqueItems, // Always replace items when fetching (filters may have changed)
+            hasMore: response.hasMore || false,
+            nextCursor: response.nextCursor,
+            totalCount: uniqueItems.length,
+            isLoading: false,
+            error: null,
+            lastUpdated: Date.now(),
+            filters: request.filters // Store filters to detect changes
+          };
+          
+          console.log(`[Store] Updating feed type="${type}" with ${uniqueItems.length} items`);
+          
           return ({
             feeds: {
               ...state.feeds,
-              [type]: {
-                items: uniqueItems,
-                hasMore: response.hasMore || false,
-                nextCursor: response.nextCursor,
-                totalCount: uniqueItems.length,
-                isLoading: false,
-                error: null,
-                lastUpdated: Date.now(),
-                filters: request.filters // Store filters to detect changes
-              }
+              [type]: updatedFeed
             },
             postsById: newCache,
             lastRefresh: Date.now()

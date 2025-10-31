@@ -61,7 +61,9 @@ class FeedService {
    */
   async getFeed(request: FeedRequest): Promise<FeedResponse> {
     try {
-      const params: any = {};
+      const params: any = {
+        type: request.type // Always include type in params
+      };
       
       if (request.cursor) params.cursor = request.cursor;
       if (request.limit) params.limit = request.limit;
@@ -117,6 +119,10 @@ class FeedService {
           break;
         case 'posts':
           endpoint = '/feed/posts';
+          break;
+        case 'saved':
+          endpoint = '/feed/feed'; // Use main feed endpoint with type='saved'
+          // type is already set in params above
           break;
         case 'explore':
           endpoint = '/feed/explore';
@@ -359,13 +365,19 @@ class FeedService {
   /**
    * Get saved posts for current user
    */
-  async getSavedPosts(request: { page?: number; limit?: number } = {}): Promise<{ success: boolean; data: any }> {
+  async getSavedPosts(request: { page?: number; limit?: number; search?: string } = {}): Promise<{ success: boolean; data: any }> {
     try {
+      const params: any = {
+        page: request.page || 1,
+        limit: request.limit || 20
+      };
+      
+      if (request.search) {
+        params.search = request.search;
+      }
+      
       const response = await authenticatedClient.get('/posts/saved', {
-        params: {
-          page: request.page || 1,
-          limit: request.limit || 20
-        }
+        params
       });
       return { success: true, data: response.data };
     } catch (error) {

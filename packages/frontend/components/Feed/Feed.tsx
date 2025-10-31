@@ -94,7 +94,8 @@ const Feed = (props: FeedProps) => {
     const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent } = useLayoutScroll();
 
     // When filters are provided, scope the feed locally to avoid clashes
-    const useScoped = !!(filters && Object.keys(filters || {}).length);
+    // Exception: don't use scoped for saved posts - they use global feed state
+    const useScoped = !!(filters && Object.keys(filters || {}).length) && !showOnlySaved;
 
     // Local state for scoped (filtered) feeds
     const [localItems, setLocalItems] = useState<any[]>([]);
@@ -107,24 +108,26 @@ const Feed = (props: FeedProps) => {
     const globalFeed = useFeedSelector(effectiveType);
     const userFeed = useUserFeedSelector(userId || '', effectiveType);
     const feedData = showOnlySaved ? globalFeed : (userId ? userFeed : globalFeed);
+    
+    console.log(`[Feed] feedData for effectiveType="${effectiveType}":`, {
+        itemsCount: feedData?.items?.length || 0,
+        isLoading: feedData?.isLoading,
+        filters: feedData?.filters,
+        lastUpdated: feedData?.lastUpdated
+    });
+    
     const isLoading = useScoped ? localLoading : !!feedData?.isLoading;
     const error = useScoped ? localError : feedData?.error;
     const hasMore = useScoped ? localHasMore : !!feedData?.hasMore;
 
-    const filteredFeedData = useMemo(() => showOnlySaved
-        ? {
-            ...feedData,
-            items: feedData?.items?.filter(item => {
-                return item.isSaved === true;
-            }) || []
-        }
-        : feedData, [showOnlySaved, feedData]);
+    // For saved posts, backend already returns only saved posts with isSaved: true
+    // No need to filter on frontend - just use feedData directly
+    const filteredFeedData = feedData;
 
 
     const {
         fetchFeed,
         fetchUserFeed,
-        fetchSavedPosts,
         refreshFeed,
         loadMoreFeed,
         clearError
@@ -168,21 +171,41 @@ const Feed = (props: FeedProps) => {
     const previousReloadKeyRef = useRef<string | number | undefined>(undefined);
 
     const fetchInitialFeed = useCallback(async (forceRefresh: boolean = false) => {
-        if (isFetchingRef.current) return;
-        if (isAuthenticated && !currentUser?.id) return;
+        if (isFetchingRef.current) {
+            console.log('[Feed] fetchInitialFeed: Already fetching, skipping');
+            return;
+        }
+        if (isAuthenticated && !currentUser?.id) {
+            console.log('[Feed] fetchInitialFeed: Not authenticated, skipping');
+            return;
+        }
 
         // Check if feed already has items in the store
-        const currentFeed = !useScoped ? usePostsStore.getState().feeds[type] : null;
+        const feedTypeToCheck = showOnlySaved ? 'saved' : type;
+        const currentFeed = !useScoped ? usePostsStore.getState().feeds[feedTypeToCheck] : null;
         const hasItems = currentFeed?.items && currentFeed.items.length > 0;
+        
+        console.log('[Feed] fetchInitialFeed:', {
+            forceRefresh,
+            showOnlySaved,
+            feedTypeToCheck,
+            hasItems,
+            filters: filters
+        });
         
         // CRITICAL: Only fetch if:
         // 1. Force refresh (reloadKey changed - user pressed same tab)
         // 2. Feed doesn't have items (first time loading)
+        // 3. Filters changed (for saved posts with search)
         // DO NOT fetch if just switching tabs and feed already has items
-        if (!useScoped && hasItems && !forceRefresh) {
+        // For saved posts, always fetch to support search filtering
+        if (!useScoped && hasItems && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
             // Feed already loaded and user is just switching tabs - don't reload
+            console.log('[Feed] fetchInitialFeed: Skipping - feed has items and not saved');
             return;
         }
+        
+        // For saved posts, always proceed to fetch (even if items exist) to support search filtering
         
         const shouldRefresh = forceRefresh;
 
@@ -196,7 +219,10 @@ const Feed = (props: FeedProps) => {
             }
 
             if (showOnlySaved) {
-                await fetchSavedPosts({ page: 1, limit: 50 });
+                // Use feed endpoint with type='saved' and searchQuery filter
+                // Always fetch saved posts to ensure fresh data and search filtering
+                console.log('[Feed] fetchInitialFeed: Fetching saved posts with filters:', filters || {});
+                await fetchFeed({ type: 'saved', limit: 50, filters: filters || {} });
                 return;
             }
 
@@ -240,7 +266,7 @@ const Feed = (props: FeedProps) => {
             if (useScoped) setLocalLoading(false);
             isFetchingRef.current = false;
         }
-    }, [type, userId, showOnlySaved, useScoped, filters, filtersKey, reloadKey, isAuthenticated, currentUser?.id, fetchFeed, fetchUserFeed, fetchSavedPosts, refreshFeed, clearError, itemKey]);
+    }, [type, userId, showOnlySaved, useScoped, filters, filtersKey, reloadKey, isAuthenticated, currentUser?.id, fetchFeed, fetchUserFeed, refreshFeed, clearError, itemKey]);
 
     // Track reloadKey changes separately from type changes
     useEffect(() => {
@@ -255,26 +281,38 @@ const Feed = (props: FeedProps) => {
 
     // Handle initial load and type/filter changes
     useEffect(() => {
+        console.log('[Feed] useEffect triggered:', {
+            filtersKey,
+            showOnlySaved,
+            filters: filters
+        });
+        
         // Skip if reloadKey just changed (handled by above effect)
         const reloadKeyChanged = previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         if (reloadKeyChanged) {
+            console.log('[Feed] useEffect: Skipping - reloadKey changed');
             return; // Let the reloadKey effect handle it
         }
         
-        // Check if feed already has items
-        if (!useScoped) {
-            const currentFeed = usePostsStore.getState().feeds[type];
+        // For saved posts, always fetch when filters change (search query)
+        // For other feeds, check if feed already has items
+        if (!useScoped && !showOnlySaved) {
+            const feedTypeToCheck = type;
+            const currentFeed = usePostsStore.getState().feeds[feedTypeToCheck];
             const hasItems = currentFeed?.items && currentFeed.items.length > 0;
             
-            // If feed has items, skip fetching (just switching tabs)
-            if (hasItems) {
+            // If feed has items and no filters/search, skip fetching (just switching tabs)
+            if (hasItems && !filters?.searchQuery) {
+                console.log('[Feed] useEffect: Skipping - feed has items and no search query');
                 return;
             }
         }
         
-        // Feed doesn't have items yet, fetch it (first time loading)
+        // Feed doesn't have items yet or filters changed, fetch it
+        // For saved posts, always fetch to support search filtering
+        console.log('[Feed] useEffect: Calling fetchInitialFeed');
         fetchInitialFeed(false);
-    }, [type, filtersKey, fetchInitialFeed, useScoped, reloadKey]);
+    }, [type, filtersKey, fetchInitialFeed, useScoped, reloadKey, showOnlySaved, filters]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -284,7 +322,8 @@ const Feed = (props: FeedProps) => {
             }
 
             if (showOnlySaved) {
-                await fetchSavedPosts({ page: 1, limit: 50 });
+                // Use feed endpoint with type='saved' and searchQuery filter
+                await refreshFeed('saved', filters);
             } else if (useScoped) {
                 try {
                     setLocalError(null);
@@ -312,10 +351,14 @@ const Feed = (props: FeedProps) => {
         } finally {
             setRefreshing(false);
         }
-    }, [type, effectiveType, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts, filters, useScoped, clearError]);
+    }, [type, effectiveType, userId, showOnlySaved, refreshFeed, fetchUserFeed, filters, useScoped, clearError]);
 
     const handleLoadMore = useCallback(async () => {
-        if (showOnlySaved) return;
+        if (showOnlySaved) {
+            // Use feed endpoint for loading more saved posts
+            await loadMoreFeed('saved', filters);
+            return;
+        }
         if (!hasMore || isLoading || isLoadingMore) return;
 
         setIsLoadingMore(true);
@@ -397,6 +440,16 @@ const Feed = (props: FeedProps) => {
 
     const displayItems = useMemo(() => {
         const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
+        
+        console.log(`[Feed] displayItems:`, {
+            useScoped,
+            showOnlySaved,
+            effectiveType,
+            filteredFeedDataItemsCount: filteredFeedData?.items?.length || 0,
+            srcLength: src.length,
+            filters: filters
+        });
+        
         if (src.length === 0) return [];
 
         const seen = new Map<string, any>();
@@ -436,7 +489,7 @@ const Feed = (props: FeedProps) => {
             }
         }
 
-        return deduped;
+        return Array.from(seen.values());
     }, [useScoped, localItems, filteredFeedData?.items, effectiveType, currentUser?.id, itemKey]);
 
     const renderEmptyState = useCallback(() => {
@@ -456,7 +509,7 @@ const Feed = (props: FeedProps) => {
                             if (useScoped) setLocalError(null);
                             try {
                                 if (showOnlySaved) {
-                                    await fetchSavedPosts({ page: 1, limit: 50 });
+                                    await fetchFeed({ type: 'saved', limit: 50, filters: filters || {} });
                                 } else if (userId) {
                                     await fetchUserFeed(userId, { type, limit: 20, filters });
                                 } else {
@@ -493,7 +546,7 @@ const Feed = (props: FeedProps) => {
                 </Text>
             </View>
         );
-    }, [isLoading, error, localError, useScoped, type, effectiveType, userId, clearError, fetchFeed, fetchUserFeed, fetchSavedPosts, showOnlySaved, displayItems.length, filters, theme]);
+    }, [isLoading, error, localError, useScoped, type, effectiveType, userId, clearError, fetchFeed, fetchUserFeed, showOnlySaved, displayItems.length, filters, theme]);
 
     const renderFooter = useCallback(() => {
         if (showOnlySaved || !hasMore || !isLoadingMore) return null;

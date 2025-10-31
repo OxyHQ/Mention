@@ -9,6 +9,7 @@ import { oxy as oxyClient } from '../../server';
 import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
 import { PostVisibility } from '@mention/shared-types';
+import { feedController } from './feed.controller';
 
 // Create a new post
 export const createPost = async (req: AuthRequest, res: Response) => {
@@ -994,141 +995,60 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
+    const searchQuery = req.query.search as string;
 
     // Get saved post IDs for the user
     const savedPosts = await Bookmark.find({ userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const postIds = savedPosts.map(saved => saved.postId);
+
+    // Build query for posts
+    // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
+    const postQuery: any = {
+      _id: { $in: postIds }
+    };
+
+    // Add search filter if provided
+    if (searchQuery && searchQuery.trim()) {
+      const trimmedQuery = searchQuery.trim();
+      console.log(`[Saved Posts] Applying search filter: "${trimmedQuery}"`);
+      // Use MongoDB $regex for partial text matching (case-insensitive)
+      // Escape special regex characters but allow partial matching
+      const escapedQuery = trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      postQuery['content.text'] = {
+        $regex: escapedQuery,
+        $options: 'i' // case-insensitive
+      };
+      console.log(`[Saved Posts] Final query:`, JSON.stringify(postQuery, null, 2));
+    }
+
+    // Get the actual posts
+    const posts = await Post.find(postQuery)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean();
 
-    const postIds = savedPosts.map(saved => saved.postId);
-
-    // Get the actual posts
-    const posts = await Post.find({ 
-      _id: { $in: postIds },
-      visibility: 'public' 
-    })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    let likedPostSet = new Set<string>();
-    if (userId) {
-      try {
-        const likesForSaved = await Like.find({
-          userId,
-          postId: { $in: postIds }
-        }).select('postId').lean();
-        likedPostSet = new Set(
-          likesForSaved
-            .map((like: any) => like.postId?.toString?.())
-            .filter(Boolean) as string[]
-        );
-      } catch (e) {
-        console.error('Error fetching like status for saved posts:', e);
+    // Use feed controller's transformPostsWithProfiles to ensure mentions are transformed
+    // This handles user profiles, engagement stats, like status, and mention transformation
+    // This matches the transformation used in the feed endpoint
+    const transformedPosts = await (feedController as any).transformPostsWithProfiles(posts, userId);
+    
+    // Ensure all posts are marked as saved
+    transformedPosts.forEach((post: any) => {
+      post.isSaved = true;
+      if (post.metadata) {
+        post.metadata.isSaved = true;
+      } else {
+        post.metadata = { isSaved: true };
       }
-    }
-
-    if (userId && likedPostSet.size) {
-      const postsNeedingMetadataSync = posts
-        .filter((post: any) => {
-          if (!likedPostSet.has(post._id.toString())) return false;
-          const likedBy = Array.isArray(post.metadata?.likedBy)
-            ? post.metadata.likedBy.map((id: any) => id?.toString?.())
-            : [];
-          return !likedBy.includes(userId);
-        })
-        .map((post: any) => {
-          try {
-            return new mongoose.Types.ObjectId(post._id);
-          } catch {
-            return null;
-          }
-        })
-        .filter(Boolean) as mongoose.Types.ObjectId[];
-
-      if (postsNeedingMetadataSync.length) {
-        try {
-          await Post.updateMany(
-            { _id: { $in: postsNeedingMetadataSync } },
-            { $addToSet: { 'metadata.likedBy': userId } }
-          );
-        } catch (syncError) {
-          console.warn('Failed to backfill metadata.likedBy for saved posts:', syncError);
-        }
-      }
-    }
-
-    // Fetch profile data for unique oxyUserIds (same as feed controller)
-    const uniqueUserIds = Array.from(new Set(posts.map((p: any) => p.oxyUserId).filter(Boolean)));
-    const userDataMap = new Map<string, any>();
-    await Promise.all(uniqueUserIds.map(async (uid) => {
-      try {
-        const userData = await oxyClient.getUserById(uid);
-        userDataMap.set(uid, {
-          id: userData.id,
-          name: userData.name?.full || userData.username || 'User',
-          handle: userData.username || 'user',
-          avatar: typeof userData.avatar === 'string' ? userData.avatar : (userData.avatar as any)?.url || '',
-          verified: userData.verified || false
-        });
-      } catch (e) {
-        // Fallback if lookup fails
-        userDataMap.set(uid, {
-          id: uid,
-          name: 'User',
-          handle: 'user',
-          avatar: '',
-          verified: false
-        });
-      }
-    }));
-
-    // Transform posts to match frontend expectations with real user profile
-    const transformedPosts = posts.map((post: any) => {
-      const userProfile = userDataMap.get(post.oxyUserId) || {
-        id: post.oxyUserId,
-        name: 'User',
-        handle: 'user',
-        avatar: '',
-        verified: false
-      };
-
-      const likedBy = Array.isArray(post.metadata?.likedBy)
-        ? post.metadata.likedBy
-        : [];
-
-      const isLiked = likedBy.some((id: any) => id?.toString?.() === userId) || likedPostSet.has(post._id.toString());
-
-      const metadata = {
-        ...(post.metadata || {}),
-        isSaved: true,
-        isLiked
-      } as any;
-
-      if (isLiked && userId) {
-        const likedSet = new Set(
-          Array.isArray(metadata.likedBy)
-            ? metadata.likedBy.map((id: any) => id?.toString?.() || String(id))
-            : []
-        );
-        likedSet.add(userId);
-        metadata.likedBy = Array.from(likedSet);
-      }
-
-      return {
-        ...post,
-        user: userProfile,
-        isSaved: true, // All posts in this endpoint are saved
-        isLiked,
-        metadata,
-        oxyUserId: undefined
-      };
     });
 
     res.json({
       posts: transformedPosts,
-      hasMore: savedPosts.length === limit,
+      hasMore: posts.length === limit,
       page,
       limit
     });

@@ -21,7 +21,7 @@ import Avatar from "@/components/Avatar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@/assets/icons/search-icon";
 
-type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists";
+type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 
 type LocalSearchResults = {
     posts: any[];
@@ -29,6 +29,7 @@ type LocalSearchResults = {
     feeds: any[];
     hashtags: any[];
     lists: any[];
+    saved: any[];
 };
 
 export default function SearchIndex() {
@@ -46,6 +47,7 @@ export default function SearchIndex() {
         feeds: [],
         hashtags: [],
         lists: [],
+        saved: [],
     });
 
     // Initialize query from URL parameter
@@ -64,6 +66,7 @@ export default function SearchIndex() {
                 feeds: [],
                 hashtags: [],
                 lists: [],
+                saved: [],
             });
         }
     }, [query]);
@@ -86,6 +89,7 @@ export default function SearchIndex() {
                         feeds: allResults.feeds || [],
                         hashtags: allResults.hashtags || [],
                         lists: allResults.lists || [],
+                        saved: allResults.saved || [],
                     });
                 } else if (activeTab === "posts") {
                     const posts = await searchService.searchPosts(searchQuery);
@@ -102,6 +106,9 @@ export default function SearchIndex() {
                 } else if (activeTab === "lists") {
                     const lists = await searchService.searchLists(searchQuery);
                     setResults(prev => ({ ...prev, lists: lists || [] }));
+                } else if (activeTab === "saved") {
+                    const saved = await searchService.searchSaved(searchQuery);
+                    setResults(prev => ({ ...prev, saved: saved || [] }));
                 }
             } catch (error) {
                 console.warn("Search error:", error);
@@ -216,6 +223,7 @@ export default function SearchIndex() {
         { id: "feeds", label: t("search.tabs.feeds", "Feeds") },
         { id: "hashtags", label: t("search.tabs.hashtags", "Hashtags") },
         { id: "lists", label: t("search.tabs.lists", "Lists") },
+        { id: "saved", label: t("search.tabs.saved", "Saved") },
     ];
 
     const hasResults =
@@ -223,7 +231,8 @@ export default function SearchIndex() {
         results.users.length > 0 ||
         results.feeds.length > 0 ||
         results.hashtags.length > 0 ||
-        results.lists.length > 0;
+        results.lists.length > 0 ||
+        results.saved.length > 0;
 
     return (
         <ThemedView style={styles.container}>
@@ -335,6 +344,25 @@ export default function SearchIndex() {
                                         {t("search.sections.lists", "Lists")}
                                     </Text>
                                     {results.lists.map(renderListItem)}
+                                </View>
+                            )}
+
+                            {(activeTab === "all") && results.saved.length > 0 && (
+                                <View style={styles.section}>
+                                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                                        {t("search.sections.saved", "Saved")}
+                                    </Text>
+                                    {results.saved.map((post: any) => (
+                                        <PostItem key={post.id || post._id} post={post} />
+                                    ))}
+                                </View>
+                            )}
+
+                            {activeTab === "saved" && results.saved.length > 0 && (
+                                <View style={styles.section}>
+                                    {results.saved.map((post: any) => (
+                                        <PostItem key={post.id || post._id} post={post} />
+                                    ))}
                                 </View>
                             )}
                         </>

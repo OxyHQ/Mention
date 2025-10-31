@@ -1,5 +1,6 @@
 import { authenticatedClient } from "@/utils/api";
 import { oxyServices } from "@/lib/oxyServices";
+import { feedService } from "./feedService";
 
 export interface SearchResults {
   posts?: any[];
@@ -7,6 +8,7 @@ export interface SearchResults {
   feeds?: any[];
   users?: any[];
   lists?: any[];
+  saved?: any[];
 }
 
 class SearchService {
@@ -81,18 +83,34 @@ class SearchService {
     }
   }
 
+  // Search saved posts
+  async searchSaved(query: string): Promise<any[]> {
+    try {
+      const response = await feedService.getSavedPosts({ 
+        page: 1, 
+        limit: 20,
+        search: query 
+      });
+      return response.data.posts || [];
+    } catch (error) {
+      console.warn("Failed searching saved posts", error);
+      return [];
+    }
+  }
+
   // Search all
   async searchAll(query: string): Promise<SearchResults> {
     try {
-      const [posts, users, feeds, lists, hashtags] = await Promise.all([
+      const [posts, users, feeds, lists, hashtags, saved] = await Promise.all([
         this.searchPosts(query),
         this.searchUsers(query),
         this.searchFeeds(query),
         this.searchLists(query),
-        this.searchHashtags(query)
+        this.searchHashtags(query),
+        this.searchSaved(query)
       ]);
 
-      return { posts, users, feeds, lists, hashtags };
+      return { posts, users, feeds, lists, hashtags, saved };
     } catch (error) {
       console.warn("Failed searching all", error);
       return {};
