@@ -90,6 +90,7 @@ Tapping the notification navigates to the post where they were mentioned.
 │            ↓                                                      │
 │  Frontend: mentions = ["user123"]                                │
 │            text = "Hey [mention:user123], great work!"           │
+│            (stored as [mention:userId] format)                   │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
                               ↓

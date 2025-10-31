@@ -5,7 +5,7 @@ Refactored the codebase to follow professional standards, improve performance, a
 
 ## Files Cleaned Up
 
-### 1. `/app/_layout.tsx` - Root Layout Component
+### 1. `packages/frontend/app/_layout.tsx` - Root Layout Component
 
 #### Improvements Made:
 
@@ -49,7 +49,7 @@ Refactored the codebase to follow professional standards, improve performance, a
 - ✅ Clear comments explaining what each effect does
 - ✅ Proper cleanup functions
 
-### 2. `/components/AppSplashScreen.tsx` - Splash Screen Component
+### 2. `packages/frontend/components/AppSplashScreen.tsx` - Splash Screen Component
 
 #### Improvements Made:
 

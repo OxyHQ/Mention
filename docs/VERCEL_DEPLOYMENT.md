@@ -13,11 +13,11 @@ The Mention monorepo contains three main packages:
 
 ### Frontend Deployment
 
-Use `vercel-frontend.json` for frontend deployment:
+The root `vercel.json` is configured for frontend deployment:
 
 ```json
 {
-  "name": "mention-frontend",
+  "name": "mention-monorepo",
   "buildCommand": "VERCEL_TARGET=frontend node scripts/build-for-vercel.js",
   "outputDirectory": "packages/frontend/dist",
   "installCommand": "npm install",
@@ -31,33 +31,44 @@ Use `vercel-frontend.json` for frontend deployment:
 }
 ```
 
+**Note**: If the build script doesn't exist, you can use:
+```json
+{
+  "buildCommand": "npm run build:shared-types && npm run build:frontend"
+}
+```
+
 ### Backend Deployment
 
-Use `vercel-backend.json` for backend deployment:
+Backend uses `packages/backend/vercel.json`:
 
 ```json
 {
-  "name": "mention-backend",
-  "buildCommand": "VERCEL_TARGET=backend node scripts/build-for-vercel.js",
-  "outputDirectory": "packages/backend/dist",
-  "installCommand": "npm install",
-  "framework": null,
-  "functions": {
-    "packages/backend/dist/server.js": {
-      "runtime": "nodejs18.x"
+  "version": 2,
+  "builds": [
+    {
+      "src": "src/server.ts",
+      "use": "@vercel/node"
     }
-  }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/src/server.ts"
+    }
+  ]
 }
 ```
 
 ## Build Process
 
-The build process is handled by `scripts/build-for-vercel.js` which:
+For deployment, ensure:
 
-1. **Installs dependencies** - Runs `npm install` to install all workspace dependencies
-2. **Builds shared-types** - Compiles the shared TypeScript types first
-3. **Links shared-types** - Copies built shared-types to consuming packages' node_modules
-4. **Builds target** - Builds either frontend or backend based on `VERCEL_TARGET` environment variable
+1. **Shared-types are built first** - Run `npm run build:shared-types` before building frontend/backend
+2. **Dependencies installed** - `npm install` installs all workspace dependencies
+3. **Build target** - Build frontend with `npm run build:frontend` or backend with `npm run build:backend`
+
+The monorepo structure ensures shared-types are available to both packages through workspace dependencies.
 
 ## Key Features
 
@@ -128,9 +139,10 @@ Make sure to set the following environment variables in your Vercel project:
 
 If you encounter shared-types import errors:
 
-1. Ensure the build script is running: `node scripts/build-for-vercel.js`
+1. Ensure shared-types are built: `npm run build:shared-types`
 2. Check that shared-types are built: `ls packages/shared-types/dist/`
 3. Verify TypeScript path mappings in `tsconfig.json` files
+4. Ensure workspace dependencies are installed: `npm install`
 
 ### Build Failures
 

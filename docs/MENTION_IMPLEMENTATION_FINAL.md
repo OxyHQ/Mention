@@ -5,49 +5,59 @@
 ### Storage Strategy
 
 **Frontend (Compose/Reply)**:
-- Text field stores: `"Hey @john_doe check this out!"`  (plain text with @username)
-- Mentions array: `[{ userId: "user123", username: "john_doe", displayName: "John Doe", indices: [4, 13] }]`
+- Text field displays: `"Hey @john_doe check this out!"` (shows @username to user)
+- Text field stores: `"Hey [mention:user123] check this out!"` (storage format with user ID)
+- Mentions array: `[{ userId: "user123", username: "john_doe", displayName: "John Doe" }]`
 - Backend receives: 
-  - `text: "Hey @john_doe check this out!"`
+  - `text: "Hey [mention:user123] check this out!"` (storage format)
   - `mentions: ["user123"]` (only user IDs)
 
 **Backend (Database)**:
-- `Post.content.text`: `"Hey @john_doe check this out!"` (plain text)
+- `Post.content.text`: `"Hey [mention:user123] check this out!"` (placeholder format)
 - `Post.mentions`: `["user123"]` (array of Oxy user IDs)
 - Indexed for queries like "posts mentioning user123"
 
+**Backend Processing**:
+- Transforms `[mention:user123]` → `[@John Doe](john_doe)` before sending to frontend
+- Fetches current user data (display name and username) for each mention
+
 **Display (Feed/Detail)**:
-- Frontend shows: "Hey **@John Doe** check this out!" (using current full name)
-- Clickable mention navigates to profile
-- If username changed, still navigates to correct user (via ID)
+- Frontend receives: `"Hey [@John Doe](john_doe) check this out!"`
+- Frontend displays: "Hey **John Doe** check this out!" (full name, no @ symbol, clickable)
+- Clickable mention navigates to `/@john_doe` profile
+- Always shows current user data (name/username may have changed since post creation)
 
 ## Why This Approach?
 
-✅ **User IDs in backend** - Usernames can change, IDs cannot  
-✅ **Plain text storage** - No complex markup to parse  
-✅ **Display flexibility** - Show current full name, not stale username  
-✅ **Search friendly** - Can search by text content easily  
-✅ **Backward compatible** - Works with existing @username patterns  
+✅ **User IDs in storage** - Usernames can change, IDs cannot  
+✅ **Placeholder format** - Uses `[mention:userId]` for stable references  
+✅ **Display flexibility** - Shows current full name, not stale username  
+✅ **Clean display** - No @ symbol clutter in posts (Instagram-style)  
+✅ **Backend resolution** - Backend fetches current user data when serving posts  
+✅ **Future-proof** - Works even if usernames or display names change  
 
 ## Components
 
 ### 1. MentionTextInput
-Stores plain text like `@john_doe` in the text field, and tracks:
+**File**: `packages/frontend/components/MentionTextInput.tsx`
+
+- Displays `@username` to user while typing
+- Converts to `[mention:userId]` format for storage
+- Tracks mention metadata:
 ```typescript
 {
-  userId: "user123",          // For backend
+  userId: "user123",          // For backend storage
   username: "john_doe",       // For URL/navigation  
   displayName: "John Doe",    // Full name for display
-  indices: [4, 13]            // Position in text
 }
 ```
 
-### 2. Backend
-Receives:
+### 2. Backend Storage
+Receives from frontend:
 ```json
 {
   "content": {
-    "text": "Hey @john_doe check this out!"
+    "text": "Hey [mention:user123] check this out!"
   },
   "mentions": ["user123"]  // Only user IDs
 }
@@ -56,19 +66,29 @@ Receives:
 Stores in MongoDB:
 ```javascript
 {
-  content: { text: "..." },
-  mentions: ["user123"],  // Indexed
+  content: { text: "Hey [mention:user123] check this out!" },
+  mentions: ["user123"],  // Indexed for queries
   // ... other fields
 }
 ```
 
-### 3. Display (LinkifiedText)
+### 3. Backend Processing
+**File**: `packages/backend/src/controllers/feed.controller.ts`
+
+Method: `replaceMentionPlaceholders()`
+- Fetches current user data for each mention
+- Transforms: `[mention:user123]` → `[@John Doe](john_doe)`
+- Sends formatted text to frontend
+
+### 4. Frontend Display (LinkifiedText)
+**File**: `packages/frontend/components/common/LinkifiedText.tsx`
+
 When rendering post:
-1. Parse `@username` patterns
-2. Look up in `mentions` array to get user ID
-3. Optionally fetch current full name from Oxy
-4. Render as clickable `@Full Name`
-5. Navigate to `/@username` on click
+1. Receives: `"Hey [@John Doe](john_doe) check this out!"`
+2. Parses `[@DisplayName](username)` format
+3. Renders as clickable text: "John Doe" (no @ symbol)
+4. Navigates to `/@username` on tap
+5. Shows current user data (resolved by backend)
 
 ## Implementation Status
 
@@ -95,27 +115,42 @@ User types: "Hey @j"
   ↓
 MentionPicker shows: "John Doe (@john_doe)"  
   ↓
-User selects → Inserts: "@John Doe" (display name)
+User selects → MentionTextInput inserts: "@john_doe"
   ↓
-Text: "Hey @John Doe check this!"
-Mentions: [{ userId: "user123", username: "john_doe", displayName: "John Doe", indices: [4, 13] }]
+User sees in composer: "Hey @john_doe check this!"
+Storage format: "Hey [mention:user123] check this!"
+Mentions array: [{ userId: "user123", username: "john_doe", displayName: "John Doe" }]
   ↓
 Backend receives:
-  text: "Hey @John Doe check this!"
+  text: "Hey [mention:user123] check this!"
   mentions: ["user123"]
   ↓
-Backend stores:
-  content.text: "Hey @John Doe check this!"
+Backend stores in MongoDB:
+  content.text: "Hey [mention:user123] check this!"
   mentions: ["user123"]
   ↓
-Display renders:
-  "Hey @John Doe check this!" (clickable, navigates to @john_doe profile)
+Backend processes (replaceMentionPlaceholders):
+  Fetches user data for user123
+  Transforms: [mention:user123] → [@John Doe](john_doe)
+  Sends to frontend: "Hey [@John Doe](john_doe) check this!"
+  ↓
+Frontend displays (LinkifiedText):
+  Parses: [@John Doe](john_doe)
+  Renders: "Hey John Doe check this!"
+           ^^^^^^^^^ (blue, clickable, no @ symbol)
+  Tap → navigates to /@john_doe
 ```
 
-## Key Insight
+## Key Insights
 
-The text shows the **full name at time of mention**, but navigation uses the **username**, and the backend stores the **user ID**. This gives us:
-- Readable text for users
-- Stable references for backend
-- Current data for display
-- Proper navigation regardless of username changes
+### Three-Stage Transformation:
+1. **Composer**: Shows `@username` (clear, unambiguous)
+2. **Storage**: Uses `[mention:userId]` (stable, permanent)
+3. **Display**: Shows `Full Name` (natural, elegant, no @)
+
+### Benefits:
+- ✅ **Stable storage**: User IDs never change
+- ✅ **Current display**: Always shows latest user data
+- ✅ **Clean UX**: No @ symbols in posts (Instagram-style)
+- ✅ **Proper navigation**: Uses username for URLs
+- ✅ **Future-proof**: Works even if users change names
