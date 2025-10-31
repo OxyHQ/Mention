@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
     StyleSheet,
     Text,
@@ -18,7 +18,6 @@ import { useOxy } from '@oxyhq/services';
 import { feedService } from '../../services/feedService';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
 
 // Improved interface with better organization and type safety
 interface FeedProps {
@@ -99,39 +98,7 @@ const Feed = (props: FeedProps) => {
     } = { ...DEFAULT_FEED_PROPS, ...props };
     const theme = useTheme();
     const flatListRef = useRef<any>(null);
-    const unregisterScrollableRef = useRef<(() => void) | null>(null);
     const [refreshing, setRefreshing] = useState(false);
-    const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
-
-    const clearScrollableRegistration = useCallback(() => {
-        if (unregisterScrollableRef.current) {
-            unregisterScrollableRef.current();
-            unregisterScrollableRef.current = null;
-        }
-    }, []);
-
-    const assignListRef = useCallback((node: any) => {
-        flatListRef.current = node;
-        clearScrollableRegistration();
-        if (scrollEnabled === false) return;
-        if (node) {
-            unregisterScrollableRef.current = registerScrollable(node);
-        }
-    }, [clearScrollableRegistration, registerScrollable, scrollEnabled]);
-
-    useEffect(() => {
-        if (scrollEnabled === false) {
-            clearScrollableRegistration();
-            return;
-        }
-        if (flatListRef.current && !unregisterScrollableRef.current) {
-            unregisterScrollableRef.current = registerScrollable(flatListRef.current);
-        }
-    }, [clearScrollableRegistration, registerScrollable, scrollEnabled]);
-
-    useEffect(() => () => {
-        clearScrollableRegistration();
-    }, [clearScrollableRegistration]);
 
     // When filters are provided, scope the feed locally to avoid clashes
     const useScoped = !!(filters && Object.keys(filters || {}).length);
@@ -518,7 +485,7 @@ const Feed = (props: FeedProps) => {
             <View style={styles.container}>
                 <LoadingTopSpinner showLoading={isLoading && !refreshing} />
                 <LegendList
-                    ref={assignListRef}
+                    ref={flatListRef}
                     data={displayItems}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
@@ -552,9 +519,6 @@ const Feed = (props: FeedProps) => {
                     maintainScrollAtEndThreshold={maintainScrollAtEndThreshold}
                     alignItemsAtEnd={alignItemsAtEnd}
                     maintainVisibleContentPosition={maintainVisibleContentPosition}
-                    dataSet={{ layoutscroll: 'true' }}
-                    onScroll={scrollEnabled === false ? undefined : handleScroll}
-                    scrollEventThrottle={scrollEnabled === false ? undefined : scrollEventThrottle}
                 />
             </View>
         </ErrorBoundary>

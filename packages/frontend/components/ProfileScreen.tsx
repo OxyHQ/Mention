@@ -143,7 +143,7 @@ const MentionProfile: React.FC = () => {
     const assignProfileScrollRef = useCallback((node: any) => {
         profileScrollRef.current = node;
         clearProfileRegistration();
-        if (node) {
+        if (node && registerScrollable) {
             unregisterScrollableRef.current = registerScrollable(node);
         }
     }, [clearProfileRegistration, registerScrollable]);
