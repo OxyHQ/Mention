@@ -545,6 +545,11 @@ export const usePostsStore = create<FeedState>()(
           const mapped = response.items?.map(item => transformToUIItem(item)) || [];
           // Prime users cache from items
           try { useUsersStore.getState().primeFromPosts(mapped as any); } catch {}
+          
+          // Deduplicate: filter out any items that already exist in the feed
+          const seen = new Set(state.feeds[type].items.map(p => p.id));
+          const uniqueNew = mapped.filter(p => !seen.has(p.id));
+          
           const newCache = { ...state.postsById };
           mapped.forEach((p: FeedItem) => {
             newCache[p.id] = p;
@@ -557,11 +562,11 @@ export const usePostsStore = create<FeedState>()(
               [type]: {
                 items: [
                   ...state.feeds[type].items,
-                  ...mapped
+                  ...uniqueNew
                 ],
                 hasMore: response.hasMore || false,
                 nextCursor: response.nextCursor,
-                totalCount: state.feeds[type].totalCount + (response.items?.length || 0),
+                totalCount: state.feeds[type].items.length + uniqueNew.length,
                 isLoading: false,
                 lastUpdated: Date.now()
               }
