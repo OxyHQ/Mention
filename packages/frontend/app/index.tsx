@@ -38,7 +38,9 @@ const HomeScreen: React.FC = () => {
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const headerTranslateY = useSharedValue(0);
+    const fabTranslateY = useSharedValue(0);
     const headerHeight = 48; // Match header minHeight
+    const fabHeight = 80; // FAB height + bottom margin
 
     // Load pinned feeds function
     const loadFeeds = React.useCallback(async () => {
@@ -116,15 +118,18 @@ const HomeScreen: React.FC = () => {
             
             if (currentScrollY > 50) { // Only hide after scrolling past threshold
                 if (isScrollingDown) {
-                    // Scrolling down - hide header
+                    // Scrolling down - hide header and FAB
                     headerTranslateY.value = withTiming(-headerHeight, { duration: 200 });
+                    fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
                 } else {
-                    // Scrolling up - show header
+                    // Scrolling up - show header and FAB
                     headerTranslateY.value = withTiming(0, { duration: 200 });
+                    fabTranslateY.value = withTiming(0, { duration: 200 });
                 }
             } else {
-                // Near top - always show header
+                // Near top - always show header and FAB
                 headerTranslateY.value = withTiming(0, { duration: 200 });
+                fabTranslateY.value = withTiming(0, { duration: 200 });
             }
             
             lastKnownScrollY = currentScrollY;
@@ -133,11 +138,17 @@ const HomeScreen: React.FC = () => {
         return () => {
             scrollY.removeListener(listenerId);
         };
-    }, [scrollY, headerTranslateY, headerHeight]);
+    }, [scrollY, headerTranslateY, fabTranslateY, headerHeight, fabHeight]);
 
     const headerAnimatedStyle = useAnimatedStyle(() => {
         return {
             transform: [{ translateY: headerTranslateY.value }],
+        };
+    });
+
+    const fabAnimatedStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ translateY: fabTranslateY.value }],
         };
     });
 
@@ -290,12 +301,14 @@ const HomeScreen: React.FC = () => {
 
                 {/* Floating Action Button */}
                 {isAuthenticated && (
-                    <TouchableOpacity
-                        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-                        onPress={() => router.push('/compose')}
-                    >
-                        <Ionicons name="add" size={24} color={theme.colors.card} />
-                    </TouchableOpacity>
+                    <Animated.View style={fabAnimatedStyle}>
+                        <TouchableOpacity
+                            style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+                            onPress={() => router.push('/compose')}
+                        >
+                            <Ionicons name="add" size={24} color={theme.colors.card} />
+                        </TouchableOpacity>
+                    </Animated.View>
                 )}
             </ThemedView>
         </SafeAreaView>
