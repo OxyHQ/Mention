@@ -79,10 +79,10 @@ Since `StyleSheet.create()` executes at module level (before component renders),
 - ⏳ **app/kaana/** - Kaana-specific screens
 
 ## Documentation Created ✅
-- ✅ **THEMING_REFACTOR_SUMMARY.md** - Comprehensive implementation guide
-- ✅ **THEME_QUICK_REFERENCE.md** - Developer quick reference
-- ✅ **THEMING_TROUBLESHOOTING.md** - Common issues and solutions
-- ✅ **THEMING_PROGRESS.md** - This progress tracker
+- ✅ [THEMING_REFACTOR_SUMMARY.md](./THEMING_REFACTOR_SUMMARY.md) - Comprehensive implementation guide
+- ✅ [THEME_QUICK_REFERENCE.md](./THEME_QUICK_REFERENCE.md) - Developer quick reference
+- ✅ [THEMING_TROUBLESHOOTING.md](./THEMING_TROUBLESHOOTING.md) - Common issues and solutions
+- ✅ [THEMING_PROGRESS.md](./THEMING_PROGRESS.md) - This progress tracker
 
 ## Key Architectural Decisions
 

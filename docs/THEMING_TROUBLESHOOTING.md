@@ -234,8 +234,8 @@ await updateMySettings({
 
 If you're still having issues:
 
-1. Check `/home/nate/Mention/THEMING_REFACTOR_SUMMARY.md` for detailed documentation
-2. Review `/home/nate/Mention/THEME_QUICK_REFERENCE.md` for usage examples
+1. Check [THEMING_REFACTOR_SUMMARY.md](./THEMING_REFACTOR_SUMMARY.md) for detailed documentation
+2. Review [THEME_QUICK_REFERENCE.md](./THEME_QUICK_REFERENCE.md) for usage examples
 3. Look at existing themed components like `app/settings/index.tsx` for patterns
 4. Ensure all dependencies are up to date
 5. Clear cache and rebuild: `npm run clean && npm run start --reset-cache`

@@ -313,6 +313,6 @@ function MyComponent() {
 ## Questions?
 
 Refer to:
-- `/home/nate/Mention/THEMING_REFACTOR_SUMMARY.md` for detailed documentation
-- `/home/nate/Mention/packages/frontend/hooks/useTheme.ts` for implementation
-- `/home/nate/Mention/packages/frontend/utils/theme.ts` for utilities
+- [THEMING_REFACTOR_SUMMARY.md](./THEMING_REFACTOR_SUMMARY.md) for detailed documentation
+- `packages/frontend/hooks/useTheme.ts` for implementation
+- `packages/frontend/utils/theme.ts` for utilities

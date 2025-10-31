@@ -149,7 +149,25 @@ npm run dev:backend
 - `npm run dev` — Watch and rebuild types
 - `npm run clean` — Clean build artifacts
 
-## API Documentation
+## Documentation
+
+### Project Documentation
+
+All project documentation is available in the [`docs/`](./docs/) folder:
+
+- [Mention System Overview](./docs/MENTION_SYSTEM_README.md) - Complete guide to the mention system
+- [Mention Format Specification](./docs/MENTION_FORMAT_FINAL.md) - Final format summary for mentions
+- [Mention Implementation](./docs/MENTION_IMPLEMENTATION_COMPLETE.md) - Implementation details
+- [Notifications System](./docs/MENTION_NOTIFICATIONS.md) - Notification system documentation
+- [Visual Guide](./docs/MENTION_VISUAL_GUIDE.md) - Visual design guide
+- [Theming Guide](./docs/THEMING_REFACTOR_SUMMARY.md) - Complete theming system documentation
+- [Theme Quick Reference](./docs/THEME_QUICK_REFERENCE.md) - Quick reference for developers
+- [Theming Troubleshooting](./docs/THEMING_TROUBLESHOOTING.md) - Common theming issues and solutions
+- [Performance Optimizations](./docs/PERFORMANCE_OPTIMIZATIONS.md) - Performance best practices
+- [Vercel Deployment](./docs/VERCEL_DEPLOYMENT.md) - Deployment guide for Vercel
+- [Code Cleanup Summary](./docs/CODE_CLEANUP_SUMMARY.md) - Code cleanup documentation
+
+### API Documentation
 
 The Mention API is a robust backend service built with Express.js and TypeScript, providing functionality for social media interactions including posts, user management, authentication, and real-time communications.
 
