@@ -694,11 +694,34 @@ class FeedController {
         query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
       }
 
-      // Execute query with proper sorting and limits
-      const posts = await Post.find(query)
-        .sort({ createdAt: -1 })
-        .limit(limit + 1) // Get one extra to check if there are more
-        .lean();
+      // For unauthenticated users, return popular posts sorted by engagement
+      // For authenticated users, use the personalized algorithm
+      let posts;
+      if (!currentUserId) {
+        // Sort by engagement score (popular posts) for unauthenticated users
+        posts = await Post.aggregate([
+          { $match: query },
+          {
+            $addFields: {
+              engagementScore: {
+                $add: [
+                  { $ifNull: ['$stats.likesCount', 0] },
+                  { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
+                  { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
+                ]
+              }
+            }
+          },
+          { $sort: { engagementScore: -1, createdAt: -1 } },
+          { $limit: limit + 1 }
+        ]);
+      } else {
+        // Authenticated users get chronological feed
+        posts = await Post.find(query)
+          .sort({ createdAt: -1 })
+          .limit(limit + 1)
+          .lean();
+      }
 
       // Post structure logging removed for production
 
@@ -738,13 +761,67 @@ class FeedController {
 
   /**
    * Get personalized For You feed (engagement-ranked)
+   * For unauthenticated users, returns popular posts sorted by engagement
    */
   async getForYouFeed(req: AuthRequest, res: Response) {
     try {
       const { cursor, limit = 20 } = req.query as any;
       const currentUserId = req.user?.id;
 
-      // Following for personalization
+      // For unauthenticated users, return popular posts (simplified aggregation)
+      if (!currentUserId) {
+        const match: any = {
+          visibility: PostVisibility.PUBLIC,
+          $and: [
+            { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+            { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+          ]
+        };
+
+        if (cursor) {
+          try {
+            match._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+          } catch {
+            // Invalid cursor, ignore it
+          }
+        }
+
+        const posts = await Post.aggregate([
+          { $match: match },
+          {
+            $addFields: {
+              engagementScore: {
+                $add: [
+                  { $ifNull: ['$stats.likesCount', 0] },
+                  { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
+                  { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
+                ]
+              }
+            }
+          },
+          { $sort: { engagementScore: -1, createdAt: -1 } },
+          { $limit: Number(limit) + 1 }
+        ]);
+
+        const hasMore = posts.length > Number(limit);
+        const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
+        const nextCursor = hasMore && postsToReturn.length > 0 
+          ? postsToReturn[postsToReturn.length - 1]._id.toString() 
+          : undefined;
+
+        const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+
+        const response: FeedResponse = {
+          items: transformedPosts,
+          hasMore,
+          nextCursor,
+          totalCount: transformedPosts.length
+        };
+
+        return res.json(response);
+      }
+
+      // Following for personalization (authenticated users only)
       let followingIds: string[] = [];
       try {
         if (currentUserId) {

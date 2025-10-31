@@ -4,7 +4,6 @@ import {
     StyleSheet,
     TouchableOpacity,
     RefreshControl,
-    Alert,
     Platform,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
@@ -28,6 +27,8 @@ import { useLayoutScroll } from '../context/LayoutScrollContext';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
 import { Header } from '../components/Header';
 import { StatusBar } from 'expo-status-bar';
+import { toast } from 'sonner';
+import { confirmDialog } from '../utils/alerts';
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
 
@@ -65,21 +66,42 @@ const NotificationsScreen: React.FC = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
         },
-        onError: (error) => {
+        onError: (error: any) => {
             console.error('Error marking notification as read:', error);
-            Alert.alert('Error', 'Failed to mark notification as read');
+            toast.error(t('notification.mark_read_error') || 'Failed to mark notification as read');
         },
     });
 
     // Mark all as read mutation
     const markAllAsReadMutation = useMutation({
-        mutationFn: () => notificationService.markAllAsRead(),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        mutationFn: async () => {
+            const result = await notificationService.markAllAsRead();
+            return result;
         },
-        onError: (error) => {
+        onSuccess: async () => {
+            try {
+                // Invalidate all notification queries first
+                queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                
+                // Use the refetch function from useQuery hook
+                await refetch();
+                
+                toast.success(t('notification.mark_all_read_success') || 'All notifications marked as read');
+            } catch (refetchError) {
+                console.error('Error refetching notifications:', refetchError);
+                // Still show success since the API call succeeded
+                toast.success(t('notification.mark_all_read_success') || 'All notifications marked as read');
+            }
+        },
+        onError: (error: any) => {
             console.error('Error marking all notifications as read:', error);
-            Alert.alert('Error', 'Failed to mark all notifications as read');
+            console.error('Full error object:', JSON.stringify(error, null, 2));
+            const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
+            const statusCode = error?.response?.status;
+            toast.error(
+                t('notification.mark_all_read_error') || 
+                `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`
+            );
         },
     });
 
@@ -93,19 +115,25 @@ const NotificationsScreen: React.FC = () => {
         markAsReadMutation.mutate(notificationId);
     }, [markAsReadMutation]);
 
-    const handleMarkAllAsRead = useCallback(() => {
-        Alert.alert(
-            t('notification.mark_all_read'),
-            t('notification.mark_all_read'),
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: t('notification.mark_all_read'),
-                    onPress: () => markAllAsReadMutation.mutate()
-                },
-            ]
-        );
-    }, [markAllAsReadMutation, t]);
+    const unreadCount = notificationsData?.unreadCount || 0;
+
+    const handleMarkAllAsRead = useCallback(async () => {
+        if (unreadCount === 0) {
+            toast.info(t('notification.all_already_read') || 'All notifications are already read');
+            return;
+        }
+        
+        const confirmed = await confirmDialog({
+            title: t('notification.mark_all_read'),
+            message: t('notification.mark_all_read_confirm') || 'Are you sure you want to mark all notifications as read?',
+            okText: t('notification.mark_all_read') || 'Mark All as Read',
+            cancelText: t('cancel') || 'Cancel',
+        });
+        
+        if (confirmed) {
+            markAllAsReadMutation.mutate();
+        }
+    }, [markAllAsReadMutation, t, unreadCount]);
 
     const handleTabPress = useCallback((tabId: NotificationTab) => {
         // If pressing the same tab - scroll to top and refresh
@@ -129,8 +157,6 @@ const NotificationsScreen: React.FC = () => {
             setRefreshKey(prev => prev + 1);
         }
     }, [activeTab]);
-
-    const unreadCount = notificationsData?.unreadCount || 0;
 
     const filteredNotifications = useMemo(() => {
         const raw: any[] = notificationsData?.notifications || [];

@@ -330,6 +330,32 @@ app.set("io", io);
 app.set("notificationsNamespace", notificationsNamespace);
 app.set("postsNamespace", postsNamespace);
 
+// --- Optional Auth Middleware ---
+// Tries to authenticate but doesn't fail if no token is provided
+const optionalAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Check if Authorization header exists
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader) {
+    // No auth header, continue as unauthenticated
+    console.log('Optional auth: No authorization header, continuing as unauthenticated');
+    return next();
+  }
+  
+  // Try to authenticate if header exists
+  const authMiddleware = oxy.auth();
+  authMiddleware(req, res, (err?: any) => {
+    if (err) {
+      // Auth failed (invalid token, expired, etc.), but continue anyway
+      console.log('Optional auth: Authentication failed, continuing as unauthenticated:', err?.message || 'Unknown error');
+      // Clear any partial user data that might have been set
+      (req as any).user = undefined;
+    }
+    // Always continue the request chain
+    next();
+  });
+};
+
 // --- API ROUTES ---
 // Public API routes (no authentication required)
 const publicApiRouter = express.Router();
@@ -360,6 +386,9 @@ publicApiRouter.get("/feed/debug", async (req, res) => {
   }
 });
 
+// Feed routes with optional authentication (allow unauthenticated access)
+publicApiRouter.use("/feed", optionalAuth, feedRoutes);
+
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
 authenticatedApiRouter.use("/posts", postsRouter); // All post routes require authentication
@@ -367,7 +396,6 @@ authenticatedApiRouter.use("/lists", listsRoutes);
 authenticatedApiRouter.use("/notifications", notificationsRouter);
 authenticatedApiRouter.use("/analytics", analyticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
-authenticatedApiRouter.use("/feed", feedRoutes); // Feed routes require authentication
 authenticatedApiRouter.use("/feeds", customFeedsRoutes); // User-created feeds
 authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authentication
 authenticatedApiRouter.use("/test", testRoutes);

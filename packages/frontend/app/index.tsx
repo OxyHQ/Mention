@@ -9,7 +9,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import Feed from '../components/Feed/Feed';
 import { useOxy } from '@oxyhq/services';
-import SignInPrompt from '../components/SignInPrompt';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
@@ -77,6 +76,13 @@ const HomeScreen: React.FC = () => {
         }, [loadFeeds])
     );
 
+    // Reset activeTab if user becomes unauthenticated and current tab is not available
+    useEffect(() => {
+        if (!isAuthenticated && (activeTab === 'following' || activeTab.startsWith('custom:'))) {
+            setActiveTab('for_you');
+        }
+    }, [isAuthenticated, activeTab]);
+
     // Register refresh handler from BottomBar
     useEffect(() => {
         const handleRefresh = () => {
@@ -99,12 +105,8 @@ const HomeScreen: React.FC = () => {
     };
 
     const renderContent = () => {
-        if (!isAuthenticated) {
-            return <SignInPrompt />;
-        }
-
-        // Check if activeTab is a custom pinned feed
-        if (activeTab.startsWith('custom:')) {
+        // Check if activeTab is a custom pinned feed (only for authenticated users)
+        if (isAuthenticated && activeTab.startsWith('custom:')) {
             const feedId = activeTab.replace('custom:', '');
             const pinnedFeed = pinnedFeeds.find(f => f.feedId === feedId);
             if (pinnedFeed) {
@@ -121,6 +123,31 @@ const HomeScreen: React.FC = () => {
             }
         }
 
+        // For unauthenticated users, show popular posts
+        if (!isAuthenticated) {
+            switch (activeTab) {
+                case 'trending':
+                    return (
+                        <Feed
+                            key={`trending-${refreshKey}`}
+                            type="mixed"
+                            reloadKey={refreshKey}
+                        />
+                    );
+
+                default:
+                    // Show popular posts for "For You" tab when not authenticated
+                    return (
+                        <Feed
+                            key={`for_you-${refreshKey}`}
+                            type="for_you"
+                            reloadKey={refreshKey}
+                        />
+                    );
+            }
+        }
+
+        // Authenticated users get personalized feeds
         switch (activeTab) {
             case 'following':
                 return (
@@ -183,13 +210,13 @@ const HomeScreen: React.FC = () => {
                 <AnimatedTabBar
                     tabs={[
                         { id: 'for_you', label: t('For You') },
-                        { id: 'following', label: t('Following') },
+                        ...(isAuthenticated ? [{ id: 'following', label: t('Following') }] : []),
                         { id: 'trending', label: t('Trending') },
-                        ...pinnedFeeds.map((feed) => ({ id: feed.id, label: feed.title })),
+                        ...(isAuthenticated ? pinnedFeeds.map((feed) => ({ id: feed.id, label: feed.title })) : []),
                     ]}
                     activeTabId={activeTab}
                     onTabPress={handleTabPress}
-                    scrollEnabled={pinnedFeeds.length > 0}
+                    scrollEnabled={isAuthenticated && pinnedFeeds.length > 0}
                 />
 
                 {/* Content */}

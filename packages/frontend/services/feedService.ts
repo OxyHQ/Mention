@@ -9,7 +9,51 @@ import {
   UnlikeRequest,
   FeedType
 } from '@mention/shared-types';
-import { authenticatedClient } from '../utils/api';
+import { authenticatedClient, API_CONFIG } from '../utils/api';
+
+// Helper function to make unauthenticated requests using fetch
+const makePublicRequest = async (endpoint: string, params?: Record<string, any>): Promise<any> => {
+  // Ensure endpoint starts with /api
+  const apiEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
+  
+  // Handle baseURL - API_URL might already include /api/ in production
+  let baseURL = API_CONFIG.baseURL;
+  if (baseURL.endsWith('/api/')) {
+    baseURL = baseURL.slice(0, -5); // Remove trailing /api/
+  } else if (baseURL.endsWith('/api')) {
+    baseURL = baseURL.slice(0, -4); // Remove trailing /api
+  }
+  
+  const url = new URL(apiEndpoint, baseURL.endsWith('/') ? baseURL : `${baseURL}/`);
+  
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        url.searchParams.append(key, String(value));
+      }
+    });
+  }
+  
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorData;
+    try {
+      errorData = JSON.parse(errorText);
+    } catch {
+      errorData = { message: errorText };
+    }
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+  
+  return response.json();
+};
 
 class FeedService {
   /**
@@ -63,11 +107,45 @@ class FeedService {
           break;
       }
 
-      const response = await authenticatedClient.get(endpoint, { params });
-      return response.data;
-    } catch (error) {
+      try {
+        const response = await authenticatedClient.get(endpoint, { params });
+        return response.data;
+      } catch (authError: any) {
+        // If authentication fails (401/403) or network error, try public request
+        const isAuthError = authError?.response?.status === 401 || authError?.response?.status === 403;
+        const isNetworkError = !authError?.response && authError?.message?.includes('Network');
+        
+        if (isAuthError || isNetworkError) {
+          console.log('🔄 Authenticated request failed, trying public request for feed:', {
+            isAuthError,
+            isNetworkError,
+            error: authError?.message
+          });
+          try {
+            return await makePublicRequest(endpoint, params);
+          } catch (publicError: any) {
+            console.error('❌ Public request also failed:', publicError);
+            // If public request fails, throw the original auth error if it was an auth error
+            // Otherwise throw the public error
+            throw isAuthError ? authError : publicError;
+          }
+        }
+        // Re-throw other errors (server errors, etc.)
+        throw authError;
+      }
+    } catch (error: any) {
       console.error('❌ Error fetching feed:', error);
-      throw new Error('Failed to fetch feed');
+      console.error('Error details:', {
+        message: error?.message,
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+        endpoint,
+        params
+      });
+      // Re-throw with more context
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to fetch feed';
+      throw new Error(errorMessage);
     }
   }
 
