@@ -363,12 +363,12 @@ const PostItem: React.FC<PostItemProps> = ({
                     const ActionRow: React.FC<{ icon: any; text: string; onPress: () => void; color?: string }> = ({ icon, text, onPress, color }) => (
                         <TouchableOpacity style={styles.sheetItem} onPress={() => { onPress(); }}>
                             <View style={styles.sheetItemLeft}>{icon}</View>
-                            <Text style={[styles.sheetItemText, color ? { color } : null]}>{text}</Text>
+                            <Text style={[styles.sheetItemText, { color: color || theme.colors.text }]}>{text}</Text>
                         </TouchableOpacity>
                     );
 
                     bottomSheet.setBottomSheetContent(
-                        <View style={styles.sheetContainer}>
+                        <View style={[styles.sheetContainer, { backgroundColor: theme.colors.card }]}>
                             <ActionRow icon={<Ionicons name="link" size={18} color={theme.colors.textSecondary} />} text="Copy link" onPress={async () => {
                                 try {
                                     if (Platform.OS === 'web') {

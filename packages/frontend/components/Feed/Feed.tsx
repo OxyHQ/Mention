@@ -411,7 +411,7 @@ const Feed = (props: FeedProps) => {
                 <View style={[styles.emptyState, { backgroundColor: theme.colors.background }]}>
                     <Text style={[styles.errorText, { color: theme.colors.error }]}>Failed to load posts</Text>
                     <TouchableOpacity
-                        style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
+                        style={[styles.retryButton, { backgroundColor: theme.colors.primary, shadowColor: theme.colors.shadow }]}
                         onPress={async () => {
                             clearError();
                             if (useScoped) setLocalError(null);
@@ -470,7 +470,7 @@ const Feed = (props: FeedProps) => {
 
         return (
             <TouchableOpacity
-                style={[styles.composeButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+                style={[styles.composeButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, shadowColor: theme.colors.shadow }]}
                 onPress={onComposePress}
             >
                 <Text style={[styles.composeButtonText, { color: theme.colors.textSecondary }]}>What&apos;s happening?</Text>
@@ -572,14 +572,12 @@ const styles = StyleSheet.create({
     emptyStateText: {
         fontSize: 20,
         fontWeight: '700',
-        color: "#E7E9EA",
         marginTop: 24,
         textAlign: 'center',
         letterSpacing: -0.5,
     },
     emptyStateSubtext: {
         fontSize: 16,
-        color: "#71767B",
         marginTop: 12,
         textAlign: 'center',
         lineHeight: 24,
@@ -587,24 +585,20 @@ const styles = StyleSheet.create({
     },
     errorText: {
         fontSize: 16,
-        color: "#FFA500",
         marginBottom: 20,
         textAlign: 'center',
         fontWeight: '500',
     },
     retryButton: {
-        backgroundColor: "#d169e5",
         paddingHorizontal: 28,
         paddingVertical: 14,
         borderRadius: 24,
-        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
     },
     retryButtonText: {
-        color: "#FFFFFF",
         fontSize: 16,
         fontWeight: '600',
     },
@@ -620,18 +614,14 @@ const styles = StyleSheet.create({
     },
     footerText: {
         fontSize: 14,
-        color: "#71767B",
         fontWeight: '500',
     },
     composeButton: {
-        backgroundColor: "#FFFFFF",
         marginHorizontal: 16,
         marginVertical: 12,
         padding: 16,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: "#2F3336",
-        shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
@@ -639,7 +629,6 @@ const styles = StyleSheet.create({
     },
     composeButtonText: {
         fontSize: 16,
-        color: "#71767B",
         fontWeight: '400',
     },
 });

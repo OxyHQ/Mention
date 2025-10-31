@@ -220,7 +220,6 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#FFFFFF",
     },
     headerButton: {
         padding: 8,
@@ -233,7 +232,6 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: "#d169e5",
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 8,
