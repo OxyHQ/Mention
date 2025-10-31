@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import UserSettings from '../models/UserSettings';
+import UserBehavior from '../models/UserBehavior';
 
 const router = Router();
 
@@ -72,6 +73,34 @@ router.put('/settings', async (req: any, res) => {
   } catch (err) {
     console.error('Error updating settings:', err);
     return res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// Reset user behavior/preferences (clear personalization data)
+router.delete('/settings/behavior', async (req: any, res) => {
+  try {
+    const oxyUserId = req.user?.id;
+    if (!oxyUserId) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Delete or reset UserBehavior record
+    const result = await UserBehavior.findOneAndDelete({ oxyUserId });
+
+    if (result) {
+      console.log(`[Settings] UserBehavior reset for user ${oxyUserId}`);
+      return res.json({ 
+        success: true, 
+        message: 'Personalization data reset successfully' 
+      });
+    } else {
+      // No UserBehavior record exists, return success anyway
+      return res.json({ 
+        success: true, 
+        message: 'No personalization data to reset' 
+      });
+    }
+  } catch (err) {
+    console.error('Error resetting user behavior:', err);
+    return res.status(500).json({ error: 'Failed to reset personalization data' });
   }
 });
 

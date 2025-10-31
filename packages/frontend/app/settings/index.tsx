@@ -179,6 +179,31 @@ export default function SettingsScreen() {
         await alertDialog({ title: t('common.success'), message: t('settings.data.clearCacheSuccess') });
     };
 
+    const handleResetPersonalization = async () => {
+        const confirmed = await confirmDialog({
+            title: t('settings.data.resetPersonalization') || 'Reset Feed Preferences',
+            message: t('settings.data.resetPersonalizationMessage') || 'This will clear all your feed preferences, including:\n\n• Author preferences\n• Topic interests\n• Post type preferences\n• Active hours and language preferences\n\nYour feed will start learning your preferences again from scratch. This action cannot be undone.',
+            okText: t('common.reset') || 'Reset',
+            cancelText: t('common.cancel'),
+            destructive: true,
+        });
+        if (!confirmed) return;
+
+        try {
+            await authenticatedClient.delete('/profile/settings/behavior');
+            await alertDialog({ 
+                title: t('common.success') || 'Success', 
+                message: t('settings.data.resetPersonalizationSuccess') || 'Your personalization data has been reset successfully. Your feed will start learning your preferences again.' 
+            });
+        } catch (error) {
+            console.error('Error resetting personalization:', error);
+            await alertDialog({ 
+                title: t('common.error') || 'Error', 
+                message: t('settings.data.resetPersonalizationError') || 'Failed to reset personalization data. Please try again.' 
+            });
+        }
+    };
+
     const handleExportData = async () => {
         const confirmed = await confirmDialog({
             title: t('settings.data.exportData'),
@@ -638,7 +663,7 @@ export default function SettingsScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
+                        style={[styles.settingItem, { backgroundColor: theme.colors.card }]}
                         onPress={handleClearCache}
                     >
                         <View style={styles.settingInfo}>
@@ -650,6 +675,26 @@ export default function SettingsScreen() {
                                     {t("settings.data.clearCache")}
                                 </Text>
                                 <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t("settings.data.clearCacheDesc")}</Text>
+                            </View>
+                        </View>
+                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
+                        onPress={handleResetPersonalization}
+                    >
+                        <View style={styles.settingInfo}>
+                            <View style={styles.settingIcon}>
+                                <IconComponent name="refresh" size={20} color={theme.colors.error} />
+                            </View>
+                            <View>
+                                <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                    {t("settings.data.resetPersonalization") || "Reset Feed Preferences"}
+                                </Text>
+                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                    {t("settings.data.resetPersonalizationDesc") || "Clear all your feed personalization data and start fresh"}
+                                </Text>
                             </View>
                         </View>
                         <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
