@@ -1,14 +1,14 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
     View,
     StyleSheet,
     TouchableOpacity,
     RefreshControl,
     Alert,
+    Platform,
 } from 'react-native';
-import LegendList from '../components/LegendList';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { NoUpdatesIllustration } from '../assets/illustrations/NoUpdates';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,6 +24,12 @@ import { useTranslation } from 'react-i18next';
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications';
 import { validateNotifications, TRawNotification } from '../types/validation';
 import { useTheme } from '../hooks/useTheme';
+import { useLayoutScroll } from '../context/LayoutScrollContext';
+import AnimatedTabBar from '../components/common/AnimatedTabBar';
+import { Header } from '../components/Header';
+import { StatusBar } from 'expo-status-bar';
+
+type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
 
 const NotificationsScreen: React.FC = () => {
     const { user, isAuthenticated } = useOxy();
@@ -31,7 +37,11 @@ const NotificationsScreen: React.FC = () => {
     const [refreshing, setRefreshing] = useState(false);
     const { t } = useTranslation();
     const theme = useTheme();
-    const [category, setCategory] = useState<'all' | 'mentions' | 'follows' | 'likes' | 'posts'>('all');
+    const [activeTab, setActiveTab] = useState<NotificationTab>('all');
+    const [refreshKey, setRefreshKey] = useState(0);
+    const listRef = useRef<any>(null);
+    const unregisterScrollableRef = useRef<(() => void) | null>(null);
+    const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent } = useLayoutScroll();
 
     // Enable real-time notifications
     useRealtimeNotifications();
@@ -97,12 +107,35 @@ const NotificationsScreen: React.FC = () => {
         );
     }, [markAllAsReadMutation, t]);
 
+    const handleTabPress = useCallback((tabId: NotificationTab) => {
+        // If pressing the same tab - scroll to top and refresh
+        if (tabId === activeTab) {
+            setRefreshKey(prev => prev + 1);
+            // Scroll to top
+            if (listRef.current) {
+                try {
+                    if (typeof listRef.current.scrollToOffset === 'function') {
+                        listRef.current.scrollToOffset({ offset: 0, animated: true });
+                    } else if (typeof listRef.current.scrollTo === 'function') {
+                        listRef.current.scrollTo({ y: 0, animated: true });
+                    }
+                } catch (error) {
+                    // Ignore scroll errors
+                }
+            }
+        } else {
+            // Different tab - switch
+            setActiveTab(tabId);
+            setRefreshKey(prev => prev + 1);
+        }
+    }, [activeTab]);
+
     const unreadCount = notificationsData?.unreadCount || 0;
 
     const filteredNotifications = useMemo(() => {
         const raw: any[] = notificationsData?.notifications || [];
         const list: TRawNotification[] = validateNotifications(raw);
-        switch (category) {
+        switch (activeTab) {
             case 'mentions':
                 return list.filter((n: any) => n.type === 'mention' || n.type === 'reply');
             case 'follows':
@@ -114,7 +147,7 @@ const NotificationsScreen: React.FC = () => {
             default:
                 return list;
         }
-    }, [notificationsData, category]);
+    }, [notificationsData, activeTab]);
 
     // Ensure unique items by a stable key to prevent overlapping keys in LegendList
     const getItemKey = useCallback((item: any) => {
@@ -135,6 +168,52 @@ const NotificationsScreen: React.FC = () => {
         }
         return out;
     }, [filteredNotifications, getItemKey]);
+
+    // Register scrollable with LayoutScrollContext
+    const clearScrollableRegistration = useCallback(() => {
+        if (unregisterScrollableRef.current) {
+            unregisterScrollableRef.current();
+            unregisterScrollableRef.current = null;
+        }
+    }, []);
+
+    const assignListRef = useCallback((node: any) => {
+        listRef.current = node;
+        clearScrollableRegistration();
+        if (node) {
+            unregisterScrollableRef.current = registerScrollable(node);
+        }
+    }, [clearScrollableRegistration, registerScrollable]);
+
+    useEffect(() => {
+        if (listRef.current && !unregisterScrollableRef.current) {
+            unregisterScrollableRef.current = registerScrollable(listRef.current);
+        }
+    }, [registerScrollable]);
+
+    useEffect(() => () => {
+        clearScrollableRegistration();
+    }, [clearScrollableRegistration]);
+
+    // Handle scroll events
+    const handleScrollEvent = useCallback((event: any) => {
+        if (handleScroll) {
+            handleScroll(event);
+        }
+    }, [handleScroll]);
+
+    // Handle wheel events
+    const handleWheelEvent = useCallback((event: any) => {
+        if (forwardWheelEvent) {
+            forwardWheelEvent(event);
+        }
+    }, [forwardWheelEvent]);
+
+    // Web-specific dataSet for scroll detection
+    const dataSetForWeb = useMemo(() => {
+        if (Platform.OS !== 'web') return undefined;
+        return { layoutscroll: 'true' };
+    }, []);
 
     const renderNotification = ({ item }: { item: any }) => (
         <ErrorBoundary>
@@ -171,36 +250,81 @@ const NotificationsScreen: React.FC = () => {
         </ThemedView>
     );
 
-    if (!isAuthenticated) {
+    const renderContent = () => {
+        if (!isAuthenticated) {
+            return (
+                <ThemedView style={styles.authContainer}>
+                    <ThemedText style={[styles.authText, { color: theme.colors.textSecondary }]}>
+                        {t('state.no_session')}
+                    </ThemedText>
+                </ThemedView>
+            );
+        }
+
+        if (isLoading && !refreshing) {
+            return (
+                <ThemedView style={styles.loadingContainer}>
+                    <LoadingSpinner />
+                </ThemedView>
+            );
+        }
+
+        if (error) {
+            return renderErrorState();
+        }
+
         return (
-            <SafeAreaView edges={['top']}>
-                <View style={styles.container}>
-                    <Stack.Screen
-                        options={{
-                            title: 'Notifications',
-                            headerShown: true,
-                        }}
-                    />
-                    <ThemedView style={styles.authContainer}>
-                        <ThemedText style={[styles.authText, { color: theme.colors.textSecondary }]}>
-                            {t('state.no_session')}
-                        </ThemedText>
-                    </ThemedView>
-                </View>
-            </SafeAreaView>
+            <View 
+                style={{ flex: 1, minHeight: 0 }}
+                {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
+            >
+                <FlashList
+                    ref={assignListRef}
+                    data={listItems}
+                    keyExtractor={(item: any) => getItemKey(item)}
+                    renderItem={renderNotification}
+                    estimatedItemSize={100}
+                    ListEmptyComponent={renderEmptyState}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            colors={[theme.colors.primary]}
+                            tintColor={theme.colors.primary}
+                        />
+                    }
+                    showsVerticalScrollIndicator={false}
+                    onScroll={handleScrollEvent}
+                    scrollEventThrottle={scrollEventThrottle}
+                    onWheel={Platform.OS === 'web' ? handleWheelEvent : undefined}
+                    contentContainerStyle={{
+                        backgroundColor: theme.colors.background,
+                    }}
+                    style={{
+                        flex: 1,
+                        backgroundColor: theme.colors.background,
+                    }}
+                    drawDistance={500}
+                    key={`notifications-${activeTab}-${refreshKey}`}
+                />
+            </View>
         );
-    }
+    };
 
     return (
-        <SafeAreaView edges={['top']}>
-            <ThemedView style={styles.container}>
-                <Stack.Screen
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
+            <ThemedView style={{ flex: 1 }}>
+                <StatusBar style={theme.isDark ? "light" : "dark"} />
+
+                {/* Header */}
+                <Header
                     options={{
                         title: t('Notifications'),
-                        headerRight: () => (
+                        rightComponents: [
                             unreadCount > 0 ? (
                                 <TouchableOpacity
-                                    style={styles.markAllButton}
+                                    key="mark-all"
+                                    style={styles.headerButton}
                                     onPress={handleMarkAllAsRead}
                                     disabled={markAllAsReadMutation.isPending}
                                 >
@@ -208,47 +332,29 @@ const NotificationsScreen: React.FC = () => {
                                         {t('notification.mark_all_read')}
                                     </ThemedText>
                                 </TouchableOpacity>
-                            ) : null
-                        ),
+                            ) : null,
+                        ].filter(Boolean),
                     }}
                 />
 
-                {isLoading && !refreshing ? (
-                    <ThemedView style={styles.loadingContainer}>
-                        <LoadingSpinner />
-                    </ThemedView>
-                ) : error ? (
-                    renderErrorState()
-                ) : (
-                    <>
-                        <ChipsRow
-                            category={category}
-                            onChange={setCategory}
-                        />
-                        {(!listItems || listItems.length === 0) ? (
-                            renderEmptyState()
-                        ) : (
-                            <LegendList
-                                data={listItems}
-                                keyExtractor={(item: any) => getItemKey(item)}
-                                renderItem={renderNotification}
-                                refreshControl={
-                                    <RefreshControl
-                                        refreshing={refreshing}
-                                        onRefresh={handleRefresh}
-                                        tintColor={theme.colors.primary}
-                                    />
-                                }
-                                removeClippedSubviews={false}
-                                maxToRenderPerBatch={10}
-                                windowSize={10}
-                                initialNumToRender={10}
-                                recycleItems={true}
-                                maintainVisibleContentPosition={true}
-                            />
-                        )}
-                    </>
+                {/* Tab Navigation */}
+                {isAuthenticated && (
+                    <AnimatedTabBar
+                        tabs={[
+                            { id: 'all', label: t('notifications.tabs.all') },
+                            { id: 'mentions', label: t('notifications.tabs.mentions') },
+                            { id: 'follows', label: t('notifications.tabs.follows') },
+                            { id: 'likes', label: t('notifications.tabs.likes') },
+                            { id: 'posts', label: t('notifications.tabs.posts') },
+                        ]}
+                        activeTabId={activeTab}
+                        onTabPress={handleTabPress}
+                        scrollEnabled={false}
+                    />
                 )}
+
+                {/* Content */}
+                {renderContent()}
             </ThemedView>
         </SafeAreaView>
     );
@@ -327,72 +433,10 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
     },
-    emptyListContainer: {
-        flexGrow: 1,
-    },
-    chipsContainer: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-    },
-    chipsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    chip: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-    },
-    chipActive: {
-        borderWidth: 1,
-    },
-    chipText: {
-        fontSize: 13,
-        fontWeight: '600',
-    },
-    chipTextActive: {
+    headerButton: {
+        padding: 8,
+        marginLeft: 8,
     },
 });
 
 export default NotificationsScreen;
-
-// Category chips component
-const ChipsRow: React.FC<{
-    category: 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
-    onChange: (c: 'all' | 'mentions' | 'follows' | 'likes' | 'posts') => void
-}> = ({ category, onChange }) => {
-    const { t } = useTranslation();
-    const theme = useTheme();
-    const tabs: { key: 'all' | 'mentions' | 'follows' | 'likes' | 'posts'; label: string }[] = [
-        { key: 'all', label: t('notifications.tabs.all') },
-        { key: 'mentions', label: t('notifications.tabs.mentions') },
-        { key: 'follows', label: t('notifications.tabs.follows') },
-        { key: 'likes', label: t('notifications.tabs.likes') },
-        { key: 'posts', label: t('notifications.tabs.posts') },
-    ];
-    return (
-        <View style={[styles.chipsContainer, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}>
-            <View style={styles.chipsRow}>
-                {tabs.map(tab => {
-                    const active = category === tab.key;
-                    return (
-                        <TouchableOpacity key={tab.key}
-                            style={[
-                                styles.chip,
-                                { backgroundColor: theme.isDark ? 'rgba(255,255,255,0.1)' : '#E1E8ED' },
-                                active && { backgroundColor: `${theme.colors.primary}15`, borderWidth: 1, borderColor: theme.colors.primary }
-                            ]}
-                            onPress={() => onChange(tab.key)}
-                        >
-                            <ThemedText style={[styles.chipText, active && { color: theme.colors.primary }]}>
-                                {tab.label}
-                            </ThemedText>
-                        </TouchableOpacity>
-                    );
-                })}
-            </View>
-        </View>
-    );
-};
