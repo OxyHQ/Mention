@@ -65,9 +65,9 @@ const ExploreScreen: React.FC = () => {
         <AnimatedTabBar
           tabs={[
             { id: 'all', label: t('All') },
-            { id: 'media', label: `📸 ${t('Media')}` },
-            { id: 'trending', label: `🔥 ${t('Trending')}` },
-            { id: 'custom', label: `🎯 ${t('Custom')}` },
+            { id: 'media', label: t('Media') },
+            { id: 'trending', label: t('Trending') },
+            { id: 'custom', label: t('Custom') },
           ]}
           activeTabId={activeTab}
           onTabPress={(id) => setActiveTab(id as ExploreTab)}
