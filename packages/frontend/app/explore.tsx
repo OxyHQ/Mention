@@ -119,7 +119,7 @@ const ExploreScreen: React.FC = () => {
                   onPress={() => router.push('/search')}
                   style={{ padding: 8 }}
                 >
-                  <Ionicons name="search-outline" size={24} color={theme.colors.textSecondary} />
+                  <Search color={theme.colors.textSecondary} size={24} />
                 </TouchableOpacity>,
               ],
             }}
