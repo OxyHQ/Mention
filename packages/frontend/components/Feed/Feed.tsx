@@ -165,20 +165,26 @@ const Feed = (props: FeedProps) => {
         return String(fallback);
     }, []);
 
-    const isInitialMountRef = useRef(true);
+    const previousReloadKeyRef = useRef<string | number | undefined>(undefined);
 
-    const fetchInitialFeed = useCallback(async () => {
+    const fetchInitialFeed = useCallback(async (forceRefresh: boolean = false) => {
         if (isFetchingRef.current) return;
         if (isAuthenticated && !currentUser?.id) return;
 
-        const shouldRefresh = isInitialMountRef.current || (reloadKey !== undefined && reloadKey !== null);
-
-        if (!useScoped && !shouldRefresh) {
-            const currentFeed = usePostsStore.getState().feeds[type];
-            if (currentFeed?.items && currentFeed.items.length > 0) {
-                return;
-            }
+        // Check if feed already has items in the store
+        const currentFeed = !useScoped ? usePostsStore.getState().feeds[type] : null;
+        const hasItems = currentFeed?.items && currentFeed.items.length > 0;
+        
+        // CRITICAL: Only fetch if:
+        // 1. Force refresh (reloadKey changed - user pressed same tab)
+        // 2. Feed doesn't have items (first time loading)
+        // DO NOT fetch if just switching tabs and feed already has items
+        if (!useScoped && hasItems && !forceRefresh) {
+            // Feed already loaded and user is just switching tabs - don't reload
+            return;
         }
+        
+        const shouldRefresh = forceRefresh;
 
         isFetchingRef.current = true;
 
@@ -233,13 +239,42 @@ const Feed = (props: FeedProps) => {
         } finally {
             if (useScoped) setLocalLoading(false);
             isFetchingRef.current = false;
-            isInitialMountRef.current = false;
         }
     }, [type, userId, showOnlySaved, useScoped, filters, filtersKey, reloadKey, isAuthenticated, currentUser?.id, fetchFeed, fetchUserFeed, fetchSavedPosts, refreshFeed, clearError, itemKey]);
 
+    // Track reloadKey changes separately from type changes
     useEffect(() => {
-        fetchInitialFeed();
-    }, [fetchInitialFeed]);
+        const reloadKeyChanged = previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
+        previousReloadKeyRef.current = reloadKey;
+        
+        // If reloadKey changed, always refresh (user pressed same tab)
+        if (reloadKeyChanged) {
+            fetchInitialFeed(true); // Force refresh
+        }
+    }, [reloadKey, fetchInitialFeed]);
+
+    // Handle initial load and type/filter changes
+    useEffect(() => {
+        // Skip if reloadKey just changed (handled by above effect)
+        const reloadKeyChanged = previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
+        if (reloadKeyChanged) {
+            return; // Let the reloadKey effect handle it
+        }
+        
+        // Check if feed already has items
+        if (!useScoped) {
+            const currentFeed = usePostsStore.getState().feeds[type];
+            const hasItems = currentFeed?.items && currentFeed.items.length > 0;
+            
+            // If feed has items, skip fetching (just switching tabs)
+            if (hasItems) {
+                return;
+            }
+        }
+        
+        // Feed doesn't have items yet, fetch it (first time loading)
+        fetchInitialFeed(false);
+    }, [type, filtersKey, fetchInitialFeed, useScoped, reloadKey]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -450,7 +485,11 @@ const Feed = (props: FeedProps) => {
                             type === 'media' ? 'No media posts found' :
                                 type === 'replies' ? 'No replies yet' :
                                     type === 'reposts' ? 'No reposts yet' :
-                                        'Start following people to see their posts'}
+                                        type === 'explore' || type === 'trending' ? 'No trending posts right now. Check back later!' :
+                                            type === 'following' ? 'Start following people to see their posts' :
+                                                type === 'for_you' ? 'Discover posts based on your interests' :
+                                                    type === 'custom' ? 'This feed is empty' :
+                                                        'Start following people to see their posts'}
                 </Text>
             </View>
         );

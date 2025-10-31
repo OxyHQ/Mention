@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import { oxy as oxyClient } from '../../server';
 import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
+import { PostVisibility } from '@mention/shared-types';
 
 // Create a new post
 export const createPost = async (req: AuthRequest, res: Response) => {
@@ -17,11 +18,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    console.log('📝 Creating post with body:', JSON.stringify(req.body, null, 2));
-
     const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation } = req.body;
-
-    console.log('🔗 Thread fields - parentPostId:', parentPostId, 'threadId:', threadId);
 
     // Support both new content structure and legacy text/media structure
     const text = content?.text || req.body.text;
@@ -30,8 +27,6 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const poll = content?.poll;
     const contentLocationData = content?.location || contentLocation;
 
-    console.log('📍 Content location data:', contentLocationData);
-    console.log('📍 Post location data:', postLocation);
 
     // Extract hashtags from text if not provided
     const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
@@ -56,14 +51,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         longitude = contentLocationData.coordinates[0];
         latitude = contentLocationData.coordinates[1];
         address = contentLocationData.address;
-        console.log('📍 Received GeoJSON format content location');
       }
       // Handle legacy format: { latitude: number, longitude: number, address?: string }
       else if (typeof contentLocationData.latitude === 'number' && typeof contentLocationData.longitude === 'number') {
         longitude = contentLocationData.longitude;
         latitude = contentLocationData.latitude;
         address = contentLocationData.address;
-        console.log('📍 Received legacy format content location');
       }
       
       // Validate coordinates
@@ -75,9 +68,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           coordinates: [longitude, latitude], // GeoJSON format: [lng, lat]
           address: address || undefined
         };
-        console.log('✅ Processed content location:', processedContentLocation);
       } else {
-        console.log('❌ Invalid content location coordinates:', { longitude, latitude });
         return res.status(400).json({ 
           error: 'Invalid location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.' 
         });
@@ -94,7 +85,6 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         longitude = postLocation.coordinates[0];
         latitude = postLocation.coordinates[1];
         address = postLocation.address;
-        console.log('📍 Received GeoJSON format post location');
       }
       // Handle legacy format: { latitude: number, longitude: number, address?: string }
       else if (typeof postLocation.latitude === 'number' && typeof postLocation.longitude === 'number') {
@@ -113,9 +103,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           coordinates: [longitude, latitude], // GeoJSON format: [lng, lat]
           address: address || undefined
         };
-        console.log('✅ Processed post location:', processedPostLocation);
       } else {
-        console.log('❌ Invalid post location coordinates:', { longitude, latitude });
         return res.status(400).json({ 
           error: 'Invalid post location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.' 
         });
@@ -137,7 +125,6 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Create poll separately if provided and add pollId to content
     let pollId = null;
     if (poll) {
-      console.log('📊 Creating poll:', JSON.stringify(poll, null, 2));
       
       try {
         const pollDoc = new Poll({
@@ -154,7 +141,6 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         pollId = savedPoll._id.toString();
         postContent.pollId = pollId;
         
-        console.log('📊 Poll created with ID:', pollId);
       } catch (pollError) {
         console.error('Failed to create poll:', pollError);
         return res.status(400).json({ message: 'Failed to create poll', error: pollError });
@@ -166,8 +152,6 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.location = processedContentLocation;
     }
 
-    console.log('📦 Final post content:', JSON.stringify(postContent, null, 2));
-
     const post = new Post({
       oxyUserId: userId,
       content: postContent,
@@ -177,18 +161,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       quoteOf: quoted_post_id || null,
       repostOf: repost_of || null,
       parentPostId: parentPostId || in_reply_to_status_id || null,
-      threadId: threadId || null
+      threadId: threadId || null,
+      visibility: PostVisibility.PUBLIC, // Explicitly set visibility
+      stats: {
+        likesCount: 0,
+        repostsCount: 0,
+        commentsCount: 0,
+        viewsCount: 0,
+        sharesCount: 0
+      }
     });
 
-    console.log('💾 Saving post to database...');
   await post.save();
-    console.log('✅ Post saved successfully');
     
     // Update poll's postId with the actual post ID
     if (pollId) {
       try {
         await Poll.findByIdAndUpdate(pollId, { postId: post._id.toString() });
-        console.log('📊 Poll updated with post ID:', post._id.toString());
       } catch (pollUpdateError) {
         console.error('Failed to update poll postId:', pollUpdateError);
         // Continue execution - post was created successfully
@@ -393,7 +382,14 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         content: postContent,
         hashtags: uniqueTags,
         mentions: mentions || [],
-        visibility: visibility || 'public',
+        visibility: (visibility as PostVisibility) || PostVisibility.PUBLIC,
+        stats: {
+          likesCount: 0,
+          repostsCount: 0,
+          commentsCount: 0,
+          viewsCount: 0,
+          sharesCount: 0
+        },
         // For thread mode: first post is main, others are linked to it
         // For beast mode: all posts are independent
         ...(mode === 'thread' && i > 0 && mainPostId ? {

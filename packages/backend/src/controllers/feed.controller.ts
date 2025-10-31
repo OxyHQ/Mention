@@ -129,24 +129,16 @@ class FeedController {
       const userInteractions = new Map();
       if (currentUserId) {
         try {
-          console.log('🔍 Fetching user interactions for userId:', currentUserId);
-          
           // Get all post IDs
           const postIds = postsWithPolls.map(post => {
             const postObj = post.toObject ? post.toObject() : post;
             return postObj._id.toString();
           });
 
-          console.log('📝 Post IDs to check:', postIds);
-
           // Get all posts with their metadata to check for interactions
           const postsWithMetadata = await Post.find({
             _id: { $in: postIds }
           }).select('_id metadata.likedBy metadata.savedBy');
-
-          console.log('📊 Posts with metadata:', postsWithMetadata.length);
-          console.log('📋 Post IDs requested:', postIds);
-          console.log('📋 Post IDs found:', postsWithMetadata.map(p => p._id.toString()));
 
           const postsMissingLikeMetadata: string[] = [];
           // Check likes and saves by examining the metadata arrays
@@ -156,17 +148,12 @@ class FeedController {
             const likedBy = metadata.likedBy || [];
             const savedBy = metadata.savedBy || [];
 
-            console.log(`📄 Post ${postId}: likedBy=${likedBy.length}, savedBy=${savedBy.length}`);
-            console.log(`🔍 Checking if user ${currentUserId} is in likedBy:`, likedBy);
-            console.log(`🔍 Checking if user ${currentUserId} is in savedBy:`, savedBy);
-
             // Check likes with multiple formats for robust comparison
             const userLiked = likedBy.includes(currentUserId) || 
                             likedBy.includes(currentUserId?.toString()) ||
                             likedBy.some(id => id?.toString() === currentUserId?.toString());
             
             if (userLiked) {
-              console.log(`✅ User ${currentUserId} found in likedBy array`);
               userInteractions.set(postId, {
                 ...userInteractions.get(postId),
                 isLiked: true
@@ -181,7 +168,6 @@ class FeedController {
                             savedBy.some(id => id?.toString() === currentUserId?.toString());
 
             if (userSaved) {
-              console.log(`✅ User ${currentUserId} found in savedBy array`);
               userInteractions.set(postId, {
                 ...userInteractions.get(postId),
                 isSaved: true
@@ -237,21 +223,15 @@ class FeedController {
             repostOf: { $in: postIds }
           }).select('repostOf');
 
-          console.log('🔄 Reposted posts found:', repostedPosts.length, repostedPosts.map(p => p.repostOf));
-
           repostedPosts.forEach(post => {
             userInteractions.set(post.repostOf, {
               ...userInteractions.get(post.repostOf),
               isReposted: true
             });
           });
-
-          console.log('🗺️ Final user interactions map:', Object.fromEntries(userInteractions));
         } catch (error) {
-          console.error('❌ Error fetching user interactions:', error);
+          console.error('Error fetching user interactions:', error);
         }
-      } else {
-        console.log('⚠️ No currentUserId provided, skipping user interaction checks');
       }
 
       // Check which posts are threads (have replies from the same user)
@@ -556,6 +536,26 @@ class FeedController {
         }
         if (authors.length) {
           query.oxyUserId = { $in: authors };
+        } else {
+          // If authors filter is provided but empty, return no results
+          // This handles empty lists or empty author filters correctly
+          query.oxyUserId = { $in: [] }; // Empty array will match nothing
+        }
+      }
+      
+      // Exclude owner from custom feeds if explicitly requested
+      // This ensures custom feeds don't include the creator's posts unless they're in the member list
+      if (filters.excludeOwner && currentUserId) {
+        // Add condition to exclude owner's posts
+        if (query.oxyUserId && query.oxyUserId.$in) {
+          // If authors filter exists, owner should already be excluded if not in list
+          // But add explicit exclusion as safety measure
+          query.oxyUserId = {
+            $in: query.oxyUserId.$in.filter((id: string) => id !== currentUserId)
+          };
+        } else {
+          // No authors filter, so exclude owner explicitly
+          query.oxyUserId = { $ne: currentUserId };
         }
       }
       if (filters.includeReplies === false) {
@@ -586,11 +586,21 @@ class FeedController {
           : String(filters.keywords).split(',').map((s: string) => s.trim()).filter(Boolean);
         if (kws.length) {
           const regexes = kws.map((k: string) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-          query.$or = [
-            ...(query.$or || []),
+          const keywordConditions = [
             { 'content.text': { $in: regexes } },
-            { hashtags: { $in: kws } },
+            { hashtags: { $in: kws.map((k: string) => k.toLowerCase()) } }
           ];
+          
+          // If there's already an $or (from other filters), combine with $and
+          // Otherwise, use $or for keywords
+          if (query.$or) {
+            // Combine existing $or with keyword conditions using $and
+            query.$and = query.$and || [];
+            query.$and.push({ $or: [...query.$or, ...keywordConditions] });
+            delete query.$or;
+          } else {
+            query.$or = keywordConditions;
+          }
         }
       }
     }
@@ -660,7 +670,61 @@ class FeedController {
       let { filters } = req.query as any;
       const currentUserId = req.user?.id;
 
-      // Feed request logging removed for production
+      // Handle customFeedId filter - expand to custom feed configuration
+      try {
+        if (filters && filters.customFeedId) {
+          const { CustomFeed } = require('../models/CustomFeed');
+          // Validate ObjectId format to prevent injection
+          const feedId = String(filters.customFeedId);
+          if (!mongoose.Types.ObjectId.isValid(feedId)) {
+            return res.status(400).json({ error: 'Invalid feed ID format' });
+          }
+          const feed = await CustomFeed.findById(feedId).lean();
+          if (feed) {
+            // Check access permissions
+            if (!feed.isPublic && feed.ownerOxyUserId !== currentUserId) {
+              return res.status(403).json({ error: 'Feed not accessible' });
+            }
+
+            // Expand authors from direct members + lists
+            let authors: string[] = Array.from(new Set(feed.memberOxyUserIds || []));
+            try {
+              if (feed.sourceListIds && feed.sourceListIds.length) {
+                const { AccountList } = require('../models/AccountList');
+                const lists = await AccountList.find({ _id: { $in: feed.sourceListIds } }).lean();
+                lists.forEach((l: any) => (l.memberOxyUserIds || []).forEach((id: string) => authors.push(id)));
+                authors = Array.from(new Set(authors));
+              }
+            } catch (e) {
+              console.warn('Failed to expand feed.sourceListIds:', e?.message || e);
+            }
+
+            // Exclude owner unless they're in the member list
+            const ownerId = feed.ownerOxyUserId;
+            const ownerIsInMembers = authors.includes(ownerId);
+            if (!ownerIsInMembers && ownerId) {
+              authors = authors.filter(id => id !== ownerId);
+            }
+
+            // Build filters from custom feed configuration
+            filters = {
+              ...filters,
+              authors: authors.length > 0 ? authors.join(',') : undefined,
+              keywords: feed.keywords && feed.keywords.length > 0 ? feed.keywords.join(',') : undefined,
+              includeReplies: feed.includeReplies,
+              includeReposts: feed.includeReposts,
+              includeMedia: feed.includeMedia,
+              language: feed.language,
+              excludeOwner: !ownerIsInMembers // Exclude owner if not in members
+            };
+
+          } else {
+            return res.status(404).json({ error: 'Custom feed not found' });
+          }
+        }
+      } catch (e) {
+        console.warn('Optional customFeedId expansion failed:', e?.message || e);
+      }
 
       // If a listId or listIds is provided, expand to authors
       try {
@@ -1135,25 +1199,11 @@ class FeedController {
         finalDeduplicated.length = 0;
         finalDeduplicated.push(...emergencyUnique.values());
         
-        console.error('⚠️ EMERGENCY: Re-deduplicated response:', {
+        console.error('Deduplication mismatch detected:', {
           before: allReturnedIds.length,
           after: finalDeduplicated.length
         });
-      } else {
-        console.log('✅ Backend response: All IDs verified unique', {
-          count: allReturnedIds.length,
-          firstFewIds: allReturnedIds.slice(0, 5)
-        });
       }
-
-      // Log response summary
-      console.log('📦 For You feed response:', {
-        totalRequested: Number(limit),
-        totalReturned: finalDeduplicated.length,
-        hasMore,
-        nextCursor: nextCursor ? nextCursor.substring(0, 30) + '...' : 'none',
-        hasCursor: !!nextCursor
-      });
 
       const response: FeedResponse = {
         items: finalDeduplicated, // Return fully deduplicated posts
@@ -1245,57 +1295,151 @@ class FeedController {
 
   /**
    * Get explore feed (trending posts)
+   * Returns posts from the ENTIRE NETWORK sorted by engagement (likes, reposts, replies)
+   * This is NOT filtered by following - it shows trending posts from all users
    */
   async getExploreFeed(req: AuthRequest, res: Response) {
     try {
-      const { cursor, limit = 20 } = req.query as any;
+      // Validate and sanitize inputs
+      const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20)), 1), 100); // Clamp between 1-100
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : undefined;
       const currentUserId = req.user?.id;
 
-      // Build query for trending posts (high engagement)
+      // Build query for trending posts from ALL USERS in the network
+      // INCLUDES the current user's own posts - no filtering by oxyUserId
+      // No filtering by following - shows trending posts from everyone including yourself
+      // Exclude replies and reposts - only show original top-level posts
+      // Use $and to properly combine conditions
       const match: any = {
         visibility: PostVisibility.PUBLIC,
+        // NO oxyUserId filter - includes posts from ALL users (including current user)
         $and: [
-          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
+          // Exclude replies: parentPostId must be null or not exist
+          {
+            $or: [
+              { parentPostId: null },
+              { parentPostId: { $exists: false } }
+            ]
+          },
+          // Exclude reposts: repostOf must be null or not exist
+          {
+            $or: [
+              { repostOf: null },
+              { repostOf: { $exists: false } }
+            ]
+          }
         ]
       };
 
-      if (cursor) {
-        try {
-          match._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-        } catch (e) {
-          console.warn('Invalid cursor format for explore feed:', cursor);
+      // If no posts match the strict criteria, try a more permissive query
+      const totalMatchingPosts = await Post.countDocuments(match);
+      if (totalMatchingPosts === 0) {
+        // Fallback: try simpler query (just visibility, including replies/reposts)
+        const simpleMatch = { visibility: PostVisibility.PUBLIC };
+        const simpleCount = await Post.countDocuments(simpleMatch);
+        if (simpleCount > 0) {
+          match = simpleMatch;
+        } else {
+          // Try lowercase visibility string as fallback
+          const altMatch = { visibility: 'public' };
+          const altCount = await Post.countDocuments(altMatch);
+          if (altCount > 0) {
+            match = altMatch;
+          }
         }
       }
 
-      // Sort by engagement score (likes + reposts + comments)
+      let cursorId: string | undefined;
+      let minFinalScore: number | undefined;
+      
+      // Parse cursor - supports both compound (base64 JSON) and simple ObjectId format
+      if (cursor) {
+        try {
+          // Try to decode as base64 JSON (compound cursor)
+          const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
+          const parsed = JSON.parse(decoded);
+          if (parsed._id && typeof parsed.minScore === 'number') {
+            cursorId = parsed._id;
+            minFinalScore = parsed.minScore;
+          } else {
+            throw new Error('Invalid compound cursor structure');
+          }
+        } catch {
+          // Not a compound cursor, treat as simple ObjectId (backward compatible)
+          // Validate ObjectId format to prevent injection
+          if (mongoose.Types.ObjectId.isValid(cursor)) {
+            try {
+              cursorId = cursor;
+              match._id = { $lt: new mongoose.Types.ObjectId(cursorId) };
+            } catch {
+              // Invalid ObjectId - ignore and continue without cursor
+            }
+          }
+        }
+      }
+
+      // Calculate engagement score including all engagement metrics
+      // Include likes, reposts, replies (comments), and bookmarks (saves) in the score
       const posts = await Post.aggregate([
         { $match: match },
         {
           $addFields: {
+            // Get bookmark/save count from metadata.savedBy array length
+            bookmarksCount: { $size: { $ifNull: ['$metadata.savedBy', []] } },
             engagementScore: {
               $add: [
                 { $ifNull: ['$stats.likesCount', 0] },
-                { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
-                { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
+                { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] }, // Reposts weighted 2x
+                { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }, // Comments weighted 1.5x
+                { $multiply: [{ $size: { $ifNull: ['$metadata.savedBy', []] } }, 1.2] } // Bookmarks weighted 1.2x
               ]
-            }
+            },
           }
         },
-        { $sort: { engagementScore: -1, createdAt: -1 } },
-        { $limit: Number(limit) + 1 }
+        // NO engagement threshold filter - show ALL posts sorted by engagement
+        // Posts with 0 engagement will naturally be at the bottom
+        // Apply compound filtering to prevent duplicates when paginating
+        ...(minFinalScore !== undefined && cursorId ? [{
+          $match: {
+            $or: [
+              { engagementScore: { $lt: minFinalScore } },
+              {
+                $and: [
+                  { engagementScore: minFinalScore },
+                  // Validate ObjectId to prevent injection
+                  { _id: mongoose.Types.ObjectId.isValid(cursorId) ? { $lt: new mongoose.Types.ObjectId(cursorId) } : { $exists: false } }
+                ]
+              }
+            ]
+          }
+        }] : []),
+        { $sort: { engagementScore: -1, _id: -1 } },
+        { $limit: limit + 1 }
       ]);
 
-      const hasMore = posts.length > Number(limit);
-      const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
-      const nextCursor = hasMore && postsToReturn.length > 0 
-        ? postsToReturn[postsToReturn.length - 1]._id.toString() 
-        : undefined;
+      const hasMore = posts.length > limit;
+      const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
+      
+      // Calculate cursor with last post's engagementScore for proper pagination
+      let nextCursor: string | undefined;
+      if (postsToReturn.length > 0) {
+        const lastPost = postsToReturn[postsToReturn.length - 1];
+        const lastPostScore = typeof lastPost.engagementScore === 'number' && !isNaN(lastPost.engagementScore) 
+          ? lastPost.engagementScore 
+          : 0;
+        
+        // Encode as compound cursor (engagementScore + _id) for engagement-based feeds
+        const cursorData = {
+          _id: lastPost._id.toString(),
+          minScore: lastPostScore
+        };
+        nextCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
+      }
 
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts, // Return posts directly in new schema format
+        items: transformedPosts,
         hasMore,
         nextCursor,
         totalCount: transformedPosts.length
@@ -1304,7 +1448,6 @@ class FeedController {
       res.json(response);
     } catch (error) {
       console.error('Error fetching explore feed:', error);
-      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).json({ 
         error: 'Failed to fetch explore feed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -1945,28 +2088,7 @@ class FeedController {
   /**
    * Debug endpoint to see raw post data
    */
-  async debugPosts(req: AuthRequest, res: Response) {
-    try {
-      const posts = await Post.find({}).limit(3).lean();
-      console.log('🔍 Debug - Raw posts from database:', JSON.stringify(posts, null, 2));
-      
-      res.json({
-        message: 'Debug posts',
-        count: posts.length,
-        posts: posts.map(post => ({
-          id: post._id,
-          oxyUserId: post.oxyUserId,
-          content: post.content,
-          stats: post.stats,
-          metadata: post.metadata,
-          createdAt: post.createdAt
-        }))
-      });
-    } catch (error) {
-      console.error('Debug error:', error);
-      res.status(500).json({ error: 'Debug failed' });
-    }
-  }
+  // Debug method removed for production
 
   // Legacy methods for backward compatibility
   async getPostsFeed(req: AuthRequest, res: Response) {

@@ -21,6 +21,7 @@ export default function CustomFeedTimelineScreen() {
       try {
         const f = await customFeedsService.get(String(id));
         setFeed(f);
+        // Only include explicitly added members, NOT the owner unless they're in the list
         let authors = new Set<string>(f.memberOxyUserIds || []);
         if (f.sourceListIds && f.sourceListIds.length) {
           for (const lid of f.sourceListIds) {
@@ -29,6 +30,12 @@ export default function CustomFeedTimelineScreen() {
               (l.memberOxyUserIds || []).forEach((uid: string) => authors.add(uid));
             } catch { }
           }
+        }
+        // Explicitly remove owner if they're not in the member list
+        // This ensures owner's posts are only shown if they explicitly added themselves
+        const ownerId = f.ownerOxyUserId;
+        if (ownerId && !f.memberOxyUserIds?.includes(ownerId)) {
+          authors.delete(ownerId);
         }
         setAuthorsCsv(Array.from(authors).join(','));
       } catch {
@@ -59,7 +66,8 @@ export default function CustomFeedTimelineScreen() {
             includeReplies: feed.includeReplies,
             includeReposts: feed.includeReposts,
             includeMedia: feed.includeMedia,
-            language: feed.language
+            language: feed.language,
+            excludeOwner: true // Exclude feed owner unless they're explicitly in members list
           }}
           recycleItems={true}
           maintainVisibleContentPosition={true}

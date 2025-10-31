@@ -62,6 +62,7 @@ interface FeedState {
     isLoading: boolean;
     error: string | null;
     lastUpdated: number;
+    filters?: Record<string, any>;
   }>;
   
   userFeeds: Record<string, Record<FeedType, {
@@ -135,6 +136,8 @@ const createDefaultFeedsState = () => ({
   mixed: createDefaultFeedState(),
   for_you: createDefaultFeedState(),
   following: createDefaultFeedState(),
+  explore: createDefaultFeedState(), // Trending feed
+  custom: createDefaultFeedState(), // Custom feeds
 });
 
 type TransformOptions = {
@@ -244,10 +247,15 @@ export const usePostsStore = create<FeedState>()(
         return;
       }
       
+      // Only skip if we have items AND no cursor AND no filters change
+      // This prevents stale data when switching between feed types
       if (!request.cursor && currentFeed?.items && currentFeed.items.length > 0) {
-        return;
+        // Check if filters changed - if so, force refresh
+        const filtersChanged = JSON.stringify(request.filters || {}) !== JSON.stringify(currentFeed.filters || {});
+        if (!filtersChanged) {
+          return;
+        }
       }
-      
       set(state => ({
         feeds: {
           ...state.feeds,
@@ -286,7 +294,8 @@ export const usePostsStore = create<FeedState>()(
                 totalCount: uniqueItems.length,
                 isLoading: false,
                 error: null,
-                lastUpdated: Date.now()
+                lastUpdated: Date.now(),
+                filters: request.filters // Store filters to detect changes
               }
             },
             postsById: newCache,

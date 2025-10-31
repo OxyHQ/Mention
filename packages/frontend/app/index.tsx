@@ -112,8 +112,8 @@ const HomeScreen: React.FC = () => {
             if (pinnedFeed) {
                 return (
                     <Feed
-                        key={`custom-${feedId}-${refreshKey}`}
-                        type="mixed"
+                        key={`custom-${feedId}`}
+                        type="custom"
                         filters={{
                             customFeedId: feedId
                         }}
@@ -129,8 +129,8 @@ const HomeScreen: React.FC = () => {
                 case 'trending':
                     return (
                         <Feed
-                            key={`trending-${refreshKey}`}
-                            type="mixed"
+                            key="trending"
+                            type="explore"
                             reloadKey={refreshKey}
                         />
                     );
@@ -139,7 +139,7 @@ const HomeScreen: React.FC = () => {
                     // Show popular posts for "For You" tab when not authenticated
                     return (
                         <Feed
-                            key={`for_you-${refreshKey}`}
+                            key="for_you"
                             type="for_you"
                             reloadKey={refreshKey}
                         />
@@ -152,7 +152,7 @@ const HomeScreen: React.FC = () => {
             case 'following':
                 return (
                     <Feed
-                        key={`following-${refreshKey}`}
+                        key="following"
                         type="following"
                         reloadKey={refreshKey}
                     />
@@ -161,8 +161,8 @@ const HomeScreen: React.FC = () => {
             case 'trending':
                 return (
                     <Feed
-                        key={`trending-${refreshKey}`}
-                        type="mixed"
+                        key="trending"
+                        type="explore"
                         reloadKey={refreshKey}
                     />
                 );
@@ -170,7 +170,7 @@ const HomeScreen: React.FC = () => {
             default:
                 return (
                     <Feed
-                        key={`for_you-${refreshKey}`}
+                        key="for_you"
                         type="for_you"
                         reloadKey={refreshKey}
                     />

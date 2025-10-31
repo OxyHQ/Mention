@@ -80,8 +80,6 @@ router.get('/', async (req: any, res) => {
     }
 
     const items = await CustomFeed.find(q).sort({ updatedAt: -1 }).lean();
-    console.log('Feed search query:', JSON.stringify(q, null, 2));
-    console.log('Feed search results:', items.length, 'items');
     res.json({ items, total: items.length });
   } catch (error) {
     console.error('List custom feeds error:', error);
@@ -183,7 +181,15 @@ router.delete('/:id/members', async (req: any, res) => {
 router.get('/:id/timeline', async (req: any, res) => {
   try {
     const userId = req.user?.id;
-    const { cursor, limit = 20 } = req.query as any;
+    // Validate and sanitize inputs
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20)), 1), 100); // Clamp between 1-100
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : undefined;
+    
+    // Validate feed ID format to prevent injection
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid feed ID format' });
+    }
+    
     const feed = await CustomFeed.findById(req.params.id).lean();
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
     if (!feed.isPublic && feed.ownerOxyUserId !== userId) {
@@ -191,6 +197,7 @@ router.get('/:id/timeline', async (req: any, res) => {
     }
 
     // Expand authors from direct members + lists
+    // IMPORTANT: Only include explicitly added members, NOT the owner
     let authors: string[] = Array.from(new Set(feed.memberOxyUserIds || []));
     try {
       if (feed.sourceListIds && feed.sourceListIds.length) {
@@ -200,36 +207,124 @@ router.get('/:id/timeline', async (req: any, res) => {
         authors = Array.from(new Set(authors));
       }
     } catch (e) {
-      console.warn('Failed to expand feed.sourceListIds:', e?.message || e);
+      // Failed to expand list members - continue without them
     }
 
+    // Explicitly exclude the owner unless they're in the member list
+    // This ensures the owner's posts are only shown if they explicitly added themselves
+    const ownerId = feed.ownerOxyUserId;
+    const ownerIsInMembers = authors.includes(ownerId);
+    
+    // If owner is not in members, explicitly exclude them
+    if (!ownerIsInMembers && ownerId) {
+      // Filter out owner from authors if somehow they got in, and add exclusion condition
+      authors = authors.filter(id => id !== ownerId);
+    }
+
+
+    // Build query based on feed configuration
     const q: any = {
-      oxyUserId: { $in: authors },
       visibility: 'public',
     };
-    if (cursor) {
-      q._id = { $lt: new mongoose.Types.ObjectId(String(cursor)) };
+
+    // Collect all conditions in $and array for proper MongoDB query structure
+    const conditions: any[] = [];
+
+    // Author filter: if authors are specified, filter by them (owner excluded unless explicitly added)
+    if (authors.length > 0) {
+      conditions.push({ oxyUserId: { $in: authors } });
+    } else if (ownerId && !ownerIsInMembers) {
+      // If no authors but owner exists and is not in members, explicitly exclude owner
+      // This handles the case where only keywords are specified
+      conditions.push({ oxyUserId: { $ne: ownerId } });
     }
 
-    // Apply additional filters similar to buildFeedQuery
-    if (feed.includeReplies === false) q.parentPostId = { $exists: false };
-    if (feed.includeReposts === false) q.repostOf = { $exists: false };
-    if (feed.includeMedia === false) q.type = { $nin: ['image', 'video'] } as any;
-    if (feed.language) q.language = feed.language;
+    // Keyword filter: posts must match keywords in content or hashtags
     if (feed.keywords && feed.keywords.length) {
-      const regexes = (feed.keywords || []).map((k: string) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-      q.$or = [{ 'content.text': { $in: regexes } }, { hashtags: { $in: feed.keywords } }];
+      const keywordRegexes = feed.keywords.map((k: string) => 
+        new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+      );
+      const keywordConditions = [
+        { 'content.text': { $in: keywordRegexes } },
+        { hashtags: { $in: feed.keywords.map((k: string) => k.toLowerCase()) } }
+      ];
+      
+      // If authors are also specified, keywords become an AND condition
+      // Otherwise, keywords are the primary filter (can be from any author)
+      if (authors.length > 0) {
+        // Posts must be from authors AND match keywords
+        conditions.push({ $or: keywordConditions });
+      } else {
+        // No authors specified, so posts from ANY author that match keywords
+        // Use $or for keywords (can match text OR hashtags)
+        conditions.push({ $or: keywordConditions });
+      }
     }
 
-    const docs = await Post.find(q).sort({ createdAt: -1 }).limit(Number(limit) + 1).lean();
-    const hasMore = docs.length > Number(limit);
-    const toReturn = hasMore ? docs.slice(0, Number(limit)) : docs;
-    const nextCursor = hasMore ? String(docs[Number(limit) - 1]._id) : undefined;
+    // If no authors and no keywords, return empty (feed has no criteria)
+    if (authors.length === 0 && (!feed.keywords || feed.keywords.length === 0)) {
+      return res.json({
+        items: [],
+        hasMore: false,
+        nextCursor: undefined,
+        totalCount: 0,
+      });
+    }
+
+    // Apply content type filters
+    if (feed.includeReplies === false) {
+      conditions.push({ $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] });
+    }
+    
+    if (feed.includeReposts === false) {
+      conditions.push({ $or: [{ repostOf: null }, { repostOf: { $exists: false } }] });
+    }
+    
+    if (feed.includeMedia === false) {
+      conditions.push({ 
+        $and: [
+          { type: { $nin: ['image', 'video'] } },
+          { 'content.media': { $exists: false } },
+          { 'content.images': { $exists: false } }
+        ]
+      });
+    }
+    
+    if (feed.language) {
+      conditions.push({ language: feed.language });
+    }
+
+    // Combine all conditions with $and
+    if (conditions.length > 0) {
+      q.$and = conditions;
+    }
+
+    // Apply cursor pagination with validation
+    if (cursor) {
+      // Validate ObjectId format to prevent injection
+      if (mongoose.Types.ObjectId.isValid(cursor)) {
+        try {
+          q._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+        } catch (e) {
+          // Invalid ObjectId - ignore and continue without cursor pagination
+        }
+      }
+    }
+
+    const docs = await Post.find(q).sort({ createdAt: -1 }).limit(limit + 1).lean();
+    
+    const hasMore = docs.length > limit;
+    const toReturn = hasMore ? docs.slice(0, limit) : docs;
+    const nextCursor = hasMore && toReturn.length > 0 
+      ? String(toReturn[toReturn.length - 1]._id) 
+      : undefined;
 
     const transformed = await (feedController as any).transformPostsWithProfiles(toReturn, userId);
 
+    // Return in FeedResponse format - items as direct posts (not wrapped)
+    // Frontend Feed component expects items to be posts directly
     res.json({
-      items: transformed.map((p: any) => ({ id: p.id, type: 'post', data: p, createdAt: p.date, updatedAt: p.date })),
+      items: transformed, // Return posts directly, not wrapped
       hasMore,
       nextCursor,
       totalCount: transformed.length,

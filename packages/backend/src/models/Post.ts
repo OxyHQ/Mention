@@ -82,6 +82,15 @@ const PostStatsSchema = new Schema({
   commentsCount: { type: Number, default: 0 },
   viewsCount: { type: Number, default: 0 },
   sharesCount: { type: Number, default: 0 }
+}, { _id: false }); // Don't create _id for subdocuments
+
+// Ensure stats are always initialized
+PostStatsSchema.pre('save', function() {
+  if (!this.likesCount && this.likesCount !== 0) this.likesCount = 0;
+  if (!this.repostsCount && this.repostsCount !== 0) this.repostsCount = 0;
+  if (!this.commentsCount && this.commentsCount !== 0) this.commentsCount = 0;
+  if (!this.viewsCount && this.viewsCount !== 0) this.viewsCount = 0;
+  if (!this.sharesCount && this.sharesCount !== 0) this.sharesCount = 0;
 });
 
 const PostMetadataSchema = new Schema({
@@ -116,7 +125,16 @@ const PostSchema = new Schema<IPost>({
   quoteOf: { type: String, index: true },
   parentPostId: { type: String, index: true },
   threadId: { type: String, index: true },
-  stats: { type: PostStatsSchema, default: () => ({}) },
+  stats: { 
+    type: PostStatsSchema, 
+    default: () => ({
+      likesCount: 0,
+      repostsCount: 0,
+      commentsCount: 0,
+      viewsCount: 0,
+      sharesCount: 0
+    })
+  },
   metadata: { type: PostMetadataSchema, default: () => ({}) },
   // Post creation location - metadata for analytics/discovery
   location: {

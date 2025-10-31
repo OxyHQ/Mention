@@ -82,6 +82,23 @@ class FeedService {
       // Map feed types to backend endpoints
       let endpoint = '/feed/feed'; // default endpoint
       
+      // Handle custom feed type - use dedicated timeline endpoint (backend-driven)
+      if (request.type === 'custom' && request.filters?.customFeedId) {
+        const feedId = request.filters.customFeedId;
+        const timelineParams: any = {};
+        if (request.cursor) timelineParams.cursor = request.cursor;
+        if (request.limit) timelineParams.limit = request.limit;
+        
+        try {
+          const response = await authenticatedClient.get(`/feeds/${feedId}/timeline`, { params: timelineParams });
+          // Backend returns posts directly in FeedResponse format
+          return response.data;
+        } catch (authError: any) {
+          // Custom feeds require authentication, so re-throw auth errors
+          throw authError;
+        }
+      }
+      
       switch (request.type) {
         case 'for_you':
           endpoint = '/feed/for-you';

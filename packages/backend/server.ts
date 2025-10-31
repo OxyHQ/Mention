@@ -40,6 +40,26 @@ export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https:
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Middleware to parse nested query parameters (e.g., filters[authors]=user1,user2)
+app.use((req, res, next) => {
+  if (req.query && typeof req.query === 'object') {
+    const filters: any = {};
+    Object.keys(req.query).forEach(key => {
+      const match = key.match(/^filters\[(.+)\]$/);
+      if (match) {
+        const filterKey = match[1];
+        if (!filters[filterKey]) {
+          filters[filterKey] = req.query[key];
+        }
+      }
+    });
+    if (Object.keys(filters).length > 0) {
+      (req.query as any).filters = filters;
+    }
+  }
+  next();
+});
+
 // CORS and security headers
 app.use((req, res, next) => {
   const allowedOrigins = [process.env.FRONTEND_URL || "https://mention.earth", "http://localhost:8081", "http://localhost:8082", "http://192.168.86.44:8081"];
@@ -363,28 +383,7 @@ publicApiRouter.use("/hashtags", hashtagsRoutes);
 // Move polls under authenticated router so req.user is available for create/vote
 // If you want public GET access later, split the router or add a public shim.
 // publicApiRouter.use("/polls", pollsRoutes);
-publicApiRouter.get("/feed/debug", async (req, res) => {
-  try {
-    const posts = await Post.find({}).limit(3).lean();
-    console.log('🔍 Debug - Raw posts from database:', JSON.stringify(posts, null, 2));
-    
-    res.json({
-      message: 'Debug posts',
-      count: posts.length,
-      posts: posts.map(post => ({
-        id: post._id,
-        oxyUserId: post.oxyUserId,
-        content: post.content,
-        stats: post.stats,
-        metadata: post.metadata,
-        createdAt: post.createdAt
-      }))
-    });
-  } catch (error) {
-    console.error('Debug error:', error);
-    res.status(500).json({ error: 'Debug failed' });
-  }
-});
+// Debug route removed for production
 
 // Feed routes with optional authentication (allow unauthenticated access)
 publicApiRouter.use("/feed", optionalAuth, feedRoutes);
