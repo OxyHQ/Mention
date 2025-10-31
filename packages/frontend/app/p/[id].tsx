@@ -48,7 +48,7 @@ const PostDetailScreen: React.FC = () => {
     const [content, setContent] = useState('');
     const [mentions, setMentions] = useState<MentionData[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [mediaIds, setMediaIds] = useState<string[]>([]);
+    const [mediaIds, setMediaIds] = useState<Array<{ id: string; type: 'image' | 'video' }>>([]);
     const [pollOptions, setPollOptions] = useState<string[]>([]);
     const [showPollCreator, setShowPollCreator] = useState(false);
     const [location, setLocation] = useState<{
@@ -96,27 +96,41 @@ const PostDetailScreen: React.FC = () => {
             props: {
                 selectMode: true,
                 multiSelect: true,
-                disabledMimeTypes: ['video/', 'audio/', 'application/pdf'],
+                disabledMimeTypes: ['audio/', 'application/pdf'],
                 afterSelect: 'back',
                 onSelect: async (file: any) => {
-                    if (!file?.contentType?.startsWith?.('image/')) {
-                        toast.error(t('Please select an image file'));
+                    const isImage = file?.contentType?.startsWith?.('image/');
+                    const isVideo = file?.contentType?.startsWith?.('video/');
+                    if (!isImage && !isVideo) {
+                        toast.error(t('Please select an image or video file'));
                         return;
                     }
                     try {
-                        setMediaIds(prev => prev.includes(file.id) ? prev : [...prev, file.id]);
-                        toast.success(t('Image attached'));
+                        const mediaType = isImage ? 'image' : 'video';
+                        const mediaItem = { id: file.id, type: mediaType as 'image' | 'video' };
+                        setMediaIds(prev => prev.some(m => m.id === file.id) ? prev : [...prev, mediaItem]);
+                        toast.success(t(isImage ? 'Image attached' : 'Video attached'));
                     } catch (e: any) {
-                        toast.error(e?.message || t('Failed to attach image'));
+                        toast.error(e?.message || t('Failed to attach media'));
                     }
                 },
                 onConfirmSelection: async (files: any[]) => {
-                    const onlyImages = (files || []).filter(f => f?.contentType?.startsWith?.('image/'));
-                    if (onlyImages.length !== (files || []).length) {
-                        toast.error(t('Please select only image files'));
+                    const validFiles = (files || []).filter(f => {
+                        const contentType = f?.contentType || '';
+                        return contentType.startsWith('image/') || contentType.startsWith('video/');
+                    });
+                    if (validFiles.length !== (files || []).length) {
+                        toast.error(t('Please select only image or video files'));
                     }
-                    const ids = onlyImages.map(f => f.id);
-                    setMediaIds(prev => Array.from(new Set([...(prev || []), ...ids])));
+                    const mediaItems = validFiles.map(f => ({
+                        id: f.id,
+                        type: (f.contentType?.startsWith('image/') ? 'image' : 'video') as 'image' | 'video'
+                    }));
+                    setMediaIds(prev => {
+                        const existingIds = new Set(prev.map(m => m.id));
+                        const newItems = mediaItems.filter(m => !existingIds.has(m.id));
+                        return [...prev, ...newItems];
+                    });
                 }
             }
         });
@@ -273,7 +287,7 @@ const PostDetailScreen: React.FC = () => {
                 postId: String(id),
                 content: {
                     text: content.trim(),
-                    media: mediaIds.map(id => ({ id, type: 'image' as const })),
+                    media: mediaIds.map(m => ({ id: m.id, type: m.type })),
                     ...(hasPoll && {
                         poll: {
                             question: content.trim() || 'Poll',
@@ -435,7 +449,7 @@ const PostDetailScreen: React.FC = () => {
                             {mediaIds.length > 0 && (
                                 <View style={styles.mediaPreview}>
                                     <PostMiddle
-                                        media={mediaIds.map(id => ({ id, type: 'image' as const }))}
+                                        media={mediaIds.map(m => ({ id: m.id, type: m.type }))}
                                         leftOffset={0}
                                     />
                                 </View>

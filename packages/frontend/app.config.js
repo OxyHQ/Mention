@@ -135,6 +135,8 @@ return {
                     }
                 ],
                 "expo-image-picker",
+                "expo-video",
+                "expo-audio",
                 [
                     "expo-secure-store",
                     {

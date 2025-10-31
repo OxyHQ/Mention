@@ -36,14 +36,14 @@ const ComposeScreen = () => {
   const [threadItems, setThreadItems] = useState<{
     id: string;
     text: string;
-    mediaIds: string[];
+    mediaIds: Array<{ id: string; type: 'image' | 'video' }>;
     pollOptions: string[];
     showPollCreator: boolean;
     location: { latitude: number; longitude: number; address?: string } | null;
     mentions: MentionData[];
   }[]>([]);
   const [isPosting, setIsPosting] = useState(false);
-  const [mediaIds, setMediaIds] = useState<string[]>([]);
+  const [mediaIds, setMediaIds] = useState<Array<{ id: string; type: 'image' | 'video' }>>([]);
   const [pollOptions, setPollOptions] = useState<string[]>([]);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [location, setLocation] = useState<{
@@ -85,7 +85,7 @@ const ComposeScreen = () => {
       allPosts.push({
         content: {
           text: postContent.trim(),
-          media: mediaIds.map(id => ({ id, type: 'image' as const })),
+          media: mediaIds.map(m => ({ id: m.id, type: m.type })),
           // Include poll if user created one
           ...(hasPoll && {
             poll: {
@@ -116,7 +116,7 @@ const ComposeScreen = () => {
           allPosts.push({
             content: {
               text: item.text.trim(),
-              media: item.mediaIds.map(id => ({ id, type: 'image' as const })),
+              media: item.mediaIds.map(m => ({ id: m.id, type: m.type })),
               // Include poll if this thread item has poll options
               ...(item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0) && {
                 poll: {
@@ -181,27 +181,41 @@ const ComposeScreen = () => {
       props: {
         selectMode: true,
         multiSelect: true,
-        disabledMimeTypes: ['video/', 'audio/', 'application/pdf'],
+        disabledMimeTypes: ['audio/', 'application/pdf'],
         afterSelect: 'back',
         onSelect: async (file: any) => {
-          if (!file?.contentType?.startsWith?.('image/')) {
-            toast.error(t('Please select an image file'));
+          const isImage = file?.contentType?.startsWith?.('image/');
+          const isVideo = file?.contentType?.startsWith?.('video/');
+          if (!isImage && !isVideo) {
+            toast.error(t('Please select an image or video file'));
             return;
           }
           try {
-            setMediaIds(prev => prev.includes(file.id) ? prev : [...prev, file.id]);
-            toast.success(t('Image attached'));
+            const mediaType = isImage ? 'image' : 'video';
+            const mediaItem = { id: file.id, type: mediaType as 'image' | 'video' };
+            setMediaIds(prev => prev.some(m => m.id === file.id) ? prev : [...prev, mediaItem]);
+            toast.success(t(isImage ? 'Image attached' : 'Video attached'));
           } catch (e: any) {
-            toast.error(e?.message || t('Failed to attach image'));
+            toast.error(e?.message || t('Failed to attach media'));
           }
         },
         onConfirmSelection: async (files: any[]) => {
-          const onlyImages = (files || []).filter(f => f?.contentType?.startsWith?.('image/'));
-          if (onlyImages.length !== (files || []).length) {
-            toast.error(t('Please select only image files'));
+          const validFiles = (files || []).filter(f => {
+            const contentType = f?.contentType || '';
+            return contentType.startsWith('image/') || contentType.startsWith('video/');
+          });
+          if (validFiles.length !== (files || []).length) {
+            toast.error(t('Please select only image or video files'));
           }
-          const ids = onlyImages.map(f => f.id);
-          setMediaIds(prev => Array.from(new Set([...(prev || []), ...ids])));
+          const mediaItems = validFiles.map(f => ({
+            id: f.id,
+            type: (f.contentType?.startsWith('image/') ? 'image' : 'video') as 'image' | 'video'
+          }));
+          setMediaIds(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newItems = mediaItems.filter(m => !existingIds.has(m.id));
+            return [...prev, ...newItems];
+          });
         }
       }
     });
@@ -285,33 +299,50 @@ const ComposeScreen = () => {
       props: {
         selectMode: true,
         multiSelect: true,
-        disabledMimeTypes: ['video/', 'audio/', 'application/pdf'],
+        disabledMimeTypes: ['audio/', 'application/pdf'],
         afterSelect: 'back',
         onSelect: async (file: any) => {
-          if (!file?.contentType?.startsWith?.('image/')) {
-            toast.error(t('Please select an image file'));
+          const isImage = file?.contentType?.startsWith?.('image/');
+          const isVideo = file?.contentType?.startsWith?.('video/');
+          if (!isImage && !isVideo) {
+            toast.error(t('Please select an image or video file'));
             return;
           }
           try {
+            const mediaType = isImage ? 'image' : 'video';
+            const mediaItem = { id: file.id, type: mediaType as 'image' | 'video' };
             setThreadItems(prev => prev.map(item =>
               item.id === threadId
-                ? { ...item, mediaIds: item.mediaIds.includes(file.id) ? item.mediaIds : [...item.mediaIds, file.id] }
+                ? { ...item, mediaIds: item.mediaIds.some(m => m.id === file.id) ? item.mediaIds : [...item.mediaIds, mediaItem] }
                 : item
             ));
-            toast.success(t('Image attached'));
+            toast.success(t(isImage ? 'Image attached' : 'Video attached'));
           } catch (e: any) {
-            toast.error(e?.message || t('Failed to attach image'));
+            toast.error(e?.message || t('Failed to attach media'));
           }
         },
         onConfirmSelection: async (files: any[]) => {
-          const onlyImages = (files || []).filter(f => f?.contentType?.startsWith?.('image/'));
-          if (onlyImages.length !== (files || []).length) {
-            toast.error(t('Please select only image files'));
+          const validFiles = (files || []).filter(f => {
+            const contentType = f?.contentType || '';
+            return contentType.startsWith('image/') || contentType.startsWith('video/');
+          });
+          if (validFiles.length !== (files || []).length) {
+            toast.error(t('Please select only image or video files'));
           }
-          const ids = onlyImages.map(f => f.id);
+          const mediaItems = validFiles.map(f => ({
+            id: f.id,
+            type: (f.contentType?.startsWith('image/') ? 'image' : 'video') as 'image' | 'video'
+          }));
           setThreadItems(prev => prev.map(item =>
             item.id === threadId
-              ? { ...item, mediaIds: Array.from(new Set([...item.mediaIds, ...ids])) }
+              ? {
+                ...item,
+                mediaIds: (() => {
+                  const existingIds = new Set(item.mediaIds.map(m => m.id));
+                  const newItems = mediaItems.filter(m => !existingIds.has(m.id));
+                  return [...item.mediaIds, ...newItems];
+                })()
+              }
               : item
           ));
         }
@@ -504,7 +535,7 @@ const ComposeScreen = () => {
                 </PostHeader>
 
                 <PostMiddle
-                  media={mediaIds.map(id => ({ id, type: 'image' as const }))}
+                  media={mediaIds.map(m => ({ id: m.id, type: m.type }))}
                   leftOffset={BOTTOM_LEFT_PAD}
                 />
 
@@ -603,7 +634,7 @@ const ComposeScreen = () => {
                   {/* Thread item media */}
                   {item.mediaIds.length > 0 && (
                     <PostMiddle
-                      media={item.mediaIds.map(id => ({ id, type: 'image' as const }))}
+                      media={item.mediaIds.map(m => ({ id: m.id, type: m.type }))}
                       leftOffset={BOTTOM_LEFT_PAD}
                     />
                   )}
@@ -667,7 +698,7 @@ const ComposeScreen = () => {
                 setThreadItems(prev => [...prev, {
                   id,
                   text: '',
-                  mediaIds: [],
+                  mediaIds: [] as Array<{ id: string; type: 'image' | 'video' }>,
                   pollOptions: [],
                   showPollCreator: false,
                   location: null,

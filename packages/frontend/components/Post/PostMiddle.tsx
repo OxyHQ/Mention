@@ -4,6 +4,7 @@ import PollCard from './PollCard';
 import { useOxy } from '@oxyhq/services';
 import PostItem from '../Feed/PostItem';
 import { useTheme } from '@/hooks/useTheme';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 interface MediaObj { id: string; type: 'image' | 'video' }
 interface Props {
@@ -14,6 +15,25 @@ interface Props {
   pollData?: any; // Direct poll data from content.poll
   nestingDepth?: number; // Track nesting depth to prevent infinite nesting
 }
+
+// Video item component to properly use the hook
+const VideoItem: React.FC<{ src: string; containerStyle: any; borderColor: string; backgroundColor: string }> = ({ src, containerStyle, borderColor, backgroundColor }) => {
+  const player = useVideoPlayer(src, (player) => {
+    player.loop = false;
+    player.muted = false;
+  });
+
+  return (
+    <View style={[containerStyle, { borderColor, backgroundColor }]}>
+      <VideoView
+        player={player}
+        style={styles.video}
+        contentFit="cover"
+        nativeControls={true}
+      />
+    </View>
+  );
+};
 
 const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0 }) => {
   const theme = useTheme();
@@ -109,6 +129,17 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
             </View>
           );
         }
+        if (item.type === 'video') {
+          return (
+            <VideoItem
+              key={`video-${idx}`}
+              src={item.src}
+              containerStyle={[styles.mediaImage, styles.itemContainer]}
+              borderColor={theme.colors.border}
+              backgroundColor={theme.colors.backgroundSecondary}
+            />
+          );
+        }
         return (
           <Image
             key={`img-${idx}`}
@@ -141,6 +172,10 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
   },
   mediaImage: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+  },
+  video: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
   },
