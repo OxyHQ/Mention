@@ -115,8 +115,6 @@ const HomeScreen: React.FC = () => {
                         filters={{
                             customFeedId: feedId
                         }}
-                        recycleItems={true}
-                        maintainVisibleContentPosition={true}
                         reloadKey={refreshKey}
                     />
                 );
@@ -129,8 +127,6 @@ const HomeScreen: React.FC = () => {
                     <Feed
                         key={`following-${refreshKey}`}
                         type="following"
-                        recycleItems={true}
-                        maintainVisibleContentPosition={true}
                         reloadKey={refreshKey}
                     />
                 );
@@ -140,8 +136,6 @@ const HomeScreen: React.FC = () => {
                     <Feed
                         key={`trending-${refreshKey}`}
                         type="mixed"
-                        recycleItems={true}
-                        maintainVisibleContentPosition={true}
                         reloadKey={refreshKey}
                     />
                 );
@@ -151,8 +145,6 @@ const HomeScreen: React.FC = () => {
                     <Feed
                         key={`for_you-${refreshKey}`}
                         type="for_you"
-                        recycleItems={false}
-                        maintainVisibleContentPosition={true}
                         reloadKey={refreshKey}
                     />
                 );

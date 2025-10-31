@@ -73,7 +73,8 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
       onStartShouldSetResponderCapture={() => true}
       onStartShouldSetResponder={() => true}
       onLayout={(e) => setScrollViewWidth(e.nativeEvent.layout.width)}
-      contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
+      style={{ backgroundColor: theme.colors.background }}
+      contentContainerStyle={[styles.scroller, { backgroundColor: theme.colors.background }, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
       {items.map((item, idx) => {
         if (item.type === 'poll') {
@@ -113,7 +114,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
           <Image
             key={`img-${idx}`}
             source={{ uri: (item as any).src }}
-            style={[styles.mediaImage, styles.itemContainer, { borderColor: theme.colors.border }]}
+            style={[styles.mediaImage, styles.itemContainer, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
             resizeMode="cover"
           />
         );

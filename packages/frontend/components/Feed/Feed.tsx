@@ -7,7 +7,7 @@ import {
     RefreshControl,
     ActivityIndicator
 } from 'react-native';
-import LegendList from '../../components/LegendList';
+import { FlashList } from '@shopify/flash-list';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '../../stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import PostItem from './PostItem';
@@ -168,7 +168,7 @@ const Feed = (props: FeedProps) => {
         if (isAuthenticated && !currentUser?.id) return;
 
         const shouldRefresh = isInitialMountRef.current || (reloadKey !== undefined && reloadKey !== null);
-        
+
         if (!useScoped && !shouldRefresh) {
             const currentFeed = usePostsStore.getState().feeds[type];
             if (currentFeed?.items && currentFeed.items.length > 0) {
@@ -199,7 +199,7 @@ const Feed = (props: FeedProps) => {
                 if (pid) {
                     items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
                 }
-                
+
                 // Deduplicate scoped items using Map for O(1) lookup
                 const seen = new Map<string, any>();
                 for (const item of items) {
@@ -208,7 +208,7 @@ const Feed = (props: FeedProps) => {
                         seen.set(key, item);
                     }
                 }
-                
+
                 setLocalItems(Array.from(seen.values()));
                 setLocalHasMore(!!resp.hasMore);
                 setLocalNextCursor(resp.nextCursor);
@@ -307,7 +307,7 @@ const Feed = (props: FeedProps) => {
                         const key = itemKey(p);
                         if (key) seen.set(key, true);
                     });
-                    
+
                     const uniqueNew = items.filter((p: any) => {
                         const key = itemKey(p);
                         return key && !seen.has(key);
@@ -320,7 +320,7 @@ const Feed = (props: FeedProps) => {
                             newSeen.set(key, p);
                         }
                     });
-                    
+
                     return prev.concat(Array.from(newSeen.values()));
                 });
                 const prevCursor = localNextCursor;
@@ -469,12 +469,14 @@ const Feed = (props: FeedProps) => {
         if (!showComposeButton || hideHeader) return null;
 
         return (
-            <TouchableOpacity
-                style={[styles.composeButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, shadowColor: theme.colors.shadow }]}
-                onPress={onComposePress}
-            >
-                <Text style={[styles.composeButtonText, { color: theme.colors.textSecondary }]}>What&apos;s happening?</Text>
-            </TouchableOpacity>
+            <View style={{ backgroundColor: theme.colors.background }}>
+                <TouchableOpacity
+                    style={[styles.composeButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, shadowColor: theme.colors.shadow }]}
+                    onPress={onComposePress}
+                >
+                    <Text style={[styles.composeButtonText, { color: theme.colors.textSecondary }]}>What&apos;s happening?</Text>
+                </TouchableOpacity>
+            </View>
         );
     }, [showComposeButton, onComposePress, hideHeader, theme]);
 
@@ -492,52 +494,43 @@ const Feed = (props: FeedProps) => {
 
     return (
         <ErrorBoundary>
-            <View style={styles.container}>
+            <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
                 <LoadingTopSpinner showLoading={isLoading && !refreshing && !isLoadingMore && displayItems.length === 0} />
-                <LegendList
+                <FlashList
                     ref={flatListRef}
                     data={finalRenderItems}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
-                    extraData={dataHash}
-                    ListHeaderComponent={listHeaderComponent ?? renderHeader}
-                    ListEmptyComponent={renderEmptyState}
-                    ListFooterComponent={isLoadingMore ? renderFooter : null}
-                    scrollEnabled={scrollEnabled}
-                    refreshControl={
-                        hideRefreshControl ? undefined : (
+                    {...({
+                        estimatedItemSize: 250,
+                        extraData: dataHash,
+                        ListHeaderComponent: listHeaderComponent ?? renderHeader,
+                        ListEmptyComponent: renderEmptyState,
+                        ListFooterComponent: renderFooter,
+                        scrollEnabled: scrollEnabled,
+                        refreshControl: hideRefreshControl ? undefined : (
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={handleRefresh}
                                 colors={[theme.colors.primary]}
                                 tintColor={theme.colors.primary}
                             />
-                        )
-                    }
-                    onEndReached={handleLoadMore}
-                    onEndReachedThreshold={0.5}
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={[
-                        styles.listContent,
-                        { flexGrow: 0, minHeight: 0 },
-                        contentContainerStyle
-                    ]}
-                    style={[
-                        styles.list,
-                        { minHeight: 0 },
-                        style
-                    ]}
-                    removeClippedSubviews={false}
-                    maxToRenderPerBatch={10}
-                    windowSize={10}
-                    initialNumToRender={10}
-                    updateCellsBatchingPeriod={100}
-                    recycleItems={!isScreenNotMobile}
-                    maintainScrollAtEnd={maintainScrollAtEnd}
-                    maintainScrollAtEndThreshold={maintainScrollAtEndThreshold}
-                    alignItemsAtEnd={alignItemsAtEnd}
-                    maintainVisibleContentPosition={false}
-                    disableVirtualization={false}
+                        ),
+                        onEndReached: handleLoadMore,
+                        onEndReachedThreshold: 0.5,
+                        showsVerticalScrollIndicator: false,
+                        contentContainerStyle: [
+                            styles.listContent,
+                            { backgroundColor: theme.colors.background },
+                            contentContainerStyle
+                        ],
+                        style: [
+                            styles.list,
+                            { backgroundColor: theme.colors.background },
+                            style
+                        ],
+                        drawDistance: 500,
+                    } as any)}
                 />
             </View>
         </ErrorBoundary>
@@ -556,10 +549,7 @@ const styles = StyleSheet.create({
         minHeight: 0,
     },
     listContent: {
-        paddingBottom: 0,
-        paddingTop: 0,
         flexGrow: 0,
-        minHeight: 0,
         alignSelf: 'stretch',
     },
     emptyState: {
@@ -607,10 +597,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         paddingVertical: 8,
-        paddingBottom: 8,
-        height: 40,
-        marginTop: 0,
-        marginBottom: 0,
     },
     footerText: {
         fontSize: 14,

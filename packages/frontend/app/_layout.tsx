@@ -98,6 +98,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ isScreenNotMobile }) => {
       width: '100%',
       marginHorizontal: 'auto',
       flexDirection: isScreenNotMobile ? 'row' : 'column',
+      backgroundColor: theme.colors.background,
     },
     mainContent: {
       maxWidth: 1100,
@@ -105,6 +106,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ isScreenNotMobile }) => {
       justifyContent: 'space-between',
       flexDirection: isScreenNotMobile ? 'row' : 'column',
       flex: 1,
+      backgroundColor: theme.colors.background,
     },
     mainContentWrapper: {
       flex: isScreenNotMobile ? 2.2 : 1,
@@ -328,10 +330,13 @@ export default function RootLayout() {
     return null;
   };
 
+  const theme = useTheme();
+  
   return (
     <ThemedView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <GestureRoot style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+          <GestureRoot style={{ flex: 1, backgroundColor: theme.colors.background }}>
           {appIsReady ? (
             <QueryClientProvider client={queryClient}>
               <OxyProvider
@@ -374,7 +379,8 @@ export default function RootLayout() {
               onFadeComplete={handleSplashFadeComplete}
             />
           )}
-        </GestureRoot>
+          </GestureRoot>
+        </View>
       </SafeAreaProvider>
     </ThemedView>
   );

@@ -14,6 +14,7 @@ import {
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { colors } from '../styles/colors';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
+import { useTheme } from '@/hooks/useTheme';
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
@@ -38,6 +39,7 @@ const Avatar: React.FC<AvatarProps> = ({
   onPress,
   useAnimated = false,
 }) => {
+  const theme = useTheme();
   const [errored, setErrored] = React.useState(false);
 
   const imageSource = source && !errored
@@ -54,7 +56,7 @@ const Avatar: React.FC<AvatarProps> = ({
             source={imageSource}
             onError={() => setErrored(true)}
             resizeMode="cover"
-            style={[{ width: size, height: size, borderRadius: size / 2 }, imageStyle]}
+            style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.backgroundSecondary }, imageStyle]}
             defaultSource={DefaultAvatar}
           />
         ) : (
@@ -62,14 +64,14 @@ const Avatar: React.FC<AvatarProps> = ({
             source={imageSource}
             onError={() => setErrored(true)}
             resizeMode="cover"
-            style={[{ width: size, height: size, borderRadius: size / 2 }, imageStyle]}
+            style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.backgroundSecondary }, imageStyle]}
             defaultSource={DefaultAvatar}
           />
         )
       ) : (
-        <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2 }]}>
+        <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.backgroundSecondary }]}>
           {label ? (
-            <Text style={[styles.fallbackText, { fontSize: Math.round(size * 0.4) }]}>
+            <Text style={[styles.fallbackText, { fontSize: Math.round(size * 0.4), color: theme.colors.text }]}>
               {label}
             </Text>
           ) : null}
@@ -102,12 +104,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   fallback: {
-    backgroundColor: `${colors.primaryColor}20`,
     alignItems: 'center',
     justifyContent: 'center',
   },
   fallbackText: {
-    color: colors.primaryColor,
     fontWeight: '700',
   },
 });
