@@ -33,6 +33,7 @@ import { useTheme } from '@/hooks/useTheme';
 // Context
 import { BottomSheetProvider, BottomSheetContext } from '@/context/BottomSheetContext';
 import { LayoutScrollProvider, useLayoutScroll } from '@/context/LayoutScrollContext';
+import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 
 // Utils & Config
 import { OXY_BASE_URL } from '@/config';
@@ -345,19 +346,21 @@ export default function RootLayout() {
                     <MenuProvider>
                       <ErrorBoundary>
                         <LayoutScrollProvider>
-                          {/* Shows bottom sheet permission prompt when needed (native only) */}
-                          {Platform.OS !== 'web' && <NotificationPermissionGate />}
-                          {/* Keep posts socket connected (mounted under OxyProvider) */}
-                          <RealtimePostsBridge />
-                          <MainLayout isScreenNotMobile={isScreenNotMobile} />
-                          <StatusBar style="auto" />
-                          <RegisterPush />
-                          <Toaster
-                            position="bottom-center"
-                            swipeToDismissDirection="left"
-                            offset={15}
-                          />
-                          {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                          <HomeRefreshProvider>
+                            {/* Shows bottom sheet permission prompt when needed (native only) */}
+                            {Platform.OS !== 'web' && <NotificationPermissionGate />}
+                            {/* Keep posts socket connected (mounted under OxyProvider) */}
+                            <RealtimePostsBridge />
+                            <MainLayout isScreenNotMobile={isScreenNotMobile} />
+                            <StatusBar style="auto" />
+                            <RegisterPush />
+                            <Toaster
+                              position="bottom-center"
+                              swipeToDismissDirection="left"
+                              offset={15}
+                            />
+                            {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+                          </HomeRefreshProvider>
                         </LayoutScrollProvider>
                       </ErrorBoundary>
                     </MenuProvider>

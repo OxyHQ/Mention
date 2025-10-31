@@ -1,11 +1,12 @@
 import { StyleSheet, View, Pressable, ViewStyle, Platform, Vibration } from 'react-native';
 import { Home, HomeActive, Search, SearchActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname } from 'expo-router';
-import React from 'react';
+import React, { useRef } from 'react';
 import Avatar from './Avatar';
 import { useOxy } from '@oxyhq/services';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { useHomeRefresh } from '@/context/HomeRefreshContext';
 
 export const BottomBar = () => {
     const router = useRouter();
@@ -13,9 +14,20 @@ export const BottomBar = () => {
     const { showBottomSheet, user, isAuthenticated, oxyServices } = useOxy();
     const insets = useSafeAreaInsets();
     const theme = useTheme();
+    const { triggerHomeRefresh } = useHomeRefresh();
 
     const handlePress = (route: string) => {
         router.push(route);
+    };
+
+    const handleHomePress = () => {
+        // If already on home page - scroll to top and refresh
+        if (pathname === '/') {
+            triggerHomeRefresh();
+        } else {
+            // Not on home - navigate to home
+            handlePress('/');
+        }
     };
 
     const styles = StyleSheet.create({
@@ -53,7 +65,7 @@ export const BottomBar = () => {
 
     return (
         <View style={styles.bottomBar}>
-            <Pressable onPress={() => handlePress('/')} style={[styles.tab, pathname === '/' && styles.active]}>
+            <Pressable onPress={handleHomePress} style={[styles.tab, pathname === '/' && styles.active]}>
                 {pathname === '/' ? (
                     <HomeActive size={28} color={theme.colors.primary} />
                 ) : (

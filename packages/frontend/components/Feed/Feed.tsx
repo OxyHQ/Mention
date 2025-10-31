@@ -99,6 +99,7 @@ const Feed = (props: FeedProps) => {
     const theme = useTheme();
     const flatListRef = useRef<any>(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     // When filters are provided, scope the feed locally to avoid clashes
     const useScoped = !!(filters && Object.keys(filters || {}).length);
@@ -255,8 +256,9 @@ const Feed = (props: FeedProps) => {
     const handleLoadMore = useCallback(async () => {
         // Saved posts currently load as a single page; skip infinite scroll
         if (showOnlySaved) return;
-        if (!hasMore || isLoading) return;
+        if (!hasMore || isLoading || isLoadingMore) return;
 
+        setIsLoadingMore(true);
         try {
             if (useScoped) {
                 if (!localHasMore || localLoading) return;
@@ -316,8 +318,9 @@ const Feed = (props: FeedProps) => {
             if (useScoped) {
                 setLocalLoading(false);
             }
+            setIsLoadingMore(false);
         }
-    }, [showOnlySaved, hasMore, isLoading, type, effectiveType, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, localItems]);
+    }, [showOnlySaved, hasMore, isLoading, isLoadingMore, type, effectiveType, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, localItems]);
 
     const renderPostItem = useCallback(({ item }: { item: any }) => (
         <PostItem post={item} />
@@ -449,7 +452,7 @@ const Feed = (props: FeedProps) => {
         if (!hasItems) return null;
 
         // Only show the loading footer when an actual load-more request is in progress
-        if (!isLoading) return null;
+        if (!isLoadingMore) return null;
 
         return (
             <View style={styles.footer}>
@@ -457,7 +460,7 @@ const Feed = (props: FeedProps) => {
                 <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>Loading more posts...</Text>
             </View>
         );
-    }, [showOnlySaved, hasMore, isLoading, filteredFeedData?.items, useScoped, localItems.length]);
+    }, [showOnlySaved, hasMore, isLoadingMore, filteredFeedData?.items, useScoped, localItems.length, theme]);
 
     const renderHeader = useCallback(() => {
         if (!showComposeButton || hideHeader) return null;
@@ -483,7 +486,7 @@ const Feed = (props: FeedProps) => {
     return (
         <ErrorBoundary>
             <View style={styles.container}>
-                <LoadingTopSpinner showLoading={isLoading && !refreshing} />
+                <LoadingTopSpinner showLoading={isLoading && !refreshing && !isLoadingMore && displayItems.length === 0} />
                 <LegendList
                     ref={flatListRef}
                     data={displayItems}

@@ -14,6 +14,7 @@ import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
 import { useTheme } from '@/hooks/useTheme';
+import { useHomeRefresh } from '@/context/HomeRefreshContext';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -29,9 +30,11 @@ const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
     const { isAuthenticated } = useOxy();
     const theme = useTheme();
+    const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [pinnedFeeds, setPinnedFeeds] = useState<PinnedFeed[]>([]);
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     // Load pinned feeds function
     const loadFeeds = React.useCallback(async () => {
@@ -74,6 +77,27 @@ const HomeScreen: React.FC = () => {
         }, [loadFeeds])
     );
 
+    // Register refresh handler from BottomBar
+    useEffect(() => {
+        const handleRefresh = () => {
+            setRefreshKey(prev => prev + 1);
+        };
+        registerHomeRefreshHandler(handleRefresh);
+        return () => {
+            unregisterHomeRefreshHandler();
+        };
+    }, [registerHomeRefreshHandler, unregisterHomeRefreshHandler]);
+
+    const handleTabPress = (tabId: HomeTab) => {
+        // If pressing the same tab - scroll to top and refresh
+        if (tabId === activeTab) {
+            setRefreshKey(prev => prev + 1);
+        } else {
+            // Different tab - switch (will scroll to top automatically on mount)
+            setActiveTab(tabId);
+        }
+    };
+
     const renderContent = () => {
         if (!isAuthenticated) {
             return <SignInPrompt />;
@@ -86,12 +110,14 @@ const HomeScreen: React.FC = () => {
             if (pinnedFeed) {
                 return (
                     <Feed
+                        key={`custom-${feedId}-${refreshKey}`}
                         type="mixed"
                         filters={{
                             customFeedId: feedId
                         }}
                         recycleItems={true}
                         maintainVisibleContentPosition={true}
+                        reloadKey={refreshKey}
                     />
                 );
             }
@@ -101,27 +127,33 @@ const HomeScreen: React.FC = () => {
             case 'following':
                 return (
                     <Feed
+                        key={`following-${refreshKey}`}
                         type="following"
                         recycleItems={true}
                         maintainVisibleContentPosition={true}
+                        reloadKey={refreshKey}
                     />
                 );
 
             case 'trending':
                 return (
                     <Feed
+                        key={`trending-${refreshKey}`}
                         type="mixed"
                         recycleItems={true}
                         maintainVisibleContentPosition={true}
+                        reloadKey={refreshKey}
                     />
                 );
 
             default:
                 return (
                     <Feed
+                        key={`for_you-${refreshKey}`}
                         type="for_you"
                         recycleItems={true}
                         maintainVisibleContentPosition={true}
+                        reloadKey={refreshKey}
                     />
                 );
         }
@@ -164,7 +196,7 @@ const HomeScreen: React.FC = () => {
                         ...pinnedFeeds.map((feed) => ({ id: feed.id, label: feed.title })),
                     ]}
                     activeTabId={activeTab}
-                    onTabPress={setActiveTab}
+                    onTabPress={handleTabPress}
                     scrollEnabled={pinnedFeeds.length > 0}
                 />
 
