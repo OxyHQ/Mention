@@ -404,29 +404,12 @@ class FeedController {
           likes: stats.likesCount || 0
         };
 
-        console.log(`📊 Post ${postId} stats:`, {
-          rawStats: postObj.stats,
-          processedStats: stats,
-          engagement,
-          hasStats: !!postObj.stats
-        });
-
         // Get user-specific interaction flags
         const interactions = userInteractions.get(postId) || {};
         const isLiked = interactions.isLiked || false;
         const isReposted = interactions.isReposted || false;
         const isSaved = interactions.isSaved || false;
         const isThread = threadStatusMap.get(postId) || false;
-
-        console.log(`🔄 Post ${postId} user interactions:`, {
-          currentUserId,
-          interactions,
-          isLiked,
-          isReposted,
-          isSaved,
-          isThread,
-          hasInteractionData: userInteractions.has(postId)
-        });
 
         // Media aggregation for this post and its original/quoted if applicable
         const mediaIds = extractMediaIds(postObj);
@@ -501,14 +484,6 @@ class FeedController {
           ...(postObj.quoteOf ? { quoted: embeddedOriginal } : {}),
           ...(repostedBy ? { repostedBy } : {})
         };
-
-        console.log(`📄 Transformed post ${postId}:`, {
-          isLiked,
-          isReposted,
-          isSaved,
-          engagement,
-          interactions
-        });
 
         return transformedPost;
       }));
@@ -685,14 +660,7 @@ class FeedController {
       let { filters } = req.query as any;
       const currentUserId = req.user?.id;
 
-      console.log('🚀 FeedController.getFeed called with:', {
-        type,
-        cursor,
-        limit,
-        filters,
-        currentUserId,
-        user: req.user
-      });
+      // Feed request logging removed for production
 
       // If a listId or listIds is provided, expand to authors
       try {
@@ -732,17 +700,7 @@ class FeedController {
         .limit(limit + 1) // Get one extra to check if there are more
         .lean();
 
-      console.log('📋 Raw posts from database:', posts.length);
-      if (posts.length > 0) {
-        const firstPost = posts[0];
-        console.log('🔍 First post structure:', {
-          id: firstPost._id,
-          hasStats: !!firstPost.stats,
-          stats: firstPost.stats,
-          hasMetadata: !!firstPost.metadata,
-          metadata: firstPost.metadata
-        });
-      }
+      // Post structure logging removed for production
 
       // Check if there are more posts
       const hasMore = posts.length > limit;
@@ -806,8 +764,41 @@ class FeedController {
         ]
       };
 
+      let cursorId: string | undefined;
+      let minFinalScore: number | undefined;
+      
+      // Parse cursor - supports both compound (base64 JSON) and simple ObjectId format
       if (cursor) {
-        match._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+        try {
+          // Try to decode as base64 JSON (compound cursor)
+          const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
+          const parsed = JSON.parse(decoded);
+          if (parsed._id && typeof parsed.minScore === 'number') {
+            cursorId = parsed._id;
+            minFinalScore = parsed.minScore;
+            // IMPORTANT: Don't filter by _id in initial match when using compound cursor
+            // We'll filter by both score and _id together later to prevent duplicates
+            console.log('📌 Parsed compound cursor:', { cursorId, minFinalScore });
+          } else {
+            throw new Error('Invalid compound cursor structure');
+          }
+        } catch {
+          // Not a compound cursor, treat as simple ObjectId (backward compatible)
+          // For simple cursors, we'll only filter by _id (older behavior)
+          try {
+            // Validate it's a valid ObjectId
+            new mongoose.Types.ObjectId(cursor);
+            cursorId = cursor;
+            // Apply _id filter for simple cursor-based pagination
+            match._id = { $lt: new mongoose.Types.ObjectId(cursorId) };
+            console.log('📌 Using simple cursor:', cursorId);
+          } catch {
+            // Invalid cursor format, ignore it
+            console.warn('⚠️ Invalid cursor format:', cursor);
+          }
+        }
+      } else {
+        console.log('📌 No cursor - first page request');
       }
 
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
@@ -815,6 +806,17 @@ class FeedController {
 
       const posts = await Post.aggregate([
         { $match: match },
+        // CRITICAL: Group by _id to ensure no duplicates from aggregation
+        // This is a defensive measure to prevent any potential duplicate documents
+        {
+          $group: {
+            _id: '$_id',
+            doc: { $first: '$$ROOT' }
+          }
+        },
+        {
+          $replaceRoot: { newRoot: '$doc' }
+        },
         {
           $addFields: {
             engagementScore: {
@@ -847,21 +849,240 @@ class FeedController {
             }
           }
         },
-        { $sort: { finalScore: -1, createdAt: -1 } },
+        // Apply compound filtering to prevent duplicates when paginating
+        // CRITICAL: We must filter by BOTH finalScore and _id together to prevent duplicates
+        // For engagement-sorted feeds, we exclude posts that appeared on page 1:
+        //   - Posts with finalScore > lastPostScore (definitely appeared on page 1)
+        //   - Posts with finalScore = lastPostScore AND _id >= cursorId (appeared on page 1)
+        // We include only posts that haven't been shown:
+        //   - Posts with finalScore < lastPostScore (always include, no _id check needed), OR
+        //   - Posts with finalScore = lastPostScore AND _id < cursorId (include if lower _id)
+        // This ensures no posts appear on multiple pages
+        ...(minFinalScore !== undefined && cursorId ? [{
+          $match: {
+            $or: [
+              { finalScore: { $lt: minFinalScore } },
+              {
+                $and: [
+                  { finalScore: minFinalScore },
+                  { _id: { $lt: new mongoose.Types.ObjectId(cursorId) } }
+                ]
+              }
+            ]
+          }
+        }] : []),
+        { $sort: { finalScore: -1, _id: -1 } },
         { $limit: Number(limit) + 1 }
       ]);
 
       const hasMore = posts.length > Number(limit);
       const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
-      const nextCursor = hasMore ? posts[Number(limit) - 1]._id.toString() : undefined;
+      
+      // Calculate cursor with last post's finalScore for proper pagination
+      // This ensures we exclude higher-scoring posts on subsequent pages
+      // We use the LAST post's score (not minimum) to ensure correct pagination
+      let nextCursor: string | undefined;
+      if (postsToReturn.length > 0) {
+        const lastPost = postsToReturn[postsToReturn.length - 1];
+        const lastPostScore = typeof lastPost.finalScore === 'number' && !isNaN(lastPost.finalScore) 
+          ? lastPost.finalScore 
+          : 0;
+        
+        // Encode as compound cursor (lastPostScore + _id) for engagement-based feeds
+        // This allows us to properly paginate engagement-sorted feeds
+        // The cursor represents: "show me posts with score < lastPostScore OR (score = lastPostScore AND _id < lastPost._id)"
+        const cursorData = {
+          _id: lastPost._id.toString(),
+          minScore: lastPostScore
+        };
+        nextCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
+        
+        // Log cursor for debugging
+        console.log('📌 Generated nextCursor:', {
+          lastPostId: lastPost._id.toString(),
+          lastPostScore,
+          nextCursor: nextCursor.substring(0, 30) + '...',
+          returnedCount: postsToReturn.length
+        });
+      }
 
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+      // CRITICAL: Multi-stage deduplication to ensure no duplicates
+      // Stage 1: Deduplicate raw posts by _id (MongoDB ObjectId) before transformation
+      const rawIdsSeen = new Map<string, any>();
+      const deduplicatedRawPosts = postsToReturn.filter((post: any) => {
+        const rawId = post._id;
+        if (!rawId) return false;
+        
+        // Convert to string for consistent comparison
+        const rawIdStr = typeof rawId === 'object' && rawId.toString 
+          ? rawId.toString() 
+          : String(rawId);
+        
+        if (rawIdsSeen.has(rawIdStr)) {
+          return false; // Duplicate _id
+        }
+        rawIdsSeen.set(rawIdStr, post);
+        return true;
+      });
+
+      // Stage 2: Transform deduplicated posts
+      const transformedPosts = await this.transformPostsWithProfiles(deduplicatedRawPosts, currentUserId);
+
+      // Stage 3: Deduplicate transformed posts by id (defensive check)
+      const transformedIdsSeen = new Map<string, any>();
+      const deduplicatedPosts = transformedPosts.filter(post => {
+        // Check both id and _id fields for robustness
+        const id1 = post.id ? String(post.id) : null;
+        const id2 = (post as any)._id 
+          ? (typeof (post as any)._id === 'object' && (post as any)._id.toString 
+             ? (post as any)._id.toString() 
+             : String((post as any)._id))
+          : null;
+        
+        const primaryId = id1 || id2;
+        if (!primaryId) return false;
+        
+        if (transformedIdsSeen.has(primaryId)) {
+          return false; // Duplicate id
+        }
+        transformedIdsSeen.set(primaryId, post);
+        return true;
+      });
+
+      // Debug: Comprehensive duplicate detection and logging (temporary for diagnosis)
+      const postIdsInResponse = deduplicatedPosts.map(p => {
+        const id = p.id || (p as any)._id?.toString();
+        return id ? String(id) : null;
+      }).filter(Boolean) as string[];
+      
+      const uniqueIdsInResponse = new Set(postIdsInResponse);
+      
+      // Check for duplicates at multiple stages
+      const rawPostIds = postsToReturn.map((p: any) => p._id?.toString()).filter(Boolean);
+      const uniqueRawIds = new Set(rawPostIds);
+      
+      // Log detailed information for debugging duplicates
+      if (rawPostIds.length !== uniqueRawIds.size || postIdsInResponse.length !== uniqueIdsInResponse.size) {
+        const duplicates = rawPostIds.filter((id, index) => rawPostIds.indexOf(id) !== index);
+        const finalDuplicates = postIdsInResponse.filter((id, index) => postIdsInResponse.indexOf(id) !== index);
+        
+        console.error('⚠️ DUPLICATES DETECTED in For You feed:', {
+          stage: 'raw',
+          rawTotal: rawPostIds.length,
+          rawUnique: uniqueRawIds.size,
+          rawDuplicates: duplicates,
+          stage2: 'transformed',
+          finalTotal: postIdsInResponse.length,
+          finalUnique: uniqueIdsInResponse.size,
+          finalDuplicates: finalDuplicates,
+          cursor: cursor ? (cursor.length > 50 ? cursor.substring(0, 50) + '...' : cursor) : 'none',
+          parsedCursor: cursorId ? { cursorId, minFinalScore } : 'none',
+          returnedCount: deduplicatedPosts.length
+        });
+      }
+
+      // FINAL SAFETY CHECK: Ensure no duplicates in response
+      const finalUniqueIds = new Map<string, any>();
+      const finalDeduplicated = deduplicatedPosts.filter(post => {
+        // Normalize ID consistently
+        let normalizedId = '';
+        if (post.id) {
+          normalizedId = String(post.id);
+        } else if ((post as any)._id) {
+          const _id = (post as any)._id;
+          normalizedId = typeof _id === 'object' && _id.toString 
+            ? _id.toString() 
+            : String(_id);
+        }
+        
+        if (!normalizedId || normalizedId === 'undefined' || normalizedId === 'null' || normalizedId === '') {
+          return false;
+        }
+        
+        if (finalUniqueIds.has(normalizedId)) {
+          const existing = finalUniqueIds.get(normalizedId);
+          console.error('⚠️ FINAL backend response: Duplicate ID detected and removed:', {
+            id: normalizedId,
+            existing: { id: existing?.id || existing?._id, content: existing?.content?.text?.substring(0, 50) },
+            duplicate: { id: post?.id || post?._id, content: post?.content?.text?.substring(0, 50) }
+          });
+          return false;
+        }
+        finalUniqueIds.set(normalizedId, post);
+        return true;
+      });
+
+      // Log if final deduplication removed any posts
+      if (finalDeduplicated.length !== deduplicatedPosts.length) {
+        const duplicateIds = deduplicatedPosts
+          .map(p => {
+            const id = p.id ? String(p.id) : '';
+            const _id = (p as any)._id ? String((p as any)._id) : '';
+            return id || _id;
+          })
+          .filter((id, index, arr) => arr.indexOf(id) !== index);
+        
+        console.error('⚠️ FINAL deduplication removed duplicates:', {
+          before: deduplicatedPosts.length,
+          after: finalDeduplicated.length,
+          removed: deduplicatedPosts.length - finalDeduplicated.length,
+          duplicateIds: [...new Set(duplicateIds)].slice(0, 10)
+        });
+      }
+
+      // CRITICAL: Verify absolute uniqueness before sending response
+      const allReturnedIds = finalDeduplicated.map(p => {
+        const id = p.id ? String(p.id) : '';
+        const _id = (p as any)._id ? String((p as any)._id) : '';
+        return id || _id || 'NO_ID';
+      });
+      const uniqueReturnedIds = new Set(allReturnedIds);
+      
+      if (allReturnedIds.length !== uniqueReturnedIds.size) {
+        const duplicates = allReturnedIds.filter((id, idx) => allReturnedIds.indexOf(id) !== idx);
+        console.error('⚠️ CRITICAL: Backend response STILL has duplicate IDs after all deduplication!', {
+          total: allReturnedIds.length,
+          unique: uniqueReturnedIds.size,
+          duplicates: [...new Set(duplicates)].slice(0, 10),
+          allIds: allReturnedIds
+        });
+        
+        // Force deduplication one more time as emergency fallback
+        const emergencyUnique = new Map<string, any>();
+        for (const post of finalDeduplicated) {
+          const id = post.id ? String(post.id) : ((post as any)._id ? String((post as any)._id) : '');
+          if (id && id !== 'NO_ID' && !emergencyUnique.has(id)) {
+            emergencyUnique.set(id, post);
+          }
+        }
+        finalDeduplicated.length = 0;
+        finalDeduplicated.push(...emergencyUnique.values());
+        
+        console.error('⚠️ EMERGENCY: Re-deduplicated response:', {
+          before: allReturnedIds.length,
+          after: finalDeduplicated.length
+        });
+      } else {
+        console.log('✅ Backend response: All IDs verified unique', {
+          count: allReturnedIds.length,
+          firstFewIds: allReturnedIds.slice(0, 5)
+        });
+      }
+
+      // Log response summary
+      console.log('📦 For You feed response:', {
+        totalRequested: Number(limit),
+        totalReturned: finalDeduplicated.length,
+        hasMore,
+        nextCursor: nextCursor ? nextCursor.substring(0, 30) + '...' : 'none',
+        hasCursor: !!nextCursor
+      });
 
       const response: FeedResponse = {
-        items: transformedPosts, // Return posts directly in new schema format
-        hasMore,
+        items: finalDeduplicated, // Return fully deduplicated posts
+        hasMore: hasMore && finalDeduplicated.length === deduplicatedRawPosts.length, // Adjust hasMore if deduplication removed items
         nextCursor,
-        totalCount: transformedPosts.length
+        totalCount: finalDeduplicated.length
       };
 
       res.json(response);

@@ -17,8 +17,6 @@ class FeedService {
    */
   async getFeed(request: FeedRequest): Promise<FeedResponse> {
     try {
-      console.log('🔍 FeedService.getFeed called with request:', request);
-      
       const params: any = {};
       
       if (request.cursor) params.cursor = request.cursor;
@@ -65,9 +63,7 @@ class FeedService {
           break;
       }
 
-      console.log('📡 Making API call to:', endpoint, 'with params:', params);
       const response = await authenticatedClient.get(endpoint, { params });
-      console.log('✅ API response received:', response.data);
       return response.data;
     } catch (error) {
       console.error('❌ Error fetching feed:', error);
@@ -123,9 +119,7 @@ class FeedService {
         threadId: request.threadId
       };
       
-      console.log('📤 Sending post request to backend:', JSON.stringify(backendRequest, null, 2));
       const response = await authenticatedClient.post('/posts', backendRequest);
-      console.log('📥 Backend response:', response.data);
       return { success: true, post: response.data };
     } catch (error) {
       console.error('Error creating post:', error);
@@ -138,9 +132,7 @@ class FeedService {
    */
   async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: any[] }> {
     try {
-      console.log('📤 Sending thread request to backend:', JSON.stringify(request, null, 2));
       const response = await authenticatedClient.post('/posts/thread', request);
-      console.log('📥 Backend thread response:', response.data);
       return { success: true, posts: response.data };
     } catch (error) {
       console.error('Error creating thread:', error);
@@ -219,10 +211,8 @@ class FeedService {
    */
   async saveItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
     try {
-      console.log('💾 FeedService.saveItem called with:', request);
       // Use posts controller which persists bookmarks used by /posts/saved
       const response = await authenticatedClient.post(`/posts/${request.postId}/save`);
-      console.log('✅ Save API response:', response.data);
       return { success: true, data: response.data };
     } catch (error) {
       console.error('❌ Error saving post:', error);
@@ -235,10 +225,8 @@ class FeedService {
    */
   async unsaveItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
     try {
-      console.log('🗑️ FeedService.unsaveItem called with:', request);
       // Use posts controller which persists bookmarks used by /posts/saved
       const response = await authenticatedClient.delete(`/posts/${request.postId}/save`);
-      console.log('✅ Unsave API response:', response.data);
       return { success: true, data: response.data };
     } catch (error) {
       console.error('❌ Error removing save:', error);
@@ -251,9 +239,7 @@ class FeedService {
    */
   async unrepostItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
     try {
-      console.log('🔄 FeedService.unrepostItem called with:', request);
       const response = await authenticatedClient.delete(`/feed/${request.postId}/repost`);
-      console.log('✅ Unrepost API response:', response.data);
       return { success: true, data: response.data };
     } catch (error) {
       console.error('❌ Error unreposting:', error);

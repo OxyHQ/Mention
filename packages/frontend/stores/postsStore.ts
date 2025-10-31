@@ -15,7 +15,6 @@ import { feedService } from '../services/feedService';
 import { useUsersStore } from './usersStore';
 import { markLocalAction } from '../services/echoGuard';
 
-// Types for the store
 interface FeedItem {
   id: string;
   user: {
@@ -25,15 +24,14 @@ interface FeedItem {
     avatar: string;
     verified: boolean;
   };
-  content: PostContent; // Use full PostContent structure instead of just string
+  content: PostContent;
   date: string;
   engagement: {
     replies: number;
     reposts: number;
     likes: number;
   };
-  media?: string[]; // Keep for backward compatibility
-  // Normalized media fields from backend (if available)
+  media?: string[];
   mediaIds?: string[];
   originalMediaIds?: string[];
   allMediaIds?: string[];
@@ -52,12 +50,10 @@ interface FeedItem {
   language?: string;
   stats?: any;
   metadata?: any;
-  // Client-only flag to prioritize new self posts
   isLocalNew?: boolean;
 }
 
 interface FeedState {
-  // Feed data
   feeds: Record<FeedType, {
     items: FeedItem[];
     hasMore: boolean;
@@ -68,7 +64,6 @@ interface FeedState {
     lastUpdated: number;
   }>;
   
-  // User profile feeds
   userFeeds: Record<string, Record<FeedType, {
     items: FeedItem[];
     hasMore: boolean;
@@ -79,23 +74,17 @@ interface FeedState {
     lastUpdated: number;
   }>>;
 
-  // Entity cache for posts not present in current feeds
   postsById: Record<string, FeedItem>;
-  
-  // Global state
   isLoading: boolean;
   error: string | null;
   lastRefresh: number;
   
-  // Actions
-  // Feed management
   fetchFeed: (request: FeedRequest) => Promise<void>;
   fetchUserFeed: (userId: string, request: FeedRequest) => Promise<void>;
   fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
   refreshFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
   loadMoreFeed: (type: FeedType, filters?: Record<string, any>) => Promise<void>;
   
-  // Post actions
   createPost: (request: CreatePostRequest) => Promise<FeedItem | null>;
   createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
   createReply: (request: CreateReplyRequest) => Promise<void>;
@@ -110,7 +99,6 @@ interface FeedState {
   
   // Local state updates
   updatePostLocally: (postId: string, updates: Partial<FeedItem>) => void;
-  // Centralized deduped updater: updates postsById, all feeds, and userFeeds
   updatePostEverywhere: (
     postId: string,
     updater: (prev: FeedItem) => FeedItem | null | undefined
@@ -149,7 +137,6 @@ const createDefaultFeedsState = () => ({
   following: createDefaultFeedState(),
 });
 
-// Normalize backend payload to UI-friendly shape
 type TransformOptions = {
   skipRelated?: boolean;
 };
@@ -166,6 +153,39 @@ const primeRelatedPosts = (cache: Record<string, FeedItem>, post: any) => {
   }
 };
 
+const normalizeId = (item: any): string => {
+  if (item?.id) return String(item.id);
+  if (item?._id) {
+    const _id = item._id;
+    return typeof _id === 'object' && _id.toString 
+      ? _id.toString() 
+      : String(_id);
+  }
+  if (item?._id_str) return String(item._id_str);
+  if (item?.postId) return String(item.postId);
+  if (item?.post?.id) return String(item.post.id);
+  if (item?.post?._id) {
+    const _id = item.post._id;
+    return typeof _id === 'object' && _id.toString 
+      ? _id.toString() 
+      : String(_id);
+  }
+  return '';
+};
+
+const deduplicateItems = (items: any[]): any[] => {
+  const seen = new Map<string, any>();
+  for (const item of items) {
+    const id = normalizeId(item);
+    if (id && id !== 'undefined' && id !== 'null' && id !== '') {
+      if (!seen.has(id)) {
+        seen.set(id, item);
+      }
+    }
+  }
+  return Array.from(seen.values());
+};
+
 const transformToUIItem = (raw: any, options: TransformOptions = {}) => {
   const engagement = raw?.engagement || {
     replies: raw?.stats?.commentsCount || 0,
@@ -176,14 +196,13 @@ const transformToUIItem = (raw: any, options: TransformOptions = {}) => {
   const base = {
     ...raw,
     id: String(raw?.id || raw?._id),
-    content: raw?.content || { text: '' }, // Keep full content object
+    content: raw?.content || { text: '' },
     mediaIds: raw?.mediaIds,
     originalMediaIds: raw?.originalMediaIds,
     allMediaIds: raw?.allMediaIds,
     isSaved: raw?.isSaved !== undefined ? raw.isSaved : (raw?.metadata?.isSaved ?? false),
     isLiked: raw?.isLiked !== undefined ? raw.isLiked : (raw?.metadata?.isLiked ?? false),
     isReposted: raw?.isReposted !== undefined ? raw.isReposted : (raw?.metadata?.isReposted ?? false),
-    // Map aliases expected by components
     postId: raw?.postId || raw?.parentPostId,
     originalPostId: raw?.originalPostId || raw?.repostOf,
     engagement,
@@ -209,7 +228,6 @@ const transformToUIItem = (raw: any, options: TransformOptions = {}) => {
 
 export const usePostsStore = create<FeedState>()(
   subscribeWithSelector((set, get) => ({
-    // Initial state
     feeds: createDefaultFeedsState(),
     userFeeds: {},
     postsById: {},
@@ -217,10 +235,18 @@ export const usePostsStore = create<FeedState>()(
     error: null,
     lastRefresh: Date.now(),
 
-    // Fetch main feed
     fetchFeed: async (request: FeedRequest) => {
       const { type = 'mixed' } = request;
-      console.log('🚀 PostsStore.fetchFeed called with request:', request);
+      const state = get();
+      const currentFeed = state.feeds[type];
+      
+      if (currentFeed?.isLoading) {
+        return;
+      }
+      
+      if (!request.cursor && currentFeed?.items && currentFeed.items.length > 0) {
+        return;
+      }
       
       set(state => ({
         feeds: {
@@ -234,27 +260,30 @@ export const usePostsStore = create<FeedState>()(
       }));
 
       try {
-        console.log('📞 Calling feedService.getFeed...');
         const response = await feedService.getFeed(request);
-        console.log('📦 FeedService response:', response);
         
         set(state => {
           const items = response.items?.map(item => transformToUIItem(item)) || [];
-          // Prime users cache from items
-          try { useUsersStore.getState().primeFromPosts(items as any); } catch {}
+          const uniqueItems = deduplicateItems(items);
+          
+          try { useUsersStore.getState().primeFromPosts(uniqueItems as any); } catch {}
           const newCache = { ...state.postsById };
-          items.forEach((p: FeedItem) => {
-            newCache[p.id] = p;
-            primeRelatedPosts(newCache, p);
+          uniqueItems.forEach((p: FeedItem) => {
+            const id = normalizeId(p);
+            if (id) {
+              newCache[id] = p;
+              primeRelatedPosts(newCache, p);
+            }
           });
+          
           return ({
             feeds: {
               ...state.feeds,
               [type]: {
-                items,
+                items: uniqueItems,
                 hasMore: response.hasMore || false,
                 nextCursor: response.nextCursor,
-                totalCount: response.totalCount || 0,
+                totalCount: uniqueItems.length,
                 isLoading: false,
                 error: null,
                 lastUpdated: Date.now()
@@ -281,7 +310,6 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Fetch user profile feed
     fetchUserFeed: async (userId: string, request: FeedRequest) => {
       const { type = 'posts' } = request;
       
@@ -305,23 +333,52 @@ export const usePostsStore = create<FeedState>()(
         set(state => {
           const prev = state.userFeeds[userId]?.[type] || createDefaultFeedState();
           const mapped = response.items?.map(item => transformToUIItem(item)) || [];
+          
+          // Helper function to normalize ID consistently
+          const normalizeId = (p: any): string => {
+            if (p?.id) return String(p.id);
+            if ((p as any)?._id) {
+              const _id = (p as any)._id;
+              return typeof _id === 'object' && _id.toString 
+                ? _id.toString() 
+                : String(_id);
+            }
+            return '';
+          };
+          
+          // Deduplicate new batch first
+          const uniqueMapped = deduplicateItems(mapped);
+          
           // Prime users cache from items
-          try { useUsersStore.getState().primeFromPosts(mapped as any); } catch {}
+          try { useUsersStore.getState().primeFromPosts(uniqueMapped as any); } catch {}
 
-          let mergedItems: FeedItem[] = mapped;
-          let addedCount = mapped.length;
+          let mergedItems: FeedItem[] = uniqueMapped;
+          let addedCount = uniqueMapped.length;
           if (request.cursor) {
-            const seen = new Set((prev.items || []).map(p => p.id));
-            const uniqueNew = mapped.filter(p => !seen.has(p.id));
+            const existingIds = new Map<string, boolean>();
+            (prev.items || []).forEach((p: FeedItem) => {
+              const id = normalizeId(p);
+              if (id && id !== 'undefined' && id !== 'null') {
+                existingIds.set(id, true);
+              }
+            });
+            
+            const uniqueNew = uniqueMapped.filter(p => {
+              const id = normalizeId(p);
+              return id && !existingIds.has(id);
+            });
             mergedItems = (prev.items || []).concat(uniqueNew);
             addedCount = uniqueNew.length;
           }
 
-          // Update cache for everything we saw
+          const finalUniqueItems = deduplicateItems(mergedItems);
           const newCache = { ...state.postsById };
-          mapped.forEach((p: FeedItem) => {
-            newCache[p.id] = p;
-            primeRelatedPosts(newCache, p);
+          finalUniqueItems.forEach((p: FeedItem) => {
+            const id = normalizeId(p);
+            if (id) {
+              newCache[id] = p;
+              primeRelatedPosts(newCache, p);
+            }
           });
 
           const prevCursor = prev.nextCursor;
@@ -336,10 +393,10 @@ export const usePostsStore = create<FeedState>()(
               [userId]: {
                 ...state.userFeeds[userId],
                 [type]: {
-                  items: mergedItems,
+                  items: finalUniqueItems,
                   hasMore: safeHasMore,
                   nextCursor,
-                  totalCount: mergedItems.length,
+                  totalCount: finalUniqueItems.length,
                   isLoading: false,
                   error: null,
                   lastUpdated: Date.now()
@@ -368,7 +425,6 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Fetch saved posts
     fetchSavedPosts: async (request: { page?: number; limit?: number } = {}) => {
       set(state => ({
         feeds: {
@@ -404,8 +460,6 @@ export const usePostsStore = create<FeedState>()(
             processedPosts = localSaved;
           }
         }
-
-        console.log('Store: Setting posts in store:', processedPosts.length, 'posts');
 
         set(state => {
           const newCache = { ...state.postsById };
@@ -448,12 +502,15 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Refresh feed (pull to refresh)
     refreshFeed: async (type: FeedType, filters?: Record<string, any>) => {
       const state = get();
       const currentFeed = state.feeds[type];
       
       if (!currentFeed) return;
+
+      if (currentFeed.isLoading) {
+        return;
+      }
 
       set(state => ({
         feeds: {
@@ -461,7 +518,8 @@ export const usePostsStore = create<FeedState>()(
           [type]: {
             ...state.feeds[type],
             isLoading: true,
-            error: null
+            error: null,
+            items: []
           }
         }
       }));
@@ -469,28 +527,32 @@ export const usePostsStore = create<FeedState>()(
       try {
         const response = await feedService.getFeed({
           type,
-          limit: currentFeed.items.length || 20,
+          limit: 20,
           filters
         } as any);
 
         set(state => {
           const items = response.items?.map(item => transformToUIItem(item)) || [];
-          // Prime users cache from items
-          try { useUsersStore.getState().primeFromPosts(items as any); } catch {}
+          const uniqueItems = deduplicateItems(items);
+          
+          try { useUsersStore.getState().primeFromPosts(uniqueItems as any); } catch {}
           const newCache = { ...state.postsById };
-          items.forEach((p: FeedItem) => {
-            newCache[p.id] = p;
-            primeRelatedPosts(newCache, p);
+          uniqueItems.forEach((p: FeedItem) => {
+            const id = normalizeId(p);
+            if (id) {
+              newCache[id] = p;
+              primeRelatedPosts(newCache, p);
+            }
           });
 
           return ({
             feeds: {
               ...state.feeds,
               [type]: {
-                items,
+                items: uniqueItems, // Completely replace with fresh items
                 hasMore: response.hasMore || false,
                 nextCursor: response.nextCursor,
-                totalCount: response.totalCount || 0,
+                totalCount: uniqueItems.length,
                 isLoading: false,
                 error: null,
                 lastUpdated: Date.now()
@@ -521,8 +583,14 @@ export const usePostsStore = create<FeedState>()(
       const state = get();
       const currentFeed = state.feeds[type];
       
+      // Enhanced guard: prevent concurrent loads and ensure we have a valid cursor
       if (!currentFeed || !currentFeed.hasMore || currentFeed.isLoading) return;
+      if (!currentFeed.nextCursor && currentFeed.items.length > 0) {
+        // No cursor but we have items - something is wrong, don't load more
+        return;
+      }
 
+      // Set loading state immediately to prevent race conditions
       set(state => ({
         feeds: {
           ...state.feeds,
@@ -534,39 +602,94 @@ export const usePostsStore = create<FeedState>()(
       }));
 
       try {
+        // Capture the cursor before making the request to ensure consistency
+        const cursorAtRequestTime = currentFeed.nextCursor;
+        
         const response = await feedService.getFeed({
           type,
-          cursor: currentFeed.nextCursor,
+          cursor: cursorAtRequestTime,
           limit: 20,
           filters
         } as any);
-
+        
         set(state => {
-          const mapped = response.items?.map(item => transformToUIItem(item)) || [];
-          // Prime users cache from items
-          try { useUsersStore.getState().primeFromPosts(mapped as any); } catch {}
+          // Re-check state after async operation - another request might have updated it
+          const currentFeedAfterAsync = state.feeds[type];
           
-          // Deduplicate: filter out any items that already exist in the feed
-          const seen = new Set(state.feeds[type].items.map(p => p.id));
-          const uniqueNew = mapped.filter(p => !seen.has(p.id));
+          // Ensure we're still using the correct cursor and haven't been superseded
+          if (currentFeedAfterAsync.nextCursor !== cursorAtRequestTime && cursorAtRequestTime) {
+            // Cursor has changed, another request updated the feed - discard this response
+            return {
+              feeds: {
+                ...state.feeds,
+                [type]: {
+                  ...currentFeedAfterAsync,
+                  isLoading: false
+                }
+              }
+            };
+          }
+          
+          const mapped = response.items?.map(item => transformToUIItem(item)) || [];
+          
+          // Build map of existing IDs for fast lookup
+          const existingIds = new Map<string, boolean>();
+          currentFeedAfterAsync.items.forEach((item: FeedItem) => {
+            const id = normalizeId(item);
+            if (id && id !== 'undefined' && id !== 'null') {
+              existingIds.set(id, true);
+            }
+          });
+          
+          const uniqueNewItems = deduplicateItems(mapped);
+          const uniqueNew = uniqueNewItems.filter(p => {
+            const id = normalizeId(p);
+            return id && !existingIds.has(id);
+          });
+          
+          try { useUsersStore.getState().primeFromPosts(uniqueNew as any); } catch {}
           
           const newCache = { ...state.postsById };
-          mapped.forEach((p: FeedItem) => {
-            newCache[p.id] = p;
-            primeRelatedPosts(newCache, p);
+          uniqueNew.forEach((p: FeedItem) => {
+            const id = normalizeId(p);
+            if (id) {
+              newCache[id] = p;
+              primeRelatedPosts(newCache, p);
+            }
           });
 
+          const finalMergedItems = [...currentFeedAfterAsync.items, ...uniqueNew];
+          const finalSeenIds = new Map<string, boolean>();
+          const finalUniqueMerged = finalMergedItems.filter(item => {
+            let normalizedId = '';
+            if (item.id) {
+              normalizedId = String(item.id);
+            } else if ((item as any)._id) {
+              const _id = (item as any)._id;
+              normalizedId = typeof _id === 'object' && _id.toString 
+                ? _id.toString() 
+                : String(_id);
+            }
+            
+            if (!normalizedId || normalizedId === 'undefined' || normalizedId === 'null' || normalizedId === '') {
+              return false;
+            }
+            
+            if (finalSeenIds.has(normalizedId)) {
+              return false;
+            }
+            finalSeenIds.set(normalizedId, true);
+            return true;
+          });
+          
           return ({
             feeds: {
               ...state.feeds,
               [type]: {
-                items: [
-                  ...state.feeds[type].items,
-                  ...uniqueNew
-                ],
+                items: finalUniqueMerged, // Use final deduplicated merged array
                 hasMore: response.hasMore || false,
                 nextCursor: response.nextCursor,
-                totalCount: state.feeds[type].items.length + uniqueNew.length,
+                totalCount: finalUniqueMerged.length,
                 isLoading: false,
                 lastUpdated: Date.now()
               }
@@ -848,10 +971,8 @@ export const usePostsStore = create<FeedState>()(
     // Unrepost post
     unrepostPost: async (request: { postId: string }) => {
       try {
-        console.log('🔄 PostsStore.unrepostPost called with:', request);
-  markLocalAction(request.postId, 'unrepost');
+        markLocalAction(request.postId, 'unrepost');
         const response = await feedService.unrepostItem(request);
-        console.log('✅ Unrepost response:', response);
 
         if (response.success) {
           get().updatePostEverywhere(request.postId, (prev) => ({
@@ -910,10 +1031,8 @@ export const usePostsStore = create<FeedState>()(
     // Save post
     savePost: async (request: { postId: string }) => {
       try {
-        console.log('💾 PostsStore.savePost called with:', request);
-  markLocalAction(request.postId, 'save');
+        markLocalAction(request.postId, 'save');
         const response = await feedService.saveItem(request);
-        console.log('✅ Save response:', response);
         
         if (response.success) {
           get().updatePostEverywhere(request.postId, (prev) => ({ ...prev, isSaved: true }));
@@ -928,10 +1047,8 @@ export const usePostsStore = create<FeedState>()(
     // Unsave post
     unsavePost: async (request: { postId: string }) => {
       try {
-        console.log('🗑️ PostsStore.unsavePost called with:', request);
-  markLocalAction(request.postId, 'unsave');
+        markLocalAction(request.postId, 'unsave');
         const response = await feedService.unsaveItem(request);
-        console.log('✅ Unsave response:', response);
         
         if (response.success) {
           get().updatePostEverywhere(request.postId, (prev) => ({ ...prev, isSaved: false }));
@@ -1004,11 +1121,7 @@ export const usePostsStore = create<FeedState>()(
         // Prepare updated cache item, if any
         const cached = state.postsById[postId];
         const updatedCached = cached ? updater(cached) : undefined;
-
-        // Fast shallow equality check for cache
         const cacheChanged = updatedCached && cached && !arePostsEqual(cached, updatedCached);
-
-        // Update main feeds per-slice using each slice's own item to avoid shape loss (e.g., repost wrappers)
         let feedsChanged = false;
         const nextFeeds = { ...state.feeds } as typeof state.feeds;
         (Object.keys(state.feeds) as (keyof typeof state.feeds)[]).forEach((ft) => {

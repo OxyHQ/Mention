@@ -151,7 +151,7 @@ const HomeScreen: React.FC = () => {
                     <Feed
                         key={`for_you-${refreshKey}`}
                         type="for_you"
-                        recycleItems={true}
+                        recycleItems={false}
                         maintainVisibleContentPosition={true}
                         reloadKey={refreshKey}
                     />

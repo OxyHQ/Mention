@@ -99,6 +99,10 @@ export default function FollowingScreen() {
             <ThemedText>{t("No following yet")}</ThemedText>
           </View>
         }
+        removeClippedSubviews={false}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        initialNumToRender={10}
         recycleItems={true}
         maintainVisibleContentPosition={true}
       />

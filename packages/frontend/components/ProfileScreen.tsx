@@ -709,6 +709,7 @@ const MentionProfile: React.FC = () => {
                                                         <View style={styles.communityIcon}>
                                                             <Image
                                                                 source={{ uri: community.icon }}
+                                                                resizeMode="cover"
                                                                 style={styles.communityIconImage as any}
                                                             />
                                                         </View>
@@ -934,7 +935,6 @@ const styles = StyleSheet.create({
     communityIconImage: {
         flex: 1,
         overflow: 'hidden',
-        resizeMode: 'cover',
     },
     communitiesTitle: {
         fontSize: 14,

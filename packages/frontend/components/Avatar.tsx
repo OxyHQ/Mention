@@ -53,14 +53,16 @@ const Avatar: React.FC<AvatarProps> = ({
           <AnimatedImage
             source={imageSource}
             onError={() => setErrored(true)}
-            style={[styles.image, { width: size, height: size, borderRadius: size / 2 }, imageStyle]}
+            resizeMode="cover"
+            style={[{ width: size, height: size, borderRadius: size / 2 }, imageStyle]}
             defaultSource={DefaultAvatar}
           />
         ) : (
           <Image
             source={imageSource}
             onError={() => setErrored(true)}
-            style={[styles.image, { width: size, height: size, borderRadius: size / 2 }, imageStyle]}
+            resizeMode="cover"
+            style={[{ width: size, height: size, borderRadius: size / 2 }, imageStyle]}
             defaultSource={DefaultAvatar}
           />
         )
@@ -89,9 +91,6 @@ const styles = StyleSheet.create({
   container: {
     position: 'relative',
     overflow: 'hidden',
-  },
-  image: {
-    resizeMode: 'cover',
   },
   verifiedBadge: {
     position: 'absolute',

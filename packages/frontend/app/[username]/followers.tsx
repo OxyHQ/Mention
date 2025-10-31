@@ -104,6 +104,10 @@ export default function FollowersScreen() {
             <ThemedText>{t("No followers yet")}</ThemedText>
           </View>
         }
+        removeClippedSubviews={false}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        initialNumToRender={10}
         recycleItems={true}
         maintainVisibleContentPosition={true}
       />

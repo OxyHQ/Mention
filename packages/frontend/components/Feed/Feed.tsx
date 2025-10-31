@@ -18,36 +18,25 @@ import { useOxy } from '@oxyhq/services';
 import { feedService } from '../../services/feedService';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 
-// Improved interface with better organization and type safety
 interface FeedProps {
-    // Core props
     type: FeedType;
     userId?: string;
-
-    // UI Configuration
     showComposeButton?: boolean;
     onComposePress?: () => void;
     hideHeader?: boolean;
     hideRefreshControl?: boolean;
     scrollEnabled?: boolean;
-
-    // Data configuration
     showOnlySaved?: boolean;
     filters?: Record<string, any>;
     reloadKey?: string | number;
-
-    // Auto-refresh (currently unused - keeping for future)
     autoRefresh?: boolean;
     refreshInterval?: number;
     onSavePress?: (postId: string) => void;
-
-    // Style props
     style?: any;
     contentContainerStyle?: any;
     listHeaderComponent?: React.ReactElement | null;
-
-    // Legend List specific options with better defaults
     recycleItems?: boolean;
     maintainScrollAtEnd?: boolean;
     maintainScrollAtEndThreshold?: number;
@@ -55,7 +44,6 @@ interface FeedProps {
     maintainVisibleContentPosition?: boolean;
 }
 
-// Default props for better maintainability
 const DEFAULT_FEED_PROPS = {
     showComposeButton: false,
     hideHeader: false,
@@ -72,7 +60,6 @@ const DEFAULT_FEED_PROPS = {
 } as const;
 
 const Feed = (props: FeedProps) => {
-    // Merge with defaults for cleaner code
     const {
         type,
         userId,
@@ -84,19 +71,20 @@ const Feed = (props: FeedProps) => {
         showOnlySaved,
         filters,
         reloadKey,
-        autoRefresh: _autoRefresh, // Unused but kept for API compatibility
-        refreshInterval: _refreshInterval, // Unused but kept for API compatibility
-        onSavePress: _onSavePress, // Unused but kept for API compatibility
+        autoRefresh: _autoRefresh,
+        refreshInterval: _refreshInterval,
+        onSavePress: _onSavePress,
         style,
         contentContainerStyle,
         listHeaderComponent,
-        recycleItems,
+        recycleItems: _recycleItems,
         maintainScrollAtEnd,
         maintainScrollAtEndThreshold,
         alignItemsAtEnd,
         maintainVisibleContentPosition,
     } = { ...DEFAULT_FEED_PROPS, ...props };
     const theme = useTheme();
+    const isScreenNotMobile = useIsScreenNotMobile();
     const flatListRef = useRef<any>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -111,17 +99,14 @@ const Feed = (props: FeedProps) => {
     const [localLoading, setLocalLoading] = useState<boolean>(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
-    // Determine which feed slice to use (saved feed bypasses user feeds)
     const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
     const globalFeed = useFeedSelector(effectiveType);
-    // Always call hooks in a stable order; pass empty string when no userId
     const userFeed = useUserFeedSelector(userId || '', effectiveType);
     const feedData = showOnlySaved ? globalFeed : (userId ? userFeed : globalFeed);
     const isLoading = useScoped ? localLoading : !!feedData?.isLoading;
     const error = useScoped ? localError : feedData?.error;
     const hasMore = useScoped ? localHasMore : !!feedData?.hasMore;
 
-    // Filter posts to show only saved ones if showOnlySaved is true
     const filteredFeedData = useMemo(() => showOnlySaved
         ? {
             ...feedData,
@@ -141,83 +126,120 @@ const Feed = (props: FeedProps) => {
         clearError
     } = usePostsStore();
 
-    // Initial feed fetch - memoize to avoid recreating on every render
     const filtersKey = useMemo(() => JSON.stringify(filters || {}), [filters]);
-
-    // Get authentication state
     const { user: currentUser, isAuthenticated } = useOxy();
+    const isFetchingRef = useRef(false);
 
-    useEffect(() => {
-        const fetchInitialFeed = async (retryCount = 0) => {
-            // Don't fetch if user is authenticated but user data isn't ready yet
-            if (isAuthenticated && !currentUser?.id) {
-                console.log('Waiting for user data to be available...');
+    const itemKey = useCallback((it: any): string => {
+        // Try id first (should be string), then _id (could be ObjectId or string)
+        let normalizedId = '';
+        if (it?.id) {
+            normalizedId = String(it.id);
+        } else if (it?._id) {
+            const _id = it._id;
+            normalizedId = typeof _id === 'object' && _id.toString
+                ? _id.toString()
+                : String(_id);
+        } else if (it?._id_str) {
+            normalizedId = String(it._id_str);
+        } else if (it?.postId) {
+            normalizedId = String(it.postId);
+        } else if (it?.post?.id) {
+            normalizedId = String(it.post.id);
+        } else if (it?.post?._id) {
+            const _id = it.post._id;
+            normalizedId = typeof _id === 'object' && _id.toString
+                ? _id.toString()
+                : String(_id);
+        }
+
+        if (normalizedId && normalizedId !== 'undefined' && normalizedId !== 'null' && normalizedId !== '') {
+            return normalizedId;
+        }
+
+        const fallback = it?.username || JSON.stringify(it);
+        return String(fallback);
+    }, []);
+
+    const isInitialMountRef = useRef(true);
+
+    const fetchInitialFeed = useCallback(async () => {
+        if (isFetchingRef.current) return;
+        if (isAuthenticated && !currentUser?.id) return;
+
+        const shouldRefresh = isInitialMountRef.current || (reloadKey !== undefined && reloadKey !== null);
+        
+        if (!useScoped && !shouldRefresh) {
+            const currentFeed = usePostsStore.getState().feeds[type];
+            if (currentFeed?.items && currentFeed.items.length > 0) {
+                return;
+            }
+        }
+
+        isFetchingRef.current = true;
+
+        try {
+            if (!useScoped) {
+                clearError();
+            } else {
+                setLocalError(null);
+            }
+
+            if (showOnlySaved) {
+                await fetchSavedPosts({ page: 1, limit: 50 });
                 return;
             }
 
-            try {
-                // Clear any previous errors
-                if (!useScoped) {
-                    clearError();
-                } else {
-                    setLocalError(null);
+            if (useScoped) {
+                setLocalLoading(true);
+                const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
+                let items = resp.items || [];
+
+                const pid = (filters || {}).postId || (filters || {}).parentPostId;
+                if (pid) {
+                    items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
                 }
-
-                if (showOnlySaved) {
-                    await fetchSavedPosts({ page: 1, limit: 50 });
-                    return;
-                }
-                if (useScoped) {
-                    setLocalLoading(true);
-                    const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
-                    let items = resp.items || []; // Use items directly since backend returns proper schema
-
-                    // debug logs removed for production
-
-                    const pid = (filters || {}).postId || (filters || {}).parentPostId;
-                    if (pid) {
-                        items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
+                
+                // Deduplicate scoped items using Map for O(1) lookup
+                const seen = new Map<string, any>();
+                for (const item of items) {
+                    const key = itemKey(item);
+                    if (!seen.has(key)) {
+                        seen.set(key, item);
                     }
-                    setLocalItems(items);
-                    setLocalHasMore(!!resp.hasMore);
-                    setLocalNextCursor(resp.nextCursor);
-                } else if (userId) {
-                    await fetchUserFeed(userId, { type, limit: 20, filters });
+                }
+                
+                setLocalItems(Array.from(seen.values()));
+                setLocalHasMore(!!resp.hasMore);
+                setLocalNextCursor(resp.nextCursor);
+            } else if (userId) {
+                await fetchUserFeed(userId, { type, limit: 20, filters });
+            } else {
+                if (shouldRefresh) {
+                    await refreshFeed(type, filters);
                 } else {
                     await fetchFeed({ type, limit: 20, filters });
                 }
-            } catch (error) {
-                console.error('Error fetching initial feed:', error);
-
-                // Retry logic - automatically retry once after a short delay
-                if (retryCount < 1) {
-                    console.log('Retrying feed fetch...');
-                    // Don't set error state yet, just retry
-                    setTimeout(() => {
-                        fetchInitialFeed(retryCount + 1);
-                    }, 1000);
-                    return;
-                }
-
-                // Only set error after all retries fail
-                if (useScoped) {
-                    setLocalError('Failed to load');
-                } else {
-                    // For store-based feeds, the error is already set in the store
-                    // We just need to ensure it's not showing during the retry
-                }
-            } finally {
-                if (useScoped) setLocalLoading(false);
             }
-        };
+        } catch (error) {
+            console.error('Feed: Error fetching initial feed:', error);
+            if (useScoped) {
+                setLocalError('Failed to load');
+            }
+        } finally {
+            if (useScoped) setLocalLoading(false);
+            isFetchingRef.current = false;
+            isInitialMountRef.current = false;
+        }
+    }, [type, userId, showOnlySaved, useScoped, filters, filtersKey, reloadKey, isAuthenticated, currentUser?.id, fetchFeed, fetchUserFeed, fetchSavedPosts, refreshFeed, clearError, itemKey]);
 
+    useEffect(() => {
         fetchInitialFeed();
-    }, [type, effectiveType, userId, showOnlySaved, fetchFeed, fetchUserFeed, fetchSavedPosts, filtersKey, filters, useScoped, reloadKey, clearError, isAuthenticated, currentUser?.id]);
+    }, [fetchInitialFeed]);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            // Clear errors on refresh
             if (!useScoped) {
                 clearError();
             }
@@ -254,7 +276,6 @@ const Feed = (props: FeedProps) => {
     }, [type, effectiveType, userId, showOnlySaved, refreshFeed, fetchUserFeed, fetchSavedPosts, filters, useScoped, clearError]);
 
     const handleLoadMore = useCallback(async () => {
-        // Saved posts currently load as a single page; skip infinite scroll
         if (showOnlySaved) return;
         if (!hasMore || isLoading || isLoadingMore) return;
 
@@ -279,22 +300,33 @@ const Feed = (props: FeedProps) => {
                         String(item.postId || item.parentPostId) === String(pid)
                     );
                 }
-                // Dedupe against localItems and decide hasMore by cursor advance
+
                 setLocalItems(prev => {
-                    const seen = new Set(prev.map((p: any) => String(p.id || p._id || p.postId)));
-                    const uniqueNew = items.filter((p: any) => !seen.has(String(p.id || p._id || p.postId)));
-                    return prev.concat(uniqueNew);
+                    const seen = new Map<string, boolean>();
+                    prev.forEach(p => {
+                        const key = itemKey(p);
+                        if (key) seen.set(key, true);
+                    });
+                    
+                    const uniqueNew = items.filter((p: any) => {
+                        const key = itemKey(p);
+                        return key && !seen.has(key);
+                    });
+
+                    const newSeen = new Map<string, any>();
+                    uniqueNew.forEach(p => {
+                        const key = itemKey(p);
+                        if (key && !newSeen.has(key)) {
+                            newSeen.set(key, p);
+                        }
+                    });
+                    
+                    return prev.concat(Array.from(newSeen.values()));
                 });
                 const prevCursor = localNextCursor;
                 const nextCursor = resp.nextCursor;
                 const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
-                // If no unique items and no cursor advance, stop
-                const uniqueNewCount = (() => {
-                    const seen = new Set(localItems.map((p: any) => String(p.id || p._id || p.postId)));
-                    return items.filter((p: any) => !seen.has(String(p.id || p._id || p.postId))).length;
-                })();
-                const hasMoreSafe = (uniqueNewCount > 0 || cursorAdvanced) ? (!!resp.hasMore || cursorAdvanced) : false;
-                setLocalHasMore(hasMoreSafe);
+                setLocalHasMore(!!resp.hasMore && cursorAdvanced);
                 setLocalNextCursor(nextCursor);
             } else if (userId) {
                 await fetchUserFeed(userId, {
@@ -309,91 +341,68 @@ const Feed = (props: FeedProps) => {
         } catch (error) {
             console.error('Error loading more feed:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to load more posts';
-
             if (useScoped) {
                 setLocalError(errorMessage);
             }
-            // Global store errors are handled by the store itself
         } finally {
             if (useScoped) {
                 setLocalLoading(false);
             }
             setIsLoadingMore(false);
         }
-    }, [showOnlySaved, hasMore, isLoading, isLoadingMore, type, effectiveType, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, localItems]);
+    }, [showOnlySaved, hasMore, isLoading, isLoadingMore, type, effectiveType, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, localItems, itemKey]);
 
-    const renderPostItem = useCallback(({ item }: { item: any }) => (
-        <PostItem post={item} />
-    ), []);
-
-    // Prioritize current user's fresh posts at the top (For You only)
-    // currentUser is already available from above
-
-    // Create a stable key for posts and use the same logic for deduping and keyExtractor
-    const itemKey = useCallback((it: any): string => (
-        String(
-            it?.id || it?._id || it?._id_str || it?.postId || it?.post?.id || it?.post?._id || it?.username || JSON.stringify(it)
-        )
-    ), []);
+    const renderPostItem = useCallback(({ item }: { item: any; index: number }) => {
+        return <PostItem post={item} />;
+    }, []);
 
     const displayItems = useMemo(() => {
         const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
+        if (src.length === 0) return [];
 
-        // debug logs removed for production
-
-        if (effectiveType !== 'for_you' || !currentUser?.id) {
-            // Deduplicate by key in case upstream merged duplicates
-            const seen = new Set<string>();
-            const deduped: any[] = [];
-            for (const it of src) {
-                const k = itemKey(it);
-                if (seen.has(k)) continue;
-                seen.add(k);
-                deduped.push(it);
-            }
-            return deduped;
-        }
-
-        const now = Date.now();
-        const THRESHOLD_MS = 60 * 1000; // consider "posted now" within 60s
-
-        const mineNow: any[] = [];
-        const others: any[] = [];
-        for (const it of src) {
-            const ownerId = it?.user?.id;
-            const d = it?.date || it?.createdAt;
-            const ts = d ? Date.parse(d) : NaN;
-            const isRecent = Number.isFinite(ts) && (now - ts) <= THRESHOLD_MS;
-            if ((it?.isLocalNew || (ownerId && ownerId === currentUser.id && isRecent))) {
-                mineNow.push(it);
-            } else {
-                others.push(it);
+        const seen = new Map<string, any>();
+        for (const item of src) {
+            const key = itemKey(item);
+            if (key && key !== 'undefined' && key !== 'null' && key !== '' && !seen.has(key)) {
+                seen.set(key, item);
             }
         }
-        // Sort "now" posts by newest first
-        const mineNowSorted = mineNow.sort((a: any, b: any) => {
-            const tb = Date.parse(b?.date || b?.createdAt || '') || 0;
-            const ta = Date.parse(a?.date || a?.createdAt || '') || 0;
-            return tb - ta;
-        });
-        // Merge and dedupe to avoid overlapping keys in the list
-        const merged = [...mineNowSorted, ...others];
-        const seen = new Set<string>();
-        const deduped: any[] = [];
-        for (const it of merged) {
-            const k = itemKey(it);
-            if (seen.has(k)) continue;
-            seen.add(k);
-            deduped.push(it);
+
+        const deduped = Array.from(seen.values());
+
+        if (effectiveType === 'for_you' && currentUser?.id && deduped.length > 0) {
+            const now = Date.now();
+            const THRESHOLD_MS = 60 * 1000;
+            const mineNow: any[] = [];
+            const others: any[] = [];
+
+            for (const item of deduped) {
+                const ownerId = item?.user?.id;
+                if (item?.isLocalNew || (ownerId === currentUser.id)) {
+                    const d = item?.date || item?.createdAt;
+                    const ts = d ? Date.parse(d) : 0;
+                    if (ts && (now - ts) <= THRESHOLD_MS) {
+                        mineNow.push({ item, ts });
+                    } else {
+                        others.push(item);
+                    }
+                } else {
+                    others.push(item);
+                }
+            }
+
+            if (mineNow.length > 0) {
+                mineNow.sort((a, b) => b.ts - a.ts);
+                return [...mineNow.map(x => x.item), ...others];
+            }
         }
+
         return deduped;
     }, [useScoped, localItems, filteredFeedData?.items, effectiveType, currentUser?.id, itemKey]);
 
     const renderEmptyState = useCallback(() => {
-        // Avoid double loading UI; top spinner handles initial load
         if (isLoading) return null;
 
-        // Only show error if there's an error AND no items to display
         const hasError = error || (useScoped && localError);
         const hasNoItems = displayItems.length === 0;
 
@@ -444,20 +453,14 @@ const Feed = (props: FeedProps) => {
     }, [isLoading, error, localError, useScoped, type, effectiveType, userId, clearError, fetchFeed, fetchUserFeed, fetchSavedPosts, showOnlySaved, displayItems.length, filters, theme]);
 
     const renderFooter = useCallback(() => {
-        if (showOnlySaved) return null;
-        if (!hasMore) return null;
+        if (showOnlySaved || !hasMore || !isLoadingMore) return null;
 
-        // Don't show any footer during initial load when the list is empty
         const hasItems = useScoped ? (localItems.length > 0) : !!(filteredFeedData?.items && filteredFeedData.items.length > 0);
         if (!hasItems) return null;
-
-        // Only show the loading footer when an actual load-more request is in progress
-        if (!isLoadingMore) return null;
 
         return (
             <View style={styles.footer}>
                 <ActivityIndicator size="small" color={theme.colors.primary} />
-                <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>Loading more posts...</Text>
             </View>
         );
     }, [showOnlySaved, hasMore, isLoadingMore, filteredFeedData?.items, useScoped, localItems.length, theme]);
@@ -477,11 +480,15 @@ const Feed = (props: FeedProps) => {
 
     const keyExtractor = useCallback((item: any) => itemKey(item), [itemKey]);
 
-    const getItemLayout = useCallback((data: any, index: number) => ({
-        length: 200,
-        offset: 200 * index,
-        index,
-    }), []);
+    const dataHash = useMemo(() => {
+        const count = displayItems.length;
+        if (count === 0) return 'empty';
+        const firstKey = itemKey(displayItems[0]);
+        const lastKey = itemKey(displayItems[count - 1]);
+        return `${count}-${firstKey}-${lastKey}`;
+    }, [displayItems, itemKey]);
+
+    const finalRenderItems = displayItems;
 
     return (
         <ErrorBoundary>
@@ -489,13 +496,13 @@ const Feed = (props: FeedProps) => {
                 <LoadingTopSpinner showLoading={isLoading && !refreshing && !isLoadingMore && displayItems.length === 0} />
                 <LegendList
                     ref={flatListRef}
-                    data={displayItems}
+                    data={finalRenderItems}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
-                    getItemLayout={getItemLayout}
+                    extraData={dataHash}
                     ListHeaderComponent={listHeaderComponent ?? renderHeader}
                     ListEmptyComponent={renderEmptyState}
-                    ListFooterComponent={renderFooter}
+                    ListFooterComponent={isLoadingMore ? renderFooter : null}
                     scrollEnabled={scrollEnabled}
                     refreshControl={
                         hideRefreshControl ? undefined : (
@@ -508,20 +515,29 @@ const Feed = (props: FeedProps) => {
                         )
                     }
                     onEndReached={handleLoadMore}
-                    onEndReachedThreshold={0.1}
+                    onEndReachedThreshold={0.5}
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={[styles.listContent, contentContainerStyle]}
-                    style={[styles.list, style]}
-                    removeClippedSubviews={true}
+                    contentContainerStyle={[
+                        styles.listContent,
+                        { flexGrow: 0, minHeight: 0 },
+                        contentContainerStyle
+                    ]}
+                    style={[
+                        styles.list,
+                        { minHeight: 0 },
+                        style
+                    ]}
+                    removeClippedSubviews={false}
                     maxToRenderPerBatch={10}
                     windowSize={10}
                     initialNumToRender={10}
-                    // LegendList specific props (forwarded)
-                    recycleItems={recycleItems}
+                    updateCellsBatchingPeriod={100}
+                    recycleItems={!isScreenNotMobile}
                     maintainScrollAtEnd={maintainScrollAtEnd}
                     maintainScrollAtEndThreshold={maintainScrollAtEndThreshold}
                     alignItemsAtEnd={alignItemsAtEnd}
-                    maintainVisibleContentPosition={maintainVisibleContentPosition}
+                    maintainVisibleContentPosition={false}
+                    disableVirtualization={false}
                 />
             </View>
         </ErrorBoundary>
@@ -533,12 +549,18 @@ export default Feed;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        minHeight: 0,
     },
     list: {
         flex: 1,
+        minHeight: 0,
     },
     listContent: {
-        flexGrow: 1,
+        paddingBottom: 0,
+        paddingTop: 0,
+        flexGrow: 0,
+        minHeight: 0,
+        alignSelf: 'stretch',
     },
     emptyState: {
         flex: 1,
@@ -590,8 +612,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 24,
-        gap: 8,
+        paddingVertical: 8,
+        paddingBottom: 8,
+        height: 40,
+        marginTop: 0,
+        marginBottom: 0,
     },
     footerText: {
         fontSize: 14,
