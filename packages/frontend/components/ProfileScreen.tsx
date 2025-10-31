@@ -31,12 +31,11 @@ import MediaGrid from '@/components/Profile/MediaGrid';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { subscriptionService } from '@/services/subscriptionService';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
+import { useSharedValue, withTiming } from 'react-native-reanimated';
 
 // Constants for better maintainability and responsive design
 const HEADER_HEIGHT_EXPANDED = 120;
 const HEADER_HEIGHT_NARROWED = 50;
-const FAB_POSITION_BOTTOM = 20;
-const FAB_POSITION_RIGHT = 20;
 
 // Responsive breakpoints following industry standards
 const BREAKPOINTS = {
@@ -95,6 +94,8 @@ const MentionProfile: React.FC = () => {
     const isWideWeb = Platform.OS === 'web' && width >= BREAKPOINTS.mobile;
     const isTablet = width >= BREAKPOINTS.tablet;
     const isDesktop = width >= BREAKPOINTS.desktop;
+    const fabTranslateY = useSharedValue(0);
+    const fabHeight = 80; // FAB height + bottom margin
 
     // Responsive spacing based on screen size
     const responsiveSpacing = useMemo(() => ({
@@ -102,14 +103,6 @@ const MentionProfile: React.FC = () => {
         vertical: isDesktop ? 24 : isTablet ? 20 : 16,
         headerPadding: isWideWeb ? 24 : 16,
     }), [isDesktop, isTablet, isWideWeb]);
-
-    // Improved FAB positioning - use absolute positioning for consistency
-    const fabPositionStyle = useMemo(() => ({
-        position: 'absolute' as const,
-        right: isWideWeb ? responsiveSpacing.horizontal : FAB_POSITION_RIGHT,
-        bottom: isWideWeb ? responsiveSpacing.vertical : FAB_POSITION_BOTTOM,
-        zIndex: 1000,
-    }), [isWideWeb, responsiveSpacing]);
 
     // Track current feed type for the active tab
     const currentFeedType = useMemo<FeedType>(() => (
@@ -134,6 +127,42 @@ const MentionProfile: React.FC = () => {
             unregisterScrollableRef.current = registerScrollable(node);
         }
     }, [clearProfileRegistration, registerScrollable]);
+    
+    // Track scroll direction and animate FAB
+    useEffect(() => {
+        let isScrollingDown = false;
+        let lastKnownScrollY = 0;
+        
+        const listenerId = scrollY.addListener(({ value }) => {
+            const currentScrollY = typeof value === 'number' ? value : 0;
+            const scrollDelta = currentScrollY - lastKnownScrollY;
+            
+            // Determine scroll direction (only update if movement is significant)
+            if (Math.abs(scrollDelta) > 1) {
+                isScrollingDown = scrollDelta > 0;
+            }
+            
+            if (currentScrollY > 50) { // Only hide after scrolling past threshold
+                if (isScrollingDown) {
+                    // Scrolling down - hide FAB
+                    fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
+                } else {
+                    // Scrolling up - show FAB
+                    fabTranslateY.value = withTiming(0, { duration: 200 });
+                }
+            } else {
+                // Near top - always show FAB
+                fabTranslateY.value = withTiming(0, { duration: 200 });
+            }
+            
+            lastKnownScrollY = currentScrollY;
+        });
+        
+        return () => {
+            scrollY.removeListener(listenerId);
+        };
+    }, [scrollY, fabTranslateY, fabHeight]);
+    
     const handleProfileScrollEvent = useCallback((event: any) => {
         try {
             const nativeEvent = event?.nativeEvent ?? {};
@@ -738,11 +767,11 @@ const MentionProfile: React.FC = () => {
                         {renderTabContent()}
                     </Animated.ScrollView>
 
-
-                    {/* FAB */}
+                    {/* FAB - rendered after ScrollView to ensure visibility */}
                     <FloatingActionButton
                         onPress={() => router.push('/compose')}
-                        style={fabPositionStyle as any}
+                        animatedTranslateY={fabTranslateY}
+                        style={{ position: 'absolute', bottom: 24 + insets.bottom, right: 24, zIndex: 1000 }}
                     />
                 </>
             )}
@@ -753,6 +782,7 @@ const MentionProfile: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        overflow: 'visible',
     },
     backButton: {
         zIndex: 2,
