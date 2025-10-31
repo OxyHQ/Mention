@@ -1,17 +1,18 @@
 import { StyleSheet, View, Pressable, ViewStyle, Platform, Vibration } from 'react-native';
 import { Home, HomeActive, Search, SearchActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
-import { colors } from '@/styles/colors';
 import { useRouter, usePathname } from 'expo-router';
 import React from 'react';
 import Avatar from './Avatar';
 import { useOxy } from '@oxyhq/services';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/hooks/useTheme';
 
 export const BottomBar = () => {
     const router = useRouter();
     const pathname = usePathname();
     const { showBottomSheet, user, isAuthenticated, oxyServices } = useOxy();
     const insets = useSafeAreaInsets();
+    const theme = useTheme();
 
     const handlePress = (route: string) => {
         router.push(route);
@@ -21,12 +22,12 @@ export const BottomBar = () => {
         bottomBar: {
             width: '100%',
             height: 60 + insets.bottom,
-            backgroundColor: colors.primaryLight,
+            backgroundColor: theme.colors.card,
             flexDirection: 'row',
             justifyContent: 'space-around',
             alignItems: 'center',
             borderTopWidth: 1,
-            borderTopColor: colors.COLOR_BLACK_LIGHT_6,
+            borderTopColor: theme.colors.border,
             elevation: 8,
             paddingBottom: insets.bottom,
             ...Platform.select({
@@ -54,30 +55,30 @@ export const BottomBar = () => {
         <View style={styles.bottomBar}>
             <Pressable onPress={() => handlePress('/')} style={[styles.tab, pathname === '/' && styles.active]}>
                 {pathname === '/' ? (
-                    <HomeActive size={28} color={colors.primaryColor} />
+                    <HomeActive size={28} color={theme.colors.primary} />
                 ) : (
-                    <Home size={28} color={colors.COLOR_BLACK} />
+                    <Home size={28} color={theme.colors.text} />
                 )}
             </Pressable>
             <Pressable onPress={() => handlePress('/explore')} style={[styles.tab, pathname === '/explore' && styles.active]}>
                 {pathname === '/explore' ? (
-                    <SearchActive size={28} color={colors.primaryColor} />
+                    <SearchActive size={28} color={theme.colors.primary} />
                 ) : (
-                    <Search size={28} color={colors.COLOR_BLACK} />
+                    <Search size={28} color={theme.colors.text} />
                 )}
             </Pressable>
             <Pressable onPress={() => handlePress('/compose')} style={[styles.tab, pathname === '/compose' && styles.active]}>
                 {pathname === '/compose' ? (
-                    <ComposeIIconActive size={28} color={colors.primaryColor} />
+                    <ComposeIIconActive size={28} color={theme.colors.primary} />
                 ) : (
-                    <ComposeIcon size={28} color={colors.COLOR_BLACK} />
+                    <ComposeIcon size={28} color={theme.colors.text} />
                 )}
             </Pressable>
             <Pressable onPress={() => handlePress('/notifications')} style={[styles.tab, pathname === '/notifications' && styles.active]}>
                 {pathname === '/notifications' ? (
-                    <BellActive size={28} color={colors.primaryColor} />
+                    <BellActive size={28} color={theme.colors.primary} />
                 ) : (
-                    <Bell size={28} color={colors.COLOR_BLACK} />
+                    <Bell size={28} color={theme.colors.text} />
                 )}
             </Pressable>
             <Pressable
