@@ -84,6 +84,7 @@ const HomeScreen: React.FC = () => {
     }, [isAuthenticated, activeTab]);
 
     // Register refresh handler from BottomBar
+    // This allows BottomBar to trigger refresh when home tab is pressed while already on home
     useEffect(() => {
         const handleRefresh = () => {
             setRefreshKey(prev => prev + 1);
