@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
     View,
     Text,
@@ -50,7 +50,28 @@ export default function SearchIndex() {
         saved: [],
     });
     // Cache results per tab per query to avoid refetching when switching tabs
+    // Also limits cache size to prevent memory issues
     const [resultsCache, setResultsCache] = useState<Record<string, LocalSearchResults>>({});
+    const resultsCacheRef = useRef<Record<string, LocalSearchResults>>({});
+    const MAX_CACHE_SIZE = 50; // Limit cache entries
+
+    // Sync ref with state
+    useEffect(() => {
+        resultsCacheRef.current = resultsCache;
+    }, [resultsCache]);
+
+    // Helper to clean up old cache entries when cache gets too large
+    // Uses LRU-style eviction (keeps most recently used entries)
+    const cleanupCache = useCallback((newCache: Record<string, LocalSearchResults>) => {
+        const entries = Object.entries(newCache);
+        if (entries.length > MAX_CACHE_SIZE) {
+            // Keep the most recent MAX_CACHE_SIZE entries
+            // In a production app, you might want to track access times for true LRU
+            const toKeep = entries.slice(-MAX_CACHE_SIZE);
+            return Object.fromEntries(toKeep);
+        }
+        return newCache;
+    }, []);
 
     // Initialize query from URL parameter
     useEffect(() => {
@@ -74,7 +95,7 @@ export default function SearchIndex() {
         }
     }, [query]);
 
-    // Debounced search - checks cache first, only fetches if needed
+    // Debounced search - checks cache first, reuses "all" results when possible
     useEffect(() => {
         const performSearch = async () => {
             const searchQuery = query.trim();
@@ -92,9 +113,42 @@ export default function SearchIndex() {
 
             const cacheKey = `${activeTab}-${searchQuery}`;
             // Load from cache if exists - no need to fetch again
-            if (resultsCache[cacheKey]) {
-                setResults(resultsCache[cacheKey]);
+            if (resultsCacheRef.current[cacheKey]) {
+                setResults(resultsCacheRef.current[cacheKey]);
                 return;
+            }
+
+            // For individual tabs, check if "all" tab has cached results for this query
+            // If so, reuse those results instead of fetching again
+            if (activeTab !== "all") {
+                const allCacheKey = `all-${searchQuery}`;
+                const allCached = resultsCacheRef.current[allCacheKey];
+                if (allCached) {
+                    // Use results from "all" tab for this specific tab type
+                    let tabResults: LocalSearchResults = { ...results };
+                    if (activeTab === "posts") {
+                        tabResults = { ...results, posts: allCached.posts || [] };
+                    } else if (activeTab === "users") {
+                        tabResults = { ...results, users: allCached.users || [] };
+                    } else if (activeTab === "feeds") {
+                        tabResults = { ...results, feeds: allCached.feeds || [] };
+                    } else if (activeTab === "hashtags") {
+                        tabResults = { ...results, hashtags: allCached.hashtags || [] };
+                    } else if (activeTab === "lists") {
+                        tabResults = { ...results, lists: allCached.lists || [] };
+                    } else if (activeTab === "saved") {
+                        tabResults = { ...results, saved: allCached.saved || [] };
+                    }
+
+                    // Cache this tab's results (derived from "all")
+                    const updatedCache = {
+                        ...resultsCacheRef.current,
+                        [cacheKey]: tabResults
+                    };
+                    setResultsCache(prev => cleanupCache(updatedCache));
+                    setResults(tabResults);
+                    return;
+                }
             }
 
             setLoading(true);
@@ -102,6 +156,7 @@ export default function SearchIndex() {
                 let newResults: LocalSearchResults = { ...results };
                 
                 if (activeTab === "all") {
+                    // "all" tab fetches everything - most comprehensive
                     const allResults = await searchService.searchAll(searchQuery);
                     newResults = {
                         posts: allResults.posts || [],
@@ -111,6 +166,35 @@ export default function SearchIndex() {
                         lists: allResults.lists || [],
                         saved: allResults.saved || [],
                     };
+
+                    // Pre-populate cache for individual tabs using "all" results
+                    // This allows instant switching to other tabs without fetching
+                    const updatedCache: Record<string, LocalSearchResults> = {
+                        ...resultsCacheRef.current,
+                        [cacheKey]: newResults,
+                    };
+
+                    // Pre-populate individual tab caches from "all" results
+                    if (!updatedCache[`posts-${searchQuery}`]) {
+                        updatedCache[`posts-${searchQuery}`] = { ...results, posts: newResults.posts };
+                    }
+                    if (!updatedCache[`users-${searchQuery}`]) {
+                        updatedCache[`users-${searchQuery}`] = { ...results, users: newResults.users };
+                    }
+                    if (!updatedCache[`feeds-${searchQuery}`]) {
+                        updatedCache[`feeds-${searchQuery}`] = { ...results, feeds: newResults.feeds };
+                    }
+                    if (!updatedCache[`hashtags-${searchQuery}`]) {
+                        updatedCache[`hashtags-${searchQuery}`] = { ...results, hashtags: newResults.hashtags };
+                    }
+                    if (!updatedCache[`lists-${searchQuery}`]) {
+                        updatedCache[`lists-${searchQuery}`] = { ...results, lists: newResults.lists };
+                    }
+                    if (!updatedCache[`saved-${searchQuery}`]) {
+                        updatedCache[`saved-${searchQuery}`] = { ...results, saved: newResults.saved };
+                    }
+
+                    setResultsCache(prev => cleanupCache(updatedCache));
                 } else if (activeTab === "posts") {
                     const posts = await searchService.searchPosts(searchQuery);
                     newResults = { ...results, posts: posts || [] };
@@ -132,10 +216,11 @@ export default function SearchIndex() {
                 }
 
                 // Cache the results for this tab+query combination
-                setResultsCache(prev => ({
-                    ...prev,
+                const updatedCache = {
+                    ...resultsCacheRef.current,
                     [cacheKey]: newResults
-                }));
+                };
+                setResultsCache(prev => cleanupCache(updatedCache));
                 setResults(newResults);
             } catch (error) {
                 console.warn("Search error:", error);
@@ -146,7 +231,7 @@ export default function SearchIndex() {
 
         const timeoutId = setTimeout(performSearch, 500);
         return () => clearTimeout(timeoutId);
-    }, [query, activeTab]);
+    }, [query, activeTab, cleanupCache]);
 
     const renderUserItem = (user: any) => (
         <TouchableOpacity
