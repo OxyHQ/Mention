@@ -32,6 +32,7 @@ import { useAppearanceStore } from '@/store/appearanceStore';
 import { subscriptionService } from '@/services/subscriptionService';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
+import { Search } from '@/assets/icons/search-icon';
 
 // Constants for better maintainability and responsive design
 const HEADER_HEIGHT_EXPANDED = 120;
@@ -430,7 +431,7 @@ const MentionProfile: React.FC = () => {
                             <Ionicons name={subscribed ? 'notifications' : 'notifications-outline'} size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]}>
-                            <Ionicons name="search-outline" size={20} color={theme.colors.text} />
+                            <Search size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]} onPress={handleShare}>
                             <Ionicons name="share-outline" size={20} color={theme.colors.text} />

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Platform, Text, TextInput, TouchableOpacity, View, ViewStyle } from 'react-native'
 import { colors } from '../styles/colors'
 import { useTheme } from '@/hooks/useTheme'
+import { Search } from '@/assets/icons/search-icon'
 
 const debounce = (func: Function, wait: number) => {
     let timeout: NodeJS.Timeout;
@@ -74,7 +75,7 @@ export const SearchBar = () => {
                 {isLoading ? (
                     <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                 ) : (
-                    <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
+                    <Search size={20} color={theme.colors.textSecondary} />
                 )}
                 <TextInput
                     style={{

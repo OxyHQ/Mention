@@ -19,6 +19,7 @@ import { searchService } from "@/services/searchService";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import Avatar from "@/components/Avatar";
 import PostItem from "@/components/Feed/PostItem";
+import { Search } from "@/assets/icons/search-icon";
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists";
 
@@ -236,12 +237,12 @@ export default function SearchIndex() {
                 />
 
                 <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                    <Ionicons
-                        name="search"
-                        size={20}
-                        color={theme.colors.textSecondary}
-                        style={styles.searchIcon}
-                    />
+                    <View style={styles.searchIcon}>
+                        <Search
+                            size={20}
+                            color={theme.colors.textSecondary}
+                        />
+                    </View>
                     <TextInput
                         style={[styles.searchInput, { color: theme.colors.text }]}
                         placeholder={t("search.placeholder", "Search...")}
@@ -272,7 +273,7 @@ export default function SearchIndex() {
 
                     {!loading && query.trim() && !hasResults && (
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="search" size={48} color={theme.colors.textSecondary} />
+                            <Search size={48} color={theme.colors.textSecondary} />
                             <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
                                 {t("search.noResults", "No results found")}
                             </Text>
@@ -281,7 +282,7 @@ export default function SearchIndex() {
 
                     {!loading && !query.trim() && (
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="search" size={48} color={theme.colors.textSecondary} />
+                            <Search size={48} color={theme.colors.textSecondary} />
                             <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
                                 {t("search.startSearching", "Start searching")}
                             </Text>

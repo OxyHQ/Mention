@@ -17,6 +17,7 @@ import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, interpolate } from 'react-native-reanimated';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
+import { Search } from '@/assets/icons/search-icon';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -263,7 +264,7 @@ const HomeScreen: React.FC = () => {
                                     style={styles.headerButton}
                                     onPress={() => router.push('/search')}
                                 >
-                                    <Ionicons name="search-outline" size={24} color={theme.colors.textSecondary} />
+                                    <Search color={theme.colors.textSecondary} size={24} />
                                 </TouchableOpacity>,
                                 <TouchableOpacity
                                     key="notifications"

@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { getData, storeData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useTheme } from '@/hooks/useTheme';
+import { Search } from '@/assets/icons/search-icon';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
@@ -127,7 +128,7 @@ const FeedsScreen: React.FC = () => {
         <Header options={{
           title: t('Feeds'), rightComponents: [
             <TouchableOpacity key="search" onPress={() => router.push('/search')} style={{ padding: 8 }}>
-              <Ionicons name="search-outline" size={22} color={theme.colors.textSecondary} />
+              <Search size={22} color={theme.colors.textSecondary} />
             </TouchableOpacity>,
             <TouchableOpacity key="create" onPress={() => router.push('/feeds/create')} style={{ padding: 8 }}>
               <Ionicons name="add-circle-outline" size={22} color={theme.colors.primary} />
