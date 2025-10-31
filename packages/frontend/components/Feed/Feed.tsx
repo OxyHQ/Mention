@@ -19,6 +19,8 @@ import { feedService } from '../../services/feedService';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { Platform } from 'react-native';
 
 interface FeedProps {
     type: FeedType;
@@ -86,8 +88,10 @@ const Feed = (props: FeedProps) => {
     const theme = useTheme();
     const isScreenNotMobile = useIsScreenNotMobile();
     const flatListRef = useRef<any>(null);
+    const unregisterScrollableRef = useRef<(() => void) | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent } = useLayoutScroll();
 
     // When filters are provided, scope the feed locally to avoid clashes
     const useScoped = !!(filters && Object.keys(filters || {}).length);
@@ -492,12 +496,66 @@ const Feed = (props: FeedProps) => {
 
     const finalRenderItems = displayItems;
 
+    // Register scrollable with LayoutScrollContext
+    const clearScrollableRegistration = useCallback(() => {
+        if (unregisterScrollableRef.current) {
+            unregisterScrollableRef.current();
+            unregisterScrollableRef.current = null;
+        }
+    }, []);
+
+    const assignListRef = useCallback((node: any) => {
+        flatListRef.current = node;
+        clearScrollableRegistration();
+        if (scrollEnabled === false) return;
+        if (node) {
+            unregisterScrollableRef.current = registerScrollable(node);
+        }
+    }, [clearScrollableRegistration, registerScrollable, scrollEnabled]);
+
+    useEffect(() => {
+        if (scrollEnabled === false) {
+            clearScrollableRegistration();
+            return;
+        }
+        if (flatListRef.current && !unregisterScrollableRef.current) {
+            unregisterScrollableRef.current = registerScrollable(flatListRef.current);
+        }
+    }, [clearScrollableRegistration, registerScrollable, scrollEnabled]);
+
+    useEffect(() => () => {
+        clearScrollableRegistration();
+    }, [clearScrollableRegistration]);
+
+    // Handle scroll events
+    const handleScrollEvent = useCallback((event: any) => {
+        if (scrollEnabled !== false && handleScroll) {
+            handleScroll(event);
+        }
+    }, [handleScroll, scrollEnabled]);
+
+    // Handle wheel events
+    const handleWheelEvent = useCallback((event: any) => {
+        if (forwardWheelEvent) {
+            forwardWheelEvent(event);
+        }
+    }, [forwardWheelEvent]);
+
+    // Web-specific dataSet for scroll detection
+    const dataSetForWeb = useMemo(() => {
+        if (Platform.OS !== 'web') return undefined;
+        return { layoutscroll: 'true' };
+    }, []);
+
     return (
         <ErrorBoundary>
-            <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+            <View 
+                style={[styles.container, { backgroundColor: theme.colors.background }]}
+                {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
+            >
                 <LoadingTopSpinner showLoading={isLoading && !refreshing && !isLoadingMore && displayItems.length === 0} />
                 <FlashList
-                    ref={flatListRef}
+                    ref={assignListRef}
                     data={finalRenderItems}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
@@ -519,6 +577,9 @@ const Feed = (props: FeedProps) => {
                         onEndReached: handleLoadMore,
                         onEndReachedThreshold: 0.5,
                         showsVerticalScrollIndicator: false,
+                        onScroll: scrollEnabled === false ? undefined : handleScrollEvent,
+                        scrollEventThrottle: scrollEnabled === false ? undefined : scrollEventThrottle,
+                        onWheel: Platform.OS === 'web' ? handleWheelEvent : undefined,
                         contentContainerStyle: [
                             styles.listContent,
                             { backgroundColor: theme.colors.background },
