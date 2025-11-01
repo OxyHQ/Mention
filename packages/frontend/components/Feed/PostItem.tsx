@@ -416,6 +416,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 pollData={(viewPost as any).content?.poll}
                 pollId={pollIdMemo as any}
                 nestingDepth={nestingDepth}
+                postId={viewPostId}
             />
 
             {/* Only show engagement buttons for non-nested posts */}

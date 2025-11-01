@@ -1,10 +1,11 @@
-import React, { useRef, useMemo } from 'react';
-import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent, Dimensions } from 'react-native';
+import React, { useRef, useMemo, useCallback } from 'react';
+import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent, Dimensions, Pressable } from 'react-native';
 import PollCard from './PollCard';
 import { useOxy } from '@oxyhq/services';
 import PostItem from '../Feed/PostItem';
 import { useTheme } from '@/hooks/useTheme';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { useRouter } from 'expo-router';
 
 interface MediaObj { id: string; type: 'image' | 'video' }
 interface Props {
@@ -14,29 +15,53 @@ interface Props {
   pollId?: string;
   pollData?: any; // Direct poll data from content.poll
   nestingDepth?: number; // Track nesting depth to prevent infinite nesting
+  postId?: string; // Post ID for navigation to videos screen
 }
 
 // Video item component to properly use the hook
-const VideoItem: React.FC<{ src: string; containerStyle: any; borderColor: string; backgroundColor: string }> = ({ src, containerStyle, borderColor, backgroundColor }) => {
+const VideoItem: React.FC<{ 
+  src: string; 
+  containerStyle: any; 
+  borderColor: string; 
+  backgroundColor: string;
+  postId?: string;
+  onPress?: () => void;
+}> = ({ src, containerStyle, borderColor, backgroundColor, postId, onPress }) => {
   const player = useVideoPlayer(src, (player) => {
     player.loop = false;
     player.muted = false;
   });
 
   return (
-    <View style={[containerStyle, { borderColor, backgroundColor }]}>
-      <VideoView
-        player={player}
-        style={styles.video}
-        contentFit="cover"
-        nativeControls={true}
-      />
-    </View>
+    <Pressable 
+      onPress={onPress}
+      style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+    >
+      <View style={[containerStyle, { borderColor, backgroundColor }]}>
+        <VideoView
+          player={player}
+          style={styles.video}
+          contentFit="cover"
+          nativeControls={true}
+        />
+      </View>
+    </Pressable>
   );
 };
 
-const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0 }) => {
+const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0, postId }) => {
   const theme = useTheme();
+  const router = useRouter();
+  
+  // Check if post has exactly one video (for navigation to videos screen)
+  const videoMedia = media?.filter(m => m.type === 'video') || [];
+  const hasSingleVideo = videoMedia.length === 1 && (media?.length || 0) === 1;
+  
+  const handleVideoPress = useCallback(() => {
+    if (postId && hasSingleVideo) {
+      router.push(`/videos?postId=${postId}`);
+    }
+  }, [postId, hasSingleVideo, router]);
   // Prevent infinite nesting (max 2 levels deep)
   const MAX_NESTING_DEPTH = 2;
   const screenWidth = Dimensions.get('window').width;
@@ -137,6 +162,8 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
               containerStyle={[styles.mediaImage, styles.itemContainer]}
               borderColor={theme.colors.border}
               backgroundColor={theme.colors.backgroundSecondary}
+              postId={postId}
+              onPress={hasSingleVideo ? handleVideoPress : undefined}
             />
           );
         }

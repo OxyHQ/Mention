@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useOxy } from '@oxyhq/services';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
 import { useUsersStore } from '@/stores/usersStore';
 import { feedService } from '@/services/feedService';
@@ -324,6 +324,7 @@ const VideosScreen: React.FC = () => {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const params = useLocalSearchParams<{ postId?: string }>();
     const { oxyServices } = useOxy();
     const { likePost, unlikePost, repostPost, unrepostPost, getPostById } = usePostsStore();
 
@@ -334,6 +335,8 @@ const VideosScreen: React.FC = () => {
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
     const [globalMuted, setGlobalMuted] = useState(true); // Global mute state for all videos
+    const [targetPostId, setTargetPostId] = useState<string | undefined>(params.postId);
+    const [hasScrolledToTarget, setHasScrolledToTarget] = useState(false);
 
     const flatListRef = useRef<FlatList<VideoPost>>(null);
 
@@ -399,8 +402,23 @@ const VideosScreen: React.FC = () => {
             });
     }, [oxyServices]);
 
+    // Fetch specific post by ID
+    const fetchPostById = useCallback(async (postId: string): Promise<VideoPost | null> => {
+        try {
+            const post = await getPostById(postId);
+            if (post) {
+                const videoPosts = filterVideoPosts([post]);
+                return videoPosts.length > 0 ? videoPosts[0] : null;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching post by ID:', error);
+            return null;
+        }
+    }, [getPostById, filterVideoPosts]);
+
     // Fetch initial video posts
-    const fetchVideos = useCallback(async (cursor?: string) => {
+    const fetchVideos = useCallback(async (cursor?: string, prependTarget?: boolean) => {
         try {
             const state = usePostsStore.getState();
 
@@ -414,11 +432,34 @@ const VideosScreen: React.FC = () => {
             const videoPosts = filterVideoPosts(response.items || []);
 
             if (cursor) {
-                // Loading more
-                setPosts(prev => [...prev, ...videoPosts]);
+                // Loading more - append to existing posts
+                setPosts(prev => {
+                    // Avoid duplicates
+                    const existingIds = new Set(prev.map(p => p.id));
+                    const newPosts = videoPosts.filter(p => !existingIds.has(p.id));
+                    return [...prev, ...newPosts];
+                });
             } else {
                 // Initial load
-                setPosts(videoPosts);
+                let postsToSet = videoPosts;
+
+                // If we have a target post ID, try to fetch it specifically and place it at the start
+                if (targetPostId && !hasScrolledToTarget && prependTarget) {
+                    const targetPost = await fetchPostById(targetPostId);
+                    if (targetPost) {
+                        // Check if target post is already in the list
+                        const existingIndex = videoPosts.findIndex(p => p.id === targetPostId);
+                        if (existingIndex >= 0) {
+                            // Post already in list, use it
+                            postsToSet = videoPosts;
+                        } else {
+                            // Prepend target post at the beginning
+                            postsToSet = [targetPost, ...videoPosts];
+                        }
+                    }
+                }
+
+                setPosts(postsToSet);
             }
 
             setHasMore(response.hasMore || false);
@@ -429,26 +470,108 @@ const VideosScreen: React.FC = () => {
             console.error('Error fetching videos:', error);
             return [];
         }
-    }, [filterVideoPosts]);
+    }, [filterVideoPosts, targetPostId, hasScrolledToTarget, fetchPostById]);
 
-    // Initial load
+    // Initial load with target post handling
     useEffect(() => {
         const load = async () => {
             setIsLoading(true);
-            const videoPosts = await fetchVideos();
+
+            // If we have a target post ID, fetch it first and prepend it
+            const videoPosts = await fetchVideos(undefined, !!targetPostId);
             console.log('Loaded video posts:', videoPosts.length);
+
+            // If we have a target post ID, try to find and scroll to it
+            if (targetPostId && !hasScrolledToTarget) {
+                // Wait a bit for posts state to update
+                setTimeout(() => {
+                    setPosts(currentPosts => {
+                        const targetIndex = currentPosts.findIndex(p => p.id === targetPostId);
+
+                        if (targetIndex >= 0 && flatListRef.current) {
+                            // Wait for layout to complete before scrolling
+                            setTimeout(() => {
+                                try {
+                                    flatListRef.current?.scrollToIndex({
+                                        index: targetIndex,
+                                        animated: false, // No animation for initial scroll like TikTok
+                                        viewPosition: 0
+                                    });
+                                    setCurrentVisibleIndex(targetIndex);
+                                    setHasScrolledToTarget(true);
+                                } catch (error) {
+                                    // Fallback to scrollToOffset if scrollToIndex fails
+                                    try {
+                                        flatListRef.current?.scrollToOffset({
+                                            offset: targetIndex * windowHeight,
+                                            animated: false
+                                        });
+                                        setCurrentVisibleIndex(targetIndex);
+                                        setHasScrolledToTarget(true);
+                                    } catch (e) {
+                                        console.log('Failed to scroll to target post:', e);
+                                    }
+                                }
+                            }, 200);
+                        } else if (targetIndex < 0) {
+                            // Target post not found yet, fetch it specifically
+                            fetchPostById(targetPostId).then(targetPost => {
+                                if (targetPost) {
+                                    setPosts(prev => {
+                                        // Check if already added
+                                        const exists = prev.some(p => p.id === targetPostId);
+                                        if (!exists) {
+                                            const newPosts = [targetPost, ...prev];
+                                            // Now scroll to index 0
+                                            setTimeout(() => {
+                                                try {
+                                                    flatListRef.current?.scrollToIndex({
+                                                        index: 0,
+                                                        animated: false,
+                                                        viewPosition: 0
+                                                    });
+                                                    setCurrentVisibleIndex(0);
+                                                    setHasScrolledToTarget(true);
+                                                } catch (e) {
+                                                    try {
+                                                        flatListRef.current?.scrollToOffset({
+                                                            offset: 0,
+                                                            animated: false
+                                                        });
+                                                        setCurrentVisibleIndex(0);
+                                                        setHasScrolledToTarget(true);
+                                                    } catch (err) {
+                                                        console.log('Failed to scroll to target post:', err);
+                                                    }
+                                                }
+                                            }, 200);
+                                            return newPosts;
+                                        }
+                                        return prev;
+                                    });
+                                }
+                            });
+                        }
+                        return currentPosts;
+                    });
+                }, 100);
+            }
+
             setIsLoading(false);
         };
         load();
-    }, [fetchVideos]);
+    }, [targetPostId, hasScrolledToTarget, fetchPostById, fetchVideos]);
 
-    // Load more when scrolling near end
+    // Load more when scrolling near end (TikTok-style infinite scroll)
     const handleLoadMore = useCallback(async () => {
         if (loadingMore || !hasMore || !nextCursor) return;
 
         setLoadingMore(true);
-        await fetchVideos(nextCursor);
-        setLoadingMore(false);
+        try {
+            await fetchVideos(nextCursor, false);
+        } finally {
+            setLoadingMore(false);
+        }
     }, [fetchVideos, hasMore, nextCursor, loadingMore]);
 
     // Handle viewable items changed for auto-play - Instagram Reels style
@@ -643,7 +766,7 @@ const VideosScreen: React.FC = () => {
                     snapToAlignment="start"
                     decelerationRate={0.85} // Slightly slower for smoother magnetic effect
                     onEndReached={handleLoadMore}
-                    onEndReachedThreshold={0.5}
+                    onEndReachedThreshold={0.3}
                     onViewableItemsChanged={handleViewableItemsChanged}
                     viewabilityConfig={viewabilityConfig}
                     showsVerticalScrollIndicator={false}
