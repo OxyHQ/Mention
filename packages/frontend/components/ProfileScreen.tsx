@@ -128,21 +128,21 @@ const MentionProfile: React.FC = () => {
             unregisterScrollableRef.current = registerScrollable(node);
         }
     }, [clearProfileRegistration, registerScrollable]);
-    
+
     // Track scroll direction and animate FAB
     useEffect(() => {
         let isScrollingDown = false;
         let lastKnownScrollY = 0;
-        
+
         const listenerId = scrollY.addListener(({ value }) => {
             const currentScrollY = typeof value === 'number' ? value : 0;
             const scrollDelta = currentScrollY - lastKnownScrollY;
-            
+
             // Determine scroll direction (only update if movement is significant)
             if (Math.abs(scrollDelta) > 1) {
                 isScrollingDown = scrollDelta > 0;
             }
-            
+
             if (currentScrollY > 50) { // Only hide after scrolling past threshold
                 if (isScrollingDown) {
                     // Scrolling down - hide FAB
@@ -155,15 +155,15 @@ const MentionProfile: React.FC = () => {
                 // Near top - always show FAB
                 fabTranslateY.value = withTiming(0, { duration: 200 });
             }
-            
+
             lastKnownScrollY = currentScrollY;
         });
-        
+
         return () => {
             scrollY.removeListener(listenerId);
         };
     }, [scrollY, fabTranslateY, fabHeight]);
-    
+
     const handleProfileScrollEvent = useCallback((event: any) => {
         try {
             const nativeEvent = event?.nativeEvent ?? {};
@@ -419,14 +419,14 @@ const MentionProfile: React.FC = () => {
             ) : (
                 <>
                     {/* Back button */}
-                    <View style={[styles.backButton, { backgroundColor: theme.colors.overlay }]}>
+                    <View style={[styles.backButton, { backgroundColor: theme.colors.overlay, top: insets.top + 6 }]}>
                         <TouchableOpacity onPress={() => router.back()}>
                             <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                     </View>
 
                     {/* Header actions */}
-                    <View style={[styles.headerActions, { top: insets.top + 5 }]}>
+                    <View style={[styles.headerActions, { top: insets.top + 6 }]}>
                         <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]} onPress={toggleSubscription} disabled={subLoading}>
                             <Ionicons name={subscribed ? 'notifications' : 'notifications-outline'} size={20} color={theme.colors.text} />
                         </TouchableOpacity>
@@ -439,38 +439,38 @@ const MentionProfile: React.FC = () => {
                     </View>
 
                     {/* Name + posts count */}
-                        <Animated.View
-                            style={[
-                                styles.headerNameOverlay,
-                                {
-                                    top: insets.top + 6,
-                                    opacity: scrollY.interpolate({
-                                        inputRange: [-50, 80, 120],
-                                        outputRange: [0, 0, 1],
-                                        extrapolate: 'clamp',
-                                    }),
-                                    transform: [
-                                        {
-                                            translateY: scrollY.interpolate({
-                                                inputRange: [-50, 100, 180],
-                                                outputRange: [0, 200, 0],
-                                                extrapolate: 'clamp',
-                                            }),
-                                        },
-                                    ],
-                                },
-                            ]}
-                        >
-                            <TypedUserName
-                                name={profileData?.name?.full || profileData?.username}
-                                verified={profileData?.verified}
-                                style={{ name: [styles.headerTitle, { color: theme.colors.text }] }}
-                                unifiedColors={true}
-                            />
-                            <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
-                                {(profileData as any)?.postCount || 0} posts
-                            </Text>
-                        </Animated.View>
+                    <Animated.View
+                        style={[
+                            styles.headerNameOverlay,
+                            {
+                                top: insets.top + 6,
+                                opacity: scrollY.interpolate({
+                                    inputRange: [-50, 80, 120],
+                                    outputRange: [0, 0, 1],
+                                    extrapolate: 'clamp',
+                                }),
+                                transform: [
+                                    {
+                                        translateY: scrollY.interpolate({
+                                            inputRange: [-50, 100, 180],
+                                            outputRange: [0, 200, 0],
+                                            extrapolate: 'clamp',
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                    >
+                        <TypedUserName
+                            name={profileData?.name?.full || profileData?.username}
+                            verified={profileData?.verified}
+                            style={{ name: [styles.headerTitle, { color: theme.colors.text }] }}
+                            unifiedColors={true}
+                        />
+                        <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
+                            {(profileData as any)?.postCount || 0} posts
+                        </Text>
+                    </Animated.View>
 
                     {/* Banner */}
                     {bannerUri ? (
@@ -521,17 +521,17 @@ const MentionProfile: React.FC = () => {
                                 ]}
                             />
 
-                            {/* Dark overlay: make the banner darker as you scroll */}
+                            {/* Background overlay: fade to tabs background color as you scroll */}
                             <Animated.View
                                 pointerEvents={'none' as any}
                                 style={[
                                     StyleSheet.absoluteFillObject,
                                     {
                                         zIndex: 3,
-                                        backgroundColor: 'rgba(0,0,0,0.6)',
+                                        backgroundColor: theme.colors.background,
                                         opacity: scrollY.interpolate({
                                             inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                            outputRange: [0, 0.6],
+                                            outputRange: [0, 1],
                                             extrapolate: 'clamp',
                                         }) as any,
                                     },
@@ -558,12 +558,12 @@ const MentionProfile: React.FC = () => {
                                 },
                             ]}
                         >
-                            {/* Overlay that fades in to the normal primary color as you scroll */}
+                            {/* Overlay that fades in to the theme background color as you scroll */}
                             <Animated.View
                                 style={[
                                     StyleSheet.absoluteFillObject,
                                     {
-                                        backgroundColor: primaryColor,
+                                        backgroundColor: theme.colors.background,
                                         opacity: scrollY.interpolate({
                                             inputRange: [-50, 0, 100],
                                             outputRange: [0, 0, 1],
@@ -1099,16 +1099,6 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderTopWidth: 1,
         borderBottomWidth: 1,
-    },
-    skeletonTab: {
-        flex: 1,
-        height: 28,
-        borderRadius: 14,
-    },
-    handleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
     },
     privateIndicator: {
         flexDirection: 'row',
