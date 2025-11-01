@@ -20,6 +20,7 @@ import analyticsRoutes from "./src/routes/analytics.routes";
 import feedRoutes from './src/routes/feed.routes';
 import pollsRoutes from './src/routes/polls';
 import customFeedsRoutes from './src/routes/customFeeds.routes';
+import statisticsRoutes from './src/routes/statistics.routes';
 import { OxyServices } from '@oxyhq/services/core';
 import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
@@ -397,6 +398,7 @@ authenticatedApiRouter.use("/posts", postsRouter); // All post routes require au
 authenticatedApiRouter.use("/lists", listsRoutes);
 authenticatedApiRouter.use("/notifications", notificationsRouter);
 authenticatedApiRouter.use("/analytics", analyticsRoutes);
+authenticatedApiRouter.use("/statistics", statisticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
 authenticatedApiRouter.use("/feeds", customFeedsRoutes); // User-created feeds
 authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authentication

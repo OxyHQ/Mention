@@ -629,6 +629,12 @@ const MentionProfile: React.FC = () => {
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                                                onPress={() => router.push('/statistics')}
+                                            >
+                                                <Ionicons name="stats-chart-outline" size={20} color={theme.colors.text} />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
                                                 onPress={() => showBottomSheet?.('PrivacySettings')}
                                             >
                                                 <Ionicons name="settings-outline" size={20} color={theme.colors.text} />

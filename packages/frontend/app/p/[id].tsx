@@ -29,6 +29,7 @@ import ComposeToolbar from '@/components/ComposeToolbar';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
+import { statisticsService } from '@/services/statisticsService';
 //
 
 const MAX_CHARACTERS = 280;
@@ -261,6 +262,16 @@ const PostDetailScreen: React.FC = () => {
                         // Continue without parent post
                     }
                 }
+
+                // Track post view
+                if (id && user) {
+                    try {
+                        await statisticsService.trackPostView(String(id));
+                    } catch (viewErr) {
+                        // Silently fail - view tracking is not critical
+                        console.debug('Failed to track post view:', viewErr);
+                    }
+                }
             } catch (err) {
                 console.error('Error fetching post:', err);
                 setError('Failed to load post');
@@ -270,7 +281,7 @@ const PostDetailScreen: React.FC = () => {
         };
 
         fetchPost();
-    }, [id, getPostById]);
+    }, [id, getPostById, user]);
 
     const handleBack = () => {
         router.back();

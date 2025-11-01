@@ -97,10 +97,10 @@ export function SideBar() {
                 route: '/chat',
             },
             {
-                title: t("Analytics"),
+                title: t("Statistics"),
                 icon: <AnalyticsIcon color={theme.colors.text} />,
                 iconActive: <AnalyticsIconActive color={theme.colors.primary} />,
-                route: '/analytics',
+                route: '/statistics',
             },
             {
                 title: t("Saved"),

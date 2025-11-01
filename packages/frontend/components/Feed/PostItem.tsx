@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useContext } from 'react';
+import React, { useCallback, useMemo, useRef, useContext, useState } from 'react';
 import { StyleSheet, View, Share, Platform, Alert, Pressable, TouchableOpacity, Text } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 
@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { feedService } from '../../services/feedService';
 import { confirmDialog } from '@/utils/alerts';
 import { useTheme } from '@/hooks/useTheme';
+import PostInsightsModal from '@/components/PostInsightsModal';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -40,6 +41,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
     const bottomSheet = useContext(BottomSheetContext);
     const removePostEverywhere = usePostsStore((s: any) => (s as any).removePostEverywhere);
+    const [showInsightsModal, setShowInsightsModal] = useState(false);
 
     // Subscribe to latest post state using entity cache only for performance
     const postId = (post as any)?.id;
@@ -369,6 +371,9 @@ const PostItem: React.FC<PostItemProps> = ({
 
                     bottomSheet.setBottomSheetContent(
                         <View style={[styles.sheetContainer, { backgroundColor: theme.colors.card }]}>
+                            {isOwner && (
+                                <ActionRow icon={<Ionicons name="stats-chart-outline" size={18} color={theme.colors.textSecondary} />} text="View Insights" onPress={() => { setShowInsightsModal(true); bottomSheet.openBottomSheet(false); }} />
+                            )}
                             <ActionRow icon={<Ionicons name="link" size={18} color={theme.colors.textSecondary} />} text="Copy link" onPress={async () => {
                                 try {
                                     if (Platform.OS === 'web') {
@@ -399,6 +404,13 @@ const PostItem: React.FC<PostItemProps> = ({
                     <PostContentText content={(viewPost as any).content} postId={(viewPost as any).id} />
                 )}
             </PostHeader>
+
+            {/* Post Insights Modal */}
+            <PostInsightsModal
+                visible={showInsightsModal}
+                postId={viewPostId || null}
+                onClose={() => setShowInsightsModal(false)}
+            />
 
             {/* Location information if available */}
             {locationMemo.hasValidLocation && (
