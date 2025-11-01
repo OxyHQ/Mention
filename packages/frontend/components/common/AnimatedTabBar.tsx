@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedScrollHandler } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/useTheme';
@@ -14,7 +14,11 @@ interface AnimatedTabBarProps {
     onTabPress: (tabId: string) => void;
     scrollEnabled?: boolean;
     style?: any;
+    instanceId?: string; // Unique identifier to persist state across remounts
 }
+
+// Module-level store to persist previous tab ID and position across remounts
+const previousTabStore = new Map<string, { tabId: string | null; position: number; width: number }>();
 
 const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
     tabs,
@@ -22,14 +26,17 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
     onTabPress,
     scrollEnabled = false,
     style,
+    instanceId = 'default',
 }) => {
     const theme = useTheme();
-    const indicatorPosition = useSharedValue(0);
-    const indicatorWidth = useSharedValue(0);
+    // Initialize shared values from stored state if available
+    const storedState = previousTabStore.get(instanceId);
+    const indicatorPosition = useSharedValue(storedState?.position ?? 0);
+    const indicatorWidth = useSharedValue(storedState?.width ?? 0);
     const scrollOffset = useSharedValue(0);
-    const tabRefs = useRef<{ [key: string]: View }>({});
-    const textRefs = useRef<{ [key: string]: Text }>({});
+    const tabLayouts = useRef<{ [key: string]: { x: number; width: number; textWidth: number } }>({});
     const scrollRef = useRef<Animated.ScrollView>(null);
+    const [layoutReady, setLayoutReady] = useState(false);
 
     const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId);
 
@@ -40,66 +47,61 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
         },
     });
 
-    // Animate indicator when active tab changes
-    useEffect(() => {
-        const updateIndicator = async () => {
-            const activeTab = tabRefs.current[activeTabId];
-            const activeText = textRefs.current[activeTabId];
-            if (!activeTab || !activeText) return;
+    // Update indicator position when active tab changes
+    useLayoutEffect(() => {
+        const layout = tabLayouts.current[activeTabId];
 
-            // Measure text layout relative to tab container
-            activeText.measureLayout(
-                activeTab,
-                (textX, textY, textWidth, textHeight) => {
-                    // Measure tab container position relative to ScrollView/content
-                    activeTab.measure((x, y, width, height, pageX, pageY) => {
-                        // Add padding on each side (8px on each side = 16px total)
-                        const padding = 16;
-                        const indicatorWidthValue = textWidth + padding;
-                        
-                        // Center the indicator under the text
-                        // textX is relative to tab container, so add it to tab's x position
-                        const textCenterX = x + textX + textWidth / 2;
-                        const basePosition = textCenterX - indicatorWidthValue / 2;
-                        
-                        indicatorPosition.value = withTiming(basePosition, {
-                            duration: 250,
-                        });
-                        indicatorWidth.value = withTiming(indicatorWidthValue, { duration: 250 });
-                    },
-                    () => {
-                        // Fallback: if measureLayout fails, use simple measure
-                        activeText.measure((textX, textY, textWidth, textHeight, textPageX, textPageY) => {
-                            activeTab.measure((x, y, width, height, pageX, pageY) => {
-                                const padding = 16;
-                                const indicatorWidthValue = textWidth + padding;
-                                const basePosition = x + width / 2 - indicatorWidthValue / 2;
-                                
-                                indicatorPosition.value = withTiming(basePosition, {
-                                    duration: 250,
-                                });
-                                indicatorWidth.value = withTiming(indicatorWidthValue, { duration: 250 });
-                            });
-                        });
-                    }
-                );
+        if (!layout || !layout.textWidth || layout.width === 0 || layout.x < 0) {
+            // Wait for layout to be measured - will be updated by onLayout callbacks
+            return;
+        }
+
+        const padding = 16;
+        const indicatorWidthValue = layout.textWidth + padding;
+        // Center the indicator under the text
+        // x is relative to the container, so we use it directly
+        const basePosition = layout.x + (layout.width / 2) - (indicatorWidthValue / 2);
+
+        // Get previous state from module-level store (persists across remounts)
+        const previousState = previousTabStore.get(instanceId);
+        const previousActiveTabId = previousState?.tabId || null;
+
+        // Always animate unless this is the very first render
+        const shouldAnimate = previousActiveTabId !== null && previousActiveTabId !== activeTabId;
+
+        if (shouldAnimate) {
+            // Animate to new position from current position (which was restored from store)
+            indicatorPosition.value = withTiming(basePosition, {
+                duration: 250,
             });
-        };
+            indicatorWidth.value = withTiming(indicatorWidthValue, { duration: 250 });
+        } else {
+            // First render: set immediately without animation
+            indicatorPosition.value = basePosition;
+            indicatorWidth.value = indicatorWidthValue;
+        }
 
-        // Small delay to ensure layout is complete
-        const timeout = setTimeout(updateIndicator, 50);
-        return () => clearTimeout(timeout);
-    }, [activeTabId, tabs, indicatorPosition, indicatorWidth]);
+        // Always update previous state in module-level store after setting position
+        previousTabStore.set(instanceId, {
+            tabId: activeTabId,
+            position: basePosition,
+            width: indicatorWidthValue,
+        });
+    }, [activeTabId, indicatorPosition, indicatorWidth, layoutReady, instanceId]);
 
     const animatedIndicatorStyle = useAnimatedStyle(() => {
         // Adjust indicator position by subtracting scroll offset when scrollEnabled
-        const adjustedPosition = scrollEnabled 
-            ? indicatorPosition.value - scrollOffset.value 
+        const adjustedPosition = scrollEnabled
+            ? indicatorPosition.value - scrollOffset.value
             : indicatorPosition.value;
-        
+
+        // Ensure minimum width so indicator is always visible
+        const width = Math.max(indicatorWidth.value, 20);
+
         return {
             transform: [{ translateX: adjustedPosition }],
-            width: indicatorWidth.value,
+            width: width,
+            opacity: width > 0 ? 1 : 0,
         };
     });
 
@@ -120,22 +122,56 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
                 {tabs.map((tab, index) => (
                     <TouchableOpacity
                         key={tab.id}
-                        ref={(ref) => {
-                            if (ref) tabRefs.current[tab.id] = ref;
-                        }}
                         style={styles.tab}
                         onPress={() => onTabPress(tab.id)}
+                        onLayout={(event) => {
+                            const { x, width } = event.nativeEvent.layout;
+                            // Initialize layout info if not exists
+                            if (!tabLayouts.current[tab.id]) {
+                                tabLayouts.current[tab.id] = {
+                                    x,
+                                    width,
+                                    textWidth: 0, // Will be updated by text onLayout
+                                };
+                            } else {
+                                // Update x and width
+                                tabLayouts.current[tab.id].x = x;
+                                tabLayouts.current[tab.id].width = width;
+                            }
+
+                            // Force re-render to trigger useLayoutEffect if this is the active tab
+                            if (tab.id === activeTabId && tabLayouts.current[tab.id].textWidth > 0) {
+                                // Trigger update by updating state
+                                setLayoutReady(prev => !prev);
+                            }
+                        }}
                     >
                         <Text
-                            ref={(ref) => {
-                                if (ref) textRefs.current[tab.id] = ref;
-                            }}
                             style={[
                                 styles.tabText,
                                 { color: theme.colors.textSecondary },
                                 activeTabId === tab.id && [styles.activeTabText, { color: theme.colors.primary }],
                             ]}
                             numberOfLines={1}
+                            onLayout={(event) => {
+                                const { width: textWidth } = event.nativeEvent.layout;
+                                // Update text width in layout info
+                                if (!tabLayouts.current[tab.id]) {
+                                    tabLayouts.current[tab.id] = {
+                                        x: 0,
+                                        width: 0,
+                                        textWidth,
+                                    };
+                                } else {
+                                    tabLayouts.current[tab.id].textWidth = textWidth;
+                                }
+
+                                // Force re-render to trigger useLayoutEffect if this is the active tab
+                                if (tab.id === activeTabId && tabLayouts.current[tab.id].width > 0 && tabLayouts.current[tab.id].x >= 0) {
+                                    // Trigger update by updating state
+                                    setLayoutReady(prev => !prev);
+                                }
+                            }}
                         >
                             {tab.label}
                         </Text>

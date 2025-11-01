@@ -233,32 +233,44 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
         );
     };
 
-    const renderItem = useCallback(({ item }: { item: { postId: string; uri: string; isVideo: boolean; isCarousel: boolean; mediaIndex: number } }) => (
-        <TouchableOpacity
-            activeOpacity={0.8}
-            style={{ width: itemSize, height: itemSize }}
-            onPress={() => router.push(`/p/${item.postId}`)}
-        >
-            {item.isVideo ? (
-                <VideoGridItem 
-                    uri={item.uri} 
-                    itemSize={itemSize} 
-                    backgroundColor={theme.colors.backgroundSecondary}
-                />
-            ) : (
-                <Image
-                    source={{ uri: item.uri }}
-                    style={{ width: '100%', height: '100%', backgroundColor: theme.colors.backgroundSecondary }}
-                    resizeMode="cover"
-                />
-            )}
-            {item.isCarousel && (
-                <View style={styles.carouselIndicator}>
-                    <Ionicons name="albums-outline" size={12} color="white" />
-                </View>
-            )}
-        </TouchableOpacity>
-    ), [itemSize, router, theme.colors.backgroundSecondary]);
+    const renderItem = useCallback(({ item }: { item: { postId: string; uri: string; isVideo: boolean; isCarousel: boolean; mediaIndex: number } }) => {
+        const handlePress = () => {
+            if (item.isVideo) {
+                // Navigate to videos screen for videos
+                router.push(`/videos?postId=${item.postId}`);
+            } else {
+                // Navigate to post for images
+                router.push(`/p/${item.postId}`);
+            }
+        };
+
+        return (
+            <TouchableOpacity
+                activeOpacity={0.8}
+                style={{ width: itemSize, height: itemSize }}
+                onPress={handlePress}
+            >
+                {item.isVideo ? (
+                    <VideoGridItem 
+                        uri={item.uri} 
+                        itemSize={itemSize} 
+                        backgroundColor={theme.colors.backgroundSecondary}
+                    />
+                ) : (
+                    <Image
+                        source={{ uri: item.uri }}
+                        style={{ width: '100%', height: '100%', backgroundColor: theme.colors.backgroundSecondary }}
+                        resizeMode="cover"
+                    />
+                )}
+                {item.isCarousel && (
+                    <View style={styles.carouselIndicator}>
+                        <Ionicons name="albums-outline" size={12} color="white" />
+                    </View>
+                )}
+            </TouchableOpacity>
+        );
+    }, [itemSize, router, theme.colors.backgroundSecondary]);
 
     const keyExtractor = useCallback((it: { postId: string; uri: string; mediaIndex?: number }, index: number) => `${it.postId}:${it.mediaIndex ?? index}`, []);
 

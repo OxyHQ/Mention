@@ -65,7 +65,11 @@ interface FollowButtonProps {
 
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 
-const MentionProfile: React.FC = () => {
+interface ProfileScreenProps {
+    tab?: 'posts' | 'replies' | 'media' | 'likes' | 'reposts';
+}
+
+const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
     const theme = useTheme();
 
@@ -73,12 +77,24 @@ const MentionProfile: React.FC = () => {
     const TypedFollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<FollowButtonProps>;
     const TypedUserName = UserName as React.ComponentType<any>;
 
-    let { username } = useLocalSearchParams<{ username: string }>();
-    if (username && username.startsWith('@')) {
-        username = username.slice(1);
+    let { username: urlUsername } = useLocalSearchParams<{ username: string }>();
+    if (urlUsername && urlUsername.startsWith('@')) {
+        urlUsername = urlUsername.slice(1);
     }
+    const username = urlUsername || '';
 
-    const [activeTab, setActiveTab] = useState<number>(0);
+    // Determine active tab from route prop
+    const tabToIndex = (tabName: string): number => {
+        switch (tabName) {
+            case 'posts': return 0;
+            case 'replies': return 1;
+            case 'media': return 2;
+            case 'likes': return 3;
+            case 'reposts': return 4;
+            default: return 0;
+        }
+    };
+    const activeTab = tabToIndex(tab);
     // Use selectors to only subscribe to the specific data we need
     const byUserId = useAppearanceStore((state) => state.byUserId);
     const loadForUser = useAppearanceStore((state) => state.loadForUser);
@@ -106,12 +122,7 @@ const MentionProfile: React.FC = () => {
     }), [isDesktop, isTablet, isWideWeb]);
 
     // Track current feed type for the active tab
-    const currentFeedType = useMemo<FeedType>(() => (
-        activeTab === 0 ? 'posts' :
-            activeTab === 1 ? 'replies' :
-                activeTab === 2 ? 'media' :
-                    activeTab === 3 ? 'likes' : 'reposts'
-    ) as FeedType, [activeTab]);
+    const currentFeedType = useMemo<FeedType>(() => tab as FeedType, [tab]);
     const loadingMoreRef = useRef(false);
     const profileScrollRef = useRef<any>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
@@ -309,7 +320,15 @@ const MentionProfile: React.FC = () => {
 
 
     const onTabPress = (index: number) => {
-        setActiveTab(index);
+        if (!username) return;
+        const tabNames = ['posts', 'replies', 'media', 'likes', 'reposts'];
+        const tabName = tabNames[index];
+        const path = index === 0
+            ? `/@${username}`
+            : `/@${username}/${tabName}`;
+        // Use push to maintain browser history for back button
+        // Animation still works because layout route keeps component mounted
+        router.push(path);
     };
 
     const handleShare = async () => {
@@ -332,9 +351,7 @@ const MentionProfile: React.FC = () => {
 
 
     const renderTabContent = () => {
-        const feedType = activeTab === 0 ? 'posts' : activeTab === 1 ? 'replies' : activeTab === 2 ? 'media' : activeTab === 3 ? 'likes' : 'reposts';
-
-        if (feedType === 'media') {
+        if (tab === 'media') {
             return (
                 <MediaGrid userId={profileData?.id} />
             );
@@ -342,7 +359,7 @@ const MentionProfile: React.FC = () => {
 
         return (
             <Feed
-                type={feedType as any}
+                type={tab as any}
                 userId={profileData?.id}
                 hideHeader={true}
                 scrollEnabled={false}
@@ -577,202 +594,207 @@ const MentionProfile: React.FC = () => {
 
                     {/* Profile content + posts */}
                     {/* ScrollView with stickyHeaderIndices */}
-                    <Animated.ScrollView
-                        ref={assignProfileScrollRef}
-                        showsVerticalScrollIndicator={false}
-                        onScroll={onProfileScroll}
-                        scrollEventThrottle={scrollEventThrottle}
-                        style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
-                        dataSet={{ layoutscroll: 'true' }}
-                        contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED - insets.top }}
-                        stickyHeaderIndices={[1]}
-                    >
-                        {/* Profile info */}
-                        <View style={[styles.profileContent, { backgroundColor: theme.colors.background }]}>
-                            <View style={styles.avatarRow}>
-                                <Avatar
-                                    source={avatarUri}
-                                    size={80}
-                                    useAnimated
-                                    style={[styles.avatar, {
-                                        borderColor: theme.colors.background,
-                                        backgroundColor: theme.colors.backgroundSecondary,
-                                        transform: [
-                                            {
-                                                scale: scrollY.interpolate({
-                                                    inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                    outputRange: [1, 0.7],
-                                                    extrapolate: 'clamp',
-                                                }),
-                                            },
-                                            {
-                                                translateY: scrollY.interpolate({
-                                                    inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                    outputRange: [0, 16],
-                                                    extrapolate: 'clamp',
-                                                }),
-                                            },
-                                        ],
-                                    }]}
-                                    imageStyle={{
-                                    }}
-                                />
+                    <View {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}>
+                        <Animated.ScrollView
+                            ref={assignProfileScrollRef}
+                            showsVerticalScrollIndicator={false}
+                            onScroll={onProfileScroll}
+                            scrollEventThrottle={scrollEventThrottle}
+                            style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
+                            contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED - insets.top }}
+                            stickyHeaderIndices={[1]}
+                        >
+                            {/* Profile info */}
+                            <View style={[styles.profileContent, { backgroundColor: theme.colors.background }]}>
+                                <View style={styles.avatarRow}>
+                                    <Avatar
+                                        source={avatarUri}
+                                        size={80}
+                                        useAnimated
+                                        style={[styles.avatar, {
+                                            borderColor: theme.colors.background,
+                                            backgroundColor: theme.colors.backgroundSecondary,
+                                            transform: [
+                                                {
+                                                    scale: scrollY.interpolate({
+                                                        inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                        outputRange: [1, 0.7],
+                                                        extrapolate: 'clamp',
+                                                    }),
+                                                },
+                                                {
+                                                    translateY: scrollY.interpolate({
+                                                        inputRange: [0, HEADER_HEIGHT_EXPANDED],
+                                                        outputRange: [0, 16],
+                                                        extrapolate: 'clamp',
+                                                    }),
+                                                },
+                                            ],
+                                        }]}
+                                        imageStyle={{
+                                        }}
+                                    />
 
-                                <View style={styles.profileActions}>
-                                    {currentUser?.username === username ? (
-                                        <View style={styles.actionButtons}>
-                                            <TouchableOpacity
-                                                style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
-                                                onPress={() => showBottomSheet?.('EditProfile')}
-                                            >
-                                                <Text style={styles.followButtonText}>Edit Profile</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                onPress={() => router.push('/insights')}
-                                            >
-                                                <Ionicons name="stats-chart-outline" size={20} color={theme.colors.text} />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                onPress={() => showBottomSheet?.('PrivacySettings')}
-                                            >
-                                                <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                onPress={() => router.push('/settings/appearance')}
-                                            >
-                                                <Ionicons name="color-palette-outline" size={20} color={theme.colors.text} />
-                                            </TouchableOpacity>
-                                        </View>
-                                    ) : profileData?.id ? (
-                                        <TypedFollowButton userId={profileData.id} />
-                                    ) : null}
-                                </View>
-                            </View>
-
-                            <View>
-                                <TypedUserName
-                                    name={profileData?.name?.full || profileData?.username}
-                                    handle={profileData?.username}
-                                    verified={profileData?.verified}
-                                    variant="default"
-                                    style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
-                                />
-                                {profileData?.privacySettings?.isPrivateAccount && (
-                                    <View style={styles.privateIndicator}>
-                                        <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
-                                        <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>Private</Text>
-                                    </View>
-                                )}
-                            </View>
-                            {profileData?.bio && (
-                                <Text style={[styles.profileBio, { color: theme.colors.text }]}>
-                                    {profileData.bio}
-                                </Text>
-                            )}
-
-                            <View style={styles.profileMeta}>
-                                {profileData?.primaryLocation && (
-                                    <View style={styles.metaItem}>
-                                        <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
-                                        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{profileData.primaryLocation}</Text>
-                                    </View>
-                                )}
-                                {profileData?.links && profileData.links.length > 0 && (
-                                    <View style={styles.metaItem}>
-                                        <View
-                                            style={{
-                                                transform: [{ rotate: '-45deg' }],
-                                            }}
-                                        >
-                                            <Ionicons name="link-outline" size={16} color={theme.colors.textSecondary} />
-                                        </View>
-                                        <Text style={[styles.metaText, styles.linkText, { color: theme.colors.primary }]}>{profileData.links[0]}</Text>
-                                    </View>
-                                )}
-                                <View style={styles.metaItem}>
-                                    <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
-                                    <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>Joined {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''}</Text>
-                                </View>
-                            </View>
-
-                            {(!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
-                                <View style={styles.followStats}>
-                                    <TouchableOpacity
-                                        style={styles.statItem}
-                                        onPress={() => router.push(`/@${profileData?.username || username}/following`)}
-                                    >
-                                        <Text style={[styles.statNumber, { color: theme.colors.text }]}>
-                                            {followingCount ?? 0}
-                                        </Text>
-                                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Following</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={styles.statItem}
-                                        onPress={() => router.push(`/@${profileData?.username || username}/followers`)}
-                                    >
-                                        <Text style={[styles.statNumber, { color: theme.colors.text }]}>
-                                            {followerCount ?? 0}
-                                        </Text>
-                                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Followers</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-
-                            {/* Communities section */}
-                            {profileData?.communities && profileData.communities.length > 0 &&
-                                (!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
-                                    <View style={styles.communitiesSection}>
-                                        <Text style={[styles.communitiesTitle, { color: theme.colors.text }]}>Communities</Text>
-                                        {profileData.communities.map((community: any, index: number) => (
-                                            <View key={community.id || index} style={[styles.communityCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-                                                <View style={styles.communityHeader}>
-                                                    {community.icon && (
-                                                        <View style={styles.communityIcon}>
-                                                            <Image
-                                                                source={{ uri: community.icon }}
-                                                                resizeMode="cover"
-                                                                style={styles.communityIconImage as any}
-                                                            />
-                                                        </View>
-                                                    )}
-                                                    <View style={styles.communityInfo}>
-                                                        <Text style={[styles.communityName, { color: theme.colors.text }]}>{community.name}</Text>
-                                                        {community.description && (
-                                                            <Text style={[styles.communityDescription, { color: theme.colors.textSecondary }]}>
-                                                                {community.description}
-                                                            </Text>
-                                                        )}
-                                                        {community.memberCount && (
-                                                            <View style={styles.communityMembers}>
-                                                                <Text style={[styles.memberCount, { color: theme.colors.textSecondary }]}>
-                                                                    {community.memberCount} Members
-                                                                </Text>
-                                                            </View>
-                                                        )}
-                                                    </View>
-                                                </View>
-                                                <TouchableOpacity style={styles.viewButtonInCard}>
-                                                    <Text style={[styles.viewButtonText, { color: theme.colors.primary }]}>View</Text>
+                                    <View style={styles.profileActions}>
+                                        {currentUser?.username === username ? (
+                                            <View style={styles.actionButtons}>
+                                                <TouchableOpacity
+                                                    style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
+                                                    onPress={() => showBottomSheet?.('EditProfile')}
+                                                >
+                                                    <Text style={styles.followButtonText}>Edit Profile</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                                                    onPress={() => router.push('/insights')}
+                                                >
+                                                    <Ionicons name="stats-chart-outline" size={20} color={theme.colors.text} />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                                                    onPress={() => showBottomSheet?.('PrivacySettings')}
+                                                >
+                                                    <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                                                    onPress={() => router.push('/settings/appearance')}
+                                                >
+                                                    <Ionicons name="color-palette-outline" size={20} color={theme.colors.text} />
                                                 </TouchableOpacity>
                                             </View>
-                                        ))}
+                                        ) : profileData?.id ? (
+                                            <TypedFollowButton userId={profileData.id} />
+                                        ) : null}
+                                    </View>
+                                </View>
+
+                                <View>
+                                    <TypedUserName
+                                        name={profileData?.name?.full || profileData?.username}
+                                        handle={profileData?.username}
+                                        verified={profileData?.verified}
+                                        variant="default"
+                                        style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
+                                    />
+                                    {profileData?.privacySettings?.isPrivateAccount && (
+                                        <View style={styles.privateIndicator}>
+                                            <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
+                                            <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>Private</Text>
+                                        </View>
+                                    )}
+                                </View>
+                                {profileData?.bio && (
+                                    <Text style={[styles.profileBio, { color: theme.colors.text }]}>
+                                        {profileData.bio}
+                                    </Text>
+                                )}
+
+                                <View style={styles.profileMeta}>
+                                    {profileData?.primaryLocation && (
+                                        <View style={styles.metaItem}>
+                                            <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
+                                            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{profileData.primaryLocation}</Text>
+                                        </View>
+                                    )}
+                                    {profileData?.links && profileData.links.length > 0 && (
+                                        <View style={styles.metaItem}>
+                                            <View
+                                                style={{
+                                                    transform: [{ rotate: '-45deg' }],
+                                                }}
+                                            >
+                                                <Ionicons name="link-outline" size={16} color={theme.colors.textSecondary} />
+                                            </View>
+                                            <Text style={[styles.metaText, styles.linkText, { color: theme.colors.primary }]}>{profileData.links[0]}</Text>
+                                        </View>
+                                    )}
+                                    <View style={styles.metaItem}>
+                                        <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
+                                        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>Joined {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''}</Text>
+                                    </View>
+                                </View>
+
+                                {(!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
+                                    <View style={styles.followStats}>
+                                        <TouchableOpacity
+                                            style={styles.statItem}
+                                            onPress={() => router.push(`/@${profileData?.username || username}/following`)}
+                                        >
+                                            <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                                                {followingCount ?? 0}
+                                            </Text>
+                                            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Following</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={styles.statItem}
+                                            onPress={() => router.push(`/@${profileData?.username || username}/followers`)}
+                                        >
+                                            <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                                                {followerCount ?? 0}
+                                            </Text>
+                                            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Followers</Text>
+                                        </TouchableOpacity>
                                     </View>
                                 )}
-                        </View>
 
-                        {/* Tabs */}
-                        <AnimatedTabBar
-                            tabs={tabs.map((tab, i) => ({ id: String(i), label: tab }))}
-                            activeTabId={String(activeTab)}
-                            onTabPress={(id) => onTabPress(parseInt(id))}
-                        />
+                                {/* Communities section */}
+                                {profileData?.communities && profileData.communities.length > 0 &&
+                                    (!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
+                                        <View style={styles.communitiesSection}>
+                                            <Text style={[styles.communitiesTitle, { color: theme.colors.text }]}>Communities</Text>
+                                            {profileData.communities.map((community: any, index: number) => (
+                                                <View key={community.id || index} style={[styles.communityCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+                                                    <View style={styles.communityHeader}>
+                                                        {community.icon && (
+                                                            <View style={styles.communityIcon}>
+                                                                <Image
+                                                                    source={{ uri: community.icon }}
+                                                                    resizeMode="cover"
+                                                                    style={styles.communityIconImage as any}
+                                                                />
+                                                            </View>
+                                                        )}
+                                                        <View style={styles.communityInfo}>
+                                                            <Text style={[styles.communityName, { color: theme.colors.text }]}>{community.name}</Text>
+                                                            {community.description && (
+                                                                <Text style={[styles.communityDescription, { color: theme.colors.textSecondary }]}>
+                                                                    {community.description}
+                                                                </Text>
+                                                            )}
+                                                            {community.memberCount && (
+                                                                <View style={styles.communityMembers}>
+                                                                    <Text style={[styles.memberCount, { color: theme.colors.textSecondary }]}>
+                                                                        {community.memberCount} Members
+                                                                    </Text>
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                    <TouchableOpacity style={styles.viewButtonInCard}>
+                                                        <Text style={[styles.viewButtonText, { color: theme.colors.primary }]}>View</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+                            </View>
 
-                        {/* Tab Content */}
-                        {renderTabContent()}
-                    </Animated.ScrollView>
+                            {/* Tabs */}
+                            <AnimatedTabBar
+                                tabs={tabs.map((tab, i) => ({ id: String(i), label: tab }))}
+                                activeTabId={String(activeTab)}
+                                onTabPress={(id) => {
+                                    const index = parseInt(id);
+                                    onTabPress(index);
+                                }}
+                                instanceId={username || 'default'}
+                            />
+
+                            {/* Tab Content */}
+                            {renderTabContent()}
+                        </Animated.ScrollView>
+                    </View>
 
                     {/* FAB - rendered after ScrollView to ensure visibility */}
                     <FloatingActionButton
