@@ -261,9 +261,11 @@
     "share_failed": "Errore nella condivisione del post",
     "no_posts_found": "Nessun post trovato",
     "no_video_posts_yet": "Ancora nessun video",
-    "loading": "Caricamento..."
+    "loading": "Caricamento...",
+    "on_mention": "su Mention"
   },
   "common": {
-    "unknown": "sconosciuto"
+    "unknown": "sconosciuto",
+    "someone": "Qualcuno"
   }
 }

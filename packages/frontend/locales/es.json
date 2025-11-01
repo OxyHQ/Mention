@@ -267,9 +267,11 @@
     "share_failed": "Error al compartir la publicación",
     "no_posts_found": "No se encontraron publicaciones",
     "no_video_posts_yet": "Aún no hay videos",
-    "loading": "Cargando..."
+    "loading": "Cargando...",
+    "on_mention": "en Mention"
   },
   "common": {
-    "unknown": "desconocido"
+    "unknown": "desconocido",
+    "someone": "Alguien"
   }
 }

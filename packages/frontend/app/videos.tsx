@@ -375,7 +375,7 @@ const VideosScreen: React.FC = () => {
 
                 return { ...post, videoUrl } as VideoPost;
             })
-            .filter((post: VideoPost) => post.videoUrl?.trim().length > 0);
+            .filter((post: VideoPost) => post.videoUrl && post.videoUrl.trim().length > 0);
     }, [oxyServices]);
 
     // Fetch specific post by ID
@@ -580,16 +580,18 @@ const VideosScreen: React.FC = () => {
             const postUrl = `https://mention.earth/p/${post.id}`;
             const contentText = post?.content?.text || '';
             const user = post?.user || {};
-            const name = typeof user.name === 'string' ? user.name : user.name || user.handle || 'Someone';
+            const name = typeof user.name === 'string' ? user.name : user.name || user.handle || t('common.someone');
             const handle = user.handle || '';
             const shareMessage = contentText
                 ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
                 : `${name}${handle ? ` (@${handle})` : ''} ${t('videos.shared_a_post')}`;
 
+            const shareTitle = `${name} ${t('videos.on_mention')}`;
+
             if (Platform.OS === 'web') {
                 if (navigator.share) {
                     await navigator.share({
-                        title: `${name} on Mention`,
+                        title: shareTitle,
                         text: shareMessage,
                         url: postUrl,
                     });
@@ -603,7 +605,7 @@ const VideosScreen: React.FC = () => {
                 await Share.share({
                     message: `${shareMessage}\n\n${postUrl}`,
                     url: postUrl,
-                    title: `${name} on Mention`,
+                    title: shareTitle,
                 });
             }
         } catch (error: any) {
