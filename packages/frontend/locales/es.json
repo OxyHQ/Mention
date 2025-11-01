@@ -256,5 +256,20 @@
       "likes": "Me gusta",
       "posts": "Publicaciones"
     }
+  },
+  "videos": {
+    "unavailable": "Video no disponible",
+    "shared_a_post": "compartió una publicación",
+    "link_copied": "Enlace copiado",
+    "link_copied_to_clipboard": "El enlace de la publicación ha sido copiado al portapapeles",
+    "sharing_not_available": "Compartir no disponible",
+    "copy_link_manually": "Copia el enlace manualmente",
+    "share_failed": "Error al compartir la publicación",
+    "no_posts_found": "No se encontraron publicaciones",
+    "no_video_posts_yet": "Aún no hay videos",
+    "loading": "Cargando..."
+  },
+  "common": {
+    "unknown": "desconocido"
   }
 }

@@ -223,5 +223,20 @@
             "likes": "Likes",
             "posts": "Posts"
         }
+    },
+    "videos": {
+        "unavailable": "Video unavailable",
+        "shared_a_post": "shared a post",
+        "link_copied": "Link copied",
+        "link_copied_to_clipboard": "Post link has been copied to clipboard",
+        "sharing_not_available": "Sharing not available",
+        "copy_link_manually": "Please copy the link manually",
+        "share_failed": "Failed to share post",
+        "no_posts_found": "No posts found",
+        "no_video_posts_yet": "No video posts yet",
+        "loading": "Loading..."
+    },
+    "common": {
+        "unknown": "unknown"
     }
 }

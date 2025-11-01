@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, Dimensions, Pressable, FlatList, Platform, Share, Alert } from 'react-native';
+import { StyleSheet, View, Text, Dimensions, Pressable, FlatList, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
@@ -8,6 +8,7 @@ import { useOxy } from '@oxyhq/services';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { usePostsStore } from '@/stores/postsStore';
 import { useUsersStore } from '@/stores/usersStore';
 import { feedService } from '@/services/feedService';
@@ -56,7 +57,8 @@ const VideoItem: React.FC<{
     globalMuted: boolean;
     onMuteChange: (muted: boolean) => void;
     bottomBarHeight: number;
-}> = ({ item, index, isVisible, theme, onLike, onComment, onRepost, onShare, formatCount, globalMuted, onMuteChange, bottomBarHeight }) => {
+    t: (key: string) => string;
+}> = ({ item, index, isVisible, theme, onLike, onComment, onRepost, onShare, formatCount, globalMuted, onMuteChange, bottomBarHeight, t }) => {
     const { oxyServices } = useOxy();
 
     // Create player instance - each video gets its own unique player
@@ -200,7 +202,7 @@ const VideoItem: React.FC<{
                     <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
                     {videoError && (
                         <Text style={{ color: theme.colors.textSecondary, marginTop: 8, fontSize: 12 }}>
-                            Video unavailable
+                            {t('videos.unavailable')}
                         </Text>
                     )}
                 </View>
@@ -245,7 +247,7 @@ const VideoItem: React.FC<{
                                         <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" style={styles.verifiedIcon} />
                                     ) : null}
                                 </View>
-                                <Text style={styles.userHandle}>@{item.user?.handle || 'unknown'}</Text>
+                                <Text style={styles.userHandle}>@{item.user?.handle || t('common.unknown')}</Text>
                             </View>
                         </View>
                         {item.content?.text && item.content.text.trim() ? (
@@ -536,7 +538,7 @@ const VideosScreen: React.FC = () => {
         }
     }, [repostPost, unrepostPost]);
 
-    // Handle share
+    // Handle share using Expo Sharing
     const handleShare = useCallback(async (post: VideoPost) => {
         try {
             const postUrl = `https://mention.earth/p/${post.id}`;
@@ -547,31 +549,32 @@ const VideosScreen: React.FC = () => {
             const handle = user.handle || '';
             const shareMessage = contentText
                 ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
-                : `${name}${handle ? ` (@${handle})` : ''} shared a post`;
+                : `${name}${handle ? ` (@${handle})` : ''} ${t('videos.shared_a_post')}`;
 
-            if (Platform.OS === 'web') {
-                if (navigator.share) {
-                    await navigator.share({
-                        title: `${name} on Mention`,
-                        text: shareMessage,
-                        url: postUrl
-                    });
-                } else {
-                    await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
-                    Alert.alert('Link copied', 'Post link has been copied to clipboard');
-                }
-            } else {
-                await Share.share({
-                    message: `${shareMessage}\n\n${postUrl}`,
-                    url: postUrl,
-                    title: `${name} on Mention`
+            // Use Expo Sharing API - works on all platforms including web
+            const isAvailable = await Sharing.isAvailableAsync();
+            if (isAvailable) {
+                // Share the message with URL - combine them for better sharing experience
+                const shareContent = `${shareMessage}\n\n${postUrl}`;
+                await Sharing.shareAsync(shareContent, {
+                    dialogTitle: `${name} on Mention`,
+                    mimeType: 'text/plain',
+                    UTI: 'public.plain-text'
                 });
+            } else {
+                // Fallback for when sharing is not available
+                if (Platform.OS === 'web' && navigator.clipboard) {
+                    await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
+                    Alert.alert(t('videos.link_copied'), t('videos.link_copied_to_clipboard'));
+                } else {
+                    Alert.alert(t('videos.sharing_not_available'), t('videos.copy_link_manually'));
+                }
             }
         } catch (error) {
             console.error('Error sharing post:', error);
-            Alert.alert('Error', 'Failed to share post');
+            Alert.alert(t('common.error'), t('videos.share_failed'));
         }
-    }, []);
+    }, [t]);
 
     const formatCount = useCallback((count: number): string => {
         if (count == null || isNaN(count)) {
@@ -610,9 +613,10 @@ const VideosScreen: React.FC = () => {
                 globalMuted={globalMuted}
                 onMuteChange={handleMuteChange}
                 bottomBarHeight={bottomBarHeight}
+                t={t}
             />
         );
-    }, [currentVisibleIndex, handleLike, handleComment, handleRepost, handleShare, theme, formatCount, globalMuted, handleMuteChange, insets.bottom]);
+    }, [currentVisibleIndex, handleLike, handleComment, handleRepost, handleShare, theme, formatCount, globalMuted, handleMuteChange, insets.bottom, t]);
 
     const keyExtractor = useCallback((item: VideoPost, index: number) => item.id || index.toString(), []);
 
@@ -678,10 +682,10 @@ const VideosScreen: React.FC = () => {
                 <View style={styles.emptyState}>
                     <Ionicons name="videocam-outline" size={64} color={theme.colors.textSecondary} />
                     <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                        {t('No video posts yet')}
+                        {t('videos.no_video_posts_yet')}
                     </Text>
                     <Text style={[styles.emptyText, { color: theme.colors.textSecondary, fontSize: 12, marginTop: 8 }]}>
-                        {isLoading ? 'Loading...' : 'No posts found'}
+                        {isLoading ? t('videos.loading') : t('videos.no_posts_found')}
                     </Text>
                 </View>
             )}
@@ -689,7 +693,7 @@ const VideosScreen: React.FC = () => {
             {loadingMore && (
                 <View style={styles.loadingMore}>
                     <View style={[styles.loadingIndicator, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                        <Text style={{ color: theme.colors.textSecondary }}>Loading...</Text>
+                        <Text style={{ color: theme.colors.textSecondary }}>{t('videos.loading')}</Text>
                     </View>
                 </View>
             )}
