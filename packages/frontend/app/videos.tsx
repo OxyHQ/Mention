@@ -69,6 +69,7 @@ const VideoItem: React.FC<{
         }
     });
 
+
     // Track local muted state - sync with global state
     const [isMuted, setIsMuted] = React.useState(globalMuted);
     const [hasUserInteracted, setHasUserInteracted] = React.useState(false);
@@ -193,7 +194,6 @@ const VideoItem: React.FC<{
                     nativeControls={false}
                     allowsFullscreen={false}
                     allowsPictureInPicture={false}
-                    crossOrigin="anonymous"
                 />
             ) : (
                 <View style={[styles.video, { backgroundColor: theme.colors.backgroundSecondary, justifyContent: 'center', alignItems: 'center' }]}>
