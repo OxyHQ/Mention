@@ -214,16 +214,16 @@ const VideoItem: React.FC<{
                 <View style={styles.bottomInfo}>
                     <View style={styles.userInfo}>
                         <View style={styles.userHandleContainer}>
-                            <Text style={styles.userHandle}>@{item.user.handle}</Text>
-                            {item.user.verified && (
+                            <Text style={styles.userHandle}>@{item.user?.handle || 'unknown'}</Text>
+                            {item.user?.verified ? (
                                 <Ionicons name="checkmark-circle" size={18} color="#1DA1F2" style={styles.verifiedIcon} />
-                            )}
+                            ) : null}
                         </View>
-                        {item.content.text && (
+                        {item.content?.text && item.content.text.trim() ? (
                             <Text style={styles.postText} numberOfLines={3}>
                                 {item.content.text}
                             </Text>
-                        )}
+                        ) : null}
                     </View>
                 </View>
 
@@ -234,15 +234,15 @@ const VideoItem: React.FC<{
                         onPress={() => onLike(item.id, item.isLiked || false)}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                        <View style={[styles.actionButtonIcon, item.isLiked && styles.actionButtonIconActive]}>
+                        <View style={[styles.actionButtonIcon, item.isLiked ? styles.actionButtonIconActive : null]}>
                             <Ionicons
                                 name={item.isLiked ? "heart" : "heart-outline"}
                                 size={32}
                                 color={item.isLiked ? "#FF3040" : "white"}
                             />
                         </View>
-                        <Text style={[styles.actionCount, item.isLiked && styles.actionCountActive]}>
-                            {formatCount(item.stats.likesCount)}
+                        <Text style={[styles.actionCount, item.isLiked ? styles.actionCountActive : null]}>
+                            {formatCount(item.stats?.likesCount || 0)}
                         </Text>
                     </Pressable>
 
@@ -253,7 +253,7 @@ const VideoItem: React.FC<{
                         <View style={styles.actionButtonIcon}>
                             <Ionicons name="chatbubble-outline" size={32} color="white" />
                         </View>
-                        <Text style={styles.actionCount}>{formatCount(item.stats.commentsCount)}</Text>
+                        <Text style={styles.actionCount}>{formatCount(item.stats?.commentsCount || 0)}</Text>
                     </Pressable>
 
                     <Pressable
@@ -263,7 +263,7 @@ const VideoItem: React.FC<{
                         <View style={styles.actionButtonIcon}>
                             <Ionicons name="repeat-outline" size={32} color="white" />
                         </View>
-                        <Text style={styles.actionCount}>{formatCount(item.stats.repostsCount)}</Text>
+                        <Text style={styles.actionCount}>{formatCount(item.stats?.repostsCount || 0)}</Text>
                     </Pressable>
 
                     <Pressable
@@ -455,12 +455,16 @@ const VideosScreen: React.FC = () => {
     }, [likePost, unlikePost]);
 
     const formatCount = useCallback((count: number): string => {
-        if (count >= 1000000) {
-            return `${(count / 1000000).toFixed(1)}M`;
-        } else if (count >= 1000) {
-            return `${(count / 1000).toFixed(1)}K`;
+        if (count == null || isNaN(count)) {
+            return '0';
         }
-        return count.toString();
+        const numCount = Number(count);
+        if (numCount >= 1000000) {
+            return `${(numCount / 1000000).toFixed(1)}M`;
+        } else if (numCount >= 1000) {
+            return `${(numCount / 1000).toFixed(1)}K`;
+        }
+        return numCount.toString();
     }, []);
 
     // Handle mute state change - updates all videos
