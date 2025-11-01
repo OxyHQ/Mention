@@ -1522,34 +1522,37 @@ class FeedController {
         }
       }
 
-      // Calculate engagement score including all engagement metrics
-      // Include likes, reposts, replies (comments), and bookmarks (saves) in the score
+      // Calculate trending score based on raw engagement metrics
+      // Prioritize: likes, replies, reposts, saves, views
+      // Use insights for quality filtering but prioritize total engagement
       const posts = await Post.aggregate([
         { $match: match },
         {
           $addFields: {
             // Get bookmark/save count from metadata.savedBy array length
-            bookmarksCount: { $size: { $ifNull: ['$metadata.savedBy', []] } },
-            engagementScore: {
+            savesCount: { $size: { $ifNull: ['$metadata.savedBy', []] } },
+            // Calculate comprehensive engagement score with weighted metrics
+            // Higher weights for more valuable engagement types
+            trendingScore: {
               $add: [
-                { $ifNull: ['$stats.likesCount', 0] },
-                { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] }, // Reposts weighted 2x
-                { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }, // Comments weighted 1.5x
-                { $multiply: [{ $size: { $ifNull: ['$metadata.savedBy', []] } }, 1.2] } // Bookmarks weighted 1.2x
+                { $ifNull: ['$stats.likesCount', 0] }, // Likes: 1x
+                { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 3] }, // Reposts: 3x (high value)
+                { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 2.5] }, // Replies/Comments: 2.5x (high value)
+                { $multiply: [{ $size: { $ifNull: ['$metadata.savedBy', []] } }, 2] }, // Saves: 2x (high value)
+                { $multiply: [{ $ifNull: ['$stats.viewsCount', 0] }, 0.1] }, // Views: 0.1x (lower weight)
+                { $multiply: [{ $ifNull: ['$stats.sharesCount', 0] }, 2] }, // Shares: 2x
               ]
             },
           }
         },
-        // NO engagement threshold filter - show ALL posts sorted by engagement
-        // Posts with 0 engagement will naturally be at the bottom
-        // Apply compound filtering to prevent duplicates when paginating
+        // Apply cursor filtering
         ...(minFinalScore !== undefined && cursorId ? [{
           $match: {
             $or: [
-              { engagementScore: { $lt: minFinalScore } },
+              { trendingScore: { $lt: minFinalScore } },
               {
                 $and: [
-                  { engagementScore: minFinalScore },
+                  { trendingScore: minFinalScore },
                   // Validate ObjectId to prevent injection
                   { _id: mongoose.Types.ObjectId.isValid(cursorId) ? { $lt: new mongoose.Types.ObjectId(cursorId) } : { $exists: false } }
                 ]
@@ -1557,22 +1560,23 @@ class FeedController {
             ]
           }
         }] : []),
-        { $sort: { engagementScore: -1, _id: -1 } },
+        // Sort by trending score (highest first), then by _id for consistent ordering
+        { $sort: { trendingScore: -1, _id: -1 } },
         { $limit: limit + 1 }
       ]);
 
       const hasMore = posts.length > limit;
       const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
       
-      // Calculate cursor with last post's engagementScore for proper pagination
+      // Calculate cursor with last post's trendingScore for proper pagination
       let nextCursor: string | undefined;
       if (postsToReturn.length > 0) {
         const lastPost = postsToReturn[postsToReturn.length - 1];
-        const lastPostScore = typeof lastPost.engagementScore === 'number' && !isNaN(lastPost.engagementScore) 
-          ? lastPost.engagementScore 
+        const lastPostScore = typeof lastPost.trendingScore === 'number' && !isNaN(lastPost.trendingScore) 
+          ? lastPost.trendingScore 
           : 0;
         
-        // Encode as compound cursor (engagementScore + _id) for engagement-based feeds
+        // Encode as compound cursor (trendingScore + _id) for trending feeds
         const cursorData = {
           _id: lastPost._id.toString(),
           minScore: lastPostScore
