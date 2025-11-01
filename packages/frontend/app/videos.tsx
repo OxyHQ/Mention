@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, Dimensions, Pressable, FlatList, Platform } from 'react-native';
+import { StyleSheet, View, Text, Dimensions, Pressable, FlatList, Platform, Share, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
@@ -7,7 +7,9 @@ import { useTranslation } from 'react-i18next';
 import { useOxy } from '@oxyhq/services';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
+import { useUsersStore } from '@/stores/usersStore';
 import { feedService } from '@/services/feedService';
 import LoadingTopSpinner from '@/components/LoadingTopSpinner';
 import Avatar from '@/components/Avatar';
@@ -35,6 +37,7 @@ interface VideoPost {
         viewsCount: number;
     };
     isLiked?: boolean;
+    isReposted?: boolean;
     isSaved?: boolean;
     createdAt: string;
 }
@@ -46,11 +49,14 @@ const VideoItem: React.FC<{
     isVisible: boolean;
     theme: any;
     onLike: (postId: string, isLiked: boolean) => void;
+    onComment: (postId: string) => void;
+    onRepost: (postId: string, isReposted: boolean) => void;
+    onShare: (post: VideoPost) => void;
     formatCount: (count: number) => string;
     globalMuted: boolean;
     onMuteChange: (muted: boolean) => void;
     bottomBarHeight: number;
-}> = ({ item, index, isVisible, theme, onLike, formatCount, globalMuted, onMuteChange, bottomBarHeight }) => {
+}> = ({ item, index, isVisible, theme, onLike, onComment, onRepost, onShare, formatCount, globalMuted, onMuteChange, bottomBarHeight }) => {
     const { oxyServices } = useOxy();
 
     // Create player instance - each video gets its own unique player
@@ -271,6 +277,7 @@ const VideoItem: React.FC<{
 
                     <Pressable
                         style={styles.actionButton}
+                        onPress={() => onComment(item.id)}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                         <View style={styles.actionButtonIcon}>
@@ -281,16 +288,24 @@ const VideoItem: React.FC<{
 
                     <Pressable
                         style={styles.actionButton}
+                        onPress={() => onRepost(item.id, item.isReposted || false)}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                        <View style={styles.actionButtonIcon}>
-                            <Ionicons name="repeat-outline" size={32} color="white" />
+                        <View style={[styles.actionButtonIcon, item.isReposted ? styles.actionButtonIconActive : null]}>
+                            <Ionicons
+                                name={item.isReposted ? "repeat" : "repeat-outline"}
+                                size={32}
+                                color={item.isReposted ? "#10B981" : "white"}
+                            />
                         </View>
-                        <Text style={styles.actionCount}>{formatCount(item.stats?.repostsCount || 0)}</Text>
+                        <Text style={[styles.actionCount, item.isReposted ? styles.actionCountReposted : null]}>
+                            {formatCount(item.stats?.repostsCount || 0)}
+                        </Text>
                     </Pressable>
 
                     <Pressable
                         style={styles.actionButton}
+                        onPress={() => onShare(item)}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                         <View style={styles.actionButtonIcon}>
@@ -307,8 +322,9 @@ const VideosScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
+    const router = useRouter();
     const { oxyServices } = useOxy();
-    const { likePost, unlikePost, getPostById } = usePostsStore();
+    const { likePost, unlikePost, repostPost, unrepostPost, getPostById } = usePostsStore();
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -488,6 +504,75 @@ const VideosScreen: React.FC = () => {
         }
     }, [likePost, unlikePost]);
 
+    // Handle comment - navigate to post detail/reply
+    const handleComment = useCallback((postId: string) => {
+        router.push(`/p/${postId}/reply`);
+    }, [router]);
+
+    // Handle repost/unrepost
+    const handleRepost = useCallback(async (postId: string, isReposted: boolean) => {
+        try {
+            if (isReposted) {
+                await unrepostPost({ postId });
+            } else {
+                await repostPost({ postId });
+            }
+
+            // Update local state
+            setPosts(prev => prev.map(p =>
+                p.id === postId
+                    ? {
+                        ...p,
+                        isReposted: !isReposted,
+                        stats: {
+                            ...p.stats,
+                            repostsCount: isReposted ? p.stats.repostsCount - 1 : p.stats.repostsCount + 1,
+                        }
+                    }
+                    : p
+            ));
+        } catch (error) {
+            console.error('Error toggling repost:', error);
+        }
+    }, [repostPost, unrepostPost]);
+
+    // Handle share
+    const handleShare = useCallback(async (post: VideoPost) => {
+        try {
+            const postUrl = `https://mention.earth/p/${post.id}`;
+            const contentText = post?.content?.text || '';
+            const user = post?.user || {};
+            const id = String(user.id || '');
+            const name = typeof user.name === 'string' ? user.name : user.name || user.handle || id || 'Someone';
+            const handle = user.handle || '';
+            const shareMessage = contentText
+                ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
+                : `${name}${handle ? ` (@${handle})` : ''} shared a post`;
+
+            if (Platform.OS === 'web') {
+                if (navigator.share) {
+                    await navigator.share({
+                        title: `${name} on Mention`,
+                        text: shareMessage,
+                        url: postUrl
+                    });
+                } else {
+                    await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
+                    Alert.alert('Link copied', 'Post link has been copied to clipboard');
+                }
+            } else {
+                await Share.share({
+                    message: `${shareMessage}\n\n${postUrl}`,
+                    url: postUrl,
+                    title: `${name} on Mention`
+                });
+            }
+        } catch (error) {
+            console.error('Error sharing post:', error);
+            Alert.alert('Error', 'Failed to share post');
+        }
+    }, []);
+
     const formatCount = useCallback((count: number): string => {
         if (count == null || isNaN(count)) {
             return '0';
@@ -518,13 +603,16 @@ const VideosScreen: React.FC = () => {
                 isVisible={isVisible}
                 theme={theme}
                 onLike={handleLike}
+                onComment={handleComment}
+                onRepost={handleRepost}
+                onShare={handleShare}
                 formatCount={formatCount}
                 globalMuted={globalMuted}
                 onMuteChange={handleMuteChange}
                 bottomBarHeight={bottomBarHeight}
             />
         );
-    }, [currentVisibleIndex, handleLike, theme, formatCount, globalMuted, handleMuteChange, insets.bottom]);
+    }, [currentVisibleIndex, handleLike, handleComment, handleRepost, handleShare, theme, formatCount, globalMuted, handleMuteChange, insets.bottom]);
 
     const keyExtractor = useCallback((item: VideoPost, index: number) => item.id || index.toString(), []);
 
@@ -707,6 +795,9 @@ const styles = StyleSheet.create({
     },
     actionCountActive: {
         color: '#FF3040',
+    },
+    actionCountReposted: {
+        color: '#10B981',
     },
     bottomInfo: {
         flex: 1,
