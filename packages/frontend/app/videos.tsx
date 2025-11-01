@@ -49,7 +49,8 @@ const VideoItem: React.FC<{
     formatCount: (count: number) => string;
     globalMuted: boolean;
     onMuteChange: (muted: boolean) => void;
-}> = ({ item, index, isVisible, theme, onLike, formatCount, globalMuted, onMuteChange }) => {
+    bottomBarHeight: number;
+}> = ({ item, index, isVisible, theme, onLike, formatCount, globalMuted, onMuteChange, bottomBarHeight }) => {
     const { oxyServices } = useOxy();
 
     // Create player instance - each video gets its own unique player
@@ -209,7 +210,7 @@ const VideoItem: React.FC<{
             </Pressable>
 
             {/* Overlay with user info and actions */}
-            <View style={styles.overlay}>
+            <View style={[styles.overlay, { paddingBottom: bottomBarHeight + 20 }]}>
                 {/* Gradient overlay for better text readability */}
                 <View style={styles.gradientOverlay} />
 
@@ -491,6 +492,8 @@ const VideosScreen: React.FC = () => {
     // Render a single video item
     const renderVideoItem = useCallback(({ item, index }: { item: VideoPost; index: number }) => {
         const isVisible = index === currentVisibleIndex;
+        // Calculate bottom bar height: 60px base + safe area insets
+        const bottomBarHeight = Platform.OS === 'web' ? 60 : 60 + insets.bottom;
         return (
             <VideoItem
                 item={item}
@@ -501,14 +504,15 @@ const VideosScreen: React.FC = () => {
                 formatCount={formatCount}
                 globalMuted={globalMuted}
                 onMuteChange={handleMuteChange}
+                bottomBarHeight={bottomBarHeight}
             />
         );
-    }, [currentVisibleIndex, handleLike, theme, formatCount, globalMuted, handleMuteChange]);
+    }, [currentVisibleIndex, handleLike, theme, formatCount, globalMuted, handleMuteChange, insets.bottom]);
 
     const keyExtractor = useCallback((item: VideoPost, index: number) => item.id || index.toString(), []);
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView style={[styles.container, { paddingTop: 0, marginTop: 0 }]}>
             <LoadingTopSpinner showLoading={isLoading && posts.length === 0} />
 
             {posts.length > 0 && (
@@ -531,7 +535,8 @@ const VideosScreen: React.FC = () => {
                     windowSize={3}
                     initialNumToRender={2}
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ flexGrow: 1 }}
+                    contentContainerStyle={{ flexGrow: 1, paddingTop: 0, paddingBottom: 0 }}
+                    contentInsetAdjustmentBehavior="never"
                     getItemLayout={(_, index) => ({
                         length: windowHeight,
                         offset: windowHeight * index,
@@ -593,6 +598,10 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         backgroundColor: 'black',
+        paddingTop: 0,
+        marginTop: 0,
+        paddingBottom: 0,
+        marginBottom: 0,
     },
     videoContainer: {
         width: '100%',
@@ -632,7 +641,6 @@ const styles = StyleSheet.create({
         right: 0,
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingBottom: Platform.OS === 'web' ? 20 : 40,
         paddingHorizontal: 16,
         paddingTop: 20,
         backgroundColor: 'transparent',
