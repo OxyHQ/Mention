@@ -235,7 +235,8 @@
         "no_posts_found": "No posts found",
         "no_video_posts_yet": "No video posts yet",
         "loading": "Loading...",
-        "on_mention": "on Mention"
+        "on_mention": "on Mention",
+        "action_failed": "Action failed. Please try again."
     },
     "common": {
         "unknown": "unknown",

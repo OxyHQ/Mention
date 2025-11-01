@@ -268,7 +268,8 @@
     "no_posts_found": "No se encontraron publicaciones",
     "no_video_posts_yet": "Aún no hay videos",
     "loading": "Cargando...",
-    "on_mention": "en Mention"
+    "on_mention": "en Mention",
+    "action_failed": "Acción fallida. Por favor, inténtalo de nuevo."
   },
   "common": {
     "unknown": "desconocido",

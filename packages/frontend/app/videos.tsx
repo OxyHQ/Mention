@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
-import { StyleSheet, View, Text, Dimensions, Pressable, FlatList, Platform, Alert, Share } from 'react-native';
+import { StyleSheet, View, Text, Dimensions, Pressable, FlatList, Platform, Share } from 'react-native';
+import { toast } from '@/lib/sonner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
@@ -549,10 +550,12 @@ const VideosScreen: React.FC = () => {
                     ? { ...p, isLiked: !isLiked, stats: { ...p.stats, likesCount: isLiked ? p.stats.likesCount - 1 : p.stats.likesCount + 1 } }
                     : p
             ));
-        } catch {
-            // Silently handle errors
+        } catch (error) {
+            toast.error(t('common.error'), {
+                description: t('videos.action_failed') || 'Action failed. Please try again.',
+            });
         }
-    }, [likePost, unlikePost]);
+    }, [likePost, unlikePost, t]);
 
     const handleComment = useCallback((postId: string) => {
         router.push(`/p/${postId}/reply`);
@@ -570,10 +573,12 @@ const VideosScreen: React.FC = () => {
                     ? { ...p, isReposted: !isReposted, stats: { ...p.stats, repostsCount: isReposted ? p.stats.repostsCount - 1 : p.stats.repostsCount + 1 } }
                     : p
             ));
-        } catch {
-            // Silently handle errors
+        } catch (error) {
+            toast.error(t('common.error'), {
+                description: t('videos.action_failed') || 'Action failed. Please try again.',
+            });
         }
-    }, [repostPost, unrepostPost]);
+    }, [repostPost, unrepostPost, t]);
 
     const handleShare = useCallback(async (post: VideoPost) => {
         try {
@@ -597,9 +602,13 @@ const VideosScreen: React.FC = () => {
                     });
                 } else if (navigator.clipboard) {
                     await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
-                    Alert.alert(t('videos.link_copied'), t('videos.link_copied_to_clipboard'));
+                    toast.success(t('videos.link_copied'), {
+                        description: t('videos.link_copied_to_clipboard'),
+                    });
                 } else {
-                    Alert.alert(t('videos.sharing_not_available'), t('videos.copy_link_manually'));
+                    toast.error(t('videos.sharing_not_available'), {
+                        description: t('videos.copy_link_manually'),
+                    });
                 }
             } else {
                 await Share.share({
@@ -610,7 +619,9 @@ const VideosScreen: React.FC = () => {
             }
         } catch (error: any) {
             if (error?.message !== 'User did not share' && error?.code !== 'ERR_SHARE_CANCELLED') {
-                Alert.alert(t('common.error'), t('videos.share_failed'));
+                toast.error(t('videos.share_failed'), {
+                    description: t('common.error'),
+                });
             }
         }
     }, [t]);
