@@ -594,16 +594,17 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
                     {/* Profile content + posts */}
                     {/* ScrollView with stickyHeaderIndices */}
-                    <View {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}>
-                        <Animated.ScrollView
-                            ref={assignProfileScrollRef}
-                            showsVerticalScrollIndicator={false}
-                            onScroll={onProfileScroll}
-                            scrollEventThrottle={scrollEventThrottle}
-                            style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
-                            contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED - insets.top }}
-                            stickyHeaderIndices={[1]}
-                        >
+                    <Animated.ScrollView
+                        ref={assignProfileScrollRef}
+                        showsVerticalScrollIndicator={false}
+                        onScroll={onProfileScroll}
+                        scrollEventThrottle={scrollEventThrottle}
+                        style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
+                        contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED - insets.top }}
+                        stickyHeaderIndices={[1]}
+                        nestedScrollEnabled={true}
+                        {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
+                    >
                             {/* Profile info */}
                             <View style={[styles.profileContent, { backgroundColor: theme.colors.background }]}>
                                 <View style={styles.avatarRow}>
@@ -793,8 +794,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
                             {/* Tab Content */}
                             {renderTabContent()}
-                        </Animated.ScrollView>
-                    </View>
+                    </Animated.ScrollView>
 
                     {/* FAB - rendered after ScrollView to ensure visibility */}
                     <FloatingActionButton

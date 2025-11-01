@@ -18,9 +18,8 @@ const UsernameLayout = () => {
     };
 
     if (typeof username === 'string' && username.startsWith('@')) {
-        // Use username as key to keep component mounted across tab changes
-        const cleanUsername = username.slice(1);
-        return <ProfileScreen key={cleanUsername} tab={getTabFromPathname()} />;
+        // Remove key to prevent remounts - component should stay mounted across tab changes
+        return <ProfileScreen tab={getTabFromPathname()} />;
     }
 
     return <NotFoundScreen />;
