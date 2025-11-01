@@ -376,7 +376,7 @@ const NotificationsScreen: React.FC = () => {
                         ]}
                         activeTabId={activeTab}
                         onTabPress={handleTabPress}
-                        scrollEnabled={false}
+                        scrollEnabled={true}
                     />
                 )}
 

@@ -142,6 +142,7 @@ const ExploreScreen: React.FC = () => {
             ]}
             activeTabId={activeTab}
             onTabPress={(id) => setActiveTab(id as ExploreTab)}
+            scrollEnabled={true}
           />
         </View>
 
