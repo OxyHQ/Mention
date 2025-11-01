@@ -22,6 +22,9 @@ import PostItem from '@/components/Feed/PostItem';
 import { UIPost } from '@mention/shared-types';
 import MiniChart from '@/components/MiniChart';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import SectionHeader from '@/components/insights/SectionHeader';
+import HeroCard from '@/components/insights/HeroCard';
+import SummaryCard from '@/components/insights/SummaryCard';
 
 const { width } = Dimensions.get('window');
 
@@ -105,65 +108,28 @@ const InsightsScreen: React.FC = () => {
             <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Summary Stats */}
                 <View style={styles.summarySection}>
-                    <View style={[styles.summaryCard, { backgroundColor: theme.colors.primary + '08' }]}>
-                        <View style={styles.summaryRow}>
-                            <View style={styles.summaryItem}>
-                                <Text style={[styles.summaryValue, { color: '#000000' }]}>
-                                    {formatNumber(stats.overview.totalPosts)}
-                                </Text>
-                                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
-                            </View>
-                            <View style={styles.summaryDivider} />
-                            <View style={styles.summaryItem}>
-                                <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
-                                    {formatNumber(stats.overview.totalViews)}
-                                </Text>
-                                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Views</Text>
-                            </View>
-                            <View style={styles.summaryDivider} />
-                            <View style={styles.summaryItem}>
-                                <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
-                                    {formatNumber(stats.overview.totalInteractions)}
-                                </Text>
-                                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Interactions</Text>
-                            </View>
-                        </View>
-                        {stats.dailyBreakdown && stats.dailyBreakdown.length > 0 && (
-                            <View style={styles.summaryChart}>
-                                <MiniChart
-                                    values={stats.dailyBreakdown.slice(-7).map(d => d.views)}
-                                    showLabels={true}
-                                    height={40}
-                                />
-                            </View>
-                        )}
-                    </View>
+                    <SummaryCard
+                        items={[
+                            { value: stats.overview.totalPosts, label: 'Posts' },
+                            { value: stats.overview.totalViews, label: 'Views' },
+                            { value: stats.overview.totalInteractions, label: 'Interactions' },
+                        ]}
+                        chartData={stats.dailyBreakdown ? stats.dailyBreakdown.slice(-7).map(d => d.views) : undefined}
+                        showChart={!!stats.dailyBreakdown && stats.dailyBreakdown.length > 0}
+                    />
                 </View>
 
                 {/* Engagement Rate - Hero Card */}
-                <View style={[styles.heroCard, { backgroundColor: theme.colors.primary + '08' }]}>
-                    <View style={styles.heroHeader}>
-                        <Ionicons name="trending-up" size={24} color={theme.colors.primary} />
-                        <Text style={[styles.heroTitle, { color: theme.colors.primary }]}>Engagement Rate</Text>
-                    </View>
-                    <View style={styles.heroContent}>
-                        <Text style={[styles.heroValue, { color: '#000000' }]}>
-                            {stats.overview.engagementRate.toFixed(2)}%
-                        </Text>
-                        <Text style={[styles.heroSubtext, { color: theme.colors.textSecondary }]}>
-                            {formatNumber(stats.overview.totalInteractions)} total interactions
-                        </Text>
-                    </View>
-                </View>
+                <HeroCard
+                    icon="trending-up"
+                    title="Engagement Rate"
+                    value={`${stats.overview.engagementRate.toFixed(2)}%`}
+                    subtitle={`${formatNumber(stats.overview.totalInteractions)} total interactions`}
+                />
 
                 {/* Interactions */}
                 <View style={styles.interactionsSection}>
-                    <View style={styles.sectionHeaderRow}>
-                        <Ionicons name="heart" size={20} color={theme.colors.primary} />
-                        <Text style={[styles.sectionHeader, { color: theme.colors.primary, marginLeft: 8 }]}>
-                            Interactions
-                        </Text>
-                    </View>
+                    <SectionHeader icon="heart" title="Interactions" />
                     <View style={[styles.interactionsCard, { backgroundColor: theme.colors.primary + '08' }]}>
                         <View style={styles.interactionsRow}>
                             <View style={styles.interactionItem}>
@@ -252,12 +218,7 @@ const InsightsScreen: React.FC = () => {
                 {/* Top Posts */}
                 {stats.topPosts.length > 0 && (
                     <View style={styles.topPostsSection}>
-                        <View style={styles.sectionHeaderRow}>
-                            <Ionicons name="trophy" size={20} color={theme.colors.primary} />
-                            <Text style={[styles.sectionHeader, { color: theme.colors.primary, marginLeft: 8 }]}>
-                                Top Performing Posts
-                            </Text>
-                        </View>
+                        <SectionHeader icon="trophy" title="Top Performing Posts" />
                         {loadingTopPosts ? (
                             <View style={styles.loadingPosts}>
                                 <ActivityIndicator size="small" color={theme.colors.primary} />
@@ -299,12 +260,7 @@ const InsightsScreen: React.FC = () => {
                 {/* Posts by Type */}
                 {Object.keys(stats.postsByType).length > 0 && (
                     <View style={styles.typeSection}>
-                        <View style={styles.sectionHeaderRow}>
-                            <Ionicons name="grid" size={20} color={theme.colors.primary} />
-                            <Text style={[styles.sectionHeader, { color: theme.colors.primary, marginLeft: 8 }]}>
-                                Posts by Type
-                            </Text>
-                        </View>
+                        <SectionHeader icon="grid" title="Posts by Type" />
                         <View style={[styles.typeCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             {Object.entries(stats.postsByType).map(([type, count], index, array) => (
                                 <View key={type}>
@@ -318,13 +274,13 @@ const InsightsScreen: React.FC = () => {
                                                     type === 'poll' ? 'bar-chart' : 'document'
                                                 } 
                                                 size={18} 
-                                                color={theme.colors.textSecondary} 
+                                                color={theme.colors.primary} 
                                             />
-                                            <Text style={[styles.typeLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                                            <Text style={[styles.typeLabel, { color: theme.colors.primary, marginLeft: 8 }]}>
                                                 {type.charAt(0).toUpperCase() + type.slice(1)}
                                             </Text>
                                         </View>
-                                        <Text style={[styles.typeValue, { color: theme.colors.text }]}>{count}</Text>
+                                        <Text style={[styles.typeValue, { color: '#000000' }]}>{count}</Text>
                                     </View>
                                     {index < array.length - 1 && (
                                         <View style={[styles.typeDivider, { backgroundColor: theme.colors.border }]} />
@@ -344,29 +300,21 @@ const InsightsScreen: React.FC = () => {
         return (
             <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Overall Engagement */}
-                <View style={[styles.heroCard, { backgroundColor: theme.colors.primary + '08' }]}>
-                    <View style={styles.heroHeader}>
-                        <Ionicons name="stats-chart" size={24} color={theme.colors.primary} />
-                        <Text style={[styles.heroTitle, { color: theme.colors.primary }]}>Overall Engagement</Text>
-                    </View>
-                    <View style={styles.heroContent}>
-                        <Text style={[styles.heroValue, { color: '#000000' }]}>
-                            {engagementRatios.ratios.engagementRate.toFixed(2)}%
-                        </Text>
-                        <Text style={[styles.heroSubtext, { color: theme.colors.textSecondary }]}>
-                            {formatNumber(engagementRatios.totals.interactions)} total interactions
-                        </Text>
-                    </View>
-                </View>
+                <HeroCard
+                    icon="stats-chart"
+                    title="Overall Engagement"
+                    value={`${engagementRatios.ratios.engagementRate.toFixed(2)}%`}
+                    subtitle={`${formatNumber(engagementRatios.totals.interactions)} total interactions`}
+                />
 
                 {/* Engagement Ratios */}
                 <View style={styles.ratiosSection}>
-                    <Text style={[styles.sectionHeader, { color: theme.colors.primary }]}>Engagement Ratios</Text>
+                    <SectionHeader icon="stats-chart" title="Engagement Ratios" />
                     <View style={styles.ratiosGrid}>
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="heart" size={18} color="#FF3040" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Like Rate</Text>
+                                <Text style={[styles.ratioLabel, { color: '#FF3040', marginLeft: 8 }]}>Like Rate</Text>
                             </View>
                             <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.likeRate.toFixed(2)}%
@@ -376,7 +324,7 @@ const InsightsScreen: React.FC = () => {
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="chatbubble" size={18} color="#3B82F6" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Reply Rate</Text>
+                                <Text style={[styles.ratioLabel, { color: '#3B82F6', marginLeft: 8 }]}>Reply Rate</Text>
                             </View>
                             <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.replyRate.toFixed(2)}%
@@ -386,7 +334,7 @@ const InsightsScreen: React.FC = () => {
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="repeat" size={18} color="#10B981" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Repost Rate</Text>
+                                <Text style={[styles.ratioLabel, { color: '#10B981', marginLeft: 8 }]}>Repost Rate</Text>
                             </View>
                             <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.repostRate.toFixed(2)}%
@@ -396,7 +344,7 @@ const InsightsScreen: React.FC = () => {
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="share-social" size={18} color="#8B5CF6" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Share Rate</Text>
+                                <Text style={[styles.ratioLabel, { color: '#8B5CF6', marginLeft: 8 }]}>Share Rate</Text>
                             </View>
                             <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.shareRate.toFixed(2)}%
@@ -407,27 +355,27 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Averages */}
                 <View style={styles.averagesSection}>
-                    <Text style={[styles.sectionHeader, { color: theme.colors.primary }]}>Averages</Text>
+                    <SectionHeader icon="trending-up" title="Averages" />
                     <View style={styles.averagesGrid}>
                         <View style={[styles.averageCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.averageHeader}>
-                                <Ionicons name="eye" size={20} color={theme.colors.primary} />
+                                <Ionicons name="eye" size={20} color={theme.colors.textSecondary} />
                                 <Text style={[styles.averageLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
                                     Views per Post
                                 </Text>
                             </View>
-                            <Text style={[styles.averageValue, { color: theme.colors.text }]}>
+                            <Text style={[styles.averageValue, { color: '#000000' }]}>
                                 {engagementRatios.averages.viewsPerPost.toFixed(0)}
                             </Text>
                         </View>
-                        <View style={[styles.averageCard, styles.averageCardLast, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View style={[styles.averageCard, styles.averageCardLast, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.averageHeader}>
-                                <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
+                                <Ionicons name="trending-up" size={20} color={theme.colors.textSecondary} />
                                 <Text style={[styles.averageLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
                                     Engagement per Post
                                 </Text>
                             </View>
-                            <Text style={[styles.averageValue, { color: theme.colors.text }]}>
+                            <Text style={[styles.averageValue, { color: '#000000' }]}>
                                 {engagementRatios.averages.engagementPerPost.toFixed(1)}
                             </Text>
                         </View>
@@ -436,31 +384,14 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Totals Summary */}
                 <View style={styles.totalsSection}>
-                    <Text style={[styles.sectionHeader, { color: theme.colors.primary }]}>Total Activity</Text>
-                    <View style={[styles.totalsCard, { backgroundColor: theme.colors.primary + '08' }]}>
-                        <View style={styles.totalsRow}>
-                            <View style={styles.totalItem}>
-                                <Text style={[styles.totalValue, { color: '#000000' }]}>
-                                    {formatNumber(engagementRatios.totals.posts)}
-                                </Text>
-                                <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
-                            </View>
-                            <View style={styles.totalDivider} />
-                            <View style={styles.totalItem}>
-                                <Text style={[styles.totalValue, { color: theme.colors.text }]}>
-                                    {formatNumber(engagementRatios.totals.views)}
-                                </Text>
-                                <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Views</Text>
-                            </View>
-                            <View style={styles.totalDivider} />
-                            <View style={styles.totalItem}>
-                                <Text style={[styles.totalValue, { color: theme.colors.text }]}>
-                                    {formatNumber(engagementRatios.totals.interactions)}
-                                </Text>
-                                <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Interactions</Text>
-                            </View>
-                        </View>
-                    </View>
+                    <SectionHeader icon="list" title="Total Activity" />
+                    <SummaryCard
+                        items={[
+                            { value: engagementRatios.totals.posts, label: 'Posts' },
+                            { value: engagementRatios.totals.views, label: 'Views' },
+                            { value: engagementRatios.totals.interactions, label: 'Interactions' },
+                        ]}
+                    />
                 </View>
             </ScrollView>
         );

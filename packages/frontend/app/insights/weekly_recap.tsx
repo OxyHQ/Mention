@@ -18,7 +18,7 @@ import { statisticsService, UserStatistics } from '@/services/statisticsService'
 import { useTranslation } from 'react-i18next';
 import { useOxy } from '@oxyhq/services';
 import Avatar from '@/components/Avatar';
-import MiniChart from '@/components/MiniChart';
+import StatCard from '@/components/insights/StatCard';
 
 const { width } = Dimensions.get('window');
 
@@ -165,64 +165,6 @@ const WeeklyRecapScreen: React.FC = () => {
         return num.toString();
     };
 
-    const darkenColor = (color: string, amount: number = 0.3): string => {
-        // Handle colors with opacity (like "#FF000080")
-        if (color.length === 9) {
-            // Extract RGB and alpha
-            const hex = color.substring(0, 7);
-            const alpha = color.substring(7, 9);
-            
-            // Parse RGB values
-            const r = parseInt(hex.substring(1, 3), 16);
-            const g = parseInt(hex.substring(3, 5), 16);
-            const b = parseInt(hex.substring(5, 7), 16);
-            
-            // Darken by reducing RGB values
-            const darkenedR = Math.max(0, Math.floor(r * (1 - amount)));
-            const darkenedG = Math.max(0, Math.floor(g * (1 - amount)));
-            const darkenedB = Math.max(0, Math.floor(b * (1 - amount)));
-            
-            // Convert back to hex with alpha
-            return `#${darkenedR.toString(16).padStart(2, '0')}${darkenedG.toString(16).padStart(2, '0')}${darkenedB.toString(16).padStart(2, '0')}${alpha}`;
-        }
-        
-        // Handle standard hex colors (like "#FF0000")
-        const hex = color.replace('#', '');
-        
-        // Parse RGB values
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
-        
-        // Darken by reducing RGB values
-        const darkenedR = Math.max(0, Math.floor(r * (1 - amount)));
-        const darkenedG = Math.max(0, Math.floor(g * (1 - amount)));
-        const darkenedB = Math.max(0, Math.floor(b * (1 - amount)));
-        
-        // Convert back to hex
-        return `#${darkenedR.toString(16).padStart(2, '0')}${darkenedG.toString(16).padStart(2, '0')}${darkenedB.toString(16).padStart(2, '0')}`;
-    };
-
-    const getChangeIcon = (current: number, previous: number) => {
-        if (current > previous) return 'chevron-up';
-        if (current < previous) return 'chevron-down';
-        return 'remove';
-    };
-
-    const getChangeColor = (current: number, previous: number) => {
-        if (current > previous) {
-            // Use theme color for positive change
-            return theme.colors.primary;
-        }
-        if (current < previous) {
-            // Use theme color with lower opacity for decrease
-            return theme.colors.primary + '70';
-        }
-        // Use theme color with very low opacity for neutral
-        return theme.colors.primary + '50';
-    };
-
-
     if (loading) {
         return (
             <ThemedView style={styles.container}>
@@ -269,7 +211,6 @@ const WeeklyRecapScreen: React.FC = () => {
     const statCards = [
         {
             icon: 'document-text',
-            iconBg: theme.colors.primary + '20',
             iconColor: theme.colors.primary,
             title: 'Your activity',
             current: data.currentWeek.overview.totalPosts,
@@ -279,7 +220,6 @@ const WeeklyRecapScreen: React.FC = () => {
         },
         {
             icon: 'eye',
-            iconBg: theme.colors.primary + '20',
             iconColor: theme.colors.primary,
             title: 'Views',
             current: data.currentWeek.overview.totalViews,
@@ -289,7 +229,6 @@ const WeeklyRecapScreen: React.FC = () => {
         },
         {
             icon: 'chatbubble',
-            iconBg: theme.colors.primary + '20',
             iconColor: theme.colors.primary,
             title: 'Replies',
             current: data.currentWeek.interactions.replies,
@@ -299,7 +238,6 @@ const WeeklyRecapScreen: React.FC = () => {
         },
         {
             icon: 'person-add',
-            iconBg: theme.colors.primary + '20',
             iconColor: theme.colors.primary,
             title: 'New followers',
             current: data.newFollowers,
@@ -336,42 +274,21 @@ const WeeklyRecapScreen: React.FC = () => {
                 </View>
 
                 {/* Stats Cards - Full Width, Stacked */}
-                {statCards.map((card, index) => {
-                    const changeIcon = getChangeIcon(card.current, card.previous);
-                    const changeColor = getChangeColor(card.current, card.previous);
-                    const dayLabels = getDayLabels();
-
-                    return (
-                        <View key={index} style={[styles.statCard, { backgroundColor: theme.colors.primary + '08' }]}>
-                            <View style={styles.statCardTop}>
-                                <View style={styles.statCardTitleRow}>
-                                    <Ionicons name={card.icon as any} size={20} color={card.iconColor} style={styles.statIcon} />
-                                    <Text style={[styles.statCardTitle, { color: card.iconColor }]}>
-                                        {card.title}
-                                    </Text>
-                                </View>
-                            </View>
-                            <View style={styles.statCardContent}>
-                                <Text style={[styles.statCardValue, { color: '#000000' }]}>
-                                    {formatNumber(card.current)}{card.unit ? ` ${card.unit}` : ''}
-                                </Text>
-                                <View style={styles.previousRow}>
-                                    <Text style={[styles.previousText, { color: card.iconColor }]}>
-                                        Previous: {formatNumber(card.previous)}{card.unit ? ` ${card.unit}` : ''}
-                                    </Text>
-                                </View>
-                                <View style={styles.chartContainer}>
-                                    <MiniChart
-                                        values={card.chartData}
-                                        labels={dayLabels}
-                                        showLabels={true}
-                                        height={32}
-                                    />
-                                </View>
-                            </View>
-                        </View>
-                    );
-                })}
+                {statCards.map((card, index) => (
+                    <StatCard
+                        key={index}
+                        icon={card.icon}
+                        iconColor={card.iconColor}
+                        title={card.title}
+                        value={card.current}
+                        previous={card.previous}
+                        unit={card.unit}
+                        chartData={card.chartData}
+                        chartLabels={getDayLabels()}
+                        showChart={true}
+                        formatNumber={formatNumber}
+                    />
+                ))}
 
                 {/* Weekly Tip Section */}
                 <View style={[styles.tipCard, { backgroundColor: theme.colors.primary + '08' }]}>
@@ -437,61 +354,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         paddingHorizontal: 20,
         lineHeight: 20,
-    },
-    // Stats Cards - Full Width, Stacked
-    statCard: {
-        width: '100%',
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
-    },
-    statCardTop: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    statCardTitleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    statIcon: {
-        marginRight: 10,
-    },
-    statCardContent: {
-        flex: 1,
-    },
-    statCardTitle: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    statCardValue: {
-        fontSize: 32,
-        fontWeight: '900',
-        marginBottom: 8,
-        letterSpacing: -0.3,
-    },
-    previousRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    previousText: {
-        fontSize: 12,
-    },
-    chartContainer: {
-        width: '100%',
-        marginTop: 12,
     },
     // Tip Section
     tipCard: {
