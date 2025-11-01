@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, Dimensions, Pressable, FlatList, Platform, Alert } from 'react-native';
+import { StyleSheet, View, Text, Dimensions, Pressable, FlatList, Platform, Alert, Share } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
@@ -8,7 +8,6 @@ import { useOxy } from '@oxyhq/services';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import { usePostsStore } from '@/stores/postsStore';
 import { useUsersStore } from '@/stores/usersStore';
 import { feedService } from '@/services/feedService';
@@ -538,7 +537,7 @@ const VideosScreen: React.FC = () => {
         }
     }, [repostPost, unrepostPost]);
 
-    // Handle share using Expo Sharing
+    // Handle share using React Native Share API (cross-platform, supports text)
     const handleShare = useCallback(async (post: VideoPost) => {
         try {
             const postUrl = `https://mention.earth/p/${post.id}`;
@@ -551,28 +550,37 @@ const VideosScreen: React.FC = () => {
                 ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
                 : `${name}${handle ? ` (@${handle})` : ''} ${t('videos.shared_a_post')}`;
 
-            // Use Expo Sharing API - works on all platforms including web
-            const isAvailable = await Sharing.isAvailableAsync();
-            if (isAvailable) {
-                // Share the message with URL - combine them for better sharing experience
-                const shareContent = `${shareMessage}\n\n${postUrl}`;
-                await Sharing.shareAsync(shareContent, {
-                    dialogTitle: `${name} on Mention`,
-                    mimeType: 'text/plain',
-                    UTI: 'public.plain-text'
-                });
-            } else {
-                // Fallback for when sharing is not available
-                if (Platform.OS === 'web' && navigator.clipboard) {
+            // Use React Native Share API - works on all platforms
+            // For web, this uses the Web Share API if available
+            if (Platform.OS === 'web') {
+                // Try Web Share API first (supports text and URL separately)
+                if (navigator.share) {
+                    await navigator.share({
+                        title: `${name} on Mention`,
+                        text: shareMessage,
+                        url: postUrl
+                    });
+                } else if (navigator.clipboard) {
+                    // Fallback to clipboard
                     await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
                     Alert.alert(t('videos.link_copied'), t('videos.link_copied_to_clipboard'));
                 } else {
                     Alert.alert(t('videos.sharing_not_available'), t('videos.copy_link_manually'));
                 }
+            } else {
+                // Native platforms - use React Native Share API
+                await Share.share({
+                    message: `${shareMessage}\n\n${postUrl}`,
+                    url: postUrl,
+                    title: `${name} on Mention`
+                });
             }
         } catch (error) {
             console.error('Error sharing post:', error);
-            Alert.alert(t('common.error'), t('videos.share_failed'));
+            // User cancelled is not an error
+            if ((error as any)?.message !== 'User did not share' && (error as any)?.code !== 'ERR_SHARE_CANCELLED') {
+                Alert.alert(t('common.error'), t('videos.share_failed'));
+            }
         }
     }, [t]);
 
