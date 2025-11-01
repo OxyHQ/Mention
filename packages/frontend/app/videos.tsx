@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import LoadingTopSpinner from '@/components/LoadingTopSpinner';
+import Avatar from '@/components/Avatar';
 
 const windowHeight = Dimensions.get('window').height;
 
@@ -49,6 +50,8 @@ const VideoItem: React.FC<{
     globalMuted: boolean;
     onMuteChange: (muted: boolean) => void;
 }> = ({ item, index, isVisible, theme, onLike, formatCount, globalMuted, onMuteChange }) => {
+    const { oxyServices } = useOxy();
+
     // Create player instance - each video gets its own unique player
     // Use the video URL and item ID as part of the key to ensure unique instances
     const player = useVideoPlayer(item.videoUrl || '', (player) => {
@@ -213,11 +216,24 @@ const VideoItem: React.FC<{
                 {/* Bottom user info */}
                 <View style={styles.bottomInfo}>
                     <View style={styles.userInfo}>
-                        <View style={styles.userHandleContainer}>
-                            <Text style={styles.userHandle}>@{item.user?.handle || 'unknown'}</Text>
-                            {item.user?.verified ? (
-                                <Ionicons name="checkmark-circle" size={18} color="#1DA1F2" style={styles.verifiedIcon} />
-                            ) : null}
+                        <View style={styles.userHeader}>
+                            <Avatar
+                                source={item.user?.avatar ? oxyServices?.getFileDownloadUrl(item.user.avatar) : undefined}
+                                size={48}
+                                verified={item.user?.verified || false}
+                                style={styles.userAvatar}
+                            />
+                            <View style={styles.userNameContainer}>
+                                <View style={styles.userNameRow}>
+                                    <Text style={styles.userFullName} numberOfLines={1}>
+                                        {item.user?.name || ''}
+                                    </Text>
+                                    {item.user?.verified ? (
+                                        <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" style={styles.verifiedIcon} />
+                                    ) : null}
+                                </View>
+                                <Text style={styles.userHandle}>@{item.user?.handle || 'unknown'}</Text>
+                            </View>
                         </View>
                         {item.content?.text && item.content.text.trim() ? (
                             <Text style={styles.postText} numberOfLines={3}>
@@ -675,17 +691,38 @@ const styles = StyleSheet.create({
         zIndex: 6,
     },
     userInfo: {
-        gap: 8,
+        gap: 10,
     },
-    userHandleContainer: {
+    userHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    userAvatar: {
+        borderWidth: 2,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
+    userNameContainer: {
+        flex: 1,
+        gap: 4,
+    },
+    userNameRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
     },
-    userHandle: {
+    userFullName: {
         color: 'white',
         fontSize: 16,
         fontWeight: '700',
+        textShadowColor: 'rgba(0, 0, 0, 0.8)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 3,
+    },
+    userHandle: {
+        color: 'rgba(255, 255, 255, 0.85)',
+        fontSize: 14,
+        fontWeight: '600',
         textShadowColor: 'rgba(0, 0, 0, 0.8)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 3,
