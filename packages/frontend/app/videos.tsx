@@ -63,7 +63,7 @@ const VideoItem: React.FC<{
     // Use the video URL and item ID as part of the key to ensure unique instances
     const player = useVideoPlayer(item.videoUrl || '', (player) => {
         if (player) {
-            player.loop = false;
+            player.loop = true; // Loop videos like TikTok/Instagram Reels
             // Start muted for autoplay (browser policy requires this)
             player.muted = true;
         }
