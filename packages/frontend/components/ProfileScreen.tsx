@@ -629,7 +629,7 @@ const MentionProfile: React.FC = () => {
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                onPress={() => router.push('/statistics')}
+                                                onPress={() => router.push('/insights')}
                                             >
                                                 <Ionicons name="stats-chart-outline" size={20} color={theme.colors.text} />
                                             </TouchableOpacity>

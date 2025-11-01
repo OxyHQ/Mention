@@ -20,6 +20,8 @@ import { useOxy } from '@oxyhq/services';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
 import { UIPost } from '@mention/shared-types';
+import MiniChart from '@/components/MiniChart';
+import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 
 const { width } = Dimensions.get('window');
 
@@ -103,10 +105,10 @@ const InsightsScreen: React.FC = () => {
             <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Summary Stats */}
                 <View style={styles.summarySection}>
-                    <View style={[styles.summaryCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <View style={[styles.summaryCard, { backgroundColor: theme.colors.primary + '08' }]}>
                         <View style={styles.summaryRow}>
                             <View style={styles.summaryItem}>
-                                <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
+                                <Text style={[styles.summaryValue, { color: '#000000' }]}>
                                     {formatNumber(stats.overview.totalPosts)}
                                 </Text>
                                 <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
@@ -126,17 +128,26 @@ const InsightsScreen: React.FC = () => {
                                 <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Interactions</Text>
                             </View>
                         </View>
+                        {stats.dailyBreakdown && stats.dailyBreakdown.length > 0 && (
+                            <View style={styles.summaryChart}>
+                                <MiniChart
+                                    values={stats.dailyBreakdown.slice(-7).map(d => d.views)}
+                                    showLabels={true}
+                                    height={40}
+                                />
+                            </View>
+                        )}
                     </View>
                 </View>
 
                 {/* Engagement Rate - Hero Card */}
-                <View style={[styles.heroCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <View style={[styles.heroCard, { backgroundColor: theme.colors.primary + '08' }]}>
                     <View style={styles.heroHeader}>
                         <Ionicons name="trending-up" size={24} color={theme.colors.primary} />
-                        <Text style={[styles.heroTitle, { color: theme.colors.text }]}>Engagement Rate</Text>
+                        <Text style={[styles.heroTitle, { color: theme.colors.primary }]}>Engagement Rate</Text>
                     </View>
                     <View style={styles.heroContent}>
-                        <Text style={[styles.heroValue, { color: theme.colors.primary }]}>
+                        <Text style={[styles.heroValue, { color: '#000000' }]}>
                             {stats.overview.engagementRate.toFixed(2)}%
                         </Text>
                         <Text style={[styles.heroSubtext, { color: theme.colors.textSecondary }]}>
@@ -149,11 +160,11 @@ const InsightsScreen: React.FC = () => {
                 <View style={styles.interactionsSection}>
                     <View style={styles.sectionHeaderRow}>
                         <Ionicons name="heart" size={20} color={theme.colors.primary} />
-                        <Text style={[styles.sectionHeader, { color: theme.colors.text, marginLeft: 8 }]}>
+                        <Text style={[styles.sectionHeader, { color: theme.colors.primary, marginLeft: 8 }]}>
                             Interactions
                         </Text>
                     </View>
-                    <View style={[styles.interactionsCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <View style={[styles.interactionsCard, { backgroundColor: theme.colors.primary + '08' }]}>
                         <View style={styles.interactionsRow}>
                             <View style={styles.interactionItem}>
                                 <View style={styles.interactionIconWrapper}>
@@ -162,7 +173,7 @@ const InsightsScreen: React.FC = () => {
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
-                                    <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
+                                    <Text style={[styles.interactionValue, { color: '#000000' }]}>
                                         {formatNumber(stats.interactions.likes)}
                                     </Text>
                                     <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Likes</Text>
@@ -181,7 +192,7 @@ const InsightsScreen: React.FC = () => {
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
-                                    <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
+                                    <Text style={[styles.interactionValue, { color: '#000000' }]}>
                                         {formatNumber(stats.interactions.replies)}
                                     </Text>
                                     <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Replies</Text>
@@ -204,7 +215,7 @@ const InsightsScreen: React.FC = () => {
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
-                                    <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
+                                    <Text style={[styles.interactionValue, { color: '#000000' }]}>
                                         {formatNumber(stats.interactions.reposts)}
                                     </Text>
                                     <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Reposts</Text>
@@ -223,7 +234,7 @@ const InsightsScreen: React.FC = () => {
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
-                                    <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
+                                    <Text style={[styles.interactionValue, { color: '#000000' }]}>
                                         {formatNumber(stats.interactions.shares)}
                                     </Text>
                                     <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Shares</Text>
@@ -243,7 +254,7 @@ const InsightsScreen: React.FC = () => {
                     <View style={styles.topPostsSection}>
                         <View style={styles.sectionHeaderRow}>
                             <Ionicons name="trophy" size={20} color={theme.colors.primary} />
-                            <Text style={[styles.sectionHeader, { color: theme.colors.text, marginLeft: 8 }]}>
+                            <Text style={[styles.sectionHeader, { color: theme.colors.primary, marginLeft: 8 }]}>
                                 Top Performing Posts
                             </Text>
                         </View>
@@ -290,11 +301,11 @@ const InsightsScreen: React.FC = () => {
                     <View style={styles.typeSection}>
                         <View style={styles.sectionHeaderRow}>
                             <Ionicons name="grid" size={20} color={theme.colors.primary} />
-                            <Text style={[styles.sectionHeader, { color: theme.colors.text, marginLeft: 8 }]}>
+                            <Text style={[styles.sectionHeader, { color: theme.colors.primary, marginLeft: 8 }]}>
                                 Posts by Type
                             </Text>
                         </View>
-                        <View style={[styles.typeCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View style={[styles.typeCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             {Object.entries(stats.postsByType).map(([type, count], index, array) => (
                                 <View key={type}>
                                     <View style={styles.typeRow}>
@@ -333,13 +344,13 @@ const InsightsScreen: React.FC = () => {
         return (
             <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Overall Engagement */}
-                <View style={[styles.heroCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <View style={[styles.heroCard, { backgroundColor: theme.colors.primary + '08' }]}>
                     <View style={styles.heroHeader}>
                         <Ionicons name="stats-chart" size={24} color={theme.colors.primary} />
-                        <Text style={[styles.heroTitle, { color: theme.colors.text }]}>Overall Engagement</Text>
+                        <Text style={[styles.heroTitle, { color: theme.colors.primary }]}>Overall Engagement</Text>
                     </View>
                     <View style={styles.heroContent}>
-                        <Text style={[styles.heroValue, { color: theme.colors.primary }]}>
+                        <Text style={[styles.heroValue, { color: '#000000' }]}>
                             {engagementRatios.ratios.engagementRate.toFixed(2)}%
                         </Text>
                         <Text style={[styles.heroSubtext, { color: theme.colors.textSecondary }]}>
@@ -350,44 +361,44 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Engagement Ratios */}
                 <View style={styles.ratiosSection}>
-                    <Text style={[styles.sectionHeader, { color: theme.colors.text }]}>Engagement Ratios</Text>
+                    <Text style={[styles.sectionHeader, { color: theme.colors.primary }]}>Engagement Ratios</Text>
                     <View style={styles.ratiosGrid}>
-                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="heart" size={18} color="#FF3040" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>Like Rate</Text>
+                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Like Rate</Text>
                             </View>
-                            <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
+                            <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.likeRate.toFixed(2)}%
                             </Text>
                         </View>
 
-                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="chatbubble" size={18} color="#3B82F6" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>Reply Rate</Text>
+                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Reply Rate</Text>
                             </View>
-                            <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
+                            <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.replyRate.toFixed(2)}%
                             </Text>
                         </View>
 
-                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="repeat" size={18} color="#10B981" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>Repost Rate</Text>
+                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Repost Rate</Text>
                             </View>
-                            <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
+                            <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.repostRate.toFixed(2)}%
                             </Text>
                         </View>
 
-                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
                                 <Ionicons name="share-social" size={18} color="#8B5CF6" />
-                                <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>Share Rate</Text>
+                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Share Rate</Text>
                             </View>
-                            <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
+                            <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.shareRate.toFixed(2)}%
                             </Text>
                         </View>
@@ -396,9 +407,9 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Averages */}
                 <View style={styles.averagesSection}>
-                    <Text style={[styles.sectionHeader, { color: theme.colors.text }]}>Averages</Text>
+                    <Text style={[styles.sectionHeader, { color: theme.colors.primary }]}>Averages</Text>
                     <View style={styles.averagesGrid}>
-                        <View style={[styles.averageCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View style={[styles.averageCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.averageHeader}>
                                 <Ionicons name="eye" size={20} color={theme.colors.primary} />
                                 <Text style={[styles.averageLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
@@ -425,11 +436,11 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Totals Summary */}
                 <View style={styles.totalsSection}>
-                    <Text style={[styles.sectionHeader, { color: theme.colors.text }]}>Total Activity</Text>
-                    <View style={[styles.totalsCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <Text style={[styles.sectionHeader, { color: theme.colors.primary }]}>Total Activity</Text>
+                    <View style={[styles.totalsCard, { backgroundColor: theme.colors.primary + '08' }]}>
                         <View style={styles.totalsRow}>
                             <View style={styles.totalItem}>
-                                <Text style={[styles.totalValue, { color: theme.colors.text }]}>
+                                <Text style={[styles.totalValue, { color: '#000000' }]}>
                                     {formatNumber(engagementRatios.totals.posts)}
                                 </Text>
                                 <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
@@ -498,62 +509,14 @@ const InsightsScreen: React.FC = () => {
             </View>
 
             {/* Tabs */}
-            <View style={[styles.tabs, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <TouchableOpacity
-                    style={[
-                        styles.tab,
-                        activeTab === 'overview' && [
-                            styles.activeTab,
-                            { borderBottomColor: theme.colors.primary }
-                        ]
-                    ]}
-                    onPress={() => setActiveTab('overview')}
-                >
-                    <Ionicons 
-                        name={activeTab === 'overview' ? 'grid' : 'grid-outline'} 
-                        size={18} 
-                        color={activeTab === 'overview' ? theme.colors.primary : theme.colors.textSecondary} 
-                    />
-                    <Text
-                        style={[
-                            styles.tabText,
-                            {
-                                color: activeTab === 'overview' ? theme.colors.primary : theme.colors.textSecondary,
-                                marginLeft: 6
-                            }
-                        ]}
-                    >
-                        Overview
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[
-                        styles.tab,
-                        activeTab === 'engagement' && [
-                            styles.activeTab,
-                            { borderBottomColor: theme.colors.primary }
-                        ]
-                    ]}
-                    onPress={() => setActiveTab('engagement')}
-                >
-                    <Ionicons 
-                        name={activeTab === 'engagement' ? 'stats-chart' : 'stats-chart-outline'} 
-                        size={18} 
-                        color={activeTab === 'engagement' ? theme.colors.primary : theme.colors.textSecondary} 
-                    />
-                    <Text
-                        style={[
-                            styles.tabText,
-                            {
-                                color: activeTab === 'engagement' ? theme.colors.primary : theme.colors.textSecondary,
-                                marginLeft: 6
-                            }
-                        ]}
-                    >
-                        Engagement
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            <AnimatedTabBar
+                tabs={[
+                    { id: 'overview', label: 'Overview' },
+                    { id: 'engagement', label: 'Engagement' }
+                ]}
+                activeTabId={activeTab}
+                onTabPress={(tabId) => setActiveTab(tabId as 'overview' | 'engagement')}
+            />
 
             {/* Content */}
             {loading ? (
@@ -615,27 +578,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
     },
-    tabs: {
-        flexDirection: 'row',
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-    },
-    tab: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 12,
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
-    },
-    activeTab: {
-        borderBottomWidth: 2,
-    },
-    tabText: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
     scrollContent: {
         flex: 1,
         padding: 12,
@@ -680,12 +622,15 @@ const styles = StyleSheet.create({
     },
     summaryValue: {
         fontSize: 20,
-        fontWeight: '700',
+        fontWeight: '900',
         marginBottom: 2,
     },
     summaryLabel: {
         fontSize: 12,
         fontWeight: '500',
+    },
+    summaryChart: {
+        marginTop: 16,
     },
     // Hero Card
     heroCard: {
@@ -719,7 +664,7 @@ const styles = StyleSheet.create({
     },
     heroValue: {
         fontSize: 36,
-        fontWeight: '700',
+        fontWeight: '900',
         letterSpacing: -0.5,
     },
     heroSubtext: {
@@ -775,7 +720,7 @@ const styles = StyleSheet.create({
     },
     interactionValue: {
         fontSize: 18,
-        fontWeight: '700',
+        fontWeight: '900',
         marginBottom: 2,
     },
     interactionLabel: {
@@ -973,7 +918,7 @@ const styles = StyleSheet.create({
     },
     ratioValue: {
         fontSize: 24,
-        fontWeight: '700',
+        fontWeight: '900',
     },
     // Averages Section
     averagesSection: {
@@ -1050,7 +995,7 @@ const styles = StyleSheet.create({
     },
     totalValue: {
         fontSize: 18,
-        fontWeight: '700',
+        fontWeight: '900',
         marginBottom: 2,
     },
     totalLabel: {
