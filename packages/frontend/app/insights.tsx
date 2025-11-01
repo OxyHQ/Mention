@@ -134,8 +134,8 @@ const InsightsScreen: React.FC = () => {
                         <View style={styles.interactionsRow}>
                             <View style={styles.interactionItem}>
                                 <View style={styles.interactionIconWrapper}>
-                                    <View style={[styles.interactionIconBg, { backgroundColor: 'rgba(255, 48, 64, 0.15)' }]}>
-                                        <Ionicons name="heart" size={18} color="#FF3040" />
+                                    <View style={[styles.interactionIconBg, { backgroundColor: theme.colors.primary + '20' }]}>
+                                        <Ionicons name="heart" size={18} color={theme.colors.primary} />
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
@@ -153,8 +153,8 @@ const InsightsScreen: React.FC = () => {
 
                             <View style={styles.interactionItem}>
                                 <View style={styles.interactionIconWrapper}>
-                                    <View style={[styles.interactionIconBg, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
-                                        <Ionicons name="chatbubble" size={18} color="#3B82F6" />
+                                    <View style={[styles.interactionIconBg, { backgroundColor: theme.colors.primary + '20' }]}>
+                                        <Ionicons name="chatbubble" size={18} color={theme.colors.primary} />
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
@@ -176,8 +176,8 @@ const InsightsScreen: React.FC = () => {
                         <View style={styles.interactionsRow}>
                             <View style={styles.interactionItem}>
                                 <View style={styles.interactionIconWrapper}>
-                                    <View style={[styles.interactionIconBg, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                                        <Ionicons name="repeat" size={18} color="#10B981" />
+                                    <View style={[styles.interactionIconBg, { backgroundColor: theme.colors.primary + '20' }]}>
+                                        <Ionicons name="repeat" size={18} color={theme.colors.primary} />
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
@@ -195,8 +195,8 @@ const InsightsScreen: React.FC = () => {
 
                             <View style={styles.interactionItem}>
                                 <View style={styles.interactionIconWrapper}>
-                                    <View style={[styles.interactionIconBg, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
-                                        <Ionicons name="share-social" size={18} color="#8B5CF6" />
+                                    <View style={[styles.interactionIconBg, { backgroundColor: theme.colors.primary + '20' }]}>
+                                        <Ionicons name="share-social" size={18} color={theme.colors.primary} />
                                     </View>
                                 </View>
                                 <View style={styles.interactionContent}>
@@ -313,8 +313,8 @@ const InsightsScreen: React.FC = () => {
                     <View style={styles.ratiosGrid}>
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
-                                <Ionicons name="heart" size={18} color="#FF3040" />
-                                <Text style={[styles.ratioLabel, { color: '#FF3040', marginLeft: 8 }]}>Like Rate</Text>
+                                <Ionicons name="heart" size={18} color={theme.colors.primary} />
+                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Like Rate</Text>
                             </View>
                             <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.likeRate.toFixed(2)}%
@@ -323,8 +323,8 @@ const InsightsScreen: React.FC = () => {
 
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
-                                <Ionicons name="chatbubble" size={18} color="#3B82F6" />
-                                <Text style={[styles.ratioLabel, { color: '#3B82F6', marginLeft: 8 }]}>Reply Rate</Text>
+                                <Ionicons name="chatbubble" size={18} color={theme.colors.primary} />
+                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Reply Rate</Text>
                             </View>
                             <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.replyRate.toFixed(2)}%
@@ -333,8 +333,8 @@ const InsightsScreen: React.FC = () => {
 
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
-                                <Ionicons name="repeat" size={18} color="#10B981" />
-                                <Text style={[styles.ratioLabel, { color: '#10B981', marginLeft: 8 }]}>Repost Rate</Text>
+                                <Ionicons name="repeat" size={18} color={theme.colors.primary} />
+                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Repost Rate</Text>
                             </View>
                             <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.repostRate.toFixed(2)}%
@@ -343,8 +343,8 @@ const InsightsScreen: React.FC = () => {
 
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.ratioHeader}>
-                                <Ionicons name="share-social" size={18} color="#8B5CF6" />
-                                <Text style={[styles.ratioLabel, { color: '#8B5CF6', marginLeft: 8 }]}>Share Rate</Text>
+                                <Ionicons name="share-social" size={18} color={theme.colors.primary} />
+                                <Text style={[styles.ratioLabel, { color: theme.colors.primary, marginLeft: 8 }]}>Share Rate</Text>
                             </View>
                             <Text style={[styles.ratioValue, { color: '#000000' }]}>
                                 {engagementRatios.ratios.shareRate.toFixed(2)}%
@@ -359,8 +359,8 @@ const InsightsScreen: React.FC = () => {
                     <View style={styles.averagesGrid}>
                         <View style={[styles.averageCard, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.averageHeader}>
-                                <Ionicons name="eye" size={20} color={theme.colors.textSecondary} />
-                                <Text style={[styles.averageLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                                <Ionicons name="eye" size={20} color={theme.colors.primary} />
+                                <Text style={[styles.averageLabel, { color: theme.colors.primary, marginLeft: 8 }]}>
                                     Views per Post
                                 </Text>
                             </View>
@@ -370,8 +370,8 @@ const InsightsScreen: React.FC = () => {
                         </View>
                         <View style={[styles.averageCard, styles.averageCardLast, { backgroundColor: theme.colors.primary + '08' }]}>
                             <View style={styles.averageHeader}>
-                                <Ionicons name="trending-up" size={20} color={theme.colors.textSecondary} />
-                                <Text style={[styles.averageLabel, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                                <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
+                                <Text style={[styles.averageLabel, { color: theme.colors.primary, marginLeft: 8 }]}>
                                     Engagement per Post
                                 </Text>
                             </View>

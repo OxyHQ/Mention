@@ -112,35 +112,76 @@ const WeeklyRecapScreen: React.FC = () => {
             const currentWeekDates = getWeekDates(0);
             const previousWeekDates = getWeekDates(1);
             
-            // Calculate days for each week
-            const daysDiff = Math.ceil((currentWeekDates.end.getTime() - currentWeekDates.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-            const prevDaysDiff = Math.ceil((previousWeekDates.end.getTime() - previousWeekDates.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+            // Calculate days for each week (7 days per week)
+            const daysDiff = 7;
+            const prevDaysDiff = 7;
 
             // Fetch statistics for both weeks
-            const [currentWeekStats, previousWeekStats] = await Promise.all([
-                statisticsService.getUserStatistics(daysDiff),
-                statisticsService.getUserStatistics(prevDaysDiff + daysDiff).then(stats => {
-                    // Extract previous week data from the combined period
-                    return {
-                        ...stats,
-                        overview: {
-                            ...stats.overview,
-                            // Approximate previous week data (simplified)
-                            totalPosts: Math.max(0, stats.overview.totalPosts - stats.overview.totalPosts * 0.5),
-                            totalViews: Math.max(0, stats.overview.totalViews - stats.overview.totalViews * 0.5),
-                            totalInteractions: Math.max(0, stats.overview.totalInteractions - stats.overview.totalInteractions * 0.5),
-                        },
-                        interactions: {
-                            ...stats.interactions,
-                            replies: Math.max(0, stats.interactions.replies - stats.interactions.replies * 0.5),
-                        }
-                    };
-                })
+            // Fetch 14 days total, then split into current week (last 7) and previous week (first 7)
+            const [combinedStats, followerChanges] = await Promise.all([
+                statisticsService.getUserStatistics(14), // Get last 14 days
+                statisticsService.getFollowerChanges(14).catch(() => null), // Get last 14 days for follower changes
             ]);
 
-            // Placeholder for follower data (would need API endpoint)
-            const newFollowers = 0;
-            const previousFollowers = 0;
+            // Split daily breakdown into current and previous weeks
+            const dailyBreakdown = combinedStats.dailyBreakdown || [];
+            const previousWeekBreakdown = dailyBreakdown.slice(0, 7); // First 7 days (older)
+            const currentWeekBreakdown = dailyBreakdown.slice(-7); // Last 7 days (newer)
+
+            // Calculate current week stats from daily breakdown
+            const currentWeekStats: UserStatistics = {
+                ...combinedStats,
+                dailyBreakdown: currentWeekBreakdown,
+                overview: {
+                    ...combinedStats.overview,
+                    totalPosts: combinedStats.overview.totalPosts, // Will be filtered by date range if API supports it
+                    totalViews: currentWeekBreakdown.reduce((sum, day) => sum + day.views, 0),
+                    totalInteractions: currentWeekBreakdown.reduce((sum, day) => sum + day.interactions, 0),
+                    engagementRate: combinedStats.overview.engagementRate,
+                    averageEngagementPerPost: combinedStats.overview.averageEngagementPerPost,
+                },
+                interactions: {
+                    likes: currentWeekBreakdown.reduce((sum, day) => sum + day.likes, 0),
+                    replies: currentWeekBreakdown.reduce((sum, day) => sum + day.replies, 0),
+                    reposts: currentWeekBreakdown.reduce((sum, day) => sum + day.reposts, 0),
+                    shares: combinedStats.interactions.shares, // Shares might not be in daily breakdown
+                },
+            };
+
+            // Calculate previous week stats from daily breakdown
+            const previousWeekStats: UserStatistics = {
+                ...combinedStats,
+                dailyBreakdown: previousWeekBreakdown,
+                overview: {
+                    ...combinedStats.overview,
+                    totalPosts: combinedStats.overview.totalPosts, // Will be filtered by date range if API supports it
+                    totalViews: previousWeekBreakdown.reduce((sum, day) => sum + day.views, 0),
+                    totalInteractions: previousWeekBreakdown.reduce((sum, day) => sum + day.interactions, 0),
+                    engagementRate: combinedStats.overview.engagementRate,
+                    averageEngagementPerPost: combinedStats.overview.averageEngagementPerPost,
+                },
+                interactions: {
+                    likes: previousWeekBreakdown.reduce((sum, day) => sum + day.likes, 0),
+                    replies: previousWeekBreakdown.reduce((sum, day) => sum + day.replies, 0),
+                    reposts: previousWeekBreakdown.reduce((sum, day) => sum + day.reposts, 0),
+                    shares: combinedStats.interactions.shares, // Shares might not be in daily breakdown
+                },
+            };
+
+            // Extract follower data from followerChanges if available
+            let newFollowers = 0;
+            let previousFollowers = 0;
+            
+            if (followerChanges && followerChanges.followerChanges) {
+                const changes = followerChanges.followerChanges;
+                // Current week followers (last 7 days)
+                const currentWeekChanges = changes.slice(-7);
+                newFollowers = currentWeekChanges.reduce((sum, change) => sum + Math.max(0, change.change), 0);
+                
+                // Previous week followers (days 8-14)
+                const previousWeekChanges = changes.slice(0, 7);
+                previousFollowers = previousWeekChanges.reduce((sum, change) => sum + Math.max(0, change.change), 0);
+            }
 
             setData({
                 currentWeek: currentWeekStats,
