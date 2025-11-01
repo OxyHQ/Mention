@@ -238,10 +238,10 @@ export class FeedRankingService {
     // Post type preference
     if (userBehavior.preferredPostTypes) {
       const postType = post.type?.toLowerCase() || 'text';
-      const typeCount = userBehavior.preferredPostTypes[postType] || 0;
-      const totalTypes = Object.values(userBehavior.preferredPostTypes).reduce(
-        (a: number, b: number) => a + b, 0
-      );
+      const typeCount: number = (userBehavior.preferredPostTypes[postType as keyof typeof userBehavior.preferredPostTypes] as number) || 0;
+      const totalTypes: number = Object.values(userBehavior.preferredPostTypes).reduce(
+        (a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0
+      ) as number;
       
       if (totalTypes > 0 && typeCount > 0) {
         const typePreference = typeCount / totalTypes;

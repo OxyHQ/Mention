@@ -66,6 +66,7 @@ const VideoItem: React.FC<{
     // Track local muted state - sync with global state
     const [isMuted, setIsMuted] = React.useState(globalMuted);
     const [hasUserInteracted, setHasUserInteracted] = React.useState(false);
+    const [videoError, setVideoError] = React.useState(false);
 
     // Sync with global muted state
     React.useEffect(() => {
@@ -177,7 +178,7 @@ const VideoItem: React.FC<{
 
     return (
         <View style={styles.videoContainer} key={`video-container-${item.id}-${index}`}>
-            {item.videoUrl && player ? (
+            {item.videoUrl && player && !videoError ? (
                 <VideoView
                     key={videoKey}
                     player={player}
@@ -191,6 +192,11 @@ const VideoItem: React.FC<{
             ) : (
                 <View style={[styles.video, { backgroundColor: theme.colors.backgroundSecondary, justifyContent: 'center', alignItems: 'center' }]}>
                     <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
+                    {videoError && (
+                        <Text style={{ color: theme.colors.textSecondary, marginTop: 8, fontSize: 12 }}>
+                            Video unavailable
+                        </Text>
+                    )}
                 </View>
             )}
 
@@ -331,27 +337,38 @@ const VideosScreen: React.FC = () => {
 
                 // Post should have:
                 // 1. Exactly ONE video AND no other media (totalMediaCount === 1 AND videoCount === 1)
-                // OR
-                // 2. Only ONE media ID total (which we'll assume is a video)
+                // Only include posts with explicit video type - don't assume single mediaId is a video
                 const hasOnlyOneMedia = totalMediaCount === 1 && videoCount === 1;
-                const hasOnlyOneMediaId = totalMediaIdsCount === 1 && totalMediaCount <= 1;
 
-                return hasOnlyOneMedia || hasOnlyOneMediaId;
+                // Also check if videoMedia exists even if media array structure is different
+                const hasVideoMedia = media.some((m: any) => m?.type === 'video');
+
+                return hasOnlyOneMedia || (hasVideoMedia && videoCount === 1);
             })
             .map((post: any) => {
                 const media = post?.content?.media || [];
                 const mediaIds = post?.mediaIds || post?.allMediaIds || [];
                 const videoMedia = media.find((m: any) => m?.type === 'video');
 
-                // Get video URL
+                // Get video URL - only from explicit video media, not from media IDs
                 let videoUrl = videoMedia?.id;
-                if (mediaIds.length === 1 && !videoUrl) {
+
+                // If we have a videoMedia with a URL property, use that instead
+                if (videoMedia?.url) {
+                    videoUrl = videoMedia.url;
+                }
+
+                // Only use mediaIds if we have explicit video type confirmation
+                if (!videoUrl && mediaIds.length === 1 && videoMedia) {
                     videoUrl = mediaIds[0];
                 }
 
                 // Resolve URL using Oxy services
                 if (videoUrl && oxyServices?.getFileDownloadUrl) {
-                    videoUrl = oxyServices.getFileDownloadUrl(videoUrl);
+                    // Only resolve if it's not already a full URL
+                    if (!videoUrl.startsWith('http://') && !videoUrl.startsWith('https://')) {
+                        videoUrl = oxyServices.getFileDownloadUrl(videoUrl);
+                    }
                 }
 
                 return {
