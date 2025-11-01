@@ -24,6 +24,11 @@ export function TrendsWidget() {
     router.push(href);
   };
 
+  // Don't render if there are no trends (and not loading, and no error)
+  if (!isLoading && !error && (!trends || trends.length === 0)) {
+    return null;
+  }
+
   return (
     <BaseWidget title={t('Trending')}>
       {isLoading ? (
