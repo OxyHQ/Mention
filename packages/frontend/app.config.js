@@ -85,6 +85,9 @@ return {
         },
         web: {
             bundler: "metro",
+            // Use "single" instead of "static" for monorepo compatibility
+            // "static" (SSR) has path resolution issues with npm workspaces in Expo 54
+            // "single" generates a client-side only SPA which works correctly
             output: "single",
             favicon: "./assets/images/favicon.png",
             manifest: "./public/manifest.json",
