@@ -29,10 +29,6 @@ return {
       scheme: 'mention',
       userInterfaceStyle: 'automatic',
       newArchEnabled: true,
-      entryPoint: "./expo-router/entry",
-      experiments: {
-        autolinkingModuleResolution: true,
-      },
       ios: {
         supportsTablet: true,
         bundleIdentifier: 'com.mention.ios',
@@ -89,7 +85,10 @@ return {
         },
         web: {
             bundler: "metro",
-            output: "static",
+            // Use "single" instead of "static" for monorepo compatibility
+            // "static" (SSR) has path resolution issues with npm workspaces in Expo 54
+            // "single" generates a client-side only SPA which works correctly
+            output: "single",
             favicon: "./assets/images/favicon.png",
             manifest: "./public/manifest.json",
             meta: {
