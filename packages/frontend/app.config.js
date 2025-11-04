@@ -29,10 +29,6 @@ return {
       scheme: 'mention',
       userInterfaceStyle: 'automatic',
       newArchEnabled: true,
-      entryPoint: "./expo-router/entry",
-      experiments: {
-        autolinkingModuleResolution: true,
-      },
       ios: {
         supportsTablet: true,
         bundleIdentifier: 'com.mention.ios',
@@ -89,7 +85,7 @@ return {
         },
         web: {
             bundler: "metro",
-            output: "static",
+            output: "single",
             favicon: "./assets/images/favicon.png",
             manifest: "./public/manifest.json",
             meta: {

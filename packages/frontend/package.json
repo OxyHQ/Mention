@@ -1,6 +1,6 @@
 {
   "name": "@mention/frontend",
-  "main": "expo-router/entry",
+  "main": "./index.js",
   "version": "2.0.0",
   "scripts": {
     "start": "expo start --reset-cache --tunnel --clear",
@@ -100,6 +100,7 @@
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@types/react": "~19.1.0",
     "autoprefixer": "^10.4.21",
+    "babel-plugin-module-resolver": "^5.0.2",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "eslint-plugin-unused-imports": "^4.1.4",
