@@ -1,31 +1,8 @@
-const path = require('path');
+// Learn more https://docs.expo.dev/guides/customizing-metro
 const { getDefaultConfig } = require('expo/metro-config');
 
-module.exports = (async () => {
-  const config = await getDefaultConfig(__dirname);
-  const { transformer, resolver } = config;
+/** @type {import('expo/metro-config').MetroConfig} */
+const config = getDefaultConfig(__dirname);
 
-  const svgTransformer = require.resolve('react-native-svg-transformer', {
-    paths: [__dirname, path.resolve(__dirname, '../../node_modules')],
-  });
+module.exports = config;
 
-  config.transformer = { ...transformer, babelTransformerPath: svgTransformer };
-  config.resolver = {
-    ...resolver,
-    assetExts: resolver.assetExts.filter(ext => ext !== 'svg'),
-    sourceExts: [...resolver.sourceExts, 'svg'],
-    nodeModulesPaths: [
-      path.resolve(__dirname, 'node_modules'),
-      path.resolve(__dirname, '../../node_modules'),
-    ],
-  };
-
-  config.watchFolders = [
-    path.resolve(__dirname, '../../node_modules'),
-  ];
-
-  try {
-    const { withNativeWind } = require('nativewind/metro');
-    return withNativeWind(config, { input: './styles/global.css' });
-  } catch { return config; }
-})();

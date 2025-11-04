@@ -328,7 +328,7 @@ const hexToRgb = (hex: string): string => {
 
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
-const VideosScreen: React.FC = () => {
+export default function VideosScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
@@ -744,9 +744,7 @@ const VideosScreen: React.FC = () => {
             )}
         </ThemedView>
     );
-};
-
-export default VideosScreen;
+}
 
 const styles = StyleSheet.create({
     container: {

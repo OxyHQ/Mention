@@ -1,7 +1,8 @@
+import { API_URL_SOCKET } from '@/config';
+import { FeedType } from '@mention/shared-types';
+import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
-import { FeedType } from '@mention/shared-types';
-import { API_URL_SOCKET } from '@/config';
 import { wasRecent } from './echoGuard';
 
 class SocketService {
@@ -11,6 +12,7 @@ class SocketService {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private currentUserId?: string;
+  private appStateSubscription: { remove: () => void } | null = null;
   // recentActions handled by echoGuard
 
   constructor() {
@@ -59,6 +61,11 @@ class SocketService {
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
+    }
+    // Clean up AppState listener
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
     }
   }
 
@@ -165,19 +172,20 @@ class SocketService {
    * Setup global event listeners
    */
   private setupEventListeners() {
-    // Handle app state changes
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', () => {
+    // Handle app state changes (React Native)
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        // App came to foreground - reconnect if needed
         if (!this.isConnected && this.socket) {
           this.socket.connect();
         }
-      });
-
-      window.addEventListener('blur', () => {
-        // Optionally disconnect when app is in background
+      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // App went to background - optionally disconnect
         // this.disconnect();
-      });
-    }
+      }
+    };
+
+    this.appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
   }
 
   /**

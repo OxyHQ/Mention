@@ -1,34 +1,18 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "esModuleInterop": true,
     "strict": true,
-    "composite": true,
-    "noEmit": false,
-    "skipLibCheck": true,
-    "baseUrl": ".",
-    "jsx": "react-jsx",
-    "jsxImportSource": "nativewind",
+    "jsx": "react-native",
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "@mention/shared-types": [
-        "../shared-types/src"
-      ],
-      "@mention/shared-types/*": [
-        "../shared-types/src/*"
       ]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    "nativewind-env.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../shared-types"
-    }
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ]
 }

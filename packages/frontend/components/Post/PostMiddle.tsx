@@ -2,7 +2,15 @@ import React, { useRef, useMemo, useCallback } from 'react';
 import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent, Dimensions, Pressable } from 'react-native';
 import PollCard from './PollCard';
 import { useOxy } from '@oxyhq/services';
-import PostItem from '../Feed/PostItem';
+// Dynamic import to break circular dependency: PostItem -> PostMiddle -> PostItem
+// Using a function to lazily require PostItem only when needed
+let PostItemComponent: React.ComponentType<any> | null = null;
+const getPostItem = () => {
+  if (!PostItemComponent) {
+    PostItemComponent = require('../Feed/PostItem').default;
+  }
+  return PostItemComponent;
+};
 import { useTheme } from '@/hooks/useTheme';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useRouter } from 'expo-router';
@@ -142,12 +150,13 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
           );
         }
         if (item.type === 'nested') {
-          // Render PostItem directly for instant loading (no lazy loading)
+          // Render PostItem with dynamic require to break circular dependency
           // Pass nesting depth to prevent infinite recursion
           // Use the measured ScrollView width minus the applied paddings
           const scrollerPaddingRight = 12; // from styles.scroller
           const scrollerPaddingLeft = Math.abs(leftOffset); // applied via contentContainerStyle
           const nestedWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
+          const PostItem = getPostItem();
           return (
             <View key={`nested-${idx}`} style={[styles.nestedContainer, { width: nestedWidth }]}>
               <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />

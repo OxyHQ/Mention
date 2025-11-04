@@ -1,49 +1,51 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Platform, View, StyleSheet, AppState, type AppStateStatus } from "react-native";
-import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { QueryClient, QueryClientProvider, onlineManager, focusManager } from '@tanstack/react-query';
+// Import Reanimated early to ensure proper initialization before other modules
+import 'react-native-reanimated';
+
 import { OxyProvider, OxyServices } from '@oxyhq/services';
-import i18n, { use as i18nUse, init as i18nInit } from "i18next";
-import { initReactI18next, I18nextProvider } from "react-i18next";
-import { MenuProvider } from "react-native-popup-menu";
 import NetInfo from '@react-native-community/netinfo';
-import * as SplashScreen from "expo-splash-screen";
+import { QueryClient, QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
 import { useFonts } from "expo-font";
 import { Slot } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import i18n, { init as i18nInit, use as i18nUse } from "i18next";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import { AppState, Platform, StyleSheet, View, type AppStateStatus } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { MenuProvider } from "react-native-popup-menu";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 
 // Components
-import { ThemedView } from "@/components/ThemedView";
-import { SideBar } from "@/components/SideBar";
-import { RightBar } from "@/components/RightBar";
-import { BottomBar } from "@/components/BottomBar";
-import RegisterPush from '@/components/RegisterPushToken';
 import AppSplashScreen from '@/components/AppSplashScreen';
+import { BottomBar } from "@/components/BottomBar";
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { NotificationPermissionSheet } from '@/components/NotificationPermissionSheet';
+import RegisterPush from '@/components/RegisterPushToken';
+import { RightBar } from "@/components/RightBar";
+import { SideBar } from "@/components/SideBar";
+import { ThemedView } from "@/components/ThemedView";
 
 // Hooks
-import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
-import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
+import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import useRealtimePosts from '@/hooks/useRealtimePosts';
 import { useTheme } from '@/hooks/useTheme';
 
 // Context
-import { BottomSheetProvider, BottomSheetContext } from '@/context/BottomSheetContext';
-import { LayoutScrollProvider, useLayoutScroll } from '@/context/LayoutScrollContext';
+import { BottomSheetContext, BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
+import { LayoutScrollProvider, useLayoutScroll } from '@/context/LayoutScrollContext';
 
 // Utils & Config
-import { OXY_BASE_URL } from '@/config';
 import { oxyServices } from '@/lib/oxyServices';
-import { useAppearanceStore } from '@/store/appearanceStore';
 import { Toaster } from "@/lib/sonner";
+import { useAppearanceStore } from '@/store/appearanceStore';
 import {
-  setupNotifications,
-  requestNotificationPermissions,
   hasNotificationPermission,
+  requestNotificationPermissions,
+  setupNotifications,
 } from "@/utils/notifications";
 
 // Locales

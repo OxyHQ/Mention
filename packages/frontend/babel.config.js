@@ -1,38 +1,29 @@
 // packages/frontend/babel.config.js
 module.exports = function (api) {
-  api.cache(true);
-  return {
-    // 👇 Treat NativeWind as a PRESET for your version
-    presets: [
-      [
-        'babel-preset-expo',
-        {
-          jsxImportSource: "nativewind",
-          unstable_transformImportMeta: true,
-        },
+    api.cache(true);
+    return {
+      // 👇 Treat NativeWind as a PRESET for your version
+      presets: [
+        [
+          'babel-preset-expo',
+          {
+            jsxImportSource: "nativewind",
+            unstable_transformImportMeta: true,
+          },
+        ],
+        'nativewind/babel',
       ],
-      'nativewind/babel',
-    ],
-    plugins: [
-      // dotenv (make sure the package is installed in this workspace)
-      ['module:react-native-dotenv', {
-        moduleName: '@env',
-        path: '.env',
-        allowUndefined: true,
-        safe: false,
-      }],
-      // resolver
-      ['module-resolver', {
-        root: ['.'],
-        alias: { '@': './' },
-        extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.svg'],
-      }],
-
-      '@babel/plugin-transform-dynamic-import',
-  '@babel/plugin-proposal-export-namespace-from',
-	'react-native-worklets-core/plugin',
-      // must be LAST
-      'react-native-reanimated/plugin',
-    ],
+      plugins: [
+        // resolver must come first for proper module resolution
+        ['module-resolver', {
+          root: ['.'],
+          alias: { '@': './' },
+          extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.svg'],
+        }],
+        '@babel/plugin-syntax-dynamic-import',
+        '@babel/plugin-transform-export-namespace-from',
+        // must be LAST
+        'react-native-worklets/plugin',
+      ],
+    };
   };
-};
