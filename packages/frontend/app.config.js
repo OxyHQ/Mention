@@ -29,7 +29,7 @@ return {
       scheme: 'mention',
       userInterfaceStyle: 'automatic',
       newArchEnabled: true,
-      entryPoint: "./expo-router/entry",
+      entryPoint: require.resolve('expo-router/entry'),
       experiments: {
         autolinkingModuleResolution: true,
       },
