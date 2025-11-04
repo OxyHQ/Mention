@@ -5,7 +5,7 @@ module.exports = (async () => {
   const config = await getDefaultConfig(__dirname);
   const { transformer, resolver } = config;
 
-  const svgTransformer = require.resolve('react-native-svg-transformer', {
+  const svgTransformer = require.resolve('react-native-svg-transformer/expo', {
     paths: [__dirname, path.resolve(__dirname, '../../node_modules')],
   });
 
@@ -18,23 +18,10 @@ module.exports = (async () => {
       path.resolve(__dirname, '../../node_modules'),
       path.resolve(__dirname, 'node_modules'),
     ],
-    resolveRequest: (context, moduleName, platform) => {
-      // For expo/AppEntry or expo-router/entry, resolve from root node_modules
-      if (moduleName === 'expo/AppEntry' || moduleName === 'expo-router/entry') {
-        return {
-          filePath: require.resolve(moduleName, {
-            paths: [path.resolve(__dirname, '../../node_modules')],
-          }),
-          type: 'sourceFile',
-        };
-      }
-      // Default resolution
-      return context.resolveRequest(context, moduleName, platform);
-    },
   };
 
   config.watchFolders = [
-    path.resolve(__dirname, '../../node_modules'),
+    path.resolve(__dirname, '../..'),
   ];
 
   try {
