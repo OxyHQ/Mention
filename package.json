@@ -33,6 +33,9 @@
   },
   "dependencies": {
     "@oxyhq/services": "^5.12.7",
-    "@react-native/js-polyfills": "^0.81.1"
+    "@react-native/js-polyfills": "^0.81.1",
+    "react-native-css-interop": "^0.2.0",
+    "react-native-worklets": "0.5.1",
+    "react-native-worklets-core": "^1.6.2"
   }
 }
