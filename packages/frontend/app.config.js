@@ -29,6 +29,10 @@ return {
       scheme: 'mention',
       userInterfaceStyle: 'automatic',
       newArchEnabled: true,
+      entryPoint: "./expo-router/entry",
+      experiments: {
+        autolinkingModuleResolution: true,
+      },
       ios: {
         supportsTablet: true,
         bundleIdentifier: 'com.mention.ios',
@@ -112,87 +116,78 @@ return {
           },
         },
         },
-        // Build the plugins array dynamically so we can exclude certain
-        // native-only plugins (like expo-notifications) from web builds.
-        plugins: (() => {
-            const base = [
-                "expo-router",
-                [
-                    "expo-splash-screen",
-                    {
-                        image: "./assets/images/splash-icon.png",
-                        imageWidth: 200,
-                        resizeMode: "contain",
-                        backgroundColor: "#ffffff"
-                    }
-                ],
-                [
-                    "expo-camera",
-                    {
-                        cameraPermission: "Allow $(PRODUCT_NAME) to access your camera",
-                        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone",
-                        recordAudioAndroid: true
-                    }
-                ],
-                "expo-image-picker",
-                "expo-video",
-                "expo-audio",
-                [
-                    "expo-secure-store",
-                    {
-                        configureAndroidBackup: true,
-                        faceIDPermission: "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
-                    }
-                ],
-                [
-                    'expo-font',
-                    {
-                      fonts: [
-                        './assets/fonts/inter/Inter-Regular.otf',
-                        './assets/fonts/inter/Inter-Italic.otf',
-                        './assets/fonts/inter/Inter-SemiBold.otf',
-                        './assets/fonts/inter/Inter-SemiBoldItalic.otf',
-                        './assets/fonts/inter/Inter-ExtraBold.otf',
-                        './assets/fonts/inter/Inter-ExtraBoldItalic.otf',
-                        './assets/fonts/Phudu-VariableFont_wght.ttf',
-                      ],
-                    },
+        plugins: [
+            "expo-router",
+            [
+                "expo-splash-screen",
+                {
+                    image: "./assets/images/splash-icon.png",
+                    imageWidth: 200,
+                    resizeMode: "contain",
+                    backgroundColor: "#ffffff"
+                }
+            ],
+            [
+                "expo-notifications",
+                {
+                    color: "#ffffff"
+                }
+            ],
+            [
+                "expo-camera",
+                {
+                    cameraPermission: "Allow $(PRODUCT_NAME) to access your camera",
+                    microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone",
+                    recordAudioAndroid: true
+                }
+            ],
+            "expo-image-picker",
+            "expo-video",
+            "expo-audio",
+            "expo-localization",
+            [
+                "expo-secure-store",
+                {
+                    configureAndroidBackup: true,
+                    faceIDPermission: "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
+                }
+            ],
+            [
+                'expo-font',
+                {
+                  fonts: [
+                    './assets/fonts/inter/Inter-Regular.otf',
+                    './assets/fonts/inter/Inter-Italic.otf',
+                    './assets/fonts/inter/Inter-SemiBold.otf',
+                    './assets/fonts/inter/Inter-SemiBoldItalic.otf',
+                    './assets/fonts/inter/Inter-ExtraBold.otf',
+                    './assets/fonts/inter/Inter-ExtraBoldItalic.otf',
+                    './assets/fonts/Phudu-VariableFont_wght.ttf',
                   ],
-                'react-native-compressor',
-                [
-                    '@bitdrift/react-native',
-                    {
-                        networkInstrumentation: true,
-                    }
-                ],
-                [
-                    'expo-build-properties',
-                    {
-                      ios: {
-                        deploymentTarget: '15.1',
-                      },
-                      android: {
-                        compileSdkVersion: 35,
-                        targetSdkVersion: 35,
-                        buildToolsVersion: '35.0.0',
-                      },
-                    },
-                ],
-                "expo-web-browser",
-            ];
-
-            // Only include expo-notifications for native builds (android/ios)
-            if (PLATFORM !== 'web') {
-                base.splice(2, 0, [
-                    "expo-notifications",
-                    {
-                        color: "#ffffff"
-                    }
-                ]);
-            }
-
-            return base;
-        })(),
+                },
+              ],
+            'react-native-compressor',
+            [
+                '@bitdrift/react-native',
+                {
+                    networkInstrumentation: true,
+                }
+            ],
+            [
+                'expo-build-properties',
+                {
+                  ios: {
+                    deploymentTarget: '15.1',
+                  },
+                  android: {
+                    compileSdkVersion: 35,
+                    targetSdkVersion: 35,
+                    buildToolsVersion: '35.0.0',
+                  },
+                },
+            ],
+            "expo-web-browser",
+        ],
         extra: {
             eas: {
                 projectId: "47bac898-ae20-479b-ab0f-2d8ab2770c83"

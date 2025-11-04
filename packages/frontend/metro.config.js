@@ -14,7 +14,15 @@ module.exports = (async () => {
     ...resolver,
     assetExts: resolver.assetExts.filter(ext => ext !== 'svg'),
     sourceExts: [...resolver.sourceExts, 'svg'],
+    nodeModulesPaths: [
+      path.resolve(__dirname, 'node_modules'),
+      path.resolve(__dirname, '../../node_modules'),
+    ],
   };
+
+  config.watchFolders = [
+    path.resolve(__dirname, '../../node_modules'),
+  ];
 
   try {
     const { withNativeWind } = require('nativewind/metro');

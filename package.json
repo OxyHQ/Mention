@@ -24,15 +24,15 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.8.3",
-    "react-native-worklets": "npm:react-native-worklets-core@^1.6.2"
+    "react-native-worklets": "npm:react-native-worklets-core@^1.6.2",
+    "typescript": "~5.9.2"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
   "dependencies": {
-    "@oxyhq/services": "^5.12.6",
+    "@oxyhq/services": "^5.12.7",
     "@react-native/js-polyfills": "^0.81.1"
   }
 }
