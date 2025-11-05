@@ -241,5 +241,64 @@
     "common": {
         "unknown": "unknown",
         "someone": "Someone"
+    },
+    "seo": {
+        "siteName": "Mention",
+        "defaultTitle": "Mention - Social Platform",
+        "defaultDescription": "Join Mention and connect with people around the world. Share your thoughts, discover trends, and engage with a global community.",
+        "home": {
+            "title": "Mention - Social Platform",
+            "description": "Join Mention and connect with people around the world. Share your thoughts, discover trends, and engage with a global community."
+        },
+        "explore": {
+            "title": "Explore - Mention",
+            "description": "Discover trending topics, popular posts, and interesting people on Mention."
+        },
+        "compose": {
+            "title": "New Post - Mention",
+            "description": "Share what's happening with the Mention community."
+        },
+        "notifications": {
+            "title": "Notifications - Mention",
+            "description": "Stay updated with all your mentions, likes, follows, and replies on Mention."
+        },
+        "saved": {
+            "title": "Saved Posts - Mention",
+            "description": "View all your saved posts on Mention."
+        },
+        "videos": {
+            "title": "Videos - Mention",
+            "description": "Watch trending videos and discover new content on Mention."
+        },
+        "lists": {
+            "title": "Lists - Mention",
+            "description": "Create and manage lists of users to organize your feed on Mention."
+        },
+        "feeds": {
+            "title": "Custom Feeds - Mention",
+            "description": "Create and customize your own feeds on Mention."
+        },
+        "insights": {
+            "title": "Insights - Mention",
+            "description": "View analytics and insights about your posts and engagement on Mention."
+        },
+        "search": {
+            "title": "Search - Mention",
+            "description": "Search for users, posts, hashtags, and more on Mention."
+        },
+        "profile": {
+            "title": "{{name}} (@{{username}}) on Mention",
+            "description": "View {{name}}'s profile on Mention. {{bio}}"
+        },
+        "post": {
+            "title": "{{author}} on Mention",
+            "description": "{{text}}",
+            "notFound": "Post Not Found - Mention",
+            "notFoundDescription": "The post you're looking for doesn't exist or has been deleted."
+        },
+        "notFound": {
+            "title": "Page Not Found - Mention",
+            "description": "The page you're looking for doesn't exist."
+        }
     }
 }

@@ -28,6 +28,7 @@ import HeroCard from '@/components/insights/HeroCard';
 import SummaryCard from '@/components/insights/SummaryCard';
 import { Header } from '@/components/Header';
 import { StatusBar } from 'expo-status-bar';
+import SEO from '@/components/SEO';
 
 const { width } = Dimensions.get('window');
 
@@ -585,7 +586,7 @@ const InsightsScreen: React.FC = () => {
                                 )}
                             </View>
                             <Text style={[styles.averageValue, { color: theme.colors.text }]}>
-                                {formatNumber(engagementRatios.averages.viewsPerPost.toFixed(0))}
+                                {formatNumber(Math.round(engagementRatios.averages.viewsPerPost))}
                             </Text>
                             <Text style={[styles.averageLabel, { color: theme.colors.textSecondary }]}>Views per Post</Text>
                         </View>
@@ -622,9 +623,14 @@ const InsightsScreen: React.FC = () => {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
-            <ThemedView style={{ flex: 1 }}>
-                <StatusBar style={theme.isDark ? "light" : "dark"} />
+        <>
+            <SEO
+                title={t('seo.insights.title')}
+                description={t('seo.insights.description')}
+            />
+            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
+                <ThemedView style={{ flex: 1 }}>
+                    <StatusBar style={theme.isDark ? "light" : "dark"} />
                 
                 {/* Header - sticky */}
                 <Header
@@ -656,6 +662,7 @@ const InsightsScreen: React.FC = () => {
                 )}
             </ThemedView>
         </SafeAreaView>
+        </>
     );
 };
 

@@ -28,6 +28,7 @@ import { usePostsStore } from '../stores/postsStore';
 import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
+import SEO from '@/components/SEO';
 
 const ComposeScreen = () => {
   const theme = useTheme();
@@ -439,9 +440,18 @@ const ComposeScreen = () => {
         : item
     ));
     toast.success(t('Location removed'));
-  }; return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="light" />
+  };
+  
+  const { t: tCompose } = useTranslation();
+  
+  return (
+    <>
+      <SEO
+        title={tCompose('seo.compose.title')}
+        description={tCompose('seo.compose.description')}
+      />
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar style="light" />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -749,9 +759,10 @@ const ComposeScreen = () => {
           <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{t('Post')}</Text>
         )}
       </TouchableOpacity>
-    </SafeAreaView>
-  );
-};
+      </SafeAreaView>
+      </>
+    );
+  };
 
 const styles = StyleSheet.create({
   container: {

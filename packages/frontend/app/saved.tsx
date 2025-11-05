@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Search } from '@/assets/icons/search-icon';
 import { feedService } from '../services/feedService';
+import SEO from '@/components/SEO';
 
 const SavedPostsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
@@ -43,8 +44,13 @@ const SavedPostsScreen: React.FC = () => {
     }, [searchQuery]);
 
     return (
-        <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-            <Stack.Screen
+        <>
+            <SEO
+                title={t('seo.saved.title')}
+                description={t('seo.saved.description')}
+            />
+            <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+                <Stack.Screen
                 options={{
                     title: 'Saved Posts',
                     headerShown: true,
@@ -99,6 +105,7 @@ const SavedPostsScreen: React.FC = () => {
                 )}
             </ScrollView>
         </ThemedView>
+        </>
     );
 };
 

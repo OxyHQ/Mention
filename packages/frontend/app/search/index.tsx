@@ -21,6 +21,7 @@ import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import Avatar from "@/components/Avatar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@/assets/icons/search-icon";
+import SEO from "@/components/SEO";
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 
@@ -369,11 +370,16 @@ export default function SearchIndex() {
         results.saved.length > 0;
 
     return (
-        <ThemedView style={styles.container}>
-            <SafeAreaView style={styles.safeArea} edges={["top"]}>
-                <Header
-                    options={{
-                        title: t("search.title", "Search"),
+        <>
+            <SEO
+                title={t('seo.search.title')}
+                description={t('seo.search.description')}
+            />
+            <ThemedView style={styles.container}>
+                <SafeAreaView style={styles.safeArea} edges={["top"]}>
+                    <Header
+                        options={{
+                            title: t("search.title", "Search"),
                         showBackButton: true,
                     }}
                     hideBottomBorder={true}
@@ -504,6 +510,7 @@ export default function SearchIndex() {
                 </ScrollView>
             </SafeAreaView>
         </ThemedView>
+        </>
     );
 }
 

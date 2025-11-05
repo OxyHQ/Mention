@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import { statisticsService } from '@/services/statisticsService';
+import SEO from '@/components/SEO';
 //
 
 const MAX_CHARACTERS = 280;
@@ -38,7 +39,7 @@ const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
     const { getPostById, createReply } = usePostsStore();
-    const { user, showBottomSheet } = useOxy();
+    const { user, showBottomSheet, oxyServices } = useOxy();
     const theme = useTheme();
     const { t } = useTranslation();
 
@@ -287,6 +288,25 @@ const PostDetailScreen: React.FC = () => {
         router.back();
     };
 
+    // Generate SEO data for the post (must be before any early returns)
+    const getPostImage = useCallback(() => {
+        if (!post) return undefined;
+        const media = (post as any)?.content?.media || [];
+        const firstImage = media.find((m: any) => m?.type === 'image');
+        if (firstImage?.id && oxyServices?.getFileDownloadUrl) {
+            return oxyServices.getFileDownloadUrl(firstImage.id);
+        }
+        return undefined;
+    }, [post, oxyServices]);
+
+    const postText = (post as any)?.content?.text || '';
+    const postDescription = postText.length > 200 
+        ? `${postText.substring(0, 197)}...` 
+        : postText || t('seo.post.description', { defaultValue: 'View this post on Mention' });
+    const postAuthor = (post as any)?.user?.name || (post as any)?.user?.handle || t('common.someone');
+    const postTitle = t('seo.post.title', { author: postAuthor, defaultValue: `${postAuthor} on Mention` });
+    const postImage = getPostImage();
+
     const handleReply = async () => {
         if (!canReply || !id) return;
         try {
@@ -363,39 +383,55 @@ const PostDetailScreen: React.FC = () => {
 
     if (error || !post) {
         return (
-            <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-                <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                    <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Post</Text>
-                </View>
-                <View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
-                    <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Post Not Found</Text>
-                    <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
-                        {error || 'The post you\'re looking for doesn\'t exist or has been deleted.'}
-                    </Text>
-                    <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={() => router.back()}>
-                        <Text style={[styles.retryButtonText, { color: theme.colors.card }]}>Go Back</Text>
-                    </TouchableOpacity>
-                </View>
-            </ThemedView>
+            <>
+                <SEO
+                    title={t('seo.post.notFound')}
+                    description={t('seo.post.notFoundDescription')}
+                />
+                <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+                    <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+                        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+                        </TouchableOpacity>
+                        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Post</Text>
+                    </View>
+                    <View style={styles.errorContainer}>
+                        <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
+                        <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Post Not Found</Text>
+                        <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
+                            {error || 'The post you\'re looking for doesn\'t exist or has been deleted.'}
+                        </Text>
+                        <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={() => router.back()}>
+                            <Text style={[styles.retryButtonText, { color: theme.colors.card }]}>Go Back</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ThemedView>
+            </>
         );
     }
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
-            style={[styles.container, { paddingTop: insets.top }]}
-        >
-            <ThemedView style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{post?.isThread ? 'Thread' : 'Post'}</Text>
-            </ThemedView>
+        <>
+            <SEO
+                title={postTitle}
+                description={postDescription}
+                image={postImage}
+                type="article"
+                author={postAuthor}
+                publishedTime={(post as any)?.createdAt}
+                modifiedTime={(post as any)?.updatedAt}
+            />
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+                style={[styles.container, { paddingTop: insets.top }]}
+            >
+                <ThemedView style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+                    <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+                    </TouchableOpacity>
+                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{post?.isThread ? 'Thread' : 'Post'}</Text>
+                </ThemedView>
 
             <View style={{ flex: 1 }}>
                 {/* Show parent post on top if this is a reply */}
@@ -558,6 +594,7 @@ const PostDetailScreen: React.FC = () => {
                 </View>
             </ThemedView>
         </KeyboardAvoidingView>
+        </>
     );
 };
 

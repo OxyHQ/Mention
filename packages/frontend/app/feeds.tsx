@@ -17,6 +17,7 @@ import { getData, storeData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useTheme } from '@/hooks/useTheme';
 import { Search } from '@/assets/icons/search-icon';
+import SEO from '@/components/SEO';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
@@ -123,9 +124,14 @@ const FeedsScreen: React.FC = () => {
   }, [pinned, myFeeds]);
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <ThemedView style={styles.container}>
-        <Header options={{
+    <>
+      <SEO
+        title={t('seo.feeds.title')}
+        description={t('seo.feeds.description')}
+      />
+      <SafeAreaView style={{ flex: 1 }}>
+        <ThemedView style={styles.container}>
+          <Header options={{
           title: t('Feeds'), rightComponents: [
             <TouchableOpacity key="search" onPress={() => router.push('/search')} style={{ padding: 8 }}>
               <Search size={22} color={theme.colors.textSecondary} />
@@ -233,9 +239,10 @@ const FeedsScreen: React.FC = () => {
           <View style={{ height: 20 }} />
         </ScrollView>
       </ThemedView>
-    </SafeAreaView>
-  );
-};
+      </SafeAreaView>
+      </>
+    );
+  };
 
 const styles = StyleSheet.create({
   container: {

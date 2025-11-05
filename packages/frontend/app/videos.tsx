@@ -13,6 +13,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import LoadingTopSpinner from '@/components/LoadingTopSpinner';
 import Avatar from '@/components/Avatar';
+import SEO from '@/components/SEO';
 
 // Constants
 const WINDOW_HEIGHT = Dimensions.get('window').height;
@@ -691,8 +692,13 @@ export default function VideosScreen() {
     }, [posts.length]);
 
     return (
-        <ThemedView style={styles.container}>
-            <LoadingTopSpinner showLoading={isLoading && posts.length === 0} />
+        <>
+            <SEO
+                title={t('seo.videos.title')}
+                description={t('seo.videos.description')}
+            />
+            <ThemedView style={styles.container}>
+                <LoadingTopSpinner showLoading={isLoading && posts.length === 0} />
 
             {posts.length > 0 && (
                 <FlatList
@@ -743,6 +749,7 @@ export default function VideosScreen() {
                 </View>
             )}
         </ThemedView>
+        </>
     );
 }
 

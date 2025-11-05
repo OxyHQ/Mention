@@ -37,6 +37,8 @@ import { Bell } from '@/assets/icons/bell-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
+import SEO from '@/components/SEO';
+import { useTranslation } from 'react-i18next';
 
 // Constants for better maintainability and responsive design
 const HEADER_HEIGHT_EXPANDED = 120;
@@ -419,14 +421,41 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         );
     };
 
-    return (
-        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
-            <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
+    // Generate SEO data for profile
+    const profileDisplayName = profileData?.displayName || profileData?.username || username;
+    const profileBio = profileData?.bio || '';
+    const profileImage = avatarUri || bannerUri;
+    const { t: tProfile } = useTranslation();
 
-            {loading ? (
-                <ProfileSkeleton />
-            ) : (
-                <>
+    return (
+        <>
+            <SEO
+                title={tProfile('seo.profile.title', { 
+                    name: profileDisplayName, 
+                    username: username,
+                    defaultValue: `${profileDisplayName} (@${username}) on Mention`
+                })}
+                description={profileBio 
+                    ? tProfile('seo.profile.description', { 
+                        name: profileDisplayName, 
+                        bio: profileBio,
+                        defaultValue: `View ${profileDisplayName}'s profile on Mention. ${profileBio}`
+                    })
+                    : tProfile('seo.profile.description', { 
+                        name: profileDisplayName, 
+                        bio: '',
+                        defaultValue: `View ${profileDisplayName}'s profile on Mention.`
+                    })}
+                image={profileImage}
+                type="profile"
+            />
+            <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
+                <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
+
+                {loading ? (
+                    <ProfileSkeleton />
+                ) : (
+                    <>
                     {/* Back button */}
                     <View style={[styles.backButton, { backgroundColor: theme.colors.overlay, top: insets.top + 6 }]}>
                         <TouchableOpacity onPress={() => router.back()}>
@@ -724,6 +753,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 </>
             )}
         </View>
+        </>
     );
 };
 

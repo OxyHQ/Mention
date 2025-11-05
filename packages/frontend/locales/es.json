@@ -274,5 +274,64 @@
   "common": {
     "unknown": "desconocido",
     "someone": "Alguien"
+  },
+  "seo": {
+    "siteName": "Mention",
+    "defaultTitle": "Mention - Plataforma Social",
+    "defaultDescription": "Únete a Mention y conéctate con personas de todo el mundo. Comparte tus pensamientos, descubre tendencias y participa en una comunidad global.",
+    "home": {
+      "title": "Mention - Plataforma Social",
+      "description": "Únete a Mention y conéctate con personas de todo el mundo. Comparte tus pensamientos, descubre tendencias y participa en una comunidad global."
+    },
+    "explore": {
+      "title": "Explorar - Mention",
+      "description": "Descubre temas de tendencia, publicaciones populares e personas interesantes en Mention."
+    },
+    "compose": {
+      "title": "Nueva Publicación - Mention",
+      "description": "Comparte lo que está pasando con la comunidad de Mention."
+    },
+    "notifications": {
+      "title": "Notificaciones - Mention",
+      "description": "Mantente actualizado con todas tus menciones, me gusta, seguidores y respuestas en Mention."
+    },
+    "saved": {
+      "title": "Publicaciones Guardadas - Mention",
+      "description": "Ve todas tus publicaciones guardadas en Mention."
+    },
+    "videos": {
+      "title": "Videos - Mention",
+      "description": "Mira videos de tendencia y descubre nuevo contenido en Mention."
+    },
+    "lists": {
+      "title": "Listas - Mention",
+      "description": "Crea y gestiona listas de usuarios para organizar tu feed en Mention."
+    },
+    "feeds": {
+      "title": "Feeds Personalizados - Mention",
+      "description": "Crea y personaliza tus propios feeds en Mention."
+    },
+    "insights": {
+      "title": "Estadísticas - Mention",
+      "description": "Ve análisis y estadísticas sobre tus publicaciones y participación en Mention."
+    },
+    "search": {
+      "title": "Buscar - Mention",
+      "description": "Busca usuarios, publicaciones, hashtags y más en Mention."
+    },
+    "profile": {
+      "title": "{{name}} (@{{username}}) en Mention",
+      "description": "Ver el perfil de {{name}} en Mention. {{bio}}"
+    },
+    "post": {
+      "title": "{{author}} en Mention",
+      "description": "{{text}}",
+      "notFound": "Publicación No Encontrada - Mention",
+      "notFoundDescription": "La publicación que buscas no existe o ha sido eliminada."
+    },
+    "notFound": {
+      "title": "Página No Encontrada - Mention",
+      "description": "La página que buscas no existe."
+    }
   }
 }

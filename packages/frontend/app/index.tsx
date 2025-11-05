@@ -18,6 +18,7 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, interpolate } from 'react-native-reanimated';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { Search } from '@/assets/icons/search-icon';
+import SEO from '@/components/SEO';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -278,9 +279,14 @@ const HomeScreen: React.FC = () => {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
-            <ThemedView style={{ flex: 1 }}>
-                <StatusBar style={theme.isDark ? "light" : "dark"} />
+        <>
+            <SEO
+                title={t('seo.home.title')}
+                description={t('seo.home.description')}
+            />
+            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
+                <ThemedView style={{ flex: 1 }}>
+                    <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                 {/* Header - animated */}
                 <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
@@ -339,6 +345,7 @@ const HomeScreen: React.FC = () => {
                 )}
             </ThemedView>
         </SafeAreaView>
+        </>
     );
 };
 

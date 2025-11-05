@@ -29,6 +29,7 @@ import { Header } from '../components/Header';
 import { StatusBar } from 'expo-status-bar';
 import { toast } from 'sonner';
 import { confirmDialog } from '../utils/alerts';
+import SEO from '@/components/SEO';
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
 
@@ -338,9 +339,14 @@ const NotificationsScreen: React.FC = () => {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
-            <ThemedView style={{ flex: 1 }}>
-                <StatusBar style={theme.isDark ? "light" : "dark"} />
+        <>
+            <SEO
+                title={t('seo.notifications.title')}
+                description={t('seo.notifications.description')}
+            />
+            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
+                <ThemedView style={{ flex: 1 }}>
+                    <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                 {/* Header */}
                 <Header
@@ -384,6 +390,7 @@ const NotificationsScreen: React.FC = () => {
                 {renderContent()}
             </ThemedView>
         </SafeAreaView>
+        </>
     );
 };
 

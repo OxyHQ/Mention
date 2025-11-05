@@ -15,6 +15,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { Search } from '@/assets/icons/search-icon';
 import { WhoToFollowTab } from '@/components/WhoToFollowTab';
+import SEO from '@/components/SEO';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people';
 
@@ -108,9 +109,14 @@ const ExploreScreen: React.FC = () => {
   });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
-      <ThemedView style={{ flex: 1 }}>
-        <StatusBar style={theme.isDark ? "light" : "dark"} />
+    <>
+      <SEO
+        title={t('seo.explore.title')}
+        description={t('seo.explore.description')}
+      />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={["top"]}>
+        <ThemedView style={{ flex: 1 }}>
+          <StatusBar style={theme.isDark ? "light" : "dark"} />
 
         {/* Header - animated */}
         <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
@@ -161,9 +167,10 @@ const ExploreScreen: React.FC = () => {
           animatedTranslateY={fabTranslateY}
         />
       </ThemedView>
-    </SafeAreaView>
-  );
-};
+      </SafeAreaView>
+      </>
+    );
+  };
 
 const styles = StyleSheet.create({
   container: {

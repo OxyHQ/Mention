@@ -9,6 +9,8 @@ import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from 'react-i18next';
+import SEO from '@/components/SEO';
 
 
 const ListCard = ({ item }: { item: any }) => {
@@ -32,6 +34,7 @@ const ListCard = ({ item }: { item: any }) => {
 export default function ListsScreen() {
   const [myLists, setMyLists] = useState<any[]>([]);
   const theme = useTheme();
+  const { t } = useTranslation();
 
 
   useEffect(() => {
@@ -50,8 +53,13 @@ export default function ListsScreen() {
 
 
   return (
-    <ThemedView style={{ flex: 1 }}>
-      <Header options={{
+    <>
+      <SEO
+        title={t('seo.lists.title')}
+        description={t('seo.lists.description')}
+      />
+      <ThemedView style={{ flex: 1 }}>
+        <Header options={{
         title: 'Lists', showBackButton: true, rightComponents: [
           <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={[styles.newPill, { backgroundColor: theme.colors.primary }]}>
             <Text style={[styles.newPillText, { color: theme.colors.card }]}>+ New</Text>
@@ -78,6 +86,7 @@ export default function ListsScreen() {
 
 
     </ThemedView>
+    </>
   );
 }
 

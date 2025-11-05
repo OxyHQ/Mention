@@ -268,5 +268,64 @@
   "common": {
     "unknown": "sconosciuto",
     "someone": "Qualcuno"
+  },
+  "seo": {
+    "siteName": "Mention",
+    "defaultTitle": "Mention - Piattaforma Sociale",
+    "defaultDescription": "Unisciti a Mention e connettiti con persone di tutto il mondo. Condividi i tuoi pensieri, scopri tendenze e interagisci con una comunità globale.",
+    "home": {
+      "title": "Mention - Piattaforma Sociale",
+      "description": "Unisciti a Mention e connettiti con persone di tutto il mondo. Condividi i tuoi pensieri, scopri tendenze e interagisci con una comunità globale."
+    },
+    "explore": {
+      "title": "Esplora - Mention",
+      "description": "Scopri argomenti di tendenza, post popolari e persone interessanti su Mention."
+    },
+    "compose": {
+      "title": "Nuovo Post - Mention",
+      "description": "Condividi cosa sta succedendo con la comunità di Mention."
+    },
+    "notifications": {
+      "title": "Notifiche - Mention",
+      "description": "Resta aggiornato con tutte le tue menzioni, mi piace, seguaci e risposte su Mention."
+    },
+    "saved": {
+      "title": "Post Salvati - Mention",
+      "description": "Visualizza tutti i tuoi post salvati su Mention."
+    },
+    "videos": {
+      "title": "Video - Mention",
+      "description": "Guarda video di tendenza e scopri nuovi contenuti su Mention."
+    },
+    "lists": {
+      "title": "Liste - Mention",
+      "description": "Crea e gestisci liste di utenti per organizzare il tuo feed su Mention."
+    },
+    "feeds": {
+      "title": "Feed Personalizzati - Mention",
+      "description": "Crea e personalizza i tuoi feed su Mention."
+    },
+    "insights": {
+      "title": "Statistiche - Mention",
+      "description": "Visualizza analisi e statistiche sui tuoi post e il tuo coinvolgimento su Mention."
+    },
+    "search": {
+      "title": "Cerca - Mention",
+      "description": "Cerca utenti, post, hashtag e altro su Mention."
+    },
+    "profile": {
+      "title": "{{name}} (@{{username}}) su Mention",
+      "description": "Visualizza il profilo di {{name}} su Mention. {{bio}}"
+    },
+    "post": {
+      "title": "{{author}} su Mention",
+      "description": "{{text}}",
+      "notFound": "Post Non Trovato - Mention",
+      "notFoundDescription": "Il post che stai cercando non esiste o è stato eliminato."
+    },
+    "notFound": {
+      "title": "Pagina Non Trovata - Mention",
+      "description": "La pagina che stai cercando non esiste."
+    }
   }
 }
