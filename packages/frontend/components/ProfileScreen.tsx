@@ -140,42 +140,23 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         }
     }, [clearProfileRegistration, registerScrollable]);
 
-    // Track scroll direction and animate FAB
-    useEffect(() => {
-        let isScrollingDown = false;
-        let lastKnownScrollY = 0;
+    // Disable FAB animation completely for better performance
+    // useEffect(() => {
+    //     ... FAB animation code disabled ...
+    // }, [scrollY, fabTranslateY, fabHeight]);
 
-        const listenerId = scrollY.addListener(({ value }) => {
-            const currentScrollY = typeof value === 'number' ? value : 0;
-            const scrollDelta = currentScrollY - lastKnownScrollY;
-
-            // Determine scroll direction (only update if movement is significant)
-            if (Math.abs(scrollDelta) > 1) {
-                isScrollingDown = scrollDelta > 0;
-            }
-
-            if (currentScrollY > 50) { // Only hide after scrolling past threshold
-                if (isScrollingDown) {
-                    // Scrolling down - hide FAB
-                    fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
-                } else {
-                    // Scrolling up - show FAB
-                    fabTranslateY.value = withTiming(0, { duration: 200 });
-                }
-            } else {
-                // Near top - always show FAB
-                fabTranslateY.value = withTiming(0, { duration: 200 });
-            }
-
-            lastKnownScrollY = currentScrollY;
-        });
-
-        return () => {
-            scrollY.removeListener(listenerId);
-        };
-    }, [scrollY, fabTranslateY, fabHeight]);
-
+    // Heavily throttled scroll handler to reduce overhead
+    const lastScrollCheckRef = useRef(0);
+    const SCROLL_CHECK_THROTTLE = 500; // Only check every 500ms
+    
     const handleProfileScrollEvent = useCallback((event: any) => {
+        const now = Date.now();
+        // Skip most scroll events - only check occasionally
+        if (now - lastScrollCheckRef.current < SCROLL_CHECK_THROTTLE) {
+            return;
+        }
+        lastScrollCheckRef.current = now;
+        
         try {
             const nativeEvent = event?.nativeEvent ?? {};
             const contentOffset = nativeEvent.contentOffset ?? {};
@@ -328,7 +309,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             : `/@${username}/${tabName}`;
         // Use push to maintain browser history for back button
         // Animation still works because layout route keeps component mounted
-        router.push(path);
+        router.push(path as any);
     };
 
     const handleShare = async () => {
@@ -350,7 +331,20 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
 
 
-    const renderTabContent = () => {
+    // Optimized animations - only essential ones
+    const avatarScale = useMemo(() => scrollY.interpolate({
+        inputRange: [0, HEADER_HEIGHT_EXPANDED],
+        outputRange: [1, 0.7],
+        extrapolate: 'clamp',
+    }), [scrollY]);
+
+    const avatarTranslateY = useMemo(() => scrollY.interpolate({
+        inputRange: [0, HEADER_HEIGHT_EXPANDED],
+        outputRange: [0, 16],
+        extrapolate: 'clamp',
+    }), [scrollY]);
+
+    const renderTabContent = useCallback(() => {
         if (tab === 'media') {
             return (
                 <MediaGrid userId={profileData?.id} />
@@ -368,7 +362,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 maintainVisibleContentPosition={true}
             />
         );
-    };
+    }, [tab, profileData?.id]);
 
     const ProfileSkeleton: React.FC = () => {
         const pulse = useRef(new Animated.Value(0.5)).current;
@@ -455,26 +449,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Name + posts count */}
-                    <Animated.View
+                    {/* Name + posts count - disabled animation for performance */}
+                    <View
                         style={[
                             styles.headerNameOverlay,
                             {
                                 top: insets.top + 6,
-                                opacity: scrollY.interpolate({
-                                    inputRange: [-50, 80, 120],
-                                    outputRange: [0, 0, 1],
-                                    extrapolate: 'clamp',
-                                }),
-                                transform: [
-                                    {
-                                        translateY: scrollY.interpolate({
-                                            inputRange: [-50, 100, 180],
-                                            outputRange: [0, 200, 0],
-                                            extrapolate: 'clamp',
-                                        }),
-                                    },
-                                ],
+                                opacity: 0, // Disabled animation
                             },
                         ]}
                     >
@@ -487,122 +468,75 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
                             {(profileData as any)?.postCount || 0} posts
                         </Text>
-                    </Animated.View>
+                    </View>
 
-                    {/* Banner */}
+                    {/* Banner - simplified: single layer with fade overlay only */}
                     {bannerUri ? (
-                        <AnimatedImageBackground
-                            source={{ uri: bannerUri }}
-                            style={[
-                                styles.banner,
-                                {
-                                    height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
-                                    transform: [
-                                        {
-                                            scale: scrollY.interpolate({
-                                                inputRange: [-150, 0],
-                                                outputRange: [1.5, 1],
-                                                extrapolateLeft: 'extend',
-                                                extrapolateRight: 'clamp',
-                                            }),
-                                        },
-                                    ],
-                                },
-                            ]}
-                        >
-                            {/* Cross-platform blur overlay: Animated Image (native blurRadius) or CSS filter (web) */}
-                            {/* Blurred overlay: shows only when scrolled — native uses blurRadius, web uses CSS filter */}
-                            <AnimatedImageBackground
+                        <>
+                            {/* Base banner image - no transform for better performance */}
+                            <ImageBackground
                                 source={{ uri: bannerUri }}
-                                // native blurRadius prop applied directly; for web we'll use imageStyle filter
-                                blurRadius={Platform.OS === 'web' ? 0 : 12}
-                                imageStyle={Platform.OS === 'web' ? ({
-                                    // @ts-ignore: web-only styles
-                                    WebkitFilter: 'blur(8px)',
-                                    // @ts-ignore: web-only styles
-                                    filter: 'blur(8px)',
-                                    width: '110%',
-                                    height: '110%',
-                                    transform: [{ scale: 1.05 }],
-                                } as any) : undefined}
                                 style={[
-                                    StyleSheet.absoluteFillObject,
+                                    styles.banner,
                                     {
-                                        zIndex: 2,
-                                        opacity: scrollY.interpolate({
-                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                            outputRange: [0, 1],
-                                            extrapolate: 'clamp',
-                                        }) as any,
-                                    } as any,
-                                ]}
-                            />
-
-                            {/* Background overlay: fade to tabs background color as you scroll */}
-                            <Animated.View
-                                pointerEvents={'none' as any}
-                                style={[
-                                    StyleSheet.absoluteFillObject,
-                                    {
-                                        zIndex: 3,
-                                        backgroundColor: theme.colors.background,
-                                        opacity: scrollY.interpolate({
-                                            inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                            outputRange: [0, 1],
-                                            extrapolate: 'clamp',
-                                        }) as any,
+                                        height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
                                     },
                                 ]}
                             />
-                        </AnimatedImageBackground>
+                            {/* Background overlay - disabled animation for performance */}
+                            <View
+                                pointerEvents={'none' as any}
+                                style={[
+                                    styles.banner,
+                                    {
+                                        height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        zIndex: 2,
+                                        backgroundColor: theme.colors.background,
+                                        opacity: 0, // Disabled animation
+                                    },
+                                ]}
+                            />
+                        </>
                     ) : (
-                        <Animated.View
+                        <View
                             style={[
                                 styles.banner,
                                 {
                                     height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
                                     backgroundColor: `${theme.colors.primary}20`,
-                                    transform: [
-                                        {
-                                            scale: scrollY.interpolate({
-                                                inputRange: [-150, 0],
-                                                outputRange: [1.5, 1],
-                                                extrapolateLeft: 'extend',
-                                                extrapolateRight: 'clamp',
-                                            }),
-                                        },
-                                    ],
                                 },
                             ]}
                         >
-                            {/* Overlay that fades in to the theme background color as you scroll */}
-                            <Animated.View
+                            {/* Overlay - disabled animation for performance */}
+                            <View
                                 style={[
                                     StyleSheet.absoluteFillObject,
                                     {
                                         backgroundColor: theme.colors.background,
-                                        opacity: scrollY.interpolate({
-                                            inputRange: [-50, 0, 100],
-                                            outputRange: [0, 0, 1],
-                                            extrapolate: 'clamp',
-                                        }),
+                                        opacity: 0, // Disabled animation
                                     },
                                 ]}
                             />
-                        </Animated.View>
+                        </View>
                     )}
 
                     {/* Profile content + posts */}
-                    {/* ScrollView with stickyHeaderIndices */}
+                    {/* Optimized ScrollView - tabs are sticky */}
                     <Animated.ScrollView
                         ref={assignProfileScrollRef}
                         showsVerticalScrollIndicator={false}
                         onScroll={onProfileScroll}
-                        scrollEventThrottle={scrollEventThrottle}
+                        scrollEventThrottle={Math.max(scrollEventThrottle || 16, 50)} // Balanced throttle
                         style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
                         contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED - insets.top }}
-                        stickyHeaderIndices={[1]}
-                        nestedScrollEnabled={true}
+                        stickyHeaderIndices={[1]} // Tab bar is sticky (index 1: profile info is 0, tabs are 1)
+                        nestedScrollEnabled={false} // Disabled nested scrolling for performance
+                        removeClippedSubviews={Platform.OS !== 'web'}
+                        disableIntervalMomentum={true}
                         {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
                     >
                             {/* Profile info */}
@@ -616,20 +550,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                             borderColor: theme.colors.background,
                                             backgroundColor: theme.colors.backgroundSecondary,
                                             transform: [
-                                                {
-                                                    scale: scrollY.interpolate({
-                                                        inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                        outputRange: [1, 0.7],
-                                                        extrapolate: 'clamp',
-                                                    }),
-                                                },
-                                                {
-                                                    translateY: scrollY.interpolate({
-                                                        inputRange: [0, HEADER_HEIGHT_EXPANDED],
-                                                        outputRange: [0, 16],
-                                                        extrapolate: 'clamp',
-                                                    }),
-                                                },
+                                                { scale: avatarScale },
+                                                { translateY: avatarTranslateY },
                                             ],
                                         }]}
                                         imageStyle={{
@@ -720,7 +642,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     <View style={styles.followStats}>
                                         <TouchableOpacity
                                             style={styles.statItem}
-                                            onPress={() => router.push(`/@${profileData?.username || username}/following`)}
+                                            onPress={() => router.push(`/@${profileData?.username || username}/following` as any)}
                                         >
                                             <Text style={[styles.statNumber, { color: theme.colors.text }]}>
                                                 {followingCount ?? 0}
@@ -729,7 +651,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={styles.statItem}
-                                            onPress={() => router.push(`/@${profileData?.username || username}/followers`)}
+                                            onPress={() => router.push(`/@${profileData?.username || username}/followers` as any)}
                                         >
                                             <Text style={[styles.statNumber, { color: theme.colors.text }]}>
                                                 {followerCount ?? 0}

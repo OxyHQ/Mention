@@ -97,7 +97,8 @@ export function LayoutScrollProvider({
     const handleScroll = useCallback((event: ScrollEvent) => {
         const offset = extractOffsetY(event);
         setScrollY(offset);
-        if (Platform.OS === 'web') {
+        // Optimize web DOM queries - only check if we don't have a registered element
+        if (Platform.OS === 'web' && !scrollElementRef.current) {
             const target = (event?.nativeEvent as any)?.target ?? (event as any)?.target;
             if (target && typeof target.closest === 'function') {
                 const owner = target.closest('[data-layoutscroll="true"]') as HTMLElement | null;
@@ -109,19 +110,31 @@ export function LayoutScrollProvider({
     }, [setScrollY]);
 
     const createAnimatedScrollHandler = useCallback(
-        (listener?: (event: ScrollEvent) => void) =>
-            Animated.event(
+        (listener?: (event: ScrollEvent) => void) => {
+            // Throttle listener calls to reduce overhead
+            let lastCallTime = 0;
+            const THROTTLE_MS = 16; // ~60fps
+            
+            return Animated.event(
                 [{ nativeEvent: { contentOffset: { y: scrollY } } }],
                 {
-                    useNativeDriver: false,
+                    useNativeDriver: false, // Required for scroll position
                     listener: (event: any) => {
-                        // The Animated.event mapping can no-op on some RN Web builds,
-                        // so always mirror the value to keep the shared state in sync.
+                        const now = Date.now();
+                        // Always update scrollY state (required for animations)
                         handleScroll(event);
-                        listener?.(event);
+                        
+                        // Throttle custom listener calls to reduce overhead
+                        if (listener) {
+                            if (now - lastCallTime >= THROTTLE_MS) {
+                                lastCallTime = now;
+                                listener(event);
+                            }
+                        }
                     },
                 }
-            ),
+            );
+        },
         [handleScroll, scrollY]
     );
 
@@ -139,16 +152,8 @@ export function LayoutScrollProvider({
         };
     }, []);
 
-    useEffect(() => {
-        const id = scrollY.addListener(({ value }) => {
-            if (typeof value === 'number') {
-                scrollPositionRef.current = value;
-            }
-        });
-        return () => {
-            scrollY.removeListener(id);
-        };
-    }, [scrollY]);
+    // Remove redundant listener - setScrollY already updates scrollPositionRef
+    // This was causing duplicate updates on every scroll event
 
     const forwardWheelEvent = useCallback((event: WheelLikeEvent) => {
         if (Platform.OS !== 'web') return;
@@ -183,7 +188,7 @@ export function LayoutScrollProvider({
 
     const value = useMemo<LayoutScrollContextValue>(() => ({
         scrollY,
-        scrollEventThrottle: Platform.OS === 'web' ? Math.max(8, scrollEventThrottle) : scrollEventThrottle,
+        scrollEventThrottle: Platform.OS === 'web' ? Math.max(16, scrollEventThrottle) : Math.max(16, scrollEventThrottle),
         handleScroll,
         createAnimatedScrollHandler,
         setScrollY,
