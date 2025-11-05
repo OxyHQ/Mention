@@ -107,6 +107,7 @@ interface FeedState {
   removePostEverywhere: (postId: string) => void;
   removePostLocally: (postId: string, feedType: FeedType) => void;
   addPostToFeed: (post: FeedItem, feedType: FeedType) => void;
+  addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => void;
   
   // Utility actions
   clearError: () => void;
@@ -1288,16 +1289,88 @@ export const usePostsStore = create<FeedState>()(
     },
 
     addPostToFeed: (post: FeedItem, feedType: FeedType) => {
-      set(state => ({
-        feeds: {
-          ...state.feeds,
-          [feedType]: {
-            ...state.feeds[feedType],
-            items: [post, ...state.feeds[feedType].items],
-            totalCount: state.feeds[feedType].totalCount + 1
-          }
+      set(state => {
+        const currentFeed = state.feeds[feedType];
+        if (!currentFeed) return state;
+        
+        // Transform post if needed
+        const transformedPost = transformToUIItem(post);
+        const postId = normalizeId(transformedPost);
+        
+        // Check for duplicates
+        const existingIds = new Set(currentFeed.items.map((p: FeedItem) => normalizeId(p)));
+        if (postId && existingIds.has(postId)) {
+          return state; // Skip if duplicate
         }
-      }));
+        
+        // Update cache
+        const newCache = { ...state.postsById };
+        if (postId) {
+          newCache[postId] = transformedPost;
+          primeRelatedPosts(newCache, transformedPost);
+        }
+        
+        try { useUsersStore.getState().primeFromPosts([transformedPost] as any); } catch {}
+        
+        return {
+          ...state,
+          feeds: {
+            ...state.feeds,
+            [feedType]: {
+              ...currentFeed,
+              items: [transformedPost, ...currentFeed.items],
+              totalCount: currentFeed.totalCount + 1,
+              lastUpdated: Date.now()
+            }
+          },
+          postsById: newCache
+        };
+      });
+    },
+
+    addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => {
+      if (!posts || posts.length === 0) return;
+      
+      set(state => {
+        const currentFeed = state.feeds[feedType];
+        if (!currentFeed) return state;
+        
+        // Transform and deduplicate posts
+        const transformedPosts = posts.map(p => transformToUIItem(p));
+        const existingIds = new Set(currentFeed.items.map((p: FeedItem) => normalizeId(p)));
+        const newPosts = transformedPosts.filter(p => {
+          const id = normalizeId(p);
+          return id && !existingIds.has(id);
+        });
+        
+        if (newPosts.length === 0) return state; // No new posts
+        
+        // Update cache
+        const newCache = { ...state.postsById };
+        newPosts.forEach((p: FeedItem) => {
+          const id = normalizeId(p);
+          if (id) {
+            newCache[id] = p;
+            primeRelatedPosts(newCache, p);
+          }
+        });
+        
+        try { useUsersStore.getState().primeFromPosts(newPosts as any); } catch {}
+        
+        return {
+          ...state,
+          feeds: {
+            ...state.feeds,
+            [feedType]: {
+              ...currentFeed,
+              items: [...newPosts, ...currentFeed.items],
+              totalCount: currentFeed.totalCount + newPosts.length,
+              lastUpdated: Date.now()
+            }
+          },
+          postsById: newCache
+        };
+      });
     },
 
     // Utility actions
@@ -1326,12 +1399,33 @@ export const usePostsStore = create<FeedState>()(
   }))
 );
 
-// Selectors for better performance
-export const useFeedSelector = (type: FeedType) => 
-  usePostsStore(state => state.feeds[type]);
+// Selectors for better performance - return stable references when data hasn't meaningfully changed
+export const useFeedSelector = (type: FeedType) => {
+  const feed = usePostsStore(state => state.feeds[type]);
+  return feed || {
+    items: [],
+    hasMore: true,
+    nextCursor: undefined,
+    totalCount: 0,
+    isLoading: false,
+    error: null,
+    lastUpdated: 0,
+    filters: undefined
+  };
+};
 
-export const useUserFeedSelector = (userId: string, type: FeedType) => 
-  usePostsStore(state => state.userFeeds[userId]?.[type]);
+export const useUserFeedSelector = (userId: string, type: FeedType) => {
+  const feed = usePostsStore(state => state.userFeeds[userId]?.[type]);
+  return feed || {
+    items: [],
+    hasMore: true,
+    nextCursor: undefined,
+    totalCount: 0,
+    isLoading: false,
+    error: null,
+    lastUpdated: 0
+  };
+};
 
 export const useFeedLoading = (type: FeedType) => 
   usePostsStore(state => state.feeds[type]?.isLoading || false);

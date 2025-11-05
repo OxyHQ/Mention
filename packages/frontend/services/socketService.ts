@@ -14,6 +14,9 @@ class SocketService {
   private currentUserId?: string;
   private appStateSubscription: { remove: () => void } | null = null;
   // recentActions handled by echoGuard
+  private feedUpdateQueue: Map<string, any[]> = new Map(); // Queue for batched feed updates
+  private feedUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly FEED_UPDATE_DEBOUNCE_MS = 500; // Batch updates every 500ms
 
   constructor() {
     this.setupEventListeners();
@@ -67,6 +70,14 @@ class SocketService {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
     }
+    // Process any pending feed updates before disconnecting
+    if (this.feedUpdateTimer) {
+      clearTimeout(this.feedUpdateTimer);
+      this.processFeedUpdateQueue();
+      this.feedUpdateTimer = null;
+    }
+    // Clear queue
+    this.feedUpdateQueue.clear();
   }
 
   /**
@@ -206,32 +217,79 @@ class SocketService {
 
   /**
    * Handle feed updates from socket
+   * Optimized to handle multiple posts efficiently with debouncing
    */
   private handleFeedUpdate(data: any) {
-    const { type, posts } = data || {};
+    const { type, posts, post } = data || {};
+    
+    // Handle both single post and array of posts
+    const postsArray = Array.isArray(posts) ? posts : (post ? [post] : []);
     
     // Type-safe feed type check
-    if (!type || !Array.isArray(posts)) {
-      console.warn('Invalid feed update data received');
+    if (!type || postsArray.length === 0) {
+      if (postsArray.length === 0 && (posts || post)) {
+        console.warn('Invalid feed update data received - empty posts array');
+      }
       return;
     }
     
-    // Update the store with new feed data
+    // Queue updates for batching
+    const feedType = type as FeedType;
+    if (!this.feedUpdateQueue.has(feedType)) {
+      this.feedUpdateQueue.set(feedType, []);
+    }
+    
+    const queue = this.feedUpdateQueue.get(feedType)!;
+    queue.push(...postsArray);
+    
+    // Clear existing timer
+    if (this.feedUpdateTimer) {
+      clearTimeout(this.feedUpdateTimer);
+    }
+    
+    // Debounce updates - batch process after a short delay
+    this.feedUpdateTimer = setTimeout(() => {
+      this.processFeedUpdateQueue();
+    }, this.FEED_UPDATE_DEBOUNCE_MS);
+  }
+
+  /**
+   * Process queued feed updates in batches
+   */
+  private processFeedUpdateQueue() {
+    if (this.feedUpdateQueue.size === 0) return;
+    
     const store = usePostsStore.getState();
     
-    // Type-safe access to feeds
-    const feedType = type as FeedType;
-    const currentFeed = store.feeds[feedType];
-    
-    if (currentFeed) {
-      // Merge new posts with existing ones, avoiding duplicates
-      const existingIds = new Set(currentFeed.items.map((post: any) => post.id));
-      const newPosts = posts.filter((post: any) => !existingIds.has(post.id));
+    // Process each feed type's queued posts
+    this.feedUpdateQueue.forEach((posts, feedType) => {
+      if (posts.length === 0) return;
       
-      if (newPosts.length > 0) {
-        store.addPostToFeed(newPosts[0], feedType);
+      const currentFeed = store.feeds[feedType as FeedType];
+      if (currentFeed) {
+        // Deduplicate posts in queue before adding
+        const seen = new Set<string>();
+        const uniquePosts = posts.filter((p: any) => {
+          const id = p?.id || p?._id;
+          if (id && !seen.has(String(id))) {
+            seen.add(String(id));
+            return true;
+          }
+          return false;
+        });
+        
+        if (uniquePosts.length > 0) {
+          // Batch add all posts at once
+          store.addPostsToFeed(uniquePosts, feedType as FeedType);
+        }
       }
-    }
+      
+      // Clear queue for this feed type
+      this.feedUpdateQueue.set(feedType, []);
+    });
+    
+    // Clear timer
+    this.feedUpdateTimer = null;
   }
 
   /**

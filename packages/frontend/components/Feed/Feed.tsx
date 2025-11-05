@@ -110,13 +110,6 @@ const Feed = (props: FeedProps) => {
     const userFeed = useUserFeedSelector(userId || '', effectiveType);
     const feedData = showOnlySaved ? globalFeed : (userId ? userFeed : globalFeed);
     
-    console.log(`[Feed] feedData for effectiveType="${effectiveType}":`, {
-        itemsCount: feedData?.items?.length || 0,
-        isLoading: feedData?.isLoading,
-        filters: (feedData as any)?.filters,
-        lastUpdated: feedData?.lastUpdated
-    });
-    
     const isLoading = useScoped ? localLoading : !!feedData?.isLoading;
     const error = useScoped ? localError : feedData?.error;
     const hasMore = useScoped ? localHasMore : !!feedData?.hasMore;
@@ -137,6 +130,8 @@ const Feed = (props: FeedProps) => {
     const filtersKey = useMemo(() => JSON.stringify(filters || {}), [filters]);
     const { user: currentUser, isAuthenticated } = useOxy();
     const isFetchingRef = useRef(false);
+    const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const loadMoreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const itemKey = useCallback((it: any): string => {
         // Try id first (should be string), then _id (could be ObjectId or string)
@@ -172,12 +167,18 @@ const Feed = (props: FeedProps) => {
     const previousReloadKeyRef = useRef<string | number | undefined>(undefined);
 
     const fetchInitialFeed = useCallback(async (forceRefresh: boolean = false) => {
+        // Debounce rapid calls
         if (isFetchingRef.current) {
             console.log('[Feed] fetchInitialFeed: Already fetching, skipping');
             return;
         }
+        
+        // Set fetching flag immediately to prevent duplicate calls
+        isFetchingRef.current = true;
+        
         if (isAuthenticated && !currentUser?.id) {
             console.log('[Feed] fetchInitialFeed: Not authenticated, skipping');
+            isFetchingRef.current = false;
             return;
         }
 
@@ -210,8 +211,6 @@ const Feed = (props: FeedProps) => {
         
         const shouldRefresh = forceRefresh;
 
-        isFetchingRef.current = true;
-
         try {
             if (!useScoped) {
                 clearError();
@@ -238,16 +237,18 @@ const Feed = (props: FeedProps) => {
                     items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
                 }
 
-                // Deduplicate scoped items using Map for O(1) lookup
-                const seen = new Map<string, any>();
-                for (const item of items) {
+                // Optimized deduplication using Set
+                const seen = new Set<string>();
+                const uniqueItems = items.filter((item: any) => {
                     const key = itemKey(item);
                     if (key && !seen.has(key)) {
-                        seen.set(key, item);
+                        seen.add(key);
+                        return true;
                     }
-                }
+                    return false;
+                });
 
-                setLocalItems(Array.from(seen.values()));
+                setLocalItems(uniqueItems);
                 setLocalHasMore(!!resp.hasMore);
                 setLocalNextCursor(resp.nextCursor);
             } else if (userId) {
@@ -331,18 +332,21 @@ const Feed = (props: FeedProps) => {
                     setLocalLoading(true);
                     setLocalError(null);
                     const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
-                    const items = resp.items || []; // Use items directly since backend returns proper schema
+                    const items = resp.items || [];
                     
-                    // Deduplicate items using Map for O(1) lookup
-                    const seen = new Map<string, any>();
-                    for (const item of items) {
+                    // Optimized deduplication - store already handles most deduplication
+                    // This is just a safety pass
+                    const seen = new Set<string>();
+                    const uniqueItems = items.filter((item: any) => {
                         const key = itemKey(item);
                         if (key && !seen.has(key)) {
-                            seen.set(key, item);
+                            seen.add(key);
+                            return true;
                         }
-                    }
+                        return false;
+                    });
                     
-                    setLocalItems(Array.from(seen.values()));
+                    setLocalItems(uniqueItems);
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
                 } catch (error) {
@@ -374,6 +378,12 @@ const Feed = (props: FeedProps) => {
         }
         if (!hasMore || isLoading || isLoadingMore) return;
 
+        // Clear any pending debounce
+        if (loadMoreDebounceRef.current) {
+            clearTimeout(loadMoreDebounceRef.current);
+            loadMoreDebounceRef.current = null;
+        }
+
         setIsLoadingMore(true);
         try {
             if (useScoped) {
@@ -396,28 +406,16 @@ const Feed = (props: FeedProps) => {
                     );
                 }
 
+                // Optimized deduplication using Set for O(1) lookup
                 setLocalItems(prev => {
-                    const seen = new Map<string, boolean>();
-                    prev.forEach(p => {
-                        const key = itemKey(p);
-                        if (key) seen.set(key, true);
-                    });
-
+                    const existingIds = new Set(prev.map(p => itemKey(p)));
                     const uniqueNew = items.filter((p: any) => {
                         const key = itemKey(p);
-                        return key && !seen.has(key);
+                        return key && !existingIds.has(key);
                     });
-
-                    const newSeen = new Map<string, any>();
-                    uniqueNew.forEach(p => {
-                        const key = itemKey(p);
-                        if (key && !newSeen.has(key)) {
-                            newSeen.set(key, p);
-                        }
-                    });
-
-                    return prev.concat(Array.from(newSeen.values()));
+                    return prev.concat(uniqueNew);
                 });
+                
                 const prevCursor = localNextCursor;
                 const nextCursor = resp.nextCursor;
                 const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
@@ -445,7 +443,43 @@ const Feed = (props: FeedProps) => {
             }
             setIsLoadingMore(false);
         }
-    }, [showOnlySaved, hasMore, isLoading, isLoadingMore, type, effectiveType, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, localItems, itemKey]);
+    }, [showOnlySaved, hasMore, isLoading, isLoadingMore, type, effectiveType, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, itemKey]);
+
+    // Prefetch next page when approaching end (75% scroll)
+    const handleViewableItemsChanged = useCallback(({ viewableItems }: any) => {
+        if (!hasMore || isLoadingMore || isLoading) return;
+        
+        // Use feedData to get length - displayItems is defined later
+        const totalItems = useScoped ? localItems.length : (feedData?.items?.length || 0);
+        if (totalItems === 0) return;
+        
+        // If we're viewing items in the last 25% of the list, prefetch
+        const lastVisibleIndex = viewableItems[viewableItems.length - 1]?.index ?? 0;
+        const threshold = Math.floor(totalItems * 0.75);
+        
+        if (lastVisibleIndex >= threshold) {
+            // Debounce prefetch to avoid multiple calls
+            if (prefetchTimerRef.current) {
+                clearTimeout(prefetchTimerRef.current);
+            }
+            
+            prefetchTimerRef.current = setTimeout(() => {
+                handleLoadMore();
+            }, 300);
+        }
+    }, [hasMore, isLoadingMore, isLoading, useScoped, localItems.length, feedData?.items?.length, handleLoadMore]);
+
+    // Cleanup timers on unmount
+    useEffect(() => {
+        return () => {
+            if (prefetchTimerRef.current) {
+                clearTimeout(prefetchTimerRef.current);
+            }
+            if (loadMoreDebounceRef.current) {
+                clearTimeout(loadMoreDebounceRef.current);
+            }
+        };
+    }, []);
 
     const renderPostItem = useCallback(({ item }: { item: any; index: number }) => {
         // Validate item before rendering to prevent crashes
@@ -461,17 +495,10 @@ const Feed = (props: FeedProps) => {
     const displayItems = useMemo(() => {
         const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
         
-        console.log(`[Feed] displayItems:`, {
-            useScoped,
-            showOnlySaved,
-            effectiveType,
-            filteredFeedDataItemsCount: filteredFeedData?.items?.length || 0,
-            srcLength: src.length,
-            filters: filters
-        });
-        
         if (src.length === 0) return [];
 
+        // Optimized deduplication - only run if we have items
+        // Store already handles deduplication, but we do a final pass for safety
         const seen = new Map<string, any>();
         for (const item of src) {
             const key = itemKey(item);
@@ -482,6 +509,7 @@ const Feed = (props: FeedProps) => {
 
         const deduped = Array.from(seen.values());
 
+        // Only apply sorting for 'for_you' feed if user is authenticated
         if (effectiveType === 'for_you' && currentUser?.id && deduped.length > 0) {
             const now = Date.now();
             const THRESHOLD_MS = 60 * 1000;
@@ -509,7 +537,7 @@ const Feed = (props: FeedProps) => {
             }
         }
 
-        return Array.from(seen.values());
+        return deduped;
     }, [useScoped, localItems, filteredFeedData?.items, effectiveType, currentUser?.id, itemKey]);
 
     const renderEmptyState = useCallback(() => {
@@ -598,13 +626,17 @@ const Feed = (props: FeedProps) => {
 
     const keyExtractor = useCallback((item: any) => itemKey(item), [itemKey]);
 
+    // Optimized data hash - only recalculate when items actually change
     const dataHash = useMemo(() => {
         const count = displayItems.length;
         if (count === 0) return 'empty';
+        // Use first few and last few IDs for hash - faster than all items
         const firstKey = itemKey(displayItems[0]);
         const lastKey = itemKey(displayItems[count - 1]);
-        return `${count}-${firstKey}-${lastKey}`;
-    }, [displayItems, itemKey]);
+        // Include count and a few middle items for better uniqueness
+        const midKey = count > 2 ? itemKey(displayItems[Math.floor(count / 2)]) : '';
+        return `${count}-${firstKey}-${midKey}-${lastKey}`;
+    }, [displayItems.length, displayItems, itemKey]);
 
     const finalRenderItems = displayItems;
 
@@ -687,7 +719,12 @@ const Feed = (props: FeedProps) => {
                             />
                         ),
                         onEndReached: handleLoadMore,
-                        onEndReachedThreshold: 0.5,
+                        onEndReachedThreshold: 0.7, // Increased threshold for earlier prefetch
+                        onViewableItemsChanged: handleViewableItemsChanged,
+                        viewabilityConfig: {
+                            itemVisiblePercentThreshold: 50,
+                            minimumViewTime: 100,
+                        },
                         showsVerticalScrollIndicator: false,
                         onScroll: scrollEnabled === false ? undefined : handleScrollEvent,
                         scrollEventThrottle: scrollEnabled === false ? undefined : scrollEventThrottle,
@@ -703,6 +740,15 @@ const Feed = (props: FeedProps) => {
                             style,
                         ]),
                         drawDistance: 500,
+                        removeClippedSubviews: true,
+                        maxToRenderPerBatch: 8, // Reduced for smoother scrolling
+                        windowSize: 8, // Smaller window for better memory usage
+                        initialNumToRender: 10, // Faster initial render
+                        updateCellsBatchingPeriod: 100, // Batch updates less frequently for smoother scroll
+                        overrideItemLayout: (layout: any, item: any, index: number) => {
+                            // Provide layout hints for better performance
+                            layout.size = 250; // Estimated item size
+                        },
                     } as any)}
                 />
             </View>
