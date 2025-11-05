@@ -30,12 +30,12 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
     };
 
     return (
-        <View style={[styles.card, { backgroundColor: theme.colors.primary + '08' }]}>
+        <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <View style={styles.row}>
                 {items.map((item, index) => (
                     <React.Fragment key={index}>
                         <View style={styles.item}>
-                            <Text style={[styles.value, { color: '#000000' }]}>
+                            <Text style={[styles.value, { color: theme.colors.text }]}>
                                 {(item.formatNumber || formatNumber)(item.value)}
                             </Text>
                             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
@@ -43,7 +43,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
                             </Text>
                         </View>
                         {index < items.length - 1 && (
-                            <View style={styles.divider} />
+                            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
                         )}
                     </React.Fragment>
                 ))}
@@ -63,19 +63,10 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 
 const styles = StyleSheet.create({
     card: {
-        borderRadius: 12,
+        borderRadius: 15,
         padding: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        borderWidth: 1,
+        overflow: 'hidden',
     },
     row: {
         flexDirection: 'row',
@@ -87,9 +78,8 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     divider: {
-        width: 1,
+        width: 0.5,
         height: 32,
-        backgroundColor: 'rgba(0, 0, 0, 0.1)',
     },
     value: {
         fontSize: 20,

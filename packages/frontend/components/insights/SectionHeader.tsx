@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 
 interface SectionHeaderProps {
-    icon: string;
+    icon?: string;
     title: string;
     iconColor?: string;
     titleColor?: string;
@@ -17,13 +17,12 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
     titleColor,
 }) => {
     const theme = useTheme();
-    const defaultIconColor = iconColor || theme.colors.primary;
-    const defaultTitleColor = titleColor || theme.colors.primary;
+    const defaultIconColor = iconColor || theme.colors.text;
+    const defaultTitleColor = titleColor || theme.colors.text;
 
     return (
         <View style={styles.container}>
-            <Ionicons name={icon as any} size={20} color={defaultIconColor} />
-            <Text style={[styles.title, { color: defaultTitleColor, marginLeft: 8 }]}>
+            <Text style={[styles.title, { color: defaultTitleColor }]}>
                 {title}
             </Text>
         </View>
@@ -37,9 +36,8 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     title: {
-        fontSize: 16,
-        fontWeight: '700',
-        letterSpacing: -0.2,
+        fontSize: 18,
+        fontWeight: 'bold',
     },
 });
 

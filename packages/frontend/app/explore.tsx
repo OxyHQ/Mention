@@ -14,8 +14,9 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { Search } from '@/assets/icons/search-icon';
+import { WhoToFollowTab } from '@/components/WhoToFollowTab';
 
-type ExploreTab = 'all' | 'media' | 'trending' | 'custom';
+type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people';
 
 const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -43,6 +44,9 @@ const ExploreScreen: React.FC = () => {
         return (
           <Feed type="posts" recycleItems={true} maintainVisibleContentPosition={true} />
         );
+
+      case 'people':
+        return <WhoToFollowTab />;
 
       default:
         return <Feed type="explore" recycleItems={true} maintainVisibleContentPosition={true} />;
@@ -139,6 +143,7 @@ const ExploreScreen: React.FC = () => {
               { id: 'media', label: t('Media') },
               { id: 'trending', label: t('Trending') },
               { id: 'custom', label: t('Custom') },
+              { id: 'people', label: t('Who to follow') },
             ]}
             activeTabId={activeTab}
             onTabPress={(id) => setActiveTab(id as ExploreTab)}
