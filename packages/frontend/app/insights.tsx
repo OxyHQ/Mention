@@ -135,8 +135,11 @@ const InsightsScreen: React.FC = () => {
                     const postsPromises = statsData.topPosts.slice(0, 5).map(async (postInfo) => {
                         try {
                             return await getPostById(postInfo.postId);
-                        } catch (error) {
-                            console.error(`Error loading post ${postInfo.postId}:`, error);
+                        } catch (error: any) {
+                            // Silently handle 404s and other errors - post may have been deleted
+                            if (error?.response?.status !== 404) {
+                                console.error(`Error loading post ${postInfo.postId}:`, error);
+                            }
                             return null;
                         }
                     });

@@ -114,8 +114,12 @@ const PostItem: React.FC<PostItemProps> = ({
                 try {
                     const original = await getPostById(targetId);
                     setOriginalPost(original);
-                } catch (error) {
-                    console.error('Error loading original/quoted post:', error);
+                } catch (error: any) {
+                    // Silently handle 404s - post may have been deleted
+                    if (error?.response?.status !== 404) {
+                        console.error('Error loading original/quoted post:', error);
+                    }
+                    // Don't set originalPost on error - component will handle missing data gracefully
                 }
             }
         };

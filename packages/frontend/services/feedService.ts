@@ -400,9 +400,14 @@ class FeedService {
         const response = await authenticatedClient.get(`/posts/${postId}`);
         return response.data;
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Preserve original error (especially for 404 handling)
+      if (error?.response?.status === 404) {
+        // Don't log 404s - post may have been deleted
+        throw error; // Re-throw original Axios error to preserve status
+      }
       console.error('Error fetching post:', error);
-      throw new Error('Failed to fetch post');
+      throw error; // Re-throw original error instead of creating new one
     }
   }
 
