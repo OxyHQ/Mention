@@ -49,14 +49,14 @@ const Avatar: React.FC<AvatarProps> = ({
   const Container: any = onPress ? TouchableOpacity : View;
 
   const content = (
-    <Animated.View style={[styles.container, { width: size, height: size }, style]}>
+    <Animated.View style={[styles.container, { width: size, height: size, borderRadius: size / 2 }, style]}>
       {source && !errored ? (
         useAnimated ? (
           <AnimatedImage
             source={imageSource}
             onError={() => setErrored(true)}
             resizeMode="cover"
-            style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.backgroundSecondary }, imageStyle]}
+            style={[StyleSheet.absoluteFillObject, { borderRadius: size / 2 }, imageStyle]}
             defaultSource={DefaultAvatar}
           />
         ) : (
@@ -64,7 +64,7 @@ const Avatar: React.FC<AvatarProps> = ({
             source={imageSource}
             onError={() => setErrored(true)}
             resizeMode="cover"
-            style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.backgroundSecondary }, imageStyle]}
+            style={[StyleSheet.absoluteFillObject, { borderRadius: size / 2 }, imageStyle]}
             defaultSource={DefaultAvatar}
           />
         )
@@ -93,6 +93,8 @@ const styles = StyleSheet.create({
   container: {
     position: 'relative',
     overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   verifiedBadge: {
     position: 'absolute',

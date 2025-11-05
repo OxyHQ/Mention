@@ -342,7 +342,14 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     // Simplified avatar animation - just scale for smoother performance (like Instagram/Twitter)
     const avatarScale = useMemo(() => scrollY.interpolate({
         inputRange: [0, HEADER_HEIGHT_EXPANDED],
-        outputRange: [1, 0.75],
+        outputRange: [1, 0.45],
+        extrapolate: 'clamp',
+    }), [scrollY]);
+
+    // Header background opacity animation
+    const headerBackgroundOpacity = useMemo(() => scrollY.interpolate({
+        inputRange: [0, HEADER_HEIGHT_EXPANDED],
+        outputRange: [0, 1],
         extrapolate: 'clamp',
     }), [scrollY]);
 
@@ -465,21 +472,31 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 ) : (
                     <>
                     {/* Back button */}
-                    <View style={[styles.backButton, { backgroundColor: theme.colors.overlay, top: insets.top + 6 }]}>
-                        <TouchableOpacity onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity 
+                        style={[styles.backButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border, top: insets.top + 6 }]} 
+                        onPress={() => router.back()}
+                    >
+                        <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
+                    </TouchableOpacity>
 
                     {/* Header actions */}
                     <View style={[styles.headerActions, { top: insets.top + 6 }]}>
-                        <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]} onPress={toggleSubscription} disabled={subLoading}>
+                        <TouchableOpacity 
+                            style={[styles.headerIconButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]} 
+                            onPress={toggleSubscription} 
+                            disabled={subLoading}
+                        >
                             <Bell size={20} color={theme.colors.text} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]}>
+                        <TouchableOpacity 
+                            style={[styles.headerIconButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                        >
                             <Search size={20} color={theme.colors.text} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]} onPress={handleShare}>
+                        <TouchableOpacity 
+                            style={[styles.headerIconButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]} 
+                            onPress={handleShare}
+                        >
                             <ShareIcon size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                     </View>
@@ -519,8 +536,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     },
                                 ]}
                             />
-                            {/* Background overlay - disabled animation for performance */}
-                            <View
+                            {/* Background overlay - animated on scroll */}
+                            <Animated.View
                                 pointerEvents={'none' as any}
                                 style={[
                                     styles.banner,
@@ -530,9 +547,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         top: 0,
                                         left: 0,
                                         right: 0,
-                                        zIndex: 2,
+                                        zIndex: 1,
                                         backgroundColor: theme.colors.background,
-                                        opacity: 0, // Disabled animation
+                                        opacity: headerBackgroundOpacity,
                                     },
                                 ]}
                             />
@@ -547,13 +564,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 },
                             ]}
                         >
-                            {/* Overlay - disabled animation for performance */}
-                            <View
+                            {/* Overlay - animated on scroll */}
+                            <Animated.View
                                 style={[
                                     StyleSheet.absoluteFillObject,
                                     {
                                         backgroundColor: theme.colors.background,
-                                        opacity: 0, // Disabled animation
+                                        opacity: headerBackgroundOpacity,
                                     },
                                 ]}
                             />
@@ -581,15 +598,14 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 <View style={styles.avatarRow}>
                                     <Avatar
                                         source={avatarUri}
-                                        size={80}
+                                        size={90}
                                         useAnimated
                                         style={[styles.avatar, {
                                             borderColor: theme.colors.background,
                                             backgroundColor: theme.colors.backgroundSecondary,
                                             transform: [{ scale: avatarScale }], // Simplified - just scale for better performance
                                         }]}
-                                        imageStyle={{
-                                        }}
+                                        imageStyle={{}}
                                     />
 
                                     <View style={styles.profileActions}>
@@ -772,32 +788,32 @@ const styles = StyleSheet.create({
         overflow: 'visible',
     },
     backButton: {
-        zIndex: 2,
+        zIndex: 10,
         position: 'absolute',
         left: 12,
-        height: 36,
-        width: 36,
-        borderRadius: 18,
+        padding: 8,
+        borderRadius: 100,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: 1,
     },
     headerActions: {
-        zIndex: 2,
+        zIndex: 10,
         position: 'absolute',
         right: 16,
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 8,
     },
     headerIconButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        padding: 8,
+        borderRadius: 100,
         alignItems: 'center',
         justifyContent: 'center',
-        marginHorizontal: 4,
+        borderWidth: 1,
     },
     headerNameOverlay: {
-        zIndex: 2,
+        zIndex: 10,
         position: 'absolute',
         left: 60,
         alignItems: 'flex-start',
@@ -829,14 +845,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-end',
-        marginTop: -30,
+        marginTop: -45,
         marginBottom: 10,
     },
     avatar: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        borderWidth: 3,
+        width: 90,
+        height: 90,
+        borderRadius: 45,
+        borderWidth: 4,
     },
     profileActions: {
         flexDirection: 'row',
