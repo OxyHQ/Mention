@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
@@ -16,15 +16,18 @@ import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { Search } from '@/assets/icons/search-icon';
 import { WhoToFollowTab } from '@/components/WhoToFollowTab';
 import SEO from '@/components/SEO';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people';
 
 const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { scrollY } = useLayoutScroll();
   const [activeTab, setActiveTab] = useState<ExploreTab>('all');
   const headerTranslateY = useSharedValue(0);
+  const headerOpacity = useSharedValue(1);
   const fabTranslateY = useSharedValue(0);
   const headerHeight = 48; // Match header minHeight
   const fabHeight = 80; // FAB height + bottom margin
@@ -70,17 +73,20 @@ const ExploreScreen: React.FC = () => {
       
       if (currentScrollY > 50) { // Only hide after scrolling past threshold
         if (isScrollingDown) {
-          // Scrolling down - hide header and FAB
-          headerTranslateY.value = withTiming(-headerHeight, { duration: 200 });
+          // Scrolling down - hide header and FAB with opacity
+          headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
+          headerOpacity.value = withTiming(0, { duration: 200 });
           fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
         } else {
           // Scrolling up - show header and FAB
           headerTranslateY.value = withTiming(0, { duration: 200 });
+          headerOpacity.value = withTiming(1, { duration: 200 });
           fabTranslateY.value = withTiming(0, { duration: 200 });
         }
       } else {
         // Near top - always show header and FAB
         headerTranslateY.value = withTiming(0, { duration: 200 });
+        headerOpacity.value = withTiming(1, { duration: 200 });
         fabTranslateY.value = withTiming(0, { duration: 200 });
       }
       
@@ -90,11 +96,12 @@ const ExploreScreen: React.FC = () => {
     return () => {
       scrollY.removeListener(listenerId);
     };
-  }, [scrollY, headerTranslateY, fabTranslateY, headerHeight, fabHeight]);
+  }, [scrollY, headerTranslateY, headerOpacity, fabTranslateY, headerHeight, fabHeight, insets.top]);
 
   const headerAnimatedStyle = useAnimatedStyle(() => {
     return {
       transform: [{ translateY: headerTranslateY.value }],
+      opacity: headerOpacity.value,
     };
   });
 
@@ -124,13 +131,12 @@ const ExploreScreen: React.FC = () => {
             options={{
               title: t('Explore'),
               rightComponents: [
-                <TouchableOpacity
+                <HeaderIconButton
                   key="search"
                   onPress={() => router.push('/search')}
-                  style={{ padding: 8 }}
                 >
-                  <Search color={theme.colors.textSecondary} size={24} />
-                </TouchableOpacity>,
+                  <Search color={theme.colors.text} size={20} />
+                </HeaderIconButton>,
               ],
             }}
             hideBottomBorder={true}

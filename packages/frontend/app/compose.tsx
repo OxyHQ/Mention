@@ -29,6 +29,7 @@ import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
 
 const ComposeScreen = () => {
   const theme = useTheme();
@@ -462,17 +463,20 @@ const ComposeScreen = () => {
 
           {/* Header */}
           <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
+            <HeaderIconButton 
+              onPress={() => router.back()} 
+              style={styles.backBtn}
+            >
+              <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
+            </HeaderIconButton>
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{t('New post')}</Text>
             <View style={styles.headerIcons}>
-              <TouchableOpacity style={styles.iconBtn}>
+              <HeaderIconButton style={styles.iconBtn}>
                 <Ionicons name="reader-outline" size={20} color={theme.colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn}>
+              </HeaderIconButton>
+              <HeaderIconButton style={styles.iconBtn}>
                 <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
-              </TouchableOpacity>
+              </HeaderIconButton>
             </View>
           </View>
 
@@ -771,6 +775,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minHeight: 48,
     // keep header clean (no divider)
   },
   cancelButton: {
@@ -884,19 +891,10 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   iconBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
     marginLeft: 8,
-    borderRadius: 20,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   backBtn: {
-    padding: 10,
     marginRight: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
   /* bottom bar and floating post button */

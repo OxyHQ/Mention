@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { ThemedView } from '@/components/ThemedView';
 import { router } from 'expo-router';
 import { getData, storeData } from '@/utils/storage';
@@ -133,12 +134,18 @@ const FeedsScreen: React.FC = () => {
         <ThemedView style={styles.container}>
           <Header options={{
           title: t('Feeds'), rightComponents: [
-            <TouchableOpacity key="search" onPress={() => router.push('/search')} style={{ padding: 8 }}>
-              <Search size={22} color={theme.colors.textSecondary} />
-            </TouchableOpacity>,
-            <TouchableOpacity key="create" onPress={() => router.push('/feeds/create')} style={{ padding: 8 }}>
-              <Ionicons name="add-circle-outline" size={22} color={theme.colors.primary} />
-            </TouchableOpacity>
+            <HeaderIconButton 
+              key="search" 
+              onPress={() => router.push('/search')}
+            >
+              <Search size={20} color={theme.colors.text} />
+            </HeaderIconButton>,
+            <HeaderIconButton 
+              key="create" 
+              onPress={() => router.push('/feeds/create')}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={theme.colors.text} />
+            </HeaderIconButton>
           ]
         }} />
 

@@ -22,6 +22,7 @@ import Avatar from "@/components/Avatar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@/assets/icons/search-icon";
 import SEO from "@/components/SEO";
+import { HeaderIconButton } from "@/components/HeaderIconButton";
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 
@@ -380,10 +381,20 @@ export default function SearchIndex() {
                     <Header
                         options={{
                             title: t("search.title", "Search"),
-                        showBackButton: true,
-                    }}
-                    hideBottomBorder={true}
-                />
+                            showBackButton: true,
+                            rightComponents: [
+                                <HeaderIconButton
+                                    key="filter"
+                                    onPress={() => {
+                                        // TODO: Add filter functionality
+                                    }}
+                                >
+                                    <Ionicons name="options-outline" size={20} color={theme.colors.text} />
+                                </HeaderIconButton>,
+                            ],
+                        }}
+                        hideBottomBorder={true}
+                    />
 
                 <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
                     <View style={styles.searchIcon}>
@@ -411,6 +422,7 @@ export default function SearchIndex() {
                     tabs={tabs}
                     activeTabId={activeTab}
                     onTabPress={(id: string) => setActiveTab(id as SearchTab)}
+                    scrollEnabled={true}
                 />
 
                 <ScrollView style={styles.resultsContainer}>

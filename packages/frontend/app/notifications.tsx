@@ -30,6 +30,7 @@ import { StatusBar } from 'expo-status-bar';
 import { toast } from 'sonner';
 import { confirmDialog } from '../utils/alerts';
 import SEO from '@/components/SEO';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
 
@@ -354,16 +355,15 @@ const NotificationsScreen: React.FC = () => {
                         title: t('Notifications'),
                         rightComponents: [
                             unreadCount > 0 ? (
-                                <TouchableOpacity
+                                <HeaderIconButton
                                     key="mark-all"
-                                    style={styles.headerButton}
                                     onPress={handleMarkAllAsRead}
                                     disabled={markAllAsReadMutation.isPending}
                                 >
                                     <ThemedText style={[styles.markAllText, { color: theme.colors.primary }]}>
                                         {t('notification.mark_all_read')}
                                     </ThemedText>
-                                </TouchableOpacity>
+                                </HeaderIconButton>
                             ) : null,
                         ].filter(Boolean),
                     }}
@@ -466,10 +466,6 @@ const styles = StyleSheet.create({
     markAllText: {
         fontSize: 14,
         fontWeight: '500',
-    },
-    headerButton: {
-        padding: 8,
-        marginLeft: 8,
     },
 });
 

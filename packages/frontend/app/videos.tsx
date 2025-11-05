@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
+import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
 import LoadingTopSpinner from '@/components/LoadingTopSpinner';
 import Avatar from '@/components/Avatar';
@@ -99,7 +100,7 @@ const VideoItem = memo<VideoItemProps>(({
     const player = useVideoPlayer(item.videoUrl || '', (player) => {
         if (player) {
             player.loop = true;
-            player.muted = true;
+            player.muted = globalMuted; // Use global muted state (platform-specific default)
         }
     });
 
@@ -156,6 +157,15 @@ const VideoItem = memo<VideoItemProps>(({
                 }
 
                 if (isVisible) {
+                    // Reset video to start when it becomes visible
+                    try {
+                        if (typeof player.currentTime !== 'undefined') {
+                            player.currentTime = 0;
+                        }
+                    } catch (error) {
+                        // Silently handle currentTime reset errors
+                    }
+                    
                     const playResult = player.play() as Promise<void> | void;
                     if (playResult instanceof Promise) {
                         playResult.catch(() => {
@@ -356,7 +366,7 @@ export default function VideosScreen() {
     const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
-    const [globalMuted, setGlobalMuted] = useState(true);
+    const { isMuted: globalMuted, toggleMuted, loadMutedState } = useVideoMuteStore();
     const [targetPostId] = useState<string | undefined>(params.postId);
     const [hasScrolledToTarget, setHasScrolledToTarget] = useState(false);
 
@@ -648,8 +658,13 @@ export default function VideosScreen() {
     }, []);
 
     const handleMuteChange = useCallback((muted: boolean) => {
-        setGlobalMuted(muted);
+        useVideoMuteStore.getState().setMuted(muted);
     }, []);
+
+    // Load muted state on mount
+    useEffect(() => {
+        loadMutedState();
+    }, [loadMutedState]);
 
     // Memoized render item
     const renderVideoItem = useCallback(({ item, index }: { item: VideoPost; index: number }) => (

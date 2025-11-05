@@ -113,6 +113,7 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
             ref: scrollRef,
             onScroll: scrollHandler,
             scrollEventThrottle: 16,
+            contentContainerStyle: styles.scrollContent,
         }
         : {};
 
@@ -194,12 +195,15 @@ const styles = StyleSheet.create({
     tabsContainer: {
         flexDirection: 'row',
     },
+    scrollContent: {
+        flexDirection: 'row',
+    },
     tab: {
         alignItems: 'center',
-        paddingTop: 8,
-        paddingBottom: 16,
-        paddingHorizontal: 20,
-        minWidth: 80,
+        paddingTop: 10,
+        paddingBottom: 10,
+        paddingHorizontal: 12,
+        minWidth: 60,
     },
     tabText: {
         fontSize: 15,

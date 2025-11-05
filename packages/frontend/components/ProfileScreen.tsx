@@ -40,6 +40,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import SEO from '@/components/SEO';
 import { useTranslation } from 'react-i18next';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
 
 // Constants for better maintainability and responsive design
 const HEADER_HEIGHT_EXPANDED = 120;
@@ -472,33 +473,27 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 ) : (
                     <>
                     {/* Back button */}
-                    <TouchableOpacity 
-                        style={[styles.backButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border, top: insets.top + 6 }]} 
+                    <HeaderIconButton 
+                        style={[styles.backButton, { top: insets.top + 6 }]} 
                         onPress={() => router.back()}
                     >
                         <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
-                    </TouchableOpacity>
+                    </HeaderIconButton>
 
                     {/* Header actions */}
                     <View style={[styles.headerActions, { top: insets.top + 6 }]}>
-                        <TouchableOpacity 
-                            style={[styles.headerIconButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]} 
+                        <HeaderIconButton 
                             onPress={toggleSubscription} 
                             disabled={subLoading}
                         >
                             <Bell size={20} color={theme.colors.text} />
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                            style={[styles.headerIconButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                        >
+                        </HeaderIconButton>
+                        <HeaderIconButton>
                             <Search size={20} color={theme.colors.text} />
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                            style={[styles.headerIconButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]} 
-                            onPress={handleShare}
-                        >
+                        </HeaderIconButton>
+                        <HeaderIconButton onPress={handleShare}>
                             <ShareIcon size={20} color={theme.colors.text} />
-                        </TouchableOpacity>
+                        </HeaderIconButton>
                     </View>
 
                     {/* Name + posts count - disabled animation for performance */}
@@ -790,12 +785,7 @@ const styles = StyleSheet.create({
     backButton: {
         zIndex: 10,
         position: 'absolute',
-        left: 12,
-        padding: 8,
-        borderRadius: 100,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
+        left: 16,
     },
     headerActions: {
         zIndex: 10,
@@ -804,13 +794,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-    },
-    headerIconButton: {
-        padding: 8,
-        borderRadius: 100,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
     },
     headerNameOverlay: {
         zIndex: 10,

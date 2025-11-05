@@ -111,9 +111,9 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "center",
         borderBottomWidth: 0.01,
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         // borderBottomColor and backgroundColor applied inline with theme
-        paddingVertical: 4,
+        paddingVertical: 8,
         position: "relative",
         ...Platform.select({
             web: {

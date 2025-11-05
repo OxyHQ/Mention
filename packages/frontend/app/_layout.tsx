@@ -42,6 +42,7 @@ import { LayoutScrollProvider, useLayoutScroll } from '@/context/LayoutScrollCon
 import { oxyServices } from '@/lib/oxyServices';
 import { Toaster } from "@/lib/sonner";
 import { useAppearanceStore } from '@/store/appearanceStore';
+import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import {
   hasNotificationPermission,
   requestNotificationPermissions,
@@ -261,6 +262,13 @@ export default function RootLayout() {
   useEffect(() => {
     useAppearanceStore.getState().loadMySettings().catch(err => {
       console.warn('Early appearance settings load failed:', err);
+    });
+  }, []);
+
+  // Load video mute state eagerly on mount
+  useEffect(() => {
+    useVideoMuteStore.getState().loadMutedState().catch(err => {
+      console.warn('Failed to load video mute state:', err);
     });
   }, []);
 

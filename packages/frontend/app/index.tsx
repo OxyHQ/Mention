@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming, interpolate } f
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { Search } from '@/assets/icons/search-icon';
 import SEO from '@/components/SEO';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -34,6 +35,7 @@ const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
     const { isAuthenticated } = useOxy();
     const theme = useTheme();
+    const insets = useSafeAreaInsets();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
     const { scrollY } = useLayoutScroll();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
@@ -41,6 +43,7 @@ const HomeScreen: React.FC = () => {
     const [myFeeds, setMyFeeds] = useState<any[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const headerTranslateY = useSharedValue(0);
+    const headerOpacity = useSharedValue(1);
     const fabTranslateY = useSharedValue(0);
     const headerHeight = 48; // Match header minHeight
     const fabHeight = 80; // FAB height + bottom margin
@@ -150,17 +153,20 @@ const HomeScreen: React.FC = () => {
             
             if (currentScrollY > 50) { // Only hide after scrolling past threshold
                 if (isScrollingDown) {
-                    // Scrolling down - hide header and FAB
-                    headerTranslateY.value = withTiming(-headerHeight, { duration: 200 });
+                    // Scrolling down - hide header and FAB with opacity
+                    headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
+                    headerOpacity.value = withTiming(0, { duration: 200 });
                     fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
                 } else {
                     // Scrolling up - show header and FAB
                     headerTranslateY.value = withTiming(0, { duration: 200 });
+                    headerOpacity.value = withTiming(1, { duration: 200 });
                     fabTranslateY.value = withTiming(0, { duration: 200 });
                 }
             } else {
                 // Near top - always show header and FAB
                 headerTranslateY.value = withTiming(0, { duration: 200 });
+                headerOpacity.value = withTiming(1, { duration: 200 });
                 fabTranslateY.value = withTiming(0, { duration: 200 });
             }
             
@@ -170,11 +176,12 @@ const HomeScreen: React.FC = () => {
         return () => {
             scrollY.removeListener(listenerId);
         };
-    }, [scrollY, headerTranslateY, fabTranslateY, headerHeight, fabHeight]);
+        }, [scrollY, headerTranslateY, headerOpacity, fabTranslateY, headerHeight, fabHeight, insets.top]);
 
     const headerAnimatedStyle = useAnimatedStyle(() => {
         return {
             transform: [{ translateY: headerTranslateY.value }],
+            opacity: headerOpacity.value,
         };
     });
 
@@ -294,20 +301,18 @@ const HomeScreen: React.FC = () => {
                         options={{
                             title: 'Mention',
                             rightComponents: [
-                                <TouchableOpacity
+                                <HeaderIconButton
                                     key="search"
-                                    style={styles.headerButton}
                                     onPress={() => router.push('/search')}
                                 >
-                                    <Search color={theme.colors.textSecondary} size={24} />
-                                </TouchableOpacity>,
-                                <TouchableOpacity
+                                    <Search color={theme.colors.text} size={20} />
+                                </HeaderIconButton>,
+                                <HeaderIconButton
                                     key="notifications"
-                                    style={styles.headerButton}
                                     onPress={() => router.push('/notifications')}
                                 >
-                                    <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
-                                </TouchableOpacity>
+                                    <Ionicons name="notifications-outline" size={20} color={theme.colors.text} />
+                                </HeaderIconButton>
                             ]
                         }}
                         hideBottomBorder={true}
@@ -352,10 +357,6 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-    },
-    headerButton: {
-        padding: 8,
-        marginLeft: 8,
     },
     headerContainer: {
         position: 'absolute',
