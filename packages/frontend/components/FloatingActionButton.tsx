@@ -3,6 +3,7 @@ import { StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/useTheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface FloatingActionButtonProps {
     onPress: () => void;
@@ -10,6 +11,7 @@ interface FloatingActionButtonProps {
     customIcon?: React.ReactNode;
     iconSize?: number;
     animatedTranslateY?: SharedValue<number>;
+    animatedOpacity?: SharedValue<number>;
     style?: any;
 }
 
@@ -19,9 +21,11 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
     customIcon,
     iconSize = 24,
     animatedTranslateY,
+    animatedOpacity,
     style,
 }) => {
     const theme = useTheme();
+    const insets = useSafeAreaInsets();
 
     // Check if custom style includes position
     const hasCustomPosition = style && typeof style === 'object' && ('position' in style);
@@ -46,26 +50,42 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
         return rest;
     };
 
-    const fabAnimatedStyle = animatedTranslateY
+    const fabAnimatedStyle = (animatedTranslateY || animatedOpacity)
         ? useAnimatedStyle(() => {
-              return {
-                  transform: [{ translateY: animatedTranslateY.value }],
-              };
-          })
+                const opacity = animatedOpacity ? animatedOpacity.value : 1;
+                return {
+                    transform: animatedTranslateY ? [{ translateY: animatedTranslateY.value }] : [],
+                    opacity: opacity,
+                };
+            })
         : undefined;
 
-    // Determine positioning styles
+    // Determine positioning styles - position above bottom bar
+    const bottomBarHeight = 60 + insets.bottom; // Bottom bar height
+    const marginFromBottomBar = 16; // Space between FAB and bottom bar
+    const defaultBottom = bottomBarHeight + marginFromBottomBar;
+    
     const positionStyles = hasCustomPosition 
         ? extractPositionStyles(style)
-        : { position: 'absolute' as const, bottom: 24, right: 24, zIndex: 1000 };
+        : { 
+            position: 'absolute' as const, 
+            bottom: defaultBottom, 
+            right: 24, 
+            zIndex: 10000 // Higher than bottom bar's zIndex: 1000
+          };
 
     // Base FAB styles (visual only, no positioning)
     const baseFabStyle = styles.fabBase;
     const nonPositionStyles = hasCustomPosition ? extractNonPositionStyles(style) : {};
 
+    // Create style without shadows when animating opacity to prevent artifacts
+    const fabStyle = animatedOpacity 
+        ? [baseFabStyle, { backgroundColor: theme.colors.primary }, nonPositionStyles, { elevation: 0, shadowOpacity: 0 }]
+        : [baseFabStyle, { backgroundColor: theme.colors.primary }, nonPositionStyles];
+
     const fabContent = (
         <TouchableOpacity
-            style={[baseFabStyle, { backgroundColor: theme.colors.primary }, nonPositionStyles]}
+            style={fabStyle}
             onPress={onPress}
             activeOpacity={0.8}
         >
@@ -77,7 +97,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
         </TouchableOpacity>
     );
 
-    if (animatedTranslateY) {
+    if (animatedTranslateY || animatedOpacity) {
         // When animating, wrap in Animated.View and apply positioning to wrapper
         return (
             <Animated.View style={[positionStyles, fabAnimatedStyle]}>
@@ -109,6 +129,8 @@ const styles = StyleSheet.create({
         borderRadius: 28,
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden', // Prevent any visual artifacts from showing through
+        backgroundColor: 'transparent', // Ensure no background bleed
         elevation: 8,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,

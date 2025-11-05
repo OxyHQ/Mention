@@ -1,13 +1,15 @@
 import { StyleSheet, View, Pressable, ViewStyle, Platform, Vibration } from 'react-native';
 import { Home, HomeActive, Search, SearchActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname } from 'expo-router';
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import Avatar from './Avatar';
 import { useOxy } from '@oxyhq/services';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { colors as baseColors } from '@/styles/colors';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 export const BottomBar = () => {
     const router = useRouter();
@@ -16,6 +18,10 @@ export const BottomBar = () => {
     const insets = useSafeAreaInsets();
     const theme = useTheme();
     const { triggerHomeRefresh } = useHomeRefresh();
+    const { scrollY } = useLayoutScroll();
+    const bottomBarTranslateY = useSharedValue(0);
+    const bottomBarOpacity = useSharedValue(1);
+    const bottomBarHeight = 60 + insets.bottom;
     
     // Force dark theme on videos screen
     const isVideosScreen = pathname === '/videos';
@@ -45,8 +51,57 @@ export const BottomBar = () => {
         }
     };
 
+    // Track scroll direction and animate bottom bar
+    useEffect(() => {
+        let isScrollingDown = false;
+        let lastKnownScrollY = 0;
+        
+        const listenerId = scrollY.addListener(({ value }) => {
+            const currentScrollY = typeof value === 'number' ? value : 0;
+            const scrollDelta = currentScrollY - lastKnownScrollY;
+            
+            // Determine scroll direction (only update if movement is significant)
+            if (Math.abs(scrollDelta) > 1) {
+                isScrollingDown = scrollDelta > 0;
+            }
+            
+            if (currentScrollY > 50) { // Only hide after scrolling past threshold
+                if (isScrollingDown) {
+                    // Scrolling down - hide bottom bar with opacity
+                    bottomBarTranslateY.value = withTiming(bottomBarHeight, { duration: 200 });
+                    bottomBarOpacity.value = withTiming(0, { duration: 200 });
+                } else {
+                    // Scrolling up - show bottom bar
+                    bottomBarTranslateY.value = withTiming(0, { duration: 200 });
+                    bottomBarOpacity.value = withTiming(1, { duration: 200 });
+                }
+            } else {
+                // Near top - always show bottom bar
+                bottomBarTranslateY.value = withTiming(0, { duration: 200 });
+                bottomBarOpacity.value = withTiming(1, { duration: 200 });
+            }
+            
+            lastKnownScrollY = currentScrollY;
+        });
+        
+        return () => {
+            scrollY.removeListener(listenerId);
+        };
+    }, [scrollY, bottomBarTranslateY, bottomBarOpacity, bottomBarHeight]);
+
+    const bottomBarAnimatedStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ translateY: bottomBarTranslateY.value }],
+            opacity: bottomBarOpacity.value,
+        };
+    });
+
     const styles = StyleSheet.create({
         bottomBar: {
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
             width: '100%',
             height: 60 + insets.bottom,
             backgroundColor: effectiveTheme.colors.card,
@@ -57,11 +112,10 @@ export const BottomBar = () => {
             borderTopColor: effectiveTheme.colors.border,
             elevation: 8,
             paddingBottom: insets.bottom,
+            zIndex: 1000,
             ...Platform.select({
                 web: {
-                    position: 'sticky',
-                    bottom: 0,
-                    left: 0,
+                    position: 'fixed',
                     height: 60,
                     paddingBottom: 0,
                 },
@@ -78,8 +132,10 @@ export const BottomBar = () => {
         },
     });
 
+    const AnimatedView = Animated.createAnimatedComponent(View);
+
     return (
-        <View style={styles.bottomBar}>
+        <AnimatedView style={[styles.bottomBar, bottomBarAnimatedStyle]}>
             <Pressable onPress={handleHomePress} style={[styles.tab, pathname === '/' && styles.active]}>
                 {pathname === '/' ? (
                     <HomeActive size={28} color={effectiveTheme.colors.primary} />
@@ -124,6 +180,6 @@ export const BottomBar = () => {
             >
                 <Avatar size={35} source={{ uri: user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined }} />
             </Pressable>
-        </View>
+        </AnimatedView>
     );
 };

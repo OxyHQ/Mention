@@ -45,6 +45,7 @@ const HomeScreen: React.FC = () => {
     const headerTranslateY = useSharedValue(0);
     const headerOpacity = useSharedValue(1);
     const fabTranslateY = useSharedValue(0);
+    const fabOpacity = useSharedValue(1);
     const headerHeight = 48; // Match header minHeight
     const fabHeight = 80; // FAB height + bottom margin
 
@@ -157,17 +158,20 @@ const HomeScreen: React.FC = () => {
                     headerTranslateY.value = withTiming(-headerHeight - insets.top, { duration: 200 });
                     headerOpacity.value = withTiming(0, { duration: 200 });
                     fabTranslateY.value = withTiming(fabHeight, { duration: 200 });
+                    fabOpacity.value = withTiming(0, { duration: 200 });
                 } else {
                     // Scrolling up - show header and FAB
                     headerTranslateY.value = withTiming(0, { duration: 200 });
                     headerOpacity.value = withTiming(1, { duration: 200 });
                     fabTranslateY.value = withTiming(0, { duration: 200 });
+                    fabOpacity.value = withTiming(1, { duration: 200 });
                 }
             } else {
                 // Near top - always show header and FAB
                 headerTranslateY.value = withTiming(0, { duration: 200 });
                 headerOpacity.value = withTiming(1, { duration: 200 });
                 fabTranslateY.value = withTiming(0, { duration: 200 });
+                fabOpacity.value = withTiming(1, { duration: 200 });
             }
             
             lastKnownScrollY = currentScrollY;
@@ -176,7 +180,7 @@ const HomeScreen: React.FC = () => {
         return () => {
             scrollY.removeListener(listenerId);
         };
-        }, [scrollY, headerTranslateY, headerOpacity, fabTranslateY, headerHeight, fabHeight, insets.top]);
+        }, [scrollY, headerTranslateY, headerOpacity, fabTranslateY, fabOpacity, headerHeight, fabHeight, insets.top]);
 
     const headerAnimatedStyle = useAnimatedStyle(() => {
         return {
@@ -346,6 +350,7 @@ const HomeScreen: React.FC = () => {
                     <FloatingActionButton
                         onPress={() => router.push('/compose')}
                         animatedTranslateY={fabTranslateY}
+                        animatedOpacity={fabOpacity}
                     />
                 )}
             </ThemedView>
