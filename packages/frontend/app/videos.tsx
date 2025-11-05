@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { useOxy } from '@oxyhq/services';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
@@ -90,6 +91,7 @@ const VideoItem = memo<VideoItemProps>(({
     t,
 }) => {
     const { oxyServices } = useOxy();
+    const router = useRouter();
     const [isMuted, setIsMuted] = useState(globalMuted);
     const [videoError, setVideoError] = useState(false);
 
@@ -183,6 +185,13 @@ const VideoItem = memo<VideoItemProps>(({
     const userHandle = useMemo(() => item.user?.handle || t('common.unknown'), [item.user?.handle, t]);
     const postText = useMemo(() => item.content?.text?.trim() || '', [item.content?.text]);
 
+    // Navigate to profile with videos tab
+    const handleProfilePress = useCallback(() => {
+        if (item.user?.handle) {
+            router.push(`/@${item.user.handle}/videos`);
+        }
+    }, [item.user?.handle, router]);
+
     return (
         <View style={styles.videoContainer}>
             {item.videoUrl && player && !videoError ? (
@@ -221,14 +230,18 @@ const VideoItem = memo<VideoItemProps>(({
             </Pressable>
 
             <View style={[styles.overlay, { paddingBottom: bottomBarHeight + 20 }]}>
-                <View style={styles.gradientOverlay} />
+                <LinearGradient
+                    colors={['transparent', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)', '#000000']}
+                    locations={[0, 0.4, 0.7, 1]}
+                    style={styles.gradientOverlay}
+                />
 
                 <View style={styles.bottomInfo}>
                     <View style={styles.userInfo}>
-                        <View style={styles.userHeader}>
+                        <Pressable onPress={handleProfilePress} style={styles.userHeader}>
                             <Avatar
                                 source={avatarSource}
-                                size={48}
+                                size={40}
                                 verified={item.user?.verified || false}
                                 style={styles.userAvatar}
                             />
@@ -238,14 +251,13 @@ const VideoItem = memo<VideoItemProps>(({
                                         {userName}
                                     </Text>
                                     {item.user?.verified && (
-                                        <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" style={styles.verifiedIcon} />
+                                        <Ionicons name="checkmark-circle" size={14} color="#1DA1F2" style={styles.verifiedIcon} />
                                     )}
                                 </View>
-                                <Text style={styles.userHandle}>@{userHandle}</Text>
                             </View>
-                        </View>
+                        </Pressable>
                         {postText ? (
-                            <Text style={styles.postText} numberOfLines={3}>
+                            <Text style={styles.postText} numberOfLines={2}>
                                 {postText}
                             </Text>
                         ) : null}
@@ -275,15 +287,13 @@ const VideoItem = memo<VideoItemProps>(({
                         onPress={() => onRepost(item.id, item.isReposted || false)}
                         formatCount={formatCount}
                     />
-                    <Pressable
-                        style={styles.actionButton}
+                    <ActionButton
+                        icon="share-outline"
+                        count={0}
                         onPress={() => onShare(item)}
-                        hitSlop={HIT_SLOP}
-                    >
-                        <View style={styles.actionButtonIcon}>
-                            <Ionicons name="share-outline" size={32} color="white" />
-                        </View>
-                    </Pressable>
+                        formatCount={formatCount}
+                        hideCount={true}
+                    />
                 </View>
             </View>
         </View>
@@ -300,20 +310,22 @@ interface ActionButtonProps {
     activeColor?: string;
     onPress: () => void;
     formatCount: (count: number) => string;
+    hideCount?: boolean;
 }
 
-const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeColor, onPress, formatCount }) => (
+const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeColor, onPress, formatCount, hideCount = false }) => (
     <Pressable style={styles.actionButton} onPress={onPress} hitSlop={HIT_SLOP}>
-        <View style={[styles.actionButtonIcon, isActive && activeColor && { backgroundColor: `rgba(${hexToRgb(activeColor)}, 0.2)`, borderColor: `rgba(${hexToRgb(activeColor)}, 0.4)` }]}>
-            <Ionicons
-                name={icon as any}
-                size={32}
-                color={isActive && activeColor ? activeColor : "white"}
-            />
-        </View>
-        <Text style={[styles.actionCount, isActive && activeColor && { color: activeColor }]}>
-            {formatCount(count)}
-        </Text>
+        <Ionicons
+            name={icon as any}
+            size={28}
+            color={isActive && activeColor ? activeColor : "white"}
+            style={styles.actionIcon}
+        />
+        {!hideCount && (
+            <Text style={[styles.actionCount, isActive && activeColor && { color: activeColor }]}>
+                {formatCount(count)}
+            </Text>
+        )}
     </Pressable>
 ));
 
@@ -799,11 +811,16 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 4,
     },
     overlay: {
         position: 'absolute',
@@ -812,8 +829,10 @@ const styles = StyleSheet.create({
         right: 0,
         flexDirection: 'row',
         justifyContent: 'space-between',
+        alignItems: 'flex-end',
         paddingHorizontal: 16,
         paddingTop: 20,
+        paddingBottom: 16,
         backgroundColor: 'transparent',
         zIndex: 5,
     },
@@ -822,8 +841,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        height: '70%',
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+        height: 180,
         pointerEvents: 'none',
     },
     rightActions: {
@@ -831,98 +849,103 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 24,
         zIndex: 6,
+        paddingRight: 4,
     },
     actionButton: {
         alignItems: 'center',
-        gap: 6,
-        minWidth: 44,
-    },
-    actionButtonIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
         justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.15)',
-    },
-    actionCount: {
-        color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: '700',
-        textShadowColor: 'rgba(0, 0, 0, 0.8)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 2,
-    },
-    bottomInfo: {
-        flex: 1,
-        justifyContent: 'flex-end',
-        marginRight: 80,
-        maxWidth: '70%',
-        zIndex: 6,
-    },
-    userInfo: {
-        gap: 10,
-    },
-    userHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    userAvatar: {
-        borderWidth: 2,
-        borderColor: 'rgba(255, 255, 255, 0.3)',
-    },
-    userNameContainer: {
-        flex: 1,
         gap: 4,
+        minWidth: 40,
     },
-    userNameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    userFullName: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '700',
+    actionIcon: {
         textShadowColor: 'rgba(0, 0, 0, 0.8)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 3,
     },
-    userHandle: {
-        color: 'rgba(255, 255, 255, 0.85)',
-        fontSize: 14,
+    actionCount: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '600',
+        textShadowColor: 'rgba(0, 0, 0, 0.8)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+        marginTop: 0,
+        textAlign: 'center',
+    },
+    bottomInfo: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        marginRight: 70,
+        maxWidth: '70%',
+        zIndex: 6,
+        paddingBottom: 0,
+    },
+    userInfo: {
+        gap: 8,
+    },
+    userHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    userAvatar: {
+        borderWidth: 0,
+    },
+    userNameContainer: {
+        flex: 1,
+    },
+    userNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    userFullName: {
+        color: '#FFFFFF',
+        fontSize: 15,
         fontWeight: '600',
         textShadowColor: 'rgba(0, 0, 0, 0.8)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 3,
     },
+    userHandle: {
+        color: 'rgba(255, 255, 255, 0.9)',
+        fontSize: 14,
+        fontWeight: '600',
+        textShadowColor: 'rgba(0, 0, 0, 0.9)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
+    },
     verifiedIcon: {
         marginLeft: 2,
     },
     postText: {
-        color: 'rgba(255, 255, 255, 0.95)',
-        fontSize: 15,
-        lineHeight: 22,
+        color: '#FFFFFF',
+        fontSize: 14,
+        lineHeight: 18,
+        fontWeight: '400',
         textShadowColor: 'rgba(0, 0, 0, 0.8)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 3,
+        marginTop: 4,
     },
     emptyState: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 16,
+        gap: 20,
+        paddingHorizontal: 32,
     },
     emptyText: {
-        fontSize: 16,
-        fontWeight: '500',
+        fontSize: 18,
+        fontWeight: '700',
+        textAlign: 'center',
     },
     emptySubtext: {
-        fontSize: 12,
-        marginTop: 8,
+        fontSize: 14,
+        fontWeight: '500',
+        marginTop: 4,
+        textAlign: 'center',
+        opacity: 0.8,
     },
     loadingMore: {
         position: 'absolute',
@@ -932,11 +955,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loadingIndicator: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 16,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 4,
     },
     loadingText: {
         fontSize: 14,
+        fontWeight: '600',
     },
 });

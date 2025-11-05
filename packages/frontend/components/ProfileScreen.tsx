@@ -28,6 +28,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import { useUsersStore } from '@/stores/usersStore';
 import type { FeedType } from '@mention/shared-types';
 import MediaGrid from '@/components/Profile/MediaGrid';
+import VideosGrid from '@/components/Profile/VideosGrid';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { subscriptionService } from '@/services/subscriptionService';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
@@ -72,7 +73,7 @@ interface FollowButtonProps {
 const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
 
 interface ProfileScreenProps {
-    tab?: 'posts' | 'replies' | 'media' | 'likes' | 'reposts';
+    tab?: 'posts' | 'replies' | 'media' | 'videos' | 'likes' | 'reposts';
 }
 
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
@@ -95,8 +96,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             case 'posts': return 0;
             case 'replies': return 1;
             case 'media': return 2;
-            case 'likes': return 3;
-            case 'reposts': return 4;
+            case 'videos': return 3;
+            case 'likes': return 4;
+            case 'reposts': return 5;
             default: return 0;
         }
     };
@@ -264,7 +266,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         ? oxyServices.getFileDownloadUrl(userAppearance.profileHeaderImage, 'full')
         : undefined;
 
-    const tabs = ['Posts', 'Replies', 'Media', 'Likes', 'Reposts'];
+    const tabs = ['Posts', 'Replies', 'Media', 'Videos', 'Likes', 'Reposts'];
 
     // Subscription (post notifications) state
     const [subscribed, setSubscribed] = useState<boolean>(false);
@@ -308,7 +310,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     const onTabPress = (index: number) => {
         if (!username) return;
-        const tabNames = ['posts', 'replies', 'media', 'likes', 'reposts'];
+        const tabNames = ['posts', 'replies', 'media', 'videos', 'likes', 'reposts'];
         const tabName = tabNames[index];
         const path = index === 0
             ? `/@${username}`
@@ -348,6 +350,12 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         if (tab === 'media') {
             return (
                 <MediaGrid userId={profileData?.id} />
+            );
+        }
+
+        if (tab === 'videos') {
+            return (
+                <VideosGrid userId={profileData?.id} />
             );
         }
 
@@ -737,6 +745,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     const index = parseInt(id);
                                     onTabPress(index);
                                 }}
+                                scrollEnabled={true}
                                 instanceId={username || 'default'}
                             />
 
