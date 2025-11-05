@@ -21,6 +21,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { Platform } from 'react-native';
+import { flattenStyleArray } from '@/utils/theme';
 
 interface FeedProps {
     type: FeedType;
@@ -228,6 +229,7 @@ const Feed = (props: FeedProps) => {
 
             if (useScoped) {
                 setLocalLoading(true);
+                setLocalError(null);
                 const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
                 let items = resp.items || [];
 
@@ -240,7 +242,7 @@ const Feed = (props: FeedProps) => {
                 const seen = new Map<string, any>();
                 for (const item of items) {
                     const key = itemKey(item);
-                    if (!seen.has(key)) {
+                    if (key && !seen.has(key)) {
                         seen.set(key, item);
                     }
                 }
@@ -326,10 +328,21 @@ const Feed = (props: FeedProps) => {
                 await refreshFeed('saved', filters);
             } else if (useScoped) {
                 try {
+                    setLocalLoading(true);
                     setLocalError(null);
                     const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
                     const items = resp.items || []; // Use items directly since backend returns proper schema
-                    setLocalItems(items);
+                    
+                    // Deduplicate items using Map for O(1) lookup
+                    const seen = new Map<string, any>();
+                    for (const item of items) {
+                        const key = itemKey(item);
+                        if (key && !seen.has(key)) {
+                            seen.set(key, item);
+                        }
+                    }
+                    
+                    setLocalItems(Array.from(seen.values()));
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
                 } catch (error) {
@@ -435,6 +448,13 @@ const Feed = (props: FeedProps) => {
     }, [showOnlySaved, hasMore, isLoading, isLoadingMore, type, effectiveType, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, localItems, itemKey]);
 
     const renderPostItem = useCallback(({ item }: { item: any; index: number }) => {
+        // Validate item before rendering to prevent crashes
+        if (!item || !item.id) {
+            console.warn('[Feed] Invalid post item:', item);
+            return null;
+        }
+        
+        // Return PostItem - if it crashes, ErrorBoundary will catch it
         return <PostItem post={item} />;
     }, []);
 
@@ -500,10 +520,10 @@ const Feed = (props: FeedProps) => {
 
         if (hasError && hasNoItems) {
             return (
-                <View style={[styles.emptyState, { backgroundColor: theme.colors.background }]}>
-                    <Text style={[styles.errorText, { color: theme.colors.error }]}>Failed to load posts</Text>
+                <View style={flattenStyleArray([styles.emptyState, { backgroundColor: theme.colors.background }])}>
+                    <Text style={flattenStyleArray([styles.errorText, { color: theme.colors.error }])}>Failed to load posts</Text>
                     <TouchableOpacity
-                        style={[styles.retryButton, { backgroundColor: theme.colors.primary, shadowColor: theme.colors.shadow }]}
+                        style={flattenStyleArray([styles.retryButton, { backgroundColor: theme.colors.primary, shadowColor: theme.colors.shadow }])}
                         onPress={async () => {
                             clearError();
                             if (useScoped) setLocalError(null);
@@ -520,18 +540,18 @@ const Feed = (props: FeedProps) => {
                             }
                         }}
                     >
-                        <Text style={[styles.retryButtonText, { color: theme.colors.card }]}>Retry</Text>
+                        <Text style={flattenStyleArray([styles.retryButtonText, { color: theme.colors.card }])}>Retry</Text>
                     </TouchableOpacity>
                 </View>
             );
         }
 
         return (
-            <View style={[styles.emptyState, { backgroundColor: theme.colors.background }]}>
-                <Text style={[styles.emptyStateText, { color: theme.colors.text }]}>
+            <View style={flattenStyleArray([styles.emptyState, { backgroundColor: theme.colors.background }])}>
+                <Text style={flattenStyleArray([styles.emptyStateText, { color: theme.colors.text }])}>
                     {showOnlySaved ? 'No saved posts yet' : 'No posts yet'}
                 </Text>
-                <Text style={[styles.emptyStateSubtext, { color: theme.colors.textSecondary }]}>
+                <Text style={flattenStyleArray([styles.emptyStateSubtext, { color: theme.colors.textSecondary }])}>
                     {showOnlySaved
                         ? 'Posts you save will appear here. Tap the bookmark icon on any post to save it.'
                         : type === 'posts' ? 'Be the first to share something!' :
@@ -565,12 +585,12 @@ const Feed = (props: FeedProps) => {
         if (!showComposeButton || hideHeader) return null;
 
         return (
-            <View style={{ backgroundColor: theme.colors.background }}>
+            <View style={flattenStyleArray([{ backgroundColor: theme.colors.background }])}>
                 <TouchableOpacity
-                    style={[styles.composeButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, shadowColor: theme.colors.shadow }]}
+                    style={flattenStyleArray([styles.composeButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, shadowColor: theme.colors.shadow }])}
                     onPress={onComposePress}
                 >
-                    <Text style={[styles.composeButtonText, { color: theme.colors.textSecondary }]}>What&apos;s happening?</Text>
+                    <Text style={flattenStyleArray([styles.composeButtonText, { color: theme.colors.textSecondary }])}>What&apos;s happening?</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -642,7 +662,7 @@ const Feed = (props: FeedProps) => {
     return (
         <ErrorBoundary>
             <View 
-                style={[styles.container, { backgroundColor: theme.colors.background }]}
+                style={flattenStyleArray([styles.container, { backgroundColor: theme.colors.background }])}
                 {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
             >
                 <LoadingTopSpinner showLoading={isLoading && !refreshing && !isLoadingMore && displayItems.length === 0} />
@@ -672,16 +692,16 @@ const Feed = (props: FeedProps) => {
                         onScroll: scrollEnabled === false ? undefined : handleScrollEvent,
                         scrollEventThrottle: scrollEnabled === false ? undefined : scrollEventThrottle,
                         onWheel: Platform.OS === 'web' ? handleWheelEvent : undefined,
-                        contentContainerStyle: [
+                        contentContainerStyle: flattenStyleArray([
                             styles.listContent,
                             { backgroundColor: theme.colors.background },
-                            contentContainerStyle
-                        ],
-                        style: [
+                            contentContainerStyle,
+                        ]),
+                        style: flattenStyleArray([
                             styles.list,
                             { backgroundColor: theme.colors.background },
-                            style
-                        ],
+                            style,
+                        ]),
                         drawDistance: 500,
                     } as any)}
                 />

@@ -34,7 +34,12 @@ router.post('/', async (req: any, res) => {
       language: language || undefined,
     });
 
-    res.status(201).json(feed);
+    // Normalize _id to id for frontend consistency
+    const normalizedFeed = {
+      ...feed.toObject(),
+      id: feed._id ? String(feed._id) : (feed as any).id,
+    };
+    res.status(201).json(normalizedFeed);
   } catch (error) {
     console.error('Create custom feed error:', error);
     res.status(500).json({ error: 'Failed to create feed' });
@@ -80,7 +85,12 @@ router.get('/', async (req: any, res) => {
     }
 
     const items = await CustomFeed.find(q).sort({ updatedAt: -1 }).lean();
-    res.json({ items, total: items.length });
+    // Normalize _id to id for frontend consistency
+    const normalizedItems = items.map((item: any) => ({
+      ...item,
+      id: item._id ? String(item._id) : item.id,
+    }));
+    res.json({ items: normalizedItems, total: normalizedItems.length });
   } catch (error) {
     console.error('List custom feeds error:', error);
     res.status(500).json({ error: 'Failed to list feeds' });
@@ -96,7 +106,12 @@ router.get('/:id', async (req: any, res) => {
     if (!feed.isPublic && feed.ownerOxyUserId !== userId) {
       return res.status(403).json({ error: 'Not allowed' });
     }
-    res.json(feed);
+    // Normalize _id to id for frontend consistency
+    const normalizedFeed = {
+      ...feed,
+      id: (feed as any)._id ? String((feed as any)._id) : (feed as any).id,
+    };
+    res.json(normalizedFeed);
   } catch (error) {
     res.status(500).json({ error: 'Failed to get feed' });
   }
@@ -121,7 +136,12 @@ router.put('/:id', async (req: any, res) => {
     if (includeMedia !== undefined) feed.includeMedia = !!includeMedia;
     if (language !== undefined) feed.language = language;
     await feed.save();
-    res.json(feed);
+    // Normalize _id to id for frontend consistency
+    const normalizedFeed = {
+      ...feed.toObject(),
+      id: feed._id ? String(feed._id) : (feed as any).id,
+    };
+    res.json(normalizedFeed);
   } catch (error) {
     console.error('Update custom feed error:', error);
     res.status(500).json({ error: 'Failed to update feed' });
@@ -154,7 +174,12 @@ router.post('/:id/members', async (req: any, res) => {
     const set = new Set([...(feed.memberOxyUserIds || []), ...toAdd]);
     feed.memberOxyUserIds = Array.from(set);
     await feed.save();
-    res.json(feed);
+    // Normalize _id to id for frontend consistency
+    const normalizedFeed = {
+      ...feed.toObject(),
+      id: feed._id ? String(feed._id) : (feed as any).id,
+    };
+    res.json(normalizedFeed);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add members' });
   }
@@ -171,7 +196,12 @@ router.delete('/:id/members', async (req: any, res) => {
     const toRemove: Set<string> = new Set(Array.isArray(userIds) ? userIds : []);
     feed.memberOxyUserIds = (feed.memberOxyUserIds || []).filter(id => !toRemove.has(id));
     await feed.save();
-    res.json(feed);
+    // Normalize _id to id for frontend consistency
+    const normalizedFeed = {
+      ...feed.toObject(),
+      id: feed._id ? String(feed._id) : (feed as any).id,
+    };
+    res.json(normalizedFeed);
   } catch (error) {
     res.status(500).json({ error: 'Failed to remove members' });
   }

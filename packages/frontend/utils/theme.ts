@@ -3,8 +3,30 @@
  * Use these utilities instead of hardcoded color values
  */
 
-import { StyleSheet } from "react-native";
+import { StyleSheet, ViewStyle, TextStyle, ImageStyle } from "react-native";
 import { Theme } from "@/hooks/useTheme";
+
+/**
+ * Flatten an array of styles into a single style object
+ * Handles arrays, objects, and undefined/null values
+ */
+export function flattenStyleArray(
+  styles: (ViewStyle | TextStyle | ImageStyle | undefined | null | false)[]
+): ViewStyle | TextStyle | ImageStyle | undefined {
+  const validStyles = styles.filter((style): style is ViewStyle | TextStyle | ImageStyle => {
+    return style !== null && style !== undefined && style !== false;
+  });
+  
+  if (validStyles.length === 0) {
+    return undefined;
+  }
+  
+  if (validStyles.length === 1) {
+    return validStyles[0];
+  }
+  
+  return StyleSheet.flatten(validStyles);
+}
 
 /**
  * Create themed styles - use this for StyleSheet.create with theme-aware colors

@@ -50,13 +50,33 @@ const HomeScreen: React.FC = () => {
 
         try {
             const pinned = (await getData<string[]>(PINNED_KEY)) || [];
-            const feeds = await customFeedsService.list({ mine: true });
-            setMyFeeds(feeds.items || []);
+            
+            // Fetch both user's feeds and public feeds to find all pinned feeds
+            const [mineFeeds, publicFeeds] = await Promise.all([
+                customFeedsService.list({ mine: true }),
+                customFeedsService.list({ publicOnly: true })
+            ]);
+            
+            const myFeedsList = mineFeeds.items || [];
+            const publicFeedsList = publicFeeds.items || [];
+            
+            // Combine feeds, deduplicating by id
+            const allFeedsMap = new Map<string, any>();
+            [...myFeedsList, ...publicFeedsList].forEach((feed: any) => {
+                const feedId = String(feed._id || feed.id);
+                if (!allFeedsMap.has(feedId)) {
+                    allFeedsMap.set(feedId, feed);
+                }
+            });
+            const allFeeds = Array.from(allFeedsMap.values());
+            
+            setMyFeeds(myFeedsList);
 
+            // Find pinned feeds from all available feeds (mine + public)
             const pinnedFeedData = pinned
                 .map((id) => {
                     const feedId = id.replace('custom:', '');
-                    const feed = feeds.items?.find((f: any) => String(f._id || f.id) === feedId);
+                    const feed = allFeeds.find((f: any) => String(f._id || f.id) === feedId);
                     if (feed) {
                         return {
                             id,
@@ -64,9 +84,18 @@ const HomeScreen: React.FC = () => {
                             feedId
                         };
                     }
+                    console.warn(`[HomeScreen] Pinned feed not found: ${feedId}`, {
+                        pinnedIds: pinned,
+                        availableFeedIds: allFeeds.map((f: any) => String(f._id || f.id))
+                    });
                     return null;
                 })
                 .filter(Boolean) as PinnedFeed[];
+
+            console.log('[HomeScreen] Loaded pinned feeds:', {
+                pinnedCount: pinnedFeedData.length,
+                pinnedFeeds: pinnedFeedData.map(f => ({ id: f.id, title: f.title }))
+            });
 
             setPinnedFeeds(pinnedFeedData);
         } catch (error) {
