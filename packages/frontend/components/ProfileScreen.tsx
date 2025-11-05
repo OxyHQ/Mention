@@ -33,6 +33,10 @@ import { subscriptionService } from '@/services/subscriptionService';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
 import { Search } from '@/assets/icons/search-icon';
+import { Bell } from '@/assets/icons/bell-icon';
+import { ShareIcon } from '@/assets/icons/share-icon';
+import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
+import { Gear } from '@/assets/icons/gear-icon';
 
 // Constants for better maintainability and responsive design
 const HEADER_HEIGHT_EXPANDED = 120;
@@ -145,13 +149,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     //     ... FAB animation code disabled ...
     // }, [scrollY, fabTranslateY, fabHeight]);
 
-    // Heavily throttled scroll handler to reduce overhead
+    // Optimized scroll handler - check less frequently but smoothly
     const lastScrollCheckRef = useRef(0);
-    const SCROLL_CHECK_THROTTLE = 500; // Only check every 500ms
+    const SCROLL_CHECK_THROTTLE = 250; // Check every 250ms for load more (balanced)
     
     const handleProfileScrollEvent = useCallback((event: any) => {
         const now = Date.now();
-        // Skip most scroll events - only check occasionally
+        // Throttle load-more checks but allow scroll tracking for animations
         if (now - lastScrollCheckRef.current < SCROLL_CHECK_THROTTLE) {
             return;
         }
@@ -331,16 +335,10 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
 
 
-    // Optimized animations - only essential ones
+    // Simplified avatar animation - just scale for smoother performance (like Instagram/Twitter)
     const avatarScale = useMemo(() => scrollY.interpolate({
         inputRange: [0, HEADER_HEIGHT_EXPANDED],
-        outputRange: [1, 0.7],
-        extrapolate: 'clamp',
-    }), [scrollY]);
-
-    const avatarTranslateY = useMemo(() => scrollY.interpolate({
-        inputRange: [0, HEADER_HEIGHT_EXPANDED],
-        outputRange: [0, 16],
+        outputRange: [1, 0.75],
         extrapolate: 'clamp',
     }), [scrollY]);
 
@@ -423,7 +421,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     return (
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
-            <StatusBar barStyle="light-content" />
+            <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
 
             {loading ? (
                 <ProfileSkeleton />
@@ -439,13 +437,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     {/* Header actions */}
                     <View style={[styles.headerActions, { top: insets.top + 6 }]}>
                         <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]} onPress={toggleSubscription} disabled={subLoading}>
-                            <Ionicons name={subscribed ? 'notifications' : 'notifications-outline'} size={20} color={theme.colors.text} />
+                            <Bell size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]}>
                             <Search size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.headerIconButton, { backgroundColor: theme.colors.overlay }]} onPress={handleShare}>
-                            <Ionicons name="share-outline" size={20} color={theme.colors.text} />
+                            <ShareIcon size={20} color={theme.colors.text} />
                         </TouchableOpacity>
                     </View>
 
@@ -456,6 +454,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             {
                                 top: insets.top + 6,
                                 opacity: 0, // Disabled animation
+                                backgroundColor: 'transparent', // Ensure transparent background
                             },
                         ]}
                     >
@@ -525,18 +524,19 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     )}
 
                     {/* Profile content + posts */}
-                    {/* Optimized ScrollView - tabs are sticky */}
+                    {/* Optimized ScrollView - Instagram/Twitter-level smoothness */}
                     <Animated.ScrollView
                         ref={assignProfileScrollRef}
                         showsVerticalScrollIndicator={false}
                         onScroll={onProfileScroll}
-                        scrollEventThrottle={Math.max(scrollEventThrottle || 16, 50)} // Balanced throttle
+                        scrollEventThrottle={16} // 60fps smooth scrolling like Instagram/Twitter
                         style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
                         contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED - insets.top }}
                         stickyHeaderIndices={[1]} // Tab bar is sticky (index 1: profile info is 0, tabs are 1)
                         nestedScrollEnabled={false} // Disabled nested scrolling for performance
                         removeClippedSubviews={Platform.OS !== 'web'}
                         disableIntervalMomentum={true}
+                        decelerationRate="normal" // Smooth deceleration
                         {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
                     >
                             {/* Profile info */}
@@ -549,10 +549,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         style={[styles.avatar, {
                                             borderColor: theme.colors.background,
                                             backgroundColor: theme.colors.backgroundSecondary,
-                                            transform: [
-                                                { scale: avatarScale },
-                                                { translateY: avatarTranslateY },
-                                            ],
+                                            transform: [{ scale: avatarScale }], // Simplified - just scale for better performance
                                         }]}
                                         imageStyle={{
                                         }}
@@ -571,13 +568,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                                     style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
                                                     onPress={() => router.push('/insights')}
                                                 >
-                                                    <Ionicons name="stats-chart-outline" size={20} color={theme.colors.text} />
+                                                    <AnalyticsIcon size={20} color={theme.colors.text} />
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
                                                     onPress={() => showBottomSheet?.('PrivacySettings')}
                                                 >
-                                                    <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
+                                                    <Gear size={20} color={theme.colors.text} />
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
@@ -811,7 +808,7 @@ const styles = StyleSheet.create({
         height: 36,
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: "#EFF3F4",
+        // borderColor will be set inline with theme
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 8,
@@ -939,11 +936,11 @@ const styles = StyleSheet.create({
         height: 24,
         borderRadius: 12,
         borderWidth: 2,
-        borderColor: '#16181C',
+        // borderColor will be set inline with theme
     },
     avatarCircle: {
         flex: 1,
-        backgroundColor: '#71767B',
+        // backgroundColor will be set inline with theme
         borderRadius: 10,
     },
     memberCount: {
