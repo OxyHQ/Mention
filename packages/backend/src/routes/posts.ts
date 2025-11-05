@@ -19,7 +19,9 @@ import {
   getNearbyPosts,
   getPostsInArea,
   getNearbyPostsBothLocations,
-  getLocationStats
+  getLocationStats,
+  getPostLikes,
+  getPostReposts
 } from '../controllers/posts.controller';
 
 const router = Router();
@@ -38,6 +40,10 @@ router.post('/thread', createThread);
 router.get('/drafts', getDrafts);
 router.get('/scheduled', getScheduledPosts);
 router.get('/saved', getSavedPosts);
+
+// Routes with specific paths (must be before parameterized routes)
+router.get('/:id/likes', getPostLikes);
+router.get('/:id/reposts', getPostReposts);
 
 // Public routes with parameters (must be after specific routes)
 router.get('/:id', getPostById);

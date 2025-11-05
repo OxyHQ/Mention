@@ -542,29 +542,9 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       const savedPost = await Bookmark.findOne({ userId: currentUserId, postId: post._id.toString() });
       isSaved = !!savedPost;
 
-      const likedBy = Array.isArray((post as any)?.metadata?.likedBy)
-        ? (post as any).metadata.likedBy
-        : [];
-      isLiked = likedBy.some((id: any) => id?.toString?.() === currentUserId);
-      let backfilledLike = false;
-      if (!isLiked) {
-        const likedPost = await Like.findOne({ userId: currentUserId, postId: post._id.toString() }).lean();
-        if (likedPost) {
-          isLiked = true;
-          backfilledLike = true;
-        }
-      }
-
-      if (backfilledLike) {
-        try {
-          await Post.updateOne(
-            { _id: post._id },
-            { $addToSet: { 'metadata.likedBy': currentUserId } }
-          );
-        } catch (syncError) {
-          console.warn('Failed to backfill metadata.likedBy during getPostById:', syncError);
-        }
-      }
+      // Use Like collection instead of metadata.likedBy (more efficient)
+      const likedPost = await Like.findOne({ userId: currentUserId, postId: post._id.toString() }).lean();
+      isLiked = !!likedPost;
     }
 
     // Check if this post is a thread (has replies from the same user)
@@ -775,12 +755,11 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     // Create like record (legacy tracking)
     await Like.create({ userId, postId });
 
-    // Update post stats and ensure metadata.likedBy is kept in sync
+    // Update post stats only (use Like collection as source of truth, not metadata.likedBy)
     const likedPost = await Post.findByIdAndUpdate(
       postId,
       {
-        $inc: { 'stats.likesCount': 1 },
-        $addToSet: { 'metadata.likedBy': userId }
+        $inc: { 'stats.likesCount': 1 }
       },
       { new: true }
     ).lean();
@@ -848,12 +827,11 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Update post stats and keep metadata.likedBy synchronized
+    // Update post stats only (use Like collection as source of truth, not metadata.likedBy)
     const updatedPost = await Post.findByIdAndUpdate(
       postId,
       {
-        $inc: { 'stats.likesCount': -1 },
-        $pull: { 'metadata.likedBy': userId }
+        $inc: { 'stats.likesCount': -1 }
       },
       { new: true }
     ).lean();
@@ -1402,6 +1380,135 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
 };
 
 // Get nearby posts based on both user and post locations
+// Get users who liked a post
+export const getPostLikes = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50, cursor } = req.query as any;
+    
+    if (!id) {
+      return res.status(400).json({ message: 'Post ID is required' });
+    }
+
+    const query: any = { postId: id };
+    if (cursor) {
+      query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+    }
+
+    const likes = await Like.find(query)
+      .sort({ _id: -1 })
+      .limit(Number(limit) + 1)
+      .lean();
+
+    const hasMore = likes.length > Number(limit);
+    const likesToReturn = hasMore ? likes.slice(0, Number(limit)) : likes;
+    const nextCursor = hasMore ? likes[Number(limit) - 1]._id.toString() : undefined;
+
+    // Get unique user IDs
+    const userIds = [...new Set(likesToReturn.map(like => like.userId))];
+
+    // Fetch user data from Oxy
+    const users = await Promise.all(
+      userIds.map(async (userId) => {
+        try {
+          const userData = await oxyClient.getUserById(userId);
+          return {
+            id: userData.id,
+            name: userData.name?.full || userData.username,
+            handle: userData.username,
+            avatar: typeof userData.avatar === 'string' ? userData.avatar : (userData.avatar as any)?.url || '',
+            verified: userData.verified || false
+          };
+        } catch (error) {
+          console.error(`Error fetching user ${userId}:`, error);
+          return {
+            id: userId,
+            name: 'User',
+            handle: 'user',
+            avatar: '',
+            verified: false
+          };
+        }
+      })
+    );
+
+    res.json({
+      users,
+      hasMore,
+      nextCursor,
+      totalCount: likesToReturn.length
+    });
+  } catch (error) {
+    console.error('Error fetching post likes:', error);
+    res.status(500).json({ message: 'Error fetching post likes', error });
+  }
+};
+
+// Get users who reposted a post
+export const getPostReposts = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50, cursor } = req.query as any;
+    
+    if (!id) {
+      return res.status(400).json({ message: 'Post ID is required' });
+    }
+
+    const query: any = { repostOf: id, visibility: PostVisibility.PUBLIC };
+    if (cursor) {
+      query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+    }
+
+    const reposts = await Post.find(query)
+      .sort({ _id: -1 })
+      .limit(Number(limit) + 1)
+      .select('oxyUserId createdAt')
+      .lean();
+
+    const hasMore = reposts.length > Number(limit);
+    const repostsToReturn = hasMore ? reposts.slice(0, Number(limit)) : reposts;
+    const nextCursor = hasMore ? reposts[Number(limit) - 1]._id.toString() : undefined;
+
+    // Get unique user IDs
+    const userIds = [...new Set(repostsToReturn.map(repost => repost.oxyUserId))];
+
+    // Fetch user data from Oxy
+    const users = await Promise.all(
+      userIds.map(async (userId) => {
+        try {
+          const userData = await oxyClient.getUserById(userId);
+          return {
+            id: userData.id,
+            name: userData.name?.full || userData.username,
+            handle: userData.username,
+            avatar: typeof userData.avatar === 'string' ? userData.avatar : (userData.avatar as any)?.url || '',
+            verified: userData.verified || false
+          };
+        } catch (error) {
+          console.error(`Error fetching user ${userId}:`, error);
+          return {
+            id: userId,
+            name: 'User',
+            handle: 'user',
+            avatar: '',
+            verified: false
+          };
+        }
+      })
+    );
+
+    res.json({
+      users,
+      hasMore,
+      nextCursor,
+      totalCount: repostsToReturn.length
+    });
+  } catch (error) {
+    console.error('Error fetching post reposts:', error);
+    res.status(500).json({ message: 'Error fetching post reposts', error });
+  }
+};
+
 export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Response) => {
   try {
     const { lat, lng, radius = 10000 } = req.query; // radius in meters, default 10km

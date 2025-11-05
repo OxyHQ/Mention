@@ -7,6 +7,8 @@ import { usePostsStore } from '../../stores/postsStore';
 import PostHeader from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
+import EngagementListSheet from '../Post/EngagementListSheet';
+import PostInsightsSheet from '../Post/PostInsightsSheet';
 import PostLocation from '../Post/PostLocation';
 import { colors } from '../../styles/colors';
 import PostMiddle from '../Post/PostMiddle';
@@ -17,7 +19,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { feedService } from '../../services/feedService';
 import { confirmDialog } from '@/utils/alerts';
 import { useTheme } from '@/hooks/useTheme';
-import PostInsightsModal from '@/components/PostInsightsModal';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -41,7 +42,6 @@ const PostItem: React.FC<PostItemProps> = ({
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
     const bottomSheet = useContext(BottomSheetContext);
     const removePostEverywhere = usePostsStore((s: any) => (s as any).removePostEverywhere);
-    const [showInsightsModal, setShowInsightsModal] = useState(false);
 
     // Subscribe to latest post state using entity cache only for performance
     const postId = (post as any)?.id;
@@ -61,11 +61,15 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPost = storePost ?? post;
     const viewPostId = (viewPost as any)?.id as string | undefined;
     const viewPostHandle = (viewPost as any)?.user?.handle as string | undefined;
+    
+    // Check if current user is the post owner (for showing insights button)
+    const isOwner = !!(user && ((user as any).id === (viewPost as any)?.user?.id || (user as any)._id === (viewPost as any)?.user?.id));
 
-    // Safely extract boolean states with proper fallbacks
-    const isLiked = (viewPost as any)?.isLiked ?? false;
-    const isReposted = (viewPost as any)?.isReposted ?? false;
-    const isSaved = (viewPost as any)?.isSaved ?? false;
+    // Safely extract boolean states with proper fallbacks and type coercion
+    // Ensure we properly handle undefined, null, and falsy values
+    const isLiked = Boolean((viewPost as any)?.isLiked ?? (viewPost as any)?.metadata?.isLiked ?? false);
+    const isReposted = Boolean((viewPost as any)?.isReposted ?? (viewPost as any)?.metadata?.isReposted ?? false);
+    const isSaved = Boolean((viewPost as any)?.isSaved ?? (viewPost as any)?.metadata?.isSaved ?? false);
 
     // Handle reposts and quotes - prefer embedded original/quoted data from backend
     const [originalPost, setOriginalPost] = React.useState<any>(() => {
@@ -144,15 +148,28 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [viewPost, originalPost]);
 
 
+    const likeActionRef = useRef<Promise<void> | null>(null);
+    
     const handleLike = useCallback(async () => {
+        // Prevent rapid clicks - debounce
+        if (likeActionRef.current) {
+            return;
+        }
+        
         try {
-            if (isLiked) {
-                await unlikePost({ postId: (viewPost as any).id, type: 'post' });
-            } else {
-                await likePost({ postId: (viewPost as any).id, type: 'post' });
-            }
+            const action = isLiked 
+                ? unlikePost({ postId: (viewPost as any).id, type: 'post' })
+                : likePost({ postId: (viewPost as any).id, type: 'post' });
+            
+            likeActionRef.current = action;
+            await action;
         } catch (error) {
             console.error('Error toggling like:', error);
+        } finally {
+            // Clear ref after a short delay to allow rapid toggles after action completes
+            setTimeout(() => {
+                likeActionRef.current = null;
+            }, 300);
         }
     }, [isLiked, likePost, unlikePost, viewPost]);
 
@@ -161,15 +178,28 @@ const PostItem: React.FC<PostItemProps> = ({
         router.push(`/p/${(viewPost as any).id}/reply`);
     }, [onReply, router, viewPost]);
 
+    const repostActionRef = useRef<Promise<void> | null>(null);
+    
     const handleRepost = useCallback(async () => {
+        // Prevent rapid clicks - debounce
+        if (repostActionRef.current) {
+            return;
+        }
+        
         try {
-            if (isReposted) {
-                await unrepostPost({ postId: (viewPost as any).id });
-            } else {
-                await repostPost({ postId: (viewPost as any).id });
-            }
+            const action = isReposted
+                ? unrepostPost({ postId: (viewPost as any).id })
+                : repostPost({ postId: (viewPost as any).id });
+            
+            repostActionRef.current = action;
+            await action;
         } catch (error) {
             console.error('Error toggling repost:', error);
+        } finally {
+            // Clear ref after a short delay to allow rapid toggles after action completes
+            setTimeout(() => {
+                repostActionRef.current = null;
+            }, 300);
         }
     }, [isReposted, viewPost, repostPost, unrepostPost]);
 
@@ -214,15 +244,28 @@ const PostItem: React.FC<PostItemProps> = ({
         }
     }, [viewPost]);
 
+    const saveActionRef = useRef<Promise<void> | null>(null);
+    
     const handleSave = useCallback(async () => {
+        // Prevent rapid clicks - debounce
+        if (saveActionRef.current) {
+            return;
+        }
+        
         try {
-            if (isSaved) {
-                await unsavePost({ postId: (viewPost as any).id });
-            } else {
-                await savePost({ postId: (viewPost as any).id });
-            }
+            const action = isSaved
+                ? unsavePost({ postId: (viewPost as any).id })
+                : savePost({ postId: (viewPost as any).id });
+            
+            saveActionRef.current = action;
+            await action;
         } catch (error) {
             console.error('Error toggling save:', error);
+        } finally {
+            // Clear ref after a short delay to allow rapid toggles after action completes
+            setTimeout(() => {
+                saveActionRef.current = null;
+            }, 300);
         }
     }, [isSaved, viewPost, savePost, unsavePost]);
 
@@ -376,7 +419,15 @@ const PostItem: React.FC<PostItemProps> = ({
                     bottomSheet.setBottomSheetContent(
                         <View style={[styles.sheetContainer, { backgroundColor: theme.colors.card }]}>
                             {isOwner && (
-                                <ActionRow icon={<Ionicons name="stats-chart-outline" size={18} color={theme.colors.textSecondary} />} text="View Insights" onPress={() => { setShowInsightsModal(true); bottomSheet.openBottomSheet(false); }} />
+                                <ActionRow icon={<Ionicons name="stats-chart-outline" size={18} color={theme.colors.textSecondary} />} text="View Insights" onPress={() => { 
+                                    bottomSheet.setBottomSheetContent(
+                                        <PostInsightsSheet
+                                            postId={viewPostId || null}
+                                            onClose={() => bottomSheet.openBottomSheet(false)}
+                                        />
+                                    );
+                                    bottomSheet.openBottomSheet(true);
+                                }} />
                             )}
                             <ActionRow icon={<Ionicons name="link" size={18} color={theme.colors.textSecondary} />} text="Copy link" onPress={async () => {
                                 try {
@@ -408,13 +459,6 @@ const PostItem: React.FC<PostItemProps> = ({
                     <PostContentText content={(viewPost as any).content} postId={(viewPost as any).id} />
                 )}
             </PostHeader>
-
-            {/* Post Insights Modal */}
-            <PostInsightsModal
-                visible={showInsightsModal}
-                postId={viewPostId || null}
-                onClose={() => setShowInsightsModal(false)}
-            />
 
             {/* Location information if available */}
             {locationMemo.hasValidLocation && (
@@ -448,9 +492,42 @@ const PostItem: React.FC<PostItemProps> = ({
                         onLike={handleLike}
                         onSave={handleSave}
                         onShare={handleShare}
+                        postId={viewPostId}
+                        onLikesPress={() => {
+                            bottomSheet.setBottomSheetContent(
+                                <EngagementListSheet
+                                    postId={viewPostId!}
+                                    type="likes"
+                                    onClose={() => bottomSheet.openBottomSheet(false)}
+                                />
+                            );
+                            bottomSheet.openBottomSheet(true);
+                        }}
+                        onRepostsPress={() => {
+                            bottomSheet.setBottomSheetContent(
+                                <EngagementListSheet
+                                    postId={viewPostId!}
+                                    type="reposts"
+                                    onClose={() => bottomSheet.openBottomSheet(false)}
+                                />
+                            );
+                            bottomSheet.openBottomSheet(true);
+                        }}
+                        showInsights={isOwner}
+                        onInsightsPress={() => {
+                            bottomSheet.setBottomSheetContent(
+                                <PostInsightsSheet
+                                    postId={viewPostId || null}
+                                    onClose={() => bottomSheet.openBottomSheet(false)}
+                                />
+                            );
+                            bottomSheet.openBottomSheet(true);
+                        }}
                     />
                 </View>
             )}
+
+            {/* Post Insights Modal - removed, now using bottom sheet */}
         </Container>
     );
 };

@@ -140,87 +140,40 @@ class FeedController {
             return postObj._id.toString();
           });
 
-          // Get all posts with their metadata to check for interactions
-          const postsWithMetadata = await Post.find({
-            _id: { $in: postIds }
-          }).select('_id metadata.likedBy metadata.savedBy');
+          // Use Like collection to check if current user liked posts (more efficient than storing full array)
+          // This avoids loading metadata.likedBy arrays which can be huge for popular posts
+          const userLikes = await Like.find({
+            userId: currentUserId,
+            postId: { $in: postIds }
+          }).select('postId').lean();
 
-          const postsMissingLikeMetadata: string[] = [];
-          // Check likes and saves by examining the metadata arrays
-          postsWithMetadata.forEach(post => {
-            const postId = post._id.toString();
-            const metadata = post.metadata || {};
-            const likedBy = metadata.likedBy || [];
-            const savedBy = metadata.savedBy || [];
+          const likedPostIds = new Set(
+            userLikes.map((like: any) => like.postId?.toString?.()).filter(Boolean)
+          );
 
-            // Check likes with multiple formats for robust comparison
-            const userLiked = likedBy.includes(currentUserId) || 
-                            likedBy.includes(currentUserId?.toString()) ||
-                            likedBy.some(id => id?.toString() === currentUserId?.toString());
-            
-            if (userLiked) {
-              userInteractions.set(postId, {
-                ...userInteractions.get(postId),
-                isLiked: true
-              });
-            } else if (currentUserId) {
-              postsMissingLikeMetadata.push(postId);
+          // Check saves using Bookmark collection (also more efficient)
+          const userBookmarks = await Bookmark.find({
+            userId: currentUserId,
+            postId: { $in: postIds }
+          }).select('postId').lean();
+
+          const savedPostIds = new Set(
+            userBookmarks.map((bookmark: any) => bookmark.postId?.toString?.()).filter(Boolean)
+          );
+
+          // Set user interactions based on Like/Bookmark collections
+          postIds.forEach(postId => {
+            const interactions: any = {};
+            if (likedPostIds.has(postId)) {
+              interactions.isLiked = true;
             }
-
-            // Check saves with multiple formats for robust comparison  
-            const userSaved = savedBy.includes(currentUserId) ||
-                            savedBy.includes(currentUserId?.toString()) ||
-                            savedBy.some(id => id?.toString() === currentUserId?.toString());
-
-            if (userSaved) {
-              userInteractions.set(postId, {
-                ...userInteractions.get(postId),
-                isSaved: true
-              });
+            if (savedPostIds.has(postId)) {
+              interactions.isSaved = true;
+            }
+            if (Object.keys(interactions).length > 0) {
+              userInteractions.set(postId, interactions);
             }
           });
-
-          if (postsMissingLikeMetadata.length) {
-            try {
-              const legacyLikes = await Like.find({
-                userId: currentUserId,
-                postId: { $in: postsMissingLikeMetadata }
-              }).select('postId').lean();
-
-              if (legacyLikes.length) {
-                const likedIds = legacyLikes
-                  .map((like: any) => like.postId?.toString?.())
-                  .filter(Boolean);
-
-                likedIds.forEach((likedId) => {
-                  userInteractions.set(likedId, {
-                    ...userInteractions.get(likedId),
-                    isLiked: true
-                  });
-                });
-
-                // Backfill metadata.likedBy so future requests do not rely on Like collection
-                const objectIds = likedIds
-                  .map((id) => {
-                    try {
-                      return new mongoose.Types.ObjectId(id);
-                    } catch {
-                      return null;
-                    }
-                  })
-                  .filter(Boolean) as mongoose.Types.ObjectId[];
-
-                if (objectIds.length) {
-                  await Post.updateMany(
-                    { _id: { $in: objectIds } },
-                    { $addToSet: { 'metadata.likedBy': currentUserId } }
-                  );
-                }
-              }
-            } catch (fallbackError) {
-              console.warn('Failed fallback like lookup for metadata sync:', fallbackError);
-            }
-          }
 
           // Check reposts for current user
           const repostedPosts = await Post.find({
@@ -342,14 +295,13 @@ class FeedController {
           parentPostId: obj.parentPostId,
           threadId: obj.threadId,
           stats,
-          // Shallow metadata for flags; compute liked/saved for current user if arrays present
+          // Don't include likedBy/savedBy arrays in response (too much data)
+          // Only include isLiked/isSaved flags which are set from userInteractions map
           metadata: (() => {
             const md = obj.metadata || {};
-            const likedBy: any[] = md.likedBy || [];
-            const savedBy: any[] = md.savedBy || [];
-            const liked = currentUserId ? (likedBy.includes(currentUserId) || likedBy.some((x: any) => x?.toString?.() === String(currentUserId))) : false;
-            const saved = currentUserId ? (savedBy.includes(currentUserId) || savedBy.some((x: any) => x?.toString?.() === String(currentUserId))) : false;
-            return { ...md, isLiked: liked, isSaved: saved };
+            // Remove likedBy/savedBy arrays to reduce payload size
+            const { likedBy, savedBy, ...cleanMetadata } = md;
+            return cleanMetadata;
           })(),
           createdAt: obj.createdAt,
           updatedAt: obj.updatedAt,
@@ -391,9 +343,9 @@ class FeedController {
 
         // Get user-specific interaction flags
         const interactions = userInteractions.get(postId) || {};
-        const isLiked = interactions.isLiked || false;
-        const isReposted = interactions.isReposted || false;
-        const isSaved = interactions.isSaved || false;
+        const isLiked = Boolean(interactions.isLiked);
+        const isReposted = Boolean(interactions.isReposted);
+        const isSaved = Boolean(interactions.isSaved);
         const isThread = threadStatusMap.get(postId) || false;
 
         // Media aggregation for this post and its original/quoted if applicable
@@ -460,6 +412,10 @@ class FeedController {
             isReposted,
             isSaved,
           },
+          // Set top-level flags for easier frontend access (preferred by frontend)
+          isLiked,
+          isReposted,
+          isSaved,
           location: postObj.location, // Post creation location metadata
           createdAt: postObj.createdAt,
           updatedAt: postObj.updatedAt,
@@ -1949,13 +1905,14 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      // Check if user already liked this post
+      // Check if user already liked this post using Like collection (more efficient)
+      const existingLike = await Like.findOne({ userId: currentUserId, postId });
+      const alreadyLiked = !!existingLike;
+      
       const existingPost = await Post.findById(postId);
       if (!existingPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
-
-      const alreadyLiked = existingPost.metadata?.likedBy?.includes(currentUserId);
       
       if (alreadyLiked) {
         console.log(`[Like] Post ${postId} already liked by user ${currentUserId}`);
@@ -1976,12 +1933,14 @@ class FeedController {
 
       console.log(`[Like] User ${currentUserId} liking post ${postId} (not already liked)`);
 
-      // Update post like count and add user to likedBy array
+      // Create like record in Like collection (single source of truth)
+      await Like.create({ userId: currentUserId, postId });
+
+      // Update post like count only (don't store in metadata.likedBy - too much data)
       const updateResult = await Post.findByIdAndUpdate(
         postId,
         {
-          $inc: { 'stats.likesCount': 1 },
-          $addToSet: { 'metadata.likedBy': currentUserId }
+          $inc: { 'stats.likesCount': 1 }
         },
         { new: true }
       );
@@ -2037,13 +1996,14 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      // Check if user has liked this post
+      // Check if user has liked this post using Like collection
+      const existingLike = await Like.findOne({ userId: currentUserId, postId });
+      const hasLiked = !!existingLike;
+      
       const existingPost = await Post.findById(postId);
       if (!existingPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
-
-      const hasLiked = existingPost.metadata?.likedBy?.includes(currentUserId);
       
       if (!hasLiked) {
         return res.json({ 
@@ -2054,12 +2014,14 @@ class FeedController {
         });
       }
 
-      // Update post like count and remove user from likedBy array
+      // Remove like record from Like collection
+      await Like.deleteOne({ userId: currentUserId, postId });
+
+      // Update post like count only (don't maintain metadata.likedBy - too much data)
       const updateResult = await Post.findByIdAndUpdate(
         postId,
         {
-          $inc: { 'stats.likesCount': -1 },
-          $pull: { 'metadata.likedBy': currentUserId }
+          $inc: { 'stats.likesCount': -1 }
         },
         { new: true }
       );

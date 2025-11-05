@@ -11,7 +11,8 @@ export const markLocalAction = (postId: string, action: EchoAction) => {
   recentActions.set(postId, rec);
 };
 
-export const wasRecent = (postId: string, action: EchoAction, windowMs: number = 1500): boolean => {
+// Reduced window since we have optimistic updates - only need to suppress immediate echo
+export const wasRecent = (postId: string, action: EchoAction, windowMs: number = 500): boolean => {
   const rec = recentActions.get(postId);
   if (!rec) return false;
   const ts = rec[action];

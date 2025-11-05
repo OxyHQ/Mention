@@ -197,6 +197,37 @@ const transformToUIItem = (raw: any, options: TransformOptions = {}) => {
     likes: raw?.stats?.likesCount || 0,
   };
 
+  // Extract isLiked with proper fallback - check multiple sources
+  const extractIsLiked = (): boolean => {
+    // 1. Check top-level isLiked (preferred - backend now sets this)
+    if (raw?.isLiked !== undefined && raw?.isLiked !== null) {
+      return Boolean(raw.isLiked);
+    }
+    // 2. Check metadata.isLiked (fallback)
+    if (raw?.metadata?.isLiked !== undefined && raw?.metadata?.isLiked !== null) {
+      return Boolean(raw.metadata.isLiked);
+    }
+    // 3. Check likedBy array as last resort (for edge cases where backend didn't set flags)
+    if (raw?.metadata?.likedBy && Array.isArray(raw.metadata.likedBy) && raw.metadata.likedBy.length > 0) {
+      // This is a fallback - ideally backend should always set isLiked
+      // We can't check currentUserId here, so we'll default to false
+      // Backend should handle this properly
+    }
+    return false;
+  };
+
+  const extractIsSaved = (): boolean => {
+    if (raw?.isSaved !== undefined) return Boolean(raw.isSaved);
+    if (raw?.metadata?.isSaved !== undefined) return Boolean(raw.metadata.isSaved);
+    return false;
+  };
+
+  const extractIsReposted = (): boolean => {
+    if (raw?.isReposted !== undefined) return Boolean(raw.isReposted);
+    if (raw?.metadata?.isReposted !== undefined) return Boolean(raw.metadata.isReposted);
+    return false;
+  };
+
   const base = {
     ...raw,
     id: String(raw?.id || raw?._id),
@@ -204,9 +235,9 @@ const transformToUIItem = (raw: any, options: TransformOptions = {}) => {
     mediaIds: raw?.mediaIds,
     originalMediaIds: raw?.originalMediaIds,
     allMediaIds: raw?.allMediaIds,
-    isSaved: raw?.isSaved !== undefined ? raw.isSaved : (raw?.metadata?.isSaved ?? false),
-    isLiked: raw?.isLiked !== undefined ? raw.isLiked : (raw?.metadata?.isLiked ?? false),
-    isReposted: raw?.isReposted !== undefined ? raw.isReposted : (raw?.metadata?.isReposted ?? false),
+    isSaved: extractIsSaved(),
+    isLiked: extractIsLiked(),
+    isReposted: extractIsReposted(),
     postId: raw?.postId || raw?.parentPostId,
     originalPostId: raw?.originalPostId || raw?.repostOf,
     engagement,
@@ -862,230 +893,365 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Create reply
+    // Create reply - optimized to use updatePostEverywhere
     createReply: async (request: CreateReplyRequest) => {
+      const postId = request.postId;
+      let previousState: FeedItem | null = null;
+      
       set({ isLoading: true, error: null });
 
       try {
-  // Mark local action to suppress immediate echo from socket
-  markLocalAction(request.postId, 'reply');
+        // Mark local action to suppress immediate echo from socket
+        markLocalAction(postId, 'reply');
+        
+        // Optimistic update - update UI immediately
+        const currentPost = get().postsById[postId];
+        if (currentPost) {
+          previousState = { ...currentPost };
+          get().updatePostEverywhere(postId, (prev) => ({
+            ...prev,
+            engagement: { ...prev.engagement, replies: (prev.engagement.replies || 0) + 1 }
+          }));
+        }
+        
         const response = await feedService.createReply(request);
         
-        if (response.success) {
-          // Update the parent post's reply count locally
-          set(state => {
-            const postId = request.postId;
-            const updatedCache = state.postsById[postId]
-              ? {
-                  ...state.postsById,
-                  [postId]: {
-                    ...state.postsById[postId],
-                    engagement: {
-                      ...state.postsById[postId].engagement,
-                      replies: state.postsById[postId].engagement.replies + 1
-                    }
-                  }
-                }
-              : state.postsById;
-
-            return ({
-              feeds: {
-                ...state.feeds,
-                posts: {
-                  ...state.feeds.posts,
-                  items: state.feeds.posts.items.map(post => 
-                    post.id === postId
-                      ? { ...post, engagement: { ...post.engagement, replies: post.engagement.replies + 1 } }
-                      : post
-                  )
-                },
-                mixed: {
-                  ...state.feeds.mixed,
-                  items: state.feeds.mixed.items.map(post => 
-                    post.id === postId
-                      ? { ...post, engagement: { ...post.engagement, replies: post.engagement.replies + 1 } }
-                      : post
-                  )
-                }
-              },
-              isLoading: false,
-              postsById: updatedCache
-            });
-          });
+        if (!response.success) {
+          // Rollback on failure
+          if (previousState) {
+            get().updatePostEverywhere(postId, () => previousState!);
+          }
+          throw new Error('Failed to create reply');
         }
+        
+        set({ isLoading: false });
       } catch (error) {
+        // Rollback optimistic update on error
+        if (previousState) {
+          get().updatePostEverywhere(postId, () => previousState!);
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to create reply';
         set({ isLoading: false, error: errorMessage });
         throw error;
       }
     },
 
-    // Create repost
+    // Create repost - optimized to use updatePostEverywhere
     createRepost: async (request: CreateRepostRequest) => {
+      const postId = request.originalPostId;
+      let previousState: FeedItem | null = null;
+      
       set({ isLoading: true, error: null });
 
       try {
+        // Optimistic update - update UI immediately
+        const currentPost = get().postsById[postId];
+        if (currentPost) {
+          previousState = { ...currentPost };
+          get().updatePostEverywhere(postId, (prev) => ({
+            ...prev,
+            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 }
+          }));
+        }
+
         const response = await feedService.createRepost(request);
 
-        if (response.success) {
-          // Update the original post's repost count locally
-          set(state => {
-            const pid = request.originalPostId;
-            const updatedCache = state.postsById[pid]
-              ? {
-                  ...state.postsById,
-                  [pid]: {
-                    ...state.postsById[pid],
-                    engagement: {
-                      ...state.postsById[pid].engagement,
-                      reposts: state.postsById[pid].engagement.reposts + 1
-                    }
-                  }
-                }
-              : state.postsById;
-
-            return ({
-              feeds: {
-                ...state.feeds,
-                posts: {
-                  ...state.feeds.posts,
-                  items: state.feeds.posts.items.map(post =>
-                    post.id === pid
-                      ? { ...post, engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 } }
-                      : post
-                  )
-                },
-                mixed: {
-                  ...state.feeds.mixed,
-                  items: state.feeds.mixed.items.map(post =>
-                    post.id === pid
-                      ? { ...post, engagement: { ...post.engagement, reposts: post.engagement.reposts + 1 } }
-                      : post
-                  )
-                }
-              },
-              isLoading: false,
-              postsById: updatedCache
-            });
-          });
+        if (!response.success) {
+          // Rollback on failure
+          if (previousState) {
+            get().updatePostEverywhere(postId, () => previousState!);
+          }
+          throw new Error('Failed to create repost');
         }
+        
+        set({ isLoading: false });
       } catch (error) {
+        // Rollback optimistic update on error
+        if (previousState) {
+          get().updatePostEverywhere(postId, () => previousState!);
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to create repost';
         set({ isLoading: false, error: errorMessage });
         throw error;
       }
     },
 
-    // Repost post (simple repost without comment)
+    // Repost post (simple repost without comment) - with optimistic update
     repostPost: async (request: { postId: string }) => {
+      const postId = request.postId;
+      let previousState: FeedItem | null = null;
+      
       try {
-  markLocalAction(request.postId, 'repost');
-        const response = await feedService.createRepost({
-          originalPostId: request.postId,
-          mentions: [],
-          hashtags: []
-        });
-
-        if (response.success) {
-          get().updatePostEverywhere(request.postId, (prev) => ({
+        markLocalAction(postId, 'repost');
+        
+        // Optimistic update - update UI immediately
+        const currentPost = get().postsById[postId];
+        if (currentPost) {
+          previousState = { ...currentPost };
+          get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
             isReposted: true,
             engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 }
           }));
         }
+
+        const response = await feedService.createRepost({
+          originalPostId: postId,
+          mentions: [],
+          hashtags: []
+        });
+
+        if (!response.success) {
+          // Rollback on failure
+          if (previousState) {
+            get().updatePostEverywhere(postId, () => previousState!);
+          }
+          throw new Error('Failed to repost post');
+        }
       } catch (error) {
+        // Rollback optimistic update on error
+        if (previousState) {
+          get().updatePostEverywhere(postId, () => previousState!);
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to repost post';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // Unrepost post
+    // Unrepost post - with optimistic update
     unrepostPost: async (request: { postId: string }) => {
+      const postId = request.postId;
+      let previousState: FeedItem | null = null;
+      
       try {
-        markLocalAction(request.postId, 'unrepost');
-        const response = await feedService.unrepostItem(request);
-
-        if (response.success) {
-          get().updatePostEverywhere(request.postId, (prev) => ({
+        markLocalAction(postId, 'unrepost');
+        
+        // Optimistic update - update UI immediately
+        const currentPost = get().postsById[postId];
+        if (currentPost) {
+          previousState = { ...currentPost };
+          get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
             isReposted: false,
             engagement: { ...prev.engagement, reposts: Math.max(0, (prev.engagement.reposts || 0) - 1) }
           }));
         }
+
+        const response = await feedService.unrepostItem(request);
+
+        if (!response.success) {
+          // Rollback on failure
+          if (previousState) {
+            get().updatePostEverywhere(postId, () => previousState!);
+          }
+          throw new Error('Failed to unrepost post');
+        }
       } catch (error) {
+        // Rollback optimistic update on error
+        if (previousState) {
+          get().updatePostEverywhere(postId, () => previousState!);
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to unrepost post';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // Like post
+    // Like post - with optimistic update
     likePost: async (request: LikeRequest) => {
+      const postId = request.postId;
+      let previousState: FeedItem | null = null;
+      
       try {
-  markLocalAction(request.postId, 'like');
+        markLocalAction(postId, 'like');
+        
+        // Optimistic update - update UI immediately
+        const currentPost = get().postsById[postId];
+        if (currentPost) {
+          previousState = { ...currentPost };
+          
+          // Only update if not already liked (prevent double-like)
+          if (!currentPost.isLiked) {
+            get().updatePostEverywhere(postId, (prev) => ({
+              ...prev,
+              isLiked: true,
+              engagement: { ...prev.engagement, likes: (prev.engagement.likes || 0) + 1 }
+            }));
+          }
+        }
+
         const response = await feedService.likeItem(request);
 
-        if (response.success) {
-          get().updatePostEverywhere(request.postId, (prev) => ({
-            ...prev,
-            isLiked: true,
-            engagement: { ...prev.engagement, likes: (prev.engagement.likes || 0) + 1 }
-          }));
+        if (!response.success) {
+          // Rollback on failure
+          if (previousState) {
+            get().updatePostEverywhere(postId, () => previousState!);
+          }
+          throw new Error('Failed to like post');
+        }
+        
+        // Server response has accurate count - use it to sync
+        // Also ensure isLiked is set correctly based on server response
+        const serverLikesCount = response.data?.likesCount;
+        const serverLiked = response.data?.liked !== false; // Default to true if not specified
+        
+        if (serverLikesCount !== undefined) {
+          get().updatePostEverywhere(postId, (prev) => {
+            // Update count if different
+            const countChanged = prev.engagement.likes !== serverLikesCount;
+            // Update isLiked if server says different (handles race conditions)
+            const stateChanged = prev.isLiked !== serverLiked;
+            
+            if (!countChanged && !stateChanged) return null as any;
+            
+            return {
+              ...prev,
+              isLiked: serverLiked,
+              engagement: { ...prev.engagement, likes: serverLikesCount }
+            };
+          });
         }
       } catch (error) {
+        // Rollback optimistic update on error
+        if (previousState) {
+          get().updatePostEverywhere(postId, () => previousState!);
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to like post';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // Unlike post
+    // Unlike post - with optimistic update
     unlikePost: async (request: UnlikeRequest) => {
+      const postId = request.postId;
+      let previousState: FeedItem | null = null;
+      
       try {
-  markLocalAction(request.postId, 'unlike');
+        markLocalAction(postId, 'unlike');
+        
+        // Optimistic update - update UI immediately
+        const currentPost = get().postsById[postId];
+        if (currentPost) {
+          previousState = { ...currentPost };
+          
+          // Only update if currently liked (prevent double-unlike)
+          if (currentPost.isLiked) {
+            get().updatePostEverywhere(postId, (prev) => ({
+              ...prev,
+              isLiked: false,
+              engagement: { ...prev.engagement, likes: Math.max(0, (prev.engagement.likes || 0) - 1) }
+            }));
+          }
+        }
+
         const response = await feedService.unlikeItem(request);
 
-        if (response.success) {
-          get().updatePostEverywhere(request.postId, (prev) => ({
-            ...prev,
-            isLiked: false,
-            engagement: { ...prev.engagement, likes: Math.max(0, (prev.engagement.likes || 0) - 1) }
-          }));
+        if (!response.success) {
+          // Rollback on failure
+          if (previousState) {
+            get().updatePostEverywhere(postId, () => previousState!);
+          }
+          throw new Error('Failed to unlike post');
+        }
+        
+        // Server response has accurate count - use it to sync
+        // Also ensure isLiked is set correctly based on server response
+        const serverLikesCount = response.data?.likesCount;
+        const serverLiked = response.data?.liked === true; // Default to false if not specified
+        
+        if (serverLikesCount !== undefined) {
+          get().updatePostEverywhere(postId, (prev) => {
+            // Update count if different
+            const countChanged = prev.engagement.likes !== serverLikesCount;
+            // Update isLiked if server says different (handles race conditions)
+            const stateChanged = prev.isLiked !== serverLiked;
+            
+            if (!countChanged && !stateChanged) return null as any;
+            
+            return {
+              ...prev,
+              isLiked: serverLiked,
+              engagement: { ...prev.engagement, likes: serverLikesCount }
+            };
+          });
         }
       } catch (error) {
+        // Rollback optimistic update on error
+        if (previousState) {
+          get().updatePostEverywhere(postId, () => previousState!);
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to unlike post';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // Save post
+    // Save post - with optimistic update
     savePost: async (request: { postId: string }) => {
+      const postId = request.postId;
+      let previousState: FeedItem | null = null;
+      
       try {
-        markLocalAction(request.postId, 'save');
+        markLocalAction(postId, 'save');
+        
+        // Optimistic update - update UI immediately
+        const currentPost = get().postsById[postId];
+        if (currentPost) {
+          previousState = { ...currentPost };
+          get().updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: true }));
+        }
+
         const response = await feedService.saveItem(request);
         
-        if (response.success) {
-          get().updatePostEverywhere(request.postId, (prev) => ({ ...prev, isSaved: true }));
+        if (!response.success) {
+          // Rollback on failure
+          if (previousState) {
+            get().updatePostEverywhere(postId, () => previousState!);
+          }
+          throw new Error('Failed to save post');
         }
       } catch (error) {
+        // Rollback optimistic update on error
+        if (previousState) {
+          get().updatePostEverywhere(postId, () => previousState!);
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to save post';
         set({ error: errorMessage });
         throw error;
       }
     },
 
-    // Unsave post
+    // Unsave post - with optimistic update
     unsavePost: async (request: { postId: string }) => {
+      const postId = request.postId;
+      let previousState: FeedItem | null = null;
+      
       try {
-        markLocalAction(request.postId, 'unsave');
+        markLocalAction(postId, 'unsave');
+        
+        // Optimistic update - update UI immediately
+        const currentPost = get().postsById[postId];
+        if (currentPost) {
+          previousState = { ...currentPost };
+          get().updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: false }));
+        }
+
         const response = await feedService.unsaveItem(request);
         
-        if (response.success) {
-          get().updatePostEverywhere(request.postId, (prev) => ({ ...prev, isSaved: false }));
+        if (!response.success) {
+          // Rollback on failure
+          if (previousState) {
+            get().updatePostEverywhere(postId, () => previousState!);
+          }
+          throw new Error('Failed to unsave post');
         }
       } catch (error) {
+        // Rollback optimistic update on error
+        if (previousState) {
+          get().updatePostEverywhere(postId, () => previousState!);
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to unsave post';
         set({ error: errorMessage });
         throw error;

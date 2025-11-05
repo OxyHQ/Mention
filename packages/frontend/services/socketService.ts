@@ -17,6 +17,15 @@ class SocketService {
   private feedUpdateQueue: Map<string, any[]> = new Map(); // Queue for batched feed updates
   private feedUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly FEED_UPDATE_DEBOUNCE_MS = 500; // Batch updates every 500ms
+  
+  // Queue for engagement updates to batch rapid changes
+  private engagementUpdateQueue: Map<string, {
+    type: 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave' | 'reply';
+    data: any;
+    timestamp: number;
+  }[]> = new Map();
+  private engagementUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly ENGAGEMENT_UPDATE_DEBOUNCE_MS = 200; // Batch engagement updates every 200ms
 
   constructor() {
     this.setupEventListeners();
@@ -76,8 +85,15 @@ class SocketService {
       this.processFeedUpdateQueue();
       this.feedUpdateTimer = null;
     }
-    // Clear queue
+    // Process any pending engagement updates before disconnecting
+    if (this.engagementUpdateTimer) {
+      clearTimeout(this.engagementUpdateTimer);
+      this.processEngagementQueue();
+      this.engagementUpdateTimer = null;
+    }
+    // Clear queues
     this.feedUpdateQueue.clear();
+    this.engagementUpdateQueue.clear();
   }
 
   /**
@@ -293,108 +309,279 @@ class SocketService {
   }
 
   /**
-   * Handle post liked event
+   * Handle post liked event - with batching and smart conflict resolution
    */
   private handlePostLiked(data: any) {
-    const { postId, likesCount, userId: actorId, actorId: altActor } = data || {};
+    const { postId, likesCount, userId, actorId } = data || {};
     if (!postId) return;
-    if (this.shouldIgnoreEcho(postId, 'like', actorId || altActor)) return;
-    const store = usePostsStore.getState();
-    store.updatePostEverywhere(postId, (prev) => {
-      // If already liked and likesCount not increasing, skip
-      if (prev.isLiked && (likesCount == null || prev.engagement.likes >= likesCount)) return null as any;
-      return {
-        ...prev,
-        isLiked: true,
-        engagement: { ...prev.engagement, likes: likesCount ?? (prev.engagement.likes + 1) },
-      };
+    const actualActorId = userId || actorId;
+    
+    // Skip echo - our own actions are handled by optimistic updates
+    if (this.shouldIgnoreEcho(postId, 'like', actualActorId)) return;
+    
+    // Queue for batching
+    this.queueEngagementUpdate(postId, 'like', { 
+      postId, 
+      likesCount, 
+      userId: actualActorId,
+      actorId: actualActorId 
     });
+  }
+  
+  /**
+   * Queue engagement update for batching
+   */
+  private queueEngagementUpdate(postId: string, type: 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave' | 'reply', data: any) {
+    if (!this.engagementUpdateQueue.has(postId)) {
+      this.engagementUpdateQueue.set(postId, []);
+    }
+    
+    const queue = this.engagementUpdateQueue.get(postId)!;
+    queue.push({ type, data, timestamp: Date.now() });
+    
+    // Clear existing timer
+    if (this.engagementUpdateTimer) {
+      clearTimeout(this.engagementUpdateTimer);
+    }
+    
+    // Process queue after short delay
+    this.engagementUpdateTimer = setTimeout(() => {
+      this.processEngagementQueue();
+    }, this.ENGAGEMENT_UPDATE_DEBOUNCE_MS);
+  }
+  
+  /**
+   * Process queued engagement updates in batches
+   */
+  private processEngagementQueue() {
+    if (this.engagementUpdateQueue.size === 0) return;
+    
+    const store = usePostsStore.getState();
+    
+    // Process each post's queued updates
+    this.engagementUpdateQueue.forEach((updates, postId) => {
+      if (updates.length === 0) return;
+      
+      // Get the most recent update for each type (latest wins)
+      const latestByType = new Map<string, typeof updates[0]>();
+      updates.forEach(update => {
+        const existing = latestByType.get(update.type);
+        if (!existing || update.timestamp > existing.timestamp) {
+          latestByType.set(update.type, update);
+        }
+      });
+      
+      // Apply updates, preferring server counts when available
+      latestByType.forEach((update, type) => {
+        const { data } = update;
+        
+        switch (type) {
+          case 'like':
+            store.updatePostEverywhere(postId, (prev) => {
+              const actorId = data.actorId || data.userId;
+              const isOurAction = actorId === this.currentUserId;
+              
+              // Use server count if available, otherwise increment
+              const newCount = data.likesCount ?? (prev.engagement.likes + 1);
+              
+              // If it's our action, echo guard should have suppressed it
+              // But if it got through, don't override optimistic update
+              if (isOurAction) {
+                // Only update count if different (socket might have server-accurate count)
+                if (prev.engagement.likes !== newCount) {
+                  return {
+                    ...prev,
+                    // Keep our optimistic isLiked state
+                    engagement: { ...prev.engagement, likes: newCount },
+                  };
+                }
+                return null as any; // No change needed
+              }
+              
+              // Other user's action - only update count, NOT isLiked state
+              // Don't update if count is already correct or higher
+              if (prev.engagement.likes >= newCount) return null as any;
+              
+              return {
+                ...prev,
+                // Keep current isLiked state (it's about OUR state, not theirs)
+                engagement: { ...prev.engagement, likes: newCount },
+              };
+            });
+            break;
+            
+          case 'unlike':
+            store.updatePostEverywhere(postId, (prev) => {
+              const actorId = data.actorId || data.userId;
+              const isOurAction = actorId === this.currentUserId;
+              
+              const newCount = data.likesCount ?? Math.max(0, prev.engagement.likes - 1);
+              
+              // If it's our action, echo guard should have suppressed it
+              if (isOurAction) {
+                // Only update count if different
+                if (prev.engagement.likes !== newCount) {
+                  return {
+                    ...prev,
+                    // Keep our optimistic isLiked state
+                    engagement: { ...prev.engagement, likes: newCount },
+                  };
+                }
+                return null as any; // No change needed
+              }
+              
+              // Other user's action - only update count, NOT isLiked state
+              // Don't update if count is already correct or lower
+              if (prev.engagement.likes <= newCount) return null as any;
+              
+              return {
+                ...prev,
+                // Keep current isLiked state (it's about OUR state, not theirs)
+                engagement: { ...prev.engagement, likes: newCount },
+              };
+            });
+            break;
+            
+          case 'repost':
+            store.updatePostEverywhere(postId, (prev) => {
+              const newCount = data.repostsCount ?? (prev.engagement.reposts + 1);
+              return {
+                ...prev,
+                isReposted: prev.isReposted || (data.userId === this.currentUserId),
+                engagement: { ...prev.engagement, reposts: newCount },
+              };
+            });
+            break;
+            
+          case 'unrepost':
+            store.updatePostEverywhere(postId, (prev) => {
+              const newCount = data.repostsCount ?? Math.max(0, prev.engagement.reposts - 1);
+              return {
+                ...prev,
+                isReposted: prev.isReposted && (data.userId !== this.currentUserId),
+                engagement: { ...prev.engagement, reposts: newCount },
+              };
+            });
+            break;
+            
+          case 'save':
+            // Only update if it's not our own action (optimistic update already handled it)
+            if (data.userId !== this.currentUserId) {
+              store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: true }));
+            }
+            break;
+            
+          case 'unsave':
+            if (data.userId !== this.currentUserId) {
+              store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: false }));
+            }
+            break;
+            
+          case 'reply':
+            store.updatePostEverywhere(postId, (prev) => ({
+              ...prev,
+              engagement: { ...prev.engagement, replies: (prev.engagement.replies || 0) + 1 }
+            }));
+            break;
+        }
+      });
+      
+      // Clear queue for this post
+      this.engagementUpdateQueue.set(postId, []);
+    });
+    
+    // Clear timer
+    this.engagementUpdateTimer = null;
   }
 
   /**
-   * Handle post unliked event
+   * Handle post unliked event - with batching
    */
   private handlePostUnliked(data: any) {
-    const { postId, likesCount, userId: actorId, actorId: altActor } = data || {};
+    const { postId, likesCount, userId, actorId } = data || {};
     if (!postId) return;
-    if (this.shouldIgnoreEcho(postId, 'unlike', actorId || altActor)) return;
-    const store = usePostsStore.getState();
-    store.updatePostEverywhere(postId, (prev) => {
-      if (!prev.isLiked && (likesCount == null || prev.engagement.likes <= likesCount)) return null as any;
-      return {
-        ...prev,
-        isLiked: false,
-        engagement: { ...prev.engagement, likes: likesCount ?? Math.max(0, prev.engagement.likes - 1) },
-      };
+    const actualActorId = userId || actorId;
+    
+    // Skip echo - our own actions are handled by optimistic updates
+    if (this.shouldIgnoreEcho(postId, 'unlike', actualActorId)) return;
+    
+    this.queueEngagementUpdate(postId, 'unlike', { 
+      postId, 
+      likesCount, 
+      userId: actualActorId,
+      actorId: actualActorId 
     });
   }
 
   /**
-   * Handle post replied event
+   * Handle post replied event - with batching
    */
   private handlePostReplied(data: any) {
-  const { postId, userId: actorId, actorId: altActor } = data || {};
+    const { postId, userId: actorId, actorId: altActor } = data || {};
     if (!postId) return;
-  if (this.shouldIgnoreEcho(postId, 'reply', actorId || altActor)) return;
-    const store = usePostsStore.getState();
-    store.updatePostEverywhere(postId, (prev) => ({
-      ...prev,
-      engagement: { ...prev.engagement, replies: (prev.engagement.replies || 0) + 1 }
-    }));
+    if (this.shouldIgnoreEcho(postId, 'reply', actorId || altActor)) return;
+    
+    this.queueEngagementUpdate(postId, 'reply', { postId, actorId: actorId || altActor });
   }
 
   /**
-   * Handle post reposted event
+   * Handle post reposted event - with batching
    */
   private handlePostReposted(data: any) {
-    const { originalPostId, postId, userId: actorId, actorId: altActor } = data || {};
+    const { originalPostId, postId, repostsCount, userId: actorId, actorId: altActor } = data || {};
     const targetId = originalPostId || postId;
     if (!targetId) return;
     if (this.shouldIgnoreEcho(targetId, 'repost', actorId || altActor)) return;
-    const store = usePostsStore.getState();
-    store.updatePostEverywhere(targetId, (prev) => ({
-      ...prev,
-      engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 },
-      isReposted: prev.isReposted || false,
-    }));
+    
+    this.queueEngagementUpdate(targetId, 'repost', { 
+      postId: targetId, 
+      repostsCount,
+      userId: actorId || altActor 
+    });
   }
 
   /**
-   * Handle post unreposted event
+   * Handle post unreposted event - with batching
    */
   private handlePostUnreposted(data: any) {
-  const { originalPostId, postId: pid, userId: actorId, actorId: altActor } = data || {};
-  const postId = originalPostId || pid;
-  if (!postId) return;
-  if (this.shouldIgnoreEcho(postId, 'unrepost', actorId || altActor)) return;
-    const store = usePostsStore.getState();
-    store.updatePostEverywhere(postId, (prev) => ({
-      ...prev,
-      engagement: { ...prev.engagement, reposts: Math.max(0, (prev.engagement.reposts || 0) - 1) },
-      isReposted: false
-    }));
+    const { originalPostId, postId: pid, repostsCount, userId: actorId, actorId: altActor } = data || {};
+    const postId = originalPostId || pid;
+    if (!postId) return;
+    if (this.shouldIgnoreEcho(postId, 'unrepost', actorId || altActor)) return;
+    
+    this.queueEngagementUpdate(postId, 'unrepost', { 
+      postId, 
+      repostsCount,
+      userId: actorId || altActor 
+    });
   }
 
   /**
-   * Handle post saved event
+   * Handle post saved event - with batching
    */
   private handlePostSaved(data: any) {
-  const { postId, userId: actorId, actorId: altActor } = data || {};
-  if (!postId) return;
-  if (this.shouldIgnoreEcho(postId, 'save', actorId || altActor)) return;
-    const store = usePostsStore.getState();
-    store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: true }));
+    const { postId, userId: actorId, actorId: altActor } = data || {};
+    if (!postId) return;
+    if (this.shouldIgnoreEcho(postId, 'save', actorId || altActor)) return;
+    
+    this.queueEngagementUpdate(postId, 'save', { 
+      postId, 
+      userId: actorId || altActor 
+    });
   }
 
   /**
-   * Handle post unsaved event
+   * Handle post unsaved event - with batching
    */
   private handlePostUnsaved(data: any) {
-  const { postId, userId: actorId, actorId: altActor } = data || {};
-  if (!postId) return;
-  if (this.shouldIgnoreEcho(postId, 'unsave', actorId || altActor)) return;
-    const store = usePostsStore.getState();
-    store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: false }));
+    const { postId, userId: actorId, actorId: altActor } = data || {};
+    if (!postId) return;
+    if (this.shouldIgnoreEcho(postId, 'unsave', actorId || altActor)) return;
+    
+    this.queueEngagementUpdate(postId, 'unsave', { 
+      postId, 
+      userId: actorId || altActor 
+    });
   }
 
   /**

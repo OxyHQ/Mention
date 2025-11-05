@@ -8,6 +8,7 @@ import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import AnimatedNumber from '../common/AnimatedNumber';
 import { useTheme } from '@/hooks/useTheme';
+import { Ionicons } from '@expo/vector-icons';
 
 interface Engagement {
   replies: number;
@@ -25,6 +26,11 @@ interface Props {
   onLike: () => void;
   onSave: () => void;
   onShare: () => void;
+  onLikesPress?: () => void;
+  onRepostsPress?: () => void;
+  onInsightsPress?: () => void;
+  postId?: string;
+  showInsights?: boolean;
 }
 
 const PostActions: React.FC<Props> = ({
@@ -37,23 +43,48 @@ const PostActions: React.FC<Props> = ({
   onLike,
   onSave,
   onShare,
+  onLikesPress,
+  onRepostsPress,
+  onInsightsPress,
+  postId,
+  showInsights = false,
 }) => {
   const theme = useTheme();
+
+  const handleLikesPress = () => {
+    if (onLikesPress && engagement?.likes > 0) {
+      onLikesPress();
+    } else {
+      onLike();
+    }
+  };
+
+  const handleRepostsPress = () => {
+    if (onRepostsPress && engagement?.reposts > 0) {
+      onRepostsPress();
+    } else {
+      onRepost();
+    }
+  };
 
   return (
     <View style={styles.postEngagement}>
       {/* Heart (like) */}
-      <TouchableOpacity style={styles.engagementButton} onPress={onLike}>
-        {isLiked ? (
-          <HeartIconActive size={18} color={theme.colors.error} />
-        ) : (
-          <HeartIcon size={18} color={theme.colors.textSecondary} />
-        )}
-        <AnimatedNumber
-          value={engagement?.likes ?? 0}
-          style={[styles.engagementText, { color: theme.colors.textSecondary }, isLiked && { color: theme.colors.error }]}
-        />
-      </TouchableOpacity>
+      <View style={styles.engagementButton}>
+        <TouchableOpacity onPress={onLike}>
+          {isLiked ? (
+            <HeartIconActive size={18} color={theme.colors.error} />
+          ) : (
+            <HeartIcon size={18} color={theme.colors.textSecondary} />
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleLikesPress} style={styles.countButton}>
+          <AnimatedNumber
+            value={engagement?.likes ?? 0}
+            style={[styles.engagementText, { color: theme.colors.textSecondary }, isLiked && { color: theme.colors.error }]}
+          />
+        </TouchableOpacity>
+      </View>
 
       {/* Reply (comment) */}
       <TouchableOpacity style={styles.engagementButton} onPress={onReply}>
@@ -65,17 +96,21 @@ const PostActions: React.FC<Props> = ({
       </TouchableOpacity>
 
       {/* Repost */}
-      <TouchableOpacity style={styles.engagementButton} onPress={onRepost}>
-        {isReposted ? (
-          <RepostIconActive size={18} color={theme.colors.success} />
-        ) : (
-          <RepostIcon size={18} color={theme.colors.textSecondary} />
-        )}
-        <AnimatedNumber
-          value={engagement?.reposts ?? 0}
-          style={[styles.engagementText, { color: theme.colors.textSecondary }, isReposted && { color: theme.colors.success }]}
-        />
-      </TouchableOpacity>
+      <View style={styles.engagementButton}>
+        <TouchableOpacity onPress={onRepost}>
+          {isReposted ? (
+            <RepostIconActive size={18} color={theme.colors.success} />
+          ) : (
+            <RepostIcon size={18} color={theme.colors.textSecondary} />
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleRepostsPress} style={styles.countButton}>
+          <AnimatedNumber
+            value={engagement?.reposts ?? 0}
+            style={[styles.engagementText, { color: theme.colors.textSecondary }, isReposted && { color: theme.colors.success }]}
+          />
+        </TouchableOpacity>
+      </View>
 
       {/* Share */}
       <TouchableOpacity style={styles.engagementButton} onPress={onShare}>
@@ -90,6 +125,13 @@ const PostActions: React.FC<Props> = ({
           <Bookmark size={18} color={theme.colors.textSecondary} />
         )}
       </TouchableOpacity>
+
+      {/* Insights (only for post owners) */}
+      {showInsights && onInsightsPress && (
+        <TouchableOpacity style={styles.engagementButton} onPress={onInsightsPress}>
+          <Ionicons name="stats-chart-outline" size={18} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -105,6 +147,9 @@ const styles = StyleSheet.create({
   engagementButton: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  countButton: {
+    marginLeft: 4,
   },
   engagementText: {
     fontSize: 13,

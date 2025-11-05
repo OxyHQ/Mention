@@ -459,6 +459,60 @@ class FeedService {
       throw new Error('Failed to fetch posts by mentions');
     }
   }
+
+  /**
+   * Get users who liked a post
+   */
+  async getPostLikes(postId: string, cursor?: string, limit: number = 50): Promise<{
+    users: Array<{
+      id: string;
+      name: string;
+      handle: string;
+      avatar: string;
+      verified: boolean;
+    }>;
+    hasMore: boolean;
+    nextCursor?: string;
+    totalCount: number;
+  }> {
+    try {
+      const params: any = { limit };
+      if (cursor) params.cursor = cursor;
+      
+      const response = await authenticatedClient.get(`/posts/${postId}/likes`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching post likes:', error);
+      throw new Error('Failed to fetch post likes');
+    }
+  }
+
+  /**
+   * Get users who reposted a post
+   */
+  async getPostReposts(postId: string, cursor?: string, limit: number = 50): Promise<{
+    users: Array<{
+      id: string;
+      name: string;
+      handle: string;
+      avatar: string;
+      verified: boolean;
+    }>;
+    hasMore: boolean;
+    nextCursor?: string;
+    totalCount: number;
+  }> {
+    try {
+      const params: any = { limit };
+      if (cursor) params.cursor = cursor;
+      
+      const response = await authenticatedClient.get(`/posts/${postId}/reposts`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching post reposts:', error);
+      throw new Error('Failed to fetch post reposts');
+    }
+  }
 }
 
 export const feedService = new FeedService(); 
