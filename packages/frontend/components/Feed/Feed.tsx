@@ -113,7 +113,7 @@ const Feed = (props: FeedProps) => {
     console.log(`[Feed] feedData for effectiveType="${effectiveType}":`, {
         itemsCount: feedData?.items?.length || 0,
         isLoading: feedData?.isLoading,
-        filters: feedData?.filters,
+        filters: (feedData as any)?.filters,
         lastUpdated: feedData?.lastUpdated
     });
     
@@ -558,7 +558,7 @@ const Feed = (props: FeedProps) => {
                             type === 'media' ? 'No media posts found' :
                                 type === 'replies' ? 'No replies yet' :
                                     type === 'reposts' ? 'No reposts yet' :
-                                        type === 'explore' || type === 'trending' ? 'No trending posts right now. Check back later!' :
+                                        type === 'explore' ? 'No trending posts right now. Check back later!' :
                                             type === 'following' ? 'Start following people to see their posts' :
                                                 type === 'for_you' ? 'Discover posts based on your interests' :
                                                     type === 'custom' ? 'This feed is empty' :

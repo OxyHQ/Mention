@@ -3,17 +3,17 @@
  * Use these utilities instead of hardcoded color values
  */
 
-import { StyleSheet, ViewStyle, TextStyle, ImageStyle } from "react-native";
+import { StyleSheet, ViewStyle, TextStyle, ImageStyle, StyleProp } from "react-native";
 import { Theme } from "@/hooks/useTheme";
 
 /**
  * Flatten an array of styles into a single style object
  * Handles arrays, objects, and undefined/null values
  */
-export function flattenStyleArray(
-  styles: (ViewStyle | TextStyle | ImageStyle | undefined | null | false)[]
-): ViewStyle | TextStyle | ImageStyle | undefined {
-  const validStyles = styles.filter((style): style is ViewStyle | TextStyle | ImageStyle => {
+export function flattenStyleArray<T extends ViewStyle | TextStyle | ImageStyle>(
+  styles: (StyleProp<T> | undefined | null | false)[]
+): StyleProp<T> {
+  const validStyles = styles.filter((style): style is StyleProp<T> => {
     return style !== null && style !== undefined && style !== false;
   });
   
@@ -25,7 +25,7 @@ export function flattenStyleArray(
     return validStyles[0];
   }
   
-  return StyleSheet.flatten(validStyles);
+  return StyleSheet.flatten(validStyles) as StyleProp<T>;
 }
 
 /**

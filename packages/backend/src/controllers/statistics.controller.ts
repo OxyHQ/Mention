@@ -257,7 +257,7 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
     // Record interaction for user preference learning
     if (userId) {
       try {
-        const { userPreferenceService } = await import('../services/UserPreferenceService');
+        const { userPreferenceService } = await import('../services/UserPreferenceService.js');
         await userPreferenceService.recordInteraction(userId, postId, 'view');
       } catch (error) {
         logger.warn('Failed to record view interaction:', error);
