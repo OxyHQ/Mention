@@ -50,7 +50,7 @@ return {
             // Must match google-services.json package_name
             package: "com.mention.earth",
             // Point to your google-services.json for FCM
-            googleServicesFile: "./google-services.json",
+            googleServicesFile: "../../google-services.json",
             intentFilters: [
                     {
                         action: 'VIEW',
