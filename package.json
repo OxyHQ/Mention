@@ -24,7 +24,6 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "lightningcss-linux-arm64-gnu": "^1.30.2",
     "react-native-worklets": "0.5.1",
     "typescript": "~5.9.2"
   },
