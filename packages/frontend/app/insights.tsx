@@ -27,6 +27,8 @@ import SectionHeader from '@/components/insights/SectionHeader';
 import HeroCard from '@/components/insights/HeroCard';
 import SummaryCard from '@/components/insights/SummaryCard';
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { StatusBar } from 'expo-status-bar';
 import SEO from '@/components/SEO';
 
@@ -632,12 +634,21 @@ const InsightsScreen: React.FC = () => {
                 <ThemedView style={{ flex: 1 }}>
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
                 
-                {/* Header - sticky */}
+                {/* Header */}
                 <Header
                     options={{
                         title: 'Insights',
-                        showBackButton: true,
+                        leftComponents: [
+                            <HeaderIconButton
+                                key="back"
+                                onPress={() => router.back()}
+                            >
+                                <BackArrowIcon size={20} color={theme.colors.text} />
+                            </HeaderIconButton>,
+                        ],
                     }}
+                    hideBottomBorder={true}
+                    disableSticky={true}
                 />
 
                 {/* Tabs - sticky */}

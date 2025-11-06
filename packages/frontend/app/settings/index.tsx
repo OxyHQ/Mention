@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState, useRef, useMemo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Switch, Platform, ScrollView, Animated } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, ScrollView, Animated } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
+import { HeaderIconButton } from "@/components/HeaderIconButton";
+import { Toggle } from "@/components/Toggle";
+import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useOxy } from "@oxyhq/services";
 import { useTranslation } from "react-i18next";
 import { useLayoutScroll } from "@/context/LayoutScrollContext";
@@ -221,9 +224,17 @@ export default function SettingsScreen() {
             <Header
                 options={{
                     title: t("settings.title"),
-                    showBackButton: true,
+                    leftComponents: [
+                        <HeaderIconButton
+                            key="back"
+                            onPress={() => router.back()}
+                        >
+                            <BackArrowIcon size={20} color={theme.colors.text} />
+                        </HeaderIconButton>,
+                    ],
                 }}
-                hideBottomBorder={false}
+                hideBottomBorder={true}
+                disableSticky={true}
             />
 
             <Animated.ScrollView
@@ -522,12 +533,9 @@ export default function SettingsScreen() {
                                 </Text>
                             </View>
                         </View>
-                        <Switch
+                        <Toggle
                             value={notifications}
                             onValueChange={onToggleNotifications}
-                            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                            thumbColor={theme.colors.card}
-                            ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
                     </View>
 
@@ -543,12 +551,9 @@ export default function SettingsScreen() {
                                 </Text>
                             </View>
                         </View>
-                        <Switch
+                        <Toggle
                             value={darkMode}
                             onValueChange={setDarkMode}
-                            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                            thumbColor={theme.colors.card}
-                            ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
                     </View>
 
@@ -564,12 +569,9 @@ export default function SettingsScreen() {
                                 </Text>
                             </View>
                         </View>
-                        <Switch
+                        <Toggle
                             value={autoSync}
                             onValueChange={setAutoSync}
-                            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                            thumbColor={theme.colors.card}
-                            ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
                     </View>
 
@@ -589,12 +591,9 @@ export default function SettingsScreen() {
                                 </Text>
                             </View>
                         </View>
-                        <Switch
+                        <Toggle
                             value={offlineMode}
                             onValueChange={setOfflineMode}
-                            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                            thumbColor={theme.colors.card}
-                            ios_backgroundColor={theme.colors.backgroundTertiary}
                         />
                     </View>
                 </View>
