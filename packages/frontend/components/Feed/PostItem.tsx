@@ -9,12 +9,21 @@ import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
 import EngagementListSheet from '../Post/EngagementListSheet';
 import PostInsightsSheet from '../Post/PostInsightsSheet';
+import ReplySettingsSheet from '../Compose/ReplySettingsSheet';
 import PostLocation from '../Post/PostLocation';
 import { colors } from '../../styles/colors';
 import PostMiddle from '../Post/PostMiddle';
 import { useOxy } from '@oxyhq/services';
 import { useUsersStore } from '@/stores/usersStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
+import { ShareIcon } from '@/assets/icons/share-icon';
+import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
+import { TrashIcon } from '@/assets/icons/trash-icon';
+import { LinkIcon } from '@/assets/icons/link-icon';
+import { PinIcon, UnpinIcon } from '@/assets/icons/pin-icon';
+import { HideIcon } from '@/assets/icons/hide-icon';
+import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { Ionicons } from '@expo/vector-icons';
 import { feedService } from '../../services/feedService';
 import { confirmDialog } from '@/utils/alerts';
@@ -409,46 +418,153 @@ const PostItem: React.FC<PostItemProps> = ({
                     };
 
                     const postUrl = `https://mention.earth/p/${postId}`;
-                    const ActionRow: React.FC<{ icon: any; text: string; onPress: () => void; color?: string }> = ({ icon, text, onPress, color }) => (
-                        <TouchableOpacity style={styles.sheetItem} onPress={() => { onPress(); }}>
-                            <View style={styles.sheetItemLeft}>{icon}</View>
+                    const isPinned = Boolean((viewPost as any)?.metadata?.isPinned);
+                    
+                    // Group actions based on the image: Insights (single), Save group, Delete (single), Copy link (single)
+                    const insightsAction = isOwner ? [
+                        { icon: <AnalyticsIcon size={20} color={theme.colors.textSecondary} />, text: "Insights", onPress: () => { 
+                            bottomSheet.setBottomSheetContent(
+                                <PostInsightsSheet
+                                    postId={viewPostId || null}
+                                    onClose={() => bottomSheet.openBottomSheet(false)}
+                                />
+                            );
+                            bottomSheet.openBottomSheet(true);
+                        } }
+                    ] : [];
+                    
+                    // Save action group: Save, Unpin, Hide like and share counts, Reply options
+                    const saveActionGroup: Array<{ icon: any; text: string; onPress: () => void; color?: string }> = [];
+                    
+                    // Save/Unsave
+                    if (!isSaved) {
+                        saveActionGroup.push({ 
+                            icon: <Bookmark size={20} color={theme.colors.textSecondary} />, 
+                            text: "Save", 
+                            onPress: async () => { await handleSave(); bottomSheet.openBottomSheet(false); } 
+                        });
+                    } else {
+                        saveActionGroup.push({ 
+                            icon: <BookmarkActive size={20} color={theme.colors.textSecondary} />, 
+                            text: "Unsave", 
+                            onPress: async () => { await handleSave(); bottomSheet.openBottomSheet(false); } 
+                        });
+                    }
+                    
+                    // Unpin (only for owners and if pinned)
+                    if (isOwner && isPinned) {
+                        saveActionGroup.push({ 
+                            icon: <UnpinIcon size={20} color={theme.colors.textSecondary} />, 
+                            text: "Unpin", 
+                            onPress: async () => { 
+                                // TODO: Implement unpin functionality
+                                bottomSheet.openBottomSheet(false); 
+                            } 
+                        });
+                    }
+                    
+                    // Hide like and share counts (only for owners)
+                    if (isOwner) {
+                        saveActionGroup.push({ 
+                            icon: <HideIcon size={20} color={theme.colors.textSecondary} />, 
+                            text: "Hide like and share counts", 
+                            onPress: async () => { 
+                                // TODO: Implement hide counts functionality
+                                bottomSheet.openBottomSheet(false); 
+                            } 
+                        });
+                    }
+                    
+                    // Reply options (only for owners)
+                    if (isOwner) {
+                        saveActionGroup.push({ 
+                            icon: <ChevronRightIcon size={20} color={theme.colors.textSecondary} />, 
+                            text: "Reply options", 
+                            onPress: () => { 
+                                bottomSheet.setBottomSheetContent(
+                                    <ReplySettingsSheet
+                                        replyPermission={(viewPost as any)?.replyPermission || 'anyone'}
+                                        onReplyPermissionChange={(permission) => {
+                                            // TODO: Implement update reply permission
+                                            console.log('Update reply permission:', permission);
+                                        }}
+                                        reviewReplies={(viewPost as any)?.reviewReplies || false}
+                                        onReviewRepliesChange={(enabled) => {
+                                            // TODO: Implement update review replies
+                                            console.log('Update review replies:', enabled);
+                                        }}
+                                        onClose={() => bottomSheet.openBottomSheet(false)}
+                                    />
+                                );
+                                bottomSheet.openBottomSheet(true);
+                            } 
+                        });
+                    }
+                    
+                    const deleteAction = isOwner ? [
+                        { icon: <TrashIcon size={20} color={theme.colors.error} />, text: "Delete", onPress: handleDelete, color: theme.colors.error }
+                    ] : [];
+                    
+                    const copyLinkAction = [
+                        { icon: <LinkIcon size={20} color={theme.colors.textSecondary} />, text: "Copy link", onPress: async () => {
+                            try {
+                                if (Platform.OS === 'web') {
+                                    await navigator.clipboard.writeText(postUrl);
+                                } else {
+                                    const { Clipboard } = require('react-native');
+                                    Clipboard.setString(postUrl);
+                                }
+                            } catch { }
+                            bottomSheet.openBottomSheet(false);
+                        } }
+                    ];
+                    
+                    const ActionRow: React.FC<{ icon: any; text: string; onPress: () => void; color?: string; isFirst?: boolean; isLast?: boolean }> = ({ icon, text, onPress, color, isFirst, isLast }) => (
+                        <TouchableOpacity 
+                            style={[
+                                styles.sheetItem,
+                                {
+                                    backgroundColor: theme.colors.backgroundSecondary,
+                                    borderTopLeftRadius: isFirst ? 16 : 0,
+                                    borderTopRightRadius: isFirst ? 16 : 0,
+                                    borderBottomLeftRadius: isLast ? 16 : 0,
+                                    borderBottomRightRadius: isLast ? 16 : 0,
+                                    marginBottom: !isLast ? 4 : 0,
+                                }
+                            ]} 
+                            onPress={() => { onPress(); }}
+                            activeOpacity={0.7}
+                        >
                             <Text style={[styles.sheetItemText, { color: color || theme.colors.text }]}>{text}</Text>
+                            <View style={styles.sheetItemRight}>{icon}</View>
                         </TouchableOpacity>
                     );
+                    
+                    const ActionGroup: React.FC<{ actions: Array<{ icon: any; text: string; onPress: () => void; color?: string }> }> = ({ actions }) => {
+                        if (actions.length === 0) return null;
+                        return (
+                            <View style={styles.actionGroup}>
+                                {actions.map((action, index) => (
+                                    <ActionRow
+                                        key={index}
+                                        icon={action.icon}
+                                        text={action.text}
+                                        onPress={action.onPress}
+                                        color={action.color}
+                                        isFirst={index === 0}
+                                        isLast={index === actions.length - 1}
+                                    />
+                                ))}
+                            </View>
+                        );
+                    };
 
                     bottomSheet.setBottomSheetContent(
-                        <View style={[styles.sheetContainer, { backgroundColor: theme.colors.card }]}>
-                            {isOwner && (
-                                <ActionRow icon={<Ionicons name="stats-chart-outline" size={18} color={theme.colors.textSecondary} />} text="View Insights" onPress={() => { 
-                                    bottomSheet.setBottomSheetContent(
-                                        <PostInsightsSheet
-                                            postId={viewPostId || null}
-                                            onClose={() => bottomSheet.openBottomSheet(false)}
-                                        />
-                                    );
-                                    bottomSheet.openBottomSheet(true);
-                                }} />
-                            )}
-                            <ActionRow icon={<Ionicons name="link" size={18} color={theme.colors.textSecondary} />} text="Copy link" onPress={async () => {
-                                try {
-                                    if (Platform.OS === 'web') {
-                                        await navigator.clipboard.writeText(postUrl);
-                                    } else {
-                                        const { Clipboard } = require('react-native');
-                                        Clipboard.setString(postUrl);
-                                    }
-                                } catch { }
-                                bottomSheet.openBottomSheet(false);
-                            }} />
-                            <ActionRow icon={<Ionicons name="share-outline" size={18} color={theme.colors.textSecondary} />} text="Share" onPress={async () => { await handleShare(); bottomSheet.openBottomSheet(false); }} />
-                            {!isSaved ? (
-                                <ActionRow icon={<Ionicons name="bookmark-outline" size={18} color={theme.colors.textSecondary} />} text="Save" onPress={async () => { await handleSave(); bottomSheet.openBottomSheet(false); }} />
-                            ) : (
-                                <ActionRow icon={<Ionicons name="bookmark" size={18} color={theme.colors.textSecondary} />} text="Unsave" onPress={async () => { await handleSave(); bottomSheet.openBottomSheet(false); }} />
-                            )}
-                            {isOwner && (
-                                <ActionRow icon={<Ionicons name="trash-outline" size={18} color={theme.colors.error} />} text="Delete" onPress={handleDelete} color={theme.colors.error} />
-                            )}
+                        <View style={[styles.sheetContainer, { backgroundColor: theme.colors.background }]}>
+                            {insightsAction.length > 0 && <ActionGroup actions={insightsAction} />}
+                            {saveActionGroup.length > 0 && <ActionGroup actions={saveActionGroup} />}
+                            {deleteAction.length > 0 && <ActionGroup actions={deleteAction} />}
+                            <ActionGroup actions={copyLinkAction} />
                         </View>
                     );
                     bottomSheet.openBottomSheet(true);
@@ -550,21 +666,29 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     sheetContainer: {
-        paddingVertical: 8,
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 20,
+    },
+    actionGroup: {
+        marginBottom: 8,
     },
     sheetItem: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingVertical: 14,
-        gap: 12,
-    },
-    sheetItemLeft: {
-        width: 22,
-        alignItems: 'center',
+        minHeight: 50,
     },
     sheetItemText: {
         fontSize: 16,
+        flex: 1,
+    },
+    sheetItemRight: {
+        width: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });
 

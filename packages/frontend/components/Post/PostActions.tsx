@@ -6,9 +6,9 @@ import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
 import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
+import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import AnimatedNumber from '../common/AnimatedNumber';
 import { useTheme } from '@/hooks/useTheme';
-import { Ionicons } from '@expo/vector-icons';
 
 interface Engagement {
   replies: number;
@@ -129,7 +129,7 @@ const PostActions: React.FC<Props> = ({
       {/* Insights (only for post owners) */}
       {showInsights && onInsightsPress && (
         <TouchableOpacity style={styles.engagementButton} onPress={onInsightsPress}>
-          <Ionicons name="stats-chart-outline" size={18} color={theme.colors.textSecondary} />
+          <AnalyticsIcon size={18} color={theme.colors.textSecondary} />
         </TouchableOpacity>
       )}
     </View>

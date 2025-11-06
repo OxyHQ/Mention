@@ -1896,7 +1896,7 @@ class FeedController {
               case 'followers':
                 // Check if current user is a follower of the post author
                 const authorFollowers = await oxyClient.getUserFollowers(parentAuthorId);
-                canReply = authorFollowers?.some((f: any) => {
+                canReply = authorFollowers?.followers?.some((f: any) => {
                   const followerId = f.id || f._id || f;
                   return followerId === currentUserId || String(followerId) === String(currentUserId);
                 }) || false;
@@ -1904,7 +1904,7 @@ class FeedController {
               case 'following':
                 // Check if post author follows current user (current user is in author's following list)
                 const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
-                canReply = authorFollowing?.some((f: any) => {
+                canReply = authorFollowing?.following?.some((f: any) => {
                   const followingId = f.id || f._id || f;
                   return followingId === currentUserId || String(followingId) === String(currentUserId);
                 }) || false;
