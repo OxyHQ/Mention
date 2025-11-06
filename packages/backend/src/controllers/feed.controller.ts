@@ -985,6 +985,10 @@ class FeedController {
       });
 
       // Fetch candidate posts for ranking (use larger pool for better quality)
+      // Multiplier of 4 provides good balance between:
+      // - Ranking quality (more posts to choose from)
+      // - Query performance (not too many posts to fetch/rank)
+      // - Cursor tracking overhead (reasonable seen IDs list size)
       const candidateLimit = paginationOptions.limit * 4;
       const candidatePosts = await Post.find(match)
         .sort({ createdAt: -1 })
@@ -1357,31 +1361,40 @@ class FeedController {
   async getUserProfileFeed(req: AuthRequest, res: Response) {
     try {
       const { userId } = req.params;
-      const { cursor, limit = 20, type = 'posts' } = req.query as any;
+      const type = (req.query.type as string) || 'posts';
       const currentUserId = req.user?.id;
 
       if (!userId) {
         return res.status(400).json({ error: 'User ID is required' });
       }
 
+      // Normalize pagination options
+      const paginationOptions = cursorPaginationService.normalizePaginationOptions({
+        cursor: req.query.cursor as string,
+        limit: Number(req.query.limit) || 20,
+        useRanking: false // Profile feeds are chronological
+      });
+
+      // Parse cursor
+      const cursor = cursorPaginationService.parseCursor(paginationOptions.cursor);
+
       // Handle Likes feed separately (posts the user liked)
       if (type === 'likes') {
         // Paginate likes by Like document _id (chronological like order)
-        const likeQuery: any = { userId };
-        if (cursor) {
-          likeQuery._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-        }
+        const likeBaseMatch: any = { userId };
+        const likeMatch = cursorPaginationService.buildCursorQuery(cursor, likeBaseMatch);
 
-        const likes = await Like.find(likeQuery)
+        const likes = await Like.find(likeMatch)
           .sort({ _id: -1 })
-          .limit(Number(limit) + 1)
+          .limit(paginationOptions.limit + 1)
           .lean();
 
-        const hasMore = likes.length > Number(limit);
-        const likesToReturn = hasMore ? likes.slice(0, Number(limit)) : likes;
-        const nextCursor = hasMore ? likes[Number(limit) - 1]._id.toString() : undefined;
+        const likeResult = cursorPaginationService.createPaginationResult(
+          likes,
+          paginationOptions.limit
+        );
 
-        const likedPostIds = likesToReturn.map(l => l.postId);
+        const likedPostIds = likeResult.items.map(l => l.postId);
         if (likedPostIds.length === 0) {
           return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
         }
@@ -1399,31 +1412,30 @@ class FeedController {
         const transformedPosts = await this.transformPostsWithProfiles(postsOrdered, currentUserId);
 
         const response: FeedResponse = {
-          items: transformedPosts, // Return posts directly in new schema format
-          hasMore,
-          nextCursor,
+          items: transformedPosts,
+          hasMore: likeResult.hasMore,
+          nextCursor: likeResult.nextCursor,
           totalCount: transformedPosts.length
         };
 
         return res.json(response);
       }
 
-      const query: any = {
+      // Build base query for user's posts
+      const baseMatch: any = {
         oxyUserId: userId,
         visibility: PostVisibility.PUBLIC
       };
 
       // Filter by content type
       if (type === 'posts') {
-        // Profile Posts tab should include originals and reposts (exclude only replies)
-        // Show top-level items authored by the user; allow reposts/quotes to appear here like Twitter
-        query.parentPostId = null;
+        // Profile Posts tab includes originals and reposts (exclude only replies)
+        baseMatch.parentPostId = null;
       } else if (type === 'replies') {
-        // Replies
-        query.parentPostId = { $ne: null };
+        baseMatch.parentPostId = { $ne: null };
       } else if (type === 'media') {
-        // Media-only top-level posts: include posts typed TEXT but with media arrays
-        query.$and = [
+        // Media-only top-level posts
+        baseMatch.$and = [
           { $or: [
             { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
             { 'content.media.0': { $exists: true } },
@@ -1436,29 +1448,31 @@ class FeedController {
           { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
         ];
       } else if (type === 'reposts') {
-        // Reposts only
-        query.repostOf = { $ne: null };
+        baseMatch.repostOf = { $ne: null };
       }
 
-      if (cursor) {
-        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-      }
+      // Build query with cursor
+      const match = cursorPaginationService.buildCursorQuery(cursor, baseMatch);
 
-      const posts = await Post.find(query)
+      // Fetch posts
+      const posts = await Post.find(match)
         .sort({ createdAt: -1 })
-        .limit(limit + 1)
+        .limit(paginationOptions.limit + 1)
         .lean();
 
-      const hasMore = posts.length > limit;
-      const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
-      const nextCursor = hasMore ? posts[limit - 1]._id.toString() : undefined;
+      // Create pagination result
+      const result = cursorPaginationService.createPaginationResult(
+        posts,
+        paginationOptions.limit
+      );
 
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+      // Transform posts
+      const transformedPosts = await this.transformPostsWithProfiles(result.items, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts, // Return posts directly in new schema format
-        hasMore,
-        nextCursor,
+        items: transformedPosts,
+        hasMore: result.hasMore,
+        nextCursor: result.nextCursor,
         totalCount: transformedPosts.length
       };
 

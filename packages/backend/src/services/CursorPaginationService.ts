@@ -88,7 +88,9 @@ export class CursorPaginationService {
       }
       
       // Invalid cursor - return null and let caller handle
-      console.warn('Invalid cursor format:', error instanceof Error ? error.message : error);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Invalid cursor format:', error instanceof Error ? error.message : 'Parse error');
+      }
       return null;
     }
   }
@@ -187,6 +189,10 @@ export class CursorPaginationService {
         ];
 
         // Limit seen IDs to prevent cursor from growing too large
+        // Keep most recent IDs for better duplicate prevention during active scrolling
+        // Note: This is a trade-off between cursor size and duplicate prevention
+        // Older posts that scroll out of this window may reappear, but this is acceptable
+        // for the performance benefit and is rare in practice
         const maxSeenIds = options.maxSeenIds || this.DEFAULT_MAX_SEEN_IDS;
         cursorData.seenIds = allSeenIds.slice(-maxSeenIds);
       }

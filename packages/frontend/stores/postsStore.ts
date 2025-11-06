@@ -788,7 +788,13 @@ export const usePostsStore = create<FeedState>()(
           const finalItems = [...currentFeedAfterAsync.items, ...trulyNewItems];
           
           // Update cache with new items
-          try { useUsersStore.getState().primeFromPosts(trulyNewItems as any); } catch {}
+          try { 
+            useUsersStore.getState().primeFromPosts(trulyNewItems as any); 
+          } catch (error) {
+            if (process.env.NODE_ENV === 'development') {
+              console.warn('[loadMoreFeed] Failed to prime users store:', error);
+            }
+          }
           const newCache = { ...state.postsById };
           trulyNewItems.forEach((p: FeedItem) => {
             const id = normalizeId(p);
