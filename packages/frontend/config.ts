@@ -16,3 +16,6 @@ export const OXY_BASE_URL =
 // Stripe Payment Links (open in browser)
 export const STRIPE_LINK_PLUS = process.env.EXPO_PUBLIC_STRIPE_LINK_PLUS || '';
 export const STRIPE_LINK_FILE = process.env.EXPO_PUBLIC_STRIPE_LINK_FILE || '';
+
+// KLIPY API
+export const KLIPY_APP_KEY = process.env.EXPO_PUBLIC_KLIPY_APP_KEY || '';

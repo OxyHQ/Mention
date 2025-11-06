@@ -6,6 +6,7 @@ export interface Draft {
   postContent: string;
   mediaIds: Array<{ id: string; type: 'image' | 'video' }>;
   pollOptions: string[];
+  pollTitle?: string;
   showPollCreator: boolean;
   location: { latitude: number; longitude: number; address?: string } | null;
   threadItems: Array<{
@@ -13,6 +14,7 @@ export interface Draft {
     text: string;
     mediaIds: Array<{ id: string; type: 'image' | 'video' }>;
     pollOptions: string[];
+    pollTitle?: string;
     showPollCreator: boolean;
     location: { latitude: number; longitude: number; address?: string } | null;
     mentions: Array<{ userId: string; handle: string; name: string }>;

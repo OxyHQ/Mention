@@ -35,9 +35,11 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { DotIcon } from '@/assets/icons/dot-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
 import { Plus } from '@/assets/icons/plus-icon';
+import { PollIcon } from '@/assets/icons/poll-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import DraftsSheet from '@/components/Compose/DraftsSheet';
 import ReplySettingsSheet, { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
+import GifPickerSheet from '@/components/Compose/GifPickerSheet';
 import { Toggle } from '@/components/Toggle';
 import { useDrafts } from '@/hooks/useDrafts';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -79,7 +81,7 @@ const ComposeScreen = () => {
   const bottomSheet = React.useContext(BottomSheetContext);
   const { saveDraft, deleteDraft, loadDrafts } = useDrafts();
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
-  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [postContent, setPostContent] = useState('');
   const [mentions, setMentions] = useState<MentionData[]>([]);
   const [threadItems, setThreadItems] = useState<{
@@ -87,6 +89,7 @@ const ComposeScreen = () => {
     text: string;
     mediaIds: Array<{ id: string; type: 'image' | 'video' }>;
     pollOptions: string[];
+    pollTitle: string;
     showPollCreator: boolean;
     location: { latitude: number; longitude: number; address?: string } | null;
     mentions: MentionData[];
@@ -94,6 +97,7 @@ const ComposeScreen = () => {
   const [isPosting, setIsPosting] = useState(false);
   const [mediaIds, setMediaIds] = useState<Array<{ id: string; type: 'image' | 'video' }>>([]);
   const [pollOptions, setPollOptions] = useState<string[]>([]);
+  const [pollTitle, setPollTitle] = useState<string>('');
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [location, setLocation] = useState<{
     latitude: number;
@@ -112,6 +116,7 @@ const ComposeScreen = () => {
   const postContentRef = useRef(postContent);
   const mediaIdsRef = useRef(mediaIds);
   const pollOptionsRef = useRef(pollOptions);
+  const pollTitleRef = useRef(pollTitle);
   const showPollCreatorRef = useRef(showPollCreator);
   const locationRef = useRef(location);
   const threadItemsRef = useRef(threadItems);
@@ -129,6 +134,9 @@ const ComposeScreen = () => {
   useEffect(() => {
     pollOptionsRef.current = pollOptions;
   }, [pollOptions]);
+  useEffect(() => {
+    pollTitleRef.current = pollTitle;
+  }, [pollTitle]);
   useEffect(() => {
     showPollCreatorRef.current = showPollCreator;
   }, [showPollCreator]);
@@ -180,7 +188,7 @@ const ComposeScreen = () => {
           // Include poll if user created one
           ...(hasPoll && {
             poll: {
-              question: postContent.trim() || 'Poll',
+              question: pollTitle.trim() || postContent.trim() || 'Poll',
               options: pollOptions.filter(opt => opt.trim().length > 0),
               endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
               votes: {},
@@ -213,7 +221,7 @@ const ComposeScreen = () => {
               // Include poll if this thread item has poll options
               ...(item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0) && {
                 poll: {
-                  question: item.text.trim() || 'Poll',
+                  question: (item.pollTitle && item.pollTitle.trim()) || item.text.trim() || 'Poll',
                   options: item.pollOptions.filter(opt => opt.trim().length > 0),
                   endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
                   votes: {},
@@ -276,6 +284,7 @@ const ComposeScreen = () => {
     const latestPostContent = postContentRef.current;
     const latestMediaIds = mediaIdsRef.current;
     const latestPollOptions = pollOptionsRef.current;
+    const latestPollTitle = pollTitleRef.current;
     const latestShowPollCreator = showPollCreatorRef.current;
     const latestLocation = locationRef.current;
     const latestThreadItems = threadItemsRef.current;
@@ -309,33 +318,35 @@ const ComposeScreen = () => {
         postContent: latestPostContent,
         mediaIds: latestMediaIds.map(m => ({ id: m.id, type: m.type })), // Ensure correct structure
         pollOptions: latestPollOptions || [],
+        pollTitle: latestPollTitle || '',
         showPollCreator: shouldShowPollCreator,
         location: latestLocation ? {
           latitude: latestLocation.latitude,
           longitude: latestLocation.longitude,
-          address: latestLocation.address || null,
+          address: latestLocation.address,
         } : null,
         threadItems: latestThreadItems.map(item => ({
           id: item.id,
           text: item.text,
           mediaIds: item.mediaIds.map(m => ({ id: m.id, type: m.type })), // Ensure correct structure
           pollOptions: item.pollOptions || [],
+          pollTitle: item.pollTitle || '',
           showPollCreator: item.showPollCreator || (item.pollOptions && item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)),
           location: item.location ? {
             latitude: item.location.latitude,
             longitude: item.location.longitude,
-            address: item.location.address || null,
+            address: item.location.address,
           } : null,
           mentions: item.mentions.map(m => ({
             userId: m.userId,
-            handle: m.handle,
-            name: m.name,
+            handle: m.username,
+            name: m.displayName,
           })),
         })),
         mentions: latestMentions.map(m => ({
           userId: m.userId,
-          handle: m.handle,
-          name: m.name,
+          handle: m.username,
+          name: m.displayName,
         })),
         postingMode: latestPostingMode,
       });
@@ -368,7 +379,7 @@ const ComposeScreen = () => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [postContent, mediaIds, pollOptions, showPollCreator, location, threadItems, mentions, postingMode, autoSaveDraft]);
+    }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, threadItems, mentions, postingMode, autoSaveDraft]);
 
   // Load draft function
   const loadDraft = useCallback((draft: any) => {
@@ -384,6 +395,7 @@ const ComposeScreen = () => {
     // Handle poll options - ensure showPollCreator is true if pollOptions exist
     const pollOpts = draft.pollOptions || [];
     setPollOptions(pollOpts);
+    setPollTitle(draft.pollTitle || '');
     setShowPollCreator(draft.showPollCreator || pollOpts.length > 0);
     
     // Handle location - ensure it has the correct structure
@@ -406,21 +418,26 @@ const ComposeScreen = () => {
         type: (m.type || 'image') as 'image' | 'video',
       })).filter((m: any) => m.id),
       pollOptions: item.pollOptions || [],
+      pollTitle: item.pollTitle || '',
       showPollCreator: item.showPollCreator || (item.pollOptions && item.pollOptions.length > 0),
       location: item.location ? {
         latitude: item.location.latitude,
         longitude: item.location.longitude,
         address: item.location.address || null,
       } : null,
-      mentions: item.mentions || [],
+      mentions: (item.mentions || []).map((m: any) => ({
+        userId: m.userId || m.id || m,
+        username: m.handle || m.username || '',
+        displayName: m.name || m.displayName || '',
+      })).filter((m: any) => m.userId),
     }));
     setThreadItems(threadItemsData);
     
     // Handle mentions - ensure correct structure
     const mentionsData = (draft.mentions || []).map((m: any) => ({
       userId: m.userId || m.id || m,
-      handle: m.handle || m.username || '',
-      name: m.name || '',
+      username: m.handle || m.username || '',
+      displayName: m.name || m.displayName || '',
     })).filter((m: any) => m.userId);
     setMentions(mentionsData);
     
@@ -501,8 +518,9 @@ const ComposeScreen = () => {
 
   const openPollCreator = () => {
     setShowPollCreator(true);
-    // Initialize with 2 empty options
+    // Initialize with 2 empty options and empty title
     setPollOptions(['', '']);
+    setPollTitle('');
   };
 
   const addPollOption = () => {
@@ -522,6 +540,7 @@ const ComposeScreen = () => {
   const removePoll = () => {
     setShowPollCreator(false);
     setPollOptions([]);
+    setPollTitle('');
   };
 
   // Location functions
@@ -631,7 +650,7 @@ const ComposeScreen = () => {
   const openThreadPollCreator = (threadId: string) => {
     setThreadItems(prev => prev.map(item =>
       item.id === threadId
-        ? { ...item, showPollCreator: true, pollOptions: item.pollOptions.length === 0 ? ['', ''] : item.pollOptions }
+        ? { ...item, showPollCreator: true, pollOptions: item.pollOptions.length === 0 ? ['', ''] : item.pollOptions, pollTitle: item.pollTitle || '' }
         : item
     ));
   };
@@ -663,7 +682,7 @@ const ComposeScreen = () => {
   const removeThreadPoll = (threadId: string) => {
     setThreadItems(prev => prev.map(item =>
       item.id === threadId
-        ? { ...item, showPollCreator: false, pollOptions: [] }
+        ? { ...item, showPollCreator: false, pollOptions: [], pollTitle: '' }
         : item
     ));
   };
@@ -831,6 +850,7 @@ const ComposeScreen = () => {
                           setPostContent('');
                           setMediaIds([]);
                           setPollOptions([]);
+                          setPollTitle('');
                           setShowPollCreator(false);
                           setLocation(null);
                           setThreadItems([]);
@@ -912,8 +932,21 @@ const ComposeScreen = () => {
                       onPollPress={openPollCreator}
                       onLocationPress={requestLocation}
                       onGifPress={() => {
-                        // TODO: Implement GIF picker
-                        toast.info(t('GIF picker coming soon'));
+                        bottomSheet.setBottomSheetContent(
+                          <GifPickerSheet
+                            onClose={() => bottomSheet.openBottomSheet(false)}
+                            onSelectGif={async (gifUrl: string, gifId: string) => {
+                              try {
+                                const mediaItem = { id: gifId, type: 'image' as 'image' | 'video' };
+                                setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
+                                toast.success(t('GIF attached'));
+                              } catch (error: any) {
+                                toast.error(error?.message || t('Failed to attach GIF'));
+                              }
+                            }}
+                          />
+                        );
+                        bottomSheet.openBottomSheet(true);
                       }}
                       onEmojiPress={() => {
                         // TODO: Implement emoji picker
@@ -995,36 +1028,89 @@ const ComposeScreen = () => {
 
                 {/* Poll Creator */}
                 {showPollCreator && (
-                  <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                  <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD, backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                     <View style={styles.pollHeader}>
-                      <Text style={styles.pollTitle}>{t('Create a poll')}</Text>
-                      <TouchableOpacity onPress={removePoll}>
-                        <CloseIcon size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                      <View style={styles.pollHeaderLeft}>
+                        <PollIcon size={18} color={theme.colors.primary} />
+                        <Text style={[styles.pollTitle, { color: theme.colors.text }]}>{t('Create a poll')}</Text>
+                      </View>
+                      <TouchableOpacity 
+                        onPress={removePoll}
+                        style={styles.pollCloseBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <CloseIcon size={18} color={theme.colors.textSecondary} />
                       </TouchableOpacity>
                     </View>
-                    {pollOptions.map((option, index) => (
-                      <View key={index} style={styles.pollOptionRow}>
-                        <TextInput
-                          style={styles.pollOptionInput}
-                          placeholder={t(`Option ${index + 1}`)}
-                          placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
-                          value={option}
-                          onChangeText={(value) => updatePollOption(index, value)}
-                          maxLength={50}
-                        />
-                        {pollOptions.length > 2 && (
-                          <TouchableOpacity onPress={() => removePollOption(index)}>
-                            <CloseIcon size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    ))}
+                    
+                    <View style={styles.pollQuestionContainer}>
+                      <TextInput
+                        style={[styles.pollTitleInput, { 
+                          color: theme.colors.text, 
+                          borderColor: pollTitle.length > 0 ? theme.colors.primary : theme.colors.border, 
+                          backgroundColor: theme.colors.backgroundSecondary 
+                        }]}
+                        placeholder={t('Poll question')}
+                        placeholderTextColor={theme.colors.textTertiary}
+                        value={pollTitle}
+                        onChangeText={setPollTitle}
+                        maxLength={200}
+                        multiline
+                      />
+                      <Text style={[styles.pollCharCount, { color: theme.colors.textTertiary }]}>
+                        {pollTitle.length}/200
+                      </Text>
+                    </View>
+
+                    <View style={styles.pollOptionsContainer}>
+                      {pollOptions.map((option, index) => (
+                        <View key={index} style={styles.pollOptionRow}>
+                          <View style={[styles.pollOptionNumber, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                            <Text style={[styles.pollOptionNumberText, { color: theme.colors.textSecondary }]}>
+                              {index + 1}
+                            </Text>
+                          </View>
+                          <TextInput
+                            style={[styles.pollOptionInput, { 
+                              color: theme.colors.text,
+                              borderColor: option.length > 0 ? theme.colors.primary : theme.colors.border,
+                              backgroundColor: theme.colors.backgroundSecondary
+                            }]}
+                            placeholder={t(`Option ${index + 1}`)}
+                            placeholderTextColor={theme.colors.textTertiary}
+                            value={option}
+                            onChangeText={(value) => updatePollOption(index, value)}
+                            maxLength={50}
+                          />
+                          {pollOptions.length > 2 && (
+                            <TouchableOpacity 
+                              onPress={() => removePollOption(index)}
+                              style={styles.pollOptionRemoveBtn}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <CloseIcon size={16} color={theme.colors.textSecondary} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+
                     {pollOptions.length < 4 && (
-                      <TouchableOpacity style={styles.addPollOptionBtn} onPress={addPollOption}>
-                        <Plus size={16} color={colors.primaryColor} />
-                        <Text style={styles.addPollOptionText}>{t('Add option')}</Text>
+                      <TouchableOpacity 
+                        style={[styles.addPollOptionBtn, { borderColor: theme.colors.border }]} 
+                        onPress={addPollOption}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.addPollOptionIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                          <Plus size={16} color={theme.colors.primary} />
+                        </View>
+                        <Text style={[styles.addPollOptionText, { color: theme.colors.primary }]}>{t('Add option')}</Text>
                       </TouchableOpacity>
                     )}
+                    
+                    <Text style={[styles.pollHint, { color: theme.colors.textTertiary }]}>
+                      {pollOptions.length === 2 ? t('Add up to 2 more options') : t('Minimum 2 options required')}
+                    </Text>
                   </View>
                 )}
 
@@ -1072,8 +1158,26 @@ const ComposeScreen = () => {
                             onPollPress={() => openThreadPollCreator(item.id)}
                             onLocationPress={() => requestThreadLocation(item.id)}
                             onGifPress={() => {
-                              // TODO: Implement GIF picker for thread items
-                              toast.info(t('GIF picker coming soon'));
+                              const currentThreadId = item.id;
+                              bottomSheet.setBottomSheetContent(
+                                <GifPickerSheet
+                                  onClose={() => bottomSheet.openBottomSheet(false)}
+                                  onSelectGif={async (gifUrl: string, gifId: string) => {
+                                    try {
+                                      const mediaItem = { id: gifId, type: 'image' as 'image' | 'video' };
+                                      setThreadItems(prev => prev.map(threadItem =>
+                                        threadItem.id === currentThreadId
+                                          ? { ...threadItem, mediaIds: threadItem.mediaIds.some(m => m.id === gifId) ? threadItem.mediaIds : [...threadItem.mediaIds, mediaItem] }
+                                          : threadItem
+                                      ));
+                                      toast.success(t('GIF attached'));
+                                    } catch (error: any) {
+                                      toast.error(error?.message || t('Failed to attach GIF'));
+                                    }
+                                  }}
+                                />
+                              );
+                              bottomSheet.openBottomSheet(true);
                             }}
                             onEmojiPress={() => {
                               // TODO: Implement emoji picker for thread items
@@ -1161,36 +1265,89 @@ const ComposeScreen = () => {
 
                   {/* Thread item poll creator */}
                   {item.showPollCreator && (
-                    <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD }]}>
+                    <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD, backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                       <View style={styles.pollHeader}>
-                        <Text style={styles.pollTitle}>{t('Create a poll')}</Text>
-                        <TouchableOpacity onPress={() => removeThreadPoll(item.id)}>
-                          <CloseIcon size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <View style={styles.pollHeaderLeft}>
+                          <PollIcon size={18} color={theme.colors.primary} />
+                          <Text style={[styles.pollTitle, { color: theme.colors.text }]}>{t('Create a poll')}</Text>
+                        </View>
+                        <TouchableOpacity 
+                          onPress={() => removeThreadPoll(item.id)}
+                          style={styles.pollCloseBtn}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <CloseIcon size={18} color={theme.colors.textSecondary} />
                         </TouchableOpacity>
                       </View>
-                      {item.pollOptions.map((option, index) => (
-                        <View key={index} style={styles.pollOptionRow}>
-                          <TextInput
-                            style={styles.pollOptionInput}
-                            placeholder={t(`Option ${index + 1}`)}
-                            placeholderTextColor={colors.COLOR_BLACK_LIGHT_5}
-                            value={option}
-                            onChangeText={(value) => updateThreadPollOption(item.id, index, value)}
-                            maxLength={50}
-                          />
-                          {item.pollOptions.length > 2 && (
-                            <TouchableOpacity onPress={() => removeThreadPollOption(item.id, index)}>
-                              <CloseIcon size={20} color={colors.COLOR_BLACK_LIGHT_4} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      ))}
+                      
+                      <View style={styles.pollQuestionContainer}>
+                        <TextInput
+                          style={[styles.pollTitleInput, { 
+                            color: theme.colors.text, 
+                            borderColor: (item.pollTitle || '').length > 0 ? theme.colors.primary : theme.colors.border, 
+                            backgroundColor: theme.colors.backgroundSecondary 
+                          }]}
+                          placeholder={t('Poll question')}
+                          placeholderTextColor={theme.colors.textTertiary}
+                          value={item.pollTitle || ''}
+                          onChangeText={(value) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, pollTitle: value } : p))}
+                          maxLength={200}
+                          multiline
+                        />
+                        <Text style={[styles.pollCharCount, { color: theme.colors.textTertiary }]}>
+                          {(item.pollTitle || '').length}/200
+                        </Text>
+                      </View>
+
+                      <View style={styles.pollOptionsContainer}>
+                        {item.pollOptions.map((option, index) => (
+                          <View key={index} style={styles.pollOptionRow}>
+                            <View style={[styles.pollOptionNumber, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                              <Text style={[styles.pollOptionNumberText, { color: theme.colors.textSecondary }]}>
+                                {index + 1}
+                              </Text>
+                            </View>
+                            <TextInput
+                              style={[styles.pollOptionInput, { 
+                                color: theme.colors.text,
+                                borderColor: option.length > 0 ? theme.colors.primary : theme.colors.border,
+                                backgroundColor: theme.colors.backgroundSecondary
+                              }]}
+                              placeholder={t(`Option ${index + 1}`)}
+                              placeholderTextColor={theme.colors.textTertiary}
+                              value={option}
+                              onChangeText={(value) => updateThreadPollOption(item.id, index, value)}
+                              maxLength={50}
+                            />
+                            {item.pollOptions.length > 2 && (
+                              <TouchableOpacity 
+                                onPress={() => removeThreadPollOption(item.id, index)}
+                                style={styles.pollOptionRemoveBtn}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <CloseIcon size={16} color={theme.colors.textSecondary} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+
                       {item.pollOptions.length < 4 && (
-                        <TouchableOpacity style={styles.addPollOptionBtn} onPress={() => addThreadPollOption(item.id)}>
-                          <Plus size={16} color={colors.primaryColor} />
-                          <Text style={styles.addPollOptionText}>{t('Add option')}</Text>
+                        <TouchableOpacity 
+                          style={[styles.addPollOptionBtn, { borderColor: theme.colors.border }]} 
+                          onPress={() => addThreadPollOption(item.id)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.addPollOptionIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                            <Plus size={16} color={theme.colors.primary} />
+                          </View>
+                          <Text style={[styles.addPollOptionText, { color: theme.colors.primary }]}>{t('Add option')}</Text>
                         </TouchableOpacity>
                       )}
+                      
+                      <Text style={[styles.pollHint, { color: theme.colors.textTertiary }]}>
+                        {item.pollOptions.length === 2 ? t('Add up to 2 more options') : t('Minimum 2 options required')}
+                      </Text>
                     </View>
                   )}
 
@@ -1215,11 +1372,12 @@ const ComposeScreen = () => {
               style={styles.postContainer}
               onPress={() => {
                 const id = Date.now().toString();
-                setThreadItems(prev => [...prev, {
+                          setThreadItems(prev => [...prev, {
                   id,
                   text: '',
                   mediaIds: [] as Array<{ id: string; type: 'image' | 'video' }>,
                   pollOptions: [],
+                  pollTitle: '',
                   showPollCreator: false,
                   location: null,
                   mentions: []
@@ -1629,51 +1787,113 @@ const styles = StyleSheet.create({
   },
   // Poll creator styles
   pollCreator: {
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginRight: 12
   },
   pollHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
+  },
+  pollHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   pollTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.COLOR_BLACK_LIGHT_1,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  pollCloseBtn: {
+    padding: 4,
+  },
+  pollQuestionContainer: {
+    marginBottom: 10,
+  },
+  pollTitleInput: {
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    minHeight: 44,
+    textAlignVertical: 'top',
+  },
+  pollCharCount: {
+    fontSize: 10,
+    marginTop: 4,
+    marginLeft: 2,
+    fontWeight: '500',
+  },
+  pollOptionsContainer: {
+    marginBottom: 8,
+    gap: 8,
   },
   pollOptionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
     gap: 8,
+  },
+  pollOptionNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  pollOptionNumberText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   pollOptionInput: {
     flex: 1,
-    backgroundColor: colors.COLOR_BLACK_LIGHT_9,
-    borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
-    borderRadius: 8,
+    borderWidth: 1.5,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     fontSize: 14,
-    color: colors.COLOR_BLACK_LIGHT_1,
+    minHeight: 44,
+  },
+  pollOptionRemoveBtn: {
+    padding: 4,
+    flexShrink: 0,
   },
   addPollOptionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    marginBottom: 6,
+  },
+  addPollOptionIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addPollOptionText: {
     fontSize: 14,
-    color: colors.primaryColor,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  pollHint: {
+    fontSize: 11,
+    marginTop: 2,
+    marginLeft: 2,
   },
   // Location styles
   locationDisplay: {

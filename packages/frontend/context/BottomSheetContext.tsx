@@ -1,7 +1,8 @@
-import React, { createContext, useState, ReactNode, useRef, useCallback } from "react";
+import React, { createContext, useState, ReactNode, useRef, useCallback, useMemo } from "react";
 import { StyleSheet, ScrollView, View } from "react-native";
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import { useTheme } from "@/hooks/useTheme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
@@ -19,6 +20,15 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
     const [bottomSheetContent, setBottomSheetContent] = useState<ReactNode>(null);
     const bottomSheetModalRef = useRef<BottomSheetModal | null>(null);
     const theme = useTheme();
+    const insets = useSafeAreaInsets();
+
+    // Calculate snap points that allow the sheet to reach the top but respect safe area
+    // The sheet can be dragged to 50% or 100% of screen height, but will stop at safe area top
+    // The topInset prop ensures the sheet respects the safe area (camera notch/status bar)
+    const snapPoints = useMemo(() => {
+        // Return snap points as percentages - 100% will be limited by topInset to respect safe area
+        return ['50%', '100%'];
+    }, []);
 
     const renderBackdrop = useCallback(
         (props: BottomSheetBackdropProps) => (
@@ -45,7 +55,8 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
             {children}
             <BottomSheetModal
                 ref={bottomSheetModalRef}
-                enableDynamicSizing
+                snapPoints={snapPoints}
+                topInset={insets.top}
                 enablePanDownToClose={true}
                 enableDismissOnClose={true}
                 android_keyboardInputMode="adjustResize"
