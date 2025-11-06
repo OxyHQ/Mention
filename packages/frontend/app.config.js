@@ -193,6 +193,13 @@ return {
                         color: "#ffffff"
                     }
                 ]);
+                // Add expo-contacts plugin for native platforms only
+                base.push([
+                    "expo-contacts",
+                    {
+                        contactsPermission: "Allow $(PRODUCT_NAME) to access your contacts."
+                    }
+                ]);
             }
 
             return base;

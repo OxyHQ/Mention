@@ -620,7 +620,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                    onPress={() => showBottomSheet?.('PrivacySettings')}
+                                                    onPress={() => router.push('/settings')}
                                                 >
                                                     <Gear size={20} color={theme.colors.text} />
                                                 </TouchableOpacity>

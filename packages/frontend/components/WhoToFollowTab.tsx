@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View, Share, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxyhq/services';
@@ -10,9 +10,10 @@ import { useTheme } from '@/hooks/useTheme';
 import LegendList from '@/components/LegendList';
 import { ThemedText } from '@/components/ThemedText';
 import { colors } from '@/styles/colors';
+import { Ionicons } from '@expo/vector-icons';
 
 export function WhoToFollowTab() {
-  const { oxyServices } = useOxy();
+  const { oxyServices, user } = useOxy();
   const { t } = useTranslation();
   const router = useRouter();
   const theme = useTheme();
@@ -20,6 +21,74 @@ export function WhoToFollowTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
+
+  const getInviteMessage = useCallback(() => {
+    const userName = user
+      ? typeof user.name === 'string'
+        ? user.name
+        : user.name?.full || user.name?.first || user.username
+      : 'Someone';
+    const userHandle = user?.username || '';
+    const appUrl = 'https://mention.earth';
+    
+    // Use a more engaging invite message with proper translation
+    if (userHandle) {
+      return t('settings.inviteContacts.shareMessageWithHandle', {
+        name: userName,
+        handle: userHandle,
+        url: appUrl,
+      });
+    } else {
+      return t('settings.inviteContacts.shareMessage', {
+        name: userName,
+        url: appUrl,
+      });
+    }
+  }, [user, t]);
+
+  const handleInviteFriends = useCallback(async () => {
+    const inviteMessage = getInviteMessage();
+    const appUrl = 'https://mention.earth';
+
+    if (Platform.OS === 'web') {
+      // On web, use Share API or copy to clipboard
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: t('settings.inviteContacts.inviteTitle'),
+            text: inviteMessage,
+            url: appUrl,
+          });
+        } catch (e) {
+          // User cancelled or error
+        }
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(inviteMessage);
+        // Could show a toast here
+      }
+      return;
+    }
+
+    try {
+      // Use Share API - ensure message is always included
+      // The message already contains the URL, so we don't need to add it separately
+      const shareOptions: any = {
+        message: inviteMessage, // Full message with URL already included
+      };
+      
+      // On iOS, we can optionally add title, but message should be primary
+      if (Platform.OS === 'ios') {
+        // Don't set title as it might override the message in some apps
+        // Just use message which contains everything
+      }
+      
+      await Share.share(shareOptions);
+    } catch (error: any) {
+      if (error?.message !== 'User did not share' && error?.code !== 'ERR_SHARE_CANCELLED') {
+        console.error('Error inviting friends:', error);
+      }
+    }
+  }, [getInviteMessage, t]);
 
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -133,11 +202,33 @@ export function WhoToFollowTab() {
     );
   }
 
+  const renderInviteBanner = () => (
+    <TouchableOpacity
+      style={[styles.inviteBanner, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+      onPress={handleInviteFriends}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.inviteIconContainer, { backgroundColor: theme.colors.primary }]}>
+        <Ionicons name="people" size={20} color={theme.colors.card} />
+      </View>
+      <View style={styles.inviteContent}>
+        <ThemedText style={[styles.inviteTitle, { color: theme.colors.text }]}>
+          {t('settings.inviteContacts.inviteBannerTitle')}
+        </ThemedText>
+        <ThemedText style={[styles.inviteSubtitle, { color: theme.colors.textSecondary }]}>
+          {t('settings.inviteContacts.inviteBannerSubtitle')}
+        </ThemedText>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+    </TouchableOpacity>
+  );
+
   return (
     <LegendList
       data={recommendations}
       renderItem={renderUser}
       keyExtractor={(item: any) => String(item.id || item._id || item.username)}
+      ListHeaderComponent={renderInviteBanner}
       ListEmptyComponent={
         <View style={styles.emptyContainer}>
           <ThemedText style={{ color: theme.colors.textSecondary }}>
@@ -248,6 +339,36 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     fontSize: 14,
     lineHeight: 18,
+  },
+  inviteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 10,
+  },
+  inviteIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteContent: {
+    flex: 1,
+  },
+  inviteTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  inviteSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
 

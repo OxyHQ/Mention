@@ -47,6 +47,7 @@
     "expo-build-properties": "^1.0.9",
     "expo-camera": "^17.0.9",
     "expo-constants": "~18.0.10",
+    "expo-contacts": "~15.0.10",
     "expo-font": "~14.0.9",
     "expo-haptics": "~15.0.7",
     "expo-image": "~3.0.10",

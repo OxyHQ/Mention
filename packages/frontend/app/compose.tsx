@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   Switch,
+  Alert,
 } from 'react-native';
 import { useOxy } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,9 +31,13 @@ import { useTheme } from '@/hooks/useTheme';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { DraftsIcon } from '@/assets/icons/drafts';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import DraftsSheet from '@/components/Compose/DraftsSheet';
 
 const ComposeScreen = () => {
   const theme = useTheme();
+  const bottomSheet = React.useContext(BottomSheetContext);
   const [postContent, setPostContent] = useState('');
   const [mentions, setMentions] = useState<MentionData[]>([]);
   const [threadItems, setThreadItems] = useState<{
@@ -464,17 +469,59 @@ const ComposeScreen = () => {
           {/* Header */}
           <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
             <HeaderIconButton 
-              onPress={() => router.back()} 
+              onPress={() => {
+                router.back();
+              }} 
               style={styles.backBtn}
             >
               <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
             </HeaderIconButton>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{t('New post')}</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]} pointerEvents="none">{t('New post')}</Text>
             <View style={styles.headerIcons}>
-              <HeaderIconButton style={styles.iconBtn}>
-                <Ionicons name="reader-outline" size={20} color={theme.colors.text} />
+              <HeaderIconButton 
+                style={styles.iconBtn}
+                onPress={() => {
+                  bottomSheet.setBottomSheetContent(
+                    <DraftsSheet
+                      onClose={() => bottomSheet.openBottomSheet(false)}
+                    />
+                  );
+                  bottomSheet.openBottomSheet(true);
+                }}
+              >
+                <DraftsIcon size={20} color={theme.colors.text} />
               </HeaderIconButton>
-              <HeaderIconButton style={styles.iconBtn}>
+              <HeaderIconButton 
+                style={styles.iconBtn}
+                onPress={() => {
+                  // Menu icon - show compose options
+                  Alert.alert(
+                    t('common.options'),
+                    '',
+                    [
+                      {
+                        text: t('common.clearAll'),
+                        style: 'destructive',
+                        onPress: () => {
+                          setPostContent('');
+                          setMediaIds([]);
+                          setPollOptions([]);
+                          setShowPollCreator(false);
+                          setLocation(null);
+                          setThreadItems([]);
+                          setMentions([]);
+                          toast.success(t('common.cleared'));
+                        },
+                      },
+                      {
+                        text: t('common.cancel'),
+                        style: 'cancel',
+                      },
+                    ],
+                    { cancelable: true }
+                  );
+                }}
+              >
                 <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
               </HeaderIconButton>
             </View>
@@ -884,6 +931,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: colors.COLOR_BLACK_LIGHT_1,
+    pointerEvents: 'none', // Don't block touches on buttons
   },
   headerIcons: {
     flexDirection: 'row',
