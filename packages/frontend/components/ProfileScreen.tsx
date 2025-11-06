@@ -1,6 +1,6 @@
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 // BlurView removed — not used after switching to image overlay approach
 import {
@@ -25,12 +25,11 @@ import { useOxy } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Feed } from './Feed/index';
 import { usePostsStore } from '@/stores/postsStore';
-import { useUsersStore } from '@/stores/usersStore';
 import type { FeedType } from '@mention/shared-types';
 import MediaGrid from '@/components/Profile/MediaGrid';
 import VideosGrid from '@/components/Profile/VideosGrid';
-import { useAppearanceStore } from '@/store/appearanceStore';
 import { subscriptionService } from '@/services/subscriptionService';
+import { useProfileData } from '@/hooks/useProfileData';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
 import { Search } from '@/assets/icons/search-icon';
@@ -104,12 +103,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         }
     };
     const activeTab = tabToIndex(tab);
-    // Use selectors to only subscribe to the specific data we need
-    const byUserId = useAppearanceStore((state) => state.byUserId);
-    const loadForUser = useAppearanceStore((state) => state.loadForUser);
-    const [profileData, setProfileData] = useState<ProfileData | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [privacySettings, setPrivacySettings] = useState<{ profileVisibility?: 'public' | 'private' | 'followers_only' } | null>(null);
+    
+    // Unified profile data hook - handles Oxy profile + backend settings
+    const { data: profileData, loading } = useProfileData(username);
     const {
         scrollY,
         createAnimatedScrollHandler,
@@ -212,115 +208,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         clearProfileRegistration();
     }, [clearProfileRegistration]);
 
-    // Fetch profile data
-    useEffect(() => {
-        const fetchProfileData = async () => {
-            if (!username) {
-                setLoading(false);
-                return;
-            }
-            try {
-                setLoading(true);
-                const usersState = useUsersStore.getState();
-                const cached = usersState.getCachedByUsername(username);
-                if (cached) setProfileData(cached as any);
-                const data = await usersState.ensureByUsername(username, (u) => oxyServices.getProfileByUsername(u));
-                if (data) {
-                    setProfileData(data as any);
-                    // Load privacy settings for this user
-                    try {
-                        const { authenticatedClient } = await import('@/utils/api');
-                        // Use the profile's ID (which should be the oxyUserId)
-                        const userId = data.id || (data as any)?.oxyUserId;
-                        if (userId) {
-                            const settingsResponse = await authenticatedClient.get(`/profile/settings/${userId}`);
-                            if (settingsResponse.data?.privacy) {
-                                setPrivacySettings(settingsResponse.data.privacy);
-                            } else {
-                                setPrivacySettings({ profileVisibility: 'public' });
-                            }
-                        }
-                    } catch (settingsError: any) {
-                        // If 404, user might not have settings yet - set default
-                        if (settingsError?.response?.status === 404) {
-                            setPrivacySettings({ profileVisibility: 'public' });
-                        } else {
-                            console.debug('Could not load privacy settings:', settingsError);
-                        }
-                    }
-                } else {
-                    // Fallback direct call
-                    const fresh = await oxyServices.getProfileByUsername(username);
-                    if (fresh) {
-                        setProfileData(fresh);
-                        try { usersState.upsertUser(fresh as any); } catch { }
-                        // Load privacy settings for this user
-                        try {
-                            const { authenticatedClient } = await import('@/utils/api');
-                            // Use the profile's ID (which should be the oxyUserId)
-                            const userId = fresh.id || (fresh as any)?.oxyUserId;
-                            if (userId) {
-                                const settingsResponse = await authenticatedClient.get(`/profile/settings/${userId}`);
-                                if (settingsResponse.data?.privacy) {
-                                    setPrivacySettings(settingsResponse.data.privacy);
-                                } else {
-                                    setPrivacySettings({ profileVisibility: 'public' });
-                                }
-                            }
-                        } catch (settingsError: any) {
-                            // If 404, user might not have settings yet - set default
-                            if (settingsError?.response?.status === 404) {
-                                setPrivacySettings({ profileVisibility: 'public' });
-                            } else {
-                                console.debug('Could not load privacy settings:', settingsError);
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching profile data:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchProfileData();
-    }, [username, oxyServices]);
-
-    // Refresh privacy settings when screen comes into focus (e.g., after changing settings)
-    useFocusEffect(
-        React.useCallback(() => {
-            const refreshPrivacySettings = async () => {
-                if (!profileData?.id) return;
-                try {
-                    const { authenticatedClient } = await import('@/utils/api');
-                    // Use the profile's ID (which should be the oxyUserId)
-                    const userId = profileData.id || (profileData as any)?.oxyUserId;
-                    if (!userId) return;
-                    
-                    const settingsResponse = await authenticatedClient.get(`/profile/settings/${userId}`);
-                    if (settingsResponse.data?.privacy) {
-                        setPrivacySettings(settingsResponse.data.privacy);
-                    } else {
-                        // If no privacy settings exist, set default
-                        setPrivacySettings({ profileVisibility: 'public' });
-                    }
-                } catch (settingsError: any) {
-                    // If 404, user might not have settings yet - that's okay
-                    if (settingsError?.response?.status === 404) {
-                        setPrivacySettings({ profileVisibility: 'public' });
-                    } else {
-                        console.debug('Could not refresh privacy settings:', settingsError);
-                    }
-                }
-            };
-            
-            // Always refresh when screen comes into focus, especially for own profile
-            if (profileData?.id) {
-                refreshPrivacySettings();
-            }
-        }, [profileData?.id])
-    );
-
     const {
         followerCount,
         followingCount,
@@ -330,20 +217,16 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         setFollowingCount: _setFollowingCount,
     } = (useFollow as any)(profileData?.id);
 
-    const avatarUri = profileData?.avatar ? oxyServices.getFileDownloadUrl(profileData.avatar as string, 'thumb') : undefined;
-
-    // Load appearance settings for this profile's oxy user id
-    useEffect(() => {
-        if (profileData?.id) {
-            loadForUser(profileData.id);
-        }
-    }, [profileData?.id, loadForUser]);
-
-    const userAppearance = profileData?.id ? byUserId[profileData.id] : undefined;
-    const primaryColor = userAppearance?.appearance?.primaryColor || theme.colors.primary;
-    const bannerUri = userAppearance?.profileHeaderImage
-        ? oxyServices.getFileDownloadUrl(userAppearance.profileHeaderImage, 'full')
+    // Extract computed values from unified profile data
+    const design = profileData?.design;
+    const displayName = design?.displayName || '';
+    const avatarUri = design?.avatar ? oxyServices.getFileDownloadUrl(design.avatar, 'thumb') : undefined;
+    const bannerUri = (design?.coverPhotoEnabled && design?.coverImage)
+        ? oxyServices.getFileDownloadUrl(design.coverImage, 'full')
         : undefined;
+    const minimalistMode = design?.minimalistMode ?? false;
+    const primaryColor = design?.primaryColor || theme.colors.primary;
+    const privacySettings = profileData?.privacy;
 
     const tabs = ['Posts', 'Replies', 'Media', 'Videos', 'Likes', 'Reposts'];
 
@@ -404,12 +287,12 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
         try {
             const shareUrl = `https://mention.earth/@${profileData.username}`;
-            const shareMessage = `Check out ${profileData.name?.full || profileData.username}'s profile on Mention!`;
+            const shareMessage = `Check out ${displayName || profileData.username}'s profile on Mention!`;
 
             await Share.share({
                 message: `${shareMessage}\n\n${shareUrl}`,
                 url: shareUrl,
-                title: `${profileData.name?.full || profileData.username} on Mention`
+                title: `${displayName || profileData.username} on Mention`
             });
         } catch (error) {
             console.error('Error sharing profile:', error);
@@ -509,7 +392,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     };
 
     // Generate SEO data for profile
-    const profileDisplayName = profileData?.displayName || profileData?.username || username;
+    const profileDisplayName = displayName || profileData?.username || username;
     const profileBio = profileData?.bio || '';
     const profileImage = avatarUri || bannerUri;
     const { t: tProfile } = useTranslation();
@@ -579,7 +462,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         ]}
                     >
                         <TypedUserName
-                            name={profileData?.name?.full || profileData?.username}
+                            name={displayName}
                             verified={profileData?.verified}
                             style={{ name: [styles.headerTitle, { color: theme.colors.text }] }}
                             unifiedColors={true}
@@ -590,7 +473,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     </View>
 
                     {/* Banner - simplified: single layer with fade overlay only */}
-                    {bannerUri ? (
+                    {!minimalistMode && (bannerUri ? (
                         <>
                             {/* Base banner image - no transform for better performance */}
                             <ImageBackground
@@ -641,7 +524,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 ]}
                             />
                         </View>
-                    )}
+                    ))}
 
                     {/* Profile content + posts */}
                     {/* Optimized ScrollView - Instagram/Twitter-level smoothness */}
@@ -650,8 +533,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         showsVerticalScrollIndicator={false}
                         onScroll={onProfileScroll}
                         scrollEventThrottle={16} // 60fps smooth scrolling like Instagram/Twitter
-                        style={[styles.scrollView, { marginTop: HEADER_HEIGHT_NARROWED }]}
-                        contentContainerStyle={{ paddingTop: HEADER_HEIGHT_EXPANDED - insets.top }}
+                        style={[styles.scrollView, { marginTop: minimalistMode ? 0 : HEADER_HEIGHT_NARROWED }]}
+                        contentContainerStyle={{ paddingTop: minimalistMode ? insets.top + 60 : HEADER_HEIGHT_EXPANDED - insets.top }}
                         stickyHeaderIndices={[1]} // Tab bar is sticky (index 1: profile info is 0, tabs are 1)
                         nestedScrollEnabled={false} // Disabled nested scrolling for performance
                         removeClippedSubviews={Platform.OS !== 'web'}
@@ -660,19 +543,68 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
                     >
                             {/* Profile info */}
-                            <View style={[styles.profileContent, { backgroundColor: theme.colors.background }]}>
-                                <View style={styles.avatarRow}>
-                                    <ZoomableAvatar
-                                        source={avatarUri}
-                                        size={90}
-                                        style={[styles.avatar, {
-                                            borderColor: theme.colors.background,
-                                            backgroundColor: theme.colors.backgroundSecondary,
-                                        }]}
-                                        imageStyle={{}}
-                                    />
+                            <View style={[styles.profileContent, { backgroundColor: theme.colors.background }, minimalistMode && styles.profileContentMinimalist]}>
+                                {minimalistMode ? (
+                                    // Minimalist layout: horizontal with avatar on right
+                                    <View style={styles.minimalistHeader}>
+                                        <View style={styles.minimalistInfo}>
+                                            <TypedUserName
+                                                name={displayName}
+                                                handle={profileData?.username}
+                                                verified={false}
+                                                variant="default"
+                                                style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
+                                            />
+                                            {(() => {
+                                                const isPrivate = profileData?.privacySettings?.isPrivateAccount || 
+                                                                 privacySettings?.profileVisibility === 'private' ||
+                                                                 privacySettings?.profileVisibility === 'followers_only';
+                                                if (isPrivate) {
+                                                    return (
+                                                        <View style={styles.privateIndicator}>
+                                                            <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
+                                                            <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>
+                                                                {privacySettings?.profileVisibility === 'followers_only' 
+                                                                    ? tProfile('settings.privacy.followersOnly') 
+                                                                    : tProfile('settings.privacy.private')}
+                                                            </Text>
+                                                        </View>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+                                        </View>
+                                        <View style={styles.minimalistAvatarContainer}>
+                                            <ZoomableAvatar
+                                                source={avatarUri}
+                                                size={70}
+                                                style={[styles.avatarMinimalist, {
+                                                    borderColor: theme.colors.background,
+                                                    backgroundColor: theme.colors.backgroundSecondary,
+                                                }]}
+                                                imageStyle={{}}
+                                            />
+                                            {profileData?.verified && (
+                                                <View style={[styles.verifiedBadgeMinimalist, { backgroundColor: theme.colors.background }]}>
+                                                    <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+                                                </View>
+                                            )}
+                                        </View>
+                                    </View>
+                                ) : (
+                                    // Default layout: avatar overlapping banner
+                                    <View style={styles.avatarRow}>
+                                        <ZoomableAvatar
+                                            source={avatarUri}
+                                            size={90}
+                                            style={[styles.avatar, {
+                                                borderColor: theme.colors.background,
+                                                backgroundColor: theme.colors.backgroundSecondary,
+                                            }]}
+                                            imageStyle={{}}
+                                        />
 
-                                    <View style={styles.profileActions}>
+                                        <View style={styles.profileActions}>
                                         {currentUser?.username === username ? (
                                             <View style={styles.actionButtons}>
                                                 <TouchableOpacity
@@ -699,10 +631,42 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         ) : null}
                                     </View>
                                 </View>
+                                )}
 
-                                <View>
+                                {/* Action buttons for minimalist mode */}
+                                {minimalistMode && (
+                                    <View style={styles.minimalistActions}>
+                                        {currentUser?.username === username ? (
+                                            <View style={styles.actionButtons}>
+                                                <TouchableOpacity
+                                                    style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
+                                                    onPress={() => showBottomSheet?.('EditProfile')}
+                                                >
+                                                    <Text style={styles.followButtonText}>Edit Profile</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                                                    onPress={() => router.push('/insights')}
+                                                >
+                                                    <AnalyticsIcon size={20} color={theme.colors.text} />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                                                    onPress={() => router.push('/settings')}
+                                                >
+                                                    <Gear size={20} color={theme.colors.text} />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : profileData?.id ? (
+                                            <TypedFollowButton userId={profileData.id} />
+                                        ) : null}
+                                    </View>
+                                )}
+
+                                {!minimalistMode && (
+                                    <View>
                                     <TypedUserName
-                                        name={profileData?.name?.full || profileData?.username}
+                                        name={displayName}
                                         handle={profileData?.username}
                                         verified={profileData?.verified}
                                         variant="default"
@@ -727,8 +691,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         }
                                         return null;
                                     })()}
-                                </View>
-                                {profileData?.bio && (
+                                    </View>
+                                )}
+                                {!minimalistMode && profileData?.bio && (
                                     <Text style={[styles.profileBio, { color: theme.colors.text }]}>
                                         {profileData.bio}
                                     </Text>
@@ -911,6 +876,46 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
         marginTop: -45,
         marginBottom: 10,
+    },
+    avatarRowMinimalist: {
+        marginTop: 0,
+        marginBottom: 16,
+    },
+    profileContentMinimalist: {
+        paddingTop: 0,
+        marginTop: 0,
+    },
+    minimalistHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 16,
+        position: 'relative',
+        width: '100%',
+    },
+    minimalistInfo: {
+        flex: 1,
+        marginRight: 16,
+    },
+    minimalistActions: {
+        marginTop: 12,
+        marginBottom: 8,
+    },
+    minimalistAvatarContainer: {
+        position: 'relative',
+    },
+    avatarMinimalist: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        borderWidth: 2,
+    },
+    verifiedBadgeMinimalist: {
+        position: 'absolute',
+        left: -6,
+        bottom: -2,
+        borderRadius: 10,
+        padding: 2,
     },
     avatar: {
         width: 90,

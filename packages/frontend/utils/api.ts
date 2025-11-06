@@ -1,5 +1,6 @@
 import { OxyServices } from '@oxyhq/services';
 import { Platform } from 'react-native';
+import axios from 'axios';
 import { API_URL } from '@/config';
 
 // API Configuration
@@ -10,6 +11,14 @@ const API_CONFIG = {
 // Initialize OxyServices - if it automatically adds /api prefix, we don't need it in baseURL
 const oxyServices = new OxyServices({ baseURL: API_CONFIG.baseURL });
 const authenticatedClient = oxyServices.getClient();
+
+// Public API client (no authentication required)
+const publicClient = axios.create({
+  baseURL: API_CONFIG.baseURL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
 // API methods using authenticatedClient (with token handling)
 export const api = {
@@ -78,4 +87,12 @@ export const healthApi = {
   },
 };
 
-export { API_CONFIG, oxyServices, authenticatedClient };
+// Public API methods (no authentication required)
+export const publicApi = {
+  async get<T = any>(endpoint: string, params?: Record<string, any>): Promise<{ data: T }> {
+    const response = await publicClient.get(endpoint, { params });
+    return { data: response.data };
+  },
+};
+
+export { API_CONFIG, oxyServices, authenticatedClient, publicClient };

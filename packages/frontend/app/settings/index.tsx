@@ -651,6 +651,29 @@ export default function SettingsScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
+                        {/* Profile Customization */}
+                        <TouchableOpacity
+                            style={styles.settingItem}
+                            onPress={() => router.push('/settings/profile-customization')}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="person-circle-outline" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {t('settings.preferences.profileCustomization')}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.preferences.profileCustomizationDesc')}
+                                    </Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
                         <View style={styles.settingItem}>
                             <View style={styles.settingInfo}>
                                 <View style={styles.settingIcon}>

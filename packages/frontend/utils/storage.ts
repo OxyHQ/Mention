@@ -1,84 +1,45 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
 
-export const storeData = async (key: string, value: any): Promise<boolean> => {
+/**
+ * Generic storage utility for caching data
+ */
+export class Storage {
+  /**
+   * Get item from storage
+   */
+  static async get<T>(key: string): Promise<T | null> {
     try {
-        if (value === null || value === undefined) {
-            await AsyncStorage.removeItem(key);
-            return true;
-        }
-        const jsonValue = JSON.stringify(value);
-        await AsyncStorage.setItem(key, jsonValue);
-        return true;
+      const item = await AsyncStorage.getItem(key);
+      return item ? JSON.parse(item) : null;
     } catch (error) {
-        console.error(`Error storing data for key ${key}:`, error);
-        return false;
+      console.warn(`[Storage] Failed to get item: ${key}`, error);
+      return null;
     }
-};
+  }
 
-export const getData = async <T>(key: string): Promise<T | null> => {
+  /**
+   * Set item in storage
+   */
+  static async set<T>(key: string, value: T): Promise<boolean> {
     try {
-        const jsonValue = await AsyncStorage.getItem(key);
-        if (jsonValue === undefined || jsonValue === null) return null;
-        return JSON.parse(jsonValue) as T;
+      await AsyncStorage.setItem(key, JSON.stringify(value));
+      return true;
     } catch (error) {
-        console.error(`Error reading data for key ${key}:`, error);
-        return null;
+      console.warn(`[Storage] Failed to set item: ${key}`, error);
+      return false;
     }
-};
+  }
 
-export const removeData = async (key: string): Promise<boolean> => {
+  /**
+   * Remove item from storage
+   */
+  static async remove(key: string): Promise<boolean> {
     try {
-        await AsyncStorage.removeItem(key);
-        return true;
+      await AsyncStorage.removeItem(key);
+      return true;
     } catch (error) {
-        console.error(`Error removing data for key ${key}:`, error);
-        return false;
+      console.warn(`[Storage] Failed to remove item: ${key}`, error);
+      return false;
     }
-};
-
-export const clearAll = async (): Promise<boolean> => {
-    try {
-        await AsyncStorage.clear();
-        return true;
-    } catch (error) {
-        console.error('Error clearing all data:', error);
-        return false;
-    }
-};
-
-export const storeSecureData = async (key: string, value: any): Promise<boolean> => {
-    try {
-        if (value === null || value === undefined) {
-            await SecureStore.deleteItemAsync(key);
-            return true;
-        }
-        const jsonValue = JSON.stringify(value);
-        await SecureStore.setItemAsync(key, jsonValue);
-        return true;
-    } catch (error) {
-        console.error(`Error storing secure data for key ${key}:`, error);
-        return false;
-    }
-};
-
-export const getSecureData = async <T>(key: string): Promise<T | null> => {
-    try {
-        const jsonValue = await SecureStore.getItemAsync(key);
-        if (jsonValue === null) return null;
-        return JSON.parse(jsonValue) as T;
-    } catch (error) {
-        console.error(`Error reading secure data for key ${key}:`, error);
-        return null;
-    }
-};
-
-export const removeSecureData = async (key: string): Promise<boolean> => {
-    try {
-        await SecureStore.deleteItemAsync(key);
-        return true;
-    } catch (error) {
-        console.error(`Error removing secure data for key ${key}:`, error);
-        return false;
-    }
-};
+  }
+}

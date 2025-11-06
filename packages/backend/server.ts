@@ -24,6 +24,7 @@ import statisticsRoutes from './src/routes/statistics.routes';
 import { OxyServices } from '@oxyhq/services/core';
 import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
+import profileDesignRoutes from './src/routes/profileDesign';
 import subscriptionsRoutes from './src/routes/subscriptions';
 import gifsRoutes from './src/routes/gifs';
 
@@ -390,6 +391,10 @@ publicApiRouter.use("/hashtags", hashtagsRoutes);
 // Feed routes with optional authentication (allow unauthenticated access for GET routes)
 // POST/PUT/DELETE routes in feedRoutes require authentication
 publicApiRouter.use("/feed", optionalAuth, feedRoutes);
+
+// Public profile endpoints
+// GET /api/profile/design/:userId - public profile design data (no auth required)
+publicApiRouter.use("/profile/design", profileDesignRoutes);
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();

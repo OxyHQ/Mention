@@ -21,11 +21,19 @@ export interface PrivacySettings {
   restrictedUsers?: string[]; // Users who can see limited content
 }
 
+export interface ProfileCustomization {
+  coverPhotoEnabled?: boolean;
+  minimalistMode?: boolean;
+  displayName?: string; // Custom display name (overrides Oxy profile name)
+  coverImage?: string; // Custom cover image (alternative to profileHeaderImage)
+}
+
 export interface IUserSettings extends Document {
   oxyUserId: string;
   appearance: AppearanceSettings;
   profileHeaderImage?: string;
   privacy?: PrivacySettings;
+  profileCustomization?: ProfileCustomization;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,11 +57,19 @@ const PrivacySchema = new Schema<PrivacySettings>({
   restrictedUsers: [{ type: String }],
 }, { _id: false });
 
+const ProfileCustomizationSchema = new Schema<ProfileCustomization>({
+  coverPhotoEnabled: { type: Boolean, default: true },
+  minimalistMode: { type: Boolean, default: false },
+  displayName: { type: String },
+  coverImage: { type: String },
+}, { _id: false });
+
 const UserSettingsSchema = new Schema<IUserSettings>({
   oxyUserId: { type: String, required: true, index: true, unique: true },
   appearance: { type: AppearanceSchema, default: () => ({ themeMode: 'system' }) },
   profileHeaderImage: { type: String },
   privacy: { type: PrivacySchema, default: () => ({ profileVisibility: 'public' }) },
+  profileCustomization: { type: ProfileCustomizationSchema },
 }, { timestamps: true, versionKey: false });
 
 export const UserSettings = mongoose.model<IUserSettings>('UserSettings', UserSettingsSchema);
