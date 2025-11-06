@@ -10,10 +10,13 @@ import {
     Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { statisticsService, UserStatistics } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
 import { useOxy } from '@oxyhq/services';
@@ -213,8 +216,17 @@ const WeeklyRecapScreen: React.FC = () => {
                     <Header
                         options={{
                             title: 'Weekly Recap',
-                            showBackButton: true,
+                            leftComponents: [
+                                <HeaderIconButton
+                                    key="back"
+                                    onPress={() => router.back()}
+                                >
+                                    <BackArrowIcon size={20} color={theme.colors.text} />
+                                </HeaderIconButton>,
+                            ],
                         }}
+                        hideBottomBorder={true}
+                        disableSticky={true}
                     />
                 </View>
                 <View style={styles.loadingContainer}>
@@ -231,8 +243,17 @@ const WeeklyRecapScreen: React.FC = () => {
                     <Header
                         options={{
                             title: 'Weekly Recap',
-                            showBackButton: true,
+                            leftComponents: [
+                                <HeaderIconButton
+                                    key="back"
+                                    onPress={() => router.back()}
+                                >
+                                    <BackArrowIcon size={20} color={theme.colors.text} />
+                                </HeaderIconButton>,
+                            ],
                         }}
+                        hideBottomBorder={true}
+                        disableSticky={true}
                     />
                 </View>
                 <View style={styles.emptyContainer}>

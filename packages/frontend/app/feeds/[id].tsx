@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@/hooks/useTheme';
 import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
@@ -48,7 +50,21 @@ export default function CustomFeedTimelineScreen() {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <Header options={{ title: feed?.title || 'Feed', showBackButton: true }} />
+      <Header 
+        options={{ 
+          title: feed?.title || 'Feed', 
+          leftComponents: [
+            <HeaderIconButton
+              key="back"
+              onPress={() => router.back()}
+            >
+              <BackArrowIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>,
+          ],
+        }} 
+        hideBottomBorder={true}
+        disableSticky={true}
+      />
       {error ? (
         <View style={styles.center}>
           <Text style={{ color: theme.colors.error || theme.colors.textSecondary }}>{error}</Text>

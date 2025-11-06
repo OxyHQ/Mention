@@ -14,6 +14,8 @@ import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
+import { HeaderIconButton } from "@/components/HeaderIconButton";
+import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTheme } from "@/hooks/useTheme";
 import { oxyServices } from "@/lib/oxyServices";
 import { searchService } from "@/services/searchService";
@@ -22,7 +24,6 @@ import Avatar from "@/components/Avatar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@/assets/icons/search-icon";
 import SEO from "@/components/SEO";
-import { HeaderIconButton } from "@/components/HeaderIconButton";
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 
@@ -381,7 +382,14 @@ export default function SearchIndex() {
                     <Header
                         options={{
                             title: t("search.title", "Search"),
-                            showBackButton: true,
+                            leftComponents: [
+                                <HeaderIconButton
+                                    key="back"
+                                    onPress={() => router.back()}
+                                >
+                                    <BackArrowIcon size={20} color={theme.colors.text} />
+                                </HeaderIconButton>,
+                            ],
                             rightComponents: [
                                 <HeaderIconButton
                                     key="filter"

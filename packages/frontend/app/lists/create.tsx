@@ -2,15 +2,19 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { colors } from '@/styles/colors';
 import { useOxy } from '@oxyhq/services';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
+import { useTheme } from '@/hooks/useTheme';
 
 type MinimalUser = { id: string; username: string; name?: { full?: string } };
 
 export default function CreateListScreen() {
   const { oxyServices } = useOxy();
+  const theme = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -56,7 +60,21 @@ export default function CreateListScreen() {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <Header options={{ title: 'Create List', showBackButton: true }} />
+      <Header 
+        options={{ 
+          title: 'Create List', 
+          leftComponents: [
+            <HeaderIconButton
+              key="back"
+              onPress={() => router.back()}
+            >
+              <BackArrowIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>,
+          ],
+        }} 
+        hideBottomBorder={true}
+        disableSticky={true}
+      />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text style={styles.label}>Title</Text>
         <TextInput value={title} onChangeText={setTitle} placeholder="Local Journalists" style={styles.input} />

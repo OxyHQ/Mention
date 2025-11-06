@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Activi
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { colors as baseColors } from '@/styles/colors';
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useOxy } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
@@ -75,7 +78,21 @@ export default function AppearanceSettingsScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <Header options={{ title: 'Appearance', showBackButton: true }} />
+      <Header 
+        options={{ 
+          title: 'Appearance', 
+          leftComponents: [
+            <HeaderIconButton
+              key="back"
+              onPress={() => router.back()}
+            >
+              <BackArrowIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>,
+          ],
+        }} 
+        hideBottomBorder={true}
+        disableSticky={true}
+      />
       <ScrollView contentContainerStyle={styles.content}>
         {/* Theme mode */}
         <Text style={[styles.label, { color: theme.colors.text }]}>Theme</Text>

@@ -1,6 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { CloseIcon } from '@/assets/icons/close-icon';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { DraftsIcon } from '@/assets/icons/drafts';
@@ -191,15 +194,22 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.card }]}>
-        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>
-            {t('compose.drafts')}
-          </Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <Header
+          options={{
+            title: t('compose.drafts'),
+            rightComponents: [
+              <HeaderIconButton
+                key="close"
+                onPress={onClose}
+              >
+                <CloseIcon size={20} color={theme.colors.text} />
+              </HeaderIconButton>,
+            ],
+          }}
+          hideBottomBorder={true}
+          disableSticky={true}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
@@ -208,15 +218,22 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.card }]}>
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          {t('compose.drafts')}
-        </Text>
-        <TouchableOpacity onPress={onClose}>
-          <Ionicons name="close" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Header
+        options={{
+          title: t('compose.drafts'),
+          rightComponents: [
+            <HeaderIconButton
+              key="close"
+              onPress={onClose}
+            >
+              <CloseIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>,
+          ],
+        }}
+        hideBottomBorder={true}
+        disableSticky={true}
+      />
       
       {drafts.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -243,21 +260,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 16,
     maxHeight: 600,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'transparent',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,

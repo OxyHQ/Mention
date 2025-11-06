@@ -24,6 +24,9 @@ import { FeedType } from '@mention/shared-types';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useOxy } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
+import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@/hooks/useTheme';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { toast } from 'sonner';
@@ -367,12 +370,21 @@ const PostDetailScreen: React.FC = () => {
     if (loading) {
         return (
             <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-                <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                    <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Post</Text>
-                </View>
+                <Header
+                    options={{
+                        title: 'Post',
+                        leftComponents: [
+                            <HeaderIconButton
+                                key="back"
+                                onPress={handleBack}
+                            >
+                                <BackArrowIcon size={20} color={theme.colors.text} />
+                            </HeaderIconButton>,
+                        ],
+                    }}
+                    hideBottomBorder={true}
+                    disableSticky={true}
+                />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={theme.colors.primary} />
                     <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading post...</Text>
@@ -389,12 +401,21 @@ const PostDetailScreen: React.FC = () => {
                     description={t('seo.post.notFoundDescription')}
                 />
                 <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-                    <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-                        </TouchableOpacity>
-                        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Post</Text>
-                    </View>
+                    <Header
+                        options={{
+                            title: 'Post',
+                            leftComponents: [
+                                <HeaderIconButton
+                                    key="back"
+                                    onPress={handleBack}
+                                >
+                                    <BackArrowIcon size={20} color={theme.colors.text} />
+                                </HeaderIconButton>,
+                            ],
+                        }}
+                        hideBottomBorder={true}
+                        disableSticky={true}
+                    />
                     <View style={styles.errorContainer}>
                         <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
                         <Text style={[styles.errorTitle, { color: theme.colors.text }]}>Post Not Found</Text>
@@ -426,12 +447,21 @@ const PostDetailScreen: React.FC = () => {
                 keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
                 style={[styles.container, { paddingTop: insets.top }]}
             >
-                <ThemedView style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                    <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{post?.isThread ? 'Thread' : 'Post'}</Text>
-                </ThemedView>
+                <Header
+                    options={{
+                        title: post?.isThread ? 'Thread' : 'Post',
+                        leftComponents: [
+                            <HeaderIconButton
+                                key="back"
+                                onPress={handleBack}
+                            >
+                                <BackArrowIcon size={20} color={theme.colors.text} />
+                            </HeaderIconButton>,
+                        ],
+                    }}
+                    hideBottomBorder={true}
+                    disableSticky={true}
+                />
 
             <View style={{ flex: 1 }}>
                 {/* Show parent post on top if this is a reply */}
@@ -601,21 +631,6 @@ const PostDetailScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-    },
-    backButton: {
-        marginRight: 16,
-        padding: 4,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '600',
     },
     scrollView: {
         flex: 1,

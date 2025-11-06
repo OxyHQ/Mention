@@ -1,9 +1,11 @@
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import * as OxyServicesNS from '@oxyhq/services';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, View } from 'react-native';
@@ -11,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
 import { useUsersStore } from '@/stores/usersStore';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function FollowingScreen() {
   const insets = useSafeAreaInsets();
@@ -21,6 +24,7 @@ export default function FollowingScreen() {
   const [following, setFollowing] = useState<any[]>([]);
   const [profile, setProfile] = useState<any | null>(null);
   const { t } = useTranslation();
+  const theme = useTheme();
   const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string }>;
 
   useEffect(() => {
@@ -81,7 +85,21 @@ export default function FollowingScreen() {
   if (loading) {
     return (
       <ThemedView style={{ flex: 1, paddingTop: insets.top }}>
-        <Header options={{ title: t("Following"), showBackButton: true }} />
+        <Header 
+          options={{ 
+            title: t("Following"), 
+            leftComponents: [
+              <HeaderIconButton
+                key="back"
+                onPress={() => router.back()}
+              >
+                <BackArrowIcon size={20} color={theme.colors.text} />
+              </HeaderIconButton>,
+            ],
+          }} 
+          hideBottomBorder={true}
+          disableSticky={true}
+        />
         <ActivityIndicator style={{ marginTop: 20 }} />
       </ThemedView>
     );
@@ -89,7 +107,21 @@ export default function FollowingScreen() {
 
   return (
     <ThemedView style={{ flex: 1, paddingTop: insets.top }}>
-      <Header options={{ title: `${profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : cleanUsername} ${t("Following")}`, showBackButton: true }} />
+      <Header 
+        options={{ 
+          title: `${profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : cleanUsername} ${t("Following")}`, 
+          leftComponents: [
+            <HeaderIconButton
+              key="back"
+              onPress={() => router.back()}
+            >
+              <BackArrowIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>,
+          ],
+        }} 
+        hideBottomBorder={true}
+        disableSticky={true}
+      />
       <LegendList
         data={following}
         renderItem={renderUser}

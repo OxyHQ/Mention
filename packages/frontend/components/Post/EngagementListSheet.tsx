@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { CloseIcon } from '@/assets/icons/close-icon';
 import { feedService } from '@/services/feedService';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -99,15 +102,22 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.card }]}>
-        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>
-            {type === 'likes' ? 'Likes' : 'Reposts'}
-          </Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <Header
+          options={{
+            title: type === 'likes' ? 'Likes' : 'Reposts',
+            rightComponents: [
+              <HeaderIconButton
+                key="close"
+                onPress={onClose}
+              >
+                <CloseIcon size={20} color={theme.colors.text} />
+              </HeaderIconButton>,
+            ],
+          }}
+          hideBottomBorder={true}
+          disableSticky={true}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
@@ -116,15 +126,22 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.card }]}>
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          {type === 'likes' ? 'Likes' : 'Reposts'}
-        </Text>
-        <TouchableOpacity onPress={onClose}>
-          <Ionicons name="close" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Header
+        options={{
+          title: type === 'likes' ? 'Likes' : 'Reposts',
+          rightComponents: [
+            <HeaderIconButton
+              key="close"
+              onPress={onClose}
+            >
+              <CloseIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>,
+          ],
+        }}
+        hideBottomBorder={true}
+        disableSticky={true}
+      />
       
       {users.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -160,20 +177,6 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'transparent',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,

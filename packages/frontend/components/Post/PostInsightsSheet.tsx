@@ -5,10 +5,12 @@ import {
     StyleSheet,
     ScrollView,
     ActivityIndicator,
-    TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { CloseIcon } from '@/assets/icons/close-icon';
 import { statisticsService, PostInsights } from '@/services/statisticsService';
 import SectionHeader from '@/components/insights/SectionHeader';
 import SummaryCard from '@/components/insights/SummaryCard';
@@ -54,13 +56,22 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
 
     if (loading) {
         return (
-            <View style={[styles.container, { backgroundColor: theme.colors.card }]}>
-                <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                    <Text style={[styles.title, { color: theme.colors.text }]}>Post Insights</Text>
-                    <TouchableOpacity onPress={onClose}>
-                        <Ionicons name="close" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                </View>
+            <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+                <Header
+                    options={{
+                        title: 'Post Insights',
+                        rightComponents: [
+                            <HeaderIconButton
+                                key="close"
+                                onPress={onClose}
+                            >
+                                <CloseIcon size={20} color={theme.colors.text} />
+                            </HeaderIconButton>,
+                        ],
+                    }}
+                    hideBottomBorder={true}
+                    disableSticky={true}
+                />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={theme.colors.primary} />
                 </View>
@@ -70,13 +81,22 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
 
     if (!insights) {
         return (
-            <View style={[styles.container, { backgroundColor: theme.colors.card }]}>
-                <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                    <Text style={[styles.title, { color: theme.colors.text }]}>Post Insights</Text>
-                    <TouchableOpacity onPress={onClose}>
-                        <Ionicons name="close" size={24} color={theme.colors.text} />
-                    </TouchableOpacity>
-                </View>
+            <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+                <Header
+                    options={{
+                        title: 'Post Insights',
+                        rightComponents: [
+                            <HeaderIconButton
+                                key="close"
+                                onPress={onClose}
+                            >
+                                <CloseIcon size={20} color={theme.colors.text} />
+                            </HeaderIconButton>,
+                        ],
+                    }}
+                    hideBottomBorder={true}
+                    disableSticky={true}
+                />
                 <View style={styles.emptyContainer}>
                     <Ionicons name="bar-chart-outline" size={64} color={theme.colors.textSecondary} />
                     <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
@@ -88,13 +108,22 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.colors.card }]}>
-            <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                <Text style={[styles.title, { color: theme.colors.text }]}>Post Insights</Text>
-                <TouchableOpacity onPress={onClose}>
-                    <Ionicons name="close" size={24} color={theme.colors.text} />
-                </TouchableOpacity>
-            </View>
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+            <Header
+                options={{
+                    title: 'Post Insights',
+                    rightComponents: [
+                        <HeaderIconButton
+                            key="close"
+                            onPress={onClose}
+                        >
+                            <CloseIcon size={20} color={theme.colors.text} />
+                        </HeaderIconButton>,
+                    ],
+                }}
+                hideBottomBorder={true}
+                disableSticky={true}
+            />
 
             <ScrollView 
                 style={styles.content} 
@@ -235,19 +264,6 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        paddingTop: 16,
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingBottom: 16,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    title: {
-        fontSize: 20,
-        fontWeight: 'bold',
     },
     content: {
         flex: 1,

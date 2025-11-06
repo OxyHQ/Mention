@@ -2,6 +2,8 @@ import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import Avatar from '@/components/Avatar';
 import { useTheme } from '@/hooks/useTheme';
 import { useOxy } from '@oxyhq/services';
@@ -81,7 +83,21 @@ const CreateFeedScreen: React.FC = () => {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <Header options={{ title: 'Create Feed', showBackButton: true }} />
+      <Header 
+        options={{ 
+          title: 'Create Feed', 
+          leftComponents: [
+            <HeaderIconButton
+              key="back"
+              onPress={() => router.back()}
+            >
+              <BackArrowIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>,
+          ],
+        }} 
+        hideBottomBorder={true}
+        disableSticky={true}
+      />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Title</Text>
         <TextInput

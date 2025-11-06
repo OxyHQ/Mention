@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import Avatar from '@/components/Avatar';
 import { colors } from '@/styles/colors';
 import { listsService } from '@/services/listsService';
@@ -60,12 +62,24 @@ export default function ListsScreen() {
       />
       <ThemedView style={{ flex: 1 }}>
         <Header options={{
-        title: 'Lists', showBackButton: true, rightComponents: [
+        title: 'Lists', 
+        leftComponents: [
+          <HeaderIconButton
+            key="back"
+            onPress={() => router.back()}
+          >
+            <BackArrowIcon size={20} color={theme.colors.text} />
+          </HeaderIconButton>,
+        ],
+        rightComponents: [
           <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={[styles.newPill, { backgroundColor: theme.colors.primary }]}>
             <Text style={[styles.newPillText, { color: theme.colors.card }]}>+ New</Text>
           </TouchableOpacity>
         ]
-      }} />
+      }} 
+      hideBottomBorder={true}
+      disableSticky={true}
+      />
 
       <View style={styles.content}>
         {myLists.length === 0 ? (

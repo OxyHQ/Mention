@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { Header } from '@/components/Header';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { colors } from '@/styles/colors';
 import { listsService } from '@/services/listsService';
 import Feed from '@/components/Feed/Feed';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function ListTimelineScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [list, setList] = useState<any | null>(null);
   const [_loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const theme = useTheme();
 
   useEffect(() => {
     (async () => {
@@ -28,7 +32,21 @@ export default function ListTimelineScreen() {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <Header options={{ title: list?.title || 'List', showBackButton: true }} />
+      <Header 
+        options={{ 
+          title: list?.title || 'List', 
+          leftComponents: [
+            <HeaderIconButton
+              key="back"
+              onPress={() => router.back()}
+            >
+              <BackArrowIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>,
+          ],
+        }} 
+        hideBottomBorder={true}
+        disableSticky={true}
+      />
       {error ? (
         <View style={styles.center}><Text style={{ color: colors.busy }}>{error}</Text></View>
       ) : !list ? (
