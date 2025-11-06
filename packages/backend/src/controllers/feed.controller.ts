@@ -889,17 +889,20 @@ class FeedController {
 
   /**
    * Get personalized For You feed (engagement-ranked)
-   * For unauthenticated users, returns popular posts sorted by engagement
+   * Uses database-backed feed sessions for duplicate prevention
    */
   async getForYouFeed(req: AuthRequest, res: Response) {
     try {
       const currentUserId = req.user?.id;
       
-      // Normalize pagination options
+      // Normalize pagination options including session ID
       const paginationOptions = cursorPaginationService.normalizePaginationOptions({
         cursor: req.query.cursor as string,
+        sessionId: req.query.sessionId as string,
         limit: Number(req.query.limit) || 20,
-        useRanking: true // For You feed uses ranking, so track seen IDs
+        useRanking: true, // For You feed uses ranking
+        userId: currentUserId,
+        feedType: 'for_you'
       });
 
       // Parse cursor
@@ -915,8 +918,8 @@ class FeedController {
           ]
         };
 
-        // Build query with cursor
-        const match = cursorPaginationService.buildCursorQuery(cursor, baseMatch);
+        // Build query with cursor (no session for unauthenticated users)
+        const match = await cursorPaginationService.buildCursorQuery(cursor, baseMatch);
 
         const posts = await Post.aggregate([
           { $match: match },
@@ -935,8 +938,8 @@ class FeedController {
           { $limit: paginationOptions.limit + 1 }
         ]);
 
-        // Create pagination result
-        const result = cursorPaginationService.createPaginationResult(
+        // Create pagination result (no session)
+        const result = await cursorPaginationService.createPaginationResult(
           posts,
           paginationOptions.limit
         );
@@ -954,7 +957,13 @@ class FeedController {
         return res.json(response);
       }
 
-      // Authenticated users get personalized ranked feed
+      // Authenticated users: Get or create feed session for duplicate tracking
+      const feedSession = await cursorPaginationService.getOrCreateFeedSession(
+        cursor?.sessionId || paginationOptions.sessionId,
+        currentUserId,
+        'for_you'
+      );
+
       // Get following list and user behavior for personalization
       let followingIds: string[] = [];
       let userBehavior: any = null;
@@ -979,16 +988,16 @@ class FeedController {
         ]
       };
 
-      // Build query with cursor (including seen IDs exclusion for ranked feeds)
-      const match = cursorPaginationService.buildCursorQuery(cursor, baseMatch, {
-        useRanking: true
+      // Build query with cursor and feed session (excludes seen posts from database)
+      const match = await cursorPaginationService.buildCursorQuery(cursor, baseMatch, {
+        useRanking: true,
+        feedSession
       });
 
       // Fetch candidate posts for ranking (use larger pool for better quality)
       // Multiplier of 4 provides good balance between:
       // - Ranking quality (more posts to choose from)
       // - Query performance (not too many posts to fetch/rank)
-      // - Cursor tracking overhead (reasonable seen IDs list size)
       const candidateLimit = paginationOptions.limit * 4;
       const candidatePosts = await Post.find(match)
         .sort({ createdAt: -1 })
@@ -1002,19 +1011,18 @@ class FeedController {
         { followingIds, userBehavior }
       );
 
-      // Create pagination result with seen IDs tracking
-      const result = cursorPaginationService.createPaginationResult(
+      // Create pagination result with feed session (updates session with newly seen posts)
+      const result = await cursorPaginationService.createPaginationResult(
         rankedPosts,
         paginationOptions.limit,
         {
           useRanking: true,
-          previousSeenIds: cursor?.seenIds,
-          maxSeenIds: paginationOptions.maxSeenIds
+          feedSession
         }
       );
 
       // Deduplicate as safety measure
-      // Note: Should be unnecessary with proper cursor tracking, but provides
+      // Note: Should be unnecessary with database session tracking, but provides
       // defense-in-depth for ranked feeds where post scores can change
       const deduplicatedItems = cursorPaginationService.deduplicateById(result.items);
 
@@ -1025,6 +1033,7 @@ class FeedController {
         items: transformedPosts,
         hasMore: result.hasMore,
         nextCursor: result.nextCursor,
+        sessionId: result.sessionId, // Return session ID to client
         totalCount: transformedPosts.length
       };
 
@@ -1097,7 +1106,7 @@ class FeedController {
         .lean();
 
       // Create pagination result
-      const result = cursorPaginationService.createPaginationResult(
+      const result = await cursorPaginationService.createPaginationResult(
         posts,
         paginationOptions.limit
       );
@@ -1332,7 +1341,7 @@ class FeedController {
         .lean();
 
       // Create pagination result
-      const result = cursorPaginationService.createPaginationResult(
+      const result = await cursorPaginationService.createPaginationResult(
         posts,
         paginationOptions.limit
       );
@@ -1391,7 +1400,7 @@ class FeedController {
           .limit(paginationOptions.limit + 1)
           .lean();
 
-        const likeResult = cursorPaginationService.createPaginationResult(
+        const likeResult = await cursorPaginationService.createPaginationResult(
           likes,
           paginationOptions.limit
         );
@@ -1463,7 +1472,7 @@ class FeedController {
         .lean();
 
       // Create pagination result
-      const result = cursorPaginationService.createPaginationResult(
+      const result = await cursorPaginationService.createPaginationResult(
         posts,
         paginationOptions.limit
       );

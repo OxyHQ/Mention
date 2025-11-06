@@ -1,14 +1,15 @@
 import mongoose from 'mongoose';
+import FeedSession, { IFeedSession } from '../models/FeedSession';
 
 /**
  * Cursor structure for pagination
- * Supports both simple (chronological) and complex (ranked with seen IDs) cursors
+ * Now includes optional sessionId for database-backed feed sessions
  */
 export interface PaginationCursor {
   /** Last seen post ID for chronological pagination */
   _id: string;
-  /** Array of seen post IDs to prevent duplicates in ranked feeds */
-  seenIds?: string[];
+  /** Feed session ID for database-backed duplicate tracking */
+  sessionId?: string;
   /** Optional timestamp for time-based pagination */
   timestamp?: number;
 }
@@ -19,12 +20,18 @@ export interface PaginationCursor {
 export interface PaginationOptions {
   /** Current page cursor (encoded) */
   cursor?: string;
+  /** Feed session ID (for database-backed tracking) */
+  sessionId?: string;
   /** Number of items per page */
   limit: number;
   /** Whether this feed uses ranking (needs duplicate tracking) */
   useRanking?: boolean;
-  /** Maximum number of seen IDs to track (default: 200) */
-  maxSeenIds?: number;
+  /** User ID for feed session association */
+  userId?: string;
+  /** Feed type for session tracking */
+  feedType?: string;
+  /** Feed filters for session matching */
+  feedFilters?: Record<string, any>;
 }
 
 /**
@@ -37,6 +44,8 @@ export interface PaginationResult<T> {
   hasMore: boolean;
   /** Encoded cursor for next page */
   nextCursor?: string;
+  /** Feed session ID (for database-backed tracking) */
+  sessionId?: string;
   /** Total count of items returned */
   totalCount: number;
 }
@@ -46,15 +55,17 @@ export interface PaginationResult<T> {
  * 
  * Features:
  * - Simple chronological pagination for standard feeds
- * - Advanced pagination with duplicate tracking for ranked feeds
+ * - Database-backed feed sessions for ranked feeds (no cursor size limits)
+ * - Persistent duplicate tracking across page reloads
+ * - Support for feed algorithm experiments and analytics
  * - Efficient MongoDB query building
  * - Secure cursor encoding/decoding
- * - Performance optimizations
+ * - Automatic session cleanup (24-hour TTL)
  */
 export class CursorPaginationService {
   private readonly DEFAULT_LIMIT = 20;
   private readonly MAX_LIMIT = 100;
-  private readonly DEFAULT_MAX_SEEN_IDS = 200;
+  private readonly SESSION_DURATION_HOURS = 24;
 
   /**
    * Parse and validate cursor from request
@@ -78,7 +89,7 @@ export class CursorPaginationService {
 
       return {
         _id: parsed._id,
-        seenIds: Array.isArray(parsed.seenIds) ? parsed.seenIds : undefined,
+        sessionId: parsed.sessionId,
         timestamp: typeof parsed.timestamp === 'number' ? parsed.timestamp : undefined
       };
     } catch (error) {
@@ -103,18 +114,41 @@ export class CursorPaginationService {
   }
 
   /**
+   * Get or create feed session for ranked feeds
+   */
+  async getOrCreateFeedSession(
+    sessionId: string | undefined,
+    userId: string | undefined,
+    feedType: string,
+    feedFilters?: Record<string, any>
+  ): Promise<IFeedSession | null> {
+    try {
+      return await FeedSession.getOrCreateSession(sessionId, userId, feedType, feedFilters);
+    } catch (error) {
+      console.error('Failed to get/create feed session:', error);
+      return null;
+    }
+  }
+
+  /**
    * Build MongoDB query conditions for cursor-based pagination
+   * 
+   * For ranked feeds: Uses database-backed feed session to track seen posts
+   * For chronological feeds: Uses simple cursor position only
    * 
    * @param cursor Parsed cursor object
    * @param baseMatch Base MongoDB match conditions
-   * @param options Pagination options
+   * @param options Pagination options including feed session
    * @returns Modified match conditions with cursor filters
    */
-  buildCursorQuery(
+  async buildCursorQuery(
     cursor: PaginationCursor | null,
     baseMatch: any,
-    options: { useRanking?: boolean } = {}
-  ): any {
+    options: {
+      useRanking?: boolean;
+      feedSession?: IFeedSession | null;
+    } = {}
+  ): Promise<any> {
     if (!cursor) return baseMatch;
 
     const match = { ...baseMatch };
@@ -125,21 +159,25 @@ export class CursorPaginationService {
       idConditions.push({ _id: { $lt: new mongoose.Types.ObjectId(cursor._id) } });
     }
 
-    // Add seen IDs exclusion for ranked feeds
-    if (options.useRanking && cursor.seenIds && cursor.seenIds.length > 0) {
-      // Optimize: validate and convert in single pass, filter out invalid IDs
-      const seenObjectIds = cursor.seenIds
-        .map(id => {
-          try {
-            return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
-          } catch {
-            return null;
-          }
-        })
-        .filter((id): id is mongoose.Types.ObjectId => id !== null);
+    // For ranked feeds: Use database-backed feed session to exclude seen posts
+    if (options.useRanking && options.feedSession) {
+      const seenPostIds = options.feedSession.seenPostIds || [];
+      
+      if (seenPostIds.length > 0) {
+        // Optimize: validate and convert in single pass, filter out invalid IDs
+        const seenObjectIds = seenPostIds
+          .map(id => {
+            try {
+              return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
+            } catch {
+              return null;
+            }
+          })
+          .filter((id): id is mongoose.Types.ObjectId => id !== null);
 
-      if (seenObjectIds.length > 0) {
-        idConditions.push({ _id: { $nin: seenObjectIds } });
+        if (seenObjectIds.length > 0) {
+          idConditions.push({ _id: { $nin: seenObjectIds } });
+        }
       }
     }
 
@@ -155,31 +193,27 @@ export class CursorPaginationService {
   /**
    * Create pagination result with cursor for next page
    * 
+   * For ranked feeds: Updates database feed session with newly loaded posts
+   * For chronological feeds: Returns simple cursor with last post ID
+   * 
    * @param allItems All items fetched (limit + 1 to check hasMore)
    * @param limit Items per page
-   * @param options Pagination options
+   * @param options Pagination options including feed session
    * @returns Pagination result with items and next cursor
-   * 
-   * Note: For ranked feeds with seen IDs tracking, the seenIds array is limited
-   * to maxSeenIds (default: 200) most recent IDs. This is a performance trade-off:
-   * - Pros: Prevents cursor from growing unbounded, maintains good performance
-   * - Cons: Posts older than the tracking window may theoretically reappear
-   * - In practice: Rare occurrence during very long scrolling sessions (>200 posts)
-   * - Mitigation: Client-side deduplication provides additional safety
    */
-  createPaginationResult<T extends { _id: any }>(
+  async createPaginationResult<T extends { _id: any }>(
     allItems: T[],
     limit: number,
     options: {
       useRanking?: boolean;
-      previousSeenIds?: string[];
-      maxSeenIds?: number;
+      feedSession?: IFeedSession | null;
     } = {}
-  ): PaginationResult<T> {
+  ): Promise<PaginationResult<T>> {
     const hasMore = allItems.length > limit;
     const items = hasMore ? allItems.slice(0, limit) : allItems;
     
     let nextCursor: string | undefined;
+    let sessionId: string | undefined;
     
     if (hasMore && items.length > 0) {
       const lastItem = items[items.length - 1];
@@ -187,21 +221,15 @@ export class CursorPaginationService {
         _id: lastItem._id.toString()
       };
 
-      // For ranked feeds, track all seen IDs
-      if (options.useRanking) {
-        const currentPageIds = items.map(item => item._id.toString());
-        const allSeenIds = [
-          ...(options.previousSeenIds || []),
-          ...currentPageIds
-        ];
-
-        // Limit seen IDs to prevent cursor from growing too large
-        // Keep most recent IDs for better duplicate prevention during active scrolling
-        // Note: This is a trade-off between cursor size and duplicate prevention
-        // Older posts that scroll out of this window may reappear, but this is acceptable
-        // for the performance benefit and is rare in practice
-        const maxSeenIds = options.maxSeenIds || this.DEFAULT_MAX_SEEN_IDS;
-        cursorData.seenIds = allSeenIds.slice(-maxSeenIds);
+      // For ranked feeds with database session: Update session and include sessionId in cursor
+      if (options.useRanking && options.feedSession) {
+        // Add newly loaded post IDs to session
+        const postIds = items.map(item => item._id.toString());
+        await options.feedSession.addSeenPosts(postIds);
+        await options.feedSession.updateCursor(lastItem._id.toString());
+        
+        cursorData.sessionId = options.feedSession.sessionId;
+        sessionId = options.feedSession.sessionId;
       }
 
       nextCursor = this.encodeCursor(cursorData);
@@ -211,19 +239,23 @@ export class CursorPaginationService {
       items,
       hasMore,
       nextCursor,
+      sessionId,
       totalCount: items.length
     };
   }
 
   /**
-   * Validate and normalize pagination options
+   * Normalize and validate pagination options
    */
-  normalizePaginationOptions(options: Partial<PaginationOptions>): Required<PaginationOptions> {
+  normalizePaginationOptions(options: Partial<PaginationOptions>): Required<Omit<PaginationOptions, 'sessionId' | 'userId' | 'feedType' | 'feedFilters'>> & Pick<PaginationOptions, 'sessionId' | 'userId' | 'feedType' | 'feedFilters'> {
     return {
       cursor: options.cursor,
+      sessionId: options.sessionId,
       limit: Math.min(Math.max(options.limit || this.DEFAULT_LIMIT, 1), this.MAX_LIMIT),
       useRanking: options.useRanking || false,
-      maxSeenIds: options.maxSeenIds || this.DEFAULT_MAX_SEEN_IDS
+      userId: options.userId,
+      feedType: options.feedType,
+      feedFilters: options.feedFilters
     };
   }
 

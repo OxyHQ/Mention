@@ -78,6 +78,7 @@ export interface FeedResponse {
   items: FeedItem[];
   hasMore: boolean;
   nextCursor?: string;
+  sessionId?: string; // Feed session ID for database-backed duplicate tracking
   totalCount: number;
 }
 
@@ -85,6 +86,7 @@ export interface FeedResponse {
 export interface FeedRequest {
   type: FeedType;
   cursor?: string;
+  sessionId?: string; // Feed session ID for resuming previous session
   limit?: number;
   userId?: string;
   filters?: FeedFilters;
