@@ -978,20 +978,22 @@ class FeedController {
       };
 
       let cursorId: string | undefined;
-      let minFinalScore: number | undefined;
+      let seenPostIds: string[] = [];
       
-      // Parse cursor - supports both compound (base64 JSON) and simple ObjectId format
+      // Parse cursor - supports compound format with seen IDs to prevent duplicates
       if (cursor) {
         try {
           const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
           const parsed = JSON.parse(decoded);
-          if (parsed._id && typeof parsed.minScore === 'number') {
+          if (parsed._id) {
             cursorId = parsed._id;
-            minFinalScore = parsed.minScore;
+            // Track previously seen post IDs to ensure no duplicates
+            seenPostIds = parsed.seenIds || [];
           } else {
             throw new Error('Invalid compound cursor structure');
           }
         } catch {
+          // Fallback to simple ObjectId cursor (backward compatibility)
           try {
             new mongoose.Types.ObjectId(cursor);
             cursorId = cursor;
@@ -1002,11 +1004,25 @@ class FeedController {
         }
       }
 
-      // Get candidate posts
-      const candidateLimit = Number(limit) * 3;
+      // Fetch enough posts for ranking, excluding already seen posts
+      // Use a larger pool for better ranking quality
+      const candidateLimit = Number(limit) * 4;
       
-      if (cursorId && minFinalScore === undefined) {
+      if (cursorId) {
         match._id = { $lt: new mongoose.Types.ObjectId(cursorId) };
+      }
+
+      // Exclude previously seen posts to prevent duplicates
+      if (seenPostIds.length > 0) {
+        const seenObjectIds = seenPostIds
+          .filter(id => mongoose.Types.ObjectId.isValid(id))
+          .map(id => new mongoose.Types.ObjectId(id));
+        
+        if (seenObjectIds.length > 0) {
+          match._id = match._id 
+            ? { ...match._id, $nin: seenObjectIds }
+            : { $nin: seenObjectIds };
+        }
       }
 
       let candidatePosts = await Post.find(match)
@@ -1014,44 +1030,15 @@ class FeedController {
         .limit(candidateLimit)
         .lean();
 
-      // Rank posts
+      // Rank posts using the ranking service
       const rankedPosts = await feedRankingService.rankPosts(
         candidatePosts,
         currentUserId,
         { followingIds, userBehavior }
       );
 
-      // Apply compound cursor filtering if using advanced cursor
-      let posts = rankedPosts;
-      if (minFinalScore !== undefined && cursorId) {
-        const postsWithScores = await Promise.all(
-          rankedPosts.map(async (post) => {
-            const score = await feedRankingService.calculatePostScore(
-              post,
-              currentUserId,
-              { followingIds, userBehavior }
-            );
-            return { post, score };
-          })
-        );
-
-        posts = postsWithScores
-          .filter(({ post, score }) => {
-            const postId = post._id.toString();
-            return score < minFinalScore! || 
-              (score === minFinalScore && postId < cursorId);
-          })
-          .map(item => item.post);
-
-        posts = await feedRankingService.rankPosts(
-          posts,
-          currentUserId,
-          { followingIds, userBehavior }
-        );
-      }
-
-      const hasMore = posts.length > Number(limit);
-      const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
+      const hasMore = rankedPosts.length > Number(limit);
+      const postsToReturn = hasMore ? rankedPosts.slice(0, Number(limit)) : rankedPosts;
 
       // Deduplicate by _id before transformation
       const seen = new Set<string>();
@@ -1062,18 +1049,24 @@ class FeedController {
         return true;
       });
       
-      // Calculate cursor from last post
+      // Build list of all seen post IDs (previous + current batch) for next cursor
+      const allSeenIds = [
+        ...seenPostIds,
+        ...deduplicatedRawPosts.map((post: any) => post._id.toString())
+      ];
+      
+      // Limit the seenIds array to prevent cursor from growing too large
+      // Keep only the most recent 200 IDs (enough to prevent duplicates in typical scrolling)
+      const maxSeenIds = 200;
+      const recentSeenIds = allSeenIds.slice(-maxSeenIds);
+      
+      // Calculate cursor from last post with seen IDs to prevent duplicates
       let nextCursor: string | undefined;
       if (hasMore && deduplicatedRawPosts.length > 0) {
         const lastPost = deduplicatedRawPosts[deduplicatedRawPosts.length - 1];
-        const lastPostScore = await feedRankingService.calculatePostScore(
-          lastPost,
-          currentUserId,
-          { followingIds, userBehavior }
-        );
         const cursorData = {
           _id: lastPost._id.toString(),
-          minScore: lastPostScore
+          seenIds: recentSeenIds
         };
         nextCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
       }

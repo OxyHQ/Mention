@@ -716,33 +716,13 @@ export const usePostsStore = create<FeedState>()(
       const state = get();
       const currentFeed = state.feeds[type];
       
-      // Enhanced guard: prevent concurrent loads and ensure we have a valid cursor
+      // Guard: prevent concurrent loads and ensure we have a valid cursor
       if (!currentFeed || !currentFeed.hasMore || currentFeed.isLoading) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[loadMoreFeed:${type}] Skipped - guard check failed:`, {
-            hasFeed: !!currentFeed,
-            hasMore: currentFeed?.hasMore,
-            isLoading: currentFeed?.isLoading,
-            hasCursor: !!currentFeed?.nextCursor,
-            itemCount: currentFeed?.items?.length || 0
-          });
-        }
         return;
       }
       if (!currentFeed.nextCursor && currentFeed.items.length > 0) {
-        // No cursor but we have items - something is wrong, don't load more
-        if (process.env.NODE_ENV === 'development') {
-          console.warn(`[loadMoreFeed:${type}] Skipped - no cursor but has ${currentFeed.items.length} items`);
-        }
+        // No cursor but we have items - reached end of feed
         return;
-      }
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[loadMoreFeed:${type}] Starting load more:`, {
-          currentItems: currentFeed.items.length,
-          cursor: currentFeed.nextCursor ? 'present' : 'none',
-          hasMore: currentFeed.hasMore
-        });
       }
 
       // Set loading state immediately to prevent race conditions
@@ -785,83 +765,32 @@ export const usePostsStore = create<FeedState>()(
             };
           }
           
-          // CRITICAL: First, deduplicate existing feed to ensure clean baseline
-          // This prevents cursor issues if existing feed already had duplicates
-          const cleanedExistingItems = deduplicateItems(
-            currentFeedAfterAsync.items || [],
-            `loadMoreFeed:${type}:cleanExisting`
-          );
-          
-          // Transform new items from response
+          // Transform and deduplicate new items from response
           const mapped = response.items?.map(item => transformToUIItem(item)) || [];
+          const uniqueNewItems = deduplicateItems(mapped, `loadMoreFeed:${type}`);
           
-          // CRITICAL: Deduplicate new items first (backend might send duplicates)
-          const uniqueNewItems = deduplicateItems(mapped, `loadMoreFeed:${type}:dedupNew`);
-          
-          // CRITICAL: Filter out items that already exist in cleaned feed
-          // Build Set of existing IDs for O(1) lookup
+          // Build Set of existing IDs for efficient duplicate checking
           const existingIdsSet = new Set<string>();
-          cleanedExistingItems.forEach(item => {
+          currentFeedAfterAsync.items.forEach(item => {
             const id = normalizeId(item);
             if (isValidId(id)) {
               existingIdsSet.add(id);
             }
           });
           
-          // Filter new items to only include those NOT in existing feed
+          // Filter to only truly new items (backend should handle this, but double-check)
           const trulyNewItems = uniqueNewItems.filter(item => {
             const id = normalizeId(item);
             return isValidId(id) && !existingIdsSet.has(id);
           });
           
-          // DEBUG: Log response details
-          if (process.env.NODE_ENV === 'development') {
-            const responseIds = mapped.map(item => normalizeId(item));
-            const duplicatesInResponse = responseIds.filter((id, idx) => responseIds.indexOf(id) !== idx);
-            const duplicatesAgainstExisting = uniqueNewItems
-              .map(item => normalizeId(item))
-              .filter(id => existingIdsSet.has(id));
-            
-            if (duplicatesInResponse.length > 0) {
-              console.error(`[loadMoreFeed:${type}] Backend returned ${duplicatesInResponse.length} duplicate IDs in response:`, [...new Set(duplicatesInResponse)].slice(0, 10));
-            }
-            if (duplicatesAgainstExisting.length > 0) {
-              console.warn(`[loadMoreFeed:${type}] ${duplicatesAgainstExisting.length} posts already exist in feed (filtered out):`, [...new Set(duplicatesAgainstExisting.map((id, idx) => {
-                const item = uniqueNewItems[idx];
-                return { id, preview: item?.content?.text?.substring(0, 50) || 'no preview' };
-              }))].slice(0, 10));
-            }
-            
-            console.log(`[loadMoreFeed:${type}] Processing:`, {
-              existingItems: cleanedExistingItems.length,
-              responseItems: mapped.length,
-              uniqueNewItems: uniqueNewItems.length,
-              duplicatesInResponse: duplicatesInResponse.length,
-              duplicatesAgainstExisting: duplicatesAgainstExisting.length,
-              trulyNewItems: trulyNewItems.length,
-              cursor: cursorAtRequestTime ? 'present' : 'none'
-            });
-          }
+          // Merge existing + new items
+          const finalItems = [...currentFeedAfterAsync.items, ...trulyNewItems];
           
-          // FINAL: Merge cleaned existing + truly new items, then deduplicate one more time as safety net
-          const allItems = [...cleanedExistingItems, ...trulyNewItems];
-          const finalItems = deduplicateItems(allItems, `loadMoreFeed:${type}:final`);
-          
-          // DEBUG: Log final result
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`[loadMoreFeed:${type}] Final merge: ${allItems.length} → ${finalItems.length} unique`, {
-              cleanedExisting: cleanedExistingItems.length,
-              trulyNew: trulyNewItems.length,
-              beforeFinalDedup: allItems.length,
-              afterFinalDedup: finalItems.length,
-              removed: allItems.length - finalItems.length
-            });
-          }
-          
-          // Update cache with new items only
-          try { useUsersStore.getState().primeFromPosts(mapped as any); } catch {}
+          // Update cache with new items
+          try { useUsersStore.getState().primeFromPosts(trulyNewItems as any); } catch {}
           const newCache = { ...state.postsById };
-          mapped.forEach((p: FeedItem) => {
+          trulyNewItems.forEach((p: FeedItem) => {
             const id = normalizeId(p);
             if (id) {
               newCache[id] = p;
