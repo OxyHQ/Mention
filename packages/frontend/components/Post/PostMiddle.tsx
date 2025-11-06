@@ -106,6 +106,8 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
   const hasSingleMedia = (media?.length || 0) === 1 && !pollId && !pollData && !nestedPost;
   // Check if there are multiple media items
   const hasMultipleMedia = (media?.length || 0) > 1;
+  // Check if there's exactly one media item (regardless of polls/nested posts)
+  const hasExactlyOneMedia = (media?.length || 0) === 1;
   
   const handleVideoPress = useCallback(() => {
     if (postId && hasSingleVideo) {
@@ -221,8 +223,47 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
             />
           );
         }
-        // For multiple media, calculate aspect ratio dynamically
-        const ImageWithAspectRatio = hasMultipleMedia ? (() => {
+        // For single media, also calculate aspect ratio to prevent 0 height issues
+        // This is especially important when location data is present
+        // Use hasExactlyOneMedia to handle cases where there's also a poll or nestedPost
+        const ImageWithAspectRatio = hasExactlyOneMedia && !hasMultipleMedia ? (() => {
+          const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
+            const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
+            
+            React.useEffect(() => {
+              Image.getSize(
+                src,
+                (width, height) => {
+                  if (width > 0 && height > 0) {
+                    setAspectRatio(width / height);
+                  }
+                },
+                () => {
+                  // On error, use default aspect ratio
+                  setAspectRatio(4 / 3);
+                }
+              );
+            }, [src]);
+
+            return (
+              <View style={[
+                styles.itemContainer,
+                { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
+                { maxHeight: undefined, height: undefined }
+              ]}>
+                <Image
+                  source={{ uri: src }}
+                  style={[
+                    styles.imagePreserveAspect,
+                    aspectRatio !== undefined ? { aspectRatio } : undefined
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
+            );
+          };
+          return <ImageWithRatio key={`img-${idx}`} src={(item as any).src} />;
+        })() : hasMultipleMedia ? (() => {
           const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
             const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
             
@@ -259,20 +300,46 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
             );
           };
           return <ImageWithRatio key={`img-${idx}`} src={(item as any).src} />;
-        })() : (
-          <View style={[
-            styles.itemContainer,
-            { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
-            { maxHeight: undefined, height: undefined }
-          ]}>
-            <Image
-              key={`img-${idx}`}
-              source={{ uri: (item as any).src }}
-              style={styles.imagePreserveAspect}
-              resizeMode="contain"
-            />
-          </View>
-        );
+        })() : (() => {
+          // Fallback: Always render with aspect ratio to prevent 0 height issues
+          // This handles edge cases where media count doesn't match expected conditions
+          const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
+            const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
+            
+            React.useEffect(() => {
+              Image.getSize(
+                src,
+                (width, height) => {
+                  if (width > 0 && height > 0) {
+                    setAspectRatio(width / height);
+                  }
+                },
+                () => {
+                  // On error, use default aspect ratio
+                  setAspectRatio(4 / 3);
+                }
+              );
+            }, [src]);
+
+            return (
+              <View style={[
+                styles.itemContainer,
+                { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
+                { maxHeight: undefined, height: undefined }
+              ]}>
+                <Image
+                  source={{ uri: src }}
+                  style={[
+                    styles.imagePreserveAspect,
+                    aspectRatio !== undefined ? { aspectRatio } : undefined
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
+            );
+          };
+          return <ImageWithRatio key={`img-${idx}`} src={(item as any).src} />;
+        })();
 
         return ImageWithAspectRatio;
       })}
