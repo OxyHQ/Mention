@@ -12,7 +12,6 @@ import {
   Alert,
 } from 'react-native';
 import { useOxy } from '@oxyhq/services';
-import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,8 +31,14 @@ import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { DraftsIcon } from '@/assets/icons/drafts';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { CloseIcon } from '@/assets/icons/close-icon';
+import { DotIcon } from '@/assets/icons/dot-icon';
+import { LocationIcon } from '@/assets/icons/location-icon';
+import { Plus } from '@/assets/icons/plus-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import DraftsSheet from '@/components/Compose/DraftsSheet';
+import ReplySettingsSheet, { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
 import { useDrafts } from '@/hooks/useDrafts';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { ScrollView, Image, Dimensions } from 'react-native';
@@ -97,6 +102,8 @@ const ComposeScreen = () => {
   } | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
+  const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
+  const [reviewReplies, setReviewReplies] = useState(false);
   const { user, showBottomSheet, oxyServices } = useOxy();
   const { createPost, createThread } = usePostsStore();
   const { t } = useTranslation();
@@ -709,6 +716,34 @@ const ComposeScreen = () => {
   };
   
   const { t: tCompose } = useTranslation();
+
+  const getReplyPermissionText = () => {
+    switch (replyPermission) {
+      case 'anyone':
+        return t('Anyone can reply & quote');
+      case 'followers':
+        return t('Your followers can reply & quote');
+      case 'following':
+        return t('Profiles you follow can reply & quote');
+      case 'mentioned':
+        return t('Profiles you mention can reply & quote');
+      default:
+        return t('Anyone can reply & quote');
+    }
+  };
+
+  const openReplySettings = () => {
+    bottomSheet.setBottomSheetContent(
+      <ReplySettingsSheet
+        onClose={() => bottomSheet.openBottomSheet(false)}
+        replyPermission={replyPermission}
+        onReplyPermissionChange={setReplyPermission}
+        reviewReplies={reviewReplies}
+        onReviewRepliesChange={setReviewReplies}
+      />
+    );
+    bottomSheet.openBottomSheet(true);
+  };
   
   return (
     <>
@@ -734,7 +769,7 @@ const ComposeScreen = () => {
               }} 
               style={styles.backBtn}
             >
-              <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
+              <BackArrowIcon size={20} color={theme.colors.text} />
             </HeaderIconButton>
             <Text style={[styles.headerTitle, { color: theme.colors.text }]} pointerEvents="none">{t('New post')}</Text>
             <View style={styles.headerIcons}>
@@ -784,7 +819,7 @@ const ComposeScreen = () => {
                   );
                 }}
               >
-                <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
+                <DotIcon size={20} color={theme.colors.text} />
               </HeaderIconButton>
             </View>
           </View>
@@ -849,6 +884,14 @@ const ComposeScreen = () => {
                     onMediaPress={openMediaPicker}
                     onPollPress={openPollCreator}
                     onLocationPress={requestLocation}
+                    onGifPress={() => {
+                      // TODO: Implement GIF picker
+                      toast.info(t('GIF picker coming soon'));
+                    }}
+                    onEmojiPress={() => {
+                      // TODO: Implement emoji picker
+                      toast.info(t('Emoji picker coming soon'));
+                    }}
                     hasLocation={!!location}
                     isGettingLocation={isGettingLocation}
                     hasPoll={showPollCreator}
@@ -907,7 +950,7 @@ const ComposeScreen = () => {
                                 onPress={() => removeMedia(mediaItem.id)}
                                 style={{ padding: 6 }}
                               >
-                                <Ionicons name="close" size={16} color={theme.colors.text} />
+                                <CloseIcon size={16} color={theme.colors.text} />
                               </HeaderIconButton>
                             </View>
                           </View>
@@ -923,7 +966,7 @@ const ComposeScreen = () => {
                     <View style={styles.pollHeader}>
                       <Text style={styles.pollTitle}>{t('Create a poll')}</Text>
                       <TouchableOpacity onPress={removePoll}>
-                        <Ionicons name="close" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <CloseIcon size={20} color={colors.COLOR_BLACK_LIGHT_4} />
                       </TouchableOpacity>
                     </View>
                     {pollOptions.map((option, index) => (
@@ -938,14 +981,14 @@ const ComposeScreen = () => {
                         />
                         {pollOptions.length > 2 && (
                           <TouchableOpacity onPress={() => removePollOption(index)}>
-                            <Ionicons name="close-circle" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                            <CloseIcon size={20} color={colors.COLOR_BLACK_LIGHT_4} />
                           </TouchableOpacity>
                         )}
                       </View>
                     ))}
                     {pollOptions.length < 4 && (
                       <TouchableOpacity style={styles.addPollOptionBtn} onPress={addPollOption}>
-                        <Ionicons name="add" size={16} color={colors.primaryColor} />
+                        <Plus size={16} color={colors.primaryColor} />
                         <Text style={styles.addPollOptionText}>{t('Add option')}</Text>
                       </TouchableOpacity>
                     )}
@@ -956,10 +999,10 @@ const ComposeScreen = () => {
                 {location && (
                   <View style={[styles.locationDisplay, { marginLeft: BOTTOM_LEFT_PAD }]}>
                     <View style={styles.locationHeader}>
-                      <Ionicons name="location" size={16} color={colors.primaryColor} />
+                      <LocationIcon size={16} color={colors.primaryColor} />
                       <Text style={styles.locationText}>{location.address}</Text>
                       <TouchableOpacity onPress={removeLocation}>
-                        <Ionicons name="close" size={16} color={colors.COLOR_BLACK_LIGHT_4} />
+                        <CloseIcon size={16} color={colors.COLOR_BLACK_LIGHT_4} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -994,6 +1037,14 @@ const ComposeScreen = () => {
                           onMediaPress={() => openThreadMediaPicker(item.id)}
                           onPollPress={() => openThreadPollCreator(item.id)}
                           onLocationPress={() => requestThreadLocation(item.id)}
+                          onGifPress={() => {
+                            // TODO: Implement GIF picker for thread items
+                            toast.info(t('GIF picker coming soon'));
+                          }}
+                          onEmojiPress={() => {
+                            // TODO: Implement emoji picker for thread items
+                            toast.info(t('Emoji picker coming soon'));
+                          }}
                           hasLocation={!!item.location}
                           hasPoll={item.showPollCreator}
                           hasMedia={item.mediaIds.length > 0}
@@ -1003,7 +1054,7 @@ const ComposeScreen = () => {
                           style={styles.removeThreadBtn}
                           onPress={() => setThreadItems(prev => prev.filter(p => p.id !== item.id))}
                         >
-                          <Ionicons name="close" size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                          <CloseIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -1058,7 +1109,7 @@ const ComposeScreen = () => {
                                   onPress={() => removeThreadMedia(item.id, mediaItem.id)}
                                   style={{ padding: 6 }}
                                 >
-                                  <Ionicons name="close" size={16} color={theme.colors.text} />
+                                  <CloseIcon size={16} color={theme.colors.text} />
                                 </HeaderIconButton>
                               </View>
                             </View>
@@ -1074,7 +1125,7 @@ const ComposeScreen = () => {
                       <View style={styles.pollHeader}>
                         <Text style={styles.pollTitle}>{t('Create a poll')}</Text>
                         <TouchableOpacity onPress={() => removeThreadPoll(item.id)}>
-                          <Ionicons name="close" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                          <CloseIcon size={20} color={colors.COLOR_BLACK_LIGHT_4} />
                         </TouchableOpacity>
                       </View>
                       {item.pollOptions.map((option, index) => (
@@ -1089,14 +1140,14 @@ const ComposeScreen = () => {
                           />
                           {item.pollOptions.length > 2 && (
                             <TouchableOpacity onPress={() => removeThreadPollOption(item.id, index)}>
-                              <Ionicons name="close-circle" size={20} color={colors.COLOR_BLACK_LIGHT_4} />
+                              <CloseIcon size={20} color={colors.COLOR_BLACK_LIGHT_4} />
                             </TouchableOpacity>
                           )}
                         </View>
                       ))}
                       {item.pollOptions.length < 4 && (
                         <TouchableOpacity style={styles.addPollOptionBtn} onPress={() => addThreadPollOption(item.id)}>
-                          <Ionicons name="add" size={16} color={colors.primaryColor} />
+                          <Plus size={16} color={colors.primaryColor} />
                           <Text style={styles.addPollOptionText}>{t('Add option')}</Text>
                         </TouchableOpacity>
                       )}
@@ -1107,10 +1158,10 @@ const ComposeScreen = () => {
                   {item.location && (
                     <View style={[styles.locationDisplay, { marginLeft: BOTTOM_LEFT_PAD }]}>
                       <View style={styles.locationHeader}>
-                        <Ionicons name="location" size={16} color={colors.primaryColor} />
+                        <LocationIcon size={16} color={colors.primaryColor} />
                         <Text style={styles.locationText}>{item.location.address}</Text>
                         <TouchableOpacity onPress={() => removeThreadLocation(item.id)}>
-                          <Ionicons name="close" size={16} color={colors.COLOR_BLACK_LIGHT_4} />
+                          <CloseIcon size={16} color={colors.COLOR_BLACK_LIGHT_4} />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -1156,7 +1207,9 @@ const ComposeScreen = () => {
           </View>
 
           <View style={styles.bottomBar}>
-            <Text style={styles.bottomText}>{t('Anyone can reply & quote')}</Text>
+            <TouchableOpacity onPress={openReplySettings} activeOpacity={0.7}>
+              <Text style={styles.bottomText}>{getReplyPermissionText()}</Text>
+            </TouchableOpacity>
             <Text style={styles.characterCount}>{postContent.length}</Text>
           </View>
         </ThemedView>

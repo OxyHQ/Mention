@@ -1,7 +1,11 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { MediaIcon } from '@/assets/icons/media-icon';
+import { PollIcon } from '@/assets/icons/poll-icon';
+import { LocationIcon } from '@/assets/icons/location-icon';
+import { EmojiIcon } from '@/assets/icons/emoji-icon';
+import { GifIcon } from '@/assets/icons/gif-icon';
 
 interface ComposeToolbarProps {
     onMediaPress?: () => void;
@@ -40,8 +44,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     disabled={disabled || hasPoll}
                     style={styles.button}
                 >
-                    <Ionicons
-                        name="image-outline"
+                    <MediaIcon
                         size={20}
                         color={disabled || hasPoll ? theme.colors.textTertiary : theme.colors.textSecondary}
                     />
@@ -54,8 +57,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     disabled={disabled}
                     style={styles.button}
                 >
-                    <Ionicons
-                        name="gift"
+                    <GifIcon
                         size={20}
                         color={disabled ? theme.colors.textTertiary : theme.colors.textSecondary}
                     />
@@ -68,8 +70,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     disabled={disabled}
                     style={styles.button}
                 >
-                    <Ionicons
-                        name="happy-outline"
+                    <EmojiIcon
                         size={20}
                         color={disabled ? theme.colors.textTertiary : theme.colors.textSecondary}
                     />
@@ -82,8 +83,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     disabled={disabled || hasMedia}
                     style={styles.button}
                 >
-                    <Ionicons
-                        name="stats-chart-outline"
+                    <PollIcon
                         size={20}
                         color={disabled || hasMedia ? theme.colors.textTertiary : (hasPoll ? theme.colors.primary : theme.colors.textSecondary)}
                     />
@@ -96,11 +96,8 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     disabled={disabled}
                     style={styles.button}
                 >
-                    <Ionicons
-                        name="calendar-outline"
-                        size={20}
-                        color={disabled ? theme.colors.textTertiary : theme.colors.textSecondary}
-                    />
+                    {/* TODO: Add calendar icon when available */}
+                    <View style={{ width: 20, height: 20, backgroundColor: theme.colors.textSecondary, opacity: disabled ? 0.3 : 1 }} />
                 </TouchableOpacity>
             )}
 
@@ -113,8 +110,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     {isGettingLocation ? (
                         <ActivityIndicator size="small" color={theme.colors.textSecondary} />
                     ) : (
-                        <Ionicons
-                            name="location-outline"
+                        <LocationIcon
                             size={20}
                             color={disabled ? theme.colors.textTertiary : (hasLocation ? theme.colors.primary : theme.colors.textSecondary)}
                         />
@@ -129,7 +125,7 @@ const styles = StyleSheet.create({
     toolbar: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 16,
+        gap: 8,
         paddingVertical: 8,
     },
     button: {

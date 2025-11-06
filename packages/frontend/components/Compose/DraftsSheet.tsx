@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { useDrafts, Draft } from '@/hooks/useDrafts';
 import { toast } from 'sonner';
+import { confirmDialog } from '@/utils/alerts';
 
 interface DraftsSheetProps {
   onClose: () => void;
@@ -23,35 +24,37 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
     onLoadDraft(draft);
   }, [onLoadDraft]);
 
-  const handleDeleteDraft = useCallback((draftId: string) => {
-    Alert.alert(
-      t('compose.deleteDraft'),
-      t('compose.deleteDraftConfirm'),
-      [
-        {
-          text: t('common.cancel'),
-          style: 'cancel',
-        },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setDeletingId(draftId);
-              await deleteDraft(draftId);
-              await loadDrafts(); // Refresh list
-              toast.success(t('compose.draftDeleted'));
-            } catch (error) {
-              console.error('Error deleting draft:', error);
-              toast.error(t('compose.deleteDraftError'));
-            } finally {
-              setDeletingId(null);
-            }
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+  const handleDeleteDraft = useCallback(async (draftId: string) => {
+    console.log('handleDeleteDraft called with draftId:', draftId);
+    const confirmed = await confirmDialog({
+      title: t('compose.deleteDraft'),
+      message: t('compose.deleteDraftConfirm'),
+      okText: t('common.delete'),
+      cancelText: t('common.cancel'),
+      destructive: true,
+    });
+
+    if (!confirmed) {
+      console.log('Delete cancelled');
+      return;
+    }
+
+    console.log('Delete confirmed, deleting draft:', draftId);
+    try {
+      setDeletingId(draftId);
+      console.log('Calling deleteDraft...');
+      await deleteDraft(draftId);
+      console.log('deleteDraft completed, reloading drafts...');
+      // Reload drafts to ensure UI is updated
+      await loadDrafts();
+      console.log('Drafts reloaded');
+      toast.success(t('compose.draftDeleted'));
+    } catch (error) {
+      console.error('Error deleting draft:', error);
+      toast.error(t('compose.deleteDraftError'));
+    } finally {
+      setDeletingId(null);
+    }
   }, [deleteDraft, loadDrafts, t]);
 
   const formatDate = useCallback((timestamp: number) => {
@@ -107,7 +110,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
     const isDeleting = deletingId === item.id;
 
     return (
-      <TouchableOpacity
+      <View
         style={[
           styles.draftItem,
           { 
@@ -116,64 +119,73 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
           },
           isCurrentDraft && { backgroundColor: theme.colors.primary + '15' }
         ]}
-        onPress={() => handleLoadDraft(item)}
-        disabled={isDeleting}
       >
-        <View style={styles.draftContent}>
-          <View style={styles.draftHeader}>
-            <View style={styles.draftInfo}>
-              {isCurrentDraft && (
-                <View style={[styles.currentBadge, { backgroundColor: theme.colors.primary }]}>
-                  <Text style={[styles.currentBadgeText, { color: theme.colors.card }]}>
-                    {t('compose.current')}
-                  </Text>
-                </View>
-              )}
-              <Text style={[styles.draftDate, { color: theme.colors.textSecondary }]}>
-                {formatDate(item.updatedAt)}
-              </Text>
+        <TouchableOpacity
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+          onPress={() => handleLoadDraft(item)}
+          disabled={isDeleting}
+        >
+          <View style={styles.draftContent}>
+            <View style={styles.draftHeader}>
+              <View style={styles.draftInfo}>
+                {isCurrentDraft && (
+                  <View style={[styles.currentBadge, { backgroundColor: theme.colors.primary }]}>
+                    <Text style={[styles.currentBadgeText, { color: theme.colors.card }]}>
+                      {t('compose.current')}
+                    </Text>
+                  </View>
+                )}
+                <Text style={[styles.draftDate, { color: theme.colors.textSecondary }]}>
+                  {formatDate(item.updatedAt)}
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => handleDeleteDraft(item.id)}
-              disabled={isDeleting}
+            <Text 
+              style={[styles.draftPreview, { color: theme.colors.text }]} 
+              numberOfLines={2}
             >
-              {isDeleting ? (
-                <ActivityIndicator size="small" color={theme.colors.error} />
-              ) : (
-                <Ionicons name="trash-outline" size={18} color={theme.colors.textSecondary} />
-              )}
-            </TouchableOpacity>
+              {getDraftPreview(item)}
+            </Text>
+            {(item.mediaIds.length > 0 || item.threadItems.length > 0) && (
+              <View style={styles.draftMeta}>
+                {item.mediaIds.length > 0 && (
+                  <View style={styles.metaItem}>
+                    <Ionicons name="image-outline" size={14} color={theme.colors.textSecondary} />
+                    <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+                      {item.mediaIds.length}
+                    </Text>
+                  </View>
+                )}
+                {item.threadItems.length > 0 && (
+                  <View style={styles.metaItem}>
+                    <Ionicons name="layers-outline" size={14} color={theme.colors.textSecondary} />
+                    <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+                      {item.threadItems.length + 1}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
-          <Text 
-            style={[styles.draftPreview, { color: theme.colors.text }]} 
-            numberOfLines={2}
-          >
-            {getDraftPreview(item)}
-          </Text>
-          {(item.mediaIds.length > 0 || item.threadItems.length > 0) && (
-            <View style={styles.draftMeta}>
-              {item.mediaIds.length > 0 && (
-                <View style={styles.metaItem}>
-                  <Ionicons name="image-outline" size={14} color={theme.colors.textSecondary} />
-                  <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
-                    {item.mediaIds.length}
-                  </Text>
-                </View>
-              )}
-              {item.threadItems.length > 0 && (
-                <View style={styles.metaItem}>
-                  <Ionicons name="layers-outline" size={14} color={theme.colors.textSecondary} />
-                  <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
-                    {item.threadItems.length + 1}
-                  </Text>
-                </View>
-              )}
-            </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => {
+            console.log('Delete button pressed for draft:', item.id);
+            handleDeleteDraft(item.id);
+          }}
+          disabled={isDeleting}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.7}
+        >
+          {isDeleting ? (
+            <ActivityIndicator size="small" color={theme.colors.error} />
+          ) : (
+            <Ionicons name="trash-outline" size={18} color={theme.colors.textSecondary} />
           )}
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     );
   }, [theme, currentDraftId, deletingId, handleLoadDraft, handleDeleteDraft, formatDate, getDraftPreview, t]);
 

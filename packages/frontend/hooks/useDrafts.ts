@@ -98,13 +98,28 @@ export const useDrafts = () => {
   // Delete a draft
   const deleteDraft = useCallback(async (draftId: string) => {
     try {
-      const newDrafts = drafts.filter(d => d.id !== draftId);
+      console.log('deleteDraft called with draftId:', draftId);
+      // Read latest drafts from storage to avoid stale state
+      const storedDrafts = await getData<Draft[]>(DRAFTS_STORAGE_KEY);
+      console.log('Stored drafts:', storedDrafts?.length || 0);
+      const currentDrafts = storedDrafts && Array.isArray(storedDrafts) ? storedDrafts : [];
+      
+      // Filter out the draft to delete
+      const newDrafts = currentDrafts.filter(d => d.id !== draftId);
+      console.log('Drafts after filtering:', newDrafts.length, 'removed:', currentDrafts.length - newDrafts.length);
+      
+      // Save the updated drafts list
       await saveDrafts(newDrafts);
+      console.log('Drafts saved to storage');
+      
+      // Ensure state is updated
+      setDrafts(newDrafts);
+      console.log('State updated');
     } catch (error) {
       console.error('Error deleting draft:', error);
       throw error;
     }
-  }, [drafts, saveDrafts]);
+  }, [saveDrafts]);
 
   // Get a draft by ID
   const getDraft = useCallback((draftId: string): Draft | undefined => {
