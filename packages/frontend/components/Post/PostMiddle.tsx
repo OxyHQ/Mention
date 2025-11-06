@@ -78,7 +78,8 @@ const VideoItem: React.FC<{
       <View style={[
         styles.itemContainer,
         { borderColor, backgroundColor },
-        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' }
+        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' },
+        hasSingleMedia && { maxHeight: undefined, height: undefined }
       ]}>
         <VideoView
           player={player}
@@ -260,7 +261,8 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
         })() : (
           <View style={[
             styles.itemContainer,
-            { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }
+            { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
+            { maxHeight: undefined, height: undefined }
           ]}>
             <Image
               key={`img-${idx}`}
@@ -316,7 +318,7 @@ const styles = StyleSheet.create({
   },
   videoPreserveAspect: {
     width: CARD_WIDTH,
-    aspectRatio: 1, // Square default - contentFit="contain" will preserve video's natural ratio within this
+    // No height or aspectRatio constraint - height determined by video's natural aspect ratio with contentFit="contain"
   },
   videoMultipleMedia: {
     height: CARD_HEIGHT,
@@ -325,7 +327,7 @@ const styles = StyleSheet.create({
   },
   imagePreserveAspect: {
     width: CARD_WIDTH,
-    aspectRatio: 1, // Square default - resizeMode="contain" will preserve image's natural ratio within this
+    // No height or aspectRatio constraint - height determined by image's natural aspect ratio with resizeMode="contain"
   },
   imageMultipleMedia: {
     height: CARD_HEIGHT,
