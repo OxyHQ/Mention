@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -102,6 +102,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
             value={reviewReplies}
             onValueChange={onReviewRepliesChange}
             label={t('Review and approve replies') || 'Review and approve replies'}
+            containerStyle={styles.toggle}
           />
         </View>
       </View>
@@ -174,6 +175,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 16,
     minHeight: 50,
+  },
+  toggle: {
+    flex: 1,
   },
 });
 
