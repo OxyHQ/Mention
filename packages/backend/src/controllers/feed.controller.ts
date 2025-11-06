@@ -865,8 +865,8 @@ class FeedController {
         });
       }
 
-      const nextCursor = hasMore && transformedPosts.length > 0 
-        ? transformedPosts[transformedPosts.length - 1]._id?.toString() 
+      const nextCursor = hasMore && deduplicatedPosts.length > 0 
+        ? deduplicatedPosts[deduplicatedPosts.length - 1]._id?.toString() 
         : undefined;
 
       const response: FeedResponse = {
@@ -966,7 +966,7 @@ class FeedController {
           userBehavior = await UserBehavior.findOne({ oxyUserId: currentUserId }).lean();
         }
       } catch (e) {
-        // Continue with basic ranking if user data fails to load
+        // If user data fails to load, continue with chronological sorting instead of personalized ranking
       }
 
       const match: any = {
@@ -1751,7 +1751,7 @@ class FeedController {
         try {
           await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
         } catch (error) {
-          // Preference tracking is non-critical
+          // Non-critical: Preference tracking failure doesn't prevent the action from succeeding
         }
         return res.json({ 
           success: true, 
@@ -1778,7 +1778,7 @@ class FeedController {
         await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
-        // Preference tracking is non-critical
+        // Non-critical: Preference tracking failure doesn't prevent the like action from succeeding
       }
 
       // Emit real-time update
@@ -1958,7 +1958,7 @@ class FeedController {
         try {
           await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
         } catch (error) {
-          // Preference tracking is non-critical
+          // Non-critical: Preference tracking failure doesn't prevent the action from succeeding
         }
         return res.json({ 
           success: true, 
@@ -1981,7 +1981,7 @@ class FeedController {
         await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
-        // Preference tracking is non-critical
+        // Non-critical: Preference tracking failure doesn't prevent the action from succeeding
       }
 
       // Emit real-time update
