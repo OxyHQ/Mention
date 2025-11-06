@@ -16,7 +16,7 @@ import {
     Platform,
     useWindowDimensions,
 } from 'react-native';
-import Avatar from '@/components/Avatar';
+import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -418,13 +418,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
 
 
-    // Simplified avatar animation - just scale for smoother performance (like Instagram/Twitter)
-    const avatarScale = useMemo(() => scrollY.interpolate({
-        inputRange: [0, HEADER_HEIGHT_EXPANDED],
-        outputRange: [1, 0.45],
-        extrapolate: 'clamp',
-    }), [scrollY]);
-
     // Header background opacity animation
     const headerBackgroundOpacity = useMemo(() => scrollY.interpolate({
         inputRange: [0, HEADER_HEIGHT_EXPANDED],
@@ -669,14 +662,12 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             {/* Profile info */}
                             <View style={[styles.profileContent, { backgroundColor: theme.colors.background }]}>
                                 <View style={styles.avatarRow}>
-                                    <Avatar
+                                    <ZoomableAvatar
                                         source={avatarUri}
                                         size={90}
-                                        useAnimated
                                         style={[styles.avatar, {
                                             borderColor: theme.colors.background,
                                             backgroundColor: theme.colors.backgroundSecondary,
-                                            transform: [{ scale: avatarScale }], // Simplified - just scale for better performance
                                         }]}
                                         imageStyle={{}}
                                     />
@@ -701,12 +692,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                                     onPress={() => router.push('/settings')}
                                                 >
                                                     <Gear size={20} color={theme.colors.text} />
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                    onPress={() => router.push('/settings/appearance')}
-                                                >
-                                                    <Ionicons name="color-palette-outline" size={20} color={theme.colors.text} />
                                                 </TouchableOpacity>
                                             </View>
                                         ) : profileData?.id ? (

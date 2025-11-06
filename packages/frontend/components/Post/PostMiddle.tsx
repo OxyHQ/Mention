@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useCallback } from 'react';
+import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent, Dimensions, Pressable } from 'react-native';
 import PollCard from './PollCard';
 import { useOxy } from '@oxyhq/services';
@@ -34,23 +34,81 @@ const VideoItem: React.FC<{
   backgroundColor: string;
   postId?: string;
   onPress?: () => void;
-}> = ({ src, containerStyle, borderColor, backgroundColor, postId, onPress }) => {
+  hasSingleMedia?: boolean; // If true, remove max height constraint
+}> = ({ src, containerStyle, borderColor, backgroundColor, postId, onPress, hasSingleMedia }) => {
   const player = useVideoPlayer(src, (player) => {
-    player.loop = false;
-    player.muted = false;
+    if (player) {
+      player.loop = true;
+      player.muted = true;
+    }
   });
+
+  // Autoplay video when component mounts
+  useEffect(() => {
+    if (player) {
+      const playVideo = async () => {
+        try {
+          await player.play();
+        } catch (error) {
+          // Autoplay may be blocked - silently handle
+        }
+      };
+      playVideo();
+    }
+    return () => {
+      if (player) {
+        try {
+          player.pause();
+        } catch (error) {
+          // Silently handle pause errors
+        }
+      }
+    };
+  }, [player]);
+
+  // Apply dynamic container style with conditional height/maxHeight removal
+  const dynamicContainerStyle = useMemo(() => {
+    const baseStyle = Array.isArray(containerStyle) ? [...containerStyle] : [containerStyle];
+    if (hasSingleMedia) {
+      // Remove height and maxHeight constraints for single media to allow natural aspect ratio
+      const modifiedStyles = baseStyle.map(style => {
+        if (style && typeof style === 'object') {
+          const { height: _, maxHeight: __, ...rest } = style as any;
+          return rest;
+        }
+        return style;
+      });
+      // Add alignSelf to prevent container from stretching
+      return [...modifiedStyles, { alignSelf: 'flex-start' }];
+    }
+    return baseStyle;
+  }, [containerStyle, hasSingleMedia]);
+
+  // Dynamic video style - remove height constraint for single media
+  const dynamicVideoStyle = useMemo(() => {
+    if (hasSingleMedia) {
+      return {
+        width: CARD_WIDTH,
+        // No height constraint - will be determined by aspect ratio
+      };
+    }
+    return styles.video;
+  }, [hasSingleMedia]);
 
   return (
     <Pressable 
       onPress={onPress}
       style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
     >
-      <View style={[containerStyle, { borderColor, backgroundColor }]}>
+      <View style={[...dynamicContainerStyle, { borderColor, backgroundColor }]}>
         <VideoView
           player={player}
-          style={styles.video}
-          contentFit="cover"
-          nativeControls={true}
+          style={dynamicVideoStyle}
+          contentFit={hasSingleMedia ? "contain" : "cover"}
+          nativeControls={false}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+          pointerEvents="none"
         />
       </View>
     </Pressable>
@@ -64,6 +122,8 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
   // Check if post has exactly one video (for navigation to videos screen)
   const videoMedia = media?.filter(m => m.type === 'video') || [];
   const hasSingleVideo = videoMedia.length === 1 && (media?.length || 0) === 1;
+  // Check if there's only one media item (excluding polls and nested posts)
+  const hasSingleMedia = (media?.length || 0) === 1 && !pollId && !pollData && !nestedPost;
   
   const handleVideoPress = useCallback(() => {
     if (postId && hasSingleVideo) {
@@ -173,6 +233,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
               backgroundColor={theme.colors.backgroundSecondary}
               postId={postId}
               onPress={hasSingleVideo ? handleVideoPress : undefined}
+              hasSingleMedia={hasSingleMedia}
             />
           );
         }

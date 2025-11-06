@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo, memo } from 'react';
-import { StyleSheet, View, Text, Dimensions, Pressable, FlatList, Platform, Share } from 'react-native';
+import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions } from 'react-native';
 import { toast } from '@/lib/sonner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
@@ -18,7 +18,6 @@ import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
 
 // Constants
-const WINDOW_HEIGHT = Dimensions.get('window').height;
 const FLATLIST_CONFIG = {
     INITIAL_NUM_TO_RENDER: 2,
     MAX_TO_RENDER_PER_BATCH: 2,
@@ -73,6 +72,7 @@ interface VideoItemProps {
     onMuteChange: (muted: boolean) => void;
     bottomBarHeight: number;
     t: (key: string) => string;
+    windowHeight: number;
 }
 
 // Memoized VideoItem component for performance
@@ -90,6 +90,7 @@ const VideoItem = memo<VideoItemProps>(({
     onMuteChange,
     bottomBarHeight,
     t,
+    windowHeight,
 }) => {
     const { oxyServices } = useOxy();
     const router = useRouter();
@@ -203,7 +204,7 @@ const VideoItem = memo<VideoItemProps>(({
     }, [item.user?.handle, router]);
 
     return (
-        <View style={styles.videoContainer}>
+        <View style={[styles.videoContainer, { height: windowHeight }]}>
             {item.videoUrl && player && !videoError ? (
                 <VideoView
                     key={`video-${item.id}-${index}`}
@@ -355,6 +356,7 @@ export default function VideosScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
+    const { height: WINDOW_HEIGHT } = useWindowDimensions();
     const router = useRouter();
     const params = useLocalSearchParams<{ postId?: string }>();
     const { oxyServices } = useOxy();
@@ -530,7 +532,7 @@ export default function VideosScreen() {
         return () => {
             isMounted = false;
         };
-    }, [targetPostId, hasScrolledToTarget, fetchPostById, fetchVideos]);
+    }, [targetPostId, hasScrolledToTarget, fetchPostById, fetchVideos, WINDOW_HEIGHT]);
 
     // Load more handler
     const handleLoadMore = useCallback(async () => {
@@ -682,8 +684,9 @@ export default function VideosScreen() {
             onMuteChange={handleMuteChange}
             bottomBarHeight={bottomBarHeight}
             t={t}
+            windowHeight={WINDOW_HEIGHT}
         />
-    ), [currentVisibleIndex, theme, handleLike, handleComment, handleRepost, handleShare, formatCount, globalMuted, handleMuteChange, bottomBarHeight, t]);
+    ), [currentVisibleIndex, theme, handleLike, handleComment, handleRepost, handleShare, formatCount, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
@@ -692,7 +695,7 @@ export default function VideosScreen() {
         length: WINDOW_HEIGHT,
         offset: WINDOW_HEIGHT * index,
         index,
-    }), []);
+    }), [WINDOW_HEIGHT]);
 
     // Memoized onMomentumScrollEnd
     const onMomentumScrollEnd = useCallback((event: any) => {
@@ -716,7 +719,7 @@ export default function VideosScreen() {
                 }
             }
         }
-    }, [posts.length]);
+    }, [posts.length, WINDOW_HEIGHT]);
 
     return (
         <>
@@ -795,7 +798,6 @@ const styles = StyleSheet.create({
     },
     videoContainer: {
         width: '100%',
-        height: WINDOW_HEIGHT,
         backgroundColor: '#000000',
         position: 'relative',
         overflow: 'hidden',
