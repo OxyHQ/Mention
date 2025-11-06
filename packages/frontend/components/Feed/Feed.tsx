@@ -167,47 +167,26 @@ const Feed = (props: FeedProps) => {
     const previousReloadKeyRef = useRef<string | number | undefined>(undefined);
 
     const fetchInitialFeed = useCallback(async (forceRefresh: boolean = false) => {
-        // Debounce rapid calls
         if (isFetchingRef.current) {
-            console.log('[Feed] fetchInitialFeed: Already fetching, skipping');
             return;
         }
         
-        // Set fetching flag immediately to prevent duplicate calls
         isFetchingRef.current = true;
         
         if (isAuthenticated && !currentUser?.id) {
-            console.log('[Feed] fetchInitialFeed: Not authenticated, skipping');
             isFetchingRef.current = false;
             return;
         }
 
-        // Check if feed already has items in the store
+        // Check if feed already has items
         const feedTypeToCheck = showOnlySaved ? 'saved' : type;
         const currentFeed = !useScoped ? usePostsStore.getState().feeds[feedTypeToCheck] : null;
         const hasItems = currentFeed?.items && currentFeed.items.length > 0;
         
-        console.log('[Feed] fetchInitialFeed:', {
-            forceRefresh,
-            showOnlySaved,
-            feedTypeToCheck,
-            hasItems,
-            filters: filters
-        });
-        
-        // CRITICAL: Only fetch if:
-        // 1. Force refresh (reloadKey changed - user pressed same tab)
-        // 2. Feed doesn't have items (first time loading)
-        // 3. Filters changed (for saved posts with search)
-        // DO NOT fetch if just switching tabs and feed already has items
-        // For saved posts, always fetch to support search filtering
         if (!useScoped && hasItems && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
-            // Feed already loaded and user is just switching tabs - don't reload
-            console.log('[Feed] fetchInitialFeed: Skipping - feed has items and not saved');
+            isFetchingRef.current = false;
             return;
         }
-        
-        // For saved posts, always proceed to fetch (even if items exist) to support search filtering
         
         const shouldRefresh = forceRefresh;
 
@@ -219,9 +198,6 @@ const Feed = (props: FeedProps) => {
             }
 
             if (showOnlySaved) {
-                // Use feed endpoint with type='saved' and searchQuery filter
-                // Always fetch saved posts to ensure fresh data and search filtering
-                console.log('[Feed] fetchInitialFeed: Fetching saved posts with filters:', filters || {});
                 await fetchFeed({ type: 'saved', limit: 50, filters: filters || {} });
                 return;
             }
@@ -237,18 +213,7 @@ const Feed = (props: FeedProps) => {
                     items = items.filter((it: any) => String(it.postId || it.parentPostId) === String(pid));
                 }
 
-                // Optimized deduplication using Set
-                const seen = new Set<string>();
-                const uniqueItems = items.filter((item: any) => {
-                    const key = itemKey(item);
-                    if (key && !seen.has(key)) {
-                        seen.add(key);
-                        return true;
-                    }
-                    return false;
-                });
-
-                setLocalItems(uniqueItems);
+                setLocalItems(items);
                 setLocalHasMore(!!resp.hasMore);
                 setLocalNextCursor(resp.nextCursor);
             } else if (userId) {
@@ -284,36 +249,21 @@ const Feed = (props: FeedProps) => {
 
     // Handle initial load and type/filter changes
     useEffect(() => {
-        console.log('[Feed] useEffect triggered:', {
-            filtersKey,
-            showOnlySaved,
-            filters: filters
-        });
-        
-        // Skip if reloadKey just changed (handled by above effect)
         const reloadKeyChanged = previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         if (reloadKeyChanged) {
-            console.log('[Feed] useEffect: Skipping - reloadKey changed');
-            return; // Let the reloadKey effect handle it
+            return;
         }
         
-        // For saved posts, always fetch when filters change (search query)
-        // For other feeds, check if feed already has items
         if (!useScoped && !showOnlySaved) {
             const feedTypeToCheck = type;
             const currentFeed = usePostsStore.getState().feeds[feedTypeToCheck];
             const hasItems = currentFeed?.items && currentFeed.items.length > 0;
             
-            // If feed has items and no filters/search, skip fetching (just switching tabs)
             if (hasItems && !filters?.searchQuery) {
-                console.log('[Feed] useEffect: Skipping - feed has items and no search query');
                 return;
             }
         }
         
-        // Feed doesn't have items yet or filters changed, fetch it
-        // For saved posts, always fetch to support search filtering
-        console.log('[Feed] useEffect: Calling fetchInitialFeed');
         fetchInitialFeed(false);
     }, [type, filtersKey, fetchInitialFeed, useScoped, reloadKey, showOnlySaved, filters]);
 
@@ -325,7 +275,6 @@ const Feed = (props: FeedProps) => {
             }
 
             if (showOnlySaved) {
-                // Use feed endpoint with type='saved' and searchQuery filter
                 await refreshFeed('saved', filters);
             } else if (useScoped) {
                 try {
@@ -334,19 +283,7 @@ const Feed = (props: FeedProps) => {
                     const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
                     const items = resp.items || [];
                     
-                    // Optimized deduplication - store already handles most deduplication
-                    // This is just a safety pass
-                    const seen = new Set<string>();
-                    const uniqueItems = items.filter((item: any) => {
-                        const key = itemKey(item);
-                        if (key && !seen.has(key)) {
-                            seen.add(key);
-                            return true;
-                        }
-                        return false;
-                    });
-                    
-                    setLocalItems(uniqueItems);
+                    setLocalItems(items);
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
                 } catch (error) {
@@ -372,13 +309,11 @@ const Feed = (props: FeedProps) => {
 
     const handleLoadMore = useCallback(async () => {
         if (showOnlySaved) {
-            // Use feed endpoint for loading more saved posts
             await loadMoreFeed('saved', filters);
             return;
         }
         if (!hasMore || isLoading || isLoadingMore) return;
 
-        // Clear any pending debounce
         if (loadMoreDebounceRef.current) {
             clearTimeout(loadMoreDebounceRef.current);
             loadMoreDebounceRef.current = null;
@@ -406,15 +341,7 @@ const Feed = (props: FeedProps) => {
                     );
                 }
 
-                // Optimized deduplication using Set for O(1) lookup
-                setLocalItems(prev => {
-                    const existingIds = new Set(prev.map(p => itemKey(p)));
-                    const uniqueNew = items.filter((p: any) => {
-                        const key = itemKey(p);
-                        return key && !existingIds.has(key);
-                    });
-                    return prev.concat(uniqueNew);
-                });
+                setLocalItems(prev => prev.concat(items));
                 
                 const prevCursor = localNextCursor;
                 const nextCursor = resp.nextCursor;
@@ -497,72 +424,14 @@ const Feed = (props: FeedProps) => {
         
         if (src.length === 0) return [];
 
-        // CRITICAL: Final deduplication pass using same normalization as store
-        // Import normalizeId from store to ensure consistency
-        const normalizeId = (item: any): string => {
-            if (item?.id) return String(item.id);
-            if (item?._id) {
-                const _id = item._id;
-                return typeof _id === 'object' && typeof _id.toString === 'function'
-                    ? _id.toString()
-                    : String(_id);
-            }
-            if (item?._id_str) return String(item._id_str);
-            if (item?.postId) return String(item.postId);
-            if (item?.post?.id) return String(item.post.id);
-            if (item?.post?._id) {
-                const _id = item.post._id;
-                return typeof _id === 'object' && typeof _id.toString === 'function'
-                    ? _id.toString()
-                    : String(_id);
-            }
-            return '';
-        };
-        
-        const seen = new Map<string, any>();
-        const duplicateIds: string[] = [];
-        
-        for (const item of src) {
-            const id = normalizeId(item);
-            if (id && id !== 'undefined' && id !== 'null' && id !== '') {
-                if (!seen.has(id)) {
-                    seen.set(id, item);
-                } else {
-                    duplicateIds.push(id);
-                }
-            }
-        }
-
-        const deduped = Array.from(seen.values());
-        
-        // Log duplicates found in display items (shouldn't happen if store deduplication works)
-        if (process.env.NODE_ENV === 'development' && duplicateIds.length > 0) {
-            console.error(`[Feed:displayItems] 🚨 Found ${duplicateIds.length} duplicates in feed items!`, {
-                duplicates: [...new Set(duplicateIds)].slice(0, 10),
-                feedType: effectiveType,
-                totalItems: src.length,
-                uniqueItems: deduped.length
-            });
-            // Log full details of duplicates for debugging
-            const duplicateDetails = duplicateIds.slice(0, 5).map(dupId => {
-                const items = src.filter(item => normalizeId(item) === dupId);
-                return {
-                    id: dupId,
-                    count: items.length,
-                    preview: items[0]?.content?.text?.substring(0, 50) || 'no preview'
-                };
-            });
-            console.error('[Feed:displayItems] Duplicate details:', duplicateDetails);
-        }
-
-        // Only apply sorting for 'for_you' feed if user is authenticated
-        if (effectiveType === 'for_you' && currentUser?.id && deduped.length > 0) {
+        // Backend and store handle deduplication - only apply For You feed sorting here
+        if (effectiveType === 'for_you' && currentUser?.id && src.length > 0) {
             const now = Date.now();
             const THRESHOLD_MS = 60 * 1000;
             const mineNow: any[] = [];
             const others: any[] = [];
 
-            for (const item of deduped) {
+            for (const item of src) {
                 const ownerId = item?.user?.id;
                 if (item?.isLocalNew || (ownerId === currentUser.id)) {
                     const d = item?.date || item?.createdAt;
@@ -583,8 +452,8 @@ const Feed = (props: FeedProps) => {
             }
         }
 
-        return deduped;
-    }, [useScoped, localItems, filteredFeedData?.items, effectiveType, currentUser?.id, itemKey]);
+        return src;
+    }, [useScoped, localItems, filteredFeedData?.items, effectiveType, currentUser?.id]);
 
     const renderEmptyState = useCallback(() => {
         if (isLoading) return null;
@@ -672,31 +541,15 @@ const Feed = (props: FeedProps) => {
 
     const keyExtractor = useCallback((item: any) => itemKey(item), [itemKey]);
 
-    // Optimized data hash - only recalculate when items actually change
+    // Optimized data hash
     const dataHash = useMemo(() => {
         const count = displayItems.length;
         if (count === 0) return 'empty';
-        // Use first few and last few IDs for hash - faster than all items
         const firstKey = itemKey(displayItems[0]);
         const lastKey = itemKey(displayItems[count - 1]);
-        // Include count and a few middle items for better uniqueness
         const midKey = count > 2 ? itemKey(displayItems[Math.floor(count / 2)]) : '';
         return `${count}-${firstKey}-${midKey}-${lastKey}`;
     }, [displayItems.length, displayItems, itemKey]);
-
-    // Final deduplication layer to ensure no duplicates reach the UI
-    const finalRenderItems = useMemo(() => {
-        const seen = new Set<string>();
-        const unique: any[] = [];
-        for (const item of displayItems) {
-            const key = itemKey(item);
-            if (key && !seen.has(key)) {
-                seen.add(key);
-                unique.push(item);
-            }
-        }
-        return unique;
-    }, [displayItems, itemKey]);
 
     // Register scrollable with LayoutScrollContext
     const clearScrollableRegistration = useCallback(() => {
@@ -758,7 +611,7 @@ const Feed = (props: FeedProps) => {
                 <LoadingTopSpinner showLoading={isLoading && !refreshing && !isLoadingMore && displayItems.length === 0} />
                 <FlashList
                     ref={assignListRef}
-                    data={finalRenderItems}
+                    data={displayItems}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
                     {...({
