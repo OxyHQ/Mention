@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from 'react-i18next';
 import MiniChart from '@/components/MiniChart';
 
 interface StatCardProps {
@@ -29,9 +30,18 @@ const StatCard: React.FC<StatCardProps> = ({
     showChart = false,
     formatNumber = (num) => num.toString(),
 }) => {
+    const { t } = useTranslation();
     const theme = useTheme();
     const defaultIconColor = iconColor || theme.colors.primary;
-    const dayLabels = chartLabels || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dayLabels = chartLabels || [
+        t('insights.weeklyRecap.days.mon'),
+        t('insights.weeklyRecap.days.tue'),
+        t('insights.weeklyRecap.days.wed'),
+        t('insights.weeklyRecap.days.thu'),
+        t('insights.weeklyRecap.days.fri'),
+        t('insights.weeklyRecap.days.sat'),
+        t('insights.weeklyRecap.days.sun')
+    ];
 
     return (
         <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -50,7 +60,7 @@ const StatCard: React.FC<StatCardProps> = ({
                 {previous !== undefined && (
                     <View style={styles.previousRow}>
                         <Text style={[styles.previousText, { color: theme.colors.textSecondary }]}>
-                            Previous: {formatNumber(previous)}{unit ? ` ${unit}` : ''}
+                            {t('insights.weeklyRecap.previous')}: {formatNumber(previous)}{unit ? ` ${unit}` : ''}
                         </Text>
                     </View>
                 )}

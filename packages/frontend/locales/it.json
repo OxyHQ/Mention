@@ -349,7 +349,30 @@
     },
     "weeklyRecap": {
       "ready": "Il tuo riepilogo settimanale è pronto!",
-      "subtitle": "Vedi come è andata la scorsa settimana."
+      "subtitle": "Vedi come è andata la scorsa settimana.",
+      "title": "Riepilogo Settimanale",
+      "pageTitle": "Riepilogo settimanale",
+      "subtitleText": "Ecco cosa è successo la scorsa settimana tra {{dateRange}}",
+      "noDataAvailable": "Nessun dato disponibile",
+      "yourActivity": "La tua attività",
+      "views": "Visualizzazioni",
+      "replies": "Risposte",
+      "newFollowers": "Nuovi follower",
+      "posts": "post",
+      "thisWeeksTip": "Consiglio di questa settimana",
+      "tipMainText": "Sperimenta con nuovi contenuti per trovare ciò che funziona",
+      "tipDescription": "Provare nuovi formati o aggiungere media e tag potrebbe aiutare i tuoi post a ottenere più coinvolgimento.",
+      "seeMoreTips": "Vedi più consigli",
+      "previous": "Precedente",
+      "days": {
+        "mon": "Lun",
+        "tue": "Mar",
+        "wed": "Mer",
+        "thu": "Gio",
+        "fri": "Ven",
+        "sat": "Sab",
+        "sun": "Dom"
+      }
     },
     "avgPerPost": "Media per post",
     "perPost": "per post",

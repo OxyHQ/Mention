@@ -48,6 +48,7 @@ import {
   requestNotificationPermissions,
   setupNotifications,
 } from "@/utils/notifications";
+import { getData } from '@/utils/storage';
 
 // Locales
 import enUS from "@/locales/en.json";
@@ -237,21 +238,55 @@ export default function RootLayout() {
 
   // Initialize i18n once when the app mounts
   useEffect(() => {
-    try {
-      i18nUse(initReactI18next);
-      i18nInit({
-        resources: {
-          'en-US': { translation: enUS },
-          'es-ES': { translation: esES },
-          'it-IT': { translation: itIT },
-        },
-        lng: 'en-US',
-        fallbackLng: 'en-US',
-        interpolation: { escapeValue: false },
-      }).catch((error: unknown) => console.error('Failed to initialize i18n:', error));
-    } catch (err) {
-      console.error('i18n setup failed:', err);
-    }
+    const initializeI18n = async () => {
+      try {
+        // Load saved language preference
+        const LANGUAGE_STORAGE_KEY = 'user_language_preference';
+        const savedLanguage = await getData<string>(LANGUAGE_STORAGE_KEY);
+        const initialLanguage = savedLanguage || 'en-US';
+        
+        // Check if i18n is already initialized
+        if (i18n.isInitialized) {
+          // If already initialized, just change the language
+          await i18n.changeLanguage(initialLanguage);
+        } else {
+          // Initialize i18n with the saved language
+          i18nUse(initReactI18next);
+          i18nInit({
+            resources: {
+              'en-US': { translation: enUS },
+              'es-ES': { translation: esES },
+              'it-IT': { translation: itIT },
+            },
+            lng: initialLanguage,
+            fallbackLng: 'en-US',
+            interpolation: { escapeValue: false },
+          }).catch((error: unknown) => console.error('Failed to initialize i18n:', error));
+        }
+      } catch (err) {
+        console.error('i18n setup failed:', err);
+        // Fallback to default initialization
+        try {
+          if (!i18n.isInitialized) {
+            i18nUse(initReactI18next);
+            i18nInit({
+              resources: {
+                'en-US': { translation: enUS },
+                'es-ES': { translation: esES },
+                'it-IT': { translation: itIT },
+              },
+              lng: 'en-US',
+              fallbackLng: 'en-US',
+              interpolation: { escapeValue: false },
+            }).catch((error: unknown) => console.error('Failed to initialize i18n:', error));
+          }
+        } catch (fallbackErr) {
+          console.error('i18n fallback initialization failed:', fallbackErr);
+        }
+      }
+    };
+    
+    initializeI18n();
   }, []);
 
   // Alias GestureHandlerRootView to a permissive component type to avoid children typing issues

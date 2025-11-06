@@ -355,7 +355,30 @@
     },
     "weeklyRecap": {
       "ready": "¡Tu resumen semanal está listo!",
-      "subtitle": "Ve cómo te fue la semana pasada."
+      "subtitle": "Ve cómo te fue la semana pasada.",
+      "title": "Resumen Semanal",
+      "pageTitle": "Resumen semanal",
+      "subtitleText": "Esto es lo que pasó la semana pasada entre {{dateRange}}",
+      "noDataAvailable": "No hay datos disponibles",
+      "yourActivity": "Tu actividad",
+      "views": "Visualizaciones",
+      "replies": "Respuestas",
+      "newFollowers": "Nuevos seguidores",
+      "posts": "publicaciones",
+      "thisWeeksTip": "Consejo de esta semana",
+      "tipMainText": "Experimenta con nuevo contenido para encontrar lo que funciona",
+      "tipDescription": "Probar nuevos formatos o agregar medios y etiquetas podría ayudar a que tus publicaciones obtengan más participación.",
+      "seeMoreTips": "Ver más consejos",
+      "previous": "Anterior",
+      "days": {
+        "mon": "Lun",
+        "tue": "Mar",
+        "wed": "Mié",
+        "thu": "Jue",
+        "fri": "Vie",
+        "sat": "Sáb",
+        "sun": "Dom"
+      }
     },
     "avgPerPost": "Promedio por publicación",
     "perPost": "por publicación",

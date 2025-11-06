@@ -384,7 +384,30 @@
         },
         "weeklyRecap": {
             "ready": "Your weekly recap is ready!",
-            "subtitle": "See how things went last week."
+            "subtitle": "See how things went last week.",
+            "title": "Weekly Recap",
+            "pageTitle": "Weekly recap",
+            "subtitleText": "Here's what happened last week between {{dateRange}}",
+            "noDataAvailable": "No data available",
+            "yourActivity": "Your activity",
+            "views": "Views",
+            "replies": "Replies",
+            "newFollowers": "New followers",
+            "posts": "posts",
+            "thisWeeksTip": "This week's tip",
+            "tipMainText": "Experiment with new content to find what works",
+            "tipDescription": "Trying new formats or adding media and tags could help your posts get more engagement.",
+            "seeMoreTips": "See more tips",
+            "previous": "Previous",
+            "days": {
+                "mon": "Mon",
+                "tue": "Tue",
+                "wed": "Wed",
+                "thu": "Thu",
+                "fri": "Fri",
+                "sat": "Sat",
+                "sun": "Sun"
+            }
         },
         "avgPerPost": "Avg per post",
         "perPost": "per post",

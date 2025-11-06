@@ -55,7 +55,15 @@ const WeeklyRecapScreen: React.FC = () => {
 
     const getDayLabels = () => {
         const weekDates = getWeekDates(0);
-        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const days = [
+            t('insights.weeklyRecap.days.mon'),
+            t('insights.weeklyRecap.days.tue'),
+            t('insights.weeklyRecap.days.wed'),
+            t('insights.weeklyRecap.days.thu'),
+            t('insights.weeklyRecap.days.fri'),
+            t('insights.weeklyRecap.days.sat'),
+            t('insights.weeklyRecap.days.sun')
+        ];
         const labels = [];
         
         for (let i = 0; i < 7; i++) {
@@ -215,7 +223,7 @@ const WeeklyRecapScreen: React.FC = () => {
                 <View style={{ paddingTop: insets.top }}>
                     <Header
                         options={{
-                            title: 'Weekly Recap',
+                            title: t('insights.weeklyRecap.title'),
                             leftComponents: [
                                 <HeaderIconButton
                                     key="back"
@@ -242,7 +250,7 @@ const WeeklyRecapScreen: React.FC = () => {
                 <View style={{ paddingTop: insets.top }}>
                     <Header
                         options={{
-                            title: 'Weekly Recap',
+                            title: t('insights.weeklyRecap.title'),
                             leftComponents: [
                                 <HeaderIconButton
                                     key="back"
@@ -259,7 +267,7 @@ const WeeklyRecapScreen: React.FC = () => {
                 <View style={styles.emptyContainer}>
                     <Ionicons name="bar-chart-outline" size={64} color={theme.colors.primary + '60'} />
                     <Text style={[styles.emptyText, { color: theme.colors.primary + '80' }]}>
-                        No data available
+                        {t('insights.weeklyRecap.noDataAvailable')}
                     </Text>
                 </View>
             </ThemedView>
@@ -274,16 +282,16 @@ const WeeklyRecapScreen: React.FC = () => {
         {
             icon: 'document-text',
             iconColor: theme.colors.primary,
-            title: 'Your activity',
+            title: t('insights.weeklyRecap.yourActivity'),
             current: data.currentWeek.overview.totalPosts,
             previous: data.previousWeek.overview.totalPosts,
-            unit: 'posts',
+            unit: t('insights.weeklyRecap.posts'),
             chartData: getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'interactions')
         },
         {
             icon: 'eye',
             iconColor: theme.colors.primary,
-            title: 'Views',
+            title: t('insights.weeklyRecap.views'),
             current: data.currentWeek.overview.totalViews,
             previous: data.previousWeek.overview.totalViews,
             unit: '',
@@ -292,7 +300,7 @@ const WeeklyRecapScreen: React.FC = () => {
         {
             icon: 'chatbubble',
             iconColor: theme.colors.primary,
-            title: 'Replies',
+            title: t('insights.weeklyRecap.replies'),
             current: data.currentWeek.interactions.replies,
             previous: data.previousWeek.interactions.replies,
             unit: '',
@@ -301,7 +309,7 @@ const WeeklyRecapScreen: React.FC = () => {
         {
             icon: 'person-add',
             iconColor: theme.colors.primary,
-            title: 'New followers',
+            title: t('insights.weeklyRecap.newFollowers'),
             current: data.newFollowers,
             previous: data.previousFollowers,
             unit: '',
@@ -315,7 +323,7 @@ const WeeklyRecapScreen: React.FC = () => {
             <View style={{ paddingTop: insets.top }}>
                 <Header
                     options={{
-                        title: 'Weekly Recap',
+                        title: t('insights.weeklyRecap.title'),
                         showBackButton: true,
                     }}
                 />
@@ -329,9 +337,9 @@ const WeeklyRecapScreen: React.FC = () => {
                         size={72}
                         label={(typeof user?.name === 'string' ? user.name[0] : null) || (typeof user?.handle === 'string' ? user.handle[0] : null) || ''}
                     />
-                    <Text style={[styles.title, { color: theme.colors.text }]}>Weekly recap</Text>
+                    <Text style={[styles.title, { color: theme.colors.text }]}>{t('insights.weeklyRecap.pageTitle')}</Text>
                     <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-                        Here's what happened last week between {dateRange}
+                        {t('insights.weeklyRecap.subtitleText', { dateRange })}
                     </Text>
                 </View>
 
@@ -356,17 +364,17 @@ const WeeklyRecapScreen: React.FC = () => {
                 <View style={[styles.tipCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                     <View style={styles.tipHeader}>
                         <Ionicons name="bulb" size={18} color={theme.colors.primary} />
-                        <Text style={[styles.tipTitle, { color: theme.colors.text }]}>This week's tip</Text>
+                        <Text style={[styles.tipTitle, { color: theme.colors.text }]}>{t('insights.weeklyRecap.thisWeeksTip')}</Text>
                     </View>
                     <Text style={[styles.tipMainText, { color: theme.colors.text }]}>
-                        Experiment with new content to find what works
+                        {t('insights.weeklyRecap.tipMainText')}
                     </Text>
                     <Text style={[styles.tipDescription, { color: theme.colors.textSecondary }]}>
-                        Trying new formats or adding media and tags could help your posts get more engagement.
+                        {t('insights.weeklyRecap.tipDescription')}
                     </Text>
                     <TouchableOpacity style={styles.tipLink}>
                         <Text style={[styles.tipLinkText, { color: theme.colors.primary }]}>
-                            See more tips
+                            {t('insights.weeklyRecap.seeMoreTips')}
                         </Text>
                         <Ionicons name="chevron-forward" size={14} color={theme.colors.primary} />
                     </TouchableOpacity>
