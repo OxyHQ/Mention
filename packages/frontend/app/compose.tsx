@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -34,10 +34,47 @@ import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import DraftsSheet from '@/components/Compose/DraftsSheet';
+import { useDrafts } from '@/hooks/useDrafts';
+import { VideoView, useVideoPlayer } from 'expo-video';
+import { ScrollView, Image, Dimensions } from 'react-native';
+
+// Video preview component for compose screen
+const VideoItemPreview: React.FC<{ src: string }> = ({ src }) => {
+  const player = useVideoPlayer(src, (player) => {
+    if (player) {
+      player.loop = true;
+      player.muted = true;
+    }
+  });
+
+  React.useEffect(() => {
+    if (player) {
+      player.play();
+    }
+    return () => {
+      if (player) {
+        player.pause();
+      }
+    };
+  }, [player]);
+
+  return (
+    <VideoView
+      player={player}
+      style={{ width: '100%', height: '100%' }}
+      contentFit="cover"
+      nativeControls={false}
+      allowsFullscreen={false}
+    />
+  );
+};
 
 const ComposeScreen = () => {
   const theme = useTheme();
   const bottomSheet = React.useContext(BottomSheetContext);
+  const { saveDraft, deleteDraft, loadDrafts } = useDrafts();
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [postContent, setPostContent] = useState('');
   const [mentions, setMentions] = useState<MentionData[]>([]);
   const [threadItems, setThreadItems] = useState<{
@@ -63,6 +100,46 @@ const ComposeScreen = () => {
   const { user, showBottomSheet, oxyServices } = useOxy();
   const { createPost, createThread } = usePostsStore();
   const { t } = useTranslation();
+
+  // Use refs to always get latest values in timeout callback
+  const postContentRef = useRef(postContent);
+  const mediaIdsRef = useRef(mediaIds);
+  const pollOptionsRef = useRef(pollOptions);
+  const showPollCreatorRef = useRef(showPollCreator);
+  const locationRef = useRef(location);
+  const threadItemsRef = useRef(threadItems);
+  const mentionsRef = useRef(mentions);
+  const postingModeRef = useRef(postingMode);
+  const currentDraftIdRef = useRef(currentDraftId);
+
+  // Update refs when state changes
+  useEffect(() => {
+    postContentRef.current = postContent;
+  }, [postContent]);
+  useEffect(() => {
+    mediaIdsRef.current = mediaIds;
+  }, [mediaIds]);
+  useEffect(() => {
+    pollOptionsRef.current = pollOptions;
+  }, [pollOptions]);
+  useEffect(() => {
+    showPollCreatorRef.current = showPollCreator;
+  }, [showPollCreator]);
+  useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
+  useEffect(() => {
+    threadItemsRef.current = threadItems;
+  }, [threadItems]);
+  useEffect(() => {
+    mentionsRef.current = mentions;
+  }, [mentions]);
+  useEffect(() => {
+    postingModeRef.current = postingMode;
+  }, [postingMode]);
+  useEffect(() => {
+    currentDraftIdRef.current = currentDraftId;
+  }, [currentDraftId]);
 
   // Keep this in sync with PostItem constants
   const HPAD = 16;
@@ -163,6 +240,12 @@ const ComposeScreen = () => {
         });
       }
 
+      // Clear current draft if it exists
+      if (currentDraftId) {
+        await deleteDraft(currentDraftId);
+        setCurrentDraftId(null);
+      }
+
       // Show success toast
       toast.success(t('Post published successfully'));
 
@@ -175,6 +258,169 @@ const ComposeScreen = () => {
       setIsPosting(false);
     }
   };
+
+  // Auto-save draft function - uses refs to always get latest values
+  const autoSaveDraft = useCallback(async () => {
+    // Get latest values from refs
+    const latestPostContent = postContentRef.current;
+    const latestMediaIds = mediaIdsRef.current;
+    const latestPollOptions = pollOptionsRef.current;
+    const latestShowPollCreator = showPollCreatorRef.current;
+    const latestLocation = locationRef.current;
+    const latestThreadItems = threadItemsRef.current;
+    const latestMentions = mentionsRef.current;
+    const latestPostingMode = postingModeRef.current;
+    const latestCurrentDraftId = currentDraftIdRef.current;
+
+    // Only save if there's content
+    const hasContent = latestPostContent.trim().length > 0 || 
+      latestMediaIds.length > 0 || 
+      (latestPollOptions.length > 0 && latestPollOptions.some(opt => opt.trim().length > 0)) ||
+      latestLocation ||
+      latestThreadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 || 
+        (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
+
+    if (!hasContent) {
+      // If no content and we have a draft, delete it
+      if (latestCurrentDraftId) {
+        await deleteDraft(latestCurrentDraftId);
+        setCurrentDraftId(null);
+      }
+      return;
+    }
+
+    try {
+      // Ensure showPollCreator is saved correctly - if pollOptions exist, showPollCreator should be true
+      const shouldShowPollCreator = latestShowPollCreator || (latestPollOptions.length > 0 && latestPollOptions.some(opt => opt.trim().length > 0));
+      
+      const draftId = await saveDraft({
+        id: latestCurrentDraftId || undefined,
+        postContent: latestPostContent,
+        mediaIds: latestMediaIds.map(m => ({ id: m.id, type: m.type })), // Ensure correct structure
+        pollOptions: latestPollOptions || [],
+        showPollCreator: shouldShowPollCreator,
+        location: latestLocation ? {
+          latitude: latestLocation.latitude,
+          longitude: latestLocation.longitude,
+          address: latestLocation.address || null,
+        } : null,
+        threadItems: latestThreadItems.map(item => ({
+          id: item.id,
+          text: item.text,
+          mediaIds: item.mediaIds.map(m => ({ id: m.id, type: m.type })), // Ensure correct structure
+          pollOptions: item.pollOptions || [],
+          showPollCreator: item.showPollCreator || (item.pollOptions && item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)),
+          location: item.location ? {
+            latitude: item.location.latitude,
+            longitude: item.location.longitude,
+            address: item.location.address || null,
+          } : null,
+          mentions: item.mentions.map(m => ({
+            userId: m.userId,
+            handle: m.handle,
+            name: m.name,
+          })),
+        })),
+        mentions: latestMentions.map(m => ({
+          userId: m.userId,
+          handle: m.handle,
+          name: m.name,
+        })),
+        postingMode: latestPostingMode,
+      });
+      setCurrentDraftId(draftId);
+    } catch (error) {
+      console.error('Error auto-saving draft:', error);
+    }
+  }, [saveDraft, deleteDraft]);
+
+  // Debounced auto-save - trigger when any content changes
+  useEffect(() => {
+    // Don't auto-save on initial mount
+    if (!postContent && mediaIds.length === 0 && pollOptions.length === 0 && !location && threadItems.length === 0) {
+      return;
+    }
+
+    // Clear existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    // Set new timeout for auto-save (2 seconds after last change)
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      autoSaveDraft();
+    }, 2000);
+
+    // Cleanup on unmount
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [postContent, mediaIds, pollOptions, showPollCreator, location, threadItems, mentions, postingMode, autoSaveDraft]);
+
+  // Load draft function
+  const loadDraft = useCallback((draft: any) => {
+    setPostContent(draft.postContent || '');
+    
+    // Handle mediaIds - ensure correct structure
+    const mediaIdsData = (draft.mediaIds || []).map((m: any) => ({
+      id: m.id || m,
+      type: (m.type || 'image') as 'image' | 'video',
+    })).filter((m: any) => m.id); // Filter out invalid entries
+    setMediaIds(mediaIdsData);
+    
+    // Handle poll options - ensure showPollCreator is true if pollOptions exist
+    const pollOpts = draft.pollOptions || [];
+    setPollOptions(pollOpts);
+    setShowPollCreator(draft.showPollCreator || pollOpts.length > 0);
+    
+    // Handle location - ensure it has the correct structure
+    let locationData = null;
+    if (draft.location) {
+      locationData = {
+        latitude: draft.location.latitude,
+        longitude: draft.location.longitude,
+        address: draft.location.address || null,
+      };
+    }
+    setLocation(locationData);
+    
+    // Handle thread items - ensure they have all required fields
+    const threadItemsData = (draft.threadItems || []).map((item: any) => ({
+      id: item.id || `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      text: item.text || '',
+      mediaIds: (item.mediaIds || []).map((m: any) => ({
+        id: m.id || m,
+        type: (m.type || 'image') as 'image' | 'video',
+      })).filter((m: any) => m.id),
+      pollOptions: item.pollOptions || [],
+      showPollCreator: item.showPollCreator || (item.pollOptions && item.pollOptions.length > 0),
+      location: item.location ? {
+        latitude: item.location.latitude,
+        longitude: item.location.longitude,
+        address: item.location.address || null,
+      } : null,
+      mentions: item.mentions || [],
+    }));
+    setThreadItems(threadItemsData);
+    
+    // Handle mentions - ensure correct structure
+    const mentionsData = (draft.mentions || []).map((m: any) => ({
+      userId: m.userId || m.id || m,
+      handle: m.handle || m.username || '',
+      name: m.name || '',
+    })).filter((m: any) => m.userId);
+    setMentions(mentionsData);
+    
+    setPostingMode(draft.postingMode || 'thread');
+    setCurrentDraftId(draft.id);
+    
+    // Close bottom sheet
+    bottomSheet.openBottomSheet(false);
+    
+    toast.success(t('compose.draftLoaded'));
+  }, [bottomSheet, t]);
 
   // back navigation
 
@@ -226,6 +472,20 @@ const ComposeScreen = () => {
         }
       }
     });
+  };
+
+  const removeMedia = (mediaId: string) => {
+    setMediaIds(prev => prev.filter(m => m.id !== mediaId));
+    toast.success(t('Media removed'));
+  };
+
+  const removeThreadMedia = (threadId: string, mediaId: string) => {
+    setThreadItems(prev => prev.map(item =>
+      item.id === threadId
+        ? { ...item, mediaIds: item.mediaIds.filter(m => m.id !== mediaId) }
+        : item
+    ));
+    toast.success(t('Media removed'));
   };
 
   const openPollCreator = () => {
@@ -484,6 +744,8 @@ const ComposeScreen = () => {
                   bottomSheet.setBottomSheetContent(
                     <DraftsSheet
                       onClose={() => bottomSheet.openBottomSheet(false)}
+                      onLoadDraft={loadDraft}
+                      currentDraftId={currentDraftId}
                     />
                   );
                   bottomSheet.openBottomSheet(true);
@@ -595,10 +857,65 @@ const ComposeScreen = () => {
                   />
                 </PostHeader>
 
-                <PostMiddle
-                  media={mediaIds.map(m => ({ id: m.id, type: m.type }))}
-                  leftOffset={BOTTOM_LEFT_PAD}
-                />
+                {/* Custom Media Display with Delete Buttons */}
+                {mediaIds.length > 0 && (
+                  <View style={{ marginLeft: BOTTOM_LEFT_PAD, marginTop: 12, zIndex: 1, backgroundColor: theme.colors.background }}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: 12, paddingRight: 12 }}
+                      style={{ zIndex: 1 }}
+                    >
+                      {mediaIds.map((mediaItem) => {
+                        const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
+                        const CARD_WIDTH = 280;
+                        const CARD_HEIGHT = 180;
+                        
+                        return (
+                          <View
+                            key={mediaItem.id}
+                            style={[
+                              {
+                                width: CARD_WIDTH,
+                                height: CARD_HEIGHT,
+                                borderRadius: 15,
+                                borderWidth: 1,
+                                borderColor: theme.colors.border,
+                                backgroundColor: theme.colors.backgroundSecondary,
+                                overflow: 'hidden',
+                                position: 'relative',
+                              },
+                            ]}
+                          >
+                            {mediaItem.type === 'video' ? (
+                              <VideoItemPreview src={mediaUrl} />
+                            ) : (
+                              <Image
+                                source={{ uri: mediaUrl }}
+                                style={{ width: '100%', height: '100%' }}
+                                resizeMode="cover"
+                              />
+                            )}
+                            <View
+                              style={{
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                              }}
+                            >
+                              <HeaderIconButton
+                                onPress={() => removeMedia(mediaItem.id)}
+                                style={{ padding: 6 }}
+                              >
+                                <Ionicons name="close" size={16} color={theme.colors.text} />
+                              </HeaderIconButton>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
 
                 {/* Poll Creator */}
                 {showPollCreator && (
@@ -692,12 +1009,63 @@ const ComposeScreen = () => {
                     </View>
                   </View>
 
-                  {/* Thread item media */}
+                  {/* Thread item media with Delete Buttons */}
                   {item.mediaIds.length > 0 && (
-                    <PostMiddle
-                      media={item.mediaIds.map(m => ({ id: m.id, type: m.type }))}
-                      leftOffset={BOTTOM_LEFT_PAD}
-                    />
+                    <View style={{ marginLeft: BOTTOM_LEFT_PAD, marginTop: 12 }}>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ gap: 12, paddingRight: 12 }}
+                      >
+                        {item.mediaIds.map((mediaItem) => {
+                          const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
+                          const CARD_WIDTH = 280;
+                          const CARD_HEIGHT = 180;
+                          
+                          return (
+                            <View
+                              key={mediaItem.id}
+                              style={[
+                                {
+                                  width: CARD_WIDTH,
+                                  height: CARD_HEIGHT,
+                                  borderRadius: 15,
+                                  borderWidth: 1,
+                                  borderColor: theme.colors.border,
+                                  backgroundColor: theme.colors.backgroundSecondary,
+                                  overflow: 'hidden',
+                                  position: 'relative',
+                                },
+                              ]}
+                            >
+                              {mediaItem.type === 'video' ? (
+                                <VideoItemPreview src={mediaUrl} />
+                              ) : (
+                                <Image
+                                  source={{ uri: mediaUrl }}
+                                  style={{ width: '100%', height: '100%' }}
+                                  resizeMode="cover"
+                                />
+                              )}
+                              <View
+                                style={{
+                                  position: 'absolute',
+                                  top: 8,
+                                  right: 8,
+                                }}
+                              >
+                                <HeaderIconButton
+                                  onPress={() => removeThreadMedia(item.id, mediaItem.id)}
+                                  style={{ padding: 6 }}
+                                >
+                                  <Ionicons name="close" size={16} color={theme.colors.text} />
+                                </HeaderIconButton>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
                   )}
 
                   {/* Thread item poll creator */}
