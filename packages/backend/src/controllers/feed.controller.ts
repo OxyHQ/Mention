@@ -997,7 +997,6 @@ class FeedController {
           try {
             new mongoose.Types.ObjectId(cursor);
             cursorId = cursor;
-            match._id = { $lt: new mongoose.Types.ObjectId(cursorId) };
           } catch {
             // Invalid cursor, ignore
           }
@@ -1008,20 +1007,30 @@ class FeedController {
       // Use a larger pool for better ranking quality
       const candidateLimit = Number(limit) * 4;
       
-      if (cursorId) {
-        match._id = { $lt: new mongoose.Types.ObjectId(cursorId) };
-      }
-
-      // Exclude previously seen posts to prevent duplicates
-      if (seenPostIds.length > 0) {
-        const seenObjectIds = seenPostIds
-          .filter(id => mongoose.Types.ObjectId.isValid(id))
-          .map(id => new mongoose.Types.ObjectId(id));
+      // Build _id filter combining cursor position and exclusions
+      if (cursorId || seenPostIds.length > 0) {
+        const idConditions: any[] = [];
         
-        if (seenObjectIds.length > 0) {
-          match._id = match._id 
-            ? { ...match._id, $nin: seenObjectIds }
-            : { $nin: seenObjectIds };
+        // Add cursor position filter
+        if (cursorId) {
+          idConditions.push({ _id: { $lt: new mongoose.Types.ObjectId(cursorId) } });
+        }
+        
+        // Add exclusion filter for seen posts
+        if (seenPostIds.length > 0) {
+          const seenObjectIds = seenPostIds
+            .filter(id => mongoose.Types.ObjectId.isValid(id))
+            .map(id => new mongoose.Types.ObjectId(id));
+          
+          if (seenObjectIds.length > 0) {
+            idConditions.push({ _id: { $nin: seenObjectIds } });
+          }
+        }
+        
+        // Combine conditions using $and if we have both
+        if (idConditions.length > 0) {
+          match.$and = match.$and || [];
+          match.$and.push(...idConditions);
         }
       }
 
