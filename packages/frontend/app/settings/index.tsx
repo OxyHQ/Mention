@@ -153,8 +153,6 @@ export default function SettingsScreen() {
         }
     }, [forwardWheelEvent]);
     const [darkMode, setDarkMode] = useState(false);
-    const [autoSync, setAutoSync] = useState(true);
-    const [offlineMode, setOfflineMode] = useState(false);
 
     const handleSignOut = async () => {
         const confirmed = await confirmDialog({
@@ -250,146 +248,161 @@ export default function SettingsScreen() {
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("settings.sections.account")}</Text>
 
-                    <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => showBottomSheet?.("AccountSettings")}
-                    >
-                        <View style={[styles.userIcon, { backgroundColor: theme.colors.primary }]}>
-                            <IconComponent name="person" size={24} color={theme.colors.card} />
-                        </View>
-                        <View style={styles.settingInfo}>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                                    {user
-                                        ? typeof user.name === 'string'
-                                            ? user.name
-                                            : user.name?.full || user.name?.first || user.username
-                                        : 'User'}
-                                </Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>
+                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.firstSettingItem]}
+                            onPress={() => showBottomSheet?.("AccountSettings")}
+                        >
+                            <View style={[styles.userIcon, { backgroundColor: theme.colors.primary }]}>
+                                <IconComponent name="person" size={24} color={theme.colors.card} />
                             </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => showBottomSheet?.("FileManagement")}
-                    >
-                        <View style={[styles.userIcon, { backgroundColor: theme.colors.primary }]}>
-                            <IconComponent name="person" size={24} color={theme.colors.card} />
-                        </View>
-                        <View style={styles.settingInfo}>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                                    {user
-                                        ? typeof user.name === 'string'
-                                            ? user.name
-                                            : user.name?.full || user.name?.first || user.username
-                                        : 'User'}
-                                </Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>
+                            <View style={styles.settingInfo}>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {user
+                                            ? typeof user.name === 'string'
+                                                ? user.name
+                                                : user.name?.full || user.name?.first || user.username
+                                            : 'User'}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>
+                                </View>
                             </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.lastSettingItem]}
+                            onPress={() => showBottomSheet?.("FileManagement")}
+                        >
+                            <View style={[styles.userIcon, { backgroundColor: theme.colors.primary }]}>
+                                <IconComponent name="person" size={24} color={theme.colors.card} />
+                            </View>
+                            <View style={styles.settingInfo}>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {user
+                                            ? typeof user.name === 'string'
+                                                ? user.name
+                                                : user.name?.full || user.name?.first || user.username
+                                            : 'User'}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* About Mention */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.aboutMention')}</Text>
 
-                    {/* App Title and Version */}
-                    <View style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <LogoIcon size={20} color={theme.colors.primary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.appName')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.aboutMention.version', {
-                                        version: Constants.expoConfig?.version || '1.0.0',
-                                    })}
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Build Info */}
-                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="hammer" size={20} color={theme.colors.textSecondary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.build')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {typeof Constants.expoConfig?.runtimeVersion === 'string'
-                                        ? Constants.expoConfig.runtimeVersion
-                                        : t('settings.aboutMention.buildVersion')}
-                                </Text>
+                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        {/* App Title and Version */}
+                        <View style={[styles.settingItem, styles.firstSettingItem]}>
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <LogoIcon size={20} color={theme.colors.primary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.appName')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.aboutMention.version', {
+                                            version: Constants.expoConfig?.version || '1.0.0',
+                                        })}
+                                    </Text>
+                                </View>
                             </View>
                         </View>
-                    </View>
 
-                    {/* Platform Info */}
-                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent
-                                    name="phone-portrait"
-                                    size={20}
-                                    color={theme.colors.textSecondary}
-                                />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.platform')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {Constants.platform?.ios
-                                        ? 'iOS'
-                                        : Constants.platform?.android
-                                            ? 'Android'
-                                            : 'Web'}
-                                </Text>
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        {/* Build Info */}
+                        <View style={styles.settingItem}>
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="hammer" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.build')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {typeof Constants.expoConfig?.runtimeVersion === 'string'
+                                            ? Constants.expoConfig.runtimeVersion
+                                            : t('settings.aboutMention.buildVersion')}
+                                    </Text>
+                                </View>
                             </View>
                         </View>
-                    </View>
 
-                    {/* Oxy SDK */}
-                    <TouchableOpacity style={[styles.settingItem, { backgroundColor: theme.colors.card }]} onPress={() => showBottomSheet?.('AppInfo')}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.oxySDK')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{oxySdkVersion}</Text>
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        {/* Platform Info */}
+                        <View style={styles.settingItem}>
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent
+                                        name="phone-portrait"
+                                        size={20}
+                                        color={theme.colors.textSecondary}
+                                    />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.platform')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {Constants.platform?.ios
+                                            ? 'iOS'
+                                            : Constants.platform?.android
+                                                ? 'Android'
+                                                : 'Web'}
+                                    </Text>
+                                </View>
                             </View>
                         </View>
-                    </TouchableOpacity>
 
-                    {/* Expo SDK */}
-                    <View style={[styles.settingItem]}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} />
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        {/* Oxy SDK */}
+                        <TouchableOpacity style={styles.settingItem} onPress={() => showBottomSheet?.('AppInfo')}>
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.oxySDK')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{oxySdkVersion}</Text>
+                                </View>
                             </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.expoSDK')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{expoSdkVersion}</Text>
+                        </TouchableOpacity>
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        {/* Expo SDK */}
+                        <View style={styles.settingItem}>
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="code-slash" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.expoSDK')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{expoSdkVersion}</Text>
+                                </View>
                             </View>
                         </View>
-                    </View>
 
-                    {/* API URL (from env/config) */}
-                    <View style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="globe" size={20} color={theme.colors.textSecondary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.apiUrl')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{apiUrl}</Text>
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        {/* API URL (from env/config) */}
+                        <View style={[styles.settingItem, styles.lastSettingItem]}>
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="globe" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.aboutMention.apiUrl')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{apiUrl}</Text>
+                                </View>
                             </View>
                         </View>
                     </View>
@@ -399,325 +412,267 @@ export default function SettingsScreen() {
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.supportFeedback')}</Text>
 
-                    <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => {
-                            Alert.alert(
-                                t('settings.supportFeedback.helpSupport'),
-                                t('settings.supportFeedback.helpSupportMessage'),
-                                [{ text: t('common.ok') }],
-                            );
-                        }}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="help-circle" size={20} color={theme.colors.textSecondary} />
+                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.firstSettingItem]}
+                            onPress={() => {
+                                Alert.alert(
+                                    t('settings.supportFeedback.helpSupport'),
+                                    t('settings.supportFeedback.helpSupportMessage'),
+                                    [{ text: t('common.ok') }],
+                                );
+                            }}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="help-circle" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.helpSupport')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.supportFeedback.helpSupportDesc')}
+                                    </Text>
+                                </View>
                             </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.helpSupport')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.supportFeedback.helpSupportDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.settingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => {
-                            Alert.alert(
-                                t('settings.supportFeedback.sendFeedback'),
-                                t('settings.supportFeedback.sendFeedbackMessage'),
-                                [
-                                    { text: t('common.cancel'), style: 'cancel' },
-                                    {
-                                        text: t('common.sendFeedback'),
-                                        onPress: () => {
-                                            Alert.alert(
-                                                t('common.success'),
-                                                t('settings.supportFeedback.sendFeedbackThankYou'),
-                                            );
-                                        },
-                                    },
-                                ],
-                            );
-                        }}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="chatbubble" size={20} color={theme.colors.textSecondary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                                    {t('settings.supportFeedback.sendFeedback')}
-                                </Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.supportFeedback.sendFeedbackDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
-                    <TouchableOpacity
-                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => {
-                            Alert.alert(
-                                t('settings.supportFeedback.rateApp'),
-                                t('settings.supportFeedback.rateAppMessage'),
-                                [
-                                    { text: t('common.maybeLater'), style: 'cancel' },
-                                    {
-                                        text: t('common.rateNow'),
-                                        onPress: () => {
-                                            Alert.alert(
-                                                t('common.success'),
-                                                t('settings.supportFeedback.rateAppThankYou'),
-                                            );
+                        <TouchableOpacity
+                            style={styles.settingItem}
+                            onPress={() => {
+                                Alert.alert(
+                                    t('settings.supportFeedback.sendFeedback'),
+                                    t('settings.supportFeedback.sendFeedbackMessage'),
+                                    [
+                                        { text: t('common.cancel'), style: 'cancel' },
+                                        {
+                                            text: t('common.sendFeedback'),
+                                            onPress: () => {
+                                                Alert.alert(
+                                                    t('common.success'),
+                                                    t('settings.supportFeedback.sendFeedbackThankYou'),
+                                                );
+                                            },
                                         },
-                                    },
-                                ],
-                            );
-                        }}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="star" size={20} color={theme.colors.textSecondary} />
+                                    ],
+                                );
+                            }}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="chatbubble" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {t('settings.supportFeedback.sendFeedback')}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.supportFeedback.sendFeedbackDesc')}
+                                    </Text>
+                                </View>
                             </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.rateApp')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.supportFeedback.rateAppDesc')}
-                                </Text>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.lastSettingItem]}
+                            onPress={() => {
+                                Alert.alert(
+                                    t('settings.supportFeedback.rateApp'),
+                                    t('settings.supportFeedback.rateAppMessage'),
+                                    [
+                                        { text: t('common.maybeLater'), style: 'cancel' },
+                                        {
+                                            text: t('common.rateNow'),
+                                            onPress: () => {
+                                                Alert.alert(
+                                                    t('common.success'),
+                                                    t('settings.supportFeedback.rateAppThankYou'),
+                                                );
+                                            },
+                                        },
+                                    ],
+                                );
+                            }}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="star" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.supportFeedback.rateApp')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.supportFeedback.rateAppDesc')}
+                                    </Text>
+                                </View>
                             </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Privacy */}
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.privacy')}</Text>
+
+                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem]}
+                            onPress={() => router.push('/settings/privacy')}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="lock-closed" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {t('settings.privacy.title')}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.privacy.description')}
+                                    </Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* App Preferences */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.preferences')}</Text>
 
-                    {/* Language Selection */}
-                    <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => router.push('/settings/language')}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="language" size={20} color={theme.colors.textSecondary} />
+                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        {/* Language Selection */}
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.firstSettingItem]}
+                            onPress={() => router.push('/settings/language')}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="language" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('Language')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('Select your preferred language')}</Text>
+                                </View>
                             </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('Language')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('Select your preferred language')}</Text>
-                            </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
 
-                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent
-                                    name="notifications"
-                                    size={20}
-                                    color={theme.colors.textSecondary}
-                                />
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        <View style={styles.settingItem}>
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent
+                                        name="notifications"
+                                        size={20}
+                                        color={theme.colors.textSecondary}
+                                    />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.notifications')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.preferences.notificationsDesc')}
+                                    </Text>
+                                </View>
                             </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.notifications')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.preferences.notificationsDesc')}
-                                </Text>
-                            </View>
+                            <Toggle
+                                value={notifications}
+                                onValueChange={onToggleNotifications}
+                            />
                         </View>
-                        <Toggle
-                            value={notifications}
-                            onValueChange={onToggleNotifications}
-                        />
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        <View style={[styles.settingItem, styles.lastSettingItem]}>
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="moon" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.darkMode')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.preferences.darkModeDesc')}
+                                    </Text>
+                                </View>
+                            </View>
+                            <Toggle
+                                value={darkMode}
+                                onValueChange={setDarkMode}
+                            />
+                        </View>
                     </View>
-
-                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="moon" size={20} color={theme.colors.textSecondary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.darkMode')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.preferences.darkModeDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <Toggle
-                            value={darkMode}
-                            onValueChange={setDarkMode}
-                        />
-                    </View>
-
-                    <View style={[styles.settingItem, { backgroundColor: theme.colors.card }]}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="sync" size={20} color={theme.colors.textSecondary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.autoSync')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.preferences.autoSyncDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <Toggle
-                            value={autoSync}
-                            onValueChange={setAutoSync}
-                        />
-                    </View>
-
-                    <View style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}>
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent
-                                    name="cloud-offline"
-                                    size={20}
-                                    color={theme.colors.textSecondary}
-                                />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.offlineMode')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.preferences.offlineModeDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <Toggle
-                            value={offlineMode}
-                            onValueChange={setOfflineMode}
-                        />
-                    </View>
-                </View>
-
-                {/* Quick Actions */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.quickActions')}</Text>
-
-                    <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => router.push('/compose')}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="create" size={20} color={theme.colors.textSecondary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.quickActions.createPost')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.quickActions.createPostDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.settingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => router.push('/search')}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="search" size={20} color={theme.colors.textSecondary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                                    {t('settings.quickActions.search')}
-                                </Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.quickActions.searchDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={() => router.push('/explore')}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="compass" size={20} color={theme.colors.textSecondary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                                    {t('settings.quickActions.explore')}
-                                </Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t('settings.quickActions.exploreDesc')}
-                                </Text>
-                            </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
                 </View>
 
                 {/* Data Management */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.data')}</Text>
 
-                    <TouchableOpacity
-                        style={[styles.settingItem, styles.firstSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={handleExportData}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="download" size={20} color={theme.colors.textSecondary} />
+                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.firstSettingItem]}
+                            onPress={handleExportData}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="download" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.data.exportData')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('settings.data.exportDataDesc')}</Text>
+                                </View>
                             </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.data.exportData')}</Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('settings.data.exportDataDesc')}</Text>
-                            </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.settingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={handleClearCache}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="trash" size={20} color={theme.colors.error} />
-                            </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
-                                    {t("settings.data.clearCache")}
-                                </Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t("settings.data.clearCacheDesc")}</Text>
-                            </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
-                    <TouchableOpacity
-                        style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.colors.card }]}
-                        onPress={handleResetPersonalization}
-                    >
-                        <View style={styles.settingInfo}>
-                            <View style={styles.settingIcon}>
-                                <IconComponent name="refresh" size={20} color={theme.colors.error} />
+                        <TouchableOpacity
+                            style={styles.settingItem}
+                            onPress={handleClearCache}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="trash" size={20} color={theme.colors.error} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                        {t("settings.data.clearCache")}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t("settings.data.clearCacheDesc")}</Text>
+                                </View>
                             </View>
-                            <View>
-                                <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
-                                    {t("settings.data.resetPersonalization")}
-                                </Text>
-                                <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                                    {t("settings.data.resetPersonalizationDesc")}
-                                </Text>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.lastSettingItem]}
+                            onPress={handleResetPersonalization}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="refresh" size={20} color={theme.colors.error} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                        {t("settings.data.resetPersonalization")}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t("settings.data.resetPersonalizationDesc")}
+                                    </Text>
+                                </View>
                             </View>
-                        </View>
-                        <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
-                    </TouchableOpacity>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Sign Out */}
@@ -728,6 +683,7 @@ export default function SettingsScreen() {
                             styles.firstSettingItem,
                             styles.lastSettingItem,
                             styles.signOutButton,
+                            styles.settingsCard,
                             { backgroundColor: theme.colors.card, borderColor: theme.colors.error },
                         ]}
                         onPress={handleSignOut}
@@ -758,9 +714,9 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     content: {
-        paddingHorizontal: 20,
-        paddingTop: 16,
-        paddingBottom: 16,
+        paddingHorizontal: 16,
+        paddingTop: 20,
+        paddingBottom: 24,
     },
     userIcon: {
         width: 40,
@@ -775,30 +731,36 @@ const styles = StyleSheet.create({
         marginBottom: 32,
     },
     sectionTitle: {
-        fontSize: 16,
+        fontSize: 13,
         fontWeight: "600",
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
         // color will be applied inline with theme
         marginBottom: 12,
-        paddingHorizontal: 0,
+        paddingHorizontal: 4,
+    },
+    settingsCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        overflow: 'hidden',
     },
     settingItem: {
         // backgroundColor will be applied inline with theme
         paddingHorizontal: 16,
-        paddingVertical: 14,
+        paddingVertical: 16,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        marginBottom: 2,
     },
     firstSettingItem: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        marginBottom: 2,
+        paddingTop: 18,
     },
     lastSettingItem: {
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
-        marginBottom: 8,
+        paddingBottom: 18,
+    },
+    divider: {
+        height: 1,
+        marginHorizontal: 16,
     },
     settingInfo: {
         flexDirection: "row",

@@ -28,6 +28,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { feedService } from '../../services/feedService';
 import { confirmDialog } from '@/utils/alerts';
 import { useTheme } from '@/hooks/useTheme';
+import { useCurrentUserPrivacySettings } from '@/hooks/usePrivacySettings';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -70,9 +71,17 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPost = storePost ?? post;
     const viewPostId = (viewPost as any)?.id as string | undefined;
     const viewPostHandle = (viewPost as any)?.user?.handle as string | undefined;
+    const postOwnerId = (viewPost as any)?.user?.id || (viewPost as any)?.user?._id;
     
     // Check if current user is the post owner (for showing insights button)
-    const isOwner = !!(user && ((user as any).id === (viewPost as any)?.user?.id || (user as any)._id === (viewPost as any)?.user?.id));
+    const isOwner = !!(user && ((user as any).id === postOwnerId || (user as any)._id === postOwnerId));
+    
+    // Get current user's privacy settings - this controls what THEY see, not what others see
+    const currentUserPrivacySettings = useCurrentUserPrivacySettings();
+    const hideLikeCounts = currentUserPrivacySettings?.hideLikeCounts || false;
+    const hideShareCounts = currentUserPrivacySettings?.hideShareCounts || false;
+    const hideReplyCounts = currentUserPrivacySettings?.hideReplyCounts || false;
+    const hideSaveCounts = currentUserPrivacySettings?.hideSaveCounts || false;
 
     // Safely extract boolean states with proper fallbacks and type coercion
     // Ensure we properly handle undefined, null, and falsy values
@@ -609,6 +618,10 @@ const PostItem: React.FC<PostItemProps> = ({
                         onSave={handleSave}
                         onShare={handleShare}
                         postId={viewPostId}
+                        hideLikeCounts={hideLikeCounts}
+                        hideShareCounts={hideShareCounts}
+                        hideReplyCounts={hideReplyCounts}
+                        hideSaveCounts={hideSaveCounts}
                         onLikesPress={() => {
                             bottomSheet.setBottomSheetContent(
                                 <EngagementListSheet

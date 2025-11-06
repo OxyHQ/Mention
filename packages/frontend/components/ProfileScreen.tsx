@@ -1,6 +1,6 @@
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 // BlurView removed — not used after switching to image overlay approach
 import {
@@ -109,6 +109,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const loadForUser = useAppearanceStore((state) => state.loadForUser);
     const [profileData, setProfileData] = useState<ProfileData | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
+    const [privacySettings, setPrivacySettings] = useState<{ profileVisibility?: 'public' | 'private' | 'followers_only' } | null>(null);
     const {
         scrollY,
         createAnimatedScrollHandler,
@@ -226,12 +227,54 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 const data = await usersState.ensureByUsername(username, (u) => oxyServices.getProfileByUsername(u));
                 if (data) {
                     setProfileData(data as any);
+                    // Load privacy settings for this user
+                    try {
+                        const { authenticatedClient } = await import('@/utils/api');
+                        // Use the profile's ID (which should be the oxyUserId)
+                        const userId = data.id || (data as any)?.oxyUserId;
+                        if (userId) {
+                            const settingsResponse = await authenticatedClient.get(`/profile/settings/${userId}`);
+                            if (settingsResponse.data?.privacy) {
+                                setPrivacySettings(settingsResponse.data.privacy);
+                            } else {
+                                setPrivacySettings({ profileVisibility: 'public' });
+                            }
+                        }
+                    } catch (settingsError: any) {
+                        // If 404, user might not have settings yet - set default
+                        if (settingsError?.response?.status === 404) {
+                            setPrivacySettings({ profileVisibility: 'public' });
+                        } else {
+                            console.debug('Could not load privacy settings:', settingsError);
+                        }
+                    }
                 } else {
                     // Fallback direct call
                     const fresh = await oxyServices.getProfileByUsername(username);
                     if (fresh) {
                         setProfileData(fresh);
                         try { usersState.upsertUser(fresh as any); } catch { }
+                        // Load privacy settings for this user
+                        try {
+                            const { authenticatedClient } = await import('@/utils/api');
+                            // Use the profile's ID (which should be the oxyUserId)
+                            const userId = fresh.id || (fresh as any)?.oxyUserId;
+                            if (userId) {
+                                const settingsResponse = await authenticatedClient.get(`/profile/settings/${userId}`);
+                                if (settingsResponse.data?.privacy) {
+                                    setPrivacySettings(settingsResponse.data.privacy);
+                                } else {
+                                    setPrivacySettings({ profileVisibility: 'public' });
+                                }
+                            }
+                        } catch (settingsError: any) {
+                            // If 404, user might not have settings yet - set default
+                            if (settingsError?.response?.status === 404) {
+                                setPrivacySettings({ profileVisibility: 'public' });
+                            } else {
+                                console.debug('Could not load privacy settings:', settingsError);
+                            }
+                        }
                     }
                 }
             } catch (error) {
@@ -242,6 +285,41 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         };
         fetchProfileData();
     }, [username, oxyServices]);
+
+    // Refresh privacy settings when screen comes into focus (e.g., after changing settings)
+    useFocusEffect(
+        React.useCallback(() => {
+            const refreshPrivacySettings = async () => {
+                if (!profileData?.id) return;
+                try {
+                    const { authenticatedClient } = await import('@/utils/api');
+                    // Use the profile's ID (which should be the oxyUserId)
+                    const userId = profileData.id || (profileData as any)?.oxyUserId;
+                    if (!userId) return;
+                    
+                    const settingsResponse = await authenticatedClient.get(`/profile/settings/${userId}`);
+                    if (settingsResponse.data?.privacy) {
+                        setPrivacySettings(settingsResponse.data.privacy);
+                    } else {
+                        // If no privacy settings exist, set default
+                        setPrivacySettings({ profileVisibility: 'public' });
+                    }
+                } catch (settingsError: any) {
+                    // If 404, user might not have settings yet - that's okay
+                    if (settingsError?.response?.status === 404) {
+                        setPrivacySettings({ profileVisibility: 'public' });
+                    } else {
+                        console.debug('Could not refresh privacy settings:', settingsError);
+                    }
+                }
+            };
+            
+            // Always refresh when screen comes into focus, especially for own profile
+            if (profileData?.id) {
+                refreshPrivacySettings();
+            }
+        }, [profileData?.id])
+    );
 
     const {
         followerCount,
@@ -645,12 +723,25 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         variant="default"
                                         style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
                                     />
-                                    {profileData?.privacySettings?.isPrivateAccount && (
-                                        <View style={styles.privateIndicator}>
-                                            <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
-                                            <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>Private</Text>
-                                        </View>
-                                    )}
+                                    {(() => {
+                                        // Check both old structure (privacySettings.isPrivateAccount) and new structure (privacySettings.profileVisibility)
+                                        const isPrivate = profileData?.privacySettings?.isPrivateAccount || 
+                                                         privacySettings?.profileVisibility === 'private' ||
+                                                         privacySettings?.profileVisibility === 'followers_only';
+                                        if (isPrivate) {
+                                            return (
+                                                <View style={styles.privateIndicator}>
+                                                    <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
+                                                    <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>
+                                                        {privacySettings?.profileVisibility === 'followers_only' 
+                                                            ? tProfile('settings.privacy.followersOnly') 
+                                                            : tProfile('settings.privacy.private')}
+                                                    </Text>
+                                                </View>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </View>
                                 {profileData?.bio && (
                                     <Text style={[styles.profileBio, { color: theme.colors.text }]}>
@@ -683,7 +774,12 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     </View>
                                 </View>
 
-                                {(!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
+                                {(() => {
+                                    const isPrivate = profileData?.privacySettings?.isPrivateAccount || 
+                                                     privacySettings?.profileVisibility === 'private' ||
+                                                     privacySettings?.profileVisibility === 'followers_only';
+                                    return (!isPrivate || currentUser?.username === username);
+                                })() && (
                                     <View style={styles.followStats}>
                                         <TouchableOpacity
                                             style={styles.statItem}

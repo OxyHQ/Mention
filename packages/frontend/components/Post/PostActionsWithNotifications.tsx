@@ -20,6 +20,10 @@ interface Props {
     onLike: () => void;
     onSave: () => void;
     onShare: () => void;
+    hideLikeCounts?: boolean;
+    hideShareCounts?: boolean;
+    hideReplyCounts?: boolean;
+    hideSaveCounts?: boolean;
 }
 
 const PostActionsWithNotifications: React.FC<Props> = ({
@@ -34,6 +38,10 @@ const PostActionsWithNotifications: React.FC<Props> = ({
     onLike,
     onSave,
     onShare,
+    hideLikeCounts,
+    hideShareCounts,
+    hideReplyCounts,
+    hideSaveCounts,
 }) => {
     const { notifyLike, notifyRepost } = useNotificationActions();
 
@@ -85,6 +93,10 @@ const PostActionsWithNotifications: React.FC<Props> = ({
             onLike={handleLike}
             onSave={onSave}
             onShare={onShare}
+            hideLikeCounts={hideLikeCounts}
+            hideShareCounts={hideShareCounts}
+            hideReplyCounts={hideReplyCounts}
+            hideSaveCounts={hideSaveCounts}
         />
     );
 };

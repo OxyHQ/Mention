@@ -31,6 +31,10 @@ interface Props {
   onInsightsPress?: () => void;
   postId?: string;
   showInsights?: boolean;
+  hideLikeCounts?: boolean;
+  hideShareCounts?: boolean;
+  hideReplyCounts?: boolean;
+  hideSaveCounts?: boolean;
 }
 
 const PostActions: React.FC<Props> = ({
@@ -48,6 +52,10 @@ const PostActions: React.FC<Props> = ({
   onInsightsPress,
   postId,
   showInsights = false,
+  hideLikeCounts = false,
+  hideShareCounts = false,
+  hideReplyCounts = false,
+  hideSaveCounts = false,
 }) => {
   const theme = useTheme();
 
@@ -78,21 +86,25 @@ const PostActions: React.FC<Props> = ({
             <HeartIcon size={18} color={theme.colors.textSecondary} />
           )}
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleLikesPress} style={styles.countButton}>
-          <AnimatedNumber
-            value={engagement?.likes ?? 0}
-            style={[styles.engagementText, { color: theme.colors.textSecondary }, isLiked && { color: theme.colors.error }]}
-          />
-        </TouchableOpacity>
+        {!hideLikeCounts && (
+          <TouchableOpacity onPress={handleLikesPress} style={styles.countButton}>
+            <AnimatedNumber
+              value={engagement?.likes ?? 0}
+              style={[styles.engagementText, { color: theme.colors.textSecondary }, isLiked && { color: theme.colors.error }]}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Reply (comment) */}
       <TouchableOpacity style={styles.engagementButton} onPress={onReply}>
         <CommentIcon size={18} color={theme.colors.textSecondary} />
-        <AnimatedNumber
-          value={engagement?.replies ?? 0}
-          style={[styles.engagementText, { color: theme.colors.textSecondary }]}
-        />
+        {!hideReplyCounts && (
+          <AnimatedNumber
+            value={engagement?.replies ?? 0}
+            style={[styles.engagementText, { color: theme.colors.textSecondary }]}
+          />
+        )}
       </TouchableOpacity>
 
       {/* Repost */}
@@ -104,12 +116,14 @@ const PostActions: React.FC<Props> = ({
             <RepostIcon size={18} color={theme.colors.textSecondary} />
           )}
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleRepostsPress} style={styles.countButton}>
-          <AnimatedNumber
-            value={engagement?.reposts ?? 0}
-            style={[styles.engagementText, { color: theme.colors.textSecondary }, isReposted && { color: theme.colors.success }]}
-          />
-        </TouchableOpacity>
+        {!hideShareCounts && (
+          <TouchableOpacity onPress={handleRepostsPress} style={styles.countButton}>
+            <AnimatedNumber
+              value={engagement?.reposts ?? 0}
+              style={[styles.engagementText, { color: theme.colors.textSecondary }, isReposted && { color: theme.colors.success }]}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Share */}
@@ -118,13 +132,15 @@ const PostActions: React.FC<Props> = ({
       </TouchableOpacity>
 
       {/* Save */}
-      <TouchableOpacity style={styles.engagementButton} onPress={onSave}>
-        {isSaved ? (
-          <BookmarkActive size={18} color={theme.colors.primary} />
-        ) : (
-          <Bookmark size={18} color={theme.colors.textSecondary} />
-        )}
-      </TouchableOpacity>
+      {!hideSaveCounts && (
+        <TouchableOpacity style={styles.engagementButton} onPress={onSave}>
+          {isSaved ? (
+            <BookmarkActive size={18} color={theme.colors.primary} />
+          ) : (
+            <Bookmark size={18} color={theme.colors.textSecondary} />
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* Insights (only for post owners) */}
       {showInsights && onInsightsPress && (
