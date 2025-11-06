@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   TextInput,
   Image,
-  Dimensions,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
@@ -18,7 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useOxy } from '@oxyhq/services';
 import { toast } from 'sonner';
-import { KLIPY_APP_KEY } from '@/config';
+import { Platform } from 'react-native';
+import { api } from '@/utils/api';
 
 interface GifPickerSheetProps {
   onClose: () => void;
@@ -35,7 +35,6 @@ interface GifItem {
   height: number;
 }
 
-const KLIPY_BASE_URL = 'https://api.klipy.com';
 
 const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif }) => {
   const theme = useTheme();
@@ -47,48 +46,22 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
   const [selectedGif, setSelectedGif] = useState<string | number | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const screenWidth = Dimensions.get('window').width;
-  // Calculate size for 3 columns with no spacing, accounting for borders
-  // Each item has 1px border on all sides, but adjacent items share borders
-  // For 3 columns: left edge (1px) + 2 gaps between items (2px) + right edge (1px) = 4px total
-  const borderWidth = 1;
   const numColumns = 3;
-  const totalBorderWidth = borderWidth * (numColumns + 1); // numColumns + 1 gaps (including edges)
-  const gifSize = Math.floor((screenWidth - totalBorderWidth) / numColumns);
-
-  // Generate a stable customer_id from user ID or use a fallback
-  const customerId = user?.id || 'anonymous';
 
   const fetchGifs = useCallback(async (query: string = '') => {
-    if (!KLIPY_APP_KEY) {
-      toast.error(t('KLIPY app key not configured'));
-      return;
-    }
-
     try {
       setLoading(true);
       
-      // Use trending endpoint when no query, search endpoint when there's a query
-      const endpoint = query.trim()
-        ? `${KLIPY_BASE_URL}/api/v1/${KLIPY_APP_KEY}/gifs/search`
-        : `${KLIPY_BASE_URL}/api/v1/${KLIPY_APP_KEY}/gifs/trending`;
-      
-      const params = new URLSearchParams({
-        page: '1',
-        per_page: '20',
-        customer_id: customerId,
-        ...(query.trim() && { q: query.trim() }),
-      });
+      // Call backend API instead of KLIPY directly
+      const endpoint = query.trim() ? '/gifs/search' : '/gifs/trending';
+      const params = query.trim() 
+        ? { q: query.trim(), page: '1', per_page: '20' }
+        : { page: '1', per_page: '20' };
 
-      const response = await fetch(`${endpoint}?${params.toString()}`);
+      const response = await api.get(endpoint, params);
+      const data = response.data;
       
-      if (!response.ok) {
-        throw new Error(`KLIPY API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      // Handle KLIPY API response format: { result: true, data: { data: [...] } }
+      // Handle backend API response format: { result: true, data: { data: [...] } }
       if (data.result && data.data?.data && Array.isArray(data.data.data)) {
         // Map KLIPY response to our GifItem format
         const mappedGifs: GifItem[] = data.data.data.map((gif: any) => {
@@ -118,7 +91,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
     } finally {
       setLoading(false);
     }
-  }, [t, customerId]);
+  }, [t]);
 
   useEffect(() => {
     // Fetch trending GIFs on initial load (empty query = trending)
@@ -142,49 +115,86 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
       // Fetch the GIF using the URL from KLIPY
       const gifUrl = gif.url;
-      const response = await fetch(gifUrl);
-      const blob = await response.blob();
-
-      // Create a file object for upload
-      // For React Native, we need to create a file-like object
-      const filename = `gif_${gif.id}.gif`;
+      const filename = `gif_${gif.id || gif.slug}.gif`;
       
-      // Convert blob to base64 for React Native compatibility
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const base64data = (reader.result as string).split(',')[1];
-          resolve(base64data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      if (Platform.OS === 'web') {
+        // For web, use fetch and create a File object
+        const response = await fetch(gifUrl);
+        const blob = await response.blob();
+        
+        // Create file object for web
+        const file = new File([blob], filename, { type: 'image/gif' });
+        
+        // Upload via Oxy services
+        console.log('Uploading GIF file (web):', { filename, type: 'image/gif' });
+        const uploadResponse = await oxyServices.uploadFile(file as any, {
+          folder: 'user_content',
+          isPublic: true,
+        });
 
-      const base64 = await base64Promise;
-      
-      // Create a data URI that can be used as a file URI
-      const dataUri = `data:image/gif;base64,${base64}`;
-      
-      const file = {
-        uri: dataUri,
-        type: 'image/gif',
-        name: filename,
-      } as any;
+        console.log('Upload response (web):', uploadResponse);
 
-      // Upload via Oxy services
-      const uploadResponse = await oxyServices.uploadFile(file, {
-        folder: 'user_content',
-        isPublic: true,
-      });
-
-      if (uploadResponse?.id) {
-        await onSelectGif(gifUrl, uploadResponse.id);
-        onClose();
+        // Extract file ID from Oxy response: file.key is the file identifier
+        const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
+        
+        if (fileId) {
+          await onSelectGif(gifUrl, fileId);
+          onClose();
+          return;
+        } else {
+          console.error('Upload response structure:', JSON.stringify(uploadResponse, null, 2));
+          throw new Error('Upload failed - no file ID returned. Response: ' + JSON.stringify(uploadResponse));
+        }
       } else {
-        throw new Error('Upload failed');
+        // For React Native, try to use expo-file-system if available, otherwise use direct URL
+        let fileUri = gifUrl;
+        
+        try {
+          // Try to use expo-file-system to download the file locally first
+          const FileSystem = require('expo-file-system');
+          const localUri = `${FileSystem.cacheDirectory}${filename}`;
+          
+          // Download the GIF file
+          const downloadResult = await FileSystem.downloadAsync(gifUrl, localUri);
+          
+          if (downloadResult.uri) {
+            fileUri = downloadResult.uri;
+          }
+        } catch (fsError) {
+          // If expo-file-system is not available, use the remote URL directly
+          console.warn('expo-file-system not available, using remote URL:', fsError);
+        }
+
+        // Create file object for React Native upload
+        const file = {
+          uri: fileUri,
+          type: 'image/gif',
+          name: filename,
+        } as any;
+
+        // Upload via Oxy services
+        console.log('Uploading GIF file:', { uri: file.uri, type: file.type, name: file.name });
+        const uploadResponse = await oxyServices.uploadFile(file, {
+          folder: 'user_content',
+          isPublic: true,
+        });
+
+        console.log('Upload response:', uploadResponse);
+
+        // Extract file ID from Oxy response: file.key is the file identifier
+        const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
+        
+        if (fileId) {
+          await onSelectGif(gifUrl, fileId);
+          onClose();
+        } else {
+          console.error('Upload response structure:', JSON.stringify(uploadResponse, null, 2));
+          throw new Error('Upload failed - no file ID returned. Response: ' + JSON.stringify(uploadResponse));
+        }
       }
     } catch (error: any) {
       console.error('Error selecting GIF:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       toast.error(error?.message || t('Failed to add GIF'));
     } finally {
       setUploading(false);
@@ -201,8 +211,6 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         style={[
           styles.gifItem,
           { 
-            width: gifSize, 
-            height: gifSize,
             borderColor: isSelected ? theme.colors.primary : theme.colors.border,
           },
           isSelected && { opacity: 0.7 },
@@ -332,8 +340,11 @@ const styles = StyleSheet.create({
   gifRow: {
     flexDirection: 'row',
     marginBottom: 0,
+    width: '100%',
   },
   gifItem: {
+    flex: 1,
+    aspectRatio: 1,
     overflow: 'hidden',
     backgroundColor: '#f0f0f0',
     borderWidth: 1,

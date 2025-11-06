@@ -25,6 +25,7 @@ import { OxyServices } from '@oxyhq/services/core';
 import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
 import subscriptionsRoutes from './src/routes/subscriptions';
+import gifsRoutes from './src/routes/gifs';
 
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
@@ -405,6 +406,7 @@ authenticatedApiRouter.use("/polls", pollsRoutes); // Polls now require authenti
 authenticatedApiRouter.use("/test", testRoutes);
 authenticatedApiRouter.use("/profile", profileSettingsRoutes);
 authenticatedApiRouter.use("/subscriptions", subscriptionsRoutes);
+authenticatedApiRouter.use("/gifs", gifsRoutes);
 // You can add more protected routers here as needed
 
 // Mount public and authenticated API routers
