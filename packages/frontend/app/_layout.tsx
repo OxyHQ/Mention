@@ -5,7 +5,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query';
 import { useFonts } from "expo-font";
 import { Slot } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { AppState, Platform, StyleSheet, View, type AppStateStatus } from "react-native";
 
 // Components
@@ -44,7 +44,11 @@ interface MainLayoutProps {
   isScreenNotMobile: boolean;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ isScreenNotMobile }) => {
+/**
+ * MainLayout Component
+ * Memoized to prevent unnecessary re-renders when parent updates
+ */
+const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
   const theme = useTheme();
   const { forwardWheelEvent } = useLayoutScroll();
 
@@ -73,13 +77,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ isScreenNotMobile }) => {
       } : {}),
       backgroundColor: theme.colors.background,
     },
-  }), [isScreenNotMobile, theme.colors]);
+  }), [isScreenNotMobile, theme.colors.background, theme.colors.border]);
 
   const handleWheel = useCallback((event: any) => {
     forwardWheelEvent(event);
   }, [forwardWheelEvent]);
 
-  const containerProps = Platform.OS === 'web' ? { onWheel: handleWheel } : {};
+  const containerProps = useMemo(
+    () => (Platform.OS === 'web' ? { onWheel: handleWheel } : {}),
+    [handleWheel]
+  );
 
   return (
     <View style={styles.container} {...containerProps}>
@@ -92,7 +99,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ isScreenNotMobile }) => {
       </View>
     </View>
   );
-};
+});
+
+MainLayout.displayName = 'MainLayout';
 
 export default function RootLayout() {
   // State
@@ -159,6 +168,7 @@ export default function RootLayout() {
     AppInitializer.loadEagerSettings();
   }, []);
 
+  // React Query managers - setup once on mount
   useEffect(() => {
     // React Query online manager using NetInfo
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
@@ -175,7 +185,7 @@ export default function RootLayout() {
       unsubscribeNetInfo();
       appStateSub.remove();
     };
-  }, []);
+  }, []); // Empty deps - setup once
 
   useEffect(() => {
     initializeApp();
@@ -190,33 +200,52 @@ export default function RootLayout() {
   const theme = useTheme();
   const colorScheme = useColorScheme();
   
-  return (
-    <ThemedView style={{ flex: 1 }}>
-      {appIsReady ? (
-        <AppProviders
-          oxyServices={oxyServices}
-          colorScheme={colorScheme}
-          queryClient={queryClient}
-        >
-          {/* Shows bottom sheet permission prompt when needed (native only) */}
-          {Platform.OS !== 'web' && (
-            <NotificationPermissionGate
-              appIsReady={appIsReady}
-              initializationComplete={splashState.initializationComplete}
-            />
-          )}
-          {/* Keep posts socket connected (mounted under OxyProvider) */}
-          <RealtimePostsBridge />
-          <MainLayout isScreenNotMobile={isScreenNotMobile} />
-          <RegisterPush />
-          {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
-        </AppProviders>
-      ) : (
+  // Memoize app content to prevent unnecessary re-renders
+  const appContent = useMemo(() => {
+    if (!appIsReady) {
+      return (
         <AppSplashScreen
           startFade={splashState.startFade}
           onFadeComplete={handleSplashFadeComplete}
         />
-      )}
+      );
+    }
+
+    return (
+      <AppProviders
+        oxyServices={oxyServices}
+        colorScheme={colorScheme}
+        queryClient={queryClient}
+      >
+        {/* Shows bottom sheet permission prompt when needed (native only) */}
+        {Platform.OS !== 'web' && (
+          <NotificationPermissionGate
+            appIsReady={appIsReady}
+            initializationComplete={splashState.initializationComplete}
+          />
+        )}
+        {/* Keep posts socket connected (mounted under OxyProvider) */}
+        <RealtimePostsBridge />
+        <MainLayout isScreenNotMobile={isScreenNotMobile} />
+        <RegisterPush />
+        {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+      </AppProviders>
+    );
+  }, [
+    appIsReady,
+    splashState.startFade,
+    splashState.initializationComplete,
+    colorScheme,
+    isScreenNotMobile,
+    keyboardVisible,
+    handleSplashFadeComplete,
+    queryClient,
+    // oxyServices is stable (imported singleton), but included for completeness
+  ]);
+  
+  return (
+    <ThemedView style={{ flex: 1 }}>
+      {appContent}
     </ThemedView>
   );
 }

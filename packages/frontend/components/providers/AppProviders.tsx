@@ -1,9 +1,10 @@
 /**
  * AppProviders Component
  * Centralizes all provider components for better organization
+ * Memoized to prevent unnecessary re-renders
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -18,21 +19,21 @@ import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { Toaster } from '@/lib/sonner';
 import i18n from '@/lib/i18n';
-
-import { QUERY_CLIENT_CONFIG } from './constants';
+import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 
 interface AppProvidersProps {
   children: React.ReactNode;
   oxyServices: OxyServices;
-  colorScheme: 'light' | 'dark' | null;
+  colorScheme: 'light' | 'dark' | null | undefined;
   queryClient: QueryClient;
 }
 
 /**
  * Wraps the app with all necessary providers
  * Separated from _layout.tsx for better testability
+ * Memoized to prevent re-renders when props don't change
  */
-export function AppProviders({
+export const AppProviders = memo(function AppProviders({
   children,
   oxyServices,
   colorScheme,
@@ -47,7 +48,7 @@ export function AppProviders({
             initialScreen="SignIn"
             autoPresent={false}
             storageKeyPrefix="oxy_example"
-            theme={colorScheme}
+            theme={colorScheme ?? undefined}
           >
             <I18nextProvider i18n={i18n}>
               <BottomSheetProvider>
@@ -73,5 +74,5 @@ export function AppProviders({
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
-}
+});
 
