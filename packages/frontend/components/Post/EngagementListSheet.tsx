@@ -64,16 +64,16 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
     }
   }, [hasMore, nextCursor, loadingMore, loadUsers]);
 
-  const handleUserPress = useCallback((userId: string) => {
+  const handleUserPress = useCallback((handle: string) => {
     onClose();
-    router.push(`/profile/${userId}`);
+    router.push(`/@${handle}`);
   }, [onClose, router]);
 
   const renderUser = useCallback(({ item }: { item: User }) => {
     return (
       <TouchableOpacity
         style={[styles.userRow, { borderBottomColor: theme.colors.border }]}
-        onPress={() => handleUserPress(item.id)}
+        onPress={() => handleUserPress(item.handle)}
       >
         <Image
           source={{ uri: item.avatar || 'https://via.placeholder.com/50' }}

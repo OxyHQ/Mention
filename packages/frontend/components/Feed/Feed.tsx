@@ -497,17 +497,63 @@ const Feed = (props: FeedProps) => {
         
         if (src.length === 0) return [];
 
-        // Optimized deduplication - only run if we have items
-        // Store already handles deduplication, but we do a final pass for safety
+        // CRITICAL: Final deduplication pass using same normalization as store
+        // Import normalizeId from store to ensure consistency
+        const normalizeId = (item: any): string => {
+            if (item?.id) return String(item.id);
+            if (item?._id) {
+                const _id = item._id;
+                return typeof _id === 'object' && typeof _id.toString === 'function'
+                    ? _id.toString()
+                    : String(_id);
+            }
+            if (item?._id_str) return String(item._id_str);
+            if (item?.postId) return String(item.postId);
+            if (item?.post?.id) return String(item.post.id);
+            if (item?.post?._id) {
+                const _id = item.post._id;
+                return typeof _id === 'object' && typeof _id.toString === 'function'
+                    ? _id.toString()
+                    : String(_id);
+            }
+            return '';
+        };
+        
         const seen = new Map<string, any>();
+        const duplicateIds: string[] = [];
+        
         for (const item of src) {
-            const key = itemKey(item);
-            if (key && key !== 'undefined' && key !== 'null' && key !== '' && !seen.has(key)) {
-                seen.set(key, item);
+            const id = normalizeId(item);
+            if (id && id !== 'undefined' && id !== 'null' && id !== '') {
+                if (!seen.has(id)) {
+                    seen.set(id, item);
+                } else {
+                    duplicateIds.push(id);
+                }
             }
         }
 
         const deduped = Array.from(seen.values());
+        
+        // Log duplicates found in display items (shouldn't happen if store deduplication works)
+        if (process.env.NODE_ENV === 'development' && duplicateIds.length > 0) {
+            console.error(`[Feed:displayItems] 🚨 Found ${duplicateIds.length} duplicates in feed items!`, {
+                duplicates: [...new Set(duplicateIds)].slice(0, 10),
+                feedType: effectiveType,
+                totalItems: src.length,
+                uniqueItems: deduped.length
+            });
+            // Log full details of duplicates for debugging
+            const duplicateDetails = duplicateIds.slice(0, 5).map(dupId => {
+                const items = src.filter(item => normalizeId(item) === dupId);
+                return {
+                    id: dupId,
+                    count: items.length,
+                    preview: items[0]?.content?.text?.substring(0, 50) || 'no preview'
+                };
+            });
+            console.error('[Feed:displayItems] Duplicate details:', duplicateDetails);
+        }
 
         // Only apply sorting for 'for_you' feed if user is authenticated
         if (effectiveType === 'for_you' && currentUser?.id && deduped.length > 0) {
@@ -638,7 +684,19 @@ const Feed = (props: FeedProps) => {
         return `${count}-${firstKey}-${midKey}-${lastKey}`;
     }, [displayItems.length, displayItems, itemKey]);
 
-    const finalRenderItems = displayItems;
+    // Final deduplication layer to ensure no duplicates reach the UI
+    const finalRenderItems = useMemo(() => {
+        const seen = new Set<string>();
+        const unique: any[] = [];
+        for (const item of displayItems) {
+            const key = itemKey(item);
+            if (key && !seen.has(key)) {
+                seen.add(key);
+                unique.push(item);
+            }
+        }
+        return unique;
+    }, [displayItems, itemKey]);
 
     // Register scrollable with LayoutScrollContext
     const clearScrollableRegistration = useCallback(() => {

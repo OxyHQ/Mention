@@ -885,14 +885,21 @@ class FeedController {
       // Check if there are more posts
       const hasMore = posts.length > limit;
       const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
-      const nextCursor = hasMore ? posts[limit - 1]._id.toString() : undefined;
-
-      if (type === 'saved') {
-        console.log(`[Saved Feed] Returning ${postsToReturn.length} posts, hasMore: ${hasMore}`);
+      
+      // Single-pass deduplication: remove duplicates by _id
+      const uniquePostsMap = new Map<string, any>();
+      for (const post of postsToReturn) {
+        const id = post._id?.toString() || post.id?.toString() || '';
+        if (id && id !== 'undefined' && id !== 'null') {
+          if (!uniquePostsMap.has(id)) {
+            uniquePostsMap.set(id, post);
+          }
+        }
       }
+      const deduplicatedPosts = Array.from(uniquePostsMap.values());
 
       // Transform posts with user data
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+      const transformedPosts = await this.transformPostsWithProfiles(deduplicatedPosts, currentUserId);
       
       // For saved posts, mark all posts as saved
       if (type === 'saved') {
@@ -906,20 +913,41 @@ class FeedController {
         });
       }
 
-      // Emit real-time update to connected clients
-      if (postsToReturn.length > 0) {
-        io.emit('feed:updated', {
-          type,
-          posts: transformedPosts,
-          timestamp: new Date().toISOString()
-        });
+      // Final deduplication after transformation (ensures no duplicates in response)
+      const finalUniqueMap = new Map<string, any>();
+      for (const post of transformedPosts) {
+        const id = post.id?.toString() || post._id?.toString() || '';
+        if (id && id !== 'undefined' && id !== 'null') {
+          if (!finalUniqueMap.has(id)) {
+            finalUniqueMap.set(id, post);
+          }
+        }
       }
+      const finalUniquePosts = Array.from(finalUniqueMap.values());
+
+      // Calculate hasMore: only true if we got limit+1 originally AND still have at least limit after dedup
+      const finalHasMore = hasMore && finalUniquePosts.length >= limit;
+
+      // Calculate cursor from the last post in the deduplicated array
+      const finalCursor = finalHasMore && finalUniquePosts.length > 0 
+        ? (finalUniquePosts[finalUniquePosts.length - 1].id?.toString() || 
+           finalUniquePosts[finalUniquePosts.length - 1]._id?.toString() || 
+           undefined)
+        : undefined;
+
+      // DON'T emit feed:updated for fetch requests - this causes duplicates!
+      // Socket feed:updated events should only be emitted when new posts are created,
+      // not when users fetch/load feeds. The frontend already has the posts from the HTTP response.
+      // Emitting here causes duplicate posts because:
+      // 1. HTTP response adds posts to feed
+      // 2. Socket event arrives and tries to add same posts again
+      // Socket updates are handled in post creation endpoints, not here.
 
       const response: FeedResponse = {
-        items: transformedPosts, // Return posts directly in new schema format
-        hasMore,
-        nextCursor,
-        totalCount: transformedPosts.length
+        items: finalUniquePosts, // Return deduplicated posts
+        hasMore: finalHasMore, // Use recalculated hasMore after deduplication
+        nextCursor: finalCursor,
+        totalCount: finalUniquePosts.length
       };
 
       res.json(response);
@@ -983,12 +1011,26 @@ class FeedController {
           : undefined;
 
         const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+        
+        // Deduplicate transformed posts for For You feed (unauthenticated path)
+        const finalUniqueMap = new Map<string, any>();
+        for (const post of transformedPosts) {
+          const id = post.id?.toString() || post._id?.toString() || '';
+          if (id && id !== 'undefined' && id !== 'null') {
+            if (!finalUniqueMap.has(id)) {
+              finalUniqueMap.set(id, post);
+            }
+          }
+        }
+        const finalUniquePosts = Array.from(finalUniqueMap.values());
 
         const response: FeedResponse = {
-          items: transformedPosts,
-          hasMore,
-          nextCursor,
-          totalCount: transformedPosts.length
+          items: finalUniquePosts,
+          hasMore: hasMore && finalUniquePosts.length >= Number(limit),
+          nextCursor: hasMore && finalUniquePosts.length > 0 
+            ? finalUniquePosts[finalUniquePosts.length - 1]._id?.toString() 
+            : undefined,
+          totalCount: finalUniquePosts.length
         };
 
         return res.json(response);
@@ -1118,37 +1160,10 @@ class FeedController {
 
       const hasMore = posts.length > Number(limit);
       const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
-      
-      // Calculate cursor with last post's score for proper pagination
-      let nextCursor: string | undefined;
-      if (postsToReturn.length > 0) {
-        const lastPost = postsToReturn[postsToReturn.length - 1];
-        
-        // Calculate final score for last post
-        const lastPostScore = await feedRankingService.calculatePostScore(
-          lastPost,
-          currentUserId,
-          { followingIds, userBehavior }
-        );
-        
-        // Encode as compound cursor (score + _id) for engagement-based feeds
-        const cursorData = {
-          _id: lastPost._id.toString(),
-          minScore: lastPostScore
-        };
-        nextCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
-        
-        // Log cursor for debugging
-        console.log('📌 Generated nextCursor:', {
-          lastPostId: lastPost._id.toString(),
-          lastPostScore,
-          nextCursor: nextCursor.substring(0, 30) + '...',
-          returnedCount: postsToReturn.length
-        });
-      }
 
       // CRITICAL: Multi-stage deduplication to ensure no duplicates
       // Stage 1: Deduplicate raw posts by _id (MongoDB ObjectId) before transformation
+      // This MUST happen before cursor calculation to ensure cursor points to actual last post
       const rawIdsSeen = new Map<string, any>();
       const deduplicatedRawPosts = postsToReturn.filter((post: any) => {
         const rawId = post._id;
@@ -1165,6 +1180,37 @@ class FeedController {
         rawIdsSeen.set(rawIdStr, post);
         return true;
       });
+      
+      // CRITICAL: Calculate cursor AFTER deduplication using the actual last post that will be returned
+      // This ensures cursor points to the correct post and prevents skipping/duplicates
+      let nextCursor: string | undefined;
+      if (deduplicatedRawPosts.length > 0) {
+        const lastPost = deduplicatedRawPosts[deduplicatedRawPosts.length - 1];
+        
+        // Calculate final score for last post
+        const lastPostScore = await feedRankingService.calculatePostScore(
+          lastPost,
+          currentUserId,
+          { followingIds, userBehavior }
+        );
+        
+        // Encode as compound cursor (score + _id) for engagement-based feeds
+        const cursorData = {
+          _id: lastPost._id.toString(),
+          minScore: lastPostScore
+        };
+        nextCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
+        
+        // Log cursor for debugging
+        console.log('📌 Generated nextCursor (after dedup):', {
+          lastPostId: lastPost._id.toString(),
+          lastPostScore,
+          nextCursor: nextCursor.substring(0, 30) + '...',
+          returnedCount: deduplicatedRawPosts.length,
+          originalCount: postsToReturn.length,
+          duplicatesRemoved: postsToReturn.length - deduplicatedRawPosts.length
+        });
+      }
 
       // Stage 2: Transform deduplicated posts
       const transformedPosts = await this.transformPostsWithProfiles(deduplicatedRawPosts, currentUserId);
@@ -1305,10 +1351,82 @@ class FeedController {
         });
       }
 
+      // CRITICAL: Recalculate hasMore based on deduplicated count
+      // If deduplication removed posts, we might not have enough for another page
+      const finalHasMore = hasMore && finalDeduplicated.length >= Number(limit);
+      
+      // CRITICAL: Recalculate cursor from final deduplicated posts to ensure accuracy
+      // If the last post changed due to deduplication, cursor needs to be updated
+      let finalCursor = nextCursor;
+      if (finalHasMore && finalDeduplicated.length > 0) {
+        const actualLastPost = finalDeduplicated[finalDeduplicated.length - 1];
+        const actualLastPostRaw = deduplicatedRawPosts.find((p: any) => {
+          const rawId = p._id?.toString();
+          const postId = actualLastPost.id?.toString() || (actualLastPost as any)._id?.toString();
+          return rawId === postId;
+        });
+        
+        if (actualLastPostRaw) {
+          // Parse original cursor to compare
+          let originalCursorId: string | undefined;
+          try {
+            if (nextCursor) {
+              const decoded = Buffer.from(nextCursor, 'base64').toString('utf-8');
+              const parsed = JSON.parse(decoded);
+              originalCursorId = parsed._id;
+            }
+          } catch (e) {
+            // Cursor parsing failed, ignore
+          }
+          
+          const actualLastPostId = actualLastPostRaw._id?.toString();
+          
+          // If last post changed due to deduplication, recalculate cursor
+          if (actualLastPostId && actualLastPostId !== originalCursorId) {
+            const actualLastPostScore = await feedRankingService.calculatePostScore(
+              actualLastPostRaw,
+              currentUserId,
+              { followingIds, userBehavior }
+            );
+            const cursorData = {
+              _id: actualLastPostId,
+              minScore: actualLastPostScore
+            };
+            finalCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
+            console.log('📌 Cursor recalculated due to deduplication:', {
+              originalLastPostId: originalCursorId || 'none',
+              newLastPostId: actualLastPostId
+            });
+          }
+        }
+      } else if (!finalHasMore) {
+        // No more posts, clear cursor
+        finalCursor = undefined;
+      }
+
+      // FINAL VERIFICATION: Log what we're sending to ensure no duplicates
+      const responseIds = finalDeduplicated.map(p => p.id?.toString() || (p as any)._id?.toString() || 'NO_ID');
+      const uniqueResponseIds = new Set(responseIds);
+      
+      console.log('📤 For You feed response:', {
+        requestCursor: cursor ? (cursor.length > 50 ? cursor.substring(0, 50) + '...' : cursor) : 'none',
+        totalPosts: finalDeduplicated.length,
+        uniqueIds: uniqueResponseIds.size,
+        hasMore: finalHasMore,
+        hasCursor: !!finalCursor,
+        firstPostId: responseIds[0] || 'none',
+        lastPostId: responseIds[responseIds.length - 1] || 'none'
+      });
+      
+      if (responseIds.length !== uniqueResponseIds.size) {
+        const duplicates = responseIds.filter((id, idx) => responseIds.indexOf(id) !== idx);
+        console.error('🚨 CRITICAL: Backend sending duplicate IDs:', [...new Set(duplicates)]);
+      }
+
       const response: FeedResponse = {
         items: finalDeduplicated, // Return fully deduplicated posts
-        hasMore: hasMore && finalDeduplicated.length === deduplicatedRawPosts.length, // Adjust hasMore if deduplication removed items
-        nextCursor,
+        hasMore: finalHasMore, // Use recalculated hasMore
+        nextCursor: finalCursor, // Use recalculated cursor
         totalCount: finalDeduplicated.length
       };
 

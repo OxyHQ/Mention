@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/useTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 
 interface FloatingActionButtonProps {
     onPress: () => void;
@@ -13,6 +15,7 @@ interface FloatingActionButtonProps {
     animatedTranslateY?: SharedValue<number>;
     animatedOpacity?: SharedValue<number>;
     style?: any;
+    bottomOffset?: number; // Optional custom bottom offset (overrides auto-detection)
 }
 
 export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
@@ -23,9 +26,12 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
     animatedTranslateY,
     animatedOpacity,
     style,
+    bottomOffset,
 }) => {
     const theme = useTheme();
     const insets = useSafeAreaInsets();
+    const isScreenNotMobile = useIsScreenNotMobile();
+    const keyboardVisible = useKeyboardVisibility();
 
     // Check if custom style includes position
     const hasCustomPosition = style && typeof style === 'object' && ('position' in style);
@@ -60,10 +66,14 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
             })
         : undefined;
 
-    // Determine positioning styles - position above bottom bar
-    const bottomBarHeight = 60 + insets.bottom; // Bottom bar height
-    const marginFromBottomBar = 16; // Space between FAB and bottom bar
-    const defaultBottom = bottomBarHeight + marginFromBottomBar;
+    // Determine positioning styles - position above bottom bar or safe area
+    // Bottom bar is visible when: !isScreenNotMobile && !keyboardVisible
+    const bottomBarVisible = !isScreenNotMobile && !keyboardVisible;
+    const bottomBarHeight = bottomBarVisible ? 60 : 0; // Bottom bar height (only if visible)
+    const marginFromBottom = 16; // Space between FAB and bottom bar/safe area
+    const defaultBottom = bottomOffset !== undefined 
+        ? bottomOffset 
+        : bottomBarHeight + insets.bottom + marginFromBottom;
     
     const positionStyles = hasCustomPosition 
         ? extractPositionStyles(style)

@@ -282,22 +282,74 @@ class SocketService {
       if (posts.length === 0) return;
       
       const currentFeed = store.feeds[feedType as FeedType];
-      if (currentFeed) {
-        // Deduplicate posts in queue before adding
-        const seen = new Set<string>();
-        const uniquePosts = posts.filter((p: any) => {
-          const id = p?.id || p?._id;
-          if (id && !seen.has(String(id))) {
-            seen.add(String(id));
-            return true;
-          }
-          return false;
-        });
-        
-        if (uniquePosts.length > 0) {
-          // Batch add all posts at once
-          store.addPostsToFeed(uniquePosts, feedType as FeedType);
+      if (!currentFeed) {
+        // Feed doesn't exist yet, clear queue
+        this.feedUpdateQueue.set(feedType, []);
+        return;
+      }
+      
+      // Suppress socket updates during loading to prevent race conditions with fetch requests
+      // When a feed is loading, the fetch response will include the posts, so we don't need
+      // socket updates to add them again (which would cause duplicates)
+      if (currentFeed.isLoading) {
+        console.log(`[Socket] Suppressing feed update for type="${feedType}" - feed is currently loading`);
+        // Keep posts in queue - they'll be processed after loading completes
+        // But limit queue size to prevent memory issues
+        if (this.feedUpdateQueue.get(feedType)!.length > 100) {
+          console.warn(`[Socket] Feed update queue too large for type="${feedType}", clearing old items`);
+          this.feedUpdateQueue.set(feedType, posts.slice(-50)); // Keep last 50 items
         }
+        return;
+      }
+      
+      // Build set of existing post IDs in the feed for duplicate detection
+      const existingIds = new Set<string>();
+      currentFeed.items.forEach((item: any) => {
+        let id = '';
+        if (item?.id) {
+          id = String(item.id);
+        } else if (item?._id) {
+          const _id = item._id;
+          id = typeof _id === 'object' && _id.toString 
+            ? _id.toString() 
+            : String(_id);
+        }
+        if (id && id !== 'undefined' && id !== 'null' && id !== '') {
+          existingIds.add(id);
+        }
+      });
+      
+      // Deduplicate posts in queue before adding - use proper normalization
+      const seen = new Map<string, any>();
+      const uniquePosts: any[] = [];
+      for (const p of posts) {
+        let id = '';
+        if (p?.id) {
+          id = String(p.id);
+        } else if (p?._id) {
+          const _id = p._id;
+          id = typeof _id === 'object' && _id.toString 
+            ? _id.toString() 
+            : String(_id);
+        }
+        
+        if (id && id !== 'undefined' && id !== 'null' && id !== '') {
+          // Check both queue duplicates and existing feed duplicates
+          if (!seen.has(id) && !existingIds.has(id)) {
+            seen.set(id, p);
+            uniquePosts.push(p);
+          } else if (existingIds.has(id)) {
+            console.log(`[Socket] Filtered duplicate post from socket update: ${id} (already in feed)`);
+          }
+        }
+      }
+      
+      if (uniquePosts.length > 0) {
+        console.log(`[Socket] Adding ${uniquePosts.length} new posts to feed type="${feedType}" (filtered ${posts.length - uniquePosts.length} duplicates)`);
+        // Batch add all posts at once
+        store.addPostsToFeed(uniquePosts, feedType as FeedType);
+      } else {
+        console.log(`[Socket] No new posts to add for feed type="${feedType}" (all ${posts.length} were duplicates)`);
       }
       
       // Clear queue for this feed type
