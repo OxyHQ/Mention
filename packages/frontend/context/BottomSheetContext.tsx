@@ -37,6 +37,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
                 appearsOnIndex={0}
                 disappearsOnIndex={-1}
                 pressBehavior="close"
+                opacity={0.5}
             />
         ),
         []
@@ -62,13 +63,14 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
                 android_keyboardInputMode="adjustResize"
                 keyboardBehavior="extend"
                 style={styles.contentContainer}
+                backgroundStyle={{ backgroundColor: theme.colors.background }}
                 handleIndicatorStyle={{ backgroundColor: theme.colors.text, width: 40 }}
                 backdropComponent={renderBackdrop}
                 enableContentPanningGesture={true}
                 enableHandlePanningGesture={true}
                 index={0}
             >
-                <BottomSheetView style={styles.contentView}>
+                <BottomSheetView style={[styles.contentView, { backgroundColor: theme.colors.background }]}>
                     {bottomSheetContent}
                 </BottomSheetView>
             </BottomSheetModal>
