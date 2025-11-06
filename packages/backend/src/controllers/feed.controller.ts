@@ -21,6 +21,7 @@ import { oxy as oxyClient } from '../../server';
 import { feedRankingService } from '../services/FeedRankingService';
 import { feedCacheService } from '../services/FeedCacheService';
 import { userPreferenceService } from '../services/UserPreferenceService';
+import { cursorPaginationService } from '../services/CursorPaginationService';
 import UserBehavior from '../models/UserBehavior';
 
 interface AuthRequest extends Request {
@@ -892,12 +893,21 @@ class FeedController {
    */
   async getForYouFeed(req: AuthRequest, res: Response) {
     try {
-      const { cursor, limit = 20 } = req.query as any;
       const currentUserId = req.user?.id;
+      
+      // Normalize pagination options
+      const paginationOptions = cursorPaginationService.normalizePaginationOptions({
+        cursor: req.query.cursor as string,
+        limit: Number(req.query.limit) || 20,
+        useRanking: true // For You feed uses ranking, so track seen IDs
+      });
+
+      // Parse cursor
+      const cursor = cursorPaginationService.parseCursor(paginationOptions.cursor);
 
       // For unauthenticated users, return popular posts (simplified aggregation)
       if (!currentUserId) {
-        const match: any = {
+        const baseMatch: any = {
           visibility: PostVisibility.PUBLIC,
           $and: [
             { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
@@ -905,13 +915,8 @@ class FeedController {
           ]
         };
 
-        if (cursor) {
-          try {
-            match._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-          } catch {
-            // Invalid cursor, ignore it
-          }
-        }
+        // Build query with cursor
+        const match = cursorPaginationService.buildCursorQuery(cursor, baseMatch);
 
         const posts = await Post.aggregate([
           { $match: match },
@@ -927,49 +932,46 @@ class FeedController {
             }
           },
           { $sort: { engagementScore: -1, createdAt: -1 } },
-          { $limit: Number(limit) + 1 }
+          { $limit: paginationOptions.limit + 1 }
         ]);
 
-        const hasMore = posts.length > Number(limit);
-        const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
-        const nextCursor = hasMore && postsToReturn.length > 0 
-          ? postsToReturn[postsToReturn.length - 1]._id.toString() 
-          : undefined;
+        // Create pagination result
+        const result = cursorPaginationService.createPaginationResult(
+          posts,
+          paginationOptions.limit
+        );
 
-        const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+        // Transform posts
+        const transformedPosts = await this.transformPostsWithProfiles(result.items, currentUserId);
 
         const response: FeedResponse = {
           items: transformedPosts,
-          hasMore,
-          nextCursor,
+          hasMore: result.hasMore,
+          nextCursor: result.nextCursor,
           totalCount: transformedPosts.length
         };
 
         return res.json(response);
       }
 
-      // Use advanced feed ranking service for authenticated users
+      // Authenticated users get personalized ranked feed
       // Get following list and user behavior for personalization
       let followingIds: string[] = [];
       let userBehavior: any = null;
       
       try {
-        if (currentUserId) {
-          // Get following list
-          const followingRes = await oxyClient.getUserFollowing(currentUserId);
-          const followingUsers = (followingRes as any)?.following || [];
-          followingIds = followingUsers.map((u: any) => 
-            typeof u === 'string' ? u : (u?.id || u?._id || u?.userId)
-          ).filter(Boolean);
-          
-          // Get user behavior for personalization
-          userBehavior = await UserBehavior.findOne({ oxyUserId: currentUserId }).lean();
-        }
+        const followingRes = await oxyClient.getUserFollowing(currentUserId);
+        const followingUsers = (followingRes as any)?.following || [];
+        followingIds = followingUsers.map((u: any) => 
+          typeof u === 'string' ? u : (u?.id || u?._id || u?.userId)
+        ).filter(Boolean);
+        
+        userBehavior = await UserBehavior.findOne({ oxyUserId: currentUserId }).lean();
       } catch (e) {
-        // If user data fails to load, continue with chronological sorting instead of personalized ranking
+        // If user data fails to load, continue with chronological sorting
       }
 
-      const match: any = {
+      const baseMatch: any = {
         visibility: PostVisibility.PUBLIC,
         $and: [
           { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
@@ -977,64 +979,14 @@ class FeedController {
         ]
       };
 
-      let cursorId: string | undefined;
-      let seenPostIds: string[] = [];
-      
-      // Parse cursor - supports compound format with seen IDs to prevent duplicates
-      if (cursor) {
-        try {
-          const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
-          const parsed = JSON.parse(decoded);
-          if (parsed._id) {
-            cursorId = parsed._id;
-            // Track previously seen post IDs to ensure no duplicates
-            seenPostIds = parsed.seenIds || [];
-          } else {
-            throw new Error('Invalid compound cursor structure');
-          }
-        } catch {
-          // Fallback to simple ObjectId cursor (backward compatibility)
-          try {
-            new mongoose.Types.ObjectId(cursor);
-            cursorId = cursor;
-          } catch {
-            // Invalid cursor, ignore
-          }
-        }
-      }
+      // Build query with cursor (including seen IDs exclusion for ranked feeds)
+      const match = cursorPaginationService.buildCursorQuery(cursor, baseMatch, {
+        useRanking: true
+      });
 
-      // Fetch enough posts for ranking, excluding already seen posts
-      // Use a larger pool for better ranking quality
-      const candidateLimit = Number(limit) * 4;
-      
-      // Build _id filter combining cursor position and exclusions
-      if (cursorId || seenPostIds.length > 0) {
-        const idConditions: any[] = [];
-        
-        // Add cursor position filter
-        if (cursorId) {
-          idConditions.push({ _id: { $lt: new mongoose.Types.ObjectId(cursorId) } });
-        }
-        
-        // Add exclusion filter for seen posts
-        if (seenPostIds.length > 0) {
-          const seenObjectIds = seenPostIds
-            .filter(id => mongoose.Types.ObjectId.isValid(id))
-            .map(id => new mongoose.Types.ObjectId(id));
-          
-          if (seenObjectIds.length > 0) {
-            idConditions.push({ _id: { $nin: seenObjectIds } });
-          }
-        }
-        
-        // Combine conditions using $and if we have both
-        if (idConditions.length > 0) {
-          match.$and = match.$and || [];
-          match.$and.push(...idConditions);
-        }
-      }
-
-      let candidatePosts = await Post.find(match)
+      // Fetch candidate posts for ranking (use larger pool for better quality)
+      const candidateLimit = paginationOptions.limit * 4;
+      const candidatePosts = await Post.find(match)
         .sort({ createdAt: -1 })
         .limit(candidateLimit)
         .lean();
@@ -1046,46 +998,27 @@ class FeedController {
         { followingIds, userBehavior }
       );
 
-      const hasMore = rankedPosts.length > Number(limit);
-      const postsToReturn = hasMore ? rankedPosts.slice(0, Number(limit)) : rankedPosts;
+      // Create pagination result with seen IDs tracking
+      const result = cursorPaginationService.createPaginationResult(
+        rankedPosts,
+        paginationOptions.limit,
+        {
+          useRanking: true,
+          previousSeenIds: cursor?.seenIds,
+          maxSeenIds: paginationOptions.maxSeenIds
+        }
+      );
 
-      // Deduplicate by _id before transformation
-      const seen = new Set<string>();
-      const deduplicatedRawPosts = postsToReturn.filter((post: any) => {
-        const id = post._id?.toString();
-        if (!id || seen.has(id)) return false;
-        seen.add(id);
-        return true;
-      });
-      
-      // Build list of all seen post IDs (previous + current batch) for next cursor
-      const allSeenIds = [
-        ...seenPostIds,
-        ...deduplicatedRawPosts.map((post: any) => post._id.toString())
-      ];
-      
-      // Limit the seenIds array to prevent cursor from growing too large
-      // Keep only the most recent 200 IDs (enough to prevent duplicates in typical scrolling)
-      const maxSeenIds = 200;
-      const recentSeenIds = allSeenIds.slice(-maxSeenIds);
-      
-      // Calculate cursor from last post with seen IDs to prevent duplicates
-      let nextCursor: string | undefined;
-      if (hasMore && deduplicatedRawPosts.length > 0) {
-        const lastPost = deduplicatedRawPosts[deduplicatedRawPosts.length - 1];
-        const cursorData = {
-          _id: lastPost._id.toString(),
-          seenIds: recentSeenIds
-        };
-        nextCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
-      }
+      // Deduplicate as safety measure (shouldn't be needed with proper cursor tracking)
+      const deduplicatedItems = cursorPaginationService.deduplicateById(result.items);
 
-      const transformedPosts = await this.transformPostsWithProfiles(deduplicatedRawPosts, currentUserId);
+      // Transform posts with user profiles
+      const transformedPosts = await this.transformPostsWithProfiles(deduplicatedItems, currentUserId);
 
       const response: FeedResponse = {
         items: transformedPosts,
-        hasMore,
-        nextCursor,
+        hasMore: result.hasMore,
+        nextCursor: result.nextCursor,
         totalCount: transformedPosts.length
       };
 
@@ -1104,11 +1037,20 @@ class FeedController {
    */
   async getFollowingFeed(req: AuthRequest, res: Response) {
     try {
-      const { cursor, limit = 20 } = req.query as any;
       const currentUserId = req.user?.id;
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
+
+      // Normalize pagination options
+      const paginationOptions = cursorPaginationService.normalizePaginationOptions({
+        cursor: req.query.cursor as string,
+        limit: Number(req.query.limit) || 20,
+        useRanking: false // Following feed is chronological, no ranking needed
+      });
+
+      // Parse cursor
+      const cursor = cursorPaginationService.parseCursor(paginationOptions.cursor);
 
       // Get following list from Oxy
       const followingRes = await oxyClient.getUserFollowing(currentUserId);
@@ -1131,32 +1073,36 @@ class FeedController {
         return res.json({ items: [], hasMore: false, totalCount: 0 });
       }
 
-      const query: any = {
+      // Build base query
+      const baseMatch: any = {
         oxyUserId: { $in: followingIds },
         visibility: PostVisibility.PUBLIC,
         parentPostId: null,
         repostOf: null
       };
 
-      if (cursor) {
-        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-      }
+      // Build query with cursor
+      const match = cursorPaginationService.buildCursorQuery(cursor, baseMatch);
 
-      const posts = await Post.find(query)
+      // Fetch posts
+      const posts = await Post.find(match)
         .sort({ createdAt: -1 })
-        .limit(Number(limit) + 1)
+        .limit(paginationOptions.limit + 1)
         .lean();
 
-      const hasMore = posts.length > Number(limit);
-      const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
-      const nextCursor = hasMore ? posts[Number(limit) - 1]._id.toString() : undefined;
+      // Create pagination result
+      const result = cursorPaginationService.createPaginationResult(
+        posts,
+        paginationOptions.limit
+      );
 
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+      // Transform posts
+      const transformedPosts = await this.transformPostsWithProfiles(result.items, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts, // Return posts directly in new schema format
-        hasMore,
-        nextCursor,
+        items: transformedPosts,
+        hasMore: result.hasMore,
+        nextCursor: result.nextCursor,
         totalCount: transformedPosts.length
       };
 
@@ -1341,10 +1287,20 @@ class FeedController {
    */
   async getMediaFeed(req: AuthRequest, res: Response) {
     try {
-      const { cursor, limit = 20 } = req.query as any;
       const currentUserId = req.user?.id;
 
-      const query: any = {
+      // Normalize pagination options
+      const paginationOptions = cursorPaginationService.normalizePaginationOptions({
+        cursor: req.query.cursor as string,
+        limit: Number(req.query.limit) || 20,
+        useRanking: false // Media feed is chronological
+      });
+
+      // Parse cursor
+      const cursor = cursorPaginationService.parseCursor(paginationOptions.cursor);
+
+      // Build base query for media posts
+      const baseMatch: any = {
         visibility: PostVisibility.PUBLIC,
         $and: [
           { $or: [
@@ -1360,25 +1316,28 @@ class FeedController {
         ]
       };
 
-      if (cursor) {
-        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-      }
+      // Build query with cursor
+      const match = cursorPaginationService.buildCursorQuery(cursor, baseMatch);
 
-      const posts = await Post.find(query)
+      // Fetch posts
+      const posts = await Post.find(match)
         .sort({ createdAt: -1 })
-        .limit(limit + 1)
+        .limit(paginationOptions.limit + 1)
         .lean();
 
-      const hasMore = posts.length > limit;
-      const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
-      const nextCursor = hasMore ? posts[limit - 1]._id.toString() : undefined;
+      // Create pagination result
+      const result = cursorPaginationService.createPaginationResult(
+        posts,
+        paginationOptions.limit
+      );
 
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+      // Transform posts
+      const transformedPosts = await this.transformPostsWithProfiles(result.items, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts, // Return posts directly in new schema format
-        hasMore,
-        nextCursor,
+        items: transformedPosts,
+        hasMore: result.hasMore,
+        nextCursor: result.nextCursor,
         totalCount: transformedPosts.length
       };
 
