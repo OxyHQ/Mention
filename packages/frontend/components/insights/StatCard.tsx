@@ -34,22 +34,22 @@ const StatCard: React.FC<StatCardProps> = ({
     const dayLabels = chartLabels || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     return (
-        <View style={[styles.card, { backgroundColor: theme.colors.primary + '08' }]}>
+        <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <View style={styles.header}>
                 <View style={styles.titleRow}>
                     <Ionicons name={icon as any} size={20} color={defaultIconColor} style={styles.icon} />
-                    <Text style={[styles.title, { color: defaultIconColor }]}>
+                    <Text style={[styles.title, { color: theme.colors.text }]}>
                         {title}
                     </Text>
                 </View>
             </View>
             <View style={styles.content}>
-                <Text style={[styles.value, { color: '#000000' }]}>
+                <Text style={[styles.value, { color: theme.colors.text }]}>
                     {formatNumber(value)}{unit ? ` ${unit}` : ''}
                 </Text>
                 {previous !== undefined && (
                     <View style={styles.previousRow}>
-                        <Text style={[styles.previousText, { color: defaultIconColor }]}>
+                        <Text style={[styles.previousText, { color: theme.colors.textSecondary }]}>
                             Previous: {formatNumber(previous)}{unit ? ` ${unit}` : ''}
                         </Text>
                     </View>
@@ -71,20 +71,11 @@ const StatCard: React.FC<StatCardProps> = ({
 
 const styles = StyleSheet.create({
     card: {
-        borderRadius: 12,
+        borderRadius: 15,
         padding: 16,
         marginBottom: 12,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        borderWidth: 1,
+        overflow: 'hidden',
     },
     header: {
         marginBottom: 12,

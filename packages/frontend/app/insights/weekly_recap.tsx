@@ -327,7 +327,7 @@ const WeeklyRecapScreen: React.FC = () => {
                     <Avatar
                         source={avatarUri}
                         size={72}
-                        label={user?.name?.[0] || user?.handle?.[0] || ''}
+                        label={(typeof user?.name === 'string' ? user.name[0] : null) || (typeof user?.handle === 'string' ? user.handle[0] : null) || ''}
                     />
                     <Text style={[styles.title, { color: theme.colors.text }]}>Weekly recap</Text>
                     <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
@@ -353,7 +353,7 @@ const WeeklyRecapScreen: React.FC = () => {
                 ))}
 
                 {/* Weekly Tip Section */}
-                <View style={[styles.tipCard, { backgroundColor: theme.colors.primary + '08' }]}>
+                <View style={[styles.tipCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                     <View style={styles.tipHeader}>
                         <Ionicons name="bulb" size={18} color={theme.colors.primary} />
                         <Text style={[styles.tipTitle, { color: theme.colors.text }]}>This week's tip</Text>
@@ -397,7 +397,9 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flex: 1,
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingTop: 0,
+        paddingBottom: 20,
     },
     profileSection: {
         alignItems: 'center',
@@ -419,20 +421,11 @@ const styles = StyleSheet.create({
     },
     // Tip Section
     tipCard: {
-        borderRadius: 18,
+        borderRadius: 15,
         padding: 16,
         marginBottom: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        borderWidth: 1,
+        overflow: 'hidden',
     },
     tipHeader: {
         flexDirection: 'row',
