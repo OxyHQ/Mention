@@ -1013,7 +1013,9 @@ class FeedController {
         }
       );
 
-      // Deduplicate as safety measure (shouldn't be needed with proper cursor tracking)
+      // Deduplicate as safety measure
+      // Note: Should be unnecessary with proper cursor tracking, but provides
+      // defense-in-depth for ranked feeds where post scores can change
       const deduplicatedItems = cursorPaginationService.deduplicateById(result.items);
 
       // Transform posts with user profiles

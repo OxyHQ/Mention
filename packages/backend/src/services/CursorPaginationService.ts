@@ -159,6 +159,13 @@ export class CursorPaginationService {
    * @param limit Items per page
    * @param options Pagination options
    * @returns Pagination result with items and next cursor
+   * 
+   * Note: For ranked feeds with seen IDs tracking, the seenIds array is limited
+   * to maxSeenIds (default: 200) most recent IDs. This is a performance trade-off:
+   * - Pros: Prevents cursor from growing unbounded, maintains good performance
+   * - Cons: Posts older than the tracking window may theoretically reappear
+   * - In practice: Rare occurrence during very long scrolling sessions (>200 posts)
+   * - Mitigation: Client-side deduplication provides additional safety
    */
   createPaginationResult<T extends { _id: any }>(
     allItems: T[],
