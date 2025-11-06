@@ -40,6 +40,8 @@ export interface PollData {
   userVotes: Record<string, string>; // userId -> option index
 }
 
+export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned';
+
 export interface Post {
   id: string;
   _id?: string;
@@ -57,6 +59,8 @@ export interface Post {
   quoteOf?: string; // quoted post id
   parentPostId?: string; // for replies
   threadId?: string; // for thread posts
+  replyPermission?: ReplyPermission; // Who can reply and quote this post
+  reviewReplies?: boolean; // Whether to review and approve replies before they're visible
   stats: PostStats;
   metadata: PostMetadata;
   location?: GeoJSONPoint; // Post creation location metadata
@@ -95,6 +99,8 @@ export interface CreatePostRequest {
   tags?: string[];
   mentions?: string[];
   hashtags?: string[];
+  replyPermission?: ReplyPermission;
+  reviewReplies?: boolean;
 }
 
 export interface CreateThreadRequest {
@@ -105,6 +111,8 @@ export interface CreateThreadRequest {
     tags?: string[];
     mentions?: string[];
     hashtags?: string[];
+    replyPermission?: ReplyPermission;
+    reviewReplies?: boolean;
   }[];
 }
 

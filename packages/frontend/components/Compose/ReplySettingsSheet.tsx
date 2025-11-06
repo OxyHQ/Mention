@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { Toggle } from '@/components/Toggle';
 import { colors } from '@/styles/colors';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned';
@@ -50,25 +51,36 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
       </View>
 
       {/* Options */}
-      <View style={[styles.optionsContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+      <View style={styles.optionsWrapper}>
         {options.map((option, index) => {
           const isSelected = replyPermission === option.value;
+          const isFirst = index === 0;
+          const isLast = index === options.length - 1;
           return (
             <TouchableOpacity
               key={option.value}
               style={[
                 styles.option,
                 {
-                  borderBottomWidth: index < options.length - 1 ? 1 : 0,
-                  borderBottomColor: theme.colors.border,
+                  backgroundColor: isSelected 
+                    ? theme.colors.primary + '15' 
+                    : theme.colors.backgroundSecondary,
+                  borderTopLeftRadius: isFirst ? 16 : 0,
+                  borderTopRightRadius: isFirst ? 16 : 0,
+                  borderBottomLeftRadius: isLast ? 16 : 0,
+                  borderBottomRightRadius: isLast ? 16 : 0,
+                  marginBottom: index < options.length - 1 ? 4 : 0,
                 }
               ]}
               onPress={() => onReplyPermissionChange(option.value)}
-              activeOpacity={0.6}
+              activeOpacity={0.7}
             >
               <Text style={[
                 styles.optionText, 
-                { color: theme.colors.text }
+                { 
+                  color: theme.colors.text,
+                  fontWeight: isSelected ? '600' : '400',
+                }
               ]}>
                 {option.label}
               </Text>
@@ -80,20 +92,16 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
         })}
       </View>
 
-      {/* Divider */}
-      <View style={styles.divider} />
-
       {/* Review Replies Toggle */}
-      <View style={[styles.toggleContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <View style={styles.toggleContent}>
-          <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
-            {t('Review and approve replies') || 'Review and approve replies'}
-          </Text>
-          <Switch
+      <View style={styles.toggleWrapper}>
+        <View style={[
+          styles.toggleContainer,
+          { backgroundColor: theme.colors.backgroundSecondary }
+        ]}>
+          <Toggle
             value={reviewReplies}
             onValueChange={onReviewRepliesChange}
-            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-            thumbColor={theme.colors.card}
+            label={t('Review and approve replies') || 'Review and approve replies'}
           />
         </View>
       </View>
@@ -132,51 +140,40 @@ const styles = StyleSheet.create({
     width: 36,
     marginLeft: 'auto',
   },
-  optionsContainer: {
-    marginHorizontal: 16,
-    marginTop: 4,
-    borderRadius: 12,
-    overflow: 'hidden',
+  optionsWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   option: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 48,
+    paddingVertical: 14,
+    minHeight: 50,
   },
   optionText: {
     fontSize: 16,
     flex: 1,
   },
   checkmarkContainer: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     marginLeft: 12,
   },
-  divider: {
-    height: 4,
+  toggleWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   toggleContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginHorizontal: 16,
-    marginTop: 4,
-    borderRadius: 12,
-    backgroundColor: 'transparent',
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  toggleContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  toggleLabel: {
-    fontSize: 16,
-    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    minHeight: 50,
   },
 });
 

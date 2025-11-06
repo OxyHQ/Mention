@@ -21,7 +21,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies } = req.body;
 
     // Support both new content structure and legacy text/media structure
     const text = content?.text || req.body.text;
@@ -166,6 +166,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
       visibility: PostVisibility.PUBLIC, // Explicitly set visibility
+      replyPermission: replyPermission || 'anyone',
+      reviewReplies: reviewReplies || false,
       stats: {
         likesCount: 0,
         repostsCount: 0,
@@ -322,7 +324,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     for (let i = 0; i < posts.length; i++) {
       const postData = posts[i];
-      const { content, hashtags, mentions, visibility } = postData;
+      const { content, hashtags, mentions, visibility, replyPermission, reviewReplies } = postData;
 
       // Process content location data
       let processedContentLocation = null;
@@ -386,6 +388,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         hashtags: uniqueTags,
         mentions: mentions || [],
         visibility: (visibility as PostVisibility) || PostVisibility.PUBLIC,
+        replyPermission: replyPermission || 'anyone',
+        reviewReplies: reviewReplies || false,
         stats: {
           likesCount: 0,
           repostsCount: 0,

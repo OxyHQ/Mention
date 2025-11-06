@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Switch,
   Alert,
 } from 'react-native';
 import { useOxy } from '@oxyhq/services';
@@ -39,6 +38,7 @@ import { Plus } from '@/assets/icons/plus-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import DraftsSheet from '@/components/Compose/DraftsSheet';
 import ReplySettingsSheet, { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
+import { Toggle } from '@/components/Toggle';
 import { useDrafts } from '@/hooks/useDrafts';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { ScrollView, Image, Dimensions } from 'react-native';
@@ -197,7 +197,9 @@ const ComposeScreen = () => {
           })
         },
         mentions: mentions.map(m => m.userId),
-        hashtags: []
+        hashtags: [],
+        replyPermission: replyPermission,
+        reviewReplies: reviewReplies
       });
 
       // Add thread items if any
@@ -228,7 +230,9 @@ const ComposeScreen = () => {
               })
             },
             mentions: item.mentions?.map(m => m.userId) || [],
-            hashtags: []
+            hashtags: [],
+            replyPermission: replyPermission,
+            reviewReplies: reviewReplies
           });
         }
       });
@@ -732,10 +736,34 @@ const ComposeScreen = () => {
     }
   };
 
+  const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
+
+  // Update bottom sheet content when replyPermission or reviewReplies changes
+  useEffect(() => {
+    if (isReplySettingsOpen) {
+      bottomSheet.setBottomSheetContent(
+        <ReplySettingsSheet
+          onClose={() => {
+            bottomSheet.openBottomSheet(false);
+            setIsReplySettingsOpen(false);
+          }}
+          replyPermission={replyPermission}
+          onReplyPermissionChange={setReplyPermission}
+          reviewReplies={reviewReplies}
+          onReviewRepliesChange={setReviewReplies}
+        />
+      );
+    }
+  }, [replyPermission, reviewReplies, isReplySettingsOpen]);
+
   const openReplySettings = () => {
+    setIsReplySettingsOpen(true);
     bottomSheet.setBottomSheetContent(
       <ReplySettingsSheet
-        onClose={() => bottomSheet.openBottomSheet(false)}
+        onClose={() => {
+          bottomSheet.openBottomSheet(false);
+          setIsReplySettingsOpen(false);
+        }}
         replyPermission={replyPermission}
         onReplyPermissionChange={setReplyPermission}
         reviewReplies={reviewReplies}
@@ -835,12 +863,10 @@ const ComposeScreen = () => {
                   {t('Post as linked thread')}
                 </Text>
               </View>
-              <Switch
+              <Toggle
                 value={postingMode === 'beast'}
                 onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
-                trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                thumbColor={theme.colors.card}
-                style={styles.modeSwitch}
+                containerStyle={styles.modeToggle}
               />
               <View style={styles.modeOption}>
                 <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel, { color: theme.colors.text }]}>
@@ -880,24 +906,31 @@ const ComposeScreen = () => {
                     multiline
                     autoFocus
                   />
-                  <ComposeToolbar
-                    onMediaPress={openMediaPicker}
-                    onPollPress={openPollCreator}
-                    onLocationPress={requestLocation}
-                    onGifPress={() => {
-                      // TODO: Implement GIF picker
-                      toast.info(t('GIF picker coming soon'));
-                    }}
-                    onEmojiPress={() => {
-                      // TODO: Implement emoji picker
-                      toast.info(t('Emoji picker coming soon'));
-                    }}
-                    hasLocation={!!location}
-                    isGettingLocation={isGettingLocation}
-                    hasPoll={showPollCreator}
-                    hasMedia={mediaIds.length > 0}
-                    disabled={isPosting}
-                  />
+                  <View style={styles.toolbarWrapper}>
+                    <ComposeToolbar
+                      onMediaPress={openMediaPicker}
+                      onPollPress={openPollCreator}
+                      onLocationPress={requestLocation}
+                      onGifPress={() => {
+                        // TODO: Implement GIF picker
+                        toast.info(t('GIF picker coming soon'));
+                      }}
+                      onEmojiPress={() => {
+                        // TODO: Implement emoji picker
+                        toast.info(t('Emoji picker coming soon'));
+                      }}
+                      hasLocation={!!location}
+                      isGettingLocation={isGettingLocation}
+                      hasPoll={showPollCreator}
+                      hasMedia={mediaIds.length > 0}
+                      disabled={isPosting}
+                    />
+                    {postContent.length > 0 && (
+                      <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}>
+                        {postContent.length}
+                      </Text>
+                    )}
+                  </View>
                 </PostHeader>
 
                 {/* Custom Media Display with Delete Buttons */}
@@ -1033,23 +1066,30 @@ const ComposeScreen = () => {
                           onMentionsChange={(m) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, mentions: m } : p))}
                           multiline
                         />
-                        <ComposeToolbar
-                          onMediaPress={() => openThreadMediaPicker(item.id)}
-                          onPollPress={() => openThreadPollCreator(item.id)}
-                          onLocationPress={() => requestThreadLocation(item.id)}
-                          onGifPress={() => {
-                            // TODO: Implement GIF picker for thread items
-                            toast.info(t('GIF picker coming soon'));
-                          }}
-                          onEmojiPress={() => {
-                            // TODO: Implement emoji picker for thread items
-                            toast.info(t('Emoji picker coming soon'));
-                          }}
-                          hasLocation={!!item.location}
-                          hasPoll={item.showPollCreator}
-                          hasMedia={item.mediaIds.length > 0}
-                          disabled={isPosting}
-                        />
+                        <View style={styles.toolbarWrapper}>
+                          <ComposeToolbar
+                            onMediaPress={() => openThreadMediaPicker(item.id)}
+                            onPollPress={() => openThreadPollCreator(item.id)}
+                            onLocationPress={() => requestThreadLocation(item.id)}
+                            onGifPress={() => {
+                              // TODO: Implement GIF picker for thread items
+                              toast.info(t('GIF picker coming soon'));
+                            }}
+                            onEmojiPress={() => {
+                              // TODO: Implement emoji picker for thread items
+                              toast.info(t('Emoji picker coming soon'));
+                            }}
+                            hasLocation={!!item.location}
+                            hasPoll={item.showPollCreator}
+                            hasMedia={item.mediaIds.length > 0}
+                            disabled={isPosting}
+                          />
+                          {item.text.length > 0 && (
+                            <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}>
+                              {item.text.length}
+                            </Text>
+                          )}
+                        </View>
                         <TouchableOpacity
                           style={styles.removeThreadBtn}
                           onPress={() => setThreadItems(prev => prev.filter(p => p.id !== item.id))}
@@ -1210,7 +1250,6 @@ const ComposeScreen = () => {
             <TouchableOpacity onPress={openReplySettings} activeOpacity={0.7}>
               <Text style={styles.bottomText}>{getReplyPermissionText()}</Text>
             </TouchableOpacity>
-            <Text style={styles.characterCount}>{postContent.length}</Text>
           </View>
         </ThemedView>
       </KeyboardAvoidingView>
@@ -1295,10 +1334,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     marginTop: 16,
-  },
-  characterCount: {
-    fontSize: 14,
-    color: colors.COLOR_BLACK_LIGHT_4,
   },
   mediaRow: {
     flexDirection: 'row',
@@ -1457,6 +1492,17 @@ const styles = StyleSheet.create({
     color: colors.COLOR_BLACK_LIGHT_1,
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  toolbarWrapper: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  characterCountText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 12,
   },
   addToThreadBtn: {
     flexDirection: 'row',
@@ -1679,7 +1725,7 @@ const styles = StyleSheet.create({
     color: colors.COLOR_BLACK_LIGHT_5,
     textAlign: 'center',
   },
-  modeSwitch: {
+  modeToggle: {
     marginHorizontal: 20,
   },
 });

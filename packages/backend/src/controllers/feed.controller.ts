@@ -405,6 +405,8 @@ class FeedController {
           quoteOf: postObj.quoteOf,
           parentPostId: postObj.parentPostId,
           threadId: postObj.threadId,
+          replyPermission: postObj.replyPermission,
+          reviewReplies: postObj.reviewReplies,
           stats: stats, // Use the processed stats object
           metadata: {
             ...postObj.metadata,
@@ -1872,16 +1874,76 @@ class FeedController {
         return res.status(400).json({ error: 'Content and post ID are required' });
       }
 
+      // Fetch parent post to check reply permissions
+      const parentPost = await Post.findById(postId).lean();
+      if (!parentPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      // Check reply permissions
+      const replyPermission = parentPost.replyPermission || 'anyone';
+      if (replyPermission !== 'anyone') {
+        const parentAuthorId = parentPost.oxyUserId?.toString?.() || (parentPost as any).oxyUserId;
+        
+        // If replying to own post, always allow
+        if (parentAuthorId === currentUserId) {
+          // Allow
+        } else {
+          let canReply = false;
+          
+          try {
+            switch (replyPermission) {
+              case 'followers':
+                // Check if current user is a follower of the post author
+                const authorFollowers = await oxyClient.getUserFollowers(parentAuthorId);
+                canReply = authorFollowers?.some((f: any) => {
+                  const followerId = f.id || f._id || f;
+                  return followerId === currentUserId || String(followerId) === String(currentUserId);
+                }) || false;
+                break;
+              case 'following':
+                // Check if post author follows current user (current user is in author's following list)
+                const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
+                canReply = authorFollowing?.some((f: any) => {
+                  const followingId = f.id || f._id || f;
+                  return followingId === currentUserId || String(followingId) === String(currentUserId);
+                }) || false;
+                break;
+              case 'mentioned':
+                // Check if current user is mentioned in the post
+                canReply = (parentPost.mentions || []).some((m: any) => {
+                  const mentionId = typeof m === 'string' ? m : (m.id || m._id);
+                  return mentionId === currentUserId || String(mentionId) === String(currentUserId);
+                });
+                break;
+            }
+          } catch (error) {
+            console.error('Error checking reply permissions:', error);
+            // If we can't verify, deny for safety
+            canReply = false;
+          }
+          
+          if (!canReply) {
+            return res.status(403).json({ 
+              error: 'You do not have permission to reply to this post',
+              replyPermission 
+            });
+          }
+        }
+      }
+
   // Create reply post
   // Extract hashtags from content
   const extractedTags = Array.from((replyContent?.text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
       const mergedTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
 
+      // If reviewReplies is enabled, set visibility to pending or use a flag
+      // For now, we'll still create it but mark it for review
       const reply = new Post({
         oxyUserId: currentUserId,
         type: PostType.TEXT,
         content: replyContent,
-        visibility: PostVisibility.PUBLIC,
+        visibility: parentPost.reviewReplies ? PostVisibility.PRIVATE : PostVisibility.PUBLIC,
         parentPostId: postId,
         hashtags: mergedTags,
         mentions: mentions || [],

@@ -1,6 +1,8 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { PostType, PostVisibility, PostContent, PostStats, PostMetadata } from '@mention/shared-types';
 
+export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned';
+
 export interface IPost extends Document {
   oxyUserId: string; // Links to Oxy user
   type: PostType;
@@ -16,6 +18,8 @@ export interface IPost extends Document {
   quoteOf?: string; // quoted post id
   parentPostId?: string; // for replies
   threadId?: string; // for thread posts
+  replyPermission?: ReplyPermission; // Who can reply and quote this post
+  reviewReplies?: boolean; // Whether to review and approve replies before they're visible
   stats: PostStats;
   metadata: PostMetadata;
   location?: { // Post creation location metadata
@@ -125,6 +129,12 @@ const PostSchema = new Schema<IPost>({
   quoteOf: { type: String, index: true },
   parentPostId: { type: String, index: true },
   threadId: { type: String, index: true },
+  replyPermission: { 
+    type: String, 
+    enum: ['anyone', 'followers', 'following', 'mentioned'],
+    default: 'anyone'
+  },
+  reviewReplies: { type: Boolean, default: false },
   stats: { 
     type: PostStatsSchema, 
     default: () => ({
