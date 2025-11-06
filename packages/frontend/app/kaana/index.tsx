@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { shadowStyle } from '@/utils/platformStyles';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
