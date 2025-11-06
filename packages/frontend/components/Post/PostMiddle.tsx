@@ -29,13 +29,14 @@ interface Props {
 // Video item component to properly use the hook
 const VideoItem: React.FC<{ 
   src: string; 
-  containerStyle: any; 
+  containerStyle?: any; 
   borderColor: string; 
   backgroundColor: string;
   postId?: string;
   onPress?: () => void;
   hasSingleMedia?: boolean; // If true, remove max height constraint
-}> = ({ src, containerStyle, borderColor, backgroundColor, postId, onPress, hasSingleMedia }) => {
+  hasMultipleMedia?: boolean; // If true, use fixed height with width determined by aspect ratio
+}> = ({ src, containerStyle, borderColor, backgroundColor, postId, onPress, hasSingleMedia, hasMultipleMedia }) => {
   const player = useVideoPlayer(src, (player) => {
     if (player) {
       player.loop = true;
@@ -66,45 +67,23 @@ const VideoItem: React.FC<{
     };
   }, [player]);
 
-  // Apply dynamic container style with conditional height/maxHeight removal
-  const dynamicContainerStyle = useMemo(() => {
-    const baseStyle = Array.isArray(containerStyle) ? [...containerStyle] : [containerStyle];
-    if (hasSingleMedia) {
-      // Remove height and maxHeight constraints for single media to allow natural aspect ratio
-      const modifiedStyles = baseStyle.map(style => {
-        if (style && typeof style === 'object') {
-          const { height: _, maxHeight: __, ...rest } = style as any;
-          return rest;
-        }
-        return style;
-      });
-      // Add alignSelf to prevent container from stretching
-      return [...modifiedStyles, { alignSelf: 'flex-start' }];
-    }
-    return baseStyle;
-  }, [containerStyle, hasSingleMedia]);
-
-  // Dynamic video style - remove height constraint for single media
-  const dynamicVideoStyle = useMemo(() => {
-    if (hasSingleMedia) {
-      return {
-        width: CARD_WIDTH,
-        // No height constraint - will be determined by aspect ratio
-      };
-    }
-    return styles.video;
-  }, [hasSingleMedia]);
-
   return (
     <Pressable 
       onPress={onPress}
-      style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+      style={({ pressed }) => [
+        { opacity: pressed ? 0.9 : 1 },
+        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' }
+      ]}
     >
-      <View style={[...dynamicContainerStyle, { borderColor, backgroundColor }]}>
+      <View style={[
+        styles.itemContainer,
+        { borderColor, backgroundColor },
+        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' }
+      ]}>
         <VideoView
           player={player}
-          style={dynamicVideoStyle}
-          contentFit={hasSingleMedia ? "contain" : "cover"}
+          style={hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia}
+          contentFit="contain"
           nativeControls={false}
           allowsFullscreen={false}
           allowsPictureInPicture={false}
@@ -124,6 +103,8 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
   const hasSingleVideo = videoMedia.length === 1 && (media?.length || 0) === 1;
   // Check if there's only one media item (excluding polls and nested posts)
   const hasSingleMedia = (media?.length || 0) === 1 && !pollId && !pollData && !nestedPost;
+  // Check if there are multiple media items
+  const hasMultipleMedia = (media?.length || 0) > 1;
   
   const handleVideoPress = useCallback(() => {
     if (postId && hasSingleVideo) {
@@ -228,23 +209,69 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
             <VideoItem
               key={`video-${idx}`}
               src={item.src}
-              containerStyle={[styles.mediaImage, styles.itemContainer]}
+              containerStyle={[]}
               borderColor={theme.colors.border}
               backgroundColor={theme.colors.backgroundSecondary}
               postId={postId}
               onPress={hasSingleVideo ? handleVideoPress : undefined}
               hasSingleMedia={hasSingleMedia}
+              hasMultipleMedia={hasMultipleMedia}
             />
           );
         }
-        return (
-          <Image
-            key={`img-${idx}`}
-            source={{ uri: (item as any).src }}
-            style={[styles.mediaImage, styles.itemContainer, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-            resizeMode="cover"
-          />
+        // For multiple media, calculate aspect ratio dynamically
+        const ImageWithAspectRatio = hasMultipleMedia ? (() => {
+          const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
+            const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
+            
+            React.useEffect(() => {
+              Image.getSize(
+                src,
+                (width, height) => {
+                  if (width > 0 && height > 0) {
+                    setAspectRatio(width / height);
+                  }
+                },
+                () => {
+                  // On error, use default
+                  setAspectRatio(4 / 3);
+                }
+              );
+            }, [src]);
+
+            return (
+              <View style={[
+                styles.itemContainer,
+                { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
+                { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' }
+              ]}>
+                <Image
+                  source={{ uri: src }}
+                  style={[
+                    styles.imageMultipleMedia,
+                    aspectRatio !== undefined ? { aspectRatio } : undefined
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
+            );
+          };
+          return <ImageWithRatio key={`img-${idx}`} src={(item as any).src} />;
+        })() : (
+          <View style={[
+            styles.itemContainer,
+            { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }
+          ]}>
+            <Image
+              key={`img-${idx}`}
+              source={{ uri: (item as any).src }}
+              style={styles.imagePreserveAspect}
+              resizeMode="contain"
+            />
+          </View>
         );
+
+        return ImageWithAspectRatio;
       })}
     </ScrollView>
   );
@@ -272,9 +299,38 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
   },
+  mediaContainer: {
+    width: CARD_WIDTH,
+    alignSelf: 'flex-start',
+    // Container wraps content - height determined by media's natural aspect ratio (single media)
+  },
+  mediaContainerMultiple: {
+    height: CARD_HEIGHT,
+    alignSelf: 'flex-start',
+    // Container has fixed height - width will be determined by content (media's natural aspect ratio)
+    flexShrink: 0,
+  },
   video: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
+  },
+  videoPreserveAspect: {
+    width: CARD_WIDTH,
+    aspectRatio: 1, // Square default - contentFit="contain" will preserve video's natural ratio within this
+  },
+  videoMultipleMedia: {
+    height: CARD_HEIGHT,
+    // No width or aspectRatio - width will be determined by video's natural aspect ratio with contentFit="contain"
+    alignSelf: 'flex-start',
+  },
+  imagePreserveAspect: {
+    width: CARD_WIDTH,
+    aspectRatio: 1, // Square default - resizeMode="contain" will preserve image's natural ratio within this
+  },
+  imageMultipleMedia: {
+    height: CARD_HEIGHT,
+    // No width or aspectRatio - width will be determined by image's natural aspect ratio with resizeMode="contain"
+    alignSelf: 'flex-start',
   },
   pollContainer: {
     padding: 16,
