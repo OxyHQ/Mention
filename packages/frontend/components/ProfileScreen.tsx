@@ -1163,11 +1163,14 @@ const styles = StyleSheet.create({
     privateIndicator: {
         flexDirection: 'row',
         alignItems: 'center',
+        alignSelf: 'flex-start',
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 12,
         gap: 4,
+        marginTop: 4,
+        marginBottom: 4,
     },
     privateText: {
         fontSize: 12,
