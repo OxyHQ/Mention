@@ -199,6 +199,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
           const scrollerPaddingLeft = Math.abs(leftOffset); // applied via contentContainerStyle
           const nestedWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
           const PostItem = getPostItem();
+          if (!PostItem) return null;
           return (
             <View key={`nested-${idx}`} style={[styles.nestedContainer, { width: nestedWidth }]}>
               <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />
