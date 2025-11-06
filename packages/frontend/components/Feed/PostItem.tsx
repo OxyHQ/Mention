@@ -57,8 +57,18 @@ const PostItem: React.FC<PostItemProps> = ({
     const postId = (post as any)?.id;
 
     // Use a ref to cache the selector to prevent recreation
+    // CRITICAL: Reset selector when postId changes (FlashList recycling)
     const selectorRef = useRef<((state: any) => any) | null>(null);
-    if (!selectorRef.current && postId) {
+    const prevPostIdRef = useRef<string | undefined>(undefined);
+    
+    // Reset selector if postId changed (FlashList recycled component with different post)
+    if (postId !== prevPostIdRef.current) {
+        prevPostIdRef.current = postId;
+        selectorRef.current = postId ? (state: any) => {
+            // Only check the entity cache - much faster than scanning feeds
+            return state.postsById[postId as string] || null;
+        } : null;
+    } else if (!selectorRef.current && postId) {
         selectorRef.current = (state: any) => {
             // Only check the entity cache - much faster than scanning feeds
             return state.postsById[postId as string] || null;
@@ -90,11 +100,22 @@ const PostItem: React.FC<PostItemProps> = ({
     const isSaved = Boolean((viewPost as any)?.isSaved ?? (viewPost as any)?.metadata?.isSaved ?? false);
 
     // Handle reposts and quotes - prefer embedded original/quoted data from backend
+    // CRITICAL: Reset state when postId changes to prevent FlashList recycling issues
     const [originalPost, setOriginalPost] = React.useState<any>(() => {
         const p: any = post;
         // Support both 'original' and 'quoted' keys; 'original' takes precedence for reposts
         return p?.original || p?.quoted || null;
     });
+    
+    // CRITICAL: Reset originalPost when postId changes (FlashList recycling)
+    // This ensures recycled components don't show stale data
+    // Reset immediately when postId changes, before the load effect runs
+    React.useEffect(() => {
+        // Use viewPost to be consistent with the load effect below
+        const newOriginal = (viewPost as any)?.original || (viewPost as any)?.quoted || null;
+        // Reset immediately when postId changes (FlashList recycled component)
+        setOriginalPost(newOriginal);
+    }, [postId, viewPost]); // Reset when postId or viewPost changes
 
     const findFromStore = useCallback((id: string) => {
         try {

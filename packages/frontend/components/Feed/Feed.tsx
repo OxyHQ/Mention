@@ -132,6 +132,7 @@ const Feed = (props: FeedProps) => {
     const isFetchingRef = useRef(false);
     const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const loadMoreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isLoadingMoreRef = useRef(false);
 
     const itemKey = useCallback((it: any): string => {
         // Try id first (should be string), then _id (could be ObjectId or string)
@@ -371,12 +372,29 @@ const Feed = (props: FeedProps) => {
     }, [type, effectiveType, userId, showOnlySaved, refreshFeed, fetchUserFeed, filters, useScoped, clearError]);
 
     const handleLoadMore = useCallback(async () => {
-        if (showOnlySaved) {
-            // Use feed endpoint for loading more saved posts
-            await loadMoreFeed('saved', filters);
+        // CRITICAL: Use ref-based guard to prevent concurrent calls synchronously
+        // State-based guards (isLoadingMore) are async and can allow race conditions
+        if (isLoadingMoreRef.current) {
+            console.log('[Feed] handleLoadMore: Already loading, skipping duplicate call');
             return;
         }
+        
+        if (showOnlySaved) {
+            // Use feed endpoint for loading more saved posts
+            isLoadingMoreRef.current = true;
+            try {
+                await loadMoreFeed('saved', filters);
+            } finally {
+                isLoadingMoreRef.current = false;
+            }
+            return;
+        }
+        
+        // Check conditions before setting ref flag
         if (!hasMore || isLoading || isLoadingMore) return;
+
+        // Set loading flag immediately to prevent concurrent calls
+        isLoadingMoreRef.current = true;
 
         // Clear any pending debounce
         if (loadMoreDebounceRef.current) {
@@ -387,7 +405,12 @@ const Feed = (props: FeedProps) => {
         setIsLoadingMore(true);
         try {
             if (useScoped) {
-                if (!localHasMore || localLoading) return;
+                if (!localHasMore || localLoading) {
+                    // Reset ref flag before early return
+                    isLoadingMoreRef.current = false;
+                    setIsLoadingMore(false);
+                    return;
+                }
                 setLocalLoading(true);
                 setLocalError(null);
 
@@ -442,32 +465,19 @@ const Feed = (props: FeedProps) => {
                 setLocalLoading(false);
             }
             setIsLoadingMore(false);
+            // CRITICAL: Reset ref flag after operation completes
+            isLoadingMoreRef.current = false;
         }
     }, [showOnlySaved, hasMore, isLoading, isLoadingMore, type, effectiveType, userId, loadMoreFeed, fetchUserFeed, feedData?.nextCursor, filters, useScoped, localHasMore, localLoading, localNextCursor, itemKey]);
 
     // Prefetch next page when approaching end (75% scroll)
+    // NOTE: Disabled to prevent duplicate loads - onEndReached already handles this
+    // Keeping callback for potential future use but not triggering loadMore
     const handleViewableItemsChanged = useCallback(({ viewableItems }: any) => {
-        if (!hasMore || isLoadingMore || isLoading) return;
-        
-        // Use feedData to get length - displayItems is defined later
-        const totalItems = useScoped ? localItems.length : (feedData?.items?.length || 0);
-        if (totalItems === 0) return;
-        
-        // If we're viewing items in the last 25% of the list, prefetch
-        const lastVisibleIndex = viewableItems[viewableItems.length - 1]?.index ?? 0;
-        const threshold = Math.floor(totalItems * 0.75);
-        
-        if (lastVisibleIndex >= threshold) {
-            // Debounce prefetch to avoid multiple calls
-            if (prefetchTimerRef.current) {
-                clearTimeout(prefetchTimerRef.current);
-            }
-            
-            prefetchTimerRef.current = setTimeout(() => {
-                handleLoadMore();
-            }, 300);
-        }
-    }, [hasMore, isLoadingMore, isLoading, useScoped, localItems.length, feedData?.items?.length, handleLoadMore]);
+        // Disabled to prevent duplicate triggers with onEndReached
+        // onEndReached already handles loading more at the threshold
+        return;
+    }, []);
 
     // Cleanup timers on unmount
     useEffect(() => {
@@ -481,13 +491,15 @@ const Feed = (props: FeedProps) => {
         };
     }, []);
 
-    const renderPostItem = useCallback(({ item }: { item: any; index: number }) => {
+    const renderPostItem = useCallback(({ item, index }: { item: any; index: number }) => {
         // Validate item before rendering to prevent crashes
         if (!item || !item.id) {
             console.warn('[Feed] Invalid post item:', item);
             return null;
         }
         
+        // CRITICAL: Don't add key prop here - FlashList handles keys via keyExtractor
+        // Adding a key prop can interfere with FlashList's recycling mechanism
         // Return PostItem - if it crashes, ErrorBoundary will catch it
         return <PostItem post={item} />;
     }, []);
@@ -671,6 +683,16 @@ const Feed = (props: FeedProps) => {
     }, [showComposeButton, onComposePress, hideHeader, theme]);
 
     const keyExtractor = useCallback((item: any) => itemKey(item), [itemKey]);
+    
+    // CRITICAL: getItemType helps FlashList properly recycle components
+    // All posts use the same type, but this helps FlashList optimize recycling
+    const getItemType = useCallback((item: any) => {
+        // Return item type based on post structure to help FlashList recycle correctly
+        if (item?.original || item?.repostOf) return 'repost';
+        if (item?.quoted || item?.quoteOf) return 'quote';
+        if (item?.parentPostId || item?.replyTo) return 'reply';
+        return 'post'; // Default type
+    }, []);
 
     // Optimized data hash - only recalculate when items actually change
     const dataHash = useMemo(() => {
@@ -761,6 +783,7 @@ const Feed = (props: FeedProps) => {
                     data={finalRenderItems}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
+                    getItemType={getItemType}
                     {...({
                         estimatedItemSize: 250,
                         extraData: dataHash,
@@ -778,11 +801,8 @@ const Feed = (props: FeedProps) => {
                         ),
                         onEndReached: handleLoadMore,
                         onEndReachedThreshold: 0.7, // Increased threshold for earlier prefetch
-                        onViewableItemsChanged: handleViewableItemsChanged,
-                        viewabilityConfig: {
-                            itemVisiblePercentThreshold: 50,
-                            minimumViewTime: 100,
-                        },
+                        // Removed onViewableItemsChanged to prevent duplicate loads
+                        // onEndReached already handles loading more at threshold
                         showsVerticalScrollIndicator: false,
                         onScroll: scrollEnabled === false ? undefined : handleScrollEvent,
                         scrollEventThrottle: scrollEnabled === false ? undefined : scrollEventThrottle,
