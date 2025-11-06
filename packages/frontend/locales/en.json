@@ -1,5 +1,6 @@
 {
     "Home": "Home",
+    "Profile": "Profile",
     "Search": "Search",
     "Notifications": "Notifications",
     "Messages": "Messages",
@@ -53,6 +54,7 @@
     "Feeds": "Feeds",
     "Lists": "Lists",
     "Videos": "Videos",
+    "Insights": "Insights",
     "Sign Up": "Sign Up",
     "Sign In": "Sign In",
     "Join the conversation": "Join the conversation",
@@ -261,11 +263,15 @@
     "settings.privacy.failedToRestrictUser": "Failed to restrict user",
     "settings.privacy.failedToUnrestrictUser": "Failed to unrestrict user",
     "settings.privacy.cannotRestrictYourself": "You cannot restrict yourself",
+    "settings.privacy.cannotBlockYourself": "You cannot block yourself",
     "settings.privacy.restrictedUsersDescription": "Restricted users can see your posts but have limited interaction. They cannot see when you're online or comment on your posts.",
     "settings.privacy.hiddenWordsComingSoon": "Hidden words management coming soon",
     "common.saving": "Saving...",
     "settings.sections.preferences": "Preferences",
     "Select your preferred language": "Select your preferred language",
+    "settings.language.selectLanguage": "Select Language",
+    "settings.preferences.appearance": "Appearance",
+    "settings.preferences.appearanceDesc": "Customize theme, colors, and display settings",
     "settings.preferences.notifications": "Notifications",
     "settings.preferences.notificationsDesc": "Control app notifications.",
     "settings.preferences.darkMode": "Dark mode",
@@ -369,6 +375,55 @@
         "unknown": "unknown",
         "someone": "Someone"
     },
+    "insights": {
+        "posts": "Posts",
+        "period": {
+            "7days": "7 Days",
+            "30days": "30 Days",
+            "90days": "90 Days"
+        },
+        "weeklyRecap": {
+            "ready": "Your weekly recap is ready!",
+            "subtitle": "See how things went last week."
+        },
+        "avgPerPost": "Avg per post",
+        "perPost": "per post",
+        "topPerformingPosts": "Top Performing Posts",
+        "unableToLoadPosts": "Unable to load posts",
+        "postsByType": "Posts by Type",
+        "postType": {
+            "text": "Text",
+            "image": "Image",
+            "video": "Video",
+            "poll": "Poll",
+            "repost": "Repost"
+        },
+        "overallEngagement": "Overall Engagement",
+        "engagementRatios": "Engagement Ratios",
+        "ofViews": "of views",
+        "likeRate": "Like Rate",
+        "replyRate": "Reply Rate",
+        "repostRate": "Repost Rate",
+        "shareRate": "Share Rate",
+        "averages": "Averages",
+        "viewsPerPost": "Views per Post",
+        "engagementPerPost": "Engagement per Post",
+        "totalActivity": "Total Activity",
+        "tabs": {
+            "overview": "Overview",
+            "engagement": "Engagement"
+        },
+        "post": {
+            "views": "Views",
+            "likes": "Likes",
+            "interactions": "Interactions",
+            "engagementRate": "Engagement Rate",
+            "totalInteractions": "Total interactions",
+            "replies": "Replies",
+            "reposts": "Reposts",
+            "shares": "Shares"
+        }
+    },
     "seo": {
         "siteName": "Mention",
         "defaultTitle": "Mention - Social Platform",
@@ -407,7 +462,58 @@
         },
         "insights": {
             "title": "Insights - Mention",
-            "description": "View analytics and insights about your posts and engagement on Mention."
+            "description": "View analytics and insights about your posts and engagement on Mention.",
+            "post": {
+                "title": "Post Insights",
+                "noInsightsAvailable": "No insights available",
+                "views": "Views",
+                "likes": "Likes",
+                "interactions": "Interactions",
+                "engagementRate": "Engagement Rate",
+                "totalInteractions": "Total interactions",
+                "reach": "Reach",
+                "replies": "Replies",
+                "reposts": "Reposts",
+                "shares": "Shares",
+                "quotes": "Quotes",
+                "totalQuotes": "Total quotes"
+            },
+            "posts": "Posts",
+            "period": {
+                "7days": "7 Days",
+                "30days": "30 Days",
+                "90days": "90 Days"
+            },
+            "weeklyRecap": {
+                "ready": "Your weekly recap is ready!",
+                "subtitle": "See how things went last week."
+            },
+            "avgPerPost": "Avg per post",
+            "perPost": "per post",
+            "topPerformingPosts": "Top Performing Posts",
+            "unableToLoadPosts": "Unable to load posts",
+            "postsByType": "Posts by Type",
+            "postType": {
+                "text": "Text",
+                "image": "Image",
+                "video": "Video",
+                "poll": "Poll"
+            },
+            "overallEngagement": "Overall Engagement",
+            "engagementRatios": "Engagement Ratios",
+            "ofViews": "of views",
+            "likeRate": "Like Rate",
+            "replyRate": "Reply Rate",
+            "repostRate": "Repost Rate",
+            "shareRate": "Share Rate",
+            "averages": "Averages",
+            "viewsPerPost": "Views per Post",
+            "engagementPerPost": "Engagement per Post",
+            "totalActivity": "Total Activity",
+            "tabs": {
+                "overview": "Overview",
+                "engagement": "Engagement"
+            }
         },
         "search": {
             "title": "Search - Mention",

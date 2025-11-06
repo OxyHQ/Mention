@@ -216,10 +216,12 @@ export default function RestrictedUsersScreen() {
                 return;
             }
 
-            // Filter out already restricted users using Set for O(1) lookup
+            // Filter out already restricted users and current user using Set for O(1) lookup
             const filtered = results.filter((user: any) => {
                 const userId = user.id || user._id;
-                return userId && !restrictedUserIdsSet.has(userId);
+                return userId && 
+                       !restrictedUserIdsSet.has(userId) && 
+                       userId !== currentUser?.id;
             });
             setSearchResults(filtered);
         } catch (error: any) {
@@ -457,8 +459,8 @@ export default function RestrictedUsersScreen() {
                 </View>
 
                 {/* Search Section */}
-                <View style={[styles.searchContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                    <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+                <View style={styles.searchSection}>
+                    <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                         <IconComponent name="search" size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
                         <TextInput
                             style={[styles.searchInput, { color: theme.colors.text }]}
@@ -476,7 +478,7 @@ export default function RestrictedUsersScreen() {
 
                     {/* Search Results */}
                     {searchQuery && searchResults.length > 0 && (
-                        <View style={styles.searchResults}>
+                        <View style={[styles.searchResults, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             {searchResults.map((user) => {
                                 const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
@@ -631,19 +633,17 @@ const styles = StyleSheet.create({
         fontSize: 14,
         lineHeight: 20,
     },
-    searchContainer: {
-        borderRadius: 16,
-        borderWidth: 1,
-        padding: 16,
+    searchSection: {
         marginBottom: 24,
     },
     searchInputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: 16,
         borderWidth: 1,
         paddingHorizontal: 12,
         paddingVertical: 10,
+        marginBottom: 12,
     },
     searchIcon: {
         marginRight: 8,
@@ -656,7 +656,9 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
     searchResults: {
-        marginTop: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        overflow: 'hidden',
         maxHeight: 300,
     },
     searchResultItem: {

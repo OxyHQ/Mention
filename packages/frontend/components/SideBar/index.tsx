@@ -48,7 +48,7 @@ export function SideBar() {
             title: t('settings.signOut'),
             message: t('settings.signOutMessage'),
             okText: t('settings.signOut'),
-            cancelText: t('cancel'),
+            cancelText: t('common.cancel'),
             destructive: true,
         });
         if (!confirmed) return;
@@ -67,13 +67,13 @@ export function SideBar() {
         route: string;
     }[] = [
             {
-                title: 'Home',
+                title: t("Home"),
                 icon: <Home color={theme.colors.text} />,
                 iconActive: <HomeActive color={theme.colors.primary} />,
                 route: '/',
             },
             ...(user ? [{
-                title: 'Profile',
+                title: t("Profile"),
                 icon: <Avatar source={avatarUri} size={24} />,
                 iconActive: <Avatar source={avatarUri} size={24} />,
                 route: `/@${user.username}`,
@@ -91,7 +91,7 @@ export function SideBar() {
                 route: '/notifications',
             },
             {
-                title: 'Chat',
+                title: t("Chat"),
                 icon: <Chat color={theme.colors.text} />,
                 iconActive: <ChatActive color={theme.colors.primary} />,
                 route: '/chat',
@@ -220,7 +220,7 @@ export function SideBar() {
                                                 },
                                             }) as any),
                                         }
-                                    ]}>Create Post</Text>
+                                    ]}>{t("New Post")}</Text>
                                 )}
                                 renderIcon={() => (
                                     <View style={{
@@ -270,7 +270,7 @@ export function SideBar() {
                             <SideBarItem
                                 isActive={false}
                                 icon={<IconComponent name="log-in-outline" size={20} color={theme.colors.text} />}
-                                text={t('sidebar.actions.signIn')}
+                                text={t('Sign In')}
                                 isExpanded={isExpanded}
                                 onHoverExpand={handleHoverIn}
                                 onPress={() => showBottomSheet?.('SignIn')}

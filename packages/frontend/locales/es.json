@@ -1,5 +1,6 @@
 {
   "Home": "Inicio",
+  "Profile": "Perfil",
   "Search": "Buscar",
   "Notifications": "Notificaciones",
   "Messages": "Mensajes",
@@ -58,6 +59,7 @@
   "Feeds": "Feed",
   "Lists": "Listas",
   "Videos": "Vídeos",
+  "Insights": "Estadísticas",
   "permission.notifications.title": "Mantente al tanto",
   "permission.notifications.subtitle": "Activa las notificaciones para recibir actualizaciones cuando las personas que sigues publiquen.",
   "permission.notifications.enable": "Activar notificaciones",
@@ -267,11 +269,15 @@
   "settings.privacy.failedToRestrictUser": "Error al restringir usuario",
   "settings.privacy.failedToUnrestrictUser": "Error al quitar restricción de usuario",
   "settings.privacy.cannotRestrictYourself": "No puedes restringirte a ti mismo",
+  "settings.privacy.cannotBlockYourself": "No puedes bloquear tu propia cuenta",
   "settings.privacy.restrictedUsersDescription": "Los usuarios restringidos pueden ver tus publicaciones pero tienen interacción limitada. No pueden ver cuando estás en línea ni comentar en tus publicaciones.",
   "settings.privacy.hiddenWordsComingSoon": "Gestión de palabras ocultas próximamente",
   "common.saving": "Guardando...",
   "settings.sections.preferences": "Preferencias",
   "Select your preferred language": "Selecciona tu idioma preferido",
+  "settings.language.selectLanguage": "Seleccionar idioma",
+  "settings.preferences.appearance": "Apariencia",
+  "settings.preferences.appearanceDesc": "Personaliza el tema, colores y configuración de visualización",
   "settings.preferences.notifications": "Notificaciones",
   "settings.preferences.notificationsDesc": "Controla las notificaciones de la app.",
   "settings.preferences.darkMode": "Modo oscuro",
@@ -340,6 +346,55 @@
     "unknown": "desconocido",
     "someone": "Alguien"
   },
+  "insights": {
+    "posts": "Publicaciones",
+    "period": {
+      "7days": "7 Días",
+      "30days": "30 Días",
+      "90days": "90 Días"
+    },
+    "weeklyRecap": {
+      "ready": "¡Tu resumen semanal está listo!",
+      "subtitle": "Ve cómo te fue la semana pasada."
+    },
+    "avgPerPost": "Promedio por publicación",
+    "perPost": "por publicación",
+    "topPerformingPosts": "Publicaciones con Mejor Rendimiento",
+    "unableToLoadPosts": "No se pudieron cargar las publicaciones",
+    "postsByType": "Publicaciones por Tipo",
+    "postType": {
+      "text": "Texto",
+      "image": "Imagen",
+      "video": "Video",
+      "poll": "Encuesta",
+      "repost": "Republicación"
+    },
+    "overallEngagement": "Participación General",
+    "engagementRatios": "Tasas de Participación",
+    "ofViews": "de visualizaciones",
+    "likeRate": "Tasa de Me Gusta",
+    "replyRate": "Tasa de Respuestas",
+    "repostRate": "Tasa de Republicaciones",
+    "shareRate": "Tasa de Compartidos",
+    "averages": "Promedios",
+    "viewsPerPost": "Visualizaciones por Publicación",
+    "engagementPerPost": "Participación por Publicación",
+    "totalActivity": "Actividad Total",
+    "tabs": {
+      "overview": "Resumen",
+      "engagement": "Participación"
+    },
+    "post": {
+      "views": "Visualizaciones",
+      "likes": "Me gusta",
+      "interactions": "Interacciones",
+      "engagementRate": "Tasa de Participación",
+      "totalInteractions": "Total de interacciones",
+      "replies": "Respuestas",
+      "reposts": "Republicaciones",
+      "shares": "Compartidos"
+    }
+  },
   "seo": {
     "siteName": "Mention",
     "defaultTitle": "Mention - Plataforma Social",
@@ -378,7 +433,58 @@
     },
     "insights": {
       "title": "Estadísticas - Mention",
-      "description": "Ve análisis y estadísticas sobre tus publicaciones y participación en Mention."
+      "description": "Ve análisis y estadísticas sobre tus publicaciones y participación en Mention.",
+      "post": {
+        "title": "Estadísticas de Publicación",
+        "noInsightsAvailable": "No hay estadísticas disponibles",
+        "views": "Visualizaciones",
+        "likes": "Me gusta",
+        "interactions": "Interacciones",
+        "engagementRate": "Tasa de Participación",
+        "totalInteractions": "Total de interacciones",
+        "reach": "Alcance",
+        "replies": "Respuestas",
+        "reposts": "Republicaciones",
+        "shares": "Compartidos",
+        "quotes": "Citas",
+        "totalQuotes": "Total de citas"
+      },
+      "posts": "Publicaciones",
+      "period": {
+        "7days": "7 Días",
+        "30days": "30 Días",
+        "90days": "90 Días"
+      },
+      "weeklyRecap": {
+        "ready": "¡Tu resumen semanal está listo!",
+        "subtitle": "Ve cómo te fue la semana pasada."
+      },
+      "avgPerPost": "Promedio por publicación",
+      "perPost": "por publicación",
+      "topPerformingPosts": "Publicaciones con Mejor Rendimiento",
+      "unableToLoadPosts": "No se pudieron cargar las publicaciones",
+      "postsByType": "Publicaciones por Tipo",
+      "postType": {
+        "text": "Texto",
+        "image": "Imagen",
+        "video": "Video",
+        "poll": "Encuesta"
+      },
+      "overallEngagement": "Participación General",
+      "engagementRatios": "Tasas de Participación",
+      "ofViews": "de visualizaciones",
+      "likeRate": "Tasa de Me Gusta",
+      "replyRate": "Tasa de Respuestas",
+      "repostRate": "Tasa de Republicaciones",
+      "shareRate": "Tasa de Compartidos",
+      "averages": "Promedios",
+      "viewsPerPost": "Visualizaciones por Publicación",
+      "engagementPerPost": "Participación por Publicación",
+      "totalActivity": "Actividad Total",
+      "tabs": {
+        "overview": "Resumen",
+        "engagement": "Participación"
+      }
     },
     "search": {
       "title": "Buscar - Mention",

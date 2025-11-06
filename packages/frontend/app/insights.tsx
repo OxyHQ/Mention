@@ -35,19 +35,20 @@ import SEO from '@/components/SEO';
 const { width } = Dimensions.get('window');
 
 const PERIOD_OPTIONS = [
-    { label: '7 Days', value: 7 },
-    { label: '30 Days', value: 30 },
-    { label: '90 Days', value: 90 }
+    { labelKey: 'insights.period.7days', value: 7 },
+    { labelKey: 'insights.period.30days', value: 30 },
+    { labelKey: 'insights.period.90days', value: 90 }
 ];
 
 interface PeriodButtonProps {
-    option: { label: string; value: number };
+    option: { labelKey: string; value: number };
     isActive: boolean;
     onPress: () => void;
     theme: any;
+    t: (key: string) => string;
 }
 
-const PeriodButton: React.FC<PeriodButtonProps> = ({ option, isActive, onPress, theme }) => {
+const PeriodButton: React.FC<PeriodButtonProps> = ({ option, isActive, onPress, theme, t }) => {
     const animatedStyle = useAnimatedStyle(() => {
         return {
             backgroundColor: withSpring(
@@ -93,7 +94,7 @@ const PeriodButton: React.FC<PeriodButtonProps> = ({ option, isActive, onPress, 
                     }
                 ]}
             >
-                {option.label}
+                {t(option.labelKey)}
             </Animated.Text>
         </TouchableOpacity>
     );
@@ -199,6 +200,7 @@ const InsightsScreen: React.FC = () => {
                                 }
                             }}
                             theme={theme}
+                            t={t}
                         />
                     ))}
                 </View>
@@ -213,8 +215,8 @@ const InsightsScreen: React.FC = () => {
                         <View style={styles.bannerLeft}>
                             <Ionicons name="calendar" size={20} color={theme.colors.primary} />
                             <View style={styles.bannerTextContainer}>
-                                <Text style={[styles.bannerTitle, { color: theme.colors.text }]}>Your weekly recap is ready!</Text>
-                                <Text style={[styles.bannerSubtitle, { color: theme.colors.textSecondary }]}>See how things went last week.</Text>
+                                <Text style={[styles.bannerTitle, { color: theme.colors.text }]}>{t('insights.weeklyRecap.ready')}</Text>
+                                <Text style={[styles.bannerSubtitle, { color: theme.colors.textSecondary }]}>{t('insights.weeklyRecap.subtitle')}</Text>
                             </View>
                         </View>
                         <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
@@ -225,9 +227,9 @@ const InsightsScreen: React.FC = () => {
                 <View style={styles.summarySection}>
                     <SummaryCard
                         items={[
-                            { value: stats.overview.totalPosts, label: 'Posts' },
-                            { value: stats.overview.totalViews, label: 'Views' },
-                            { value: stats.overview.totalInteractions, label: 'Interactions' },
+                            { value: stats.overview.totalPosts, label: t('insights.posts') },
+                            { value: stats.overview.totalViews, label: t('insights.post.views') },
+                            { value: stats.overview.totalInteractions, label: t('insights.post.interactions') },
                         ]}
                         chartData={stats.dailyBreakdown ? stats.dailyBreakdown.slice(-7).map(d => d.views) : undefined}
                         showChart={!!stats.dailyBreakdown && stats.dailyBreakdown.length > 0}
@@ -236,33 +238,33 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Engagement Rate */}
                 <View style={styles.engagementRateSection}>
-                    <SectionHeader title="Engagement Rate" />
+                    <SectionHeader title={t('insights.post.engagementRate')} />
                     <View style={[styles.engagementRateCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                         <View style={styles.engagementRateHeader}>
                             <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
                             {stats.overview.totalViews > 0 && (
                                 <Text style={[styles.engagementRateStat, { color: theme.colors.textSecondary }]}>
-                                    {formatNumber(stats.overview.totalViews)} views
+                                    {formatNumber(stats.overview.totalViews)} {t('insights.post.views').toLowerCase()}
                                 </Text>
                             )}
                         </View>
                         <Text style={[styles.engagementRateValue, { color: theme.colors.text }]}>
                             {stats.overview.engagementRate.toFixed(2)}%
                         </Text>
-                        <Text style={[styles.engagementRateLabel, { color: theme.colors.textSecondary }]}>Engagement Rate</Text>
+                        <Text style={[styles.engagementRateLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.engagementRate')}</Text>
                         <View style={[styles.engagementRateStats, { borderTopColor: theme.colors.border }]}>
                             <View style={styles.engagementRateStatItem}>
                                 <Text style={[styles.engagementRateStatValue, { color: theme.colors.text }]}>
                                     {formatNumber(stats.overview.totalInteractions)}
                                 </Text>
-                                <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>Total interactions</Text>
+                                <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.totalInteractions')}</Text>
                             </View>
                             {stats.overview.totalPosts > 0 && (
                                 <View style={styles.engagementRateStatItem}>
                                     <Text style={[styles.engagementRateStatValue, { color: theme.colors.text }]}>
                                         {(stats.overview.averageEngagementPerPost).toFixed(1)}
                                     </Text>
-                                    <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>Avg per post</Text>
+                                    <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>{t('insights.avgPerPost')}</Text>
                                 </View>
                             )}
                         </View>
@@ -271,7 +273,7 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Interactions */}
                 <View style={styles.interactionsSection}>
-                    <SectionHeader title="Interactions" />
+                    <SectionHeader title={t('insights.post.interactions')} />
                     <View style={styles.interactionsGrid}>
                         <View style={[styles.interactionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             <View style={styles.interactionCardHeader}>
@@ -285,10 +287,10 @@ const InsightsScreen: React.FC = () => {
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
                                 {formatNumber(stats.interactions.likes)}
                             </Text>
-                            <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Likes</Text>
+                            <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.likes')}</Text>
                             {stats.overview.totalPosts > 0 && (
                                 <Text style={[styles.interactionSubStat, { color: theme.colors.textSecondary }]}>
-                                    {(stats.interactions.likes / stats.overview.totalPosts).toFixed(1)} per post
+                                    {(stats.interactions.likes / stats.overview.totalPosts).toFixed(1)} {t('insights.perPost')}
                                 </Text>
                             )}
                         </View>
@@ -305,10 +307,10 @@ const InsightsScreen: React.FC = () => {
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
                                 {formatNumber(stats.interactions.replies)}
                             </Text>
-                            <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Replies</Text>
+                            <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.replies')}</Text>
                             {stats.overview.totalPosts > 0 && (
                                 <Text style={[styles.interactionSubStat, { color: theme.colors.textSecondary }]}>
-                                    {(stats.interactions.replies / stats.overview.totalPosts).toFixed(1)} per post
+                                    {(stats.interactions.replies / stats.overview.totalPosts).toFixed(1)} {t('insights.perPost')}
                                 </Text>
                             )}
                         </View>
@@ -325,10 +327,10 @@ const InsightsScreen: React.FC = () => {
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
                                 {formatNumber(stats.interactions.reposts)}
                             </Text>
-                            <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Reposts</Text>
+                            <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.reposts')}</Text>
                             {stats.overview.totalPosts > 0 && (
                                 <Text style={[styles.interactionSubStat, { color: theme.colors.textSecondary }]}>
-                                    {(stats.interactions.reposts / stats.overview.totalPosts).toFixed(1)} per post
+                                    {(stats.interactions.reposts / stats.overview.totalPosts).toFixed(1)} {t('insights.perPost')}
                                 </Text>
                             )}
                         </View>
@@ -345,10 +347,10 @@ const InsightsScreen: React.FC = () => {
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
                                 {formatNumber(stats.interactions.shares)}
                             </Text>
-                            <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Shares</Text>
+                            <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.shares')}</Text>
                             {stats.overview.totalPosts > 0 && (
                                 <Text style={[styles.interactionSubStat, { color: theme.colors.textSecondary }]}>
-                                    {(stats.interactions.shares / stats.overview.totalPosts).toFixed(1)} per post
+                                    {(stats.interactions.shares / stats.overview.totalPosts).toFixed(1)} {t('insights.perPost')}
                                 </Text>
                             )}
                         </View>
@@ -358,7 +360,7 @@ const InsightsScreen: React.FC = () => {
                 {/* Top Posts */}
                 {stats.topPosts.length > 0 && (
                     <View style={styles.topPostsSection}>
-                        <SectionHeader icon="trophy" title="Top Performing Posts" />
+                        <SectionHeader icon="trophy" title={t('insights.topPerformingPosts')} />
                         {loadingTopPosts ? (
                             <View style={styles.loadingPosts}>
                                 <ActivityIndicator size="small" color={theme.colors.primary} />
@@ -380,7 +382,7 @@ const InsightsScreen: React.FC = () => {
                             <View style={styles.emptyPosts}>
                                 <Ionicons name="document-outline" size={48} color={theme.colors.textSecondary} />
                                 <Text style={[styles.emptyPostsText, { color: theme.colors.textSecondary }]}>
-                                    Unable to load posts
+                                    {t('insights.unableToLoadPosts')}
                                 </Text>
                             </View>
                         )}
@@ -390,7 +392,7 @@ const InsightsScreen: React.FC = () => {
                 {/* Posts by Type */}
                 {Object.keys(stats.postsByType).length > 0 && (
                     <View style={styles.typeSection}>
-                        <SectionHeader title="Posts by Type" />
+                        <SectionHeader title={t('insights.postsByType')} />
                         <View style={[styles.typeCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             {Object.entries(stats.postsByType).map(([type, count], index, array) => {
                                 const totalPosts = stats.overview.totalPosts;
@@ -424,7 +426,7 @@ const InsightsScreen: React.FC = () => {
                                                     color={getIconColor()} 
                                                 />
                                                 <Text style={[styles.typeLabel, { color: theme.colors.text, marginLeft: 12 }]}>
-                                                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                                                    {t(`insights.postType.${type}`)}
                                                 </Text>
                                             </View>
                                             <View style={styles.typeRight}>
@@ -469,39 +471,40 @@ const InsightsScreen: React.FC = () => {
                                 }
                             }}
                             theme={theme}
+                            t={t}
                         />
                     ))}
                 </View>
 
                 {/* Overall Engagement */}
                 <View style={styles.engagementRateSection}>
-                    <SectionHeader title="Overall Engagement" />
+                    <SectionHeader title={t('insights.overallEngagement')} />
                     <View style={[styles.engagementRateCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                         <View style={styles.engagementRateHeader}>
                             <Ionicons name="stats-chart" size={20} color={theme.colors.primary} />
                             {engagementRatios.totals.views > 0 && (
                                 <Text style={[styles.engagementRateStat, { color: theme.colors.textSecondary }]}>
-                                    {formatNumber(engagementRatios.totals.views)} views
+                                    {formatNumber(engagementRatios.totals.views)} {t('insights.post.views').toLowerCase()}
                                 </Text>
                             )}
                         </View>
                         <Text style={[styles.engagementRateValue, { color: theme.colors.text }]}>
                             {engagementRatios.ratios.engagementRate.toFixed(2)}%
                         </Text>
-                        <Text style={[styles.engagementRateLabel, { color: theme.colors.textSecondary }]}>Engagement Rate</Text>
+                        <Text style={[styles.engagementRateLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.engagementRate')}</Text>
                         <View style={[styles.engagementRateStats, { borderTopColor: theme.colors.border }]}>
                             <View style={styles.engagementRateStatItem}>
                                 <Text style={[styles.engagementRateStatValue, { color: theme.colors.text }]}>
                                     {formatNumber(engagementRatios.totals.interactions)}
                                 </Text>
-                                <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>Total interactions</Text>
+                                <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.totalInteractions')}</Text>
                             </View>
                             {engagementRatios.totals.posts > 0 && (
                                 <View style={styles.engagementRateStatItem}>
                                     <Text style={[styles.engagementRateStatValue, { color: theme.colors.text }]}>
                                         {(engagementRatios.averages.engagementPerPost).toFixed(1)}
                                     </Text>
-                                    <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>Avg per post</Text>
+                                    <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>{t('insights.avgPerPost')}</Text>
                                 </View>
                             )}
                         </View>
@@ -510,21 +513,21 @@ const InsightsScreen: React.FC = () => {
 
                 {/* Engagement Ratios */}
                 <View style={styles.ratiosSection}>
-                    <SectionHeader title="Engagement Ratios" />
+                    <SectionHeader title={t('insights.engagementRatios')} />
                     <View style={styles.ratiosGrid}>
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             <View style={styles.ratioCardHeader}>
                                 <Ionicons name="heart" size={20} color="#FF3040" />
                                 {engagementRatios.totals.views > 0 && (
                                     <Text style={[styles.ratioStat, { color: theme.colors.textSecondary }]}>
-                                        {((engagementRatios.totals.likes / engagementRatios.totals.views) * 100).toFixed(1)}% of views
+                                        {((engagementRatios.totals.likes / engagementRatios.totals.views) * 100).toFixed(1)}% {t('insights.ofViews')}
                                     </Text>
                                 )}
                             </View>
                             <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
                                 {engagementRatios.ratios.likeRate.toFixed(2)}%
                             </Text>
-                            <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary }]}>Like Rate</Text>
+                            <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary }]}>{t('insights.likeRate')}</Text>
                         </View>
 
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -532,14 +535,14 @@ const InsightsScreen: React.FC = () => {
                                 <Ionicons name="chatbubble" size={20} color={theme.colors.primary} />
                                 {engagementRatios.totals.views > 0 && (
                                     <Text style={[styles.ratioStat, { color: theme.colors.textSecondary }]}>
-                                        {((engagementRatios.totals.replies / engagementRatios.totals.views) * 100).toFixed(1)}% of views
+                                        {((engagementRatios.totals.replies / engagementRatios.totals.views) * 100).toFixed(1)}% {t('insights.ofViews')}
                                     </Text>
                                 )}
                             </View>
                             <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
                                 {engagementRatios.ratios.replyRate.toFixed(2)}%
                             </Text>
-                            <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary }]}>Reply Rate</Text>
+                            <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary }]}>{t('insights.replyRate')}</Text>
                         </View>
 
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -547,14 +550,14 @@ const InsightsScreen: React.FC = () => {
                                 <Ionicons name="repeat" size={20} color={theme.colors.primary} />
                                 {engagementRatios.totals.views > 0 && (
                                     <Text style={[styles.ratioStat, { color: theme.colors.textSecondary }]}>
-                                        {((engagementRatios.totals.reposts / engagementRatios.totals.views) * 100).toFixed(1)}% of views
+                                        {((engagementRatios.totals.reposts / engagementRatios.totals.views) * 100).toFixed(1)}% {t('insights.ofViews')}
                                     </Text>
                                 )}
                             </View>
                             <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
                                 {engagementRatios.ratios.repostRate.toFixed(2)}%
                             </Text>
-                            <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary }]}>Repost Rate</Text>
+                            <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary }]}>{t('insights.repostRate')}</Text>
                         </View>
 
                         <View style={[styles.ratioCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -562,61 +565,61 @@ const InsightsScreen: React.FC = () => {
                                 <Ionicons name="share-social" size={20} color={theme.colors.primary} />
                                 {engagementRatios.totals.views > 0 && (
                                     <Text style={[styles.ratioStat, { color: theme.colors.textSecondary }]}>
-                                        {((engagementRatios.totals.shares / engagementRatios.totals.views) * 100).toFixed(1)}% of views
+                                        {((engagementRatios.totals.shares / engagementRatios.totals.views) * 100).toFixed(1)}% {t('insights.ofViews')}
                                     </Text>
                                 )}
                             </View>
                             <Text style={[styles.ratioValue, { color: theme.colors.text }]}>
                                 {engagementRatios.ratios.shareRate.toFixed(2)}%
                             </Text>
-                            <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary }]}>Share Rate</Text>
+                            <Text style={[styles.ratioLabel, { color: theme.colors.textSecondary }]}>{t('insights.shareRate')}</Text>
                         </View>
                     </View>
                 </View>
 
                 {/* Averages */}
                 <View style={styles.averagesSection}>
-                    <SectionHeader title="Averages" />
+                    <SectionHeader title={t('insights.averages')} />
                     <View style={styles.averagesGrid}>
                         <View style={[styles.averageCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             <View style={styles.averageCardHeader}>
                                 <Ionicons name="eye" size={20} color={theme.colors.primary} />
                                 {engagementRatios.totals.posts > 0 && (
                                     <Text style={[styles.averageStat, { color: theme.colors.textSecondary }]}>
-                                        {engagementRatios.totals.posts} posts
+                                        {engagementRatios.totals.posts} {t('insights.posts').toLowerCase()}
                                     </Text>
                                 )}
                             </View>
                             <Text style={[styles.averageValue, { color: theme.colors.text }]}>
                                 {formatNumber(Math.round(engagementRatios.averages.viewsPerPost))}
                             </Text>
-                            <Text style={[styles.averageLabel, { color: theme.colors.textSecondary }]}>Views per Post</Text>
+                            <Text style={[styles.averageLabel, { color: theme.colors.textSecondary }]}>{t('insights.viewsPerPost')}</Text>
                         </View>
                         <View style={[styles.averageCard, styles.averageCardLast, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             <View style={styles.averageCardHeader}>
                                 <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
                                 {engagementRatios.totals.posts > 0 && (
                                     <Text style={[styles.averageStat, { color: theme.colors.textSecondary }]}>
-                                        {engagementRatios.totals.posts} posts
+                                        {engagementRatios.totals.posts} {t('insights.posts').toLowerCase()}
                                     </Text>
                                 )}
                             </View>
                             <Text style={[styles.averageValue, { color: theme.colors.text }]}>
                                 {engagementRatios.averages.engagementPerPost.toFixed(1)}
                             </Text>
-                            <Text style={[styles.averageLabel, { color: theme.colors.textSecondary }]}>Engagement per Post</Text>
+                            <Text style={[styles.averageLabel, { color: theme.colors.textSecondary }]}>{t('insights.engagementPerPost')}</Text>
                         </View>
                     </View>
                 </View>
 
                 {/* Totals Summary */}
                 <View style={styles.totalsSection}>
-                    <SectionHeader title="Total Activity" />
+                    <SectionHeader title={t('insights.totalActivity')} />
                     <SummaryCard
                         items={[
-                            { value: engagementRatios.totals.posts, label: 'Posts' },
-                            { value: engagementRatios.totals.views, label: 'Views' },
-                            { value: engagementRatios.totals.interactions, label: 'Interactions' },
+                            { value: engagementRatios.totals.posts, label: t('insights.posts') },
+                            { value: engagementRatios.totals.views, label: t('insights.post.views') },
+                            { value: engagementRatios.totals.interactions, label: t('insights.post.interactions') },
                         ]}
                     />
                 </View>
@@ -637,7 +640,7 @@ const InsightsScreen: React.FC = () => {
                 {/* Header */}
                 <Header
                     options={{
-                        title: 'Insights',
+                        title: t('Insights'),
                         leftComponents: [
                             <HeaderIconButton
                                 key="back"
@@ -655,8 +658,8 @@ const InsightsScreen: React.FC = () => {
                 <View style={[styles.stickyTabBar, { borderBottomColor: theme.colors.border }]}>
                     <AnimatedTabBar
                         tabs={[
-                            { id: 'overview', label: 'Overview' },
-                            { id: 'engagement', label: 'Engagement' }
+                            { id: 'overview', label: t('insights.tabs.overview') },
+                            { id: 'engagement', label: t('insights.tabs.engagement') }
                         ]}
                         activeTabId={activeTab}
                         onTabPress={(tabId) => setActiveTab(tabId as 'overview' | 'engagement')}

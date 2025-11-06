@@ -13,6 +13,7 @@ import { oxyServices } from '@/lib/oxyServices';
 import Avatar from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useOxy } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
@@ -30,6 +31,7 @@ interface BlockedUser {
 export default function BlockedUsersScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
+    const { user: currentUser } = useOxy();
     const bottomSheet = React.useContext(BottomSheetContext);
     const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
     const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
@@ -159,10 +161,12 @@ export default function BlockedUsersScreen() {
         try {
             setSearching(true);
             const results = await searchService.searchUsers(query);
-            // Filter out already blocked users
+            // Filter out already blocked users and current user
             const filtered = results.filter((user: any) => {
                 const userId = user.id || user._id;
-                return userId && !blockedUserIds.includes(userId);
+                return userId && 
+                       !blockedUserIds.includes(userId) && 
+                       userId !== currentUser?.id;
             });
             setSearchResults(filtered);
         } catch (error) {
@@ -175,6 +179,20 @@ export default function BlockedUsersScreen() {
     const handleBlock = async (user: BlockedUser) => {
         const userId = user.id || (user as any)._id;
         if (!userId) return;
+
+        // Prevent blocking yourself
+        if (currentUser?.id === userId) {
+            bottomSheet.setBottomSheetContent(
+                <MessageBottomSheet
+                    title={t('common.error')}
+                    message={t('settings.privacy.cannotBlockYourself')}
+                    type="error"
+                    onClose={() => bottomSheet.openBottomSheet(false)}
+                />
+            );
+            bottomSheet.openBottomSheet(true);
+            return;
+        }
 
         try {
             setBlocking(userId);
@@ -339,8 +357,8 @@ export default function BlockedUsersScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Search Section */}
-                <View style={[styles.searchContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                    <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+                <View style={styles.searchSection}>
+                    <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                         <IconComponent name="search" size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
                         <TextInput
                             style={[styles.searchInput, { color: theme.colors.text }]}
@@ -358,7 +376,7 @@ export default function BlockedUsersScreen() {
 
                     {/* Search Results */}
                     {searchQuery && searchResults.length > 0 && (
-                        <View style={styles.searchResults}>
+                        <View style={[styles.searchResults, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             {searchResults.map((user) => {
                                 const userId = user.id || (user as any)._id;
                                 const displayName = getUserDisplayName(user);
@@ -499,19 +517,17 @@ const styles = StyleSheet.create({
         paddingTop: 20,
         paddingBottom: 24,
     },
-    searchContainer: {
-        borderRadius: 16,
-        borderWidth: 1,
-        padding: 16,
+    searchSection: {
         marginBottom: 24,
     },
     searchInputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: 16,
         borderWidth: 1,
         paddingHorizontal: 12,
         paddingVertical: 10,
+        marginBottom: 12,
     },
     searchIcon: {
         marginRight: 8,
@@ -524,7 +540,9 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
     searchResults: {
-        marginTop: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        overflow: 'hidden',
         maxHeight: 300,
     },
     searchResultItem: {

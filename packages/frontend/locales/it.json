@@ -1,5 +1,6 @@
 {
   "Home": "Pagina Iniziale",
+  "Profile": "Profilo",
   "Search": "Cerca",
   "Notifications": "Notifiche",
   "Messages": "Messaggi",
@@ -52,6 +53,7 @@
   "Feeds": "Feed",
   "Lists": "Liste",
   "Videos": "Video",
+  "Insights": "Statistiche",
   "permission.notifications.title": "Rimani aggiornato",
   "permission.notifications.subtitle": "Abilita le notifiche per ricevere aggiornamenti quando le persone che segui pubblicano.",
   "permission.notifications.enable": "Abilita notifiche",
@@ -260,11 +262,15 @@
   "settings.privacy.failedToRestrictUser": "Errore nel limitare l'utente",
   "settings.privacy.failedToUnrestrictUser": "Errore nella rimozione della limitazione dell'utente",
   "settings.privacy.cannotRestrictYourself": "Non puoi limitare te stesso",
+  "settings.privacy.cannotBlockYourself": "Non puoi bloccare te stesso",
   "settings.privacy.restrictedUsersDescription": "Gli utenti limitati possono vedere i tuoi post ma hanno un'interazione limitata. Non possono vedere quando sei online né commentare i tuoi post.",
   "settings.privacy.hiddenWordsComingSoon": "Gestione parole nascoste in arrivo",
   "common.saving": "Salvataggio...",
   "settings.sections.preferences": "Preferenze",
   "Select your preferred language": "Seleziona la lingua preferita",
+  "settings.language.selectLanguage": "Seleziona lingua",
+  "settings.preferences.appearance": "Aspetto",
+  "settings.preferences.appearanceDesc": "Personalizza tema, colori e impostazioni di visualizzazione",
   "settings.preferences.notifications": "Notifiche",
   "settings.preferences.notificationsDesc": "Controlla le notifiche dell'app.",
   "settings.preferences.darkMode": "Modalità scura",
@@ -334,6 +340,55 @@
     "unknown": "sconosciuto",
     "someone": "Qualcuno"
   },
+  "insights": {
+    "posts": "Post",
+    "period": {
+      "7days": "7 Giorni",
+      "30days": "30 Giorni",
+      "90days": "90 Giorni"
+    },
+    "weeklyRecap": {
+      "ready": "Il tuo riepilogo settimanale è pronto!",
+      "subtitle": "Vedi come è andata la scorsa settimana."
+    },
+    "avgPerPost": "Media per post",
+    "perPost": "per post",
+    "topPerformingPosts": "Post con Migliori Prestazioni",
+    "unableToLoadPosts": "Impossibile caricare i post",
+    "postsByType": "Post per Tipo",
+    "postType": {
+      "text": "Testo",
+      "image": "Immagine",
+      "video": "Video",
+      "poll": "Sondaggio",
+      "repost": "Ripubblicazione"
+    },
+    "overallEngagement": "Coinvolgimento Complessivo",
+    "engagementRatios": "Tassi di Coinvolgimento",
+    "ofViews": "delle visualizzazioni",
+    "likeRate": "Tasso di Mi Piace",
+    "replyRate": "Tasso di Risposte",
+    "repostRate": "Tasso di Ripubblicazioni",
+    "shareRate": "Tasso di Condivisioni",
+    "averages": "Medie",
+    "viewsPerPost": "Visualizzazioni per Post",
+    "engagementPerPost": "Coinvolgimento per Post",
+    "totalActivity": "Attività Totale",
+    "tabs": {
+      "overview": "Panoramica",
+      "engagement": "Coinvolgimento"
+    },
+    "post": {
+      "views": "Visualizzazioni",
+      "likes": "Mi piace",
+      "interactions": "Interazioni",
+      "engagementRate": "Tasso di Coinvolgimento",
+      "totalInteractions": "Totale interazioni",
+      "replies": "Risposte",
+      "reposts": "Ripubblicazioni",
+      "shares": "Condivisioni"
+    }
+  },
   "seo": {
     "siteName": "Mention",
     "defaultTitle": "Mention - Piattaforma Sociale",
@@ -372,7 +427,58 @@
     },
     "insights": {
       "title": "Statistiche - Mention",
-      "description": "Visualizza analisi e statistiche sui tuoi post e il tuo coinvolgimento su Mention."
+      "description": "Visualizza analisi e statistiche sui tuoi post e il tuo coinvolgimento su Mention.",
+      "post": {
+        "title": "Statistiche del Post",
+        "noInsightsAvailable": "Nessuna statistica disponibile",
+        "views": "Visualizzazioni",
+        "likes": "Mi piace",
+        "interactions": "Interazioni",
+        "engagementRate": "Tasso di Coinvolgimento",
+        "totalInteractions": "Totale interazioni",
+        "reach": "Portata",
+        "replies": "Risposte",
+        "reposts": "Ripubblicazioni",
+        "shares": "Condivisioni",
+        "quotes": "Citazioni",
+        "totalQuotes": "Totale citazioni"
+      },
+      "posts": "Post",
+      "period": {
+        "7days": "7 Giorni",
+        "30days": "30 Giorni",
+        "90days": "90 Giorni"
+      },
+      "weeklyRecap": {
+        "ready": "Il tuo riepilogo settimanale è pronto!",
+        "subtitle": "Vedi come è andata la scorsa settimana."
+      },
+      "avgPerPost": "Media per post",
+      "perPost": "per post",
+      "topPerformingPosts": "Post con Migliori Prestazioni",
+      "unableToLoadPosts": "Impossibile caricare i post",
+      "postsByType": "Post per Tipo",
+      "postType": {
+        "text": "Testo",
+        "image": "Immagine",
+        "video": "Video",
+        "poll": "Sondaggio"
+      },
+      "overallEngagement": "Coinvolgimento Complessivo",
+      "engagementRatios": "Tassi di Coinvolgimento",
+      "ofViews": "delle visualizzazioni",
+      "likeRate": "Tasso di Mi Piace",
+      "replyRate": "Tasso di Risposte",
+      "repostRate": "Tasso di Ripubblicazioni",
+      "shareRate": "Tasso di Condivisioni",
+      "averages": "Medie",
+      "viewsPerPost": "Visualizzazioni per Post",
+      "engagementPerPost": "Coinvolgimento per Post",
+      "totalActivity": "Attività Totale",
+      "tabs": {
+        "overview": "Panoramica",
+        "engagement": "Coinvolgimento"
+      }
     },
     "search": {
       "title": "Cerca - Mention",

@@ -20,6 +20,9 @@ import { getData, storeData } from "@/utils/storage";
 import { hasNotificationPermission, requestNotificationPermissions, getDevicePushToken } from "@/utils/notifications";
 import { useTheme } from "@/hooks/useTheme";
 import { getThemedBorder, getThemedShadow } from "@/utils/theme";
+import { useAppearanceStore } from "@/store/appearanceStore";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import i18n from 'i18next';
 
 // Type assertion for Ionicons compatibility with React 19
 const IconComponent = Ionicons as any;
@@ -152,7 +155,66 @@ export default function SettingsScreen() {
             forwardWheelEvent(event);
         }
     }, [forwardWheelEvent]);
-    const [darkMode, setDarkMode] = useState(false);
+    // Get theme mode from appearance store
+    const mySettings = useAppearanceStore((state) => state.mySettings);
+    const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
+    const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
+    const currentColorScheme = useColorScheme();
+    
+    // Load settings on mount if not already loaded
+    useEffect(() => {
+        if (!mySettings) {
+            loadMySettings();
+        }
+    }, [mySettings, loadMySettings]);
+    
+    // Determine if dark mode is currently active (useColorScheme already handles system preference)
+    const isDarkModeActive = currentColorScheme === 'dark';
+    
+    const handleDarkModeToggle = useCallback(async (value: boolean) => {
+        const newThemeMode = value ? 'dark' : 'light';
+        await updateMySettings({
+            appearance: {
+                themeMode: newThemeMode,
+                primaryColor: mySettings?.appearance?.primaryColor,
+            },
+        } as any);
+    }, [updateMySettings, mySettings?.appearance?.primaryColor]);
+
+    // Get current language
+    const [currentLanguage, setCurrentLanguage] = useState<string>('en-US');
+    useEffect(() => {
+        const loadLanguage = async () => {
+            try {
+                const LANGUAGE_STORAGE_KEY = 'user_language_preference';
+                const savedLanguage = await getData<string>(LANGUAGE_STORAGE_KEY);
+                const language = savedLanguage || i18n.language || 'en-US';
+                setCurrentLanguage(language);
+            } catch (error) {
+                setCurrentLanguage(i18n.language || 'en-US');
+            }
+        };
+        loadLanguage();
+        
+        // Listen for language changes
+        const handleLanguageChanged = (lng: string) => {
+            setCurrentLanguage(lng);
+        };
+        i18n.on('languageChanged', handleLanguageChanged);
+        
+        return () => {
+            i18n.off('languageChanged', handleLanguageChanged);
+        };
+    }, []);
+
+    const getLanguageDisplayName = useCallback((code: string) => {
+        const languages: Record<string, string> = {
+            'en-US': 'English',
+            'es-ES': 'Español',
+            'it-IT': 'Italiano',
+        };
+        return languages[code] || code;
+    }, []);
 
     const handleSignOut = async () => {
         const confirmed = await confirmDialog({
@@ -547,9 +609,30 @@ export default function SettingsScreen() {
                     <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.sections.preferences')}</Text>
 
                     <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                        {/* Language Selection */}
+                        {/* Appearance */}
                         <TouchableOpacity
                             style={[styles.settingItem, styles.firstSettingItem]}
+                            onPress={() => router.push('/settings/appearance')}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="color-palette" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('settings.preferences.appearance')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.preferences.appearanceDesc')}
+                                    </Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        {/* Language Selection */}
+                        <TouchableOpacity
+                            style={styles.settingItem}
                             onPress={() => router.push('/settings/language')}
                         >
                             <View style={styles.settingInfo}>
@@ -558,7 +641,9 @@ export default function SettingsScreen() {
                                 </View>
                                 <View>
                                     <Text style={[styles.settingLabel, { color: theme.colors.text }]}>{t('Language')}</Text>
-                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{t('Select your preferred language')}</Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {getLanguageDisplayName(currentLanguage)}
+                                    </Text>
                                 </View>
                             </View>
                             <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
@@ -603,8 +688,8 @@ export default function SettingsScreen() {
                                 </View>
                             </View>
                             <Toggle
-                                value={darkMode}
-                                onValueChange={setDarkMode}
+                                value={isDarkModeActive}
+                                onValueChange={handleDarkModeToggle}
                             />
                         </View>
                     </View>
