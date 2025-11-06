@@ -375,14 +375,7 @@ class FeedController {
         // Replace mention placeholders in post content text
         const contentText = postObj.content?.text || '';
         const mentionsArray = postObj.mentions || [];
-        if (mentionsArray.length > 0 && contentText.includes('[mention:')) {
-          console.log(`[Feed Transform] Processing mentions for post ${postId}:`, mentionsArray);
-          console.log(`[Feed Transform] Content before:`, contentText.substring(0, 100));
-        }
         const replacedText = await this.replaceMentionPlaceholders(contentText, mentionsArray);
-        if (mentionsArray.length > 0 && contentText.includes('[mention:') && replacedText !== contentText) {
-          console.log(`[Feed Transform] Content after:`, replacedText.substring(0, 100));
-        }
 
         // Return post in standard Post schema format
         const transformedPost = {
@@ -641,33 +634,23 @@ class FeedController {
       let filters: any = req.query.filters as any;
       const currentUserId = req.user?.id;
 
-      // Parse filters - Express should parse filters[searchQuery]=value automatically
-      // But handle cases where it might be a string or need manual parsing
+      // Parse filters
       if (typeof filters === 'string') {
         try {
           filters = JSON.parse(filters);
         } catch (e) {
-          console.warn('Failed to parse filters JSON:', e);
           filters = {};
         }
       }
       
-      // If filters is not an object, try to parse from query params with filters[] prefix
       if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
         filters = {};
-        // Extract all query params that start with 'filters['
         Object.keys(req.query).forEach(key => {
           if (key.startsWith('filters[') && key.endsWith(']')) {
-            const filterKey = key.slice(8, -1); // Remove 'filters[' and ']'
+            const filterKey = key.slice(8, -1);
             filters[filterKey] = (req.query as any)[key];
           }
         });
-      }
-      
-      // Debug logging for saved posts
-      if (type === 'saved') {
-        console.log('[Saved Feed] Raw query params:', JSON.stringify(req.query, null, 2));
-        console.log('[Saved Feed] Parsed filters:', JSON.stringify(filters, null, 2));
       }
 
       // Handle customFeedId filter - expand to custom feed configuration
@@ -766,12 +749,9 @@ class FeedController {
               ? saved.postId 
               : new mongoose.Types.ObjectId(saved.postId);
           } catch (e) {
-            console.error('Invalid postId in bookmark:', saved.postId, e);
             return null;
           }
         }).filter((id): id is mongoose.Types.ObjectId => id !== null);
-        
-        console.log(`[Saved Feed] Found ${savedPostIds.length} saved posts for user ${currentUserId}`);
         
         if (savedPostIds.length === 0) {
           return res.json({
@@ -786,8 +766,6 @@ class FeedController {
       // Build query
       let query: any;
       if (type === 'saved' && savedPostIds.length > 0) {
-        // For saved posts, use a simple query that only filters by saved post IDs
-        // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
         query = {
           _id: { $in: savedPostIds }
         };
@@ -795,19 +773,14 @@ class FeedController {
         // Apply search query filter if provided
         if (filters?.searchQuery) {
           const searchQuery = String(filters.searchQuery).trim();
-          console.log(`[Saved Feed] Applying search filter: "${searchQuery}"`);
           if (searchQuery) {
-            // Use MongoDB $regex for partial text matching (case-insensitive)
-            // Escape special regex characters but allow partial matching
             const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             query['content.text'] = {
               $regex: escapedQuery,
-              $options: 'i' // case-insensitive
+              $options: 'i'
             };
           }
         }
-        
-        console.log(`[Saved Feed] Final query:`, JSON.stringify(query, null, 2));
       } else {
         query = this.buildFeedQuery(type, filters, currentUserId);
       }
@@ -862,40 +835,21 @@ class FeedController {
         ]);
       } else {
         // Authenticated users get chronological feed
-        // For saved posts, sort by bookmark creation date (when saved), not post creation date
-        if (type === 'saved' && savedPostIds.length > 0) {
-          console.log(`[Saved Feed] Query:`, JSON.stringify(query, null, 2));
-          posts = await Post.find(query)
-            .sort({ createdAt: -1 })
-            .limit(limit + 1)
-            .lean();
-          console.log(`[Saved Feed] Found ${posts.length} posts matching query`);
-          // Log mentions for debugging
-          if (posts.length > 0) {
-            const samplePost = posts[0];
-            console.log(`[Saved Feed] Sample post mentions:`, samplePost?.mentions);
-            console.log(`[Saved Feed] Sample post content.text:`, samplePost?.content?.text?.substring(0, 100));
-          }
-        } else {
-          posts = await Post.find(query)
-            .sort({ createdAt: -1 })
-            .limit(limit + 1)
-            .lean();
-        }
+        posts = await Post.find(query)
+          .sort({ createdAt: -1 })
+          .limit(limit + 1)
+          .lean();
       }
 
-      // Check if there are more posts
       const hasMore = posts.length > limit;
       const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
       
-      // Single-pass deduplication: remove duplicates by _id
+      // Deduplicate by normalized ID
       const uniquePostsMap = new Map<string, any>();
       for (const post of postsToReturn) {
-        const id = post._id?.toString() || post.id?.toString() || '';
-        if (id && id !== 'undefined' && id !== 'null') {
-          if (!uniquePostsMap.has(id)) {
-            uniquePostsMap.set(id, post);
-          }
+        const id = post._id?.toString();
+        if (id && !uniquePostsMap.has(id)) {
+          uniquePostsMap.set(id, post);
         }
       }
       const deduplicatedPosts = Array.from(uniquePostsMap.values());
@@ -907,49 +861,19 @@ class FeedController {
       if (type === 'saved') {
         transformedPosts.forEach((post: any) => {
           post.isSaved = true;
-          if (post.metadata) {
-            post.metadata.isSaved = true;
-          } else {
-            post.metadata = { isSaved: true };
-          }
+          post.metadata = { ...post.metadata, isSaved: true };
         });
       }
 
-      // Final deduplication after transformation (ensures no duplicates in response)
-      const finalUniqueMap = new Map<string, any>();
-      for (const post of transformedPosts) {
-        const id = post.id?.toString() || post._id?.toString() || '';
-        if (id && id !== 'undefined' && id !== 'null') {
-          if (!finalUniqueMap.has(id)) {
-            finalUniqueMap.set(id, post);
-          }
-        }
-      }
-      const finalUniquePosts = Array.from(finalUniqueMap.values());
-
-      // Calculate hasMore: only true if we got limit+1 originally AND still have at least limit after dedup
-      const finalHasMore = hasMore && finalUniquePosts.length >= limit;
-
-      // Calculate cursor from the last post in the deduplicated array
-      const finalCursor = finalHasMore && finalUniquePosts.length > 0 
-        ? (finalUniquePosts[finalUniquePosts.length - 1].id?.toString() || 
-           finalUniquePosts[finalUniquePosts.length - 1]._id?.toString() || 
-           undefined)
+      const nextCursor = hasMore && transformedPosts.length > 0 
+        ? transformedPosts[transformedPosts.length - 1]._id?.toString() 
         : undefined;
 
-      // DON'T emit feed:updated for fetch requests - this causes duplicates!
-      // Socket feed:updated events should only be emitted when new posts are created,
-      // not when users fetch/load feeds. The frontend already has the posts from the HTTP response.
-      // Emitting here causes duplicate posts because:
-      // 1. HTTP response adds posts to feed
-      // 2. Socket event arrives and tries to add same posts again
-      // Socket updates are handled in post creation endpoints, not here.
-
       const response: FeedResponse = {
-        items: finalUniquePosts, // Return deduplicated posts
-        hasMore: finalHasMore, // Use recalculated hasMore after deduplication
-        nextCursor: finalCursor,
-        totalCount: finalUniquePosts.length
+        items: transformedPosts,
+        hasMore,
+        nextCursor,
+        totalCount: transformedPosts.length
       };
 
       res.json(response);
@@ -1013,26 +937,12 @@ class FeedController {
           : undefined;
 
         const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
-        
-        // Deduplicate transformed posts for For You feed (unauthenticated path)
-        const finalUniqueMap = new Map<string, any>();
-        for (const post of transformedPosts) {
-          const id = post.id?.toString() || post._id?.toString() || '';
-          if (id && id !== 'undefined' && id !== 'null') {
-            if (!finalUniqueMap.has(id)) {
-              finalUniqueMap.set(id, post);
-            }
-          }
-        }
-        const finalUniquePosts = Array.from(finalUniqueMap.values());
 
         const response: FeedResponse = {
-          items: finalUniquePosts,
-          hasMore: hasMore && finalUniquePosts.length >= Number(limit),
-          nextCursor: hasMore && finalUniquePosts.length > 0 
-            ? finalUniquePosts[finalUniquePosts.length - 1]._id?.toString() 
-            : undefined,
-          totalCount: finalUniquePosts.length
+          items: transformedPosts,
+          hasMore,
+          nextCursor,
+          totalCount: transformedPosts.length
         };
 
         return res.json(response);
@@ -1056,7 +966,7 @@ class FeedController {
           userBehavior = await UserBehavior.findOne({ oxyUserId: currentUserId }).lean();
         }
       } catch (e) {
-        console.error('ForYou: Failed to load user data; continuing with basic ranking', e);
+        // Continue with basic ranking if user data fails to load
       }
 
       const match: any = {
@@ -1073,41 +983,28 @@ class FeedController {
       // Parse cursor - supports both compound (base64 JSON) and simple ObjectId format
       if (cursor) {
         try {
-          // Try to decode as base64 JSON (compound cursor)
           const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
           const parsed = JSON.parse(decoded);
           if (parsed._id && typeof parsed.minScore === 'number') {
             cursorId = parsed._id;
             minFinalScore = parsed.minScore;
-            // IMPORTANT: Don't filter by _id in initial match when using compound cursor
-            // We'll filter by both score and _id together later to prevent duplicates
-            console.log('📌 Parsed compound cursor:', { cursorId, minFinalScore });
           } else {
             throw new Error('Invalid compound cursor structure');
           }
         } catch {
-          // Not a compound cursor, treat as simple ObjectId (backward compatible)
-          // For simple cursors, we'll only filter by _id (older behavior)
           try {
-            // Validate it's a valid ObjectId
             new mongoose.Types.ObjectId(cursor);
             cursorId = cursor;
-            // Apply _id filter for simple cursor-based pagination
             match._id = { $lt: new mongoose.Types.ObjectId(cursorId) };
-            console.log('📌 Using simple cursor:', cursorId);
           } catch {
-            // Invalid cursor format, ignore it
-            console.warn('⚠️ Invalid cursor format:', cursor);
+            // Invalid cursor, ignore
           }
         }
-      } else {
-        console.log('📌 No cursor - first page request');
       }
 
-      // Get candidate posts (fetch more than needed for ranking)
-      const candidateLimit = Number(limit) * 3; // Get 3x posts for ranking/filtering
+      // Get candidate posts
+      const candidateLimit = Number(limit) * 3;
       
-      // Apply cursor pagination to initial query if using simple cursor
       if (cursorId && minFinalScore === undefined) {
         match._id = { $lt: new mongoose.Types.ObjectId(cursorId) };
       }
@@ -1117,20 +1014,16 @@ class FeedController {
         .limit(candidateLimit)
         .lean();
 
-      // Use advanced ranking service to rank and sort posts
+      // Rank posts
       const rankedPosts = await feedRankingService.rankPosts(
         candidatePosts,
         currentUserId,
-        {
-          followingIds,
-          userBehavior
-        }
+        { followingIds, userBehavior }
       );
 
       // Apply compound cursor filtering if using advanced cursor
       let posts = rankedPosts;
       if (minFinalScore !== undefined && cursorId) {
-        // Filter by score and _id for compound cursor
         const postsWithScores = await Promise.all(
           rankedPosts.map(async (post) => {
             const score = await feedRankingService.calculatePostScore(
@@ -1142,17 +1035,14 @@ class FeedController {
           })
         );
 
-        // Filter out posts that appeared on previous page
         posts = postsWithScores
           .filter(({ post, score }) => {
             const postId = post._id.toString();
-            // Include posts with lower score, or same score but lower _id
             return score < minFinalScore! || 
               (score === minFinalScore && postId < cursorId);
           })
           .map(item => item.post);
 
-        // Re-sort after filtering
         posts = await feedRankingService.rankPosts(
           posts,
           currentUserId,
@@ -1163,273 +1053,38 @@ class FeedController {
       const hasMore = posts.length > Number(limit);
       const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
 
-      // CRITICAL: Multi-stage deduplication to ensure no duplicates
-      // Stage 1: Deduplicate raw posts by _id (MongoDB ObjectId) before transformation
-      // This MUST happen before cursor calculation to ensure cursor points to actual last post
-      const rawIdsSeen = new Map<string, any>();
+      // Deduplicate by _id before transformation
+      const seen = new Set<string>();
       const deduplicatedRawPosts = postsToReturn.filter((post: any) => {
-        const rawId = post._id;
-        if (!rawId) return false;
-        
-        // Convert to string for consistent comparison
-        const rawIdStr = typeof rawId === 'object' && rawId.toString 
-          ? rawId.toString() 
-          : String(rawId);
-        
-        if (rawIdsSeen.has(rawIdStr)) {
-          return false; // Duplicate _id
-        }
-        rawIdsSeen.set(rawIdStr, post);
+        const id = post._id?.toString();
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
         return true;
       });
       
-      // CRITICAL: Calculate cursor AFTER deduplication using the actual last post that will be returned
-      // This ensures cursor points to the correct post and prevents skipping/duplicates
+      // Calculate cursor from last post
       let nextCursor: string | undefined;
-      if (deduplicatedRawPosts.length > 0) {
+      if (hasMore && deduplicatedRawPosts.length > 0) {
         const lastPost = deduplicatedRawPosts[deduplicatedRawPosts.length - 1];
-        
-        // Calculate final score for last post
         const lastPostScore = await feedRankingService.calculatePostScore(
           lastPost,
           currentUserId,
           { followingIds, userBehavior }
         );
-        
-        // Encode as compound cursor (score + _id) for engagement-based feeds
         const cursorData = {
           _id: lastPost._id.toString(),
           minScore: lastPostScore
         };
         nextCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
-        
-        // Log cursor for debugging
-        console.log('📌 Generated nextCursor (after dedup):', {
-          lastPostId: lastPost._id.toString(),
-          lastPostScore,
-          nextCursor: nextCursor.substring(0, 30) + '...',
-          returnedCount: deduplicatedRawPosts.length,
-          originalCount: postsToReturn.length,
-          duplicatesRemoved: postsToReturn.length - deduplicatedRawPosts.length
-        });
       }
 
-      // Stage 2: Transform deduplicated posts
       const transformedPosts = await this.transformPostsWithProfiles(deduplicatedRawPosts, currentUserId);
 
-      // Stage 3: Deduplicate transformed posts by id (defensive check)
-      const transformedIdsSeen = new Map<string, any>();
-      const deduplicatedPosts = transformedPosts.filter(post => {
-        // Check both id and _id fields for robustness
-        const id1 = post.id ? String(post.id) : null;
-        const id2 = (post as any)._id 
-          ? (typeof (post as any)._id === 'object' && (post as any)._id.toString 
-             ? (post as any)._id.toString() 
-             : String((post as any)._id))
-          : null;
-        
-        const primaryId = id1 || id2;
-        if (!primaryId) return false;
-        
-        if (transformedIdsSeen.has(primaryId)) {
-          return false; // Duplicate id
-        }
-        transformedIdsSeen.set(primaryId, post);
-        return true;
-      });
-
-      // Debug: Comprehensive duplicate detection and logging (temporary for diagnosis)
-      const postIdsInResponse = deduplicatedPosts.map(p => {
-        const id = p.id || (p as any)._id?.toString();
-        return id ? String(id) : null;
-      }).filter(Boolean) as string[];
-      
-      const uniqueIdsInResponse = new Set(postIdsInResponse);
-      
-      // Check for duplicates at multiple stages
-      const rawPostIds = postsToReturn.map((p: any) => p._id?.toString()).filter(Boolean);
-      const uniqueRawIds = new Set(rawPostIds);
-      
-      // Log detailed information for debugging duplicates
-      if (rawPostIds.length !== uniqueRawIds.size || postIdsInResponse.length !== uniqueIdsInResponse.size) {
-        const duplicates = rawPostIds.filter((id, index) => rawPostIds.indexOf(id) !== index);
-        const finalDuplicates = postIdsInResponse.filter((id, index) => postIdsInResponse.indexOf(id) !== index);
-        
-        console.error('⚠️ DUPLICATES DETECTED in For You feed:', {
-          stage: 'raw',
-          rawTotal: rawPostIds.length,
-          rawUnique: uniqueRawIds.size,
-          rawDuplicates: duplicates,
-          stage2: 'transformed',
-          finalTotal: postIdsInResponse.length,
-          finalUnique: uniqueIdsInResponse.size,
-          finalDuplicates: finalDuplicates,
-          cursor: cursor ? (cursor.length > 50 ? cursor.substring(0, 50) + '...' : cursor) : 'none',
-          parsedCursor: cursorId ? { cursorId, minFinalScore } : 'none',
-          returnedCount: deduplicatedPosts.length
-        });
-      }
-
-      // FINAL SAFETY CHECK: Ensure no duplicates in response
-      const finalUniqueIds = new Map<string, any>();
-      const finalDeduplicated = deduplicatedPosts.filter(post => {
-        // Normalize ID consistently
-        let normalizedId = '';
-        if (post.id) {
-          normalizedId = String(post.id);
-        } else if ((post as any)._id) {
-          const _id = (post as any)._id;
-          normalizedId = typeof _id === 'object' && _id.toString 
-            ? _id.toString() 
-            : String(_id);
-        }
-        
-        if (!normalizedId || normalizedId === 'undefined' || normalizedId === 'null' || normalizedId === '') {
-          return false;
-        }
-        
-        if (finalUniqueIds.has(normalizedId)) {
-          const existing = finalUniqueIds.get(normalizedId);
-          console.error('⚠️ FINAL backend response: Duplicate ID detected and removed:', {
-            id: normalizedId,
-            existing: { id: existing?.id || existing?._id, content: existing?.content?.text?.substring(0, 50) },
-            duplicate: { id: post?.id || post?._id, content: post?.content?.text?.substring(0, 50) }
-          });
-          return false;
-        }
-        finalUniqueIds.set(normalizedId, post);
-        return true;
-      });
-
-      // Log if final deduplication removed any posts
-      if (finalDeduplicated.length !== deduplicatedPosts.length) {
-        const duplicateIds = deduplicatedPosts
-          .map(p => {
-            const id = p.id ? String(p.id) : '';
-            const _id = (p as any)._id ? String((p as any)._id) : '';
-            return id || _id;
-          })
-          .filter((id, index, arr) => arr.indexOf(id) !== index);
-        
-        console.error('⚠️ FINAL deduplication removed duplicates:', {
-          before: deduplicatedPosts.length,
-          after: finalDeduplicated.length,
-          removed: deduplicatedPosts.length - finalDeduplicated.length,
-          duplicateIds: [...new Set(duplicateIds)].slice(0, 10)
-        });
-      }
-
-      // CRITICAL: Verify absolute uniqueness before sending response
-      const allReturnedIds = finalDeduplicated.map(p => {
-        const id = p.id ? String(p.id) : '';
-        const _id = (p as any)._id ? String((p as any)._id) : '';
-        return id || _id || 'NO_ID';
-      });
-      const uniqueReturnedIds = new Set(allReturnedIds);
-      
-      if (allReturnedIds.length !== uniqueReturnedIds.size) {
-        const duplicates = allReturnedIds.filter((id, idx) => allReturnedIds.indexOf(id) !== idx);
-        console.error('⚠️ CRITICAL: Backend response STILL has duplicate IDs after all deduplication!', {
-          total: allReturnedIds.length,
-          unique: uniqueReturnedIds.size,
-          duplicates: [...new Set(duplicates)].slice(0, 10),
-          allIds: allReturnedIds
-        });
-        
-        // Force deduplication one more time as emergency fallback
-        const emergencyUnique = new Map<string, any>();
-        for (const post of finalDeduplicated) {
-          const id = post.id ? String(post.id) : ((post as any)._id ? String((post as any)._id) : '');
-          if (id && id !== 'NO_ID' && !emergencyUnique.has(id)) {
-            emergencyUnique.set(id, post);
-          }
-        }
-        finalDeduplicated.length = 0;
-        finalDeduplicated.push(...emergencyUnique.values());
-        
-        console.error('Deduplication mismatch detected:', {
-          before: allReturnedIds.length,
-          after: finalDeduplicated.length
-        });
-      }
-
-      // CRITICAL: Recalculate hasMore based on deduplicated count
-      // If deduplication removed posts, we might not have enough for another page
-      const finalHasMore = hasMore && finalDeduplicated.length >= Number(limit);
-      
-      // CRITICAL: Recalculate cursor from final deduplicated posts to ensure accuracy
-      // If the last post changed due to deduplication, cursor needs to be updated
-      let finalCursor = nextCursor;
-      if (finalHasMore && finalDeduplicated.length > 0) {
-        const actualLastPost = finalDeduplicated[finalDeduplicated.length - 1];
-        const actualLastPostRaw = deduplicatedRawPosts.find((p: any) => {
-          const rawId = p._id?.toString();
-          const postId = actualLastPost.id?.toString() || (actualLastPost as any)._id?.toString();
-          return rawId === postId;
-        });
-        
-        if (actualLastPostRaw) {
-          // Parse original cursor to compare
-          let originalCursorId: string | undefined;
-          try {
-            if (nextCursor) {
-              const decoded = Buffer.from(nextCursor, 'base64').toString('utf-8');
-              const parsed = JSON.parse(decoded);
-              originalCursorId = parsed._id;
-            }
-          } catch (e) {
-            // Cursor parsing failed, ignore
-          }
-          
-          const actualLastPostId = actualLastPostRaw._id?.toString();
-          
-          // If last post changed due to deduplication, recalculate cursor
-          if (actualLastPostId && actualLastPostId !== originalCursorId) {
-            const actualLastPostScore = await feedRankingService.calculatePostScore(
-              actualLastPostRaw,
-              currentUserId,
-              { followingIds, userBehavior }
-            );
-            const cursorData = {
-              _id: actualLastPostId,
-              minScore: actualLastPostScore
-            };
-            finalCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
-            console.log('📌 Cursor recalculated due to deduplication:', {
-              originalLastPostId: originalCursorId || 'none',
-              newLastPostId: actualLastPostId
-            });
-          }
-        }
-      } else if (!finalHasMore) {
-        // No more posts, clear cursor
-        finalCursor = undefined;
-      }
-
-      // FINAL VERIFICATION: Log what we're sending to ensure no duplicates
-      const responseIds = finalDeduplicated.map(p => p.id?.toString() || (p as any)._id?.toString() || 'NO_ID');
-      const uniqueResponseIds = new Set(responseIds);
-      
-      console.log('📤 For You feed response:', {
-        requestCursor: cursor ? (cursor.length > 50 ? cursor.substring(0, 50) + '...' : cursor) : 'none',
-        totalPosts: finalDeduplicated.length,
-        uniqueIds: uniqueResponseIds.size,
-        hasMore: finalHasMore,
-        hasCursor: !!finalCursor,
-        firstPostId: responseIds[0] || 'none',
-        lastPostId: responseIds[responseIds.length - 1] || 'none'
-      });
-      
-      if (responseIds.length !== uniqueResponseIds.size) {
-        const duplicates = responseIds.filter((id, idx) => responseIds.indexOf(id) !== idx);
-        console.error('🚨 CRITICAL: Backend sending duplicate IDs:', [...new Set(duplicates)]);
-      }
-
       const response: FeedResponse = {
-        items: finalDeduplicated, // Return fully deduplicated posts
-        hasMore: finalHasMore, // Use recalculated hasMore
-        nextCursor: finalCursor, // Use recalculated cursor
-        totalCount: finalDeduplicated.length
+        items: transformedPosts,
+        hasMore,
+        nextCursor,
+        totalCount: transformedPosts.length
       };
 
       res.json(response);
@@ -2075,8 +1730,6 @@ class FeedController {
       const { postId, type } = req.body as LikeRequest;
       const currentUserId = req.user?.id;
 
-      console.log(`[Like] Like request received: userId=${currentUserId}, postId=${postId}`);
-
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
@@ -2085,7 +1738,7 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      // Check if user already liked this post using Like collection (more efficient)
+      // Check if user already liked this post using Like collection
       const existingLike = await Like.findOne({ userId: currentUserId, postId });
       const alreadyLiked = !!existingLike;
       
@@ -2095,13 +1748,10 @@ class FeedController {
       }
       
       if (alreadyLiked) {
-        console.log(`[Like] Post ${postId} already liked by user ${currentUserId}`);
-        // Still record the interaction even if already liked (user expressed interest)
         try {
           await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
-          console.log(`[Like] Recorded interaction for already-liked post`);
         } catch (error) {
-          console.warn(`[Like] Failed to record interaction for already-liked post:`, error);
+          // Preference tracking is non-critical
         }
         return res.json({ 
           success: true, 
@@ -2111,12 +1761,10 @@ class FeedController {
         });
       }
 
-      console.log(`[Like] User ${currentUserId} liking post ${postId} (not already liked)`);
-
-      // Create like record in Like collection (single source of truth)
+      // Create like record
       await Like.create({ userId: currentUserId, postId });
 
-      // Update post like count only (don't store in metadata.likedBy - too much data)
+      // Update post like count
       const updateResult = await Post.findByIdAndUpdate(
         postId,
         {
@@ -2126,16 +1774,11 @@ class FeedController {
       );
 
       // Record interaction for user preference learning
-      console.log(`[Like] Recording interaction for user ${currentUserId}, post ${postId}`);
       try {
         await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
-        console.log(`[Like] Successfully recorded interaction`);
-        // Invalidate cached feed for this user
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
-        console.error(`[Like] Failed to record interaction for preferences:`, error);
-        console.error(`[Like] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
-        // Don't fail the request if preference tracking fails, but log the error
+        // Preference tracking is non-critical
       }
 
       // Emit real-time update
@@ -2243,8 +1886,6 @@ class FeedController {
       const { postId } = req.params;
       const currentUserId = req.user?.id;
 
-      console.log('🔄 Unrepost request:', { postId, currentUserId });
-
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
@@ -2253,8 +1894,7 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      // Interpret :postId as the ORIGINAL post ID for unrepost operations.
-      // Find and delete the repost document created by the current user that points to this original.
+      // Find and delete the repost
       const repost = await Post.findOneAndDelete({
         oxyUserId: currentUserId,
         repostOf: postId
@@ -2298,8 +1938,6 @@ class FeedController {
       const { postId } = req.params;
       const currentUserId = req.user?.id;
 
-      console.log(`[Save] Save request received: userId=${currentUserId}, postId=${postId}`);
-
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
@@ -2317,13 +1955,10 @@ class FeedController {
       const alreadySaved = existingPost.metadata?.savedBy?.includes(currentUserId);
       
       if (alreadySaved) {
-        console.log(`[Save] Post ${postId} already saved by user ${currentUserId}`);
-        // Still record the interaction even if already saved (user expressed interest)
         try {
           await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
-          console.log(`[Save] Recorded interaction for already-saved post`);
         } catch (error) {
-          console.warn(`[Save] Failed to record interaction for already-saved post:`, error);
+          // Preference tracking is non-critical
         }
         return res.json({ 
           success: true, 
@@ -2333,7 +1968,7 @@ class FeedController {
       }
 
       // Add user to savedBy array
-      const updateResult = await Post.findByIdAndUpdate(
+      await Post.findByIdAndUpdate(
         postId,
         {
           $addToSet: { 'metadata.savedBy': currentUserId }
@@ -2342,15 +1977,11 @@ class FeedController {
       );
 
       // Record interaction for user preference learning
-      console.log(`[Save] Recording interaction for user ${currentUserId}, post ${postId}`);
       try {
         await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
-        console.log(`[Save] Successfully recorded interaction`);
-        // Invalidate cached feed for this user
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
-        console.error(`[Save] Failed to record interaction for preferences:`, error);
-        console.error(`[Save] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+        // Preference tracking is non-critical
       }
 
       // Emit real-time update
@@ -2381,8 +2012,6 @@ class FeedController {
       const { postId } = req.params;
       const currentUserId = req.user?.id;
 
-      console.log('🗑️ Unsave endpoint called:', { postId, currentUserId, user: req.user });
-
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
@@ -2408,7 +2037,7 @@ class FeedController {
       }
 
       // Remove user from savedBy array
-      const updateResult = await Post.findByIdAndUpdate(
+      await Post.findByIdAndUpdate(
         postId,
         {
           $pull: { 'metadata.savedBy': currentUserId }
@@ -2435,11 +2064,6 @@ class FeedController {
       });
     }
   }
-
-  /**
-   * Debug endpoint to see raw post data
-   */
-  // Debug method removed for production
 
   // Legacy methods for backward compatibility
   async getPostsFeed(req: AuthRequest, res: Response) {
