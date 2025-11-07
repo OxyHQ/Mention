@@ -37,6 +37,7 @@ import { DotIcon } from '@/assets/icons/dot-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
 import { Plus } from '@/assets/icons/plus-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
+import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import DraftsSheet from '@/components/Compose/DraftsSheet';
 import ReplySettingsSheet, { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
@@ -143,6 +144,8 @@ const ComposeScreen = () => {
   const postingModeRef = useRef(postingMode);
   const currentDraftIdRef = useRef(currentDraftId);
   const articleRef = useRef(article);
+  const pollTitleInputRef = useRef<TextInput | null>(null);
+  const threadPollTitleRefs = useRef<Record<string, TextInput | null>>({});
 
   // Update refs when state changes
   useEffect(() => {
@@ -305,6 +308,7 @@ const ComposeScreen = () => {
   const AVATAR_GAP = 12;
   const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
   const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET; // 68
+  const TIMELINE_LINE_OFFSET = HPAD + AVATAR_SIZE / 2 - 1; // Center timeline on avatar
 
   const handlePost = async () => {
     if (isPosting || !user) return;
@@ -693,6 +697,19 @@ const ComposeScreen = () => {
     toast.success(t('Media removed'));
   };
 
+const moveMedia = useCallback((mediaId: string, direction: 'left' | 'right') => {
+  setMediaIds(prev => {
+    const index = prev.findIndex(m => m.id === mediaId);
+    if (index === -1) return prev;
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+    const updated = [...prev];
+    const [item] = updated.splice(index, 1);
+    updated.splice(targetIndex, 0, item);
+    return updated;
+  });
+}, []);
+
   const removeThreadMedia = (threadId: string, mediaId: string) => {
     setThreadItems(prev => prev.map(item =>
       item.id === threadId
@@ -702,12 +719,27 @@ const ComposeScreen = () => {
     toast.success(t('Media removed'));
   };
 
-  const openPollCreator = () => {
+const moveThreadMedia = useCallback((threadId: string, mediaId: string, direction: 'left' | 'right') => {
+  setThreadItems(prev => prev.map(item => {
+    if (item.id !== threadId) return item;
+    const index = item.mediaIds.findIndex(m => m.id === mediaId);
+    if (index === -1) return item;
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= item.mediaIds.length) return item;
+    const updatedMedia = [...item.mediaIds];
+    const [selected] = updatedMedia.splice(index, 1);
+    updatedMedia.splice(targetIndex, 0, selected);
+    return { ...item, mediaIds: updatedMedia };
+  }));
+}, []);
+
+  const focusPollCreator = useCallback(() => {
     setShowPollCreator(true);
-    // Initialize with 2 empty options and empty title
-    setPollOptions(['', '']);
-    setPollTitle('');
-  };
+    setPollOptions(prev => (prev.length >= 2 ? prev : ['', '']));
+    setTimeout(() => {
+      pollTitleInputRef.current?.focus();
+    }, 50);
+  }, []);
 
   const addPollOption = () => {
     setPollOptions(prev => [...prev, '']);
@@ -727,6 +759,7 @@ const ComposeScreen = () => {
     setShowPollCreator(false);
     setPollOptions([]);
     setPollTitle('');
+    pollTitleInputRef.current?.blur();
   };
 
   // Location functions
@@ -871,6 +904,10 @@ const ComposeScreen = () => {
         ? { ...item, showPollCreator: false, pollOptions: [], pollTitle: '' }
         : item
     ));
+    if (threadPollTitleRefs.current[threadId]) {
+      threadPollTitleRefs.current[threadId]?.blur();
+      delete threadPollTitleRefs.current[threadId];
+    }
   };
 
   // Thread location functions
@@ -1092,18 +1129,20 @@ const ComposeScreen = () => {
           {/* Main composer and thread section */}
           <View style={styles.threadContainer}>
             {/* Continuous timeline line for all items - from composer to add button */}
-            <View style={styles.continuousTimelineLine} />
+            <View style={[styles.continuousTimelineLine, { left: TIMELINE_LINE_OFFSET }]} />
 
             {/* Main composer */}
             <View style={styles.postContainer}>
               <View style={styles.composerWithTimeline}>
                 <PostHeader
+                  paddingHorizontal={HPAD}
                   user={{
                     name: user?.name?.full || user?.username || '',
                     handle: user?.username || '',
                     verified: Boolean(user?.verified)
                   }}
                   avatarUri={user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined}
+                  avatarSize={AVATAR_SIZE}
                   onPressUser={() => { }}
                   onPressAvatar={() => { }}
                 >
@@ -1116,53 +1155,10 @@ const ComposeScreen = () => {
                     multiline
                     autoFocus
                   />
-                  <View style={styles.toolbarWrapper}>
-                    <ComposeToolbar
-                      onMediaPress={openMediaPicker}
-                      onPollPress={openPollCreator}
-                      onLocationPress={requestLocation}
-                      onGifPress={() => {
-                        bottomSheet.setBottomSheetContent(
-                          <GifPickerSheet
-                            onClose={() => bottomSheet.openBottomSheet(false)}
-                            onSelectGif={async (gifUrl: string, gifId: string) => {
-                              try {
-                                const mediaItem = { id: gifId, type: 'image' as 'image' | 'video' };
-                                setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
-                                toast.success(t('GIF attached'));
-                              } catch (error: any) {
-                                toast.error(error?.message || t('Failed to attach GIF'));
-                              }
-                            }}
-                          />
-                        );
-                        bottomSheet.openBottomSheet(true);
-                      }}
-                      onEmojiPress={() => {
-                        // TODO: Implement emoji picker
-                        toast.info(t('Emoji picker coming soon'));
-                      }}
-                      onSourcesPress={openSourcesSheet}
-                      onArticlePress={openArticleEditor}
-                      hasLocation={!!location}
-                      isGettingLocation={isGettingLocation}
-                      hasPoll={showPollCreator}
-                      hasMedia={mediaIds.length > 0}
-                      hasSources={sources.length > 0}
-                      hasArticle={articleHasContent}
-                      hasSourceErrors={hasInvalidSources}
-                      disabled={isPosting}
-                    />
-                    {postContent.length > 0 && (
-                      <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}>
-                        {postContent.length}
-                      </Text>
-                    )}
-                  </View>
                 </PostHeader>
 
-                {/* Attachments row (article + media) */}
-                {(articleHasContent && article) || mediaIds.length > 0 ? (
+                {/* Attachments row (poll + article + media) */}
+                {(showPollCreator || (articleHasContent && article) || mediaIds.length > 0) ? (
                   <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
                   >
                     <ScrollView
@@ -1170,6 +1166,66 @@ const ComposeScreen = () => {
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
                     >
+                      {showPollCreator ? (
+                        <View style={styles.pollAttachmentWrapper}>
+                          <TouchableOpacity
+                            style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                            activeOpacity={0.85}
+                            onPress={focusPollCreator}
+                          >
+                            <View style={styles.pollAttachmentHeader}>
+                              <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
+                              >
+                                <PollIcon size={16} color={theme.colors.primary} />
+                                <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}>
+                                  {t('compose.poll.title', { defaultValue: 'Poll' })}
+                                </Text>
+                              </View>
+                              <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}>
+                                {t('compose.poll.optionCount', {
+                                  count: pollOptions.length,
+                                  defaultValue:
+                                    pollOptions.length === 0
+                                      ? 'No options yet'
+                                      : pollOptions.length === 1
+                                        ? '1 option'
+                                        : `${pollOptions.length} options`
+                                })}
+                              </Text>
+                            </View>
+                            <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
+                              {pollTitle.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
+                            </Text>
+                            <View style={styles.pollAttachmentOptions}>
+                              {(pollOptions.length > 0 ? pollOptions : ['', '']).slice(0, 2).map((option, index) => {
+                                const trimmed = option?.trim?.() || '';
+                                return (
+                                  <View
+                                    key={`poll-opt-${index}`}
+                                    style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                                  >
+                                    <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                      {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${index + 1}` })}
+                                    </Text>
+                                  </View>
+                                );
+                              })}
+                              {pollOptions.length > 2 ? (
+                                <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
+                                  {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: `+${pollOptions.length - 2} more` })}
+                                </Text>
+                              ) : null}
+                            </View>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={removePoll}
+                            style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          >
+                            <CloseIcon size={16} color={theme.colors.text} />
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
                       {articleHasContent && article ? (
                         <View style={styles.articleAttachmentWrapper}>
                           <PostArticlePreview
@@ -1189,8 +1245,9 @@ const ComposeScreen = () => {
                           </TouchableOpacity>
                         </View>
                       ) : null}
-                      {mediaIds.map((mediaItem) => {
+                      {mediaIds.map((mediaItem, mediaIndex) => {
                         const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
+                        const mediaCount = mediaIds.length;
                         return (
                           <View
                             key={mediaItem.id}
@@ -1205,6 +1262,24 @@ const ComposeScreen = () => {
                                 resizeMode="cover"
                               />
                             )}
+                            {mediaCount > 1 ? (
+                              <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                <TouchableOpacity
+                                  onPress={() => moveMedia(mediaItem.id, 'left')}
+                                  disabled={mediaIndex === 0}
+                                  style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === 0 && styles.mediaReorderButtonDisabled]}
+                                >
+                                  <BackArrowIcon size={14} color={mediaIndex === 0 ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={() => moveMedia(mediaItem.id, 'right')}
+                                  disabled={mediaIndex === mediaCount - 1}
+                                  style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === mediaCount - 1 && styles.mediaReorderButtonDisabled]}
+                                >
+                                  <ChevronRightIcon size={14} color={mediaIndex === mediaCount - 1 ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                </TouchableOpacity>
+                              </View>
+                            ) : null}
                             <TouchableOpacity
                               onPress={() => removeMedia(mediaItem.id)}
                               style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
@@ -1218,6 +1293,50 @@ const ComposeScreen = () => {
                     </ScrollView>
                   </View>
                 ) : null}
+
+                <View style={styles.toolbarWrapper}>
+                  <ComposeToolbar
+                    onMediaPress={openMediaPicker}
+                    onPollPress={focusPollCreator}
+                    onLocationPress={requestLocation}
+                    onGifPress={() => {
+                      bottomSheet.setBottomSheetContent(
+                        <GifPickerSheet
+                          onClose={() => bottomSheet.openBottomSheet(false)}
+                          onSelectGif={async (gifUrl: string, gifId: string) => {
+                            try {
+                              const mediaItem = { id: gifId, type: 'image' as 'image' | 'video' };
+                              setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
+                              toast.success(t('GIF attached'));
+                            } catch (error: any) {
+                              toast.error(error?.message || t('Failed to attach GIF'));
+                            }
+                          }}
+                        />
+                      );
+                      bottomSheet.openBottomSheet(true);
+                    }}
+                    onEmojiPress={() => {
+                      // TODO: Implement emoji picker
+                      toast.info(t('Emoji picker coming soon'));
+                    }}
+                    onSourcesPress={openSourcesSheet}
+                    onArticlePress={openArticleEditor}
+                    hasLocation={!!location}
+                    isGettingLocation={isGettingLocation}
+                    hasPoll={showPollCreator}
+                    hasMedia={mediaIds.length > 0}
+                    hasSources={sources.length > 0}
+                    hasArticle={articleHasContent}
+                    hasSourceErrors={hasInvalidSources}
+                    disabled={isPosting}
+                  />
+                  {postContent.length > 0 && (
+                    <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}> 
+                      {postContent.length}
+                    </Text>
+                  )}
+                </View>
 
                 {/* Poll Creator */}
                 {showPollCreator && (
@@ -1243,6 +1362,7 @@ const ComposeScreen = () => {
                           borderColor: pollTitle.length > 0 ? theme.colors.primary : theme.colors.border, 
                           backgroundColor: theme.colors.backgroundSecondary 
                         }]}
+                        ref={pollTitleInputRef}
                         placeholder={t('Poll question')}
                         placeholderTextColor={theme.colors.textTertiary}
                         value={pollTitle}
@@ -1397,8 +1517,8 @@ const ComposeScreen = () => {
                     </View>
                   </View>
 
-                  {/* Thread item media with Delete Buttons */}
-                  {item.mediaIds.length > 0 && (
+                  {/* Thread item attachments row */}
+                  {(item.showPollCreator || item.mediaIds.length > 0) && (
                     <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
                     >
                       <ScrollView
@@ -1406,8 +1526,74 @@ const ComposeScreen = () => {
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
                       >
-                        {item.mediaIds.map((mediaItem) => {
+                        {item.showPollCreator ? (
+                          <View style={styles.pollAttachmentWrapper}>
+                            <TouchableOpacity
+                              style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                              activeOpacity={0.85}
+                              onPress={() => {
+                                openThreadPollCreator(item.id);
+                                setTimeout(() => {
+                                  threadPollTitleRefs.current[item.id]?.focus();
+                                }, 50);
+                              }}
+                            >
+                              <View style={styles.pollAttachmentHeader}>
+                                <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
+                                >
+                                  <PollIcon size={16} color={theme.colors.primary} />
+                                  <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}>
+                                    {t('compose.poll.title', { defaultValue: 'Poll' })}
+                                  </Text>
+                                </View>
+                                <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}>
+                                  {t('compose.poll.optionCount', {
+                                    count: item.pollOptions.length,
+                                    defaultValue:
+                                      item.pollOptions.length === 0
+                                        ? 'No options yet'
+                                        : item.pollOptions.length === 1
+                                          ? '1 option'
+                                          : `${item.pollOptions.length} options`
+                                  })}
+                                </Text>
+                              </View>
+                              <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
+                                {item.pollTitle?.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
+                              </Text>
+                              <View style={styles.pollAttachmentOptions}>
+                                {(item.pollOptions.length > 0 ? item.pollOptions : ['', '']).slice(0, 2).map((option, index) => {
+                                  const trimmed = option?.trim?.() || '';
+                                  return (
+                                    <View
+                                      key={`thread-${item.id}-poll-opt-${index}`}
+                                      style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                                    >
+                                      <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                        {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${index + 1}` })}
+                                      </Text>
+                                    </View>
+                                  );
+                                })}
+                                {item.pollOptions.length > 2 ? (
+                                  <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
+                                    {t('compose.poll.moreOptions', { count: item.pollOptions.length - 2, defaultValue: `+${item.pollOptions.length - 2} more` })}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => removeThreadPoll(item.id)}
+                              style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            >
+                              <CloseIcon size={16} color={theme.colors.text} />
+                            </TouchableOpacity>
+                          </View>
+                        ) : null}
+                        {item.mediaIds.map((mediaItem, mediaIndex) => {
                           const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
+                          const mediaCount = item.mediaIds.length;
                           return (
                             <View
                               key={mediaItem.id}
@@ -1422,6 +1608,24 @@ const ComposeScreen = () => {
                                   resizeMode="cover"
                                 />
                               )}
+                              {mediaCount > 1 ? (
+                                <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <TouchableOpacity
+                                    onPress={() => moveThreadMedia(item.id, mediaItem.id, 'left')}
+                                    disabled={mediaIndex === 0}
+                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === 0 && styles.mediaReorderButtonDisabled]}
+                                  >
+                                    <BackArrowIcon size={14} color={mediaIndex === 0 ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={() => moveThreadMedia(item.id, mediaItem.id, 'right')}
+                                    disabled={mediaIndex === mediaCount - 1}
+                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === mediaCount - 1 && styles.mediaReorderButtonDisabled]}
+                                  >
+                                    <ChevronRightIcon size={14} color={mediaIndex === mediaCount - 1 ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                  </TouchableOpacity>
+                                </View>
+                              ) : null}
                               <TouchableOpacity
                                 onPress={() => removeThreadMedia(item.id, mediaItem.id)}
                                 style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
@@ -1460,6 +1664,9 @@ const ComposeScreen = () => {
                             borderColor: (item.pollTitle || '').length > 0 ? theme.colors.primary : theme.colors.border, 
                             backgroundColor: theme.colors.backgroundSecondary 
                           }]}
+                          ref={(ref) => {
+                            threadPollTitleRefs.current[item.id] = ref;
+                          }}
                           placeholder={t('Poll question')}
                           placeholderTextColor={theme.colors.textTertiary}
                           value={item.pollTitle || ''}
@@ -2005,7 +2212,7 @@ const styles = StyleSheet.create({
   },
   continuousTimelineLine: {
     position: 'absolute',
-    left: 35, // Center on avatar (16px padding + 20px avatar center - 1px)
+    left: 0,
     top: 20, // Start at center of main composer avatar (20px from top of PostHeader avatar)
     bottom: 20, // End at center of add button avatar (20px from bottom)
     width: 2,
@@ -2162,6 +2369,70 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     padding: 6,
   },
+  pollAttachmentWrapper: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  pollAttachmentCard: {
+    width: MEDIA_CARD_WIDTH,
+    minHeight: 150,
+    borderRadius: 15,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+  },
+  pollAttachmentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  pollAttachmentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  pollAttachmentBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  pollAttachmentMeta: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  pollAttachmentQuestion: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pollAttachmentOptions: {
+    gap: 8,
+  },
+  pollAttachmentOption: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pollAttachmentOptionText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  pollAttachmentMore: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  pollAttachmentRemoveButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    borderRadius: 999,
+    padding: 6,
+  },
   articleModalContainer: {
     flex: 1,
   },
@@ -2250,6 +2521,23 @@ const styles = StyleSheet.create({
     right: 8,
     borderRadius: 999,
     padding: 6,
+  },
+  mediaReorderControls: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    bottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  mediaReorderButton: {
+    borderRadius: 999,
+    padding: 6,
+  },
+  mediaReorderButtonDisabled: {
+    opacity: 0.4,
   },
   // Mode toggle styles
   modeToggleContainer: {

@@ -20,9 +20,6 @@ const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, on
       onPress={onPress}
       disabled={!onPress}
     >
-      <View style={[styles.badge, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <Text style={[styles.badgeText, { color: theme.colors.primary }]}>Article</Text>
-      </View>
       <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
         {trimmedTitle || 'Untitled article'}
       </Text>
@@ -43,20 +40,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     justifyContent: 'space-between',
-  },
-  badge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    marginBottom: 12,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
   },
   title: {
     fontSize: 18,

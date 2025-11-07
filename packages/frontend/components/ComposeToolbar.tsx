@@ -129,7 +129,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 >
                     <ArticleIcon
                         size={20}
-                        color={disabled ? theme.colors.textTertiary : hasArticle ? theme.colors.primary : theme.colors.textSecondary}
+                        color={disabled ? theme.colors.textTertiary : theme.colors.textSecondary}
                     />
                 </TouchableOpacity>
             )}
