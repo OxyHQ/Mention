@@ -9,6 +9,7 @@ export interface Draft {
   pollTitle?: string;
   showPollCreator: boolean;
   location: { latitude: number; longitude: number; address?: string } | null;
+  sources?: Array<{ id?: string; title?: string; url?: string }>;
   threadItems: Array<{
     id: string;
     text: string;

@@ -1,0 +1,97 @@
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from 'react-i18next';
+import { CloseIcon } from '@/assets/icons/close-icon';
+import PostSources from './PostSources';
+import { PostSourceLink } from '@mention/shared-types';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+
+interface PostSourcesSheetProps {
+  sources: PostSourceLink[];
+  onClose: () => void;
+}
+
+const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose }) => {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  const hasSources = sources.length > 0;
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}> 
+        <HeaderIconButton onPress={onClose} style={styles.closeButton}>
+          <CloseIcon size={20} color={theme.colors.text} />
+        </HeaderIconButton>
+        <Text style={[styles.title, { color: theme.colors.text }]}>
+          {t('post.sourcesSheet.title', { defaultValue: 'Sources' })}
+        </Text>
+        <View style={styles.headerRight} />
+      </View>
+
+      <View style={styles.body}>
+        {hasSources ? (
+          <PostSources sources={sources} />
+        ) : (
+          <View style={[styles.emptyState, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}> 
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}> 
+              {t('post.sourcesSheet.empty', { defaultValue: 'No sources available for this post.' })}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingBottom: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minHeight: 48,
+    borderBottomWidth: 1,
+  },
+  title: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    pointerEvents: 'none',
+  },
+  closeButton: {
+    marginRight: 6,
+    zIndex: 1,
+  },
+  headerRight: {
+    width: 36,
+    height: 36,
+    marginLeft: 'auto',
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  emptyState: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+});
+
+export default PostSourcesSheet;
+

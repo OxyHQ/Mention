@@ -224,7 +224,8 @@ class FeedService {
           // Include poll if provided  
           ...(request.content.poll && { poll: request.content.poll }),
           // Include location if provided
-          ...(request.content.location && { location: request.content.location })
+          ...(request.content.location && { location: request.content.location }),
+          ...(request.content.sources && request.content.sources.length > 0 && { sources: request.content.sources })
         },
         hashtags: request.hashtags || [],
         mentions: request.mentions || [],

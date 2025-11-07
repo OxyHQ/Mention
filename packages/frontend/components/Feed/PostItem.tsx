@@ -13,6 +13,7 @@ import ReplySettingsSheet from '../Compose/ReplySettingsSheet';
 import PostLocation from '../Post/PostLocation';
 import { colors } from '../../styles/colors';
 import PostMiddle from '../Post/PostMiddle';
+import PostSourcesSheet from '@/components/Post/PostSourcesSheet';
 import { useOxy } from '@oxyhq/services';
 import { useUsersStore } from '@/stores/usersStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -20,6 +21,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { TrashIcon } from '@/assets/icons/trash-icon';
+import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { LinkIcon } from '@/assets/icons/link-icon';
 import { PinIcon, UnpinIcon } from '@/assets/icons/pin-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
@@ -28,6 +30,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { feedService } from '../../services/feedService';
 import { confirmDialog } from '@/utils/alerts';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from 'react-i18next';
 import { useCurrentUserPrivacySettings } from '@/hooks/usePrivacySettings';
 
 interface PostItemProps {
@@ -47,6 +50,7 @@ const PostItem: React.FC<PostItemProps> = ({
 }) => {
     const { oxyServices, user } = useOxy();
     const theme = useTheme();
+    const { t } = useTranslation();
     const router = useRouter();
     const pathname = usePathname();
     const { likePost, unlikePost, repostPost, unrepostPost, savePost, unsavePost, getPostById } = usePostsStore();
@@ -188,6 +192,34 @@ const PostItem: React.FC<PostItemProps> = ({
 
 
     const likeActionRef = useRef<Promise<void> | null>(null);
+
+    const sourcesList = React.useMemo(() => {
+        const raw = (viewPost as any)?.content?.sources;
+        if (!Array.isArray(raw)) return [] as Array<{ url: string; title?: string }>;
+        return raw
+            .filter((item: any) => item && typeof item.url === 'string' && item.url.trim().length > 0)
+            .map((item: any) => ({
+                url: item.url.trim(),
+                title: typeof item.title === 'string' ? item.title : undefined,
+            }));
+    }, [viewPost]);
+
+    const hasSources = sourcesList.length > 0;
+
+    const closeSourcesSheet = React.useCallback(() => {
+        bottomSheet.setBottomSheetContent(null);
+        bottomSheet.openBottomSheet(false);
+    }, [bottomSheet]);
+
+    const sourcesSheetElement = React.useMemo(() => (
+        <PostSourcesSheet sources={sourcesList} onClose={closeSourcesSheet} />
+    ), [sourcesList, closeSourcesSheet]);
+
+    const openSourcesSheet = React.useCallback(() => {
+        if (!hasSources) return;
+        bottomSheet.setBottomSheetContent(sourcesSheetElement);
+        bottomSheet.openBottomSheet(true);
+    }, [hasSources, bottomSheet, sourcesSheetElement]);
     
     const handleLike = useCallback(async () => {
         // Prevent rapid clicks - debounce
@@ -535,6 +567,16 @@ const PostItem: React.FC<PostItemProps> = ({
                         { icon: <TrashIcon size={20} color={theme.colors.error} />, text: "Delete", onPress: handleDelete, color: theme.colors.error }
                     ] : [];
                     
+    const sourcesAction = hasSources ? [
+                        {
+                            icon: <SourcesIcon size={20} color={theme.colors.textSecondary} />,
+                            text: t('post.viewSources', { defaultValue: 'View sources' }),
+                            onPress: () => {
+                                openSourcesSheet();
+                            }
+                        }
+                    ] : [];
+
                     const copyLinkAction = [
                         { icon: <LinkIcon size={20} color={theme.colors.textSecondary} />, text: "Copy link", onPress: async () => {
                             try {
@@ -594,6 +636,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             {insightsAction.length > 0 && <ActionGroup actions={insightsAction} />}
                             {saveActionGroup.length > 0 && <ActionGroup actions={saveActionGroup} />}
                             {deleteAction.length > 0 && <ActionGroup actions={deleteAction} />}
+                            {sourcesAction.length > 0 && <ActionGroup actions={sourcesAction} />}
                             <ActionGroup actions={copyLinkAction} />
                         </View>
                     );
@@ -612,6 +655,25 @@ const PostItem: React.FC<PostItemProps> = ({
                     location={locationMemo.location}
                     paddingHorizontal={BOTTOM_LEFT_PAD}
                 />
+            )}
+
+            {hasSources && (
+                <View style={{ paddingLeft: BOTTOM_LEFT_PAD, paddingRight: HPAD }}>
+                    <TouchableOpacity
+                        style={[styles.sourcesChip, {
+                            borderColor: theme.colors.border,
+                            backgroundColor: theme.colors.backgroundSecondary,
+                        }]}
+                        onPress={openSourcesSheet}
+                        activeOpacity={0.8}
+                    >
+                        <SourcesIcon size={14} color={theme.colors.primary} />
+                        <Text style={[styles.sourcesChipText, { color: theme.colors.primary }]}>
+                            {t('post.sourcesChip', { defaultValue: 'Sources' })}
+                            {` (${sourcesList.length})`}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             )}
 
             {/* Middle: horizontal scroller with media and nested post (repost/quote only, not replies) */}
@@ -723,6 +785,21 @@ const styles = StyleSheet.create({
         width: 24,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    sourcesChip: {
+        marginTop: 8,
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    sourcesChipText: {
+        fontSize: 12,
+        fontWeight: '600',
     },
 });
 

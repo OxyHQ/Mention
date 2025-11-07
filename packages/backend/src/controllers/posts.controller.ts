@@ -13,6 +13,34 @@ import { feedController } from './feed.controller';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
 
+const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
+  if (!Array.isArray(arr)) return [];
+
+  const MAX_SOURCES = 5;
+
+  const normalized = arr
+    .map((item: any) => {
+      if (!item) return null;
+      const rawUrl = typeof item === 'string' ? item : item.url;
+      if (!rawUrl || typeof rawUrl !== 'string') return null;
+
+      const urlTrimmed = rawUrl.trim();
+      if (!urlTrimmed) return null;
+
+      try {
+        const parsed = new URL(urlTrimmed);
+        const normalizedUrl = parsed.toString();
+        const title = typeof item?.title === 'string' ? item.title.trim().slice(0, 200) : undefined;
+        return title ? { url: normalizedUrl, title } : { url: normalizedUrl };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean) as Array<{ url: string; title?: string }>;
+
+  return normalized.slice(0, MAX_SOURCES);
+};
+
 // Create a new post
 export const createPost = async (req: AuthRequest, res: Response) => {
   try {
@@ -153,6 +181,11 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Add location if provided
     if (processedContentLocation) {
       postContent.location = processedContentLocation;
+    }
+
+    const sources = sanitizeSources(content?.sources || req.body.sources);
+    if (sources.length) {
+      postContent.sources = sources;
     }
 
     const post = new Post({
@@ -357,6 +390,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       if (processedContentLocation) {
         postContent.location = processedContentLocation;
+      }
+
+      const sources = sanitizeSources(content?.sources);
+      if (sources.length) {
+        postContent.sources = sources;
       }
 
       // Handle poll creation
@@ -625,7 +663,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const { text, media, hashtags, mentions, contentLocation, postLocation } = req.body;
+    const { text, media, hashtags, mentions, contentLocation, postLocation, sources } = req.body;
     
     if (text !== undefined) {
       post.content.text = text;
@@ -673,6 +711,15 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
           coordinates: [postLocation.longitude, postLocation.latitude], // GeoJSON format: [lng, lat]
           address: postLocation.address || undefined
         };
+      }
+    }
+
+    if (sources !== undefined) {
+      const sanitized = sanitizeSources(sources);
+      if (sanitized.length) {
+        post.content.sources = sanitized;
+      } else {
+        post.content.sources = undefined;
       }
     }
     

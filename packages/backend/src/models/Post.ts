@@ -77,7 +77,21 @@ const PostContentSchema = new Schema({
     address: { type: String, required: false }
   },
   // Poll ID reference to separate Poll collection
-  pollId: { type: String, required: false }
+  pollId: { type: String, required: false },
+  // External sources cited in the post
+  sources: [{
+    url: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    title: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 200
+    }
+  }]
 });
 
 const PostStatsSchema = new Schema({

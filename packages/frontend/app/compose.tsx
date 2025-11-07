@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import DraftsSheet from '@/components/Compose/DraftsSheet';
 import ReplySettingsSheet, { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
 import GifPickerSheet from '@/components/Compose/GifPickerSheet';
+import SourcesSheet from '@/components/Compose/SourcesSheet';
 import { Toggle } from '@/components/Toggle';
 import { useDrafts } from '@/hooks/useDrafts';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -104,6 +105,8 @@ const ComposeScreen = () => {
     longitude: number;
     address?: string;
   } | null>(null);
+  const [sources, setSources] = useState<Array<{ id: string; title: string; url: string }>>([]);
+  const [isSourcesSheetOpen, setIsSourcesSheetOpen] = useState(false);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
@@ -119,6 +122,7 @@ const ComposeScreen = () => {
   const pollTitleRef = useRef(pollTitle);
   const showPollCreatorRef = useRef(showPollCreator);
   const locationRef = useRef(location);
+  const sourcesRef = useRef(sources);
   const threadItemsRef = useRef(threadItems);
   const mentionsRef = useRef(mentions);
   const postingModeRef = useRef(postingMode);
@@ -144,6 +148,9 @@ const ComposeScreen = () => {
     locationRef.current = location;
   }, [location]);
   useEffect(() => {
+    sourcesRef.current = sources;
+  }, [sources]);
+  useEffect(() => {
     threadItemsRef.current = threadItems;
   }, [threadItems]);
   useEffect(() => {
@@ -155,6 +162,96 @@ const ComposeScreen = () => {
   useEffect(() => {
     currentDraftIdRef.current = currentDraftId;
   }, [currentDraftId]);
+
+  const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
+
+  const normalizeUrl = useCallback((raw: string): string | null => {
+    if (!raw || typeof raw !== 'string') return null;
+    let value = raw.trim();
+    if (!value) return null;
+    if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value)) {
+      value = `https://${value}`;
+    }
+    try {
+      const parsed = new URL(value);
+      return parsed.toString();
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const sanitizeSourcesForSubmit = useCallback((list: Array<{ id: string; title: string; url: string }> | undefined) => {
+    if (!Array.isArray(list) || list.length === 0) return [] as Array<{ url: string; title?: string }>;
+
+    const MAX_SOURCES = 5;
+    const normalized: Array<{ url: string; title?: string }> = [];
+
+    list.forEach((item) => {
+      const normalizedUrl = normalizeUrl(item.url);
+      if (!normalizedUrl) return;
+      const title = item.title?.trim();
+      normalized.push(title ? { url: normalizedUrl, title } : { url: normalizedUrl });
+    });
+
+    const deduped = normalized.filter((source, index, self) => self.findIndex((s) => s.url === source.url) === index);
+    return deduped.slice(0, MAX_SOURCES);
+  }, [normalizeUrl]);
+
+  const isValidSourceUrl = useCallback((value: string) => {
+    if (!value || value.trim().length === 0) return true;
+    return Boolean(normalizeUrl(value));
+  }, [normalizeUrl]);
+
+  const addSource = useCallback(() => {
+    setSources((prev) => {
+      if (prev.length >= 5) {
+        toast.error(t('compose.sources.limit', { defaultValue: 'You can add up to 5 sources' }));
+        return prev;
+      }
+      return [...prev, { id: generateSourceId(), title: '', url: '' }];
+    });
+  }, [generateSourceId, t]);
+
+  const updateSourceField = useCallback((sourceId: string, field: 'title' | 'url', value: string) => {
+    setSources((prev) => prev.map((source) => (source.id === sourceId ? { ...source, [field]: value } : source)));
+  }, []);
+
+  const removeSourceEntry = useCallback((sourceId: string) => {
+    setSources((prev) => prev.filter((source) => source.id !== sourceId));
+  }, []);
+
+  const closeSourcesSheet = useCallback(() => {
+    setIsSourcesSheetOpen((prev) => {
+      if (prev) {
+        bottomSheet.openBottomSheet(false);
+        bottomSheet.setBottomSheetContent(null);
+      }
+      return false;
+    });
+  }, [bottomSheet]);
+
+  const sourcesSheetElement = useMemo(() => (
+    <SourcesSheet
+      sources={sources}
+      onAdd={addSource}
+      onUpdate={updateSourceField}
+      onRemove={removeSourceEntry}
+      onClose={closeSourcesSheet}
+      validateUrl={isValidSourceUrl}
+    />
+  ), [sources, addSource, updateSourceField, removeSourceEntry, closeSourcesSheet, isValidSourceUrl]);
+
+  const openSourcesSheet = useCallback(() => {
+    bottomSheet.setBottomSheetContent(sourcesSheetElement);
+    bottomSheet.openBottomSheet(true);
+    setIsSourcesSheetOpen(true);
+  }, [bottomSheet, sourcesSheetElement]);
+
+  useEffect(() => {
+    if (isSourcesSheetOpen) {
+      bottomSheet.setBottomSheetContent(sourcesSheetElement);
+    }
+  }, [isSourcesSheetOpen, bottomSheet, sourcesSheetElement]);
 
   // Keep this in sync with PostItem constants
   const HPAD = 16;
@@ -179,6 +276,7 @@ const ComposeScreen = () => {
 
       // Prepare all posts (main + thread items)
       const allPosts = [];
+      const formattedSources = sanitizeSourcesForSubmit(sources);
 
       // Main post
       allPosts.push({
@@ -202,7 +300,8 @@ const ComposeScreen = () => {
               coordinates: [location.longitude, location.latitude],
               address: location.address
             } as GeoJSONPoint
-          })
+          }),
+          ...(formattedSources.length > 0 && { sources: formattedSources })
         },
         mentions: mentions.map(m => m.userId),
         hashtags: [],
@@ -287,6 +386,7 @@ const ComposeScreen = () => {
     const latestPollTitle = pollTitleRef.current;
     const latestShowPollCreator = showPollCreatorRef.current;
     const latestLocation = locationRef.current;
+    const latestSources = sourcesRef.current;
     const latestThreadItems = threadItemsRef.current;
     const latestMentions = mentionsRef.current;
     const latestPostingMode = postingModeRef.current;
@@ -297,6 +397,7 @@ const ComposeScreen = () => {
       latestMediaIds.length > 0 || 
       (latestPollOptions.length > 0 && latestPollOptions.some(opt => opt.trim().length > 0)) ||
       latestLocation ||
+      latestSources.some(source => (source.title && source.title.trim().length > 0) || (source.url && source.url.trim().length > 0)) ||
       latestThreadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 || 
         (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
 
@@ -325,6 +426,7 @@ const ComposeScreen = () => {
           longitude: latestLocation.longitude,
           address: latestLocation.address,
         } : null,
+        sources: latestSources.map((source) => ({ id: source.id, title: source.title, url: source.url })),
         threadItems: latestThreadItems.map(item => ({
           id: item.id,
           text: item.text,
@@ -379,7 +481,7 @@ const ComposeScreen = () => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-    }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, threadItems, mentions, postingMode, autoSaveDraft]);
+    }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, autoSaveDraft]);
 
   // Load draft function
   const loadDraft = useCallback((draft: any) => {
@@ -409,6 +511,13 @@ const ComposeScreen = () => {
     }
     setLocation(locationData);
     
+    const sourcesData = (draft.sources || []).map((source: any) => ({
+      id: source.id || generateSourceId(),
+      title: source.title || '',
+      url: source.url || '',
+    }));
+    setSources(sourcesData);
+
     // Handle thread items - ensure they have all required fields
     const threadItemsData = (draft.threadItems || []).map((item: any) => ({
       id: item.id || `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -448,13 +557,14 @@ const ComposeScreen = () => {
     bottomSheet.openBottomSheet(false);
     
     toast.success(t('compose.draftLoaded'));
-  }, [bottomSheet, t]);
+  }, [bottomSheet, generateSourceId, t]);
 
   // back navigation
 
   const canPostContent = postContent.trim().length > 0 || mediaIds.length > 0 || (pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0)) || location ||
     threadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 || (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
-  const isPostButtonEnabled = canPostContent && !isPosting;
+  const hasInvalidSources = sources.some(source => source.url.trim().length > 0 && !isValidSourceUrl(source.url));
+  const isPostButtonEnabled = canPostContent && !isPosting && !hasInvalidSources;
 
   const openMediaPicker = () => {
     showBottomSheet?.({
@@ -853,6 +963,7 @@ const ComposeScreen = () => {
                           setPollTitle('');
                           setShowPollCreator(false);
                           setLocation(null);
+                          setSources([]);
                           setThreadItems([]);
                           setMentions([]);
                           toast.success(t('common.cleared'));
@@ -952,10 +1063,13 @@ const ComposeScreen = () => {
                         // TODO: Implement emoji picker
                         toast.info(t('Emoji picker coming soon'));
                       }}
+                      onSourcesPress={openSourcesSheet}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
                       hasMedia={mediaIds.length > 0}
+                      hasSources={sources.length > 0}
+                      hasSourceErrors={hasInvalidSources}
                       disabled={isPosting}
                     />
                     {postContent.length > 0 && (

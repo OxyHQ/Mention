@@ -6,6 +6,7 @@ import { PollIcon } from '@/assets/icons/poll-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
 import { EmojiIcon } from '@/assets/icons/emoji-icon';
 import { GifIcon } from '@/assets/icons/gif-icon';
+import { SourcesIcon } from '@/assets/icons/sources-icon';
 
 interface ComposeToolbarProps {
     onMediaPress?: () => void;
@@ -14,10 +15,13 @@ interface ComposeToolbarProps {
     onGifPress?: () => void;
     onEmojiPress?: () => void;
     onSchedulePress?: () => void;
+    onSourcesPress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
     hasMedia?: boolean;
+    hasSources?: boolean;
+    hasSourceErrors?: boolean;
     disabled?: boolean;
 }
 
@@ -28,10 +32,13 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     onGifPress,
     onEmojiPress,
     onSchedulePress,
+    onSourcesPress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
     hasMedia = false,
+    hasSources = false,
+    hasSourceErrors = false,
     disabled = false,
 }) => {
     const theme = useTheme();
@@ -86,6 +93,25 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     <PollIcon
                         size={20}
                         color={disabled || hasMedia ? theme.colors.textTertiary : (hasPoll ? theme.colors.primary : theme.colors.textSecondary)}
+                    />
+                </TouchableOpacity>
+            )}
+
+            {onSourcesPress && (
+                <TouchableOpacity
+                    onPress={onSourcesPress}
+                    disabled={disabled}
+                    style={styles.button}
+                >
+                    <SourcesIcon
+                        size={20}
+                        color={disabled
+                            ? theme.colors.textTertiary
+                            : hasSourceErrors
+                                ? (theme.colors.error || '#ff4d4f')
+                                : hasSources
+                                    ? theme.colors.primary
+                                    : theme.colors.textSecondary}
                     />
                 </TouchableOpacity>
             )}

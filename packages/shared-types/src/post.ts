@@ -24,12 +24,18 @@ export interface MediaItem {
   type: 'image' | 'video';
 }
 
+export interface PostSourceLink {
+  url: string;
+  title?: string;
+}
+
 export interface PostContent {
   text?: string;
   media?: MediaItem[]; // Media items for images and videos
   poll?: PollData; // Populated poll data for display
   pollId?: string; // Reference to poll document
   location?: GeoJSONPoint; // Location shared by user as part of post content
+  sources?: PostSourceLink[]; // External sources cited within the post content
 }
 
 export interface PollData {
