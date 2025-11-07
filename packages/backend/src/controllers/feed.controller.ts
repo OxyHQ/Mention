@@ -1464,12 +1464,8 @@ class FeedController {
           ? u 
           : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
       ));
-      const followingIds = [
-        ...new Set([
-          ...extracted.filter(Boolean),
-          currentUserId // include user's own posts
-        ])
-      ];
+      // Only include people the user follows, NOT the user's own posts
+      const followingIds = [...new Set(extracted.filter(Boolean))];
 
       if (followingIds.length === 0) {
         return res.json({ items: [], hasMore: false, totalCount: 0 });
@@ -1498,7 +1494,7 @@ class FeedController {
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts, // Return posts directly in new schema format
+        items: transformedPosts,
         hasMore,
         nextCursor,
         totalCount: transformedPosts.length

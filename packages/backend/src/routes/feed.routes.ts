@@ -15,8 +15,6 @@ router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedControll
 // Add generic replies route for feeds that don't target a single parent
 router.get('/replies', feedController.getRepliesFeed.bind(feedController));
 
-// Debug route removed for production
-
 // User profile feed routes
 router.get('/user/:userId', feedController.getUserProfileFeed.bind(feedController));
 // Single feed item with full transformation
