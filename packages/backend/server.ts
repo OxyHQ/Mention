@@ -2,6 +2,7 @@
 import express from "express";
 import http from "http";
 import mongoose from "mongoose";
+import { connectToDatabase } from "./src/utils/database";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
@@ -61,6 +62,19 @@ app.use((req, res, next) => {
     }
   }
   next();
+});
+
+app.use(async (req, res, next) => {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (error) {
+    console.error("MongoDB connection unavailable:", error);
+    if (res.headersSent) {
+      return;
+    }
+    res.status(503).json({ message: "Database temporarily unavailable" });
+  }
 });
 
 // CORS and security headers
@@ -429,7 +443,6 @@ app.get("", async (req, res) => {
 });
 
 // --- MongoDB Connection ---
-mongoose.connect(process.env.MONGODB_URI || "", { autoIndex: true, autoCreate: true });
 const db = mongoose.connection;
 db.on("error", (error) => { console.error("MongoDB connection error:", error); });
 db.once("open", () => { console.log("Connected to MongoDB successfully"); });
@@ -453,10 +466,20 @@ db.once("open", () => {
 
 // --- Server Listen ---
 const PORT = process.env.PORT || 3000;
+const bootServer = async () => {
+  try {
+    await connectToDatabase();
+    server.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server: unable to connect to MongoDB", error);
+    process.exit(1);
+  }
+};
+
 if (require.main === module) {
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
+  void bootServer();
 }
 
 export { io, notificationsNamespace };

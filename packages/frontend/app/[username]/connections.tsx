@@ -2,13 +2,12 @@ import { Header } from '@/components/Header';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
-import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import * as OxyServicesNS from '@oxyhq/services';
 import { Link, useLocalSearchParams, router, usePathname } from 'expo-router';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, View, TouchableOpacity, Share, Platform } from 'react-native';
+import { ActivityIndicator, View, TouchableOpacity, Share, Platform, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
@@ -33,7 +32,7 @@ export default function ConnectionsScreen() {
   const [profile, setProfile] = useState<any | null>(null);
   const { t } = useTranslation();
   const theme = useTheme();
-  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string }>;
+  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
 
   // Determine active tab from pathname
   const getActiveTab = useCallback((): TabType => {
@@ -223,53 +222,80 @@ export default function ConnectionsScreen() {
     }
   }, [getInviteMessage, t]);
 
-  const renderUser = ({ item }: { item: any }) => (
-    <View style={{
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: 16,
-      borderBottomWidth: 0.5,
-      borderBottomColor: theme.colors.border || colors.COLOR_BLACK_LIGHT_6
-    }}>
-      <Link href={`/@${item.username}`} asChild>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <Avatar source={(item as any)?.avatar?.url || (item as any)?.avatar || (item as any)?.profilePicture} size={40} />
-          <View style={{ marginLeft: 12, flex: 1 }}>
-            <ThemedText style={{ fontWeight: '600' }}>
-              {item.profile?.name?.full || 
-               (item.name?.first ? `${item.name.first} ${item.name.last || ''}`.trim() : '') ||
-               item.displayName ||
-               item.username}
-            </ThemedText>
-            <ThemedText style={{ color: theme.colors.textSecondary || colors.COLOR_BLACK_LIGHT_4 }}>@{item.username}</ThemedText>
-          </View>
-        </View>
-      </Link>
-      <FollowButton userId={(item as any).id || (item as any)._id || (item as any).userID} />
-    </View>
-  );
+  const renderUser = ({ item }: { item: any }) => {
+    const usernameValue = item?.username || item?.handle || item?.userID || item?.id;
+    if (!usernameValue) {
+      return null;
+    }
 
-  const renderInviteBanner = () => (
-    <TouchableOpacity
-      onPress={handleInviteFriends}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-        margin: 16,
-        backgroundColor: theme.colors.backgroundSecondary || `${theme.colors.primary}15`,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-      }}
-    >
-      <Ionicons name="person-add-outline" size={20} color={theme.colors.primary} />
-      <ThemedText style={{ marginLeft: 8, color: theme.colors.primary, fontWeight: '600' }}>
-        {t('Invite friends', { defaultValue: 'Invite friends' })}
-      </ThemedText>
-    </TouchableOpacity>
-  );
+    const displayName =
+      item?.profile?.name?.full ||
+      (item?.name?.first ? `${item.name.first} ${item.name.last || ''}`.trim() : '') ||
+      item?.displayName ||
+      usernameValue;
+
+    const avatarSource =
+      typeof item?.avatar === 'string'
+        ? oxyServices.getFileDownloadUrl?.(item.avatar, 'thumb') ?? item.avatar
+        : (item as any)?.avatar?.url || (item as any)?.avatar || (item as any)?.profilePicture;
+
+    const bio = item?.profile?.bio || item?.bio;
+
+    return (
+      <View style={[styles.row, { borderBottomColor: theme.colors.border }]}> 
+        <TouchableOpacity
+          style={styles.rowLeft}
+          onPress={() => router.push(`/@${usernameValue}` as any)}
+          activeOpacity={0.75}
+        >
+        <Avatar source={avatarSource} size={40} />
+          <View style={styles.rowTextWrap}>
+            <ThemedText style={[styles.rowTitle, { color: theme.colors.text }]}>
+              {displayName}
+            </ThemedText>
+            <ThemedText style={[styles.rowSubtitle, { color: theme.colors.textSecondary }]}>
+              @{usernameValue}
+            </ThemedText>
+            {bio ? (
+              <ThemedText
+                style={[styles.rowBio, { color: theme.colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {bio}
+              </ThemedText>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+        <FollowButton
+          userId={(item as any).id || (item as any)._id || (item as any).userID}
+          size="small"
+        />
+      </View>
+    );
+  };
+
+  const renderInviteBanner = useCallback(() => (
+    <View style={styles.inviteWrapper}>
+      <TouchableOpacity
+        onPress={handleInviteFriends}
+        activeOpacity={0.75}
+        style={[styles.inviteRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+      >
+        <View style={[styles.inviteIcon, { backgroundColor: theme.colors.primary }]}>
+          <Ionicons name="people" size={18} color={theme.colors.card} />
+        </View>
+        <View style={styles.inviteTextWrap}>
+          <ThemedText style={[styles.inviteTitle, { color: theme.colors.text }]}>
+            {t('settings.inviteContacts.inviteBannerTitle', { defaultValue: 'Invite friends from your contacts' })}
+          </ThemedText>
+          <ThemedText style={[styles.inviteSubtitle, { color: theme.colors.textSecondary }]}>
+            {t('settings.inviteContacts.inviteBannerSubtitle', { defaultValue: 'Share Mention and grow your community.' })}
+          </ThemedText>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
+      </TouchableOpacity>
+    </View>
+  ), [handleInviteFriends, theme.colors.border, theme.colors.card, theme.colors.primary, theme.colors.text, theme.colors.textSecondary, t]);
 
   const getCurrentData = () => {
     switch (activeTab) {
@@ -297,19 +323,21 @@ export default function ConnectionsScreen() {
     }
   };
 
+  const profileDisplayName = useMemo(() => (
+    profile?.profile?.name?.full ||
+    (profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : '') ||
+    profile?.displayName ||
+    cleanUsername
+  ), [profile, cleanUsername]);
+
   const getTitle = () => {
-    const profileName = profile?.profile?.name?.full || 
-                       (profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : '') ||
-                       profile?.displayName ||
-                       cleanUsername;
-    
     switch (activeTab) {
       case 'followers':
-        return `${profileName} ${t("Followers", { defaultValue: 'Followers' })}`;
+        return `${profileDisplayName} ${t('Followers', { defaultValue: 'Followers' })}`;
       case 'following':
-        return `${profileName} ${t("Following", { defaultValue: 'Following' })}`;
+        return `${profileDisplayName} ${t('Following', { defaultValue: 'Following' })}`;
       case 'who-may-know':
-        return t("Who May Know", { defaultValue: 'Who May Know' });
+        return t('Who May Know', { defaultValue: 'Who May Know' });
       default:
         return '';
     }
@@ -348,8 +376,11 @@ export default function ConnectionsScreen() {
       />
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={styles.loadingState}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
+          <ThemedText style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+            {t('Loading...', { defaultValue: 'Loading...' })}
+          </ThemedText>
         </View>
       ) : (
         <LegendList
@@ -358,8 +389,11 @@ export default function ConnectionsScreen() {
           keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
           ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
           ListEmptyComponent={
-            <View style={{ padding: 16, alignItems: 'center' }}>
-              <ThemedText>{getEmptyMessage()}</ThemedText>
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={22} color={theme.colors.textSecondary} style={{ marginBottom: 4 }} />
+              <ThemedText style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                {getEmptyMessage()}
+              </ThemedText>
             </View>
           }
           removeClippedSubviews={false}
@@ -368,9 +402,99 @@ export default function ConnectionsScreen() {
           initialNumToRender={10}
           recycleItems={true}
           maintainVisibleContentPosition={true}
+          contentContainerStyle={styles.listContent}
         />
       )}
     </ThemedView>
   );
 }
+
+const styles = StyleSheet.create({
+  listContent: {
+    paddingHorizontal: 0,
+    paddingBottom: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 0.5,
+  },
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  rowTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  rowSubtitle: {
+    fontSize: 13,
+  },
+  rowBio: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  inviteWrapper: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  inviteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  inviteIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  inviteTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  inviteSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  emptyState: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  emptyText: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  loadingState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  loadingText: {
+    fontSize: 14,
+  },
+});
 
