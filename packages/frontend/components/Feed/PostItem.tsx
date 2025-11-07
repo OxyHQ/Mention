@@ -258,7 +258,7 @@ const PostItem: React.FC<PostItemProps> = ({
             <PostArticleSheet
                 articleId={articleContent.articleId}
                 title={articleContent.title}
-                body={articleContent.body || articleContent.excerpt}
+                body={articleContent.body}
                 onClose={closeArticleSheet}
             />
         );

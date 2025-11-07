@@ -136,9 +136,9 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   articleTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
-    lineHeight: 26,
+    lineHeight: 30,
   },
   articleBody: {
     fontSize: 15,

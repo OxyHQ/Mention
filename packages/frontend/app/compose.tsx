@@ -40,6 +40,7 @@ import { LocationIcon } from '@/assets/icons/location-icon';
 import { Plus } from '@/assets/icons/plus-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
+import { HideIcon } from '@/assets/icons/hide-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import DraftsSheet from '@/components/Compose/DraftsSheet';
@@ -192,6 +193,7 @@ const ComposeScreen = () => {
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
   const [reviewReplies, setReviewReplies] = useState(false);
+  const [showModeToggle, setShowModeToggle] = useState(false);
 
   const scheduleEnabled = postingMode === 'thread' && threadItems.length === 0;
 
@@ -634,6 +636,16 @@ const ComposeScreen = () => {
               <View style={styles.headerIcons}>
                 <HeaderIconButton
                   style={styles.iconBtn}
+                  onPress={() => setShowModeToggle(!showModeToggle)}
+                >
+                  {showModeToggle ? (
+                    <HideIcon size={20} color={theme.colors.text} />
+                  ) : (
+                    <ChevronRightIcon size={20} color={theme.colors.text} style={{ transform: [{ rotate: '90deg' }] }} />
+                  )}
+                </HeaderIconButton>
+                <HeaderIconButton
+                  style={styles.iconBtn}
                   onPress={() => {
                     bottomSheet.setBottomSheetContent(
                       <DraftsSheet
@@ -690,31 +702,33 @@ const ComposeScreen = () => {
             </View>
 
             {/* Mode Toggle Section */}
-            <View style={[styles.modeToggleContainer, { backgroundColor: theme.colors.backgroundSecondary, borderBottomColor: theme.colors.border }]}>
-              <View style={styles.modeToggleRow}>
-                <View style={styles.modeOption}>
-                  <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel, { color: theme.colors.text }]}>
-                    {t('Thread')}
-                  </Text>
-                  <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
-                    {t('Post as linked thread')}
-                  </Text>
-                </View>
-                <Toggle
-                  value={postingMode === 'beast'}
-                  onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
-                  containerStyle={styles.modeToggle}
-                />
-                <View style={styles.modeOption}>
-                  <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel, { color: theme.colors.text }]}>
-                    {t('Beast')}
-                  </Text>
-                  <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
-                    {t('Post all at once')}
-                  </Text>
+            {showModeToggle && (
+              <View style={[styles.modeToggleContainer, { backgroundColor: theme.colors.backgroundSecondary, borderBottomColor: theme.colors.border }]}>
+                <View style={styles.modeToggleRow}>
+                  <View style={styles.modeOption}>
+                    <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel, { color: theme.colors.text }]}>
+                      {t('Thread')}
+                    </Text>
+                    <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
+                      {t('Post as linked thread')}
+                    </Text>
+                  </View>
+                  <Toggle
+                    value={postingMode === 'beast'}
+                    onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
+                    containerStyle={styles.modeToggle}
+                  />
+                  <View style={styles.modeOption}>
+                    <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel, { color: theme.colors.text }]}>
+                      {t('Beast')}
+                    </Text>
+                    <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
+                      {t('Post all at once')}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
+            )}
 
             {/* Main composer and thread section */}
             <View style={styles.threadContainer}>
