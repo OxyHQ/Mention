@@ -109,7 +109,7 @@ const Feed = (props: FeedProps) => {
     const globalFeed = useFeedSelector(effectiveType);
     const userFeed = useUserFeedSelector(userId || '', effectiveType);
     const feedData = showOnlySaved ? globalFeed : (userId ? userFeed : globalFeed);
-    
+
     const isLoading = useScoped ? localLoading : !!feedData?.isLoading;
     const error = useScoped ? localError : feedData?.error;
     const hasMore = useScoped ? localHasMore : !!feedData?.hasMore;
@@ -173,10 +173,10 @@ const Feed = (props: FeedProps) => {
             console.log('[Feed] fetchInitialFeed: Already fetching, skipping');
             return;
         }
-        
+
         // Set fetching flag immediately to prevent duplicate calls
         isFetchingRef.current = true;
-        
+
         if (isAuthenticated && !currentUser?.id) {
             console.log('[Feed] fetchInitialFeed: Not authenticated, skipping');
             isFetchingRef.current = false;
@@ -187,7 +187,7 @@ const Feed = (props: FeedProps) => {
         const feedTypeToCheck = showOnlySaved ? 'saved' : type;
         const currentFeed = !useScoped ? usePostsStore.getState().feeds[feedTypeToCheck] : null;
         const hasItems = currentFeed?.items && currentFeed.items.length > 0;
-        
+
         console.log('[Feed] fetchInitialFeed:', {
             forceRefresh,
             showOnlySaved,
@@ -195,7 +195,7 @@ const Feed = (props: FeedProps) => {
             hasItems,
             filters: filters
         });
-        
+
         // CRITICAL: Only fetch if:
         // 1. Force refresh (reloadKey changed - user pressed same tab)
         // 2. Feed doesn't have items (first time loading)
@@ -207,9 +207,9 @@ const Feed = (props: FeedProps) => {
             console.log('[Feed] fetchInitialFeed: Skipping - feed has items and not saved');
             return;
         }
-        
+
         // For saved posts, always proceed to fetch (even if items exist) to support search filtering
-        
+
         const shouldRefresh = forceRefresh;
 
         try {
@@ -276,7 +276,7 @@ const Feed = (props: FeedProps) => {
     useEffect(() => {
         const reloadKeyChanged = previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         previousReloadKeyRef.current = reloadKey;
-        
+
         // If reloadKey changed, always refresh (user pressed same tab)
         if (reloadKeyChanged) {
             fetchInitialFeed(true); // Force refresh
@@ -290,28 +290,28 @@ const Feed = (props: FeedProps) => {
             showOnlySaved,
             filters: filters
         });
-        
+
         // Skip if reloadKey just changed (handled by above effect)
         const reloadKeyChanged = previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         if (reloadKeyChanged) {
             console.log('[Feed] useEffect: Skipping - reloadKey changed');
             return; // Let the reloadKey effect handle it
         }
-        
+
         // For saved posts, always fetch when filters change (search query)
         // For other feeds, check if feed already has items
         if (!useScoped && !showOnlySaved) {
             const feedTypeToCheck = type;
             const currentFeed = usePostsStore.getState().feeds[feedTypeToCheck];
             const hasItems = currentFeed?.items && currentFeed.items.length > 0;
-            
+
             // If feed has items and no filters/search, skip fetching (just switching tabs)
             if (hasItems && !filters?.searchQuery) {
                 console.log('[Feed] useEffect: Skipping - feed has items and no search query');
                 return;
             }
         }
-        
+
         // Feed doesn't have items yet or filters changed, fetch it
         // For saved posts, always fetch to support search filtering
         console.log('[Feed] useEffect: Calling fetchInitialFeed');
@@ -334,7 +334,7 @@ const Feed = (props: FeedProps) => {
                     setLocalError(null);
                     const resp = await feedService.getFeed({ type, limit: 20, filters } as any);
                     const items = resp.items || [];
-                    
+
                     // Optimized deduplication - store already handles most deduplication
                     // This is just a safety pass
                     const seen = new Set<string>();
@@ -346,7 +346,7 @@ const Feed = (props: FeedProps) => {
                         }
                         return false;
                     });
-                    
+
                     setLocalItems(uniqueItems);
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
@@ -378,7 +378,7 @@ const Feed = (props: FeedProps) => {
             console.log('[Feed] handleLoadMore: Already loading, skipping duplicate call');
             return;
         }
-        
+
         if (showOnlySaved) {
             // Use feed endpoint for loading more saved posts
             isLoadingMoreRef.current = true;
@@ -389,7 +389,7 @@ const Feed = (props: FeedProps) => {
             }
             return;
         }
-        
+
         // Check conditions before setting ref flag
         if (!hasMore || isLoading || isLoadingMore) return;
 
@@ -438,7 +438,7 @@ const Feed = (props: FeedProps) => {
                     });
                     return prev.concat(uniqueNew);
                 });
-                
+
                 const prevCursor = localNextCursor;
                 const nextCursor = resp.nextCursor;
                 const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
@@ -491,22 +491,24 @@ const Feed = (props: FeedProps) => {
         };
     }, []);
 
+    // Memoize renderPostItem to prevent recreating on every render
+    // CRITICAL: Keep dependency array EMPTY - PostItem is memoized and will handle its own updates
     const renderPostItem = useCallback(({ item, index }: { item: any; index: number }) => {
         // Validate item before rendering to prevent crashes
         if (!item || !item.id) {
             console.warn('[Feed] Invalid post item:', item);
             return null;
         }
-        
+
         // CRITICAL: Don't add key prop here - FlashList handles keys via keyExtractor
         // Adding a key prop can interfere with FlashList's recycling mechanism
-        // Return PostItem - if it crashes, ErrorBoundary will catch it
+        // PostItem is already memoized with arePropsEqual, so it will only rerender when needed
         return <PostItem post={item} />;
-    }, []);
+    }, []); // Empty deps - PostItem handles its own memoization
 
     const displayItems = useMemo(() => {
         const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
-        
+
         if (src.length === 0) return [];
 
         // CRITICAL: Final deduplication pass using same normalization as store
@@ -530,10 +532,10 @@ const Feed = (props: FeedProps) => {
             }
             return '';
         };
-        
+
         const seen = new Map<string, any>();
         const duplicateIds: string[] = [];
-        
+
         for (const item of src) {
             const id = normalizeId(item);
             if (id && id !== 'undefined' && id !== 'null' && id !== '') {
@@ -546,7 +548,7 @@ const Feed = (props: FeedProps) => {
         }
 
         const deduped = Array.from(seen.values());
-        
+
         // Log duplicates found in display items (shouldn't happen if store deduplication works)
         if (process.env.NODE_ENV === 'development' && duplicateIds.length > 0) {
             console.error(`[Feed:displayItems] 🚨 Found ${duplicateIds.length} duplicates in feed items!`, {
@@ -652,7 +654,7 @@ const Feed = (props: FeedProps) => {
                 </Text>
             </View>
         );
-    }, [isLoading, error, localError, useScoped, type, effectiveType, userId, clearError, fetchFeed, fetchUserFeed, showOnlySaved, displayItems.length, filters, theme]);
+    }, [isLoading, error, localError, useScoped, type, effectiveType, userId, clearError, fetchFeed, fetchUserFeed, showOnlySaved, displayItems.length, filters, theme.colors.background, theme.colors.error, theme.colors.primary, theme.colors.shadow, theme.colors.card, theme.colors.text, theme.colors.textSecondary]);
 
     const renderFooter = useCallback(() => {
         if (showOnlySaved || !hasMore || !isLoadingMore) return null;
@@ -665,7 +667,7 @@ const Feed = (props: FeedProps) => {
                 <ActivityIndicator size="small" color={theme.colors.primary} />
             </View>
         );
-    }, [showOnlySaved, hasMore, isLoadingMore, filteredFeedData?.items, useScoped, localItems.length, theme]);
+    }, [showOnlySaved, hasMore, isLoadingMore, filteredFeedData?.items, useScoped, localItems.length, theme.colors.primary]);
 
     const renderHeader = useCallback(() => {
         if (!showComposeButton || hideHeader) return null;
@@ -680,10 +682,10 @@ const Feed = (props: FeedProps) => {
                 </TouchableOpacity>
             </View>
         );
-    }, [showComposeButton, onComposePress, hideHeader, theme]);
+    }, [showComposeButton, onComposePress, hideHeader, theme.colors.background, theme.colors.backgroundSecondary, theme.colors.border, theme.colors.shadow, theme.colors.textSecondary]);
 
     const keyExtractor = useCallback((item: any) => itemKey(item), [itemKey]);
-    
+
     // CRITICAL: getItemType helps FlashList properly recycle components
     // All posts use the same type, but this helps FlashList optimize recycling
     const getItemType = useCallback((item: any) => {
@@ -771,10 +773,49 @@ const Feed = (props: FeedProps) => {
         return { layoutscroll: 'true' };
     }, []);
 
+    // Memoize RefreshControl to prevent recreation on every render
+    const refreshControl = useMemo(() => {
+        if (hideRefreshControl) return undefined;
+        return (
+            <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={[theme.colors.primary]}
+                tintColor={theme.colors.primary}
+            />
+        );
+    }, [hideRefreshControl, refreshing, handleRefresh, theme.colors.primary]);
+
+    // Memoize container style
+    const containerStyle = useMemo(() =>
+        flattenStyleArray([styles.container, { backgroundColor: theme.colors.background }]),
+        [theme.colors.background]
+    );
+
+    // Memoize list content style
+    const listContentStyle = useMemo(() =>
+        flattenStyleArray([
+            styles.listContent,
+            { backgroundColor: theme.colors.background },
+            contentContainerStyle,
+        ]),
+        [theme.colors.background, contentContainerStyle]
+    );
+
+    // Memoize list style
+    const listStyle = useMemo(() =>
+        flattenStyleArray([
+            styles.list,
+            { backgroundColor: theme.colors.background },
+            style,
+        ]),
+        [theme.colors.background, style]
+    );
+
     return (
         <ErrorBoundary>
-            <View 
-                style={flattenStyleArray([styles.container, { backgroundColor: theme.colors.background }])}
+            <View
+                style={containerStyle}
                 {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
             >
                 <LoadingTopSpinner showLoading={isLoading && !refreshing && !isLoadingMore && displayItems.length === 0} />
@@ -791,14 +832,7 @@ const Feed = (props: FeedProps) => {
                         ListEmptyComponent: renderEmptyState,
                         ListFooterComponent: renderFooter,
                         scrollEnabled: scrollEnabled,
-                        refreshControl: hideRefreshControl ? undefined : (
-                            <RefreshControl
-                                refreshing={refreshing}
-                                onRefresh={handleRefresh}
-                                colors={[theme.colors.primary]}
-                                tintColor={theme.colors.primary}
-                            />
-                        ),
+                        refreshControl: refreshControl,
                         onEndReached: handleLoadMore,
                         onEndReachedThreshold: 0.7, // Increased threshold for earlier prefetch
                         // Removed onViewableItemsChanged to prevent duplicate loads
@@ -807,16 +841,8 @@ const Feed = (props: FeedProps) => {
                         onScroll: scrollEnabled === false ? undefined : handleScrollEvent,
                         scrollEventThrottle: scrollEnabled === false ? undefined : scrollEventThrottle,
                         onWheel: Platform.OS === 'web' ? handleWheelEvent : undefined,
-                        contentContainerStyle: flattenStyleArray([
-                            styles.listContent,
-                            { backgroundColor: theme.colors.background },
-                            contentContainerStyle,
-                        ]),
-                        style: flattenStyleArray([
-                            styles.list,
-                            { backgroundColor: theme.colors.background },
-                            style,
-                        ]),
+                        contentContainerStyle: listContentStyle,
+                        style: listStyle,
                         drawDistance: 500,
                         removeClippedSubviews: true,
                         maxToRenderPerBatch: 8, // Reduced for smoother scrolling
@@ -834,7 +860,45 @@ const Feed = (props: FeedProps) => {
     );
 };
 
-export default Feed;
+// Custom comparison function to prevent unnecessary re-renders
+const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps) => {
+    // Always rerender if reloadKey changes (user pressed same tab)
+    if (prevProps.reloadKey !== nextProps.reloadKey) {
+        return false;
+    }
+
+    // Rerender if feed type changed
+    if (prevProps.type !== nextProps.type) {
+        return false;
+    }
+
+    // Rerender if userId changed
+    if (prevProps.userId !== nextProps.userId) {
+        return false;
+    }
+
+    // Rerender if filters changed (deep comparison)
+    const prevFilters = JSON.stringify(prevProps.filters || {});
+    const nextFilters = JSON.stringify(nextProps.filters || {});
+    if (prevFilters !== nextFilters) {
+        return false;
+    }
+
+    // Rerender if showOnlySaved changed
+    if (prevProps.showOnlySaved !== nextProps.showOnlySaved) {
+        return false;
+    }
+
+    // Rerender if scrollEnabled changed
+    if (prevProps.scrollEnabled !== nextProps.scrollEnabled) {
+        return false;
+    }
+
+    // Props are equal, skip re-render
+    return true;
+};
+
+export default React.memo(Feed, arePropsEqual);
 
 const styles = StyleSheet.create({
     container: {

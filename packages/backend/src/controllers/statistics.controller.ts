@@ -4,6 +4,7 @@ import Post from "../models/Post";
 import Like from "../models/Like";
 import Bookmark from "../models/Bookmark";
 import { logger } from '../utils/logger';
+import { userPreferenceService } from '../services/UserPreferenceService';
 
 interface DateRange {
   startDate: Date;
@@ -257,7 +258,6 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
     // Record interaction for user preference learning
     if (userId) {
       try {
-        const { userPreferenceService } = await import('../services/UserPreferenceService.js');
         await userPreferenceService.recordInteraction(userId, postId, 'view');
       } catch (error) {
         logger.warn('Failed to record view interaction:', error);
