@@ -2,7 +2,7 @@
 // Base URLs (prod first → env → fallback)
 export const API_URL =
   process.env.NODE_ENV === 'production'
-    ? 'https://api.mention.earth'
+    ? 'https://api.mention.earth/api'
     : (process.env.API_URL ?? 'http://192.168.86.44:3000/api');
 export const SOCKET_URL =
   process.env.NODE_ENV === "production"
