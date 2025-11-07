@@ -66,7 +66,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // CRITICAL: Reset selector when postId changes (FlashList recycling)
     const selectorRef = useRef<((state: any) => any) | null>(null);
     const prevPostIdRef = useRef<string | undefined>(undefined);
-    
+
     // Reset selector if postId changed (FlashList recycled component with different post)
     if (postId !== prevPostIdRef.current) {
         prevPostIdRef.current = postId;
@@ -88,10 +88,10 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPostId = (viewPost as any)?.id as string | undefined;
     const viewPostHandle = (viewPost as any)?.user?.handle as string | undefined;
     const postOwnerId = (viewPost as any)?.user?.id || (viewPost as any)?.user?._id;
-    
+
     // Check if current user is the post owner (for showing insights button)
     const isOwner = !!(user && ((user as any).id === postOwnerId || (user as any)._id === postOwnerId));
-    
+
     // Get current user's privacy settings - this controls what THEY see, not what others see
     const currentUserPrivacySettings = useCurrentUserPrivacySettings();
     const hideLikeCounts = currentUserPrivacySettings?.hideLikeCounts || false;
@@ -112,7 +112,7 @@ const PostItem: React.FC<PostItemProps> = ({
         // Support both 'original' and 'quoted' keys; 'original' takes precedence for reposts
         return p?.original || p?.quoted || null;
     });
-    
+
     // CRITICAL: Reset originalPost when postId changes (FlashList recycling)
     // This ensures recycled components don't show stale data
     // Reset immediately when postId changes, before the load effect runs
@@ -269,18 +269,18 @@ const PostItem: React.FC<PostItemProps> = ({
         bottomSheet.setBottomSheetContent(articleSheetElement);
         bottomSheet.openBottomSheet(true);
     }, [articleSheetElement, bottomSheet]);
-    
+
     const handleLike = useCallback(async () => {
         // Prevent rapid clicks - debounce
         if (likeActionRef.current) {
             return;
         }
-        
+
         try {
-            const action = isLiked 
+            const action = isLiked
                 ? unlikePost({ postId: (viewPost as any).id, type: 'post' })
                 : likePost({ postId: (viewPost as any).id, type: 'post' });
-            
+
             likeActionRef.current = action;
             await action;
         } catch (error) {
@@ -299,18 +299,18 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [onReply, router, viewPost]);
 
     const repostActionRef = useRef<Promise<void> | null>(null);
-    
+
     const handleRepost = useCallback(async () => {
         // Prevent rapid clicks - debounce
         if (repostActionRef.current) {
             return;
         }
-        
+
         try {
             const action = isReposted
                 ? unrepostPost({ postId: (viewPost as any).id })
                 : repostPost({ postId: (viewPost as any).id });
-            
+
             repostActionRef.current = action;
             await action;
         } catch (error) {
@@ -365,18 +365,18 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [viewPost]);
 
     const saveActionRef = useRef<Promise<void> | null>(null);
-    
+
     const handleSave = useCallback(async () => {
         // Prevent rapid clicks - debounce
         if (saveActionRef.current) {
             return;
         }
-        
+
         try {
             const action = isSaved
                 ? unsavePost({ postId: (viewPost as any).id })
                 : savePost({ postId: (viewPost as any).id });
-            
+
             saveActionRef.current = action;
             await action;
         } catch (error) {
@@ -542,68 +542,70 @@ const PostItem: React.FC<PostItemProps> = ({
 
                     const postUrl = `https://mention.earth/p/${postId}`;
                     const isPinned = Boolean((viewPost as any)?.metadata?.isPinned);
-                    
+
                     // Group actions based on the image: Insights (single), Save group, Delete (single), Copy link (single)
                     const insightsAction = isOwner ? [
-                        { icon: <AnalyticsIcon size={20} color={theme.colors.textSecondary} />, text: "Insights", onPress: () => { 
-                            bottomSheet.setBottomSheetContent(
-                                <PostInsightsSheet
-                                    postId={viewPostId || null}
-                                    onClose={() => bottomSheet.openBottomSheet(false)}
-                                />
-                            );
-                            bottomSheet.openBottomSheet(true);
-                        } }
+                        {
+                            icon: <AnalyticsIcon size={20} color={theme.colors.textSecondary} />, text: "Insights", onPress: () => {
+                                bottomSheet.setBottomSheetContent(
+                                    <PostInsightsSheet
+                                        postId={viewPostId || null}
+                                        onClose={() => bottomSheet.openBottomSheet(false)}
+                                    />
+                                );
+                                bottomSheet.openBottomSheet(true);
+                            }
+                        }
                     ] : [];
-                    
+
                     // Save action group: Save, Unpin, Hide like and share counts, Reply options
                     const saveActionGroup: Array<{ icon: any; text: string; onPress: () => void; color?: string }> = [];
-                    
+
                     // Save/Unsave
                     if (!isSaved) {
-                        saveActionGroup.push({ 
-                            icon: <Bookmark size={20} color={theme.colors.textSecondary} />, 
-                            text: "Save", 
-                            onPress: async () => { await handleSave(); bottomSheet.openBottomSheet(false); } 
+                        saveActionGroup.push({
+                            icon: <Bookmark size={20} color={theme.colors.textSecondary} />,
+                            text: "Save",
+                            onPress: async () => { await handleSave(); bottomSheet.openBottomSheet(false); }
                         });
                     } else {
-                        saveActionGroup.push({ 
-                            icon: <BookmarkActive size={20} color={theme.colors.textSecondary} />, 
-                            text: "Unsave", 
-                            onPress: async () => { await handleSave(); bottomSheet.openBottomSheet(false); } 
+                        saveActionGroup.push({
+                            icon: <BookmarkActive size={20} color={theme.colors.textSecondary} />,
+                            text: "Unsave",
+                            onPress: async () => { await handleSave(); bottomSheet.openBottomSheet(false); }
                         });
                     }
-                    
+
                     // Unpin (only for owners and if pinned)
                     if (isOwner && isPinned) {
-                        saveActionGroup.push({ 
-                            icon: <UnpinIcon size={20} color={theme.colors.textSecondary} />, 
-                            text: "Unpin", 
-                            onPress: async () => { 
+                        saveActionGroup.push({
+                            icon: <UnpinIcon size={20} color={theme.colors.textSecondary} />,
+                            text: "Unpin",
+                            onPress: async () => {
                                 // TODO: Implement unpin functionality
-                                bottomSheet.openBottomSheet(false); 
-                            } 
+                                bottomSheet.openBottomSheet(false);
+                            }
                         });
                     }
-                    
+
                     // Hide like and share counts (only for owners)
                     if (isOwner) {
-                        saveActionGroup.push({ 
-                            icon: <HideIcon size={20} color={theme.colors.textSecondary} />, 
-                            text: "Hide like and share counts", 
-                            onPress: async () => { 
+                        saveActionGroup.push({
+                            icon: <HideIcon size={20} color={theme.colors.textSecondary} />,
+                            text: "Hide like and share counts",
+                            onPress: async () => {
                                 // TODO: Implement hide counts functionality
-                                bottomSheet.openBottomSheet(false); 
-                            } 
+                                bottomSheet.openBottomSheet(false);
+                            }
                         });
                     }
-                    
+
                     // Reply options (only for owners)
                     if (isOwner) {
-                        saveActionGroup.push({ 
-                            icon: <ChevronRightIcon size={20} color={theme.colors.textSecondary} />, 
-                            text: "Reply options", 
-                            onPress: () => { 
+                        saveActionGroup.push({
+                            icon: <ChevronRightIcon size={20} color={theme.colors.textSecondary} />,
+                            text: "Reply options",
+                            onPress: () => {
                                 bottomSheet.setBottomSheetContent(
                                     <ReplySettingsSheet
                                         replyPermission={(viewPost as any)?.replyPermission || 'anyone'}
@@ -620,14 +622,14 @@ const PostItem: React.FC<PostItemProps> = ({
                                     />
                                 );
                                 bottomSheet.openBottomSheet(true);
-                            } 
+                            }
                         });
                     }
-                    
+
                     const deleteAction = isOwner ? [
                         { icon: <TrashIcon size={20} color={theme.colors.error} />, text: "Delete", onPress: handleDelete, color: theme.colors.error }
                     ] : [];
-                    
+
                     const articleAction = hasArticle && articleSheetElement ? [
                         {
                             icon: <ArticleIcon size={20} color={theme.colors.textSecondary} />,
@@ -649,21 +651,23 @@ const PostItem: React.FC<PostItemProps> = ({
                     ] : [];
 
                     const copyLinkAction = [
-                        { icon: <LinkIcon size={20} color={theme.colors.textSecondary} />, text: "Copy link", onPress: async () => {
-                            try {
-                                if (Platform.OS === 'web') {
-                                    await navigator.clipboard.writeText(postUrl);
-                                } else {
-                                    const { Clipboard } = require('react-native');
-                                    Clipboard.setString(postUrl);
-                                }
-                            } catch { }
-                            bottomSheet.openBottomSheet(false);
-                        } }
+                        {
+                            icon: <LinkIcon size={20} color={theme.colors.textSecondary} />, text: "Copy link", onPress: async () => {
+                                try {
+                                    if (Platform.OS === 'web') {
+                                        await navigator.clipboard.writeText(postUrl);
+                                    } else {
+                                        const { Clipboard } = require('react-native');
+                                        Clipboard.setString(postUrl);
+                                    }
+                                } catch { }
+                                bottomSheet.openBottomSheet(false);
+                            }
+                        }
                     ];
-                    
+
                     const ActionRow: React.FC<{ icon: any; text: string; onPress: () => void; color?: string; isFirst?: boolean; isLast?: boolean }> = ({ icon, text, onPress, color, isFirst, isLast }) => (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[
                                 styles.sheetItem,
                                 {
@@ -674,7 +678,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                     borderBottomRightRadius: isLast ? 16 : 0,
                                     marginBottom: !isLast ? 4 : 0,
                                 }
-                            ]} 
+                            ]}
                             onPress={() => { onPress(); }}
                             activeOpacity={0.7}
                         >
@@ -682,7 +686,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             <View style={styles.sheetItemRight}>{icon}</View>
                         </TouchableOpacity>
                     );
-                    
+
                     const ActionGroup: React.FC<{ actions: Array<{ icon: any; text: string; onPress: () => void; color?: string }> }> = ({ actions }) => {
                         if (actions.length === 0) return null;
                         return (

@@ -60,7 +60,7 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}> 
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <HeaderIconButton onPress={onClose} style={styles.closeButton}>
           <CloseIcon size={20} color={theme.colors.text} />
         </HeaderIconButton>
@@ -80,15 +80,15 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
             {trimmedTitle || t('post.articleSheet.untitled', { defaultValue: 'Untitled article' })}
           </Text>
           {trimmedBody ? (
-            <Text style={[styles.articleBody, { color: theme.colors.textSecondary }]}> 
+            <Text style={[styles.articleBody, { color: theme.colors.textSecondary }]}>
               {trimmedBody}
             </Text>
           ) : loadError ? (
-            <Text style={[styles.articleBodyPlaceholder, { color: theme.colors.error }]}> 
+            <Text style={[styles.articleBodyPlaceholder, { color: theme.colors.error }]}>
               {loadError}
             </Text>
           ) : (
-            <Text style={[styles.articleBodyPlaceholder, { color: theme.colors.textSecondary }]}> 
+            <Text style={[styles.articleBodyPlaceholder, { color: theme.colors.textSecondary }]}>
               {t('post.articleSheet.emptyBody', { defaultValue: 'No content provided.' })}
             </Text>
           )}
