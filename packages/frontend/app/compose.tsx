@@ -55,6 +55,9 @@ import { useLocationManager } from '@/hooks/useLocationManager';
 import { useMediaManager } from '@/hooks/useMediaManager';
 import { usePollManager } from '@/hooks/usePollManager';
 import { useSourcesManager } from '@/hooks/useSourcesManager';
+import { useThreadManager } from '@/hooks/useThreadManager';
+import { useArticleManager } from '@/hooks/useArticleManager';
+import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import {
   PollCreator,
   PollAttachmentCard,
@@ -91,97 +94,100 @@ const ComposeScreen = () => {
   const theme = useTheme();
   const bottomSheet = React.useContext(BottomSheetContext);
   const { saveDraft, deleteDraft, loadDrafts } = useDrafts();
-  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
-  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [postContent, setPostContent] = useState('');
-  const [mentions, setMentions] = useState<MentionData[]>([]);
-  const [threadItems, setThreadItems] = useState<{
-    id: string;
-    text: string;
-    mediaIds: ComposerMediaItem[];
-    pollOptions: string[];
-    pollTitle: string;
-    showPollCreator: boolean;
-    location: { latitude: number; longitude: number; address?: string } | null;
-    mentions: MentionData[];
-  }[]>([]);
-  const [isPosting, setIsPosting] = useState(false);
-  const [mediaIds, setMediaIds] = useState<ComposerMediaItem[]>([]);
-  const [pollOptions, setPollOptions] = useState<string[]>([]);
-  const [pollTitle, setPollTitle] = useState<string>('');
-  const [showPollCreator, setShowPollCreator] = useState(false);
-  const [attachmentOrder, setAttachmentOrder] = useState<string[]>([]);
-  const [location, setLocation] = useState<{
-    latitude: number;
-    longitude: number;
-    address?: string;
-  } | null>(null);
-  const [sources, setSources] = useState<Array<{ id: string; title: string; url: string }>>([]);
-  const [isSourcesSheetOpen, setIsSourcesSheetOpen] = useState(false);
-  const [article, setArticle] = useState<{ title: string; body: string } | null>(null);
-  const [isArticleEditorVisible, setIsArticleEditorVisible] = useState(false);
-  const [articleDraftTitle, setArticleDraftTitle] = useState('');
-  const [articleDraftBody, setArticleDraftBody] = useState('');
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
-  const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
-  const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
-  const [reviewReplies, setReviewReplies] = useState(false);
-  const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
   const { user, showBottomSheet, oxyServices } = useOxy();
   const { createPost, createThread } = usePostsStore();
   const { t } = useTranslation();
 
-  const articleHasContent = useMemo(() => {
-    if (!article) return false;
-    const title = article.title?.trim();
-    const body = article.body?.trim();
-    return Boolean(title || body);
-  }, [article]);
+  // Use custom hooks for state management
+  const mediaManager = useMediaManager();
+  const pollManager = usePollManager();
+  const locationManager = useLocationManager();
+  const sourcesManager = useSourcesManager();
+  const threadManager = useThreadManager();
+  const articleManager = useArticleManager();
+
+  // Destructure for easier access (need these first for useAttachmentOrder)
+  const { mediaIds, setMediaIds, addMedia, addMultipleMedia, removeMedia, moveMedia } = mediaManager;
+  const {
+    pollTitle,
+    setPollTitle,
+    pollOptions,
+    setPollOptions,
+    showPollCreator,
+    setShowPollCreator,
+    pollTitleInputRef,
+    focusPollCreator,
+    addPollOption,
+    updatePollOption,
+    removePollOption,
+    removePoll,
+  } = pollManager;
+  const { location, setLocation, isGettingLocation, requestLocation, removeLocation } = locationManager;
+  const { sources, setSources, addSource, updateSourceField, removeSource: removeSourceEntry, getSanitizedSources, hasInvalidSources } = sourcesManager;
+  const {
+    threadItems,
+    addThread,
+    removeThread,
+    updateThreadText,
+    updateThreadMentions,
+    addThreadMedia,
+    addThreadMediaMultiple,
+    removeThreadMedia,
+    moveThreadMedia,
+    openThreadPollCreator,
+    addThreadPollOption,
+    updateThreadPollOption,
+    removeThreadPollOption,
+    removeThreadPoll,
+    updateThreadPollTitle,
+    setThreadLocation,
+    removeThreadLocation,
+    clearAllThreads,
+    loadThreadsFromDraft,
+  } = threadManager;
+  const {
+    article,
+    setArticle,
+    isArticleEditorVisible,
+    articleDraftTitle,
+    setArticleDraftTitle,
+    articleDraftBody,
+    setArticleDraftBody,
+    openArticleEditor,
+    closeArticleEditor,
+    saveArticle: handleArticleSave,
+    removeArticle,
+    hasContent: articleHasContent,
+    loadArticleFromDraft,
+    clearArticle,
+  } = articleManager;
+
+  const hasArticleContent = articleHasContent();
+
+  // Attachment order manager
+  const attachmentOrderManager = useAttachmentOrder({
+    showPollCreator,
+    hasArticleContent,
+    article,
+    location,
+    sources,
+    mediaIds,
+  });
+  const { attachmentOrder, setAttachmentOrder, clearAttachmentOrder } = attachmentOrderManager;
+
+  // Remaining local state
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [postContent, setPostContent] = useState('');
+  const [mentions, setMentions] = useState<MentionData[]>([]);
+  const [isPosting, setIsPosting] = useState(false);
+  const [isSourcesSheetOpen, setIsSourcesSheetOpen] = useState(false);
+  const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
+  const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
+  const [reviewReplies, setReviewReplies] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
 
   const scheduleEnabled = postingMode === 'thread' && threadItems.length === 0;
-
-  useEffect(() => {
-    const hasLocationAttachment = Boolean(location);
-    const hasSourcesAttachment = sources.some(source => source?.url?.trim?.().length);
-
-    setAttachmentOrder(prev => {
-      const filtered = prev.filter((key) => {
-        if (key === POLL_ATTACHMENT_KEY) return showPollCreator;
-        if (key === ARTICLE_ATTACHMENT_KEY) return articleHasContent && article;
-        if (key === LOCATION_ATTACHMENT_KEY) return hasLocationAttachment;
-        if (key === SOURCES_ATTACHMENT_KEY) return hasSourcesAttachment;
-        if (isMediaAttachmentKey(key)) {
-          const mediaId = getMediaIdFromAttachmentKey(key);
-          return mediaIds.some(m => m.id === mediaId);
-        }
-        return false;
-      });
-      const next = [...filtered];
-      if (showPollCreator && !next.includes(POLL_ATTACHMENT_KEY)) {
-        next.push(POLL_ATTACHMENT_KEY);
-      }
-      if (articleHasContent && article && !next.includes(ARTICLE_ATTACHMENT_KEY)) {
-        next.push(ARTICLE_ATTACHMENT_KEY);
-      }
-      if (hasLocationAttachment && !next.includes(LOCATION_ATTACHMENT_KEY)) {
-        next.push(LOCATION_ATTACHMENT_KEY);
-      }
-      if (hasSourcesAttachment && !next.includes(SOURCES_ATTACHMENT_KEY)) {
-        next.push(SOURCES_ATTACHMENT_KEY);
-      }
-      mediaIds.forEach((media: ComposerMediaItem) => {
-        const key = createMediaAttachmentKey(media.id);
-        if (!next.includes(key)) {
-          next.push(key);
-        }
-      });
-      const isSame = prev.length === next.length && prev.every((value, idx) => value === next[idx]);
-      if (isSame) {
-        return prev;
-      }
-      return next;
-    });
-  }, [showPollCreator, articleHasContent, article, mediaIds, location, sources]);
 
   // Use refs to always get latest values in timeout callback
   const postContentRef = useRef(postContent);
@@ -198,7 +204,6 @@ const ComposeScreen = () => {
   const articleRef = useRef(article);
   const attachmentOrderRef = useRef(attachmentOrder);
   const scheduledAtRef = useRef<Date | null>(null);
-  const pollTitleInputRef = useRef<TextInput | null>(null);
   const threadPollTitleRefs = useRef<Record<string, TextInput | null>>({});
 
   // Update refs when state changes
@@ -284,24 +289,6 @@ const ComposeScreen = () => {
     return Boolean(normalizeUrl(value));
   }, [normalizeUrl]);
 
-  const addSource = useCallback(() => {
-    setSources((prev) => {
-      if (prev.length >= 5) {
-        toast.error(t('compose.sources.limit', { defaultValue: 'You can add up to 5 sources' }));
-        return prev;
-      }
-      return [...prev, { id: generateSourceId(), title: '', url: '' }];
-    });
-  }, [generateSourceId, t]);
-
-  const updateSourceField = useCallback((sourceId: string, field: 'title' | 'url', value: string) => {
-    setSources((prev) => prev.map((source) => (source.id === sourceId ? { ...source, [field]: value } : source)));
-  }, []);
-
-  const removeSourceEntry = useCallback((sourceId: string) => {
-    setSources((prev) => prev.filter((source) => source.id !== sourceId));
-  }, []);
-
   const closeSourcesSheet = useCallback(() => {
     setIsSourcesSheetOpen((prev) => {
       if (prev) {
@@ -335,33 +322,6 @@ const ComposeScreen = () => {
     }
   }, [isSourcesSheetOpen, bottomSheet, sourcesSheetElement]);
 
-  const openArticleEditor = useCallback(() => {
-    setArticleDraftTitle(article?.title || '');
-    setArticleDraftBody(article?.body || '');
-    setIsArticleEditorVisible(true);
-  }, [article]);
-
-  const closeArticleEditor = useCallback(() => {
-    setIsArticleEditorVisible(false);
-  }, []);
-
-  const handleArticleSave = useCallback(() => {
-    const title = articleDraftTitle.trim();
-    const body = articleDraftBody.trim();
-    if (!title && !body) {
-      setArticle(null);
-    } else {
-      setArticle({ title, body });
-    }
-    setIsArticleEditorVisible(false);
-  }, [articleDraftTitle, articleDraftBody]);
-
-  const removeArticle = useCallback(() => {
-    setArticle(null);
-    setArticleDraftTitle('');
-    setArticleDraftBody('');
-  }, []);
-
   // Keep this in sync with PostItem constants
   const HPAD = 16;
   const AVATAR_SIZE = 40;
@@ -381,7 +341,7 @@ const ComposeScreen = () => {
     const hasText = postContent.trim().length > 0;
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
-    if (!(hasText || hasMedia || hasPoll || articleHasContent)) {
+    if (!(hasText || hasMedia || hasPoll || hasArticleContent)) {
       toast.error(t('Add text, an image, a poll, or an article'));
       return;
     }
@@ -394,15 +354,15 @@ const ComposeScreen = () => {
       const allPosts = [];
       const formattedSources = sanitizeSourcesForSubmit(sources);
 
-    const attachmentsPayload = buildAttachmentsPayload(attachmentOrderRef.current || attachmentOrder, mediaIds, {
-      includePoll: hasPoll,
-      includeArticle: Boolean(articleHasContent && article),
-      includeLocation: Boolean(location),
-      includeSources: formattedSources.length > 0,
-    });
+      const attachmentsPayload = buildAttachmentsPayload(attachmentOrderRef.current || attachmentOrder, mediaIds, {
+        includePoll: hasPoll,
+        includeArticle: Boolean(hasArticleContent && article),
+        includeLocation: Boolean(location),
+        includeSources: formattedSources.length > 0,
+      });
 
       // Main post
-      const articlePayload = articleHasContent && article ? {
+      const articlePayload = hasArticleContent && article ? {
         ...(article.title?.trim() ? { title: article.title.trim() } : {}),
         ...(article.body?.trim() ? { body: article.body.trim() } : {}),
       } : undefined;
@@ -555,13 +515,13 @@ const ComposeScreen = () => {
     const latestScheduledAt = scheduledAtRef.current;
 
     // Only save if there's content
-    const hasContent = latestPostContent.trim().length > 0 || 
-      latestMediaIds.length > 0 || 
+    const hasContent = latestPostContent.trim().length > 0 ||
+      latestMediaIds.length > 0 ||
       (latestPollOptions.length > 0 && latestPollOptions.some(opt => opt.trim().length > 0)) ||
       latestLocation ||
       (latestArticle && ((latestArticle.title && latestArticle.title.trim().length > 0) || (latestArticle.body && latestArticle.body.trim().length > 0))) ||
       latestSources.some(source => (source.title && source.title.trim().length > 0) || (source.url && source.url.trim().length > 0)) ||
-      latestThreadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 || 
+      latestThreadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 ||
         (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
 
     if (!hasContent) {
@@ -576,7 +536,7 @@ const ComposeScreen = () => {
     try {
       // Ensure showPollCreator is saved correctly - if pollOptions exist, showPollCreator should be true
       const shouldShowPollCreator = latestShowPollCreator || (latestPollOptions.length > 0 && latestPollOptions.some(opt => opt.trim().length > 0));
-      
+
       const draftId = await saveDraft({
         id: latestCurrentDraftId || undefined,
         postContent: latestPostContent,
@@ -650,26 +610,26 @@ const ComposeScreen = () => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-    }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, autoSaveDraft]);
+  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, autoSaveDraft]);
 
   // Load draft function
   const loadDraft = useCallback((draft: any) => {
     setPostContent(draft.postContent || '');
-    
+
     // Handle mediaIds - ensure correct structure
     const mediaIdsData = (draft.mediaIds || []).map((m: any) => ({
       id: m.id || m,
       type: toComposerMediaType(m.type, m.mime || m.contentType),
     })).filter((m: any) => m.id); // Filter out invalid entries
     setMediaIds(mediaIdsData);
-    
+
     // Handle poll options - ensure showPollCreator is true if pollOptions exist
     const pollOpts = draft.pollOptions || [];
     setPollOptions(pollOpts);
     setPollTitle(draft.pollTitle || '');
     const shouldShowPoll = draft.showPollCreator || pollOpts.length > 0;
     setShowPollCreator(shouldShowPoll);
-    
+
     // Handle location - ensure it has the correct structure
     let locationData = null;
     if (draft.location) {
@@ -680,7 +640,7 @@ const ComposeScreen = () => {
       };
     }
     setLocation(locationData);
-    
+
     const sourcesData = (draft.sources || []).map((source: { id?: string; title?: string; url?: string }) => ({
       id: source.id || '',
       title: source.title || '',
@@ -771,8 +731,8 @@ const ComposeScreen = () => {
         displayName: m.name || m.displayName || '',
       })).filter((m: any) => m.userId),
     }));
-    setThreadItems(threadItemsData);
-    
+    loadThreadsFromDraft(threadItemsData);
+
     // Handle mentions - ensure correct structure
     const mentionsData = (draft.mentions || []).map((m: any) => ({
       userId: m.userId || m.id || m,
@@ -780,23 +740,23 @@ const ComposeScreen = () => {
       displayName: m.name || m.displayName || '',
     })).filter((m: any) => m.userId);
     setMentions(mentionsData);
-    
+
     setPostingMode(draft.postingMode || 'thread');
     setCurrentDraftId(draft.id);
-    
+
     // Close bottom sheet
     bottomSheet.openBottomSheet(false);
-    
+
     toast.success(t('compose.draftLoaded'));
   }, [bottomSheet, generateSourceId, t]);
 
   // back navigation
 
   const canPostContent = postContent.trim().length > 0 || mediaIds.length > 0 || (pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0)) || location ||
-    articleHasContent ||
+    hasArticleContent ||
     threadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 || (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
-  const hasInvalidSources = sources.some(source => source.url.trim().length > 0 && !isValidSourceUrl(source.url));
-  const isPostButtonEnabled = canPostContent && !isPosting && !hasInvalidSources;
+  const invalidSources = hasInvalidSources();
+  const isPostButtonEnabled = canPostContent && !isPosting && !invalidSources;
 
   const openMediaPicker = () => {
     showBottomSheet?.({
@@ -844,11 +804,6 @@ const ComposeScreen = () => {
     });
   };
 
-  const removeMedia = (mediaId: string) => {
-    setMediaIds(prev => prev.filter(m => m.id !== mediaId));
-    toast.success(t('Media removed'));
-  };
-
   const moveAttachment = useCallback((attachmentKey: string, direction: 'left' | 'right') => {
     setAttachmentOrder(prev => {
       const index = prev.indexOf(attachmentKey);
@@ -886,104 +841,6 @@ const ComposeScreen = () => {
     });
   }, []);
 
-  const removeThreadMedia = (threadId: string, mediaId: string) => {
-    setThreadItems(prev => prev.map(item =>
-      item.id === threadId
-        ? { ...item, mediaIds: item.mediaIds.filter(m => m.id !== mediaId) }
-        : item
-    ));
-    toast.success(t('Media removed'));
-  };
-
-const moveThreadMedia = useCallback((threadId: string, mediaId: string, direction: 'left' | 'right') => {
-  setThreadItems(prev => prev.map(item => {
-    if (item.id !== threadId) return item;
-    const index = item.mediaIds.findIndex(m => m.id === mediaId);
-    if (index === -1) return item;
-    const targetIndex = direction === 'left' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= item.mediaIds.length) return item;
-    const updatedMedia = [...item.mediaIds];
-    const [selected] = updatedMedia.splice(index, 1);
-    updatedMedia.splice(targetIndex, 0, selected);
-    return { ...item, mediaIds: updatedMedia };
-  }));
-}, []);
-
-  const focusPollCreator = useCallback(() => {
-    setShowPollCreator(true);
-    setPollOptions(prev => (prev.length >= 2 ? prev : ['', '']));
-    setTimeout(() => {
-      pollTitleInputRef.current?.focus();
-    }, 50);
-  }, []);
-
-  const addPollOption = () => {
-    setPollOptions(prev => [...prev, '']);
-  };
-
-  const updatePollOption = (index: number, value: string) => {
-    setPollOptions(prev => prev.map((option, i) => i === index ? value : option));
-  };
-
-  const removePollOption = (index: number) => {
-    if (pollOptions.length > 2) {
-      setPollOptions(prev => prev.filter((_, i) => i !== index));
-    }
-  };
-
-  const removePoll = () => {
-    setShowPollCreator(false);
-    setPollOptions([]);
-    setPollTitle('');
-    pollTitleInputRef.current?.blur();
-  };
-
-  // Location functions
-  const requestLocation = async () => {
-    setIsGettingLocation(true);
-    try {
-      // Request permissions
-      const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        toast.error(t('Location permission denied'));
-        return;
-      }
-
-      // Get current position
-      const currentLocation = await ExpoLocation.getCurrentPositionAsync({
-        accuracy: ExpoLocation.Accuracy.Balanced,
-      });
-
-      // Reverse geocode to get address
-      const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      });
-
-      const address = reverseGeocode[0];
-      const locationData = {
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-        address: address
-          ? `${address.city || address.subregion || ''}, ${address.region || ''}`
-          : `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`
-      };
-
-      setLocation(locationData);
-      toast.success(t('Location added'));
-    } catch (error) {
-      console.error('Error getting location:', error);
-      toast.error(t('Failed to get location'));
-    } finally {
-      setIsGettingLocation(false);
-    }
-  };
-
-  const removeLocation = () => {
-    setLocation(null);
-    toast.success(t('Location removed'));
-  };
-
   // Thread item functions
   const openThreadMediaPicker = (threadId: string) => {
     showBottomSheet?.({
@@ -1003,11 +860,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
           try {
             const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
             const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
-            setThreadItems(prev => prev.map(item =>
-              item.id === threadId
-                ? { ...item, mediaIds: item.mediaIds.some(m => m.id === file.id) ? item.mediaIds : [...item.mediaIds, mediaItem] }
-                : item
-            ));
+            addThreadMedia(threadId, mediaItem);
             toast.success(t(isImage ? 'Image attached' : 'Video attached'));
           } catch (e: any) {
             toast.error(e?.message || t('Failed to attach media'));
@@ -1025,65 +878,10 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
             id: f.id,
             type: toComposerMediaType(f.contentType?.startsWith('image/') ? 'image' : 'video', f.contentType)
           }));
-          setThreadItems(prev => prev.map(item =>
-            item.id === threadId
-              ? {
-                ...item,
-                mediaIds: (() => {
-                  const existingIds = new Set(item.mediaIds.map(m => m.id));
-                  const newItems = mediaItems.filter(m => !existingIds.has(m.id));
-                  return [...item.mediaIds, ...newItems];
-                })()
-              }
-              : item
-          ));
+          addThreadMediaMultiple(threadId, mediaItems);
         }
       }
     });
-  };
-
-  const openThreadPollCreator = (threadId: string) => {
-    setThreadItems(prev => prev.map(item =>
-      item.id === threadId
-        ? { ...item, showPollCreator: true, pollOptions: item.pollOptions.length === 0 ? ['', ''] : item.pollOptions, pollTitle: item.pollTitle || '' }
-        : item
-    ));
-  };
-
-  const addThreadPollOption = (threadId: string) => {
-    setThreadItems(prev => prev.map(item =>
-      item.id === threadId
-        ? { ...item, pollOptions: [...item.pollOptions, ''] }
-        : item
-    ));
-  };
-
-  const updateThreadPollOption = (threadId: string, index: number, value: string) => {
-    setThreadItems(prev => prev.map(item =>
-      item.id === threadId
-        ? { ...item, pollOptions: item.pollOptions.map((option, i) => i === index ? value : option) }
-        : item
-    ));
-  };
-
-  const removeThreadPollOption = (threadId: string, index: number) => {
-    setThreadItems(prev => prev.map(item =>
-      item.id === threadId && item.pollOptions.length > 2
-        ? { ...item, pollOptions: item.pollOptions.filter((_, i) => i !== index) }
-        : item
-    ));
-  };
-
-  const removeThreadPoll = (threadId: string) => {
-    setThreadItems(prev => prev.map(item =>
-      item.id === threadId
-        ? { ...item, showPollCreator: false, pollOptions: [], pollTitle: '' }
-        : item
-    ));
-    if (threadPollTitleRefs.current[threadId]) {
-      threadPollTitleRefs.current[threadId]?.blur();
-      delete threadPollTitleRefs.current[threadId];
-    }
   };
 
   // Thread location functions
@@ -1116,11 +914,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
           : `${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)}`
       };
 
-      setThreadItems(prev => prev.map(item =>
-        item.id === threadId
-          ? { ...item, location: locationData }
-          : item
-      ));
+      setThreadLocation(threadId, locationData);
       toast.success(t('Location added'));
     } catch (error) {
       console.error('Error getting location:', error);
@@ -1128,15 +922,6 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
     }
   };
 
-  const removeThreadLocation = (threadId: string) => {
-    setThreadItems(prev => prev.map(item =>
-      item.id === threadId
-        ? { ...item, location: null }
-        : item
-    ));
-    toast.success(t('Location removed'));
-  };
-  
   const { t: tCompose } = useTranslation();
 
   const getReplyPermissionText = () => {
@@ -1266,7 +1051,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
       clearSchedule({ silent: true });
     }
   }, [scheduleEnabled, scheduledAt, clearSchedule]);
-  
+
   return (
     <>
       <SEO
@@ -1276,587 +1061,142 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
       <SafeAreaView style={styles.container} edges={['top']}>
         <StatusBar style="light" />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.composeArea}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <ThemedView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.composeArea}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          <ThemedView style={{ flex: 1 }}>
 
-          {/* Header */}
-          <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-            <HeaderIconButton 
-              onPress={() => {
-                router.back();
-              }} 
-              style={styles.backBtn}
-            >
-              <BackArrowIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]} pointerEvents="none">{t('New post')}</Text>
-            <View style={styles.headerIcons}>
-              <HeaderIconButton 
-                style={styles.iconBtn}
+            {/* Header */}
+            <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
+              <HeaderIconButton
                 onPress={() => {
-                  bottomSheet.setBottomSheetContent(
-                    <DraftsSheet
-                      onClose={() => bottomSheet.openBottomSheet(false)}
-                      onLoadDraft={loadDraft}
-                      currentDraftId={currentDraftId}
-                    />
-                  );
-                  bottomSheet.openBottomSheet(true);
+                  router.back();
                 }}
+                style={styles.backBtn}
               >
-                <DraftsIcon size={20} color={theme.colors.text} />
+                <BackArrowIcon size={20} color={theme.colors.text} />
               </HeaderIconButton>
-              <HeaderIconButton 
-                style={styles.iconBtn}
-                onPress={() => {
-                  // Menu icon - show compose options
-                  Alert.alert(
-                    t('common.options'),
-                    '',
-                    [
-                      {
-                        text: t('common.clearAll'),
-                        style: 'destructive',
-                        onPress: () => {
-                          setPostContent('');
-                          setMediaIds([]);
-                          setPollOptions([]);
-                          setPollTitle('');
-                          setShowPollCreator(false);
-                          setLocation(null);
-                          setSources([]);
-                          setArticle(null);
-                          setArticleDraftTitle('');
-                          setArticleDraftBody('');
-                          setThreadItems([]);
-                          setMentions([]);
-                          clearSchedule({ silent: true });
-                          toast.success(t('common.cleared'));
-                        },
-                      },
-                      {
-                        text: t('common.cancel'),
-                        style: 'cancel',
-                      },
-                    ],
-                    { cancelable: true }
-                  );
-                }}
-              >
-                <DotIcon size={20} color={theme.colors.text} />
-              </HeaderIconButton>
-            </View>
-          </View>
-
-          {/* Mode Toggle Section */}
-          <View style={[styles.modeToggleContainer, { backgroundColor: theme.colors.backgroundSecondary, borderBottomColor: theme.colors.border }]}>
-            <View style={styles.modeToggleRow}>
-              <View style={styles.modeOption}>
-                <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel, { color: theme.colors.text }]}>
-                  {t('Thread')}
-                </Text>
-                <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
-                  {t('Post as linked thread')}
-                </Text>
-              </View>
-              <Toggle
-                value={postingMode === 'beast'}
-                onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
-                containerStyle={styles.modeToggle}
-              />
-              <View style={styles.modeOption}>
-                <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel, { color: theme.colors.text }]}>
-                  {t('Beast')}
-                </Text>
-                <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
-                  {t('Post all at once')}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Main composer and thread section */}
-          <View style={styles.threadContainer}>
-            {/* Continuous timeline line for all items - from composer to add button */}
-            <View style={[styles.continuousTimelineLine, { left: TIMELINE_LINE_OFFSET }]} />
-
-            {/* Main composer */}
-            <View style={styles.postContainer}>
-              <View style={styles.composerWithTimeline}>
-                <PostHeader
-                  paddingHorizontal={HPAD}
-                  user={{
-                    name: user?.name?.full || user?.username || '',
-                    handle: user?.username || '',
-                    verified: Boolean(user?.verified)
+              <Text style={[styles.headerTitle, { color: theme.colors.text }]} pointerEvents="none">{t('New post')}</Text>
+              <View style={styles.headerIcons}>
+                <HeaderIconButton
+                  style={styles.iconBtn}
+                  onPress={() => {
+                    bottomSheet.setBottomSheetContent(
+                      <DraftsSheet
+                        onClose={() => bottomSheet.openBottomSheet(false)}
+                        onLoadDraft={loadDraft}
+                        currentDraftId={currentDraftId}
+                      />
+                    );
+                    bottomSheet.openBottomSheet(true);
                   }}
-                  avatarUri={user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined}
-                  avatarSize={AVATAR_SIZE}
-                  onPressUser={() => { }}
-                  onPressAvatar={() => { }}
                 >
-                  <MentionTextInput
-                    style={[styles.mainTextInput, { color: theme.colors.text }]}
-                    placeholder={t("What's new?")}
-                    value={postContent}
-                    onChangeText={setPostContent}
-                    onMentionsChange={setMentions}
-                    multiline
-                    autoFocus
-                  />
-                </PostHeader>
-
-                {/* Attachments row (poll + article + media) */}
-                {attachmentOrder.length > 0 ? (
-                  <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
-                  >
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
-                    >
-                      {attachmentOrder.map((key, index) => {
-                        const total = attachmentOrder.length;
-                        const canMoveLeft = index > 0;
-                        const canMoveRight = index < total - 1;
-
-                        if (key === POLL_ATTACHMENT_KEY) {
-                          if (!showPollCreator) return null;
-                          return (
-                            <View key={key} style={styles.pollAttachmentWrapper}>
-                              {total > 1 ? (
-                                <View style={styles.mediaReorderControls} pointerEvents="box-none">
-                                  <TouchableOpacity
-                                    onPress={() => moveAttachment(POLL_ATTACHMENT_KEY, 'left')}
-                                    disabled={!canMoveLeft}
-                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
-                                  >
-                                    <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    onPress={() => moveAttachment(POLL_ATTACHMENT_KEY, 'right')}
-                                    disabled={!canMoveRight}
-                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
-                                  >
-                                    <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                  </TouchableOpacity>
-                                </View>
-                              ) : null}
-                              <TouchableOpacity
-                                style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                                activeOpacity={0.85}
-                                onPress={focusPollCreator}
-                              >
-                                <View style={styles.pollAttachmentHeader}>
-                                  <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
-                                  >
-                                    <PollIcon size={16} color={theme.colors.primary} />
-                                    <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}> 
-                                      {t('compose.poll.title', { defaultValue: 'Poll' })}
-                                    </Text>
-                                  </View>
-                                  <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}> 
-                                    {t('compose.poll.optionCount', {
-                                      count: pollOptions.length,
-                                      defaultValue:
-                                        pollOptions.length === 0
-                                          ? 'No options yet'
-                                          : pollOptions.length === 1
-                                            ? '1 option'
-                                            : `${pollOptions.length} options`
-                                    })}
-                                  </Text>
-                                </View>
-                                <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
-                                  {pollTitle.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
-                                </Text>
-                                <View style={styles.pollAttachmentOptions}>
-                                  {(pollOptions.length > 0 ? pollOptions : ['', '']).slice(0, 2).map((option, optionIndex) => {
-                                    const trimmed = option?.trim?.() || '';
-                                    return (
-                                      <View
-                                        key={`poll-opt-${optionIndex}`}
-                                        style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
-                                      >
-                                        <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                                          {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${optionIndex + 1}` })}
-                                        </Text>
-                                      </View>
-                                    );
-                                  })}
-                                  {pollOptions.length > 2 ? (
-                                    <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}> 
-                                      {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: `+${pollOptions.length - 2} more` })}
-                                    </Text>
-                                  ) : null}
-                                </View>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={removePoll}
-                                style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                              >
-                                <CloseIcon size={16} color={theme.colors.text} />
-                              </TouchableOpacity>
-                            </View>
-                          );
-                        }
-
-                        if (key === ARTICLE_ATTACHMENT_KEY) {
-                          if (!(articleHasContent && article)) return null;
-                          return (
-                            <View
-                              key={key}
-                              style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                            >
-                              {total > 1 ? (
-                                <View style={styles.mediaReorderControls} pointerEvents="box-none">
-                                  <TouchableOpacity
-                                    onPress={() => moveAttachment(ARTICLE_ATTACHMENT_KEY, 'left')}
-                                    disabled={!canMoveLeft}
-                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
-                                  >
-                                    <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    onPress={() => moveAttachment(ARTICLE_ATTACHMENT_KEY, 'right')}
-                                    disabled={!canMoveRight}
-                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
-                                  >
-                                    <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                  </TouchableOpacity>
-                                </View>
-                              ) : null}
-                              <PostArticlePreview
-                                title={article.title}
-                                body={article.body}
-                                onPress={openArticleEditor}
-                                style={styles.articleAttachmentPreview}
-                              />
-                              <TouchableOpacity
-                                onPress={(event) => {
-                                  event.stopPropagation();
-                                  removeArticle();
-                                }}
-                                style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                              >
-                                <CloseIcon size={16} color={theme.colors.text} />
-                              </TouchableOpacity>
-                            </View>
-                          );
-                        }
-
-                        if (isMediaAttachmentKey(key)) {
-                          const mediaId = getMediaIdFromAttachmentKey(key);
-                          const mediaItem = mediaIds.find(m => m.id === mediaId);
-                          if (!mediaItem) return null;
-                          const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
-                          return (
-                            <View
-                              key={key}
-                              style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                            >
-                              {mediaItem.type === 'video' ? (
-                                <VideoPreview src={mediaUrl} />
-                              ) : (
-                                <Image
-                                  source={{ uri: mediaUrl }}
-                                  style={styles.mediaPreviewImage}
-                                  resizeMode="cover"
-                                />
-                              )}
-                              {total > 1 ? (
-                                <View style={styles.mediaReorderControls} pointerEvents="box-none">
-                                  <TouchableOpacity
-                                    onPress={() => moveAttachment(key, 'left')}
-                                    disabled={!canMoveLeft}
-                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
-                                  >
-                                    <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    onPress={() => moveAttachment(key, 'right')}
-                                    disabled={!canMoveRight}
-                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
-                                  >
-                                    <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                  </TouchableOpacity>
-                                </View>
-                              ) : null}
-                              <TouchableOpacity
-                                onPress={() => removeMedia(mediaItem.id)}
-                                style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                              >
-                                <CloseIcon size={16} color={theme.colors.text} />
-                              </TouchableOpacity>
-                            </View>
-                          );
-                        }
-
-                        return null;
-                      })}
-                    </ScrollView>
-                  </View>
-                ) : null}
-
-                <View style={styles.toolbarWrapper}>
-                  <ComposeToolbar
-                    onMediaPress={openMediaPicker}
-                    onPollPress={focusPollCreator}
-                    onLocationPress={requestLocation}
-                    onGifPress={() => {
-                      bottomSheet.setBottomSheetContent(
-                        <GifPickerSheet
-                          onClose={() => bottomSheet.openBottomSheet(false)}
-                          onSelectGif={async (gifUrl: string, gifId: string) => {
-                            try {
-                              const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
-                              setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
-                              toast.success(t('GIF attached'));
-                            } catch (error: any) {
-                              toast.error(error?.message || t('Failed to attach GIF'));
-                            }
-                          }}
-                        />
-                      );
-                      bottomSheet.openBottomSheet(true);
-                    }}
-                    onEmojiPress={() => {
-                      // TODO: Implement emoji picker
-                      toast.info(t('Emoji picker coming soon'));
-                    }}
-                    onSchedulePress={openScheduleSheet}
-                    onSourcesPress={openSourcesSheet}
-                    onArticlePress={openArticleEditor}
-                    hasLocation={!!location}
-                    isGettingLocation={isGettingLocation}
-                    hasPoll={showPollCreator}
-                    hasMedia={mediaIds.length > 0}
-                    hasSources={sources.length > 0}
-                    hasArticle={articleHasContent}
-                    hasSchedule={Boolean(scheduledAt)}
-                    scheduleEnabled={scheduleEnabled}
-                    hasSourceErrors={hasInvalidSources}
-                    disabled={isPosting}
-                  />
-                  {postContent.length > 0 && (
-                    <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}> 
-                      {postContent.length}
-                    </Text>
-                  )}
-                </View>
-
-                {scheduledAt && (
-                  <View
-                    style={[
-                      styles.scheduleInfoContainer,
-                      {
-                        borderColor: theme.colors.border,
-                        backgroundColor: theme.colors.backgroundSecondary,
-                      }
-                    ]}
-                  >
-                    <CalendarIcon size={14} color={theme.colors.primary} />
-                    <Text style={[styles.scheduleInfoText, { color: theme.colors.text }]}
-                    >
-                      {t('compose.schedule.set', {
-                        defaultValue: 'Scheduled for {{time}}',
-                        time: formatScheduledLabel(scheduledAt)
-                      })}
-                    </Text>
-                    <TouchableOpacity onPress={() => clearSchedule()} style={styles.scheduleInfoClearButton}>
-                      <Text style={[styles.scheduleInfoClearText, { color: theme.colors.primary }]}>{t('compose.schedule.clear', { defaultValue: 'Clear' })}</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Poll Creator */}
-                {showPollCreator && (
-                  <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD, backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                    <View style={styles.pollHeader}>
-                      <View style={styles.pollHeaderLeft}>
-                        <PollIcon size={18} color={theme.colors.primary} />
-                        <Text style={[styles.pollTitle, { color: theme.colors.text }]}>{t('Create a poll')}</Text>
-                      </View>
-                      <TouchableOpacity 
-                        onPress={removePoll}
-                        style={styles.pollCloseBtn}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <CloseIcon size={18} color={theme.colors.textSecondary} />
-                      </TouchableOpacity>
-                    </View>
-                    
-                    <View style={styles.pollQuestionContainer}>
-                      <TextInput
-                        style={[styles.pollTitleInput, { 
-                          color: theme.colors.text, 
-                          borderColor: pollTitle.length > 0 ? theme.colors.primary : theme.colors.border, 
-                          backgroundColor: theme.colors.backgroundSecondary 
-                        }]}
-                        ref={pollTitleInputRef}
-                        placeholder={t('Poll question')}
-                        placeholderTextColor={theme.colors.textTertiary}
-                        value={pollTitle}
-                        onChangeText={setPollTitle}
-                        maxLength={200}
-                        multiline
-                      />
-                      <Text style={[styles.pollCharCount, { color: theme.colors.textTertiary }]}>
-                        {pollTitle.length}/200
-                      </Text>
-                    </View>
-
-                    <View style={styles.pollOptionsContainer}>
-                      {pollOptions.map((option, index) => (
-                        <View key={index} style={styles.pollOptionRow}>
-                          <View style={[styles.pollOptionNumber, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                            <Text style={[styles.pollOptionNumberText, { color: theme.colors.textSecondary }]}>
-                              {index + 1}
-                            </Text>
-                          </View>
-                          <TextInput
-                            style={[styles.pollOptionInput, { 
-                              color: theme.colors.text,
-                              borderColor: option.length > 0 ? theme.colors.primary : theme.colors.border,
-                              backgroundColor: theme.colors.backgroundSecondary
-                            }]}
-                            placeholder={t(`Option ${index + 1}`)}
-                            placeholderTextColor={theme.colors.textTertiary}
-                            value={option}
-                            onChangeText={(value) => updatePollOption(index, value)}
-                            maxLength={50}
-                          />
-                          {pollOptions.length > 2 && (
-                            <TouchableOpacity 
-                              onPress={() => removePollOption(index)}
-                              style={styles.pollOptionRemoveBtn}
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            >
-                              <CloseIcon size={16} color={theme.colors.textSecondary} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      ))}
-                    </View>
-
-                    {pollOptions.length < 4 && (
-                      <TouchableOpacity 
-                        style={[styles.addPollOptionBtn, { borderColor: theme.colors.border }]} 
-                        onPress={addPollOption}
-                        activeOpacity={0.7}
-                      >
-                        <View style={[styles.addPollOptionIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                          <Plus size={16} color={theme.colors.primary} />
-                        </View>
-                        <Text style={[styles.addPollOptionText, { color: theme.colors.primary }]}>{t('Add option')}</Text>
-                      </TouchableOpacity>
-                    )}
-                    
-                    <Text style={[styles.pollHint, { color: theme.colors.textTertiary }]}>
-                      {pollOptions.length === 2 ? t('Add up to 2 more options') : t('Minimum 2 options required')}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Location Display */}
-                {location && (
-                  <View style={[styles.locationDisplay, { marginLeft: BOTTOM_LEFT_PAD }]}>
-                    <View style={styles.locationHeader}>
-                      <LocationIcon size={16} color={colors.primaryColor} />
-                      <Text style={styles.locationText}>{location.address}</Text>
-                      <TouchableOpacity onPress={removeLocation}>
-                        <CloseIcon size={16} color={colors.COLOR_BLACK_LIGHT_4} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
+                  <DraftsIcon size={20} color={theme.colors.text} />
+                </HeaderIconButton>
+                <HeaderIconButton
+                  style={styles.iconBtn}
+                  onPress={() => {
+                    // Menu icon - show compose options
+                    Alert.alert(
+                      t('common.options'),
+                      '',
+                      [
+                        {
+                          text: t('common.clearAll'),
+                          style: 'destructive',
+                          onPress: () => {
+                            setPostContent('');
+                            setMediaIds([]);
+                            setPollOptions([]);
+                            setPollTitle('');
+                            setShowPollCreator(false);
+                            setLocation(null);
+                            setSources([]);
+                            setArticle(null);
+                            setArticleDraftTitle('');
+                            setArticleDraftBody('');
+                            clearAllThreads();
+                            setMentions([]);
+                            clearSchedule({ silent: true });
+                            toast.success(t('common.cleared'));
+                          },
+                        },
+                        {
+                          text: t('common.cancel'),
+                          style: 'cancel',
+                        },
+                      ],
+                      { cancelable: true }
+                    );
+                  }}
+                >
+                  <DotIcon size={20} color={theme.colors.text} />
+                </HeaderIconButton>
               </View>
             </View>
 
-            {/* Thread items */}
-            {threadItems.map((item, _index) => (
-              <View key={`thread-${item.id}`} style={styles.postContainer}>
-                <View style={styles.threadItemWithTimeline}>
-                  <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
-                    <TouchableOpacity activeOpacity={0.7}>
-                      <Avatar
-                        source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
-                        size={40}
-                        verified={Boolean(user?.verified)}
-                        style={{ marginRight: 12 }}
-                      />
-                    </TouchableOpacity>
-                    <View style={styles.headerMeta}>
-                      <View style={styles.headerChildren}>
-                        <MentionTextInput
-                          style={styles.threadTextInput}
-                          placeholder={t('Say more...')}
-                          value={item.text}
-                          onChangeText={(v) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, text: v } : p))}
-                          onMentionsChange={(m) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, mentions: m } : p))}
-                          multiline
-                        />
-                        <View style={styles.toolbarWrapper}>
-                          <ComposeToolbar
-                            onMediaPress={() => openThreadMediaPicker(item.id)}
-                            onPollPress={() => openThreadPollCreator(item.id)}
-                            onLocationPress={() => requestThreadLocation(item.id)}
-                            onGifPress={() => {
-                              const currentThreadId = item.id;
-                              bottomSheet.setBottomSheetContent(
-                                <GifPickerSheet
-                                  onClose={() => bottomSheet.openBottomSheet(false)}
-                                  onSelectGif={async (gifUrl: string, gifId: string) => {
-                                    try {
-                                      const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
-                                      setThreadItems(prev => prev.map(threadItem =>
-                                        threadItem.id === currentThreadId
-                                          ? { ...threadItem, mediaIds: threadItem.mediaIds.some(m => m.id === gifId) ? threadItem.mediaIds : [...threadItem.mediaIds, mediaItem] }
-                                          : threadItem
-                                      ));
-                                      toast.success(t('GIF attached'));
-                                    } catch (error: any) {
-                                      toast.error(error?.message || t('Failed to attach GIF'));
-                                    }
-                                  }}
-                                />
-                              );
-                              bottomSheet.openBottomSheet(true);
-                            }}
-                            onEmojiPress={() => {
-                              // TODO: Implement emoji picker for thread items
-                              toast.info(t('Emoji picker coming soon'));
-                            }}
-                            hasLocation={!!item.location}
-                            hasPoll={item.showPollCreator}
-                            hasMedia={item.mediaIds.length > 0}
-                            disabled={isPosting}
-                          />
-                          {item.text.length > 0 && (
-                            <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}>
-                              {item.text.length}
-                            </Text>
-                          )}
-                        </View>
-                        <TouchableOpacity
-                          style={styles.removeThreadBtn}
-                          onPress={() => setThreadItems(prev => prev.filter(p => p.id !== item.id))}
-                        >
-                          <CloseIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
+            {/* Mode Toggle Section */}
+            <View style={[styles.modeToggleContainer, { backgroundColor: theme.colors.backgroundSecondary, borderBottomColor: theme.colors.border }]}>
+              <View style={styles.modeToggleRow}>
+                <View style={styles.modeOption}>
+                  <Text style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel, { color: theme.colors.text }]}>
+                    {t('Thread')}
+                  </Text>
+                  <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
+                    {t('Post as linked thread')}
+                  </Text>
+                </View>
+                <Toggle
+                  value={postingMode === 'beast'}
+                  onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
+                  containerStyle={styles.modeToggle}
+                />
+                <View style={styles.modeOption}>
+                  <Text style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel, { color: theme.colors.text }]}>
+                    {t('Beast')}
+                  </Text>
+                  <Text style={[styles.modeDescription, { color: theme.colors.textSecondary }]}>
+                    {t('Post all at once')}
+                  </Text>
+                </View>
+              </View>
+            </View>
 
-                  {/* Thread item attachments row */}
-                  {(item.showPollCreator || item.mediaIds.length > 0) && (
+            {/* Main composer and thread section */}
+            <View style={styles.threadContainer}>
+              {/* Continuous timeline line for all items - from composer to add button */}
+              <View style={[styles.continuousTimelineLine, { left: TIMELINE_LINE_OFFSET }]} />
+
+              {/* Main composer */}
+              <View style={styles.postContainer}>
+                <View style={styles.composerWithTimeline}>
+                  <PostHeader
+                    paddingHorizontal={HPAD}
+                    user={{
+                      name: user?.name?.full || user?.username || '',
+                      handle: user?.username || '',
+                      verified: Boolean(user?.verified)
+                    }}
+                    avatarUri={user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined}
+                    avatarSize={AVATAR_SIZE}
+                    onPressUser={() => { }}
+                    onPressAvatar={() => { }}
+                  >
+                    <MentionTextInput
+                      style={[styles.mainTextInput, { color: theme.colors.text }]}
+                      placeholder={t("What's new?")}
+                      value={postContent}
+                      onChangeText={setPostContent}
+                      onMentionsChange={setMentions}
+                      multiline
+                      autoFocus
+                    />
+                  </PostHeader>
+
+                  {/* Attachments row (poll + article + media) */}
+                  {attachmentOrder.length > 0 ? (
                     <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
                     >
                       <ScrollView
@@ -1864,355 +1204,571 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
                       >
-                        {item.showPollCreator ? (
-                          <View style={styles.pollAttachmentWrapper}>
-                            <TouchableOpacity
-                              style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                              activeOpacity={0.85}
-                              onPress={() => {
-                                openThreadPollCreator(item.id);
-                                setTimeout(() => {
-                                  threadPollTitleRefs.current[item.id]?.focus();
-                                }, 50);
-                              }}
-                            >
-                              <View style={styles.pollAttachmentHeader}>
-                                <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
-                                >
-                                  <PollIcon size={16} color={theme.colors.primary} />
-                                  <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}>
-                                    {t('compose.poll.title', { defaultValue: 'Poll' })}
-                                  </Text>
-                                </View>
-                                <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}>
-                                  {t('compose.poll.optionCount', {
-                                    count: item.pollOptions.length,
-                                    defaultValue:
-                                      item.pollOptions.length === 0
-                                        ? 'No options yet'
-                                        : item.pollOptions.length === 1
-                                          ? '1 option'
-                                          : `${item.pollOptions.length} options`
-                                  })}
-                                </Text>
-                              </View>
-                              <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
-                                {item.pollTitle?.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
-                              </Text>
-                              <View style={styles.pollAttachmentOptions}>
-                                {(item.pollOptions.length > 0 ? item.pollOptions : ['', '']).slice(0, 2).map((option, index) => {
-                                  const trimmed = option?.trim?.() || '';
-                                  return (
-                                    <View
-                                      key={`thread-${item.id}-poll-opt-${index}`}
-                                      style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                        {attachmentOrder.map((key, index) => {
+                          const total = attachmentOrder.length;
+                          const canMoveLeft = index > 0;
+                          const canMoveRight = index < total - 1;
+
+                          if (key === POLL_ATTACHMENT_KEY) {
+                            if (!showPollCreator) return null;
+                            return (
+                              <View key={key} style={styles.pollAttachmentWrapper}>
+                                {total > 1 ? (
+                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(POLL_ATTACHMENT_KEY, 'left')}
+                                      disabled={!canMoveLeft}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
                                     >
-                                      <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                                        {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${index + 1}` })}
+                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(POLL_ATTACHMENT_KEY, 'right')}
+                                      disabled={!canMoveRight}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                  </View>
+                                ) : null}
+                                <TouchableOpacity
+                                  style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                  activeOpacity={0.85}
+                                  onPress={focusPollCreator}
+                                >
+                                  <View style={styles.pollAttachmentHeader}>
+                                    <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
+                                    >
+                                      <PollIcon size={16} color={theme.colors.primary} />
+                                      <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}>
+                                        {t('compose.poll.title', { defaultValue: 'Poll' })}
                                       </Text>
                                     </View>
-                                  );
-                                })}
-                                {item.pollOptions.length > 2 ? (
-                                  <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
-                                    {t('compose.poll.moreOptions', { count: item.pollOptions.length - 2, defaultValue: `+${item.pollOptions.length - 2} more` })}
+                                    <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}>
+                                      {t('compose.poll.optionCount', {
+                                        count: pollOptions.length,
+                                        defaultValue:
+                                          pollOptions.length === 0
+                                            ? 'No options yet'
+                                            : pollOptions.length === 1
+                                              ? '1 option'
+                                              : `${pollOptions.length} options`
+                                      })}
+                                    </Text>
+                                  </View>
+                                  <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
+                                    {pollTitle.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
                                   </Text>
-                                ) : null}
+                                  <View style={styles.pollAttachmentOptions}>
+                                    {(pollOptions.length > 0 ? pollOptions : ['', '']).slice(0, 2).map((option, optionIndex) => {
+                                      const trimmed = option?.trim?.() || '';
+                                      return (
+                                        <View
+                                          key={`poll-opt-${optionIndex}`}
+                                          style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                                        >
+                                          <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                            {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${optionIndex + 1}` })}
+                                          </Text>
+                                        </View>
+                                      );
+                                    })}
+                                    {pollOptions.length > 2 ? (
+                                      <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
+                                        {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: `+${pollOptions.length - 2} more` })}
+                                      </Text>
+                                    ) : null}
+                                  </View>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={removePoll}
+                                  style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <CloseIcon size={16} color={theme.colors.text} />
+                                </TouchableOpacity>
                               </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => removeThreadPoll(item.id)}
-                              style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
-                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                            >
-                              <CloseIcon size={16} color={theme.colors.text} />
-                            </TouchableOpacity>
-                          </View>
-                        ) : null}
-                        {item.mediaIds.map((mediaItem, mediaIndex) => {
-                          const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
-                          const mediaCount = item.mediaIds.length;
-                          return (
-                            <View
-                              key={mediaItem.id}
-                              style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                            >
-                              {mediaItem.type === 'video' ? (
-                                <VideoPreview src={mediaUrl} />
-                              ) : (
-                                <Image
-                                  source={{ uri: mediaUrl }}
-                                  style={styles.mediaPreviewImage}
-                                  resizeMode="cover"
+                            );
+                          }
+
+                          if (key === ARTICLE_ATTACHMENT_KEY) {
+                            if (!(hasArticleContent && article)) return null;
+                            return (
+                              <View
+                                key={key}
+                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                              >
+                                {total > 1 ? (
+                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(ARTICLE_ATTACHMENT_KEY, 'left')}
+                                      disabled={!canMoveLeft}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(ARTICLE_ATTACHMENT_KEY, 'right')}
+                                      disabled={!canMoveRight}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                  </View>
+                                ) : null}
+                                <PostArticlePreview
+                                  title={article.title}
+                                  body={article.body}
+                                  onPress={openArticleEditor}
+                                  style={styles.articleAttachmentPreview}
                                 />
-                              )}
-                              {mediaCount > 1 ? (
-                                <View style={styles.mediaReorderControls} pointerEvents="box-none">
-                                  <TouchableOpacity
-                                    onPress={() => moveThreadMedia(item.id, mediaItem.id, 'left')}
-                                    disabled={mediaIndex === 0}
-                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === 0 && styles.mediaReorderButtonDisabled]}
-                                  >
-                                    <BackArrowIcon size={14} color={mediaIndex === 0 ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    onPress={() => moveThreadMedia(item.id, mediaItem.id, 'right')}
-                                    disabled={mediaIndex === mediaCount - 1}
-                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === mediaCount - 1 && styles.mediaReorderButtonDisabled]}
-                                  >
-                                    <ChevronRightIcon size={14} color={mediaIndex === mediaCount - 1 ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                  </TouchableOpacity>
-                                </View>
-                              ) : null}
+                                <TouchableOpacity
+                                  onPress={(event) => {
+                                    event.stopPropagation();
+                                    removeArticle();
+                                  }}
+                                  style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <CloseIcon size={16} color={theme.colors.text} />
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          }
+
+                          if (isMediaAttachmentKey(key)) {
+                            const mediaId = getMediaIdFromAttachmentKey(key);
+                            const mediaItem = mediaIds.find(m => m.id === mediaId);
+                            if (!mediaItem) return null;
+                            const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
+                            return (
+                              <View
+                                key={key}
+                                style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                              >
+                                {mediaItem.type === 'video' ? (
+                                  <VideoPreview src={mediaUrl} />
+                                ) : (
+                                  <Image
+                                    source={{ uri: mediaUrl }}
+                                    style={styles.mediaPreviewImage}
+                                    resizeMode="cover"
+                                  />
+                                )}
+                                {total > 1 ? (
+                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(key, 'left')}
+                                      disabled={!canMoveLeft}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(key, 'right')}
+                                      disabled={!canMoveRight}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                  </View>
+                                ) : null}
+                                <TouchableOpacity
+                                  onPress={() => removeMedia(mediaItem.id)}
+                                  style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <CloseIcon size={16} color={theme.colors.text} />
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          }
+
+                          return null;
+                        })}
+                      </ScrollView>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.toolbarWrapper}>
+                    <ComposeToolbar
+                      onMediaPress={openMediaPicker}
+                      onPollPress={focusPollCreator}
+                      onLocationPress={requestLocation}
+                      onGifPress={() => {
+                        bottomSheet.setBottomSheetContent(
+                          <GifPickerSheet
+                            onClose={() => bottomSheet.openBottomSheet(false)}
+                            onSelectGif={async (gifUrl: string, gifId: string) => {
+                              try {
+                                const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
+                                setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
+                                toast.success(t('GIF attached'));
+                              } catch (error: any) {
+                                toast.error(error?.message || t('Failed to attach GIF'));
+                              }
+                            }}
+                          />
+                        );
+                        bottomSheet.openBottomSheet(true);
+                      }}
+                      onEmojiPress={() => {
+                        // TODO: Implement emoji picker
+                        toast.info(t('Emoji picker coming soon'));
+                      }}
+                      onSchedulePress={openScheduleSheet}
+                      onSourcesPress={openSourcesSheet}
+                      onArticlePress={openArticleEditor}
+                      hasLocation={!!location}
+                      isGettingLocation={isGettingLocation}
+                      hasPoll={showPollCreator}
+                      hasMedia={mediaIds.length > 0}
+                      hasSources={sources.length > 0}
+                      hasArticle={hasArticleContent}
+                      hasSchedule={Boolean(scheduledAt)}
+                      scheduleEnabled={scheduleEnabled}
+                      hasSourceErrors={invalidSources}
+                      disabled={isPosting}
+                    />
+                    {postContent.length > 0 && (
+                      <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}>
+                        {postContent.length}
+                      </Text>
+                    )}
+                  </View>
+
+                  {scheduledAt && (
+                    <View
+                      style={[
+                        styles.scheduleInfoContainer,
+                        {
+                          borderColor: theme.colors.border,
+                          backgroundColor: theme.colors.backgroundSecondary,
+                        }
+                      ]}
+                    >
+                      <CalendarIcon size={14} color={theme.colors.primary} />
+                      <Text style={[styles.scheduleInfoText, { color: theme.colors.text }]}
+                      >
+                        {t('compose.schedule.set', {
+                          defaultValue: 'Scheduled for {{time}}',
+                          time: formatScheduledLabel(scheduledAt)
+                        })}
+                      </Text>
+                      <TouchableOpacity onPress={() => clearSchedule()} style={styles.scheduleInfoClearButton}>
+                        <Text style={[styles.scheduleInfoClearText, { color: theme.colors.primary }]}>{t('compose.schedule.clear', { defaultValue: 'Clear' })}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Poll Creator */}
+                  {showPollCreator && (
+                    <PollCreator
+                      pollTitle={pollTitle}
+                      onTitleChange={setPollTitle}
+                      pollOptions={pollOptions}
+                      onAddOption={addPollOption}
+                      onOptionChange={updatePollOption}
+                      onRemoveOption={removePollOption}
+                      onRemove={removePoll}
+                      style={{ marginLeft: BOTTOM_LEFT_PAD }}
+                    />
+                  )}
+
+                  {/* Location Display */}
+                  {location && (
+                    <LocationDisplay
+                      location={location}
+                      onRemove={removeLocation}
+                      style={{ marginLeft: BOTTOM_LEFT_PAD }}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* Thread items */}
+              {threadItems.map((item, _index) => (
+                <View key={`thread-${item.id}`} style={styles.postContainer}>
+                  <View style={styles.threadItemWithTimeline}>
+                    <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
+                      <TouchableOpacity activeOpacity={0.7}>
+                        <Avatar
+                          source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
+                          size={40}
+                          verified={Boolean(user?.verified)}
+                          style={{ marginRight: 12 }}
+                        />
+                      </TouchableOpacity>
+                      <View style={styles.headerMeta}>
+                        <View style={styles.headerChildren}>
+                          <MentionTextInput
+                            style={styles.threadTextInput}
+                            placeholder={t('Say more...')}
+                            value={item.text}
+                            onChangeText={(v) => updateThreadText(item.id, v)}
+                            onMentionsChange={(m) => updateThreadMentions(item.id, m)}
+                            multiline
+                          />
+                          <View style={styles.toolbarWrapper}>
+                            <ComposeToolbar
+                              onMediaPress={() => openThreadMediaPicker(item.id)}
+                              onPollPress={() => openThreadPollCreator(item.id)}
+                              onLocationPress={() => requestThreadLocation(item.id)}
+                              onGifPress={() => {
+                                const currentThreadId = item.id;
+                                bottomSheet.setBottomSheetContent(
+                                  <GifPickerSheet
+                                    onClose={() => bottomSheet.openBottomSheet(false)}
+                                    onSelectGif={async (gifUrl: string, gifId: string) => {
+                                      try {
+                                        const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
+                                        addThreadMedia(currentThreadId, mediaItem);
+                                        toast.success(t('GIF attached'));
+                                      } catch (error: any) {
+                                        toast.error(error?.message || t('Failed to attach GIF'));
+                                      }
+                                    }}
+                                  />
+                                );
+                                bottomSheet.openBottomSheet(true);
+                              }}
+                              onEmojiPress={() => {
+                                // TODO: Implement emoji picker for thread items
+                                toast.info(t('Emoji picker coming soon'));
+                              }}
+                              hasLocation={!!item.location}
+                              hasPoll={item.showPollCreator}
+                              hasMedia={item.mediaIds.length > 0}
+                              disabled={isPosting}
+                            />
+                            {item.text.length > 0 && (
+                              <Text style={[styles.characterCountText, { color: theme.colors.textSecondary }]}>
+                                {item.text.length}
+                              </Text>
+                            )}
+                          </View>
+                          <TouchableOpacity
+                            style={styles.removeThreadBtn}
+                            onPress={() => removeThread(item.id)}
+                          >
+                            <CloseIcon size={18} color={colors.COLOR_BLACK_LIGHT_4} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Thread item attachments row */}
+                    {(item.showPollCreator || item.mediaIds.length > 0) && (
+                      <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
+                      >
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
+                        >
+                          {item.showPollCreator ? (
+                            <View style={styles.pollAttachmentWrapper}>
                               <TouchableOpacity
-                                onPress={() => removeThreadMedia(item.id, mediaItem.id)}
-                                style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
+                                style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                activeOpacity={0.85}
+                                onPress={() => {
+                                  openThreadPollCreator(item.id);
+                                  setTimeout(() => {
+                                    threadPollTitleRefs.current[item.id]?.focus();
+                                  }, 50);
+                                }}
+                              >
+                                <View style={styles.pollAttachmentHeader}>
+                                  <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
+                                  >
+                                    <PollIcon size={16} color={theme.colors.primary} />
+                                    <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}>
+                                      {t('compose.poll.title', { defaultValue: 'Poll' })}
+                                    </Text>
+                                  </View>
+                                  <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}>
+                                    {t('compose.poll.optionCount', {
+                                      count: item.pollOptions.length,
+                                      defaultValue:
+                                        item.pollOptions.length === 0
+                                          ? 'No options yet'
+                                          : item.pollOptions.length === 1
+                                            ? '1 option'
+                                            : `${item.pollOptions.length} options`
+                                    })}
+                                  </Text>
+                                </View>
+                                <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
+                                  {item.pollTitle?.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
+                                </Text>
+                                <View style={styles.pollAttachmentOptions}>
+                                  {(item.pollOptions.length > 0 ? item.pollOptions : ['', '']).slice(0, 2).map((option, index) => {
+                                    const trimmed = option?.trim?.() || '';
+                                    return (
+                                      <View
+                                        key={`thread-${item.id}-poll-opt-${index}`}
+                                        style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                                      >
+                                        <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                          {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${index + 1}` })}
+                                        </Text>
+                                      </View>
+                                    );
+                                  })}
+                                  {item.pollOptions.length > 2 ? (
+                                    <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
+                                      {t('compose.poll.moreOptions', { count: item.pollOptions.length - 2, defaultValue: `+${item.pollOptions.length - 2} more` })}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => removeThreadPoll(item.id)}
+                                style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
                                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                               >
                                 <CloseIcon size={16} color={theme.colors.text} />
                               </TouchableOpacity>
                             </View>
-                          );
-                        })}
-                      </ScrollView>
-                    </View>
-                  )}
-
-                  {/* Thread item poll creator */}
-                  {item.showPollCreator && (
-                    <View style={[styles.pollCreator, { marginLeft: BOTTOM_LEFT_PAD, backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                      <View style={styles.pollHeader}>
-                        <View style={styles.pollHeaderLeft}>
-                          <PollIcon size={18} color={theme.colors.primary} />
-                          <Text style={[styles.pollTitle, { color: theme.colors.text }]}>{t('Create a poll')}</Text>
-                        </View>
-                        <TouchableOpacity 
-                          onPress={() => removeThreadPoll(item.id)}
-                          style={styles.pollCloseBtn}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <CloseIcon size={18} color={theme.colors.textSecondary} />
-                        </TouchableOpacity>
-                      </View>
-                      
-                      <View style={styles.pollQuestionContainer}>
-                        <TextInput
-                          style={[styles.pollTitleInput, { 
-                            color: theme.colors.text, 
-                            borderColor: (item.pollTitle || '').length > 0 ? theme.colors.primary : theme.colors.border, 
-                            backgroundColor: theme.colors.backgroundSecondary 
-                          }]}
-                          ref={(ref) => {
-                            threadPollTitleRefs.current[item.id] = ref;
-                          }}
-                          placeholder={t('Poll question')}
-                          placeholderTextColor={theme.colors.textTertiary}
-                          value={item.pollTitle || ''}
-                          onChangeText={(value) => setThreadItems(prev => prev.map(p => p.id === item.id ? { ...p, pollTitle: value } : p))}
-                          maxLength={200}
-                          multiline
-                        />
-                        <Text style={[styles.pollCharCount, { color: theme.colors.textTertiary }]}>
-                          {(item.pollTitle || '').length}/200
-                        </Text>
-                      </View>
-
-                      <View style={styles.pollOptionsContainer}>
-                        {item.pollOptions.map((option, index) => (
-                          <View key={index} style={styles.pollOptionRow}>
-                            <View style={[styles.pollOptionNumber, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                              <Text style={[styles.pollOptionNumberText, { color: theme.colors.textSecondary }]}>
-                                {index + 1}
-                              </Text>
-                            </View>
-                            <TextInput
-                              style={[styles.pollOptionInput, { 
-                                color: theme.colors.text,
-                                borderColor: option.length > 0 ? theme.colors.primary : theme.colors.border,
-                                backgroundColor: theme.colors.backgroundSecondary
-                              }]}
-                              placeholder={t(`Option ${index + 1}`)}
-                              placeholderTextColor={theme.colors.textTertiary}
-                              value={option}
-                              onChangeText={(value) => updateThreadPollOption(item.id, index, value)}
-                              maxLength={50}
-                            />
-                            {item.pollOptions.length > 2 && (
-                              <TouchableOpacity 
-                                onPress={() => removeThreadPollOption(item.id, index)}
-                                style={styles.pollOptionRemoveBtn}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          ) : null}
+                          {item.mediaIds.map((mediaItem, mediaIndex) => {
+                            const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
+                            const mediaCount = item.mediaIds.length;
+                            return (
+                              <View
+                                key={mediaItem.id}
+                                style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
-                                <CloseIcon size={16} color={theme.colors.textSecondary} />
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        ))}
+                                {mediaItem.type === 'video' ? (
+                                  <VideoPreview src={mediaUrl} />
+                                ) : (
+                                  <Image
+                                    source={{ uri: mediaUrl }}
+                                    style={styles.mediaPreviewImage}
+                                    resizeMode="cover"
+                                  />
+                                )}
+                                {mediaCount > 1 ? (
+                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                    <TouchableOpacity
+                                      onPress={() => moveThreadMedia(item.id, mediaItem.id, 'left')}
+                                      disabled={mediaIndex === 0}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === 0 && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <BackArrowIcon size={14} color={mediaIndex === 0 ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onPress={() => moveThreadMedia(item.id, mediaItem.id, 'right')}
+                                      disabled={mediaIndex === mediaCount - 1}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === mediaCount - 1 && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <ChevronRightIcon size={14} color={mediaIndex === mediaCount - 1 ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                  </View>
+                                ) : null}
+                                <TouchableOpacity
+                                  onPress={() => removeThreadMedia(item.id, mediaItem.id)}
+                                  style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <CloseIcon size={16} color={theme.colors.text} />
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          })}
+                        </ScrollView>
                       </View>
+                    )}
 
-                      {item.pollOptions.length < 4 && (
-                        <TouchableOpacity 
-                          style={[styles.addPollOptionBtn, { borderColor: theme.colors.border }]} 
-                          onPress={() => addThreadPollOption(item.id)}
-                          activeOpacity={0.7}
-                        >
-                          <View style={[styles.addPollOptionIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                            <Plus size={16} color={theme.colors.primary} />
-                          </View>
-                          <Text style={[styles.addPollOptionText, { color: theme.colors.primary }]}>{t('Add option')}</Text>
-                        </TouchableOpacity>
-                      )}
-                      
-                      <Text style={[styles.pollHint, { color: theme.colors.textTertiary }]}>
-                        {item.pollOptions.length === 2 ? t('Add up to 2 more options') : t('Minimum 2 options required')}
-                      </Text>
-                    </View>
-                  )}
+                    {/* Thread item poll creator */}
+                    {item.showPollCreator && (
+                      <PollCreator
+                        pollTitle={item.pollTitle || ''}
+                        onTitleChange={(value) => updateThreadPollTitle(item.id, value)}
+                        pollOptions={item.pollOptions}
+                        onOptionChange={(index, value) => updateThreadPollOption(item.id, index, value)}
+                        onAddOption={() => addThreadPollOption(item.id)}
+                        onRemoveOption={(index) => removeThreadPollOption(item.id, index)}
+                        onRemove={() => removeThreadPoll(item.id)}
+                        style={{ marginLeft: BOTTOM_LEFT_PAD }}
+                      />
+                    )}
 
-                  {/* Thread item location display */}
-                  {item.location && (
-                    <View style={[styles.locationDisplay, { marginLeft: BOTTOM_LEFT_PAD }]}>
-                      <View style={styles.locationHeader}>
-                        <LocationIcon size={16} color={colors.primaryColor} />
-                        <Text style={styles.locationText}>{item.location.address}</Text>
-                        <TouchableOpacity onPress={() => removeThreadLocation(item.id)}>
-                          <CloseIcon size={16} color={colors.COLOR_BLACK_LIGHT_4} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-                </View>
-              </View>
-            ))}
-
-            {/* Add thread/post button */}
-            <TouchableOpacity
-              style={styles.postContainer}
-              onPress={() => {
-                const id = Date.now().toString();
-                setThreadItems(prev => [...prev, {
-                  id,
-                  text: '',
-                  mediaIds: [] as ComposerMediaItem[],
-                  pollOptions: [],
-                  pollTitle: '',
-                  showPollCreator: false,
-                  location: null,
-                  mentions: []
-                }]);
-              }}
-            >
-              <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
-                <TouchableOpacity activeOpacity={0.7}>
-                  <Avatar
-                    source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
-                    size={40}
-                    verified={Boolean(user?.verified)}
-                    style={{ marginRight: 12 }}
-                  />
-                </TouchableOpacity>
-                <View style={styles.headerMeta}>
-                  <View style={styles.headerChildren}>
-                    <Text style={styles.addToThreadText}>
-                      {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
-                    </Text>
+                    {/* Thread item location display */}
+                    {item.location && (
+                      <LocationDisplay
+                        location={item.location}
+                        onRemove={() => removeThreadLocation(item.id)}
+                        style={{ marginLeft: BOTTOM_LEFT_PAD }}
+                      />
+                    )}
                   </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          </View>
+              ))}
 
-          <View style={styles.bottomBar}>
-            <TouchableOpacity onPress={openReplySettings} activeOpacity={0.7}>
-              <Text style={styles.bottomText}>{getReplyPermissionText()}</Text>
-            </TouchableOpacity>
-          </View>
-        </ThemedView>
-      </KeyboardAvoidingView>
+              {/* Add thread/post button */}
+              <TouchableOpacity
+                style={styles.postContainer}
+                onPress={addThread}
+              >
+                <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
+                  <TouchableOpacity activeOpacity={0.7}>
+                    <Avatar
+                      source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
+                      size={40}
+                      verified={Boolean(user?.verified)}
+                      style={{ marginRight: 12 }}
+                    />
+                  </TouchableOpacity>
+                  <View style={styles.headerMeta}>
+                    <View style={styles.headerChildren}>
+                      <Text style={styles.addToThreadText}>
+                        {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
 
-      {/* Floating post button */}
-      <TouchableOpacity
-        onPress={handlePost}
-        disabled={!isPostButtonEnabled}
-        style={[
-          styles.floatingPostButton,
-          { backgroundColor: theme.colors.primary },
-          !isPostButtonEnabled && [styles.floatingPostButtonDisabled, { backgroundColor: theme.colors.border }]
-        ]}
-      >
-        {isPosting ? (
-          <ActivityIndicator size="small" color={theme.colors.card} />
-        ) : (
-          <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{t('Post')}</Text>
-        )}
-      </TouchableOpacity>
+            <View style={styles.bottomBar}>
+              <TouchableOpacity onPress={openReplySettings} activeOpacity={0.7}>
+                <Text style={styles.bottomText}>{getReplyPermissionText()}</Text>
+              </TouchableOpacity>
+            </View>
+          </ThemedView>
+        </KeyboardAvoidingView>
 
-      <Modal
-        visible={isArticleEditorVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={closeArticleEditor}
-      >
-        <SafeAreaView style={[styles.articleModalContainer, { backgroundColor: theme.colors.background }]}
+        {/* Floating post button */}
+        <TouchableOpacity
+          onPress={handlePost}
+          disabled={!isPostButtonEnabled}
+          style={[
+            styles.floatingPostButton,
+            { backgroundColor: theme.colors.primary },
+            !isPostButtonEnabled && [styles.floatingPostButtonDisabled, { backgroundColor: theme.colors.border }]
+          ]}
         >
-          <View style={[styles.articleModalHeader, { borderBottomColor: theme.colors.border }]}
-          >
-            <HeaderIconButton onPress={closeArticleEditor} style={styles.articleModalClose}>
-              <CloseIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>
-            <Text style={[styles.articleModalTitle, { color: theme.colors.text }]} pointerEvents="none">
-              {t('compose.article.editorTitle', { defaultValue: 'Write article' })}
-            </Text>
-            <TouchableOpacity
-              onPress={handleArticleSave}
-              style={[styles.articleModalSaveButton, { backgroundColor: theme.colors.primary }]}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.articleModalSaveText, { color: theme.colors.card }]}>
-                {t('common.save')}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {isPosting ? (
+            <ActivityIndicator size="small" color={theme.colors.card} />
+          ) : (
+            <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{t('Post')}</Text>
+          )}
+        </TouchableOpacity>
 
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
-          >
-            <ScrollView contentContainerStyle={styles.articleModalContent} keyboardShouldPersistTaps="handled">
-              <TextInput
-                style={[styles.articleTitleInput, {
-                  color: theme.colors.text,
-                  borderColor: theme.colors.border,
-                  backgroundColor: theme.colors.backgroundSecondary,
-                }]}
-                placeholder={t('compose.article.titlePlaceholder', { defaultValue: 'Article title' })}
-                placeholderTextColor={theme.colors.textSecondary}
-                value={articleDraftTitle}
-                onChangeText={setArticleDraftTitle}
-                maxLength={280}
-              />
-
-              <TextInput
-                style={[styles.articleBodyInput, {
-                  color: theme.colors.text,
-                  borderColor: theme.colors.border,
-                  backgroundColor: theme.colors.backgroundSecondary,
-                }]}
-                placeholder={t('compose.article.bodyPlaceholder', { defaultValue: 'Start writing…' })}
-                placeholderTextColor={theme.colors.textSecondary}
-                value={articleDraftBody}
-                onChangeText={setArticleDraftBody}
-                multiline
-              />
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
+        <ArticleEditor
+          visible={isArticleEditorVisible}
+          title={articleDraftTitle}
+          body={articleDraftBody}
+          onTitleChange={setArticleDraftTitle}
+          onBodyChange={setArticleDraftBody}
+          onClose={closeArticleEditor}
+          onSave={handleArticleSave}
+        />
       </SafeAreaView>
-      </>
-    );
-  };
+    </>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -2566,136 +2122,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 2, // Above the timeline line
   },
-  // Poll creator styles
-  pollCreator: {
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 12,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    marginRight: 12
-  },
-  pollHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  pollHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  pollTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  pollCloseBtn: {
-    padding: 4,
-  },
-  pollQuestionContainer: {
-    marginBottom: 10,
-  },
-  pollTitleInput: {
-    borderWidth: 1.5,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    minHeight: 44,
-    textAlignVertical: 'top',
-  },
-  pollCharCount: {
-    fontSize: 10,
-    marginTop: 4,
-    marginLeft: 2,
-    fontWeight: '500',
-  },
-  pollOptionsContainer: {
-    marginBottom: 8,
-    gap: 8,
-  },
-  pollOptionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  pollOptionNumber: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  pollOptionNumberText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  pollOptionInput: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    minHeight: 44,
-  },
-  pollOptionRemoveBtn: {
-    padding: 4,
-    flexShrink: 0,
-  },
-  addPollOptionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    marginBottom: 6,
-  },
-  addPollOptionIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addPollOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  pollHint: {
-    fontSize: 11,
-    marginTop: 2,
-    marginLeft: 2,
-  },
-  // Location styles
-  locationDisplay: {
-    backgroundColor: colors.COLOR_BLACK_LIGHT_8,
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: colors.COLOR_BLACK_LIGHT_6,
-  },
-  locationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  locationText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.COLOR_BLACK_LIGHT_2,
-    fontWeight: '500',
-  },
+  // Article attachment styles (still used in main compose)
   articleAttachmentWrapper: {
     position: 'relative',
     alignSelf: 'flex-start',
@@ -2722,6 +2149,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     justifyContent: 'space-between',
   },
+  // Poll attachment card styles (for thread items)
   pollAttachmentWrapper: {
     position: 'relative',
     alignSelf: 'flex-start',
@@ -2786,63 +2214,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     padding: 6,
   },
-  articleModalContainer: {
-    flex: 1,
-  },
-  articleModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 48,
-    borderBottomWidth: 1,
-  },
-  articleModalClose: {
-    marginRight: 6,
-    zIndex: 1,
-  },
-  articleModalTitle: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    pointerEvents: 'none',
-  },
-  articleModalSaveButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-    marginLeft: 'auto',
-  },
-  articleModalSaveText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  articleModalContent: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 40,
-    gap: 16,
-  },
-  articleTitleInput: {
-    fontSize: 18,
-    fontWeight: '700',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  articleBodyInput: {
-    minHeight: 240,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15,
-    textAlignVertical: 'top',
-  },
+  // Media preview styles
   mediaPreviewContainer: {
     marginTop: 12,
     width: '100%',
