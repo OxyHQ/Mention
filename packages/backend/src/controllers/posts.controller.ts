@@ -12,6 +12,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { feedController } from './feed.controller';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
+import ArticleModel from '../models/Article';
 
 const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
   if (!Array.isArray(arr)) return [];
@@ -39,6 +40,14 @@ const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
     .filter(Boolean) as Array<{ url: string; title?: string }>;
 
   return normalized.slice(0, MAX_SOURCES);
+};
+
+const sanitizeArticle = (input: any): { title?: string; body?: string } | undefined => {
+  if (!input || typeof input !== 'object') return undefined;
+  const title = typeof input.title === 'string' ? input.title.trim().slice(0, 280) : undefined;
+  const body = typeof input.body === 'string' ? input.body.trim() : undefined;
+  if (!title && !body) return undefined;
+  return { ...(title ? { title } : {}), ...(body ? { body } : {}) };
 };
 
 // Create a new post
@@ -188,6 +197,21 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.sources = sources;
     }
 
+    const sanitizedArticle = sanitizeArticle(content?.article || req.body.article);
+    let pendingArticleDoc: any = null;
+    if (sanitizedArticle) {
+      pendingArticleDoc = new ArticleModel({
+        createdBy: userId,
+        title: sanitizedArticle.title || undefined,
+        body: sanitizedArticle.body || undefined,
+      });
+      postContent.article = {
+        articleId: pendingArticleDoc._id.toString(),
+        title: sanitizedArticle.title,
+        excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, 280) : undefined,
+      };
+    }
+
     const post = new Post({
       oxyUserId: userId,
       content: postContent,
@@ -210,7 +234,16 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     });
 
-  await post.save();
+    await post.save();
+
+    if (pendingArticleDoc) {
+      try {
+        pendingArticleDoc.postId = post._id.toString();
+        await pendingArticleDoc.save();
+      } catch (articleError) {
+        console.error('Failed to save article content:', articleError);
+      }
+    }
     
     // Update poll's postId with the actual post ID
     if (pollId) {
@@ -397,6 +430,23 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.sources = sources;
       }
 
+      let pendingArticleDoc: any = null;
+      if (i === 0) {
+        const sanitizedArticle = sanitizeArticle(content?.article);
+        if (sanitizedArticle) {
+          pendingArticleDoc = new ArticleModel({
+            createdBy: userId,
+            title: sanitizedArticle.title || undefined,
+            body: sanitizedArticle.body || undefined,
+          });
+          postContent.article = {
+            articleId: pendingArticleDoc._id.toString(),
+            title: sanitizedArticle.title,
+            excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, 280) : undefined,
+          };
+        }
+      }
+
       // Handle poll creation
       let pollId = null;
       if (content?.poll) {
@@ -444,6 +494,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       });
 
       await post.save();
+
+      if (pendingArticleDoc) {
+        try {
+          pendingArticleDoc.postId = post._id.toString();
+          await pendingArticleDoc.save();
+        } catch (articleError) {
+          console.error('Failed to save article content (thread):', articleError);
+        }
+      }
 
       // Mentions per post in thread
       try {
@@ -722,6 +781,45 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         post.content.sources = undefined;
       }
     }
+
+    if (req.body.article !== undefined) {
+      const sanitizedArticle = sanitizeArticle(req.body.article);
+      const existingArticleId = (post.content as any)?.article?.articleId;
+      if (sanitizedArticle) {
+        let articleDoc = existingArticleId ? await (ArticleModel as any).findOne({ _id: existingArticleId } as any).exec() : null;
+        const previousArticle = (post.content as any)?.article || {};
+
+        if (articleDoc) {
+          if (sanitizedArticle.title !== undefined) {
+            articleDoc.title = sanitizedArticle.title || undefined;
+          }
+          if (sanitizedArticle.body !== undefined) {
+            articleDoc.body = sanitizedArticle.body || undefined;
+          }
+          articleDoc.postId = post._id.toString();
+        } else {
+          articleDoc = new ArticleModel({
+            createdBy: userId,
+            postId: post._id.toString(),
+            title: sanitizedArticle.title || undefined,
+            body: sanitizedArticle.body || undefined,
+          });
+        }
+        await articleDoc.save();
+        post.content.article = {
+          articleId: articleDoc._id.toString(),
+          title: sanitizedArticle.title !== undefined ? sanitizedArticle.title : previousArticle.title,
+          excerpt: sanitizedArticle.body !== undefined
+            ? (sanitizedArticle.body ? sanitizedArticle.body.slice(0, 280) : undefined)
+            : previousArticle.excerpt,
+        };
+      } else {
+        if (existingArticleId) {
+          await (ArticleModel as any).deleteOne({ _id: existingArticleId } as any).exec();
+        }
+        post.content.article = undefined;
+      }
+    }
     
     if (hashtags !== undefined) post.hashtags = hashtags || [];
     if (mentions !== undefined) post.mentions = mentions || [];
@@ -759,6 +857,15 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     const post = await Post.findOneAndDelete({ _id: req.params.id, oxyUserId: userId });
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
+    }
+
+    try {
+      const articleId = (post as any)?.content?.article?.articleId;
+      if (articleId) {
+        await (ArticleModel as any).deleteOne({ _id: articleId } as any).exec();
+      }
+    } catch (articleError) {
+      console.error('Failed to delete article content with post:', articleError);
     }
 
     res.json({ message: 'Post deleted successfully' });

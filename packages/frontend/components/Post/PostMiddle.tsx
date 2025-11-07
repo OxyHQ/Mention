@@ -14,6 +14,7 @@ const getPostItem = () => {
 import { useTheme } from '@/hooks/useTheme';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useRouter } from 'expo-router';
+import PostArticlePreview from './PostArticlePreview';
 
 interface MediaObj { id: string; type: 'image' | 'video' }
 interface Props {
@@ -24,6 +25,8 @@ interface Props {
   pollData?: any; // Direct poll data from content.poll
   nestingDepth?: number; // Track nesting depth to prevent infinite nesting
   postId?: string; // Post ID for navigation to videos screen
+  article?: { articleId?: string; title?: string; body?: string } | null;
+  onArticlePress?: (() => void) | null;
 }
 
 // Video item component to properly use the hook
@@ -95,7 +98,7 @@ const VideoItem: React.FC<{
   );
 };
 
-const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0, postId }) => {
+const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0, postId, article, onArticlePress }) => {
   const theme = useTheme();
   const router = useRouter();
   
@@ -118,11 +121,12 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
   const MAX_NESTING_DEPTH = 2;
   const screenWidth = Dimensions.get('window').width;
   const [scrollViewWidth, setScrollViewWidth] = React.useState(screenWidth);
-  type Item = { type: "nested" } | { type: "image"; src: string } | { type: "video"; src: string } | { type: "poll" };
+  type Item = { type: "nested" } | { type: "image"; src: string } | { type: "video"; src: string } | { type: "poll" } | { type: "article" };
   const items: Item[] = [];
   const { oxyServices } = useOxy();
 
   if (pollId || pollData) items.push({ type: "poll" });
+  if (article && (article.title?.trim() || article.body?.trim())) items.push({ type: "article" });
   // Only add nested post if we haven't exceeded max nesting depth
   if (nestedPost && nestingDepth < MAX_NESTING_DEPTH) items.push({ type: "nested" });
 
@@ -173,6 +177,18 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
       contentContainerStyle={[styles.scroller, { backgroundColor: theme.colors.background }, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
       {items.map((item, idx) => {
+        if (item.type === 'article') {
+          const trimmedTitle = article?.title?.trim();
+          const trimmedBody = article?.body?.trim();
+          return (
+            <PostArticlePreview
+              key={`article-${idx}`}
+              title={trimmedTitle}
+              body={trimmedBody}
+              onPress={onArticlePress || undefined}
+            />
+          );
+        }
         if (item.type === 'poll') {
           // Debug logging in development
           if (process.env.NODE_ENV === 'development') {

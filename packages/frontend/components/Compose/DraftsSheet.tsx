@@ -99,6 +99,9 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
     if (draft.pollOptions.length > 0) {
       return t('compose.draftWithPoll');
     }
+    if (draft.article && ((draft.article.title && draft.article.title.trim().length > 0) || (draft.article.body && draft.article.body.trim().length > 0))) {
+      return draft.article.title?.trim() || t('compose.draftWithArticle', { defaultValue: 'Draft with article' });
+    }
     if (draft.threadItems.length > 0) {
       const totalPosts = draft.threadItems.length + 1;
       return totalPosts === 2

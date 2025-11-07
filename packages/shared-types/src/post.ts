@@ -29,6 +29,13 @@ export interface PostSourceLink {
   title?: string;
 }
 
+export interface PostArticleContent {
+  articleId?: string;
+  title?: string;
+  body?: string;
+  excerpt?: string;
+}
+
 export interface PostContent {
   text?: string;
   media?: MediaItem[]; // Media items for images and videos
@@ -36,6 +43,7 @@ export interface PostContent {
   pollId?: string; // Reference to poll document
   location?: GeoJSONPoint; // Location shared by user as part of post content
   sources?: PostSourceLink[]; // External sources cited within the post content
+  article?: PostArticleContent; // Optional article content authored with the post
 }
 
 export interface PollData {

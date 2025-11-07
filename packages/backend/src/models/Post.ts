@@ -91,7 +91,25 @@ const PostContentSchema = new Schema({
       trim: true,
       maxlength: 200
     }
-  }]
+  }],
+  article: {
+    articleId: {
+      type: String,
+      required: false,
+      index: true,
+    },
+    title: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 280
+    },
+    excerpt: {
+      type: String,
+      required: false,
+      trim: true
+    }
+  }
 });
 
 const PostStatsSchema = new Schema({

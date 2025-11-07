@@ -14,6 +14,8 @@ import PostLocation from '../Post/PostLocation';
 import { colors } from '../../styles/colors';
 import PostMiddle from '../Post/PostMiddle';
 import PostSourcesSheet from '@/components/Post/PostSourcesSheet';
+import PostArticleSheet from '@/components/Post/PostArticleSheet';
+import { ArticleIcon } from '@/assets/icons/article-icon';
 import { useOxy } from '@oxyhq/services';
 import { useUsersStore } from '@/stores/usersStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -206,6 +208,24 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const hasSources = sourcesList.length > 0;
 
+    const articleContent = React.useMemo(() => {
+        const art = (viewPost as any)?.content?.article;
+        if (!art) return null;
+        const title = typeof art.title === 'string' ? art.title : '';
+        const body = typeof art.body === 'string' ? art.body : '';
+        const excerpt = typeof art.excerpt === 'string' ? art.excerpt : '';
+        const articleId = art.articleId || art.id;
+        if (!articleId && !title.trim() && !body.trim() && !excerpt.trim()) return null;
+        return {
+            articleId: articleId ? String(articleId) : undefined,
+            title,
+            body,
+            excerpt,
+        };
+    }, [viewPost]);
+
+    const hasArticle = Boolean(articleContent);
+
     const closeSourcesSheet = React.useCallback(() => {
         bottomSheet.setBottomSheetContent(null);
         bottomSheet.openBottomSheet(false);
@@ -220,6 +240,29 @@ const PostItem: React.FC<PostItemProps> = ({
         bottomSheet.setBottomSheetContent(sourcesSheetElement);
         bottomSheet.openBottomSheet(true);
     }, [hasSources, bottomSheet, sourcesSheetElement]);
+
+    const closeArticleSheet = React.useCallback(() => {
+        bottomSheet.setBottomSheetContent(null);
+        bottomSheet.openBottomSheet(false);
+    }, [bottomSheet]);
+
+    const articleSheetElement = React.useMemo(() => {
+        if (!articleContent) return null;
+        return (
+            <PostArticleSheet
+                articleId={articleContent.articleId}
+                title={articleContent.title}
+                body={articleContent.body || articleContent.excerpt}
+                onClose={closeArticleSheet}
+            />
+        );
+    }, [articleContent, closeArticleSheet]);
+
+    const openArticleSheet = React.useCallback(() => {
+        if (!articleSheetElement) return;
+        bottomSheet.setBottomSheetContent(articleSheetElement);
+        bottomSheet.openBottomSheet(true);
+    }, [articleSheetElement, bottomSheet]);
     
     const handleLike = useCallback(async () => {
         // Prevent rapid clicks - debounce
@@ -567,7 +610,17 @@ const PostItem: React.FC<PostItemProps> = ({
                         { icon: <TrashIcon size={20} color={theme.colors.error} />, text: "Delete", onPress: handleDelete, color: theme.colors.error }
                     ] : [];
                     
-    const sourcesAction = hasSources ? [
+                    const articleAction = hasArticle && articleSheetElement ? [
+                        {
+                            icon: <ArticleIcon size={20} color={theme.colors.textSecondary} />,
+                            text: t('post.viewArticle', { defaultValue: 'View article' }),
+                            onPress: () => {
+                                openArticleSheet();
+                            }
+                        }
+                    ] : [];
+
+                    const sourcesAction = hasSources ? [
                         {
                             icon: <SourcesIcon size={20} color={theme.colors.textSecondary} />,
                             text: t('post.viewSources', { defaultValue: 'View sources' }),
@@ -636,6 +689,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             {insightsAction.length > 0 && <ActionGroup actions={insightsAction} />}
                             {saveActionGroup.length > 0 && <ActionGroup actions={saveActionGroup} />}
                             {deleteAction.length > 0 && <ActionGroup actions={deleteAction} />}
+                            {articleAction.length > 0 && <ActionGroup actions={articleAction} />}
                             {sourcesAction.length > 0 && <ActionGroup actions={sourcesAction} />}
                             <ActionGroup actions={copyLinkAction} />
                         </View>
@@ -685,6 +739,12 @@ const PostItem: React.FC<PostItemProps> = ({
                 pollId={pollIdMemo as any}
                 nestingDepth={nestingDepth}
                 postId={viewPostId}
+                article={articleContent ? {
+                    title: articleContent.title,
+                    body: articleContent.excerpt || articleContent.body,
+                    articleId: articleContent.articleId,
+                } : null}
+                onArticlePress={hasArticle ? openArticleSheet : undefined}
             />
 
             {/* Only show engagement buttons for non-nested posts */}

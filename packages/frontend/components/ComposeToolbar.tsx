@@ -7,6 +7,7 @@ import { LocationIcon } from '@/assets/icons/location-icon';
 import { EmojiIcon } from '@/assets/icons/emoji-icon';
 import { GifIcon } from '@/assets/icons/gif-icon';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
+import { ArticleIcon } from '@/assets/icons/article-icon';
 
 interface ComposeToolbarProps {
     onMediaPress?: () => void;
@@ -16,11 +17,13 @@ interface ComposeToolbarProps {
     onEmojiPress?: () => void;
     onSchedulePress?: () => void;
     onSourcesPress?: () => void;
+    onArticlePress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
     hasMedia?: boolean;
     hasSources?: boolean;
+    hasArticle?: boolean;
     hasSourceErrors?: boolean;
     disabled?: boolean;
 }
@@ -33,11 +36,13 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     onEmojiPress,
     onSchedulePress,
     onSourcesPress,
+    onArticlePress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
     hasMedia = false,
     hasSources = false,
+    hasArticle = false,
     hasSourceErrors = false,
     disabled = false,
 }) => {
@@ -112,6 +117,19 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                                 : hasSources
                                     ? theme.colors.primary
                                     : theme.colors.textSecondary}
+                    />
+                </TouchableOpacity>
+            )}
+
+            {onArticlePress && (
+                <TouchableOpacity
+                    onPress={onArticlePress}
+                    disabled={disabled}
+                    style={styles.button}
+                >
+                    <ArticleIcon
+                        size={20}
+                        color={disabled ? theme.colors.textTertiary : hasArticle ? theme.colors.primary : theme.colors.textSecondary}
                     />
                 </TouchableOpacity>
             )}

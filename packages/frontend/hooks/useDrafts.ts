@@ -10,6 +10,7 @@ export interface Draft {
   showPollCreator: boolean;
   location: { latitude: number; longitude: number; address?: string } | null;
   sources?: Array<{ id?: string; title?: string; url?: string }>;
+  article?: { title?: string; body?: string } | null;
   threadItems: Array<{
     id: string;
     text: string;

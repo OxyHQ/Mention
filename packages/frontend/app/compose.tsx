@@ -20,6 +20,7 @@ import { colors } from '../styles/colors';
 import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
 import PostMiddle from '@/components/Post/PostMiddle';
+import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -44,7 +45,10 @@ import SourcesSheet from '@/components/Compose/SourcesSheet';
 import { Toggle } from '@/components/Toggle';
 import { useDrafts } from '@/hooks/useDrafts';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { ScrollView, Image, Dimensions } from 'react-native';
+import { ScrollView, Image, Dimensions, Modal } from 'react-native';
+
+const MEDIA_CARD_WIDTH = 280;
+const MEDIA_CARD_HEIGHT = 180;
 
 // Video preview component for compose screen
 const VideoItemPreview: React.FC<{ src: string }> = ({ src }) => {
@@ -107,6 +111,10 @@ const ComposeScreen = () => {
   } | null>(null);
   const [sources, setSources] = useState<Array<{ id: string; title: string; url: string }>>([]);
   const [isSourcesSheetOpen, setIsSourcesSheetOpen] = useState(false);
+  const [article, setArticle] = useState<{ title: string; body: string } | null>(null);
+  const [isArticleEditorVisible, setIsArticleEditorVisible] = useState(false);
+  const [articleDraftTitle, setArticleDraftTitle] = useState('');
+  const [articleDraftBody, setArticleDraftBody] = useState('');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
@@ -114,6 +122,13 @@ const ComposeScreen = () => {
   const { user, showBottomSheet, oxyServices } = useOxy();
   const { createPost, createThread } = usePostsStore();
   const { t } = useTranslation();
+
+  const articleHasContent = useMemo(() => {
+    if (!article) return false;
+    const title = article.title?.trim();
+    const body = article.body?.trim();
+    return Boolean(title || body);
+  }, [article]);
 
   // Use refs to always get latest values in timeout callback
   const postContentRef = useRef(postContent);
@@ -127,6 +142,7 @@ const ComposeScreen = () => {
   const mentionsRef = useRef(mentions);
   const postingModeRef = useRef(postingMode);
   const currentDraftIdRef = useRef(currentDraftId);
+  const articleRef = useRef(article);
 
   // Update refs when state changes
   useEffect(() => {
@@ -162,6 +178,9 @@ const ComposeScreen = () => {
   useEffect(() => {
     currentDraftIdRef.current = currentDraftId;
   }, [currentDraftId]);
+  useEffect(() => {
+    articleRef.current = article;
+  }, [article]);
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
 
@@ -253,6 +272,33 @@ const ComposeScreen = () => {
     }
   }, [isSourcesSheetOpen, bottomSheet, sourcesSheetElement]);
 
+  const openArticleEditor = useCallback(() => {
+    setArticleDraftTitle(article?.title || '');
+    setArticleDraftBody(article?.body || '');
+    setIsArticleEditorVisible(true);
+  }, [article]);
+
+  const closeArticleEditor = useCallback(() => {
+    setIsArticleEditorVisible(false);
+  }, []);
+
+  const handleArticleSave = useCallback(() => {
+    const title = articleDraftTitle.trim();
+    const body = articleDraftBody.trim();
+    if (!title && !body) {
+      setArticle(null);
+    } else {
+      setArticle({ title, body });
+    }
+    setIsArticleEditorVisible(false);
+  }, [articleDraftTitle, articleDraftBody]);
+
+  const removeArticle = useCallback(() => {
+    setArticle(null);
+    setArticleDraftTitle('');
+    setArticleDraftBody('');
+  }, []);
+
   // Keep this in sync with PostItem constants
   const HPAD = 16;
   const AVATAR_SIZE = 40;
@@ -265,8 +311,8 @@ const ComposeScreen = () => {
     const hasText = postContent.trim().length > 0;
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
-    if (!(hasText || hasMedia || hasPoll)) {
-      toast.error(t('Add text, an image, or a poll'));
+    if (!(hasText || hasMedia || hasPoll || articleHasContent)) {
+      toast.error(t('Add text, an image, a poll, or an article'));
       return;
     }
 
@@ -279,6 +325,11 @@ const ComposeScreen = () => {
       const formattedSources = sanitizeSourcesForSubmit(sources);
 
       // Main post
+      const articlePayload = articleHasContent && article ? {
+        ...(article.title?.trim() ? { title: article.title.trim() } : {}),
+        ...(article.body?.trim() ? { body: article.body.trim() } : {}),
+      } : undefined;
+
       allPosts.push({
         content: {
           text: postContent.trim(),
@@ -301,7 +352,8 @@ const ComposeScreen = () => {
               address: location.address
             } as GeoJSONPoint
           }),
-          ...(formattedSources.length > 0 && { sources: formattedSources })
+          ...(formattedSources.length > 0 && { sources: formattedSources }),
+          ...(articlePayload && { article: articlePayload })
         },
         mentions: mentions.map(m => m.userId),
         hashtags: [],
@@ -367,6 +419,10 @@ const ComposeScreen = () => {
       // Show success toast
       toast.success(t('Post published successfully'));
 
+      setArticle(null);
+      setArticleDraftTitle('');
+      setArticleDraftBody('');
+
       // Navigate back after posting
       router.back();
     } catch (error: any) {
@@ -391,12 +447,14 @@ const ComposeScreen = () => {
     const latestMentions = mentionsRef.current;
     const latestPostingMode = postingModeRef.current;
     const latestCurrentDraftId = currentDraftIdRef.current;
+    const latestArticle = articleRef.current;
 
     // Only save if there's content
     const hasContent = latestPostContent.trim().length > 0 || 
       latestMediaIds.length > 0 || 
       (latestPollOptions.length > 0 && latestPollOptions.some(opt => opt.trim().length > 0)) ||
       latestLocation ||
+      (latestArticle && ((latestArticle.title && latestArticle.title.trim().length > 0) || (latestArticle.body && latestArticle.body.trim().length > 0))) ||
       latestSources.some(source => (source.title && source.title.trim().length > 0) || (source.url && source.url.trim().length > 0)) ||
       latestThreadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 || 
         (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
@@ -427,6 +485,10 @@ const ComposeScreen = () => {
           address: latestLocation.address,
         } : null,
         sources: latestSources.map((source) => ({ id: source.id, title: source.title, url: source.url })),
+        article: latestArticle ? {
+          ...(latestArticle.title ? { title: latestArticle.title } : {}),
+          ...(latestArticle.body ? { body: latestArticle.body } : {}),
+        } : undefined,
         threadItems: latestThreadItems.map(item => ({
           id: item.id,
           text: item.text,
@@ -518,6 +580,19 @@ const ComposeScreen = () => {
     }));
     setSources(sourcesData);
 
+    if (draft.article && (draft.article.title || draft.article.body)) {
+      setArticle({
+        title: draft.article.title || '',
+        body: draft.article.body || '',
+      });
+      setArticleDraftTitle(draft.article.title || '');
+      setArticleDraftBody(draft.article.body || '');
+    } else {
+      setArticle(null);
+      setArticleDraftTitle('');
+      setArticleDraftBody('');
+    }
+
     // Handle thread items - ensure they have all required fields
     const threadItemsData = (draft.threadItems || []).map((item: any) => ({
       id: item.id || `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -562,6 +637,7 @@ const ComposeScreen = () => {
   // back navigation
 
   const canPostContent = postContent.trim().length > 0 || mediaIds.length > 0 || (pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0)) || location ||
+    articleHasContent ||
     threadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 || (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
   const hasInvalidSources = sources.some(source => source.url.trim().length > 0 && !isValidSourceUrl(source.url));
   const isPostButtonEnabled = canPostContent && !isPosting && !hasInvalidSources;
@@ -964,6 +1040,9 @@ const ComposeScreen = () => {
                           setShowPollCreator(false);
                           setLocation(null);
                           setSources([]);
+                          setArticle(null);
+                          setArticleDraftTitle('');
+                          setArticleDraftBody('');
                           setThreadItems([]);
                           setMentions([]);
                           toast.success(t('common.cleared'));
@@ -1064,11 +1143,13 @@ const ComposeScreen = () => {
                         toast.info(t('Emoji picker coming soon'));
                       }}
                       onSourcesPress={openSourcesSheet}
+                      onArticlePress={openArticleEditor}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
                       hasMedia={mediaIds.length > 0}
                       hasSources={sources.length > 0}
+                      hasArticle={articleHasContent}
                       hasSourceErrors={hasInvalidSources}
                       disabled={isPosting}
                     />
@@ -1080,65 +1161,63 @@ const ComposeScreen = () => {
                   </View>
                 </PostHeader>
 
-                {/* Custom Media Display with Delete Buttons */}
-                {mediaIds.length > 0 && (
-                  <View style={{ marginLeft: BOTTOM_LEFT_PAD, marginTop: 12, zIndex: 1, backgroundColor: theme.colors.background }}>
+                {/* Attachments row (article + media) */}
+                {(articleHasContent && article) || mediaIds.length > 0 ? (
+                  <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
+                  >
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={{ gap: 12, paddingRight: 12 }}
-                      style={{ zIndex: 1 }}
+                      contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
                     >
+                      {articleHasContent && article ? (
+                        <View style={styles.articleAttachmentWrapper}>
+                          <PostArticlePreview
+                            title={article.title}
+                            body={article.body}
+                            onPress={openArticleEditor}
+                          />
+                          <TouchableOpacity
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              removeArticle();
+                            }}
+                            style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          >
+                            <CloseIcon size={16} color={theme.colors.text} />
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
                       {mediaIds.map((mediaItem) => {
                         const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
-                        const CARD_WIDTH = 280;
-                        const CARD_HEIGHT = 180;
-                        
                         return (
                           <View
                             key={mediaItem.id}
-                            style={[
-                              {
-                                width: CARD_WIDTH,
-                                height: CARD_HEIGHT,
-                                borderRadius: 15,
-                                borderWidth: 1,
-                                borderColor: theme.colors.border,
-                                backgroundColor: theme.colors.backgroundSecondary,
-                                overflow: 'hidden',
-                                position: 'relative',
-                              },
-                            ]}
+                            style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                           >
                             {mediaItem.type === 'video' ? (
                               <VideoItemPreview src={mediaUrl} />
                             ) : (
                               <Image
                                 source={{ uri: mediaUrl }}
-                                style={{ width: '100%', height: '100%' }}
+                                style={styles.mediaPreviewImage}
                                 resizeMode="cover"
                               />
                             )}
-                            <View
-                              style={{
-                                position: 'absolute',
-                                top: 8,
-                                right: 8,
-                              }}
+                            <TouchableOpacity
+                              onPress={() => removeMedia(mediaItem.id)}
+                              style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                             >
-                              <HeaderIconButton
-                                onPress={() => removeMedia(mediaItem.id)}
-                                style={{ padding: 6 }}
-                              >
-                                <CloseIcon size={16} color={theme.colors.text} />
-                              </HeaderIconButton>
-                            </View>
+                              <CloseIcon size={16} color={theme.colors.text} />
+                            </TouchableOpacity>
                           </View>
                         );
                       })}
                     </ScrollView>
                   </View>
-                )}
+                ) : null}
 
                 {/* Poll Creator */}
                 {showPollCreator && (
@@ -1320,56 +1399,36 @@ const ComposeScreen = () => {
 
                   {/* Thread item media with Delete Buttons */}
                   {item.mediaIds.length > 0 && (
-                    <View style={{ marginLeft: BOTTOM_LEFT_PAD, marginTop: 12 }}>
+                    <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
+                    >
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ gap: 12, paddingRight: 12 }}
+                        contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
                       >
                         {item.mediaIds.map((mediaItem) => {
                           const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
-                          const CARD_WIDTH = 280;
-                          const CARD_HEIGHT = 180;
-                          
                           return (
                             <View
                               key={mediaItem.id}
-                              style={[
-                                {
-                                  width: CARD_WIDTH,
-                                  height: CARD_HEIGHT,
-                                  borderRadius: 15,
-                                  borderWidth: 1,
-                                  borderColor: theme.colors.border,
-                                  backgroundColor: theme.colors.backgroundSecondary,
-                                  overflow: 'hidden',
-                                  position: 'relative',
-                                },
-                              ]}
+                              style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                             >
                               {mediaItem.type === 'video' ? (
                                 <VideoItemPreview src={mediaUrl} />
                               ) : (
                                 <Image
                                   source={{ uri: mediaUrl }}
-                                  style={{ width: '100%', height: '100%' }}
+                                  style={styles.mediaPreviewImage}
                                   resizeMode="cover"
                                 />
                               )}
-                              <View
-                                style={{
-                                  position: 'absolute',
-                                  top: 8,
-                                  right: 8,
-                                }}
+                              <TouchableOpacity
+                                onPress={() => removeThreadMedia(item.id, mediaItem.id)}
+                                style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                               >
-                                <HeaderIconButton
-                                  onPress={() => removeThreadMedia(item.id, mediaItem.id)}
-                                  style={{ padding: 6 }}
-                                >
-                                  <CloseIcon size={16} color={theme.colors.text} />
-                                </HeaderIconButton>
-                              </View>
+                                <CloseIcon size={16} color={theme.colors.text} />
+                              </TouchableOpacity>
                             </View>
                           );
                         })}
@@ -1542,6 +1601,69 @@ const ComposeScreen = () => {
           <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{t('Post')}</Text>
         )}
       </TouchableOpacity>
+
+      <Modal
+        visible={isArticleEditorVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={closeArticleEditor}
+      >
+        <SafeAreaView style={[styles.articleModalContainer, { backgroundColor: theme.colors.background }]}
+        >
+          <View style={[styles.articleModalHeader, { borderBottomColor: theme.colors.border }]}
+          >
+            <HeaderIconButton onPress={closeArticleEditor} style={styles.articleModalClose}>
+              <CloseIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>
+            <Text style={[styles.articleModalTitle, { color: theme.colors.text }]} pointerEvents="none">
+              {t('compose.article.editorTitle', { defaultValue: 'Write article' })}
+            </Text>
+            <TouchableOpacity
+              onPress={handleArticleSave}
+              style={[styles.articleModalSaveButton, { backgroundColor: theme.colors.primary }]}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.articleModalSaveText, { color: theme.colors.card }]}>
+                {t('common.save')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+          >
+            <ScrollView contentContainerStyle={styles.articleModalContent} keyboardShouldPersistTaps="handled">
+              <TextInput
+                style={[styles.articleTitleInput, {
+                  color: theme.colors.text,
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.colors.backgroundSecondary,
+                }]}
+                placeholder={t('compose.article.titlePlaceholder', { defaultValue: 'Article title' })}
+                placeholderTextColor={theme.colors.textSecondary}
+                value={articleDraftTitle}
+                onChangeText={setArticleDraftTitle}
+                maxLength={280}
+              />
+
+              <TextInput
+                style={[styles.articleBodyInput, {
+                  color: theme.colors.text,
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.colors.backgroundSecondary,
+                }]}
+                placeholder={t('compose.article.bodyPlaceholder', { defaultValue: 'Start writing…' })}
+                placeholderTextColor={theme.colors.textSecondary}
+                value={articleDraftBody}
+                onChangeText={setArticleDraftBody}
+                multiline
+              />
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
       </SafeAreaView>
       </>
     );
@@ -2028,6 +2150,106 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.COLOR_BLACK_LIGHT_2,
     fontWeight: '500',
+  },
+  articleAttachmentWrapper: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  articleAttachmentRemoveButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    borderRadius: 999,
+    padding: 6,
+  },
+  articleModalContainer: {
+    flex: 1,
+  },
+  articleModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minHeight: 48,
+    borderBottomWidth: 1,
+  },
+  articleModalClose: {
+    marginRight: 6,
+    zIndex: 1,
+  },
+  articleModalTitle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    pointerEvents: 'none',
+  },
+  articleModalSaveButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginLeft: 'auto',
+  },
+  articleModalSaveText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  articleModalContent: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 40,
+    gap: 16,
+  },
+  articleTitleInput: {
+    fontSize: 18,
+    fontWeight: '700',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  articleBodyInput: {
+    minHeight: 240,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+    textAlignVertical: 'top',
+  },
+  mediaPreviewContainer: {
+    marginTop: 12,
+    width: '100%',
+    overflow: 'visible',
+  },
+  timelineForeground: {
+    position: 'relative',
+    zIndex: 2,
+  },
+  mediaPreviewScroll: {
+    paddingRight: 12,
+    gap: 12,
+  },
+  mediaPreviewItem: {
+    width: MEDIA_CARD_WIDTH,
+    height: MEDIA_CARD_HEIGHT,
+    borderRadius: 15,
+    borderWidth: 1,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  mediaPreviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  mediaRemoveButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    borderRadius: 999,
+    padding: 6,
   },
   // Mode toggle styles
   modeToggleContainer: {
