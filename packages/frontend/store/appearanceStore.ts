@@ -4,6 +4,22 @@ import { Storage } from '@/utils/storage';
 
 const APPEARANCE_CACHE_KEY = 'oxy_appearance_settings';
 
+function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const recordValue = value as Record<string, any>;
+    if ('data' in recordValue) {
+      const inner = recordValue.data as T | null | undefined;
+      return inner ?? null;
+    }
+  }
+
+  return value as T;
+}
+
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 export interface AppearanceSettings {
@@ -50,23 +66,28 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
       set({ loading: true, error: null });
       
       // Load from cache first for instant theme application
-      const cached = await Storage.get<UserAppearance>(APPEARANCE_CACHE_KEY);
+      const cachedRaw = await Storage.get<UserAppearance | { data: UserAppearance }>(APPEARANCE_CACHE_KEY);
+      const cached = unwrapApiData<UserAppearance>(cachedRaw);
       if (cached) {
         set({ mySettings: cached });
       }
 
       // Fetch fresh data from API
       const res = await api.get<UserAppearance>('profile/settings/me');
-      const doc = res.data;
+      const doc = unwrapApiData<UserAppearance>(res.data);
       
       // Cache the settings
-      await Storage.set(APPEARANCE_CACHE_KEY, doc);
-      
-      set((state) => ({
-        mySettings: doc,
-        byUserId: { ...state.byUserId, [doc.oxyUserId]: doc },
-        loading: false,
-      }));
+      if (doc) {
+        await Storage.set(APPEARANCE_CACHE_KEY, doc);
+
+        set((state) => ({
+          mySettings: doc,
+          byUserId: doc.oxyUserId ? { ...state.byUserId, [doc.oxyUserId]: doc } : state.byUserId,
+          loading: false,
+        }));
+      } else {
+        set({ loading: false });
+      }
     } catch (e: any) {
       set({ loading: false, error: e?.message || 'Failed to load settings' });
     }
@@ -80,13 +101,15 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
       if (cached && !forceRefresh) return cached;
       
       const res = await publicApi.get<UserAppearance>(`profile/design/${userId}`);
-      const doc = res.data;
+      const doc = unwrapApiData<UserAppearance>(res.data);
       
-      set((state) => ({
-        byUserId: { ...state.byUserId, [userId]: doc },
-      }));
+      if (doc) {
+        set((state) => ({
+          byUserId: { ...state.byUserId, [userId]: doc },
+        }));
+      }
       
-      return doc;
+      return doc ?? null;
     } catch (e) {
       return null;
     }
@@ -108,18 +131,23 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
       };
       
       const res = await api.put<UserAppearance>('profile/settings', payload);
-      const doc = res.data;
-      
-      // Update cache
-      await Storage.set(APPEARANCE_CACHE_KEY, doc);
-      
-      set((state) => ({
-        mySettings: doc,
-        byUserId: { ...state.byUserId, [doc.oxyUserId]: doc },
-        loading: false,
-      }));
-      
-      return doc;
+      const doc = unwrapApiData<UserAppearance>(res.data);
+
+      if (doc) {
+        // Update cache
+        await Storage.set(APPEARANCE_CACHE_KEY, doc);
+
+        set((state) => ({
+          mySettings: doc,
+          byUserId: doc.oxyUserId ? { ...state.byUserId, [doc.oxyUserId]: doc } : state.byUserId,
+          loading: false,
+        }));
+
+        return doc;
+      }
+
+      set({ loading: false });
+      return null;
     } catch (e: any) {
       set({ loading: false, error: e?.message || 'Failed to update settings' });
       return null;

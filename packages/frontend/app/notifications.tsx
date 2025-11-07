@@ -353,6 +353,7 @@ const NotificationsScreen: React.FC = () => {
                 <Header
                     options={{
                         title: t('Notifications'),
+                        showBackButton: false,
                         rightComponents: [
                             unreadCount > 0 ? (
                                 <HeaderIconButton

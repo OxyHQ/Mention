@@ -43,3 +43,24 @@ export class Storage {
     }
   }
 }
+
+/**
+ * Get item from storage (wrapper function for backward compatibility)
+ */
+export async function getData<T>(key: string): Promise<T | null> {
+  return Storage.get<T>(key);
+}
+
+/**
+ * Set item in storage (wrapper function for backward compatibility)
+ */
+export async function storeData<T>(key: string, value: T): Promise<boolean> {
+  return Storage.set<T>(key, value);
+}
+
+/**
+ * Remove item from storage (wrapper function for backward compatibility)
+ */
+export async function removeData(key: string): Promise<boolean> {
+  return Storage.remove(key);
+}

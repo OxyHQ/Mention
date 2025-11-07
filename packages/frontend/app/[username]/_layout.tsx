@@ -1,5 +1,5 @@
 import React from 'react';
-import { usePathname, useLocalSearchParams } from 'expo-router';
+import { usePathname, useLocalSearchParams, Slot } from 'expo-router';
 import NotFoundScreen from '@/components/NotFoundScreen';
 import ProfileScreen from '@/components/ProfileScreen';
 
@@ -19,6 +19,13 @@ const UsernameLayout = () => {
     };
 
     if (typeof username === 'string' && username.startsWith('@')) {
+        const isFollowersRoute = pathname?.endsWith('/followers');
+        const isFollowingRoute = pathname?.endsWith('/following');
+
+        if (isFollowersRoute || isFollowingRoute) {
+            return <Slot />;
+        }
+
         // Remove key to prevent remounts - component should stay mounted across tab changes
         return <ProfileScreen tab={getTabFromPathname()} />;
     }

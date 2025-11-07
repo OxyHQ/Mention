@@ -174,6 +174,10 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
     >
       {items.map((item, idx) => {
         if (item.type === 'poll') {
+          // Debug logging in development
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[PostMiddle] Rendering poll:', { pollId, hasPollData: !!pollData, pollData });
+          }
           return (
             <View key={`poll-${idx}`} style={[styles.itemContainer, styles.pollWrapper, { borderColor: theme.colors.border }]}>
               {pollId ? (
@@ -189,7 +193,14 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
                     </View>
                   ))}
                 </View>
-              ) : null}
+              ) : (
+                // Debug: Show what we received
+                <View style={[styles.pollContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                  <Text style={[styles.pollQuestion, { color: theme.colors.error }]}>
+                    {process.env.NODE_ENV === 'development' ? 'Poll data missing' : 'Poll unavailable'}
+                  </Text>
+                </View>
+              )}
             </View>
           );
         }

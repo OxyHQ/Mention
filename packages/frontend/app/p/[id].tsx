@@ -9,7 +9,8 @@ import {
     KeyboardAvoidingView,
     Platform,
     TextInput,
-    Image
+    Image,
+    ScrollView
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +35,7 @@ import { useTranslation } from 'react-i18next';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import { statisticsService } from '@/services/statisticsService';
 import SEO from '@/components/SEO';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
 //
 
 const MAX_CHARACTERS = 280;
@@ -45,6 +47,9 @@ const PostDetailScreen: React.FC = () => {
     const { user, showBottomSheet, oxyServices } = useOxy();
     const theme = useTheme();
     const { t } = useTranslation();
+    const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
+    const scrollViewRef = useRef<ScrollView>(null);
+    const unregisterScrollableRef = useRef<(() => void) | null>(null);
 
     const [post, setPost] = useState<UIPost | Reply | Repost | null>(null);
     const [parentPost, setParentPost] = useState<UIPost | Reply | Repost | null>(null);
@@ -64,6 +69,25 @@ const PostDetailScreen: React.FC = () => {
     const [isGettingLocation, setIsGettingLocation] = useState(false);
     const textInputRef = useRef<TextInput>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);
+
+    // Register scrollable with LayoutScrollContext
+    useEffect(() => {
+        if (scrollViewRef.current) {
+            unregisterScrollableRef.current = registerScrollable(scrollViewRef.current);
+        }
+        return () => {
+            if (unregisterScrollableRef.current) {
+                unregisterScrollableRef.current();
+                unregisterScrollableRef.current = null;
+            }
+        };
+    }, [registerScrollable]);
+
+    const handleScrollEvent = useCallback((event: any) => {
+        if (handleScroll) {
+            handleScroll(event);
+        }
+    }, [handleScroll]);
 
     const characterCount = content.length;
     const isOverLimit = characterCount > MAX_CHARACTERS;
@@ -463,7 +487,17 @@ const PostDetailScreen: React.FC = () => {
                     disableSticky={true}
                 />
 
-            <View style={{ flex: 1 }}>
+            <ScrollView
+                ref={scrollViewRef}
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                onScroll={handleScrollEvent}
+                scrollEventThrottle={scrollEventThrottle}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
+                {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
+            >
                 {/* Show parent post on top if this is a reply */}
                 {parentPost && (post as any)?.parentPostId && (
                     <View style={[styles.parentPostContainer, { borderBottomColor: theme.colors.border }]}>
@@ -493,9 +527,10 @@ const PostDetailScreen: React.FC = () => {
                         reloadKey={repliesReloadKey}
                         recycleItems={true}
                         maintainVisibleContentPosition={true}
+                        scrollEnabled={false}
                     />
                 </View>
-            </View>
+            </ScrollView>
 
             {/* Inline Reply Composer */}
             <ThemedView style={[styles.composerContainer, { borderTopColor: theme.colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}
@@ -635,6 +670,11 @@ const styles = StyleSheet.create({
     scrollView: {
         flex: 1,
     },
+    scrollContent: {
+        flexGrow: 1,
+        // Add extra padding to account for composer container at bottom
+        paddingBottom: 120,
+    },
     list: {
         flex: 1,
     },
@@ -679,7 +719,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     repliesSection: {
-        flex: 1,
+        minHeight: 200,
     },
     repliesTitle: {
         fontSize: 18,
@@ -689,7 +729,7 @@ const styles = StyleSheet.create({
         paddingTop: 16,
     },
     repliesFeed: {
-        flex: 1,
+        minHeight: 200,
     },
     footer: {
         flexDirection: 'row',
@@ -705,9 +745,10 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         paddingHorizontal: 12,
         paddingTop: 8,
+        backgroundColor: 'transparent',
     },
     composerContent: {
-        flex: 1,
+        // Removed flex: 1 to prevent layout issues - container should size to content
     },
     composer: {
         flexDirection: 'row',

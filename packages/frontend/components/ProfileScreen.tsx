@@ -426,14 +426,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     <ProfileSkeleton />
                 ) : (
                     <>
-                    {/* Back button */}
-                    <HeaderIconButton 
-                        style={[styles.backButton, { top: insets.top + 6 }]} 
-                        onPress={() => router.back()}
-                    >
-                        <Ionicons name="arrow-back" size={20} color={theme.colors.text} />
-                    </HeaderIconButton>
-
                     {/* Header actions */}
                     <View style={[styles.headerActions, { top: insets.top + 6 }]}>
                         <HeaderIconButton 
@@ -828,11 +820,6 @@ const styles = StyleSheet.create({
         flex: 1,
         overflow: 'visible',
     },
-    backButton: {
-        zIndex: 10,
-        position: 'absolute',
-        left: 16,
-    },
     headerActions: {
         zIndex: 10,
         position: 'absolute',
@@ -844,7 +831,7 @@ const styles = StyleSheet.create({
     headerNameOverlay: {
         zIndex: 10,
         position: 'absolute',
-        left: 60,
+        left: 16,
         alignItems: 'flex-start',
     },
     headerTitle: {
