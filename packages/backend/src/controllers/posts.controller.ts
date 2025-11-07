@@ -591,16 +591,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Fetch user data from Oxy
+    let userData: any = null;
+    try {
+      userData = await oxyClient.getUserById(userId);
+    } catch (error) {
+      console.error('Failed to fetch user data from Oxy:', error);
+    }
+    
     const transformedPost = post.toObject() as any;
     transformedPost.id = post._id.toString(); // Add string ID for frontend
-    const userData = transformedPost.oxyUserId;
     
     transformedPost.user = {
-        id: typeof userData === 'object' ? userData._id : userData,
-        name: typeof userData === 'object' ? userData.name.full : 'Unknown User',
-        handle: typeof userData === 'object' ? userData.username : 'unknown',
-        avatar: typeof userData === 'object' ? userData.avatar : '',
-        verified: typeof userData === 'object' ? userData.verified : false
+        id: userId,
+        name: userData?.name?.full || 'Unknown User',
+        handle: userData?.username || 'unknown',
+        avatar: userData?.avatar || '',
+        verified: userData?.verified || false
     };
     transformedPost.status = post.status;
     transformedPost.scheduledFor = post.scheduledFor ? post.scheduledFor.toISOString() : undefined;
@@ -806,15 +813,24 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         mainPostId = post._id.toString();
       }
 
+      // Fetch user data from Oxy
+      let userData: any = null;
+      try {
+        userData = await oxyClient.getUserById(userId);
+      } catch (error) {
+        console.error('Failed to fetch user data from Oxy for thread post:', error);
+      }
+
       // Transform response
       const transformedPost = post.toObject() as any;
       transformedPost.id = post._id.toString();
+      
       transformedPost.user = {
         id: userId,
-        name: 'User', // This would normally come from Oxy user data
-        handle: 'user',
-        avatar: '',
-        verified: false
+        name: userData?.name?.full || 'Unknown User',
+        handle: userData?.username || 'unknown',
+        avatar: userData?.avatar || '',
+        verified: userData?.verified || false
       };
       delete transformedPost.oxyUserId;
 
@@ -822,7 +838,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     }
 
     console.log(`✅ Created ${createdPosts.length} posts in ${mode} mode`);
-    res.status(201).json(createdPosts);
+    res.status(201).json({ success: true, posts: createdPosts });
   } catch (error) {
     console.error('Error creating thread:', error);
     res.status(500).json({ message: 'Error creating thread', error });
