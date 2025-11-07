@@ -50,6 +50,13 @@ import { ScrollView, Image, Dimensions, Modal } from 'react-native';
 
 const MEDIA_CARD_WIDTH = 280;
 const MEDIA_CARD_HEIGHT = 180;
+const POLL_ATTACHMENT_KEY = 'poll';
+const ARTICLE_ATTACHMENT_KEY = 'article';
+const MEDIA_ATTACHMENT_PREFIX = 'media:';
+
+const createMediaAttachmentKey = (id: string) => `${MEDIA_ATTACHMENT_PREFIX}${id}`;
+const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
+const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
 
 // Video preview component for compose screen
 const VideoItemPreview: React.FC<{ src: string }> = ({ src }) => {
@@ -105,6 +112,7 @@ const ComposeScreen = () => {
   const [pollOptions, setPollOptions] = useState<string[]>([]);
   const [pollTitle, setPollTitle] = useState<string>('');
   const [showPollCreator, setShowPollCreator] = useState(false);
+  const [attachmentOrder, setAttachmentOrder] = useState<string[]>([]);
   const [location, setLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -131,6 +139,38 @@ const ComposeScreen = () => {
     return Boolean(title || body);
   }, [article]);
 
+  useEffect(() => {
+    setAttachmentOrder(prev => {
+      const filtered = prev.filter((key) => {
+        if (key === POLL_ATTACHMENT_KEY) return showPollCreator;
+        if (key === ARTICLE_ATTACHMENT_KEY) return articleHasContent && article;
+        if (isMediaAttachmentKey(key)) {
+          const mediaId = getMediaIdFromAttachmentKey(key);
+          return mediaIds.some(m => m.id === mediaId);
+        }
+        return false;
+      });
+      const next = [...filtered];
+      if (showPollCreator && !next.includes(POLL_ATTACHMENT_KEY)) {
+        next.push(POLL_ATTACHMENT_KEY);
+      }
+      if (articleHasContent && article && !next.includes(ARTICLE_ATTACHMENT_KEY)) {
+        next.push(ARTICLE_ATTACHMENT_KEY);
+      }
+      mediaIds.forEach((media: { id: string; type: 'image' | 'video' }) => {
+        const key = createMediaAttachmentKey(media.id);
+        if (!next.includes(key)) {
+          next.push(key);
+        }
+      });
+      const isSame = prev.length === next.length && prev.every((value, idx) => value === next[idx]);
+      if (isSame) {
+        return prev;
+      }
+      return next;
+    });
+  }, [showPollCreator, articleHasContent, article, mediaIds]);
+
   // Use refs to always get latest values in timeout callback
   const postContentRef = useRef(postContent);
   const mediaIdsRef = useRef(mediaIds);
@@ -144,6 +184,7 @@ const ComposeScreen = () => {
   const postingModeRef = useRef(postingMode);
   const currentDraftIdRef = useRef(currentDraftId);
   const articleRef = useRef(article);
+  const attachmentOrderRef = useRef(attachmentOrder);
   const pollTitleInputRef = useRef<TextInput | null>(null);
   const threadPollTitleRefs = useRef<Record<string, TextInput | null>>({});
 
@@ -184,6 +225,9 @@ const ComposeScreen = () => {
   useEffect(() => {
     articleRef.current = article;
   }, [article]);
+  useEffect(() => {
+    attachmentOrderRef.current = attachmentOrder;
+  }, [attachmentOrder]);
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
 
@@ -452,6 +496,7 @@ const ComposeScreen = () => {
     const latestPostingMode = postingModeRef.current;
     const latestCurrentDraftId = currentDraftIdRef.current;
     const latestArticle = articleRef.current;
+    const latestAttachmentOrder = attachmentOrderRef.current;
 
     // Only save if there's content
     const hasContent = latestPostContent.trim().length > 0 || 
@@ -517,6 +562,7 @@ const ComposeScreen = () => {
           name: m.displayName,
         })),
         postingMode: latestPostingMode,
+        attachmentOrder: latestAttachmentOrder,
       });
       setCurrentDraftId(draftId);
     } catch (error) {
@@ -547,7 +593,7 @@ const ComposeScreen = () => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-    }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, autoSaveDraft]);
+    }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, autoSaveDraft]);
 
   // Load draft function
   const loadDraft = useCallback((draft: any) => {
@@ -564,7 +610,8 @@ const ComposeScreen = () => {
     const pollOpts = draft.pollOptions || [];
     setPollOptions(pollOpts);
     setPollTitle(draft.pollTitle || '');
-    setShowPollCreator(draft.showPollCreator || pollOpts.length > 0);
+    const shouldShowPoll = draft.showPollCreator || pollOpts.length > 0;
+    setShowPollCreator(shouldShowPoll);
     
     // Handle location - ensure it has the correct structure
     let locationData = null;
@@ -596,6 +643,34 @@ const ComposeScreen = () => {
       setArticleDraftTitle('');
       setArticleDraftBody('');
     }
+
+    const availableAttachmentKeys: string[] = [];
+    if (shouldShowPoll) {
+      availableAttachmentKeys.push(POLL_ATTACHMENT_KEY);
+    }
+    if (draft.article && (draft.article.title || draft.article.body)) {
+      availableAttachmentKeys.push(ARTICLE_ATTACHMENT_KEY);
+    }
+    mediaIdsData.forEach((media: { id: string; type: 'image' | 'video' }) => {
+      availableAttachmentKeys.push(createMediaAttachmentKey(media.id));
+    });
+
+    const draftAttachmentOrder = Array.isArray(draft.attachmentOrder) ? draft.attachmentOrder : [];
+    const sanitizedAttachmentOrder: string[] = [];
+
+    draftAttachmentOrder.forEach((key: string) => {
+      if (availableAttachmentKeys.includes(key) && !sanitizedAttachmentOrder.includes(key)) {
+        sanitizedAttachmentOrder.push(key);
+      }
+    });
+
+    availableAttachmentKeys.forEach((key) => {
+      if (!sanitizedAttachmentOrder.includes(key)) {
+        sanitizedAttachmentOrder.push(key);
+      }
+    });
+
+    setAttachmentOrder(sanitizedAttachmentOrder);
 
     // Handle thread items - ensure they have all required fields
     const threadItemsData = (draft.threadItems || []).map((item: any) => ({
@@ -697,18 +772,42 @@ const ComposeScreen = () => {
     toast.success(t('Media removed'));
   };
 
-const moveMedia = useCallback((mediaId: string, direction: 'left' | 'right') => {
-  setMediaIds(prev => {
-    const index = prev.findIndex(m => m.id === mediaId);
-    if (index === -1) return prev;
-    const targetIndex = direction === 'left' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= prev.length) return prev;
-    const updated = [...prev];
-    const [item] = updated.splice(index, 1);
-    updated.splice(targetIndex, 0, item);
-    return updated;
-  });
-}, []);
+  const moveAttachment = useCallback((attachmentKey: string, direction: 'left' | 'right') => {
+    setAttachmentOrder(prev => {
+      const index = prev.indexOf(attachmentKey);
+      if (index === -1) return prev;
+      const targetIndex = direction === 'left' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const updated = [...prev];
+      const [item] = updated.splice(index, 1);
+      updated.splice(targetIndex, 0, item);
+
+      const newMediaOrderIds = updated
+        .filter(isMediaAttachmentKey)
+        .map(getMediaIdFromAttachmentKey);
+
+      if (newMediaOrderIds.length > 0) {
+        setMediaIds(prevMedia => {
+          const idToMedia = new Map(prevMedia.map(m => [m.id, m]));
+          const reordered: Array<{ id: string; type: 'image' | 'video' }> = [];
+          newMediaOrderIds.forEach(id => {
+            const mediaItem = idToMedia.get(id);
+            if (mediaItem) {
+              reordered.push(mediaItem);
+            }
+          });
+          prevMedia.forEach(mediaItem => {
+            if (!newMediaOrderIds.includes(mediaItem.id)) {
+              reordered.push(mediaItem);
+            }
+          });
+          return reordered;
+        });
+      }
+
+      return updated;
+    });
+  }, []);
 
   const removeThreadMedia = (threadId: string, mediaId: string) => {
     setThreadItems(prev => prev.map(item =>
@@ -1158,7 +1257,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                 </PostHeader>
 
                 {/* Attachments row (poll + article + media) */}
-                {(showPollCreator || (articleHasContent && article) || mediaIds.length > 0) ? (
+                {attachmentOrder.length > 0 ? (
                   <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
                   >
                     <ScrollView
@@ -1166,129 +1265,187 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={[styles.mediaPreviewScroll, { paddingLeft: BOTTOM_LEFT_PAD }]}
                     >
-                      {showPollCreator ? (
-                        <View style={styles.pollAttachmentWrapper}>
-                          <TouchableOpacity
-                            style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                            activeOpacity={0.85}
-                            onPress={focusPollCreator}
-                          >
-                            <View style={styles.pollAttachmentHeader}>
-                              <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
-                              >
-                                <PollIcon size={16} color={theme.colors.primary} />
-                                <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}>
-                                  {t('compose.poll.title', { defaultValue: 'Poll' })}
-                                </Text>
-                              </View>
-                              <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}>
-                                {t('compose.poll.optionCount', {
-                                  count: pollOptions.length,
-                                  defaultValue:
-                                    pollOptions.length === 0
-                                      ? 'No options yet'
-                                      : pollOptions.length === 1
-                                        ? '1 option'
-                                        : `${pollOptions.length} options`
-                                })}
-                              </Text>
-                            </View>
-                            <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
-                              {pollTitle.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
-                            </Text>
-                            <View style={styles.pollAttachmentOptions}>
-                              {(pollOptions.length > 0 ? pollOptions : ['', '']).slice(0, 2).map((option, index) => {
-                                const trimmed = option?.trim?.() || '';
-                                return (
-                                  <View
-                                    key={`poll-opt-${index}`}
-                                    style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                      {attachmentOrder.map((key, index) => {
+                        const total = attachmentOrder.length;
+                        const canMoveLeft = index > 0;
+                        const canMoveRight = index < total - 1;
+
+                        if (key === POLL_ATTACHMENT_KEY) {
+                          if (!showPollCreator) return null;
+                          return (
+                            <View key={key} style={styles.pollAttachmentWrapper}>
+                              {total > 1 ? (
+                                <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <TouchableOpacity
+                                    onPress={() => moveAttachment(POLL_ATTACHMENT_KEY, 'left')}
+                                    disabled={!canMoveLeft}
+                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
                                   >
-                                    <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                                      {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${index + 1}` })}
+                                    <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={() => moveAttachment(POLL_ATTACHMENT_KEY, 'right')}
+                                    disabled={!canMoveRight}
+                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
+                                  >
+                                    <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                  </TouchableOpacity>
+                                </View>
+                              ) : null}
+                              <TouchableOpacity
+                                style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                activeOpacity={0.85}
+                                onPress={focusPollCreator}
+                              >
+                                <View style={styles.pollAttachmentHeader}>
+                                  <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
+                                  >
+                                    <PollIcon size={16} color={theme.colors.primary} />
+                                    <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}> 
+                                      {t('compose.poll.title', { defaultValue: 'Poll' })}
                                     </Text>
                                   </View>
-                                );
-                              })}
-                              {pollOptions.length > 2 ? (
-                                <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
-                                  {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: `+${pollOptions.length - 2} more` })}
+                                  <Text style={[styles.pollAttachmentMeta, { color: theme.colors.textSecondary }]}> 
+                                    {t('compose.poll.optionCount', {
+                                      count: pollOptions.length,
+                                      defaultValue:
+                                        pollOptions.length === 0
+                                          ? 'No options yet'
+                                          : pollOptions.length === 1
+                                            ? '1 option'
+                                            : `${pollOptions.length} options`
+                                    })}
+                                  </Text>
+                                </View>
+                                <Text style={[styles.pollAttachmentQuestion, { color: theme.colors.text }]} numberOfLines={2}>
+                                  {pollTitle.trim() || t('compose.poll.placeholderQuestion', { defaultValue: 'Ask a question...' })}
                                 </Text>
-                              ) : null}
+                                <View style={styles.pollAttachmentOptions}>
+                                  {(pollOptions.length > 0 ? pollOptions : ['', '']).slice(0, 2).map((option, optionIndex) => {
+                                    const trimmed = option?.trim?.() || '';
+                                    return (
+                                      <View
+                                        key={`poll-opt-${optionIndex}`}
+                                        style={[styles.pollAttachmentOption, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                                      >
+                                        <Text style={[styles.pollAttachmentOptionText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                          {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${optionIndex + 1}` })}
+                                        </Text>
+                                      </View>
+                                    );
+                                  })}
+                                  {pollOptions.length > 2 ? (
+                                    <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}> 
+                                      {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: `+${pollOptions.length - 2} more` })}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={removePoll}
+                                style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              >
+                                <CloseIcon size={16} color={theme.colors.text} />
+                              </TouchableOpacity>
                             </View>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={removePoll}
-                            style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                          >
-                            <CloseIcon size={16} color={theme.colors.text} />
-                          </TouchableOpacity>
-                        </View>
-                      ) : null}
-                      {articleHasContent && article ? (
-                        <View style={styles.articleAttachmentWrapper}>
-                          <PostArticlePreview
-                            title={article.title}
-                            body={article.body}
-                            onPress={openArticleEditor}
-                          />
-                          <TouchableOpacity
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              removeArticle();
-                            }}
-                            style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                          >
-                            <CloseIcon size={16} color={theme.colors.text} />
-                          </TouchableOpacity>
-                        </View>
-                      ) : null}
-                      {mediaIds.map((mediaItem, mediaIndex) => {
-                        const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
-                        const mediaCount = mediaIds.length;
-                        return (
-                          <View
-                            key={mediaItem.id}
-                            style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
-                          >
-                            {mediaItem.type === 'video' ? (
-                              <VideoItemPreview src={mediaUrl} />
-                            ) : (
-                              <Image
-                                source={{ uri: mediaUrl }}
-                                style={styles.mediaPreviewImage}
-                                resizeMode="cover"
-                              />
-                            )}
-                            {mediaCount > 1 ? (
-                              <View style={styles.mediaReorderControls} pointerEvents="box-none">
-                                <TouchableOpacity
-                                  onPress={() => moveMedia(mediaItem.id, 'left')}
-                                  disabled={mediaIndex === 0}
-                                  style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === 0 && styles.mediaReorderButtonDisabled]}
-                                >
-                                  <BackArrowIcon size={14} color={mediaIndex === 0 ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  onPress={() => moveMedia(mediaItem.id, 'right')}
-                                  disabled={mediaIndex === mediaCount - 1}
-                                  style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, mediaIndex === mediaCount - 1 && styles.mediaReorderButtonDisabled]}
-                                >
-                                  <ChevronRightIcon size={14} color={mediaIndex === mediaCount - 1 ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                </TouchableOpacity>
-                              </View>
-                            ) : null}
-                            <TouchableOpacity
-                              onPress={() => removeMedia(mediaItem.id)}
-                              style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
-                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          );
+                        }
+
+                        if (key === ARTICLE_ATTACHMENT_KEY) {
+                          if (!(articleHasContent && article)) return null;
+                          return (
+                            <View
+                              key={key}
+                              style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                             >
-                              <CloseIcon size={16} color={theme.colors.text} />
-                            </TouchableOpacity>
-                          </View>
-                        );
+                              {total > 1 ? (
+                                <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <TouchableOpacity
+                                    onPress={() => moveAttachment(ARTICLE_ATTACHMENT_KEY, 'left')}
+                                    disabled={!canMoveLeft}
+                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
+                                  >
+                                    <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={() => moveAttachment(ARTICLE_ATTACHMENT_KEY, 'right')}
+                                    disabled={!canMoveRight}
+                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
+                                  >
+                                    <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                  </TouchableOpacity>
+                                </View>
+                              ) : null}
+                              <PostArticlePreview
+                                title={article.title}
+                                body={article.body}
+                                onPress={openArticleEditor}
+                                style={styles.articleAttachmentPreview}
+                              />
+                              <TouchableOpacity
+                                onPress={(event) => {
+                                  event.stopPropagation();
+                                  removeArticle();
+                                }}
+                                style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              >
+                                <CloseIcon size={16} color={theme.colors.text} />
+                              </TouchableOpacity>
+                            </View>
+                          );
+                        }
+
+                        if (isMediaAttachmentKey(key)) {
+                          const mediaId = getMediaIdFromAttachmentKey(key);
+                          const mediaItem = mediaIds.find(m => m.id === mediaId);
+                          if (!mediaItem) return null;
+                          const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
+                          return (
+                            <View
+                              key={key}
+                              style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                            >
+                              {mediaItem.type === 'video' ? (
+                                <VideoItemPreview src={mediaUrl} />
+                              ) : (
+                                <Image
+                                  source={{ uri: mediaUrl }}
+                                  style={styles.mediaPreviewImage}
+                                  resizeMode="cover"
+                                />
+                              )}
+                              {total > 1 ? (
+                                <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <TouchableOpacity
+                                    onPress={() => moveAttachment(key, 'left')}
+                                    disabled={!canMoveLeft}
+                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
+                                  >
+                                    <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={() => moveAttachment(key, 'right')}
+                                    disabled={!canMoveRight}
+                                    style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
+                                  >
+                                    <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                  </TouchableOpacity>
+                                </View>
+                              ) : null}
+                              <TouchableOpacity
+                                onPress={() => removeMedia(mediaItem.id)}
+                                style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
+                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              >
+                                <CloseIcon size={16} color={theme.colors.text} />
+                              </TouchableOpacity>
+                            </View>
+                          );
+                        }
+
+                        return null;
                       })}
                     </ScrollView>
                   </View>
@@ -2361,6 +2518,11 @@ const styles = StyleSheet.create({
   articleAttachmentWrapper: {
     position: 'relative',
     alignSelf: 'flex-start',
+    width: MEDIA_CARD_WIDTH,
+    height: MEDIA_CARD_HEIGHT,
+    borderRadius: 15,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   articleAttachmentRemoveButton: {
     position: 'absolute',
@@ -2368,6 +2530,16 @@ const styles = StyleSheet.create({
     right: 8,
     borderRadius: 999,
     padding: 6,
+  },
+  articleAttachmentPreview: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    padding: 16,
+    borderWidth: 0,
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+    justifyContent: 'space-between',
   },
   pollAttachmentWrapper: {
     position: 'relative',

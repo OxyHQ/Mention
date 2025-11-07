@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
-import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent, Dimensions, Pressable } from 'react-native';
+import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent, Dimensions, Pressable, Platform, ViewStyle } from 'react-native';
 import PollCard from './PollCard';
 import { useOxy } from '@oxyhq/services';
 // Dynamic import to break circular dependency: PostItem -> PostMiddle -> PostItem
@@ -15,6 +15,10 @@ import { useTheme } from '@/hooks/useTheme';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useRouter } from 'expo-router';
 import PostArticlePreview from './PostArticlePreview';
+
+const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
+  ? ({ cursor: 'grab' } as unknown as ViewStyle)
+  : null;
 
 interface MediaObj { id: string; type: 'image' | 'video' }
 interface Props {
@@ -80,6 +84,7 @@ const VideoItem: React.FC<{
     >
       <View style={[
         styles.itemContainer,
+        webGrabCursorStyle,
         { borderColor, backgroundColor },
         hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' },
         hasSingleMedia && { maxHeight: undefined, height: undefined }
@@ -139,6 +144,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
 
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   const onTouchStart = (e: GestureResponderEvent) => {
     const t = e.nativeEvent.touches && e.nativeEvent.touches[0];
@@ -157,10 +163,69 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
     return dx > dy && dx > 5;
   };
 
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const scrollView = scrollViewRef.current as unknown as {
+      getScrollableNode?: () => unknown;
+      _node?: unknown;
+    } | null;
+    const node = scrollView?.getScrollableNode?.() ?? scrollView?._node ?? scrollViewRef.current;
+    if (!node || !(node as any).addEventListener) return;
+    const element = node as unknown as HTMLElement;
+
+    let isDragging = false;
+    let startXPos = 0;
+    let startScrollLeft = 0;
+
+    const setCursor = (value: string) => {
+      element.style.cursor = value;
+    };
+
+    setCursor('grab');
+
+    const handleMouseDown = (event: any) => {
+      isDragging = true;
+      startXPos = event.pageX;
+      startScrollLeft = element.scrollLeft;
+      setCursor('grabbing');
+      element.style.userSelect = 'none';
+    };
+
+    const stopDragging = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      setCursor('grab');
+      element.style.removeProperty('user-select');
+    };
+
+    const handleMouseMove = (event: any) => {
+      if (!isDragging) return;
+      event.preventDefault();
+      const x = event.pageX;
+      const walk = x - startXPos;
+      element.scrollLeft = startScrollLeft - walk;
+    };
+
+    element.addEventListener('mousedown', handleMouseDown);
+    element.addEventListener('mouseleave', stopDragging);
+    window.addEventListener('mouseup', stopDragging);
+    window.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      element.removeEventListener('mousedown', handleMouseDown);
+      element.removeEventListener('mouseleave', stopDragging);
+      window.removeEventListener('mouseup', stopDragging);
+      window.removeEventListener('mousemove', handleMouseMove);
+      element.style.cursor = '';
+      element.style.removeProperty('user-select');
+    };
+  }, [items.length]);
+
   if (items.length === 0) return null;
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       horizontal
       showsHorizontalScrollIndicator={false}
       // allow nested scrolling on Android and improve horizontal gesture handling on native
@@ -195,7 +260,10 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
             console.log('[PostMiddle] Rendering poll:', { pollId, hasPollData: !!pollData, pollData });
           }
           return (
-            <View key={`poll-${idx}`} style={[styles.itemContainer, styles.pollWrapper, { borderColor: theme.colors.border }]}>
+            <View
+              key={`poll-${idx}`}
+              style={[styles.itemContainer, webGrabCursorStyle, styles.pollWrapper, { borderColor: theme.colors.border }]}
+            >
               {pollId ? (
                 // Use interactive PollCard when we have a pollId
                 <PollCard pollId={pollId as string} />
@@ -275,6 +343,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
             return (
               <View style={[
                 styles.itemContainer,
+                webGrabCursorStyle,
                 { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
                 { maxHeight: undefined, height: undefined }
               ]}>
@@ -312,6 +381,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
             return (
               <View style={[
                 styles.itemContainer,
+                webGrabCursorStyle,
                 { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
                 { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' }
               ]}>
@@ -351,6 +421,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
             return (
               <View style={[
                 styles.itemContainer,
+                webGrabCursorStyle,
                 { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
                 { maxHeight: undefined, height: undefined }
               ]}>

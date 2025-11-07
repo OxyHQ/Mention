@@ -1,5 +1,5 @@
 import { StyleSheet, View, Pressable, ViewStyle, Platform, Vibration } from 'react-native';
-import { Home, HomeActive, Search, SearchActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
+import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
 import { useRouter, usePathname } from 'expo-router';
 import React, { useRef, useEffect, useMemo } from 'react';
 import Avatar from './Avatar';
@@ -143,11 +143,11 @@ export const BottomBar = () => {
                     <Home size={28} color={effectiveTheme.colors.text} />
                 )}
             </Pressable>
-            <Pressable onPress={() => handlePress('/explore')} style={[styles.tab, pathname === '/explore' && styles.active]}>
-                {pathname === '/explore' ? (
-                    <SearchActive size={28} color={effectiveTheme.colors.primary} />
+            <Pressable onPress={() => handlePress('/videos')} style={[styles.tab, pathname === '/videos' && styles.active]}>
+                {pathname === '/videos' ? (
+                    <VideoActive size={28} color={effectiveTheme.colors.primary} />
                 ) : (
-                    <Search size={28} color={effectiveTheme.colors.text} />
+                    <Video size={28} color={effectiveTheme.colors.text} />
                 )}
             </Pressable>
             <Pressable onPress={() => handlePress('/compose')} style={[styles.tab, pathname === '/compose' && styles.active]}>

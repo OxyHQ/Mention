@@ -1,21 +1,22 @@
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 
 interface PostArticlePreviewProps {
   title?: string;
   body?: string;
   onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
-const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, onPress }) => {
+const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, onPress, style }) => {
   const theme = useTheme();
   const trimmedTitle = title?.trim();
   const trimmedBody = body?.trim();
 
   return (
     <TouchableOpacity
-      style={[styles.container, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+      style={[styles.container, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }, style]}
       activeOpacity={0.85}
       onPress={onPress}
       disabled={!onPress}
