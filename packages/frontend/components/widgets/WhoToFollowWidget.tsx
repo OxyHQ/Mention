@@ -1,13 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useTranslation } from 'react-i18next';
-import { useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
-import * as OxyServicesNS from '@oxyhq/services';
-import Avatar from '@/components/Avatar';
-import { BaseWidget } from './BaseWidget';
-import { useUsersStore } from '@/stores/usersStore';
-import { useTheme } from '@/hooks/useTheme';
+import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { ActivityIndicator, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { useRouter } from "expo-router";
+import { useOxy } from "@oxyhq/services";
+import * as OxyServicesNS from "@oxyhq/services";
+import Avatar from "@/components/Avatar";
+import { ThemedText } from "@/components/ThemedText";
+import { BaseWidget } from "./BaseWidget";
+import { useUsersStore } from "@/stores/usersStore";
+import { useTheme } from "@/hooks/useTheme";
+
+interface ProfileData {
+  id: string;
+  username?: string;
+  name?: {
+    first?: string;
+    last?: string;
+    full?: string;
+  };
+  avatar?: string;
+  bio?: string;
+}
+
+const MAX_DISPLAY_USERS = 5;
 
 export function WhoToFollowWidget() {
   const { oxyServices } = useOxy();
@@ -15,124 +30,212 @@ export function WhoToFollowWidget() {
   const router = useRouter();
   const theme = useTheme();
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recommendations, setRecommendations] = useState<any[] | null>(null);
+  const [recommendations, setRecommendations] = useState<ProfileData[]>([]);
 
   useEffect(() => {
+    let mounted = true;
+
     const fetchRecommendations = async () => {
       try {
         setLoading(true);
         setError(null);
         const response = await oxyServices.getProfileRecommendations();
-        setRecommendations(response || []);
-        try {
-          if (Array.isArray(response) && response.length) {
-            useUsersStore.getState().upsertMany(response as any);
+        
+        if (!mounted) return;
+
+        const users = Array.isArray(response) ? response : [];
+        setRecommendations(users);
+
+        if (users.length > 0) {
+          try {
+            useUsersStore.getState().upsertMany(users);
+          } catch (e) {
+            console.warn("Failed to cache users:", e);
           }
-        } catch { }
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
-        console.error('Error fetching recommendations:', err);
+        if (!mounted) return;
+        const errorMessage = err instanceof Error ? err.message : "Failed to fetch recommendations";
+        setError(errorMessage);
+        console.error("Error fetching recommendations:", err);
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchRecommendations();
+
+    return () => {
+      mounted = false;
+    };
   }, [oxyServices]);
 
-  return (
-    <BaseWidget title={t('Who to follow')}>
-      {loading ? (
-        <View style={styles.loadingContainer}>
+  const handleShowMore = useCallback(() => {
+    router.push("/explore");
+  }, [router]);
+
+  const displayedUsers = useMemo(
+    () => recommendations.slice(0, MAX_DISPLAY_USERS),
+    [recommendations]
+  );
+
+  if (loading) {
+    return (
+      <BaseWidget title={t("Who to follow")}>
+        <View style={styles.centerContainer}>
           <ActivityIndicator size="small" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading recommendations...</Text>
+          <ThemedText style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+            {t("Loading...")}
+          </ThemedText>
         </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>Error: {error}</Text>
+      </BaseWidget>
+    );
+  }
+
+  if (error) {
+    return (
+      <BaseWidget title={t("Who to follow")}>
+        <View style={styles.centerContainer}>
+          <ThemedText style={[styles.statusText, { color: theme.colors.error }]}>
+            {error}
+          </ThemedText>
         </View>
-      ) : recommendations?.length ? (
-        <View>
-          {recommendations.slice(0, 5).map((data: any, index: number) => (
-            <FollowRowComponent key={data.id || index} profileData={data} />
-          ))}
-          <TouchableOpacity onPress={() => router.push('/explore')} style={styles.showMoreBtn} activeOpacity={0.7}>
-            <Text style={[styles.showMoreText, { color: theme.colors.primary }]}>{t('Show more')}</Text>
-          </TouchableOpacity>
+      </BaseWidget>
+    );
+  }
+
+  if (displayedUsers.length === 0) {
+    return (
+      <BaseWidget title={t("Who to follow")}>
+        <View style={styles.centerContainer}>
+          <ThemedText style={{ color: theme.colors.textSecondary }}>
+            {t("No recommendations available")}
+          </ThemedText>
         </View>
-      ) : (
-        <View style={styles.loadingContainer}>
-          <Text style={{ color: theme.colors.textSecondary }}>No recommendations available</Text>
-        </View>
-      )}
+      </BaseWidget>
+    );
+  }
+
+  return (
+    <BaseWidget title={t("Who to follow")}>
+      <View>
+        {displayedUsers.map((user) => (
+          <FollowRowComponent key={user.id} profileData={user} />
+        ))}
+        <TouchableOpacity onPress={handleShowMore} style={styles.showMoreBtn} activeOpacity={0.7}>
+          <ThemedText style={[styles.showMoreText, { color: theme.colors.primary }]}>
+            {t("Show more")}
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
     </BaseWidget>
   );
 }
 
-function FollowRowComponent({ profileData }: { profileData: any }) {
+const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileData }) => {
   const router = useRouter();
   const { oxyServices } = useOxy();
   const theme = useTheme();
-  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
-  if (!profileData?.id) return null;
+  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ 
+    userId: string; 
+    size?: "small" | "medium" | "large" 
+  }>;
 
-  const displayName = profileData.name?.first
-    ? `${profileData.name.first} ${profileData.name.last || ''}`.trim()
-    : profileData.username || 'Unknown User';
+  const displayName = useMemo(() => {
+    if (profileData.name?.full) return profileData.name.full;
+    if (profileData.name?.first) {
+      return `${profileData.name.first} ${profileData.name.last || ""}`.trim();
+    }
+    return profileData.username || "Unknown User";
+  }, [profileData.name, profileData.username]);
 
-  const avatarUri = profileData?.avatar
-    ? oxyServices.getFileDownloadUrl(profileData.avatar as string, 'thumb')
-    : undefined;
+  const avatarUri = useMemo(() => {
+    return profileData.avatar 
+      ? oxyServices.getFileDownloadUrl(profileData.avatar, "thumb")
+      : undefined;
+  }, [profileData.avatar, oxyServices]);
+
   const username = profileData.username || profileData.id;
+
+  const handlePress = useCallback(() => {
+    router.push(`/@${username}`);
+  }, [router, username]);
 
   return (
     <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
-      <View style={styles.rowLeft}>
-        <Avatar source={avatarUri} />
+      <TouchableOpacity style={styles.rowLeft} onPress={handlePress} activeOpacity={0.7}>
+        <Avatar source={avatarUri} size={40} />
         <View style={styles.rowTextWrap}>
-          <Text style={[styles.rowTitle, { color: theme.colors.text }]} onPress={() => router.push(`/@${username}`)}>{displayName}</Text>
-          <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]} onPress={() => router.push(`/@${username}`)}>@{username}</Text>
+          <ThemedText style={[styles.rowTitle, { color: theme.colors.text }]}>
+            {displayName}
+          </ThemedText>
+          <ThemedText style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
+            @{username}
+          </ThemedText>
           {profileData.bio && (
-            <Text style={[styles.rowBio, { color: theme.colors.textSecondary }]} numberOfLines={2}>{profileData.bio}</Text>
+            <ThemedText 
+              style={[styles.rowBio, { color: theme.colors.textSecondary }]} 
+              numberOfLines={2}
+            >
+              {profileData.bio}
+            </ThemedText>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
       <FollowButton userId={profileData.id} size="small" />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
-  // Header handled by BaseWidget
-  loadingContainer: {
+  centerContainer: {
     paddingVertical: 12,
-    alignItems: 'center',
-    gap: 6,
+    alignItems: "center",
+    gap: 8,
   },
-  loadingText: {},
-  errorContainer: {
-    paddingVertical: 12,
+  statusText: {
+    fontSize: 14,
   },
-  errorText: {},
   row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 0.01,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 0.5,
     paddingVertical: 10,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  rowTextWrap: { marginRight: 'auto', marginLeft: 13, flex: 1 },
-  rowTitle: { fontWeight: 'bold', fontSize: 15 },
-  rowSub: { paddingTop: 4 },
-  rowBio: { paddingTop: 4, fontSize: 13 },
+  rowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  rowTextWrap: {
+    marginLeft: 12,
+    flex: 1,
+    marginRight: 8,
+  },
+  rowTitle: {
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  rowSub: {
+    paddingTop: 2,
+    fontSize: 14,
+  },
+  rowBio: {
+    paddingTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   showMoreBtn: {
     paddingTop: 10,
   },
   showMoreText: {
     fontSize: 15,
+    fontWeight: "500",
   },
 });

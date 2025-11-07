@@ -7,16 +7,17 @@ Comprehensive refactoring of the compose screen to improve maintainability, perf
 
 ### File Size Reduction
 - **Before**: 3,125 lines
-- **After**: 2,400 lines  
-- **Reduction**: 725 lines (23.2% smaller)
+- **After**: 2,280 lines  
+- **Reduction**: 845 lines (27.0% smaller)
 
 ### Files Created
-Created **19 new modular files** for better organization:
+Created **22 new modular files** for better organization:
 
-#### Utilities (3 files)
+#### Utilities (4 files)
 - `utils/composeUtils.ts` - Media type conversion, URL validation, attachment keys
 - `utils/dateUtils.ts` - Date formatting and manipulation
 - `utils/attachmentsUtils.ts` - Attachment payload building
+- `utils/postBuilder.ts` - Post object construction utilities (174 lines)
 
 #### Components (6 files)
 - `components/Compose/PollCreator.tsx` - Reusable poll creation UI (192 lines)
@@ -26,19 +27,23 @@ Created **19 new modular files** for better organization:
 - `components/Compose/VideoPreview.tsx` - Video player preview (36 lines)
 - `components/Compose/PollAttachmentCard.tsx` - Poll preview card (223 lines)
 
-#### Hooks (7 files)
+#### Hooks (8 files)
 - `hooks/useMediaManager.ts` - Media upload/management logic (103 lines)
 - `hooks/usePollManager.ts` - Poll creation logic (73 lines)
 - `hooks/useLocationManager.ts` - Location permissions & geocoding (69 lines)
 - `hooks/useSourcesManager.ts` - Source link validation (73 lines)
 - `hooks/useThreadManager.ts` - Thread items management (245 lines)
 - `hooks/useArticleManager.ts` - Article editing and state (78 lines)
-- **`hooks/useAttachmentOrder.ts`** - Attachment order management (102 lines) ✨ **NEW**
+- `hooks/useAttachmentOrder.ts` - Attachment order management (102 lines)
+- **`hooks/useScheduleManager.ts`** - Post scheduling management (115 lines) ✨ **NEW**
 
 #### Documentation (3 files)
 - `docs/COMPOSE_REFACTORING.md` - Architecture and migration guide
 - `docs/COMPOSE_COMPONENTS_GUIDE.md` - Component usage examples
 - `docs/COMPOSE_ARCHITECTURE_DIAGRAM.md` - Visual architecture
+
+#### Experimental (1 file)
+- `hooks/usePostSubmission.ts` - Post submission logic (created but not integrated yet)
 
 ## Key Improvements
 

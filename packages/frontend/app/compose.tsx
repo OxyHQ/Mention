@@ -58,6 +58,8 @@ import { useSourcesManager } from '@/hooks/useSourcesManager';
 import { useThreadManager } from '@/hooks/useThreadManager';
 import { useArticleManager } from '@/hooks/useArticleManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
+import { usePostSubmission } from '@/hooks/usePostSubmission';
+import { useScheduleManager } from '@/hooks/useScheduleManager';
 import {
   PollCreator,
   PollAttachmentCard,
@@ -68,6 +70,7 @@ import {
 } from '@/components/Compose';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import { formatScheduledLabel, addMinutes } from '@/utils/dateUtils';
+import { buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
 import {
   ComposerMediaItem,
   toComposerMediaType,
@@ -185,9 +188,27 @@ const ComposeScreen = () => {
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
   const [reviewReplies, setReviewReplies] = useState(false);
-  const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
 
   const scheduleEnabled = postingMode === 'thread' && threadItems.length === 0;
+
+  // Schedule manager
+  const scheduleManager = useScheduleManager({
+    scheduleEnabled,
+    bottomSheet,
+    t,
+    toast,
+  });
+  const {
+    scheduledAt,
+    setScheduledAt,
+    scheduledAtRef,
+    formatScheduledLabel,
+    clearSchedule,
+    handleScheduleSelect,
+    handleScheduleClear,
+    handleScheduleClose,
+    openScheduleSheet,
+  } = scheduleManager;
 
   // Use refs to always get latest values in timeout callback
   const postContentRef = useRef(postContent);
@@ -203,7 +224,6 @@ const ComposeScreen = () => {
   const currentDraftIdRef = useRef(currentDraftId);
   const articleRef = useRef(article);
   const attachmentOrderRef = useRef(attachmentOrder);
-  const scheduledAtRef = useRef<Date | null>(null);
   const threadPollTitleRefs = useRef<Record<string, TextInput | null>>({});
 
   // Update refs when state changes
@@ -336,11 +356,13 @@ const ComposeScreen = () => {
       toast.error(t('compose.schedule.threadsUnsupported', { defaultValue: 'Scheduling threads is not supported yet' }));
       return;
     }
+
     const scheduledAtValue = scheduledAt;
     const wasScheduled = Boolean(scheduledAtValue);
     const hasText = postContent.trim().length > 0;
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
+
     if (!(hasText || hasMedia || hasPoll || hasArticleContent)) {
       toast.error(t('Add text, an image, a poll, or an article'));
       return;
@@ -354,104 +376,29 @@ const ComposeScreen = () => {
       const allPosts = [];
       const formattedSources = sanitizeSourcesForSubmit(sources);
 
-      const attachmentsPayload = buildAttachmentsPayload(attachmentOrderRef.current || attachmentOrder, mediaIds, {
-        includePoll: hasPoll,
-        includeArticle: Boolean(hasArticleContent && article),
-        includeLocation: Boolean(location),
-        includeSources: formattedSources.length > 0,
+      // Build main post
+      const mainPost = buildMainPost({
+        postContent,
+        mentions,
+        mediaIds,
+        pollTitle,
+        pollOptions,
+        article,
+        hasArticleContent,
+        location,
+        formattedSources,
+        attachmentOrder: attachmentOrderRef.current || attachmentOrder,
+        replyPermission,
+        reviewReplies,
+        scheduledAt: scheduledAtRef.current,
       });
-
-      // Main post
-      const articlePayload = hasArticleContent && article ? {
-        ...(article.title?.trim() ? { title: article.title.trim() } : {}),
-        ...(article.body?.trim() ? { body: article.body.trim() } : {}),
-      } : undefined;
-
-      allPosts.push({
-        content: {
-          text: postContent.trim(),
-          media: mediaIds.map(m => ({ id: m.id, type: m.type })),
-          // Include poll if user created one
-          ...(hasPoll && {
-            poll: {
-              question: pollTitle.trim() || postContent.trim() || 'Poll',
-              options: pollOptions.filter(opt => opt.trim().length > 0),
-              endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-              votes: {},
-              userVotes: {}
-            }
-          }),
-          // Include location if user shared their location
-          ...(location && {
-            location: {
-              type: 'Point' as const,
-              coordinates: [location.longitude, location.latitude],
-              address: location.address
-            } as GeoJSONPoint
-          }),
-          ...(formattedSources.length > 0 && { sources: formattedSources }),
-          ...(articlePayload && { article: articlePayload }),
-          ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
-        },
-        mentions: mentions.map(m => m.userId),
-        hashtags: [],
-        replyPermission: replyPermission,
-        reviewReplies: reviewReplies,
-        ...(wasScheduled && scheduledAtRef.current ? {
-          status: 'scheduled' as const,
-          scheduledFor: scheduledAtRef.current.toISOString()
-        } : {})
-      });
+      allPosts.push(mainPost);
 
       // Add thread items if any
       threadItems.forEach(item => {
-        if (item.text.trim().length > 0 || item.mediaIds.length > 0 ||
-          (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0))) {
-          const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
-          const threadHasLocation = Boolean(item.location);
-          const threadOrder: string[] = [];
-          if (threadHasPoll) threadOrder.push(POLL_ATTACHMENT_KEY);
-          item.mediaIds.forEach((media) => {
-            threadOrder.push(createMediaAttachmentKey(media.id));
-          });
-          if (threadHasLocation) threadOrder.push(LOCATION_ATTACHMENT_KEY);
-
-          const threadAttachmentsPayload = buildAttachmentsPayload(threadOrder, item.mediaIds, {
-            includePoll: threadHasPoll,
-            includeArticle: false,
-            includeLocation: threadHasLocation,
-            includeSources: false,
-          });
-
-          allPosts.push({
-            content: {
-              text: item.text.trim(),
-              media: item.mediaIds.map(m => ({ id: m.id, type: m.type })),
-              // Include poll if this thread item has poll options
-              ...(item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0) && {
-                poll: {
-                  question: (item.pollTitle && item.pollTitle.trim()) || item.text.trim() || 'Poll',
-                  options: item.pollOptions.filter(opt => opt.trim().length > 0),
-                  endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                  votes: {},
-                  userVotes: {}
-                }
-              }),
-              // Include location if user shared location for this thread item
-              ...(item.location && {
-                location: {
-                  type: 'Point' as const,
-                  coordinates: [item.location.longitude, item.location.latitude],
-                  address: item.location.address
-                } as GeoJSONPoint
-              }),
-              ...(threadAttachmentsPayload.length > 0 && { attachments: threadAttachmentsPayload })
-            },
-            mentions: item.mentions?.map(m => m.userId) || [],
-            hashtags: [],
-            replyPermission: replyPermission,
-            reviewReplies: reviewReplies
-          });
+        if (shouldIncludeThreadItem(item)) {
+          const threadPost = buildThreadPost(item, replyPermission, reviewReplies);
+          allPosts.push(threadPost);
         }
       });
 
@@ -459,13 +406,11 @@ const ComposeScreen = () => {
 
       // Send to backend based on whether we have multiple posts or just one
       if (allPosts.length === 1) {
-        // Single post - use regular createPost
         await createPost(allPosts[0] as any);
       } else {
-        // Multiple posts - use createThread
         await createThread({
           mode: postingMode,
-          posts: allPosts
+          posts: allPosts as any
         });
       }
 
@@ -939,77 +884,12 @@ const ComposeScreen = () => {
     }
   };
 
-  const formatScheduledLabel = useCallback((date: Date) => {
-    try {
-      return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-    } catch {
-      return date.toLocaleString();
-    }
-  }, []);
-
-  const clearSchedule = useCallback((options?: { silent?: boolean }) => {
-    setScheduledAt(null);
-    scheduledAtRef.current = null;
-    if (!options?.silent) {
-      toast.success(t('compose.schedule.cleared', { defaultValue: 'Scheduling removed' }));
-    }
-  }, [t]);
-
-  const handleScheduleSelect = useCallback((date: Date) => {
-    setScheduledAt(date);
-    scheduledAtRef.current = date;
-    toast.success(t('compose.schedule.set', { defaultValue: 'Scheduled for {{time}}', time: formatScheduledLabel(date) }));
-    bottomSheet.openBottomSheet(false);
-  }, [bottomSheet, formatScheduledLabel, t]);
-
-  const handleScheduleClear = useCallback(() => {
-    clearSchedule();
-    bottomSheet.openBottomSheet(false);
-  }, [bottomSheet, clearSchedule]);
-
-  const handleScheduleClose = useCallback(() => {
-    bottomSheet.openBottomSheet(false);
-  }, [bottomSheet]);
-
-  const openScheduleSheet = useCallback(() => {
-    if (!scheduleEnabled) {
-      toast.info(t('compose.schedule.singlePostOnly', { defaultValue: 'Scheduling is only available for single posts' }));
-      return;
-    }
-
-    const now = new Date();
-    const tomorrowMorning = new Date(now);
-    tomorrowMorning.setDate(now.getDate() + 1);
-    tomorrowMorning.setHours(9, 0, 0, 0);
-
-    const laterToday = new Date(now);
-    laterToday.setHours(17, 0, 0, 0);
-    if (laterToday <= now) {
-      laterToday.setDate(laterToday.getDate() + 1);
-    }
-
-    const options: ScheduleOption[] = [
-      { key: '15m', label: t('compose.schedule.option.15m', { defaultValue: 'In 15 minutes' }), date: addMinutes(now, 15) },
-      { key: '1h', label: t('compose.schedule.option.1h', { defaultValue: 'In 1 hour' }), date: addMinutes(now, 60) },
-      { key: '3h', label: t('compose.schedule.option.3h', { defaultValue: 'In 3 hours' }), date: addMinutes(now, 180) },
-      { key: 'tomorrow', label: t('compose.schedule.option.tomorrow', { defaultValue: 'Tomorrow morning' }), date: tomorrowMorning },
-      { key: 'later', label: t('compose.schedule.option.later', { defaultValue: 'Later today' }), date: laterToday },
-    ];
-
-    bottomSheet.setBottomSheetContent(
-      <ScheduleSheet
-        scheduledAt={scheduledAt}
-        options={options}
-        onSelect={handleScheduleSelect}
-        onClear={handleScheduleClear}
-        onClose={handleScheduleClose}
-        formatLabel={formatScheduledLabel}
-      />
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [scheduleEnabled, scheduledAt, bottomSheet, t, formatScheduledLabel, handleScheduleSelect, handleScheduleClear, handleScheduleClose]);
-
   const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
+
+  // Wrapper for openScheduleSheet to pass ScheduleSheet component
+  const handleSchedulePress = useCallback(() => {
+    openScheduleSheet(ScheduleSheet);
+  }, [openScheduleSheet]);
 
   // Update bottom sheet content when replyPermission or reviewReplies changes
   useEffect(() => {
@@ -1416,7 +1296,7 @@ const ComposeScreen = () => {
                         // TODO: Implement emoji picker
                         toast.info(t('Emoji picker coming soon'));
                       }}
-                      onSchedulePress={openScheduleSheet}
+                      onSchedulePress={handleSchedulePress}
                       onSourcesPress={openSourcesSheet}
                       onArticlePress={openArticleEditor}
                       hasLocation={!!location}
