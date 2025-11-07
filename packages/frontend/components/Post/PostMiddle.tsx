@@ -2,6 +2,7 @@ import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import { Image, ScrollView, StyleSheet, View, Text, GestureResponderEvent, Dimensions, Pressable, Platform, ViewStyle } from 'react-native';
 import PollCard from './PollCard';
 import { useOxy } from '@oxyhq/services';
+import { useTranslation } from 'react-i18next';
 // Dynamic import to break circular dependency: PostItem -> PostMiddle -> PostItem
 // Using a function to lazily require PostItem only when needed
 let PostItemComponent: React.ComponentType<any> | null = null;
@@ -12,17 +13,21 @@ const getPostItem = () => {
   return PostItemComponent;
 };
 import { useTheme } from '@/hooks/useTheme';
+import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention/shared-types';
+import PostLocation from './PostLocation';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useRouter } from 'expo-router';
 import PostArticlePreview from './PostArticlePreview';
+import { SourcesIcon } from '@/assets/icons/sources-icon';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)
   : null;
 
-interface MediaObj { id: string; type: 'image' | 'video' }
+interface MediaObj { id: string; type: 'image' | 'video' | 'gif' }
 interface Props {
   media?: MediaObj[];
+  attachments?: PostAttachmentDescriptor[];
   nestedPost?: any; // original (repost) or parent (reply)
   leftOffset?: number; // negative margin-left to offset avatar space
   pollId?: string;
@@ -31,6 +36,9 @@ interface Props {
   postId?: string; // Post ID for navigation to videos screen
   article?: { articleId?: string; title?: string; body?: string } | null;
   onArticlePress?: (() => void) | null;
+  location?: GeoJSONPoint | null;
+  sources?: PostSourceLink[];
+  onSourcesPress?: (() => void) | null;
 }
 
 // Video item component to properly use the hook
@@ -103,44 +111,135 @@ const VideoItem: React.FC<{
   );
 };
 
-const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0, postId, article, onArticlePress }) => {
+const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0, postId, article, onArticlePress }) => {
   const theme = useTheme();
   const router = useRouter();
-  
-  // Check if post has exactly one video (for navigation to videos screen)
-  const videoMedia = media?.filter(m => m.type === 'video') || [];
-  const hasSingleVideo = videoMedia.length === 1 && (media?.length || 0) === 1;
-  // Check if there's only one media item (excluding polls and nested posts)
-  const hasSingleMedia = (media?.length || 0) === 1 && !pollId && !pollData && !nestedPost;
-  // Check if there are multiple media items
-  const hasMultipleMedia = (media?.length || 0) > 1;
-  // Check if there's exactly one media item (regardless of polls/nested posts)
-  const hasExactlyOneMedia = (media?.length || 0) === 1;
-  
+  const { oxyServices } = useOxy();
+
+  const mediaArray = useMemo(() => Array.isArray(media) ? media : [], [media]);
+  const attachmentDescriptors = useMemo(() => Array.isArray(attachments) ? attachments : [], [attachments]);
+
+  const hasPoll = useMemo(() => Boolean(pollId || pollData), [pollId, pollData]);
+  const hasArticle = useMemo(() => Boolean(article && ((article.title?.trim?.() || article.body?.trim?.()))), [article]);
+
+  const resolveMediaSrc = useCallback((id: string) => {
+    if (!id) return '';
+    try {
+      return oxyServices?.getFileDownloadUrl?.(id) ?? id;
+    } catch {
+      return id;
+    }
+  }, [oxyServices]);
+
+  type AttachmentItem =
+    | { type: 'poll' }
+    | { type: 'article' }
+    | { type: 'video'; mediaId: string; src: string }
+    | { type: 'image'; mediaId: string; src: string; mediaType: 'image' | 'gif' };
+
+  const attachmentItems = useMemo(() => {
+    const results: AttachmentItem[] = [];
+    const mediaById = new Map<string, MediaObj>();
+    const usedMedia = new Set<string>();
+
+    mediaArray.forEach((m) => {
+      if (m?.id) {
+        mediaById.set(String(m.id), m);
+      }
+    });
+
+    const addMediaItem = (mediaId: string, explicitType?: 'image' | 'video' | 'gif') => {
+      const id = String(mediaId || '');
+      if (!id || usedMedia.has(id)) return;
+      const mediaItem = mediaById.get(id);
+      if (!mediaItem) return;
+      usedMedia.add(id);
+      const resolvedType = explicitType || mediaItem.type || 'image';
+      const src = resolveMediaSrc(id);
+      if (!src) return;
+      if (resolvedType === 'video') {
+        results.push({ type: 'video', mediaId: id, src });
+      } else {
+        const kind = resolvedType === 'gif' ? 'gif' : 'image';
+        results.push({ type: 'image', mediaId: id, src, mediaType: kind });
+      }
+    };
+
+    if (attachmentDescriptors.length) {
+      attachmentDescriptors.forEach((descriptor) => {
+        if (!descriptor) return;
+        switch (descriptor.type) {
+          case 'poll':
+            if (hasPoll && !results.some(item => item.type === 'poll')) {
+              results.push({ type: 'poll' });
+            }
+            break;
+          case 'article':
+            if (hasArticle && !results.some(item => item.type === 'article')) {
+              results.push({ type: 'article' });
+            }
+            break;
+          case 'media':
+            if (descriptor.id) {
+              addMediaItem(descriptor.id, descriptor.mediaType as any);
+            }
+            break;
+          default:
+            break;
+        }
+      });
+    } else {
+      if (hasPoll) results.push({ type: 'poll' });
+      if (hasArticle) results.push({ type: 'article' });
+    }
+
+    mediaArray.forEach((m) => {
+      if (!m?.id) return;
+      const id = String(m.id);
+      if (usedMedia.has(id)) return;
+      addMediaItem(id, m.type);
+    });
+
+    return results;
+  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, resolveMediaSrc]);
+
+  type Item =
+    | { type: 'nested' }
+    | AttachmentItem;
+
+  const items = useMemo(() => {
+    const computed: Item[] = [...attachmentItems];
+    const shouldIncludeNested = nestedPost && nestingDepth < 2;
+    if (shouldIncludeNested) {
+      const firstMediaIdx = computed.findIndex(item => item.type === 'image' || item.type === 'video');
+      const nestedItem: Item = { type: 'nested' };
+      if (firstMediaIdx === -1) {
+        computed.push(nestedItem);
+      } else {
+        computed.splice(firstMediaIdx, 0, nestedItem);
+      }
+    }
+    return computed;
+  }, [attachmentItems, nestedPost, nestingDepth]);
+
+  const mediaItems = useMemo(() =>
+    items.filter((item): item is Extract<Item, { type: 'image' | 'video' }> => item.type === 'image' || item.type === 'video'),
+  [items]);
+
+  const videoItems = useMemo(() => mediaItems.filter(item => item.type === 'video'), [mediaItems]);
+  const hasSingleVideo = videoItems.length === 1 && mediaItems.length === 1;
+  const hasMultipleMedia = mediaItems.length > 1;
+  const hasExactlyOneMedia = mediaItems.length === 1;
+  const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested');
+
   const handleVideoPress = useCallback(() => {
     if (postId && hasSingleVideo) {
       router.push(`/videos?postId=${postId}`);
     }
   }, [postId, hasSingleVideo, router]);
-  // Prevent infinite nesting (max 2 levels deep)
-  const MAX_NESTING_DEPTH = 2;
+
   const screenWidth = Dimensions.get('window').width;
   const [scrollViewWidth, setScrollViewWidth] = React.useState(screenWidth);
-  type Item = { type: "nested" } | { type: "image"; src: string } | { type: "video"; src: string } | { type: "poll" } | { type: "article" };
-  const items: Item[] = [];
-  const { oxyServices } = useOxy();
-
-  if (pollId || pollData) items.push({ type: "poll" });
-  if (article && (article.title?.trim() || article.body?.trim())) items.push({ type: "article" });
-  // Only add nested post if we haven't exceeded max nesting depth
-  if (nestedPost && nestingDepth < MAX_NESTING_DEPTH) items.push({ type: "nested" });
-
-  (media || []).forEach((m) => {
-    if (m && m.id && m.type) {
-      const uri = oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(m.id) : m.id;
-      items.push({ type: m.type, src: uri });
-    }
-  });
 
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
@@ -306,7 +405,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
         if (item.type === 'video') {
           return (
             <VideoItem
-              key={`video-${idx}`}
+              key={`video-${item.mediaId ?? idx}`}
               src={item.src}
               containerStyle={[]}
               borderColor={theme.colors.border}
@@ -318,10 +417,13 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
             />
           );
         }
-        // For single media, also calculate aspect ratio to prevent 0 height issues
-        // This is especially important when location data is present
-        // Use hasExactlyOneMedia to handle cases where there's also a poll or nestedPost
-        const ImageWithAspectRatio = hasExactlyOneMedia && !hasMultipleMedia ? (() => {
+        if (item.type === 'image') {
+          // For single media, also calculate aspect ratio to prevent 0 height issues
+          // This is especially important when location data is present
+          // Use hasExactlyOneMedia to handle cases where there's also a poll or nestedPost
+          const imageSrc = item.src;
+          const imageKey = item.mediaId ?? idx;
+          const ImageWithAspectRatio = hasExactlyOneMedia && !hasMultipleMedia ? (() => {
           const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
             const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
             
@@ -358,7 +460,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
               </View>
             );
           };
-          return <ImageWithRatio key={`img-${idx}`} src={(item as any).src} />;
+          return <ImageWithRatio key={`img-${imageKey}`} src={imageSrc} />;
         })() : hasMultipleMedia ? (() => {
           const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
             const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
@@ -396,7 +498,7 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
               </View>
             );
           };
-          return <ImageWithRatio key={`img-${idx}`} src={(item as any).src} />;
+          return <ImageWithRatio key={`img-${imageKey}`} src={imageSrc} />;
         })() : (() => {
           // Fallback: Always render with aspect ratio to prevent 0 height issues
           // This handles edge cases where media count doesn't match expected conditions
@@ -436,10 +538,12 @@ const PostMiddle: React.FC<Props> = ({ media, nestedPost, leftOffset = 0, pollId
               </View>
             );
           };
-          return <ImageWithRatio key={`img-${idx}`} src={(item as any).src} />;
-        })();
+          return <ImageWithRatio key={`img-${imageKey}`} src={imageSrc} />;
+          })();
 
-        return ImageWithAspectRatio;
+          return ImageWithAspectRatio;
+        }
+        return null;
       })}
     </ScrollView>
   );

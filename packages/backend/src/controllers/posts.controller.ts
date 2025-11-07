@@ -8,7 +8,7 @@ import mongoose from 'mongoose';
 import { oxy as oxyClient } from '../../server';
 import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
-import { PostVisibility } from '@mention/shared-types';
+import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType } from '@mention/shared-types';
 import { feedController } from './feed.controller';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
@@ -50,6 +50,218 @@ const sanitizeArticle = (input: any): { title?: string; body?: string } | undefi
   return { ...(title ? { title } : {}), ...(body ? { body } : {}) };
 };
 
+type RawAttachmentInput =
+  | string
+  | {
+      type?: string;
+      id?: string;
+      mediaId?: string;
+      mediaType?: string;
+      attachmentType?: string;
+      kind?: string;
+    };
+
+interface NormalizedMediaItem {
+  id: string;
+  type: 'image' | 'video' | 'gif';
+  mime?: string;
+}
+
+const normalizeMediaItems = (arr: any): NormalizedMediaItem[] => {
+  if (!Array.isArray(arr)) return [];
+
+  const seen = new Set<string>();
+  const normalized: NormalizedMediaItem[] = [];
+
+  arr.forEach((item: any) => {
+    if (!item) return;
+
+    if (typeof item === 'string') {
+      const id = item.trim();
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      normalized.push({ id, type: 'image' });
+      return;
+    }
+
+    if (typeof item === 'object') {
+      const rawId = item.id || item.fileId || item._id || item.mediaId;
+      if (!rawId) return;
+      const id = String(rawId);
+      if (!id || seen.has(id)) return;
+
+      const rawType = (item.type || item.mediaType || '').toString().toLowerCase();
+      const mimeValue = item.mime || item.contentType;
+      const rawMime = mimeValue ? mimeValue.toString().toLowerCase() : '';
+
+      let resolvedType: 'image' | 'video' | 'gif';
+      if (rawType === 'video' || rawMime.startsWith('video/')) {
+        resolvedType = 'video';
+      } else if (rawType === 'gif' || rawMime.includes('gif')) {
+        resolvedType = 'gif';
+      } else {
+        resolvedType = 'image';
+      }
+
+      seen.add(id);
+      normalized.push({
+        id,
+        type: resolvedType,
+        ...(mimeValue ? { mime: String(mimeValue) } : {})
+      });
+    }
+  });
+
+  return normalized;
+};
+
+const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'location', 'sources'];
+
+const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
+  if (!entry) return null;
+
+  if (typeof entry === 'string') {
+    const trimmed = entry.trim();
+    if (!trimmed) return null;
+
+    if (trimmed.toLowerCase().startsWith('media:')) {
+      const id = trimmed.slice('media:'.length).trim();
+      if (!id) return null;
+      return { type: 'media', id };
+    }
+
+    const lower = trimmed.toLowerCase();
+    if ((ATTACHMENT_TYPES as string[]).includes(lower)) {
+      return { type: lower as PostAttachmentType };
+    }
+    return null;
+  }
+
+  if (typeof entry === 'object') {
+    const typeValue = entry.type || entry.attachmentType || entry.kind;
+    if (!typeValue) return null;
+    const lowerType = String(typeValue).toLowerCase();
+    if (!(ATTACHMENT_TYPES as string[]).includes(lowerType)) return null;
+
+    const descriptor: PostAttachmentDescriptor = { type: lowerType as PostAttachmentType };
+
+    if (descriptor.type === 'media') {
+      const id = entry.id || entry.mediaId;
+      if (!id) return null;
+      descriptor.id = String(id);
+      if (entry.mediaType) {
+        const mt = String(entry.mediaType).toLowerCase();
+        if (mt === 'image' || mt === 'video' || mt === 'gif') {
+          descriptor.mediaType = mt as 'image' | 'video' | 'gif';
+        }
+      }
+    }
+
+    return descriptor;
+  }
+
+  return null;
+};
+
+interface AttachmentBuildOptions {
+  rawAttachments?: any;
+  media: NormalizedMediaItem[];
+  includePoll?: boolean;
+  includeArticle?: boolean;
+  includeLocation?: boolean;
+  includeSources?: boolean;
+}
+
+const buildOrderedAttachments = ({
+  rawAttachments,
+  media,
+  includePoll = false,
+  includeArticle = false,
+  includeLocation = false,
+  includeSources = false
+}: AttachmentBuildOptions): PostAttachmentDescriptor[] | undefined => {
+  const descriptors: PostAttachmentDescriptor[] = [];
+  const nonMediaTypes = new Set<PostAttachmentType>();
+  const mediaById = new Map<string, NormalizedMediaItem>();
+  const usedMedia = new Set<string>();
+
+  media.forEach((item) => {
+    mediaById.set(String(item.id), item);
+  });
+
+  const addNonMedia = (type: PostAttachmentType) => {
+    if (type === 'media') return;
+    if (nonMediaTypes.has(type)) return;
+    nonMediaTypes.add(type);
+    descriptors.push({ type });
+  };
+
+  const addMedia = (id: string, explicitType?: 'image' | 'video' | 'gif') => {
+    const mediaId = String(id);
+    if (usedMedia.has(mediaId)) return;
+    const mediaItem = mediaById.get(mediaId);
+    if (!mediaItem) return;
+    usedMedia.add(mediaId);
+    descriptors.push({
+      type: 'media',
+      id: mediaId,
+      mediaType: explicitType || mediaItem.type
+    });
+  };
+
+  const processEntry = (entry: any) => {
+    const descriptor = normalizeAttachmentInput(entry);
+    if (!descriptor) return;
+
+    switch (descriptor.type) {
+      case 'media': {
+        if (descriptor.id) {
+          addMedia(descriptor.id, descriptor.mediaType);
+        }
+        break;
+      }
+      case 'poll':
+        if (includePoll) addNonMedia('poll');
+        break;
+      case 'article':
+        if (includeArticle) addNonMedia('article');
+        break;
+      case 'location':
+        if (includeLocation) addNonMedia('location');
+        break;
+      case 'sources':
+        if (includeSources) addNonMedia('sources');
+        break;
+      default:
+        break;
+    }
+  };
+
+  if (Array.isArray(rawAttachments)) {
+    rawAttachments.forEach(processEntry);
+  } else if (rawAttachments) {
+    // Support objects with { order: [...] }
+    const maybeOrder = (rawAttachments.order || rawAttachments.attachments || rawAttachments.attachmentOrder) as any;
+    if (Array.isArray(maybeOrder)) {
+      maybeOrder.forEach(processEntry);
+    }
+  }
+
+  if (includePoll) addNonMedia('poll');
+  if (includeArticle) addNonMedia('article');
+  if (includeSources) addNonMedia('sources');
+  if (includeLocation) addNonMedia('location');
+
+  media.forEach((item) => {
+    const id = String(item.id);
+    if (!usedMedia.has(id)) {
+      addMedia(id);
+    }
+  });
+
+  return descriptors.length ? descriptors : undefined;
+};
+
 // Create a new post
 export const createPost = async (req: AuthRequest, res: Response) => {
   try {
@@ -71,15 +283,6 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Extract hashtags from text if not provided
     const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
     const uniqueTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
-
-    const normalizeMedia = (arr: any[]): any[] => {
-      if (!Array.isArray(arr)) return [];
-      return arr.map((m: any) => {
-        if (typeof m === 'string') return { id: m, type: 'image' };
-        if (m && typeof m === 'object') return { id: m.id || m.fileId || m._id, type: m.type || 'image', mime: m.mime || m.contentType };
-        return null;
-      }).filter(Boolean);
-    };
 
     // Process content location data (user's shared location)
     let processedContentLocation = null;
@@ -150,10 +353,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    const normalizedMedia = normalizeMediaItems(media);
+
     // Build complete content object
     const postContent: any = {
       text: text || '',
-      media: normalizeMedia(media || [])
+      media: normalizedMedia
     };
 
     // Add video to media array if provided
@@ -210,6 +415,22 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         title: sanitizedArticle.title,
         excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, 280) : undefined,
       };
+    }
+
+    const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
+    const computedAttachments = buildOrderedAttachments({
+      rawAttachments: attachmentsInput || postContent.attachments,
+      media: Array.isArray(postContent.media) ? postContent.media : [],
+      includePoll: Boolean(postContent.pollId),
+      includeArticle: Boolean(postContent.article),
+      includeLocation: Boolean(postContent.location),
+      includeSources: Boolean(postContent.sources && postContent.sources.length)
+    });
+
+    if (computedAttachments) {
+      postContent.attachments = computedAttachments;
+    } else {
+      delete postContent.attachments;
     }
 
     const post = new Post({
@@ -418,7 +639,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // Build post content
       const postContent: any = {
         text: content?.text || '',
-        media: content?.media || []
+        media: normalizeMediaItems(content?.media)
       };
 
       if (processedContentLocation) {
@@ -470,6 +691,22 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       const uniqueTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
 
       // Create post
+      const attachmentsInput = content?.attachments || content?.attachmentOrder || postData.attachments || postData.attachmentOrder;
+      const computedAttachments = buildOrderedAttachments({
+        rawAttachments: attachmentsInput || postContent.attachments,
+        media: Array.isArray(postContent.media) ? postContent.media : [],
+        includePoll: Boolean(postContent.pollId),
+        includeArticle: Boolean(postContent.article),
+        includeLocation: Boolean(postContent.location),
+        includeSources: Boolean(postContent.sources && postContent.sources.length)
+      });
+
+      if (computedAttachments) {
+        postContent.attachments = computedAttachments;
+      } else {
+        delete postContent.attachments;
+      }
+
       const post = new Post({
         oxyUserId: userId,
         content: postContent,
@@ -732,15 +969,9 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       post.hashtags = uniqueTags;
     }
     if (media !== undefined) {
-      const normalizeMedia = (arr: any[]): any[] => {
-        if (!Array.isArray(arr)) return [];
-        return arr.map((m: any) => {
-          if (typeof m === 'string') return { id: m, type: 'image' };
-          if (m && typeof m === 'object') return { id: m.id || m.fileId || m._id, type: m.type || 'image', mime: m.mime || m.contentType };
-          return null;
-        }).filter(Boolean);
-      };
-      post.content.media = normalizeMedia(media);
+      const normalizedMedia = normalizeMediaItems(media);
+      post.content.media = normalizedMedia;
+      post.markModified('content.media');
     }
     
     // Handle content location updates (user's shared location)
@@ -820,7 +1051,23 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         post.content.article = undefined;
       }
     }
-    
+    const attachmentUpdateInput = req.body.content?.attachments ?? req.body.attachments ?? req.body.attachmentOrder;
+    const updatedAttachments = buildOrderedAttachments({
+      rawAttachments: attachmentUpdateInput ?? post.content.attachments,
+      media: Array.isArray(post.content.media) ? post.content.media : [],
+      includePoll: Boolean((post.content as any)?.pollId),
+      includeArticle: Boolean(post.content.article),
+      includeLocation: Boolean(post.content.location),
+      includeSources: Boolean(post.content.sources && post.content.sources.length)
+    });
+
+    if (updatedAttachments) {
+      post.content.attachments = updatedAttachments;
+    } else {
+      post.content.attachments = undefined;
+    }
+    post.markModified('content.attachments');
+
     if (hashtags !== undefined) post.hashtags = hashtags || [];
     if (mentions !== undefined) post.mentions = mentions || [];
 

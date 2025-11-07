@@ -21,7 +21,15 @@ export enum PostVisibility {
 
 export interface MediaItem {
   id: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'gif';
+}
+
+export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources';
+
+export interface PostAttachmentDescriptor {
+  type: PostAttachmentType;
+  id?: string; // For media attachments and other id-referenced attachments
+  mediaType?: 'image' | 'video' | 'gif';
 }
 
 export interface PostSourceLink {
@@ -44,6 +52,7 @@ export interface PostContent {
   location?: GeoJSONPoint; // Location shared by user as part of post content
   sources?: PostSourceLink[]; // External sources cited within the post content
   article?: PostArticleContent; // Optional article content authored with the post
+  attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, etc.)
 }
 
 export interface PollData {

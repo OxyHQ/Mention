@@ -733,6 +733,7 @@ const PostItem: React.FC<PostItemProps> = ({
             {/* Middle: horizontal scroller with media and nested post (repost/quote only, not replies) */}
             <PostMiddle
                 media={(viewPost as any).content?.media || []}
+                attachments={(viewPost as any).content?.attachments || []}
                 nestedPost={originalPost ?? null}
                 leftOffset={BOTTOM_LEFT_PAD}
                 pollData={(viewPost as any).content?.poll}

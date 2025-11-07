@@ -25,7 +25,7 @@ import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { usePostsStore } from '../stores/postsStore';
-import { GeoJSONPoint } from '@mention/shared-types';
+import { GeoJSONPoint, PostAttachmentDescriptor } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
@@ -52,11 +52,99 @@ const MEDIA_CARD_WIDTH = 280;
 const MEDIA_CARD_HEIGHT = 180;
 const POLL_ATTACHMENT_KEY = 'poll';
 const ARTICLE_ATTACHMENT_KEY = 'article';
+const LOCATION_ATTACHMENT_KEY = 'location';
+const SOURCES_ATTACHMENT_KEY = 'sources';
 const MEDIA_ATTACHMENT_PREFIX = 'media:';
 
 const createMediaAttachmentKey = (id: string) => `${MEDIA_ATTACHMENT_PREFIX}${id}`;
 const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
 const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
+
+type ComposerMediaType = 'image' | 'video' | 'gif';
+type ComposerMediaItem = { id: string; type: ComposerMediaType };
+
+const toComposerMediaType = (value?: string, mime?: string): ComposerMediaType => {
+  const lowerValue = typeof value === 'string' ? value.toLowerCase() : '';
+  const lowerMime = typeof mime === 'string' ? mime.toLowerCase() : '';
+
+  if (lowerValue === 'video' || lowerMime.startsWith('video/')) return 'video';
+  if (lowerValue === 'gif' || lowerMime.includes('gif')) return 'gif';
+  return 'image';
+};
+
+const buildAttachmentsPayload = (
+  order: string[],
+  mediaList: ComposerMediaItem[],
+  options: {
+    includePoll?: boolean;
+    includeArticle?: boolean;
+    includeLocation?: boolean;
+    includeSources?: boolean;
+  }
+): PostAttachmentDescriptor[] => {
+  const descriptors: PostAttachmentDescriptor[] = [];
+  const mediaMap = new Map<string, ComposerMediaItem>();
+  const usedMedia = new Set<string>();
+
+  mediaList.forEach((item) => {
+    mediaMap.set(item.id, item);
+  });
+
+  const addNonMedia = (type: 'poll' | 'article' | 'location' | 'sources') => {
+    if (!descriptors.some(d => d.type === type)) {
+      descriptors.push({ type });
+    }
+  };
+
+  const addMedia = (id: string) => {
+    if (!id) return;
+    if (usedMedia.has(id)) return;
+    const mediaItem = mediaMap.get(id);
+    if (!mediaItem) return;
+    usedMedia.add(id);
+    descriptors.push({
+      type: 'media',
+      id,
+      mediaType: mediaItem.type,
+    });
+  };
+
+  order.forEach((key) => {
+    if (key === POLL_ATTACHMENT_KEY) {
+      if (options.includePoll) addNonMedia('poll');
+      return;
+    }
+    if (key === ARTICLE_ATTACHMENT_KEY) {
+      if (options.includeArticle) addNonMedia('article');
+      return;
+    }
+    if (key === LOCATION_ATTACHMENT_KEY) {
+      if (options.includeLocation) addNonMedia('location');
+      return;
+    }
+    if (key === SOURCES_ATTACHMENT_KEY) {
+      if (options.includeSources) addNonMedia('sources');
+      return;
+    }
+    if (isMediaAttachmentKey(key)) {
+      const mediaId = getMediaIdFromAttachmentKey(key);
+      addMedia(mediaId);
+    }
+  });
+
+  if (options.includePoll) addNonMedia('poll');
+  if (options.includeArticle) addNonMedia('article');
+  if (options.includeLocation) addNonMedia('location');
+  if (options.includeSources) addNonMedia('sources');
+
+  mediaList.forEach((item) => {
+    if (!usedMedia.has(item.id)) {
+      addMedia(item.id);
+    }
+  });
+
+  return descriptors;
+};
 
 // Video preview component for compose screen
 const VideoItemPreview: React.FC<{ src: string }> = ({ src }) => {
@@ -100,7 +188,7 @@ const ComposeScreen = () => {
   const [threadItems, setThreadItems] = useState<{
     id: string;
     text: string;
-    mediaIds: Array<{ id: string; type: 'image' | 'video' }>;
+    mediaIds: ComposerMediaItem[];
     pollOptions: string[];
     pollTitle: string;
     showPollCreator: boolean;
@@ -108,7 +196,7 @@ const ComposeScreen = () => {
     mentions: MentionData[];
   }[]>([]);
   const [isPosting, setIsPosting] = useState(false);
-  const [mediaIds, setMediaIds] = useState<Array<{ id: string; type: 'image' | 'video' }>>([]);
+  const [mediaIds, setMediaIds] = useState<ComposerMediaItem[]>([]);
   const [pollOptions, setPollOptions] = useState<string[]>([]);
   const [pollTitle, setPollTitle] = useState<string>('');
   const [showPollCreator, setShowPollCreator] = useState(false);
@@ -140,10 +228,15 @@ const ComposeScreen = () => {
   }, [article]);
 
   useEffect(() => {
+    const hasLocationAttachment = Boolean(location);
+    const hasSourcesAttachment = sources.some(source => source?.url?.trim?.().length);
+
     setAttachmentOrder(prev => {
       const filtered = prev.filter((key) => {
         if (key === POLL_ATTACHMENT_KEY) return showPollCreator;
         if (key === ARTICLE_ATTACHMENT_KEY) return articleHasContent && article;
+        if (key === LOCATION_ATTACHMENT_KEY) return hasLocationAttachment;
+        if (key === SOURCES_ATTACHMENT_KEY) return hasSourcesAttachment;
         if (isMediaAttachmentKey(key)) {
           const mediaId = getMediaIdFromAttachmentKey(key);
           return mediaIds.some(m => m.id === mediaId);
@@ -157,7 +250,13 @@ const ComposeScreen = () => {
       if (articleHasContent && article && !next.includes(ARTICLE_ATTACHMENT_KEY)) {
         next.push(ARTICLE_ATTACHMENT_KEY);
       }
-      mediaIds.forEach((media: { id: string; type: 'image' | 'video' }) => {
+      if (hasLocationAttachment && !next.includes(LOCATION_ATTACHMENT_KEY)) {
+        next.push(LOCATION_ATTACHMENT_KEY);
+      }
+      if (hasSourcesAttachment && !next.includes(SOURCES_ATTACHMENT_KEY)) {
+        next.push(SOURCES_ATTACHMENT_KEY);
+      }
+      mediaIds.forEach((media: ComposerMediaItem) => {
         const key = createMediaAttachmentKey(media.id);
         if (!next.includes(key)) {
           next.push(key);
@@ -169,7 +268,7 @@ const ComposeScreen = () => {
       }
       return next;
     });
-  }, [showPollCreator, articleHasContent, article, mediaIds]);
+  }, [showPollCreator, articleHasContent, article, mediaIds, location, sources]);
 
   // Use refs to always get latest values in timeout callback
   const postContentRef = useRef(postContent);
@@ -372,6 +471,13 @@ const ComposeScreen = () => {
       const allPosts = [];
       const formattedSources = sanitizeSourcesForSubmit(sources);
 
+    const attachmentsPayload = buildAttachmentsPayload(attachmentOrderRef.current || attachmentOrder, mediaIds, {
+      includePoll: hasPoll,
+      includeArticle: Boolean(articleHasContent && article),
+      includeLocation: Boolean(location),
+      includeSources: formattedSources.length > 0,
+    });
+
       // Main post
       const articlePayload = articleHasContent && article ? {
         ...(article.title?.trim() ? { title: article.title.trim() } : {}),
@@ -401,7 +507,8 @@ const ComposeScreen = () => {
             } as GeoJSONPoint
           }),
           ...(formattedSources.length > 0 && { sources: formattedSources }),
-          ...(articlePayload && { article: articlePayload })
+          ...(articlePayload && { article: articlePayload }),
+          ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
         },
         mentions: mentions.map(m => m.userId),
         hashtags: [],
@@ -413,6 +520,22 @@ const ComposeScreen = () => {
       threadItems.forEach(item => {
         if (item.text.trim().length > 0 || item.mediaIds.length > 0 ||
           (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0))) {
+          const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
+          const threadHasLocation = Boolean(item.location);
+          const threadOrder: string[] = [];
+          if (threadHasPoll) threadOrder.push(POLL_ATTACHMENT_KEY);
+          item.mediaIds.forEach((media) => {
+            threadOrder.push(createMediaAttachmentKey(media.id));
+          });
+          if (threadHasLocation) threadOrder.push(LOCATION_ATTACHMENT_KEY);
+
+          const threadAttachmentsPayload = buildAttachmentsPayload(threadOrder, item.mediaIds, {
+            includePoll: threadHasPoll,
+            includeArticle: false,
+            includeLocation: threadHasLocation,
+            includeSources: false,
+          });
+
           allPosts.push({
             content: {
               text: item.text.trim(),
@@ -434,7 +557,8 @@ const ComposeScreen = () => {
                   coordinates: [item.location.longitude, item.location.latitude],
                   address: item.location.address
                 } as GeoJSONPoint
-              })
+              }),
+              ...(threadAttachmentsPayload.length > 0 && { attachments: threadAttachmentsPayload })
             },
             mentions: item.mentions?.map(m => m.userId) || [],
             hashtags: [],
@@ -602,7 +726,7 @@ const ComposeScreen = () => {
     // Handle mediaIds - ensure correct structure
     const mediaIdsData = (draft.mediaIds || []).map((m: any) => ({
       id: m.id || m,
-      type: (m.type || 'image') as 'image' | 'video',
+      type: toComposerMediaType(m.type, m.mime || m.contentType),
     })).filter((m: any) => m.id); // Filter out invalid entries
     setMediaIds(mediaIdsData);
     
@@ -651,7 +775,13 @@ const ComposeScreen = () => {
     if (draft.article && (draft.article.title || draft.article.body)) {
       availableAttachmentKeys.push(ARTICLE_ATTACHMENT_KEY);
     }
-    mediaIdsData.forEach((media: { id: string; type: 'image' | 'video' }) => {
+    if (locationData) {
+      availableAttachmentKeys.push(LOCATION_ATTACHMENT_KEY);
+    }
+    if (sourcesData.some((source) => source.url?.trim?.().length)) {
+      availableAttachmentKeys.push(SOURCES_ATTACHMENT_KEY);
+    }
+    mediaIdsData.forEach((media: ComposerMediaItem) => {
       availableAttachmentKeys.push(createMediaAttachmentKey(media.id));
     });
 
@@ -678,7 +808,7 @@ const ComposeScreen = () => {
       text: item.text || '',
       mediaIds: (item.mediaIds || []).map((m: any) => ({
         id: m.id || m,
-        type: (m.type || 'image') as 'image' | 'video',
+        type: toComposerMediaType(m.type, m.mime || m.contentType),
       })).filter((m: any) => m.id),
       pollOptions: item.pollOptions || [],
       pollTitle: item.pollTitle || '',
@@ -737,8 +867,8 @@ const ComposeScreen = () => {
             return;
           }
           try {
-            const mediaType = isImage ? 'image' : 'video';
-            const mediaItem = { id: file.id, type: mediaType as 'image' | 'video' };
+            const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
+            const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
             setMediaIds(prev => prev.some(m => m.id === file.id) ? prev : [...prev, mediaItem]);
             toast.success(t(isImage ? 'Image attached' : 'Video attached'));
           } catch (e: any) {
@@ -755,7 +885,7 @@ const ComposeScreen = () => {
           }
           const mediaItems = validFiles.map(f => ({
             id: f.id,
-            type: (f.contentType?.startsWith('image/') ? 'image' : 'video') as 'image' | 'video'
+            type: toComposerMediaType(f.contentType?.startsWith('image/') ? 'image' : 'video', f.contentType)
           }));
           setMediaIds(prev => {
             const existingIds = new Set(prev.map(m => m.id));
@@ -789,7 +919,7 @@ const ComposeScreen = () => {
       if (newMediaOrderIds.length > 0) {
         setMediaIds(prevMedia => {
           const idToMedia = new Map(prevMedia.map(m => [m.id, m]));
-          const reordered: Array<{ id: string; type: 'image' | 'video' }> = [];
+          const reordered: ComposerMediaItem[] = [];
           newMediaOrderIds.forEach(id => {
             const mediaItem = idToMedia.get(id);
             if (mediaItem) {
@@ -924,8 +1054,8 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
             return;
           }
           try {
-            const mediaType = isImage ? 'image' : 'video';
-            const mediaItem = { id: file.id, type: mediaType as 'image' | 'video' };
+            const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
+            const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
             setThreadItems(prev => prev.map(item =>
               item.id === threadId
                 ? { ...item, mediaIds: item.mediaIds.some(m => m.id === file.id) ? item.mediaIds : [...item.mediaIds, mediaItem] }
@@ -946,7 +1076,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
           }
           const mediaItems = validFiles.map(f => ({
             id: f.id,
-            type: (f.contentType?.startsWith('image/') ? 'image' : 'video') as 'image' | 'video'
+            type: toComposerMediaType(f.contentType?.startsWith('image/') ? 'image' : 'video', f.contentType)
           }));
           setThreadItems(prev => prev.map(item =>
             item.id === threadId
@@ -1462,7 +1592,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                           onClose={() => bottomSheet.openBottomSheet(false)}
                           onSelectGif={async (gifUrl: string, gifId: string) => {
                             try {
-                              const mediaItem = { id: gifId, type: 'image' as 'image' | 'video' };
+                              const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
                               setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
                               toast.success(t('GIF attached'));
                             } catch (error: any) {
@@ -1634,7 +1764,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                                   onClose={() => bottomSheet.openBottomSheet(false)}
                                   onSelectGif={async (gifUrl: string, gifId: string) => {
                                     try {
-                                      const mediaItem = { id: gifId, type: 'image' as 'image' | 'video' };
+                                      const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
                                       setThreadItems(prev => prev.map(threadItem =>
                                         threadItem.id === currentThreadId
                                           ? { ...threadItem, mediaIds: threadItem.mediaIds.some(m => m.id === gifId) ? threadItem.mediaIds : [...threadItem.mediaIds, mediaItem] }
@@ -1909,10 +2039,10 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
               style={styles.postContainer}
               onPress={() => {
                 const id = Date.now().toString();
-                          setThreadItems(prev => [...prev, {
+                setThreadItems(prev => [...prev, {
                   id,
                   text: '',
-                  mediaIds: [] as Array<{ id: string; type: 'image' | 'video' }>,
+                  mediaIds: [] as ComposerMediaItem[],
                   pollOptions: [],
                   pollTitle: '',
                   showPollCreator: false,

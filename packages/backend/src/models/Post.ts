@@ -31,6 +31,27 @@ export interface IPost extends Document {
   updatedAt: string;
 }
 
+const AttachmentSchema = new Schema({
+  type: {
+    type: String,
+    enum: ['media', 'poll', 'article', 'location', 'sources'],
+    required: true
+  },
+  id: {
+    type: String,
+    required: function(this: any) {
+      return this.type === 'media';
+    }
+  },
+  mediaType: {
+    type: String,
+    enum: ['image', 'video', 'gif'],
+    required: function(this: any) {
+      return this.type === 'media';
+    }
+  }
+}, { _id: false });
+
 const PostContentSchema = new Schema({
   text: { type: String, default: '', index: 'text' },
   media: [{
@@ -41,13 +62,17 @@ const PostContentSchema = new Schema({
         // Only allow MediaItem objects with id and type
         if (typeof item === 'object' && item !== null) {
           return typeof item.id === 'string' && 
-                 (item.type === 'image' || item.type === 'video');
+                 (item.type === 'image' || item.type === 'video' || item.type === 'gif');
         }
         return false;
       },
       message: 'Media must be MediaItem objects with id and type fields'
     }
   }],
+  attachments: {
+    type: [AttachmentSchema],
+    default: undefined
+  },
   // Location shared by user as part of post content - visible to other users
   location: {
     type: { 

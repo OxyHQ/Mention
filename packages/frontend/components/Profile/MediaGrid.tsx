@@ -140,23 +140,34 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
             // Fallback to legacy structures
             const collected: string[] = [];
             const collectedTypes: (string | undefined)[] = [];
-            const pushFromArray = (arr?: any[], isMediaArray = false) => {
-                if (!Array.isArray(arr) || !arr.length) return;
-                arr.forEach((m) => {
-                    const raw = pickIdOrUrl(m);
-                    if (raw) {
-                        collected.push(raw);
-                        if (isMediaArray && typeof m === 'object' && m.type) {
-                            collectedTypes.push(m.type);
-                        } else {
-                            collectedTypes.push(undefined);
-                        }
+        const pushFromArray = (arr?: any[], options: { fromMedia?: boolean; fromAttachments?: boolean } = {}) => {
+            if (!Array.isArray(arr) || !arr.length) return;
+            arr.forEach((m) => {
+                if (options.fromAttachments && typeof m === 'object') {
+                    if (m.type !== 'media' || !m.id) return;
+                }
+
+                const raw = pickIdOrUrl(m);
+                if (!raw) return;
+
+                collected.push(raw);
+
+                if (typeof m === 'object') {
+                    if (options.fromAttachments && m.mediaType) {
+                        collectedTypes.push(m.mediaType);
+                    } else if (options.fromMedia && m.type) {
+                        collectedTypes.push(m.type);
+                    } else {
+                        collectedTypes.push(undefined);
                     }
-                });
-            };
-            pushFromArray(post?.content?.media, true);
-            pushFromArray(post?.content?.images);
-            pushFromArray(post?.content?.attachments);
+                } else {
+                    collectedTypes.push(undefined);
+                }
+            });
+        };
+        pushFromArray(post?.content?.media, { fromMedia: true });
+        pushFromArray(post?.content?.images);
+        pushFromArray(post?.content?.attachments, { fromAttachments: true });
             pushFromArray(post?.content?.files);
             pushFromArray(post?.media);
             pushUris(targetId, collected, postType, collectedTypes.length > 0 ? collectedTypes : undefined);

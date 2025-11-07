@@ -226,7 +226,8 @@ class FeedService {
           // Include location if provided
           ...(request.content.location && { location: request.content.location }),
           ...(request.content.sources && request.content.sources.length > 0 && { sources: request.content.sources }),
-          ...(request.content.article && Object.keys(request.content.article).length > 0 && { article: request.content.article })
+          ...(request.content.article && Object.keys(request.content.article).length > 0 && { article: request.content.article }),
+          ...(request.content.attachments && request.content.attachments.length > 0 && { attachments: request.content.attachments })
         },
         hashtags: request.hashtags || [],
         mentions: request.mentions || [],
