@@ -270,7 +270,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, repost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, status: incomingStatus, scheduledFor } = req.body;
 
     // Support both new content structure and legacy text/media structure
     const text = content?.text || req.body.text;
@@ -433,6 +433,27 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       delete postContent.attachments;
     }
 
+    let postStatus: 'draft' | 'published' | 'scheduled' = 'published';
+    let scheduledForDate: Date | null = null;
+
+    if (scheduledFor) {
+      const parsed = new Date(scheduledFor);
+      if (Number.isNaN(parsed.getTime())) {
+        return res.status(400).json({ message: 'Invalid scheduled time' });
+      }
+      if (parsed.getTime() <= Date.now()) {
+        return res.status(400).json({ message: 'Scheduled time must be in the future' });
+      }
+      postStatus = 'scheduled';
+      scheduledForDate = parsed;
+    } else if (incomingStatus === 'draft') {
+      postStatus = 'draft';
+    } else if (incomingStatus === 'scheduled') {
+      return res.status(400).json({ message: 'scheduledFor is required when scheduling a post' });
+    }
+
+    const isScheduled = postStatus === 'scheduled';
+
     const post = new Post({
       oxyUserId: userId,
       content: postContent,
@@ -446,6 +467,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       visibility: PostVisibility.PUBLIC, // Explicitly set visibility
       replyPermission: replyPermission || 'anyone',
       reviewReplies: reviewReplies || false,
+      status: postStatus,
+      scheduledFor: scheduledForDate || undefined,
       stats: {
         likesCount: 0,
         repostsCount: 0,
@@ -466,8 +489,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
     
-    // Update poll's postId with the actual post ID
-    if (pollId) {
+    if (!isScheduled && pollId) {
       try {
         await Poll.findByIdAndUpdate(pollId, { postId: post._id.toString() });
       } catch (pollUpdateError) {
@@ -476,9 +498,99 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
     
-    // No populate needed since oxyUserId is just a string reference
+    if (!isScheduled) {
+      // Fire mention notifications if any
+      try {
+        if (mentions && mentions.length > 0) {
+          const isReply = Boolean(parentPostId || in_reply_to_status_id);
+          await createMentionNotifications(
+            mentions,
+            post._id.toString(),
+            userId,
+            isReply ? 'reply' : 'post'
+          );
+        }
+      } catch (e) {
+        console.error('Failed to create mention notifications:', e);
+      }
 
-    // Transform the response to match frontend expectations
+      // Reply notification if replying to an existing post
+      try {
+        const replyParentId = parentPostId || in_reply_to_status_id || null;
+        if (replyParentId) {
+          const parent = await Post.findById(replyParentId).lean();
+          const recipientId = parent?.oxyUserId?.toString?.() || (parent as any)?.oxyUserId || null;
+          if (recipientId && recipientId !== userId) {
+            await createNotification({
+              recipientId,
+              actorId: userId,
+              type: 'reply',
+              entityId: post._id.toString(),
+              entityType: 'reply'
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Failed to create reply notification:', e);
+      }
+
+      // Quote and Repost notifications if created via this endpoint
+      try {
+        if (quoted_post_id) {
+          const original = await Post.findById(quoted_post_id).lean();
+          const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
+          if (recipientId && recipientId !== userId) {
+            await createNotification({
+              recipientId,
+              actorId: userId,
+              type: 'quote',
+              entityId: original._id.toString(),
+              entityType: 'post'
+            });
+          }
+        }
+        if (repost_of) {
+          const original = await Post.findById(repost_of).lean();
+          const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
+          if (recipientId && recipientId !== userId) {
+            await createNotification({
+              recipientId,
+              actorId: userId,
+              type: 'repost',
+              entityId: original._id.toString(),
+              entityType: 'post'
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Failed to create quote/repost notification:', e);
+      }
+
+      // Notify subscribers of a new post (only for top-level posts, not replies)
+      try {
+        const isTopLevelPost = !(parentPostId || in_reply_to_status_id);
+        if (isTopLevelPost) {
+          const subs = await PostSubscription.find({ authorId: userId }).lean();
+          if (subs && subs.length) {
+            const notifications = subs
+              .filter(s => s.subscriberId !== userId)
+              .map(s => ({
+                recipientId: s.subscriberId,
+                actorId: userId,
+                type: 'post' as const,
+                entityId: post._id.toString(),
+                entityType: 'post' as const,
+              }));
+            if (notifications.length) {
+              await createBatchNotifications(notifications, true);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to notify subscribers about new post:', e);
+      }
+    }
+
     const transformedPost = post.toObject() as any;
     transformedPost.id = post._id.toString(); // Add string ID for frontend
     const userData = transformedPost.oxyUserId;
@@ -490,11 +602,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         avatar: typeof userData === 'object' ? userData.avatar : '',
         verified: typeof userData === 'object' ? userData.verified : false
     };
+    transformedPost.status = post.status;
+    transformedPost.scheduledFor = post.scheduledFor ? post.scheduledFor.toISOString() : undefined;
     delete transformedPost.oxyUserId;
 
-    // Fire mention notifications if any
     try {
-      if (mentions && mentions.length > 0) {
+      if (!isScheduled && mentions && mentions.length > 0) {
         const isReply = Boolean(parentPostId || in_reply_to_status_id);
         await createMentionNotifications(
           mentions,
@@ -506,83 +619,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     } catch (e) {
       console.error('Failed to create mention notifications:', e);
     }
-
-    // Reply notification if replying to an existing post
-    try {
-      const replyParentId = parentPostId || in_reply_to_status_id || null;
-      if (replyParentId) {
-        const parent = await Post.findById(replyParentId).lean();
-        const recipientId = parent?.oxyUserId?.toString?.() || (parent as any)?.oxyUserId || null;
-        if (recipientId && recipientId !== userId) {
-          await createNotification({
-            recipientId,
-            actorId: userId,
-            type: 'reply',
-            entityId: post._id.toString(),
-            entityType: 'reply'
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Failed to create reply notification:', e);
-    }
-
-  // Quote and Repost notifications if created via this endpoint
-    try {
-      if (quoted_post_id) {
-        const original = await Post.findById(quoted_post_id).lean();
-        const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
-        if (recipientId && recipientId !== userId) {
-          await createNotification({
-            recipientId,
-            actorId: userId,
-            type: 'quote',
-            entityId: original._id.toString(),
-            entityType: 'post'
-          });
-        }
-      }
-      if (repost_of) {
-        const original = await Post.findById(repost_of).lean();
-        const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
-        if (recipientId && recipientId !== userId) {
-          await createNotification({
-            recipientId,
-            actorId: userId,
-            type: 'repost',
-            entityId: original._id.toString(),
-            entityType: 'post'
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Failed to create quote/repost notification:', e);
-    }
-
-    // Notify subscribers of a new post (only for top-level posts, not replies)
-    try {
-      const isTopLevelPost = !(parentPostId || in_reply_to_status_id);
-      if (isTopLevelPost) {
-        const subs = await PostSubscription.find({ authorId: userId }).lean();
-        if (subs && subs.length) {
-          const notifications = subs
-            .filter(s => s.subscriberId !== userId)
-            .map(s => ({
-              recipientId: s.subscriberId,
-              actorId: userId,
-              type: 'post' as const,
-              entityId: post._id.toString(),
-              entityType: 'post' as const,
-            }));
-          if (notifications.length) {
-            await createBatchNotifications(notifications, true);
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Failed to notify subscribers about new post:', e);
-    }
-
+    
     res.status(201).json({ success: true, post: transformedPost });
   } catch (error) {
     console.error('Error creating post:', error);
@@ -596,6 +633,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    if (req.body.status || req.body.scheduledFor) {
+      return res.status(400).json({ message: 'Scheduling threads is not supported yet' });
     }
 
     console.log('🧵 Creating thread with body:', JSON.stringify(req.body, null, 2));
@@ -795,7 +836,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const currentUserId = req.user?.id;
 
-    const posts = await Post.find({ visibility: 'public' })
+    const posts = await Post.find({ visibility: 'public', status: 'published' })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -1638,6 +1679,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
     // MongoDB geospatial query to find posts within radius
     const posts = await Post.find({
       visibility: 'public',
+      status: 'published',
       [locationField]: {
         $near: {
           $geometry: {
@@ -1726,6 +1768,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
     // MongoDB geospatial query to find posts within bounding box
     const posts = await Post.find({
       visibility: 'public',
+      status: 'published',
       [locationField]: {
         $geoWithin: {
           $box: [
@@ -1933,6 +1976,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
     // MongoDB geospatial query to find posts within radius for either location type
     const posts = await Post.find({
       visibility: 'public',
+      status: 'published',
       $or: [
         {
           'content.location': {
@@ -2014,24 +2058,27 @@ export const getLocationStats = async (req: AuthRequest, res: Response) => {
     // Count posts with content locations (user shared)
     const contentLocationCount = await Post.countDocuments({
       visibility: 'public',
+      status: 'published',
       'content.location': { $exists: true, $ne: null }
     });
 
     // Count posts with post locations (creation metadata)
     const postLocationCount = await Post.countDocuments({
       visibility: 'public',
+      status: 'published',
       'location': { $exists: true, $ne: null }
     });
 
     // Count posts with both location types
     const bothLocationsCount = await Post.countDocuments({
       visibility: 'public',
+      status: 'published',
       'content.location': { $exists: true, $ne: null },
       'location': { $exists: true, $ne: null }
     });
 
     // Get total post count for percentage calculation
-    const totalPosts = await Post.countDocuments({ visibility: 'public' });
+    const totalPosts = await Post.countDocuments({ visibility: 'public', status: 'published' });
 
     res.json({
       total: totalPosts,
@@ -2040,6 +2087,7 @@ export const getLocationStats = async (req: AuthRequest, res: Response) => {
       withBothLocations: bothLocationsCount,
       withAnyLocation: await Post.countDocuments({
         visibility: 'public',
+        status: 'published',
         $or: [
           { 'content.location': { $exists: true, $ne: null } },
           { 'location': { $exists: true, $ne: null } }

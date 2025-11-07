@@ -50,6 +50,8 @@ interface FeedItem {
   language?: string;
   stats?: any;
   metadata?: any;
+  status?: 'draft' | 'published' | 'scheduled';
+  scheduledFor?: string | null;
   isLocalNew?: boolean;
 }
 
@@ -908,18 +910,30 @@ export const usePostsStore = create<FeedState>()(
         const response = await feedService.createPost(request);
         
         if (response.success) {
-          // Add the new post to the beginning of all relevant feeds
+          const rawPost = (response as any)?.post?.post ?? response.post;
+          if (!rawPost) {
+            set({ isLoading: false });
+            return null;
+          }
+
+          if (rawPost.status === 'scheduled') {
+            set({ isLoading: false });
+            return rawPost;
+          }
+
           const newPost: FeedItem = {
-            id: response.post.id,
-            user: response.post.user,
-            content: response.post.content || { text: '' }, // Use full content object
+            id: rawPost.id,
+            user: rawPost.user,
+            content: rawPost.content || { text: '' },
             date: new Date().toISOString(),
             engagement: { replies: 0, reposts: 0, likes: 0 },
-            media: response.post.content?.images || [], // Keep for backward compatibility
-            type: response.post.type,
-            visibility: response.post.visibility,
-            hashtags: response.post.hashtags || [],
-            mentions: response.post.mentions || [],
+            media: rawPost.content?.images || [],
+            type: rawPost.type,
+            visibility: rawPost.visibility,
+            hashtags: rawPost.hashtags || [],
+            mentions: rawPost.mentions || [],
+            status: rawPost.status,
+            scheduledFor: rawPost.scheduledFor || null,
             isLocalNew: true
           };
 

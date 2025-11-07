@@ -8,6 +8,7 @@ import { EmojiIcon } from '@/assets/icons/emoji-icon';
 import { GifIcon } from '@/assets/icons/gif-icon';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
+import { CalendarIcon } from '@/assets/icons/calendar-icon';
 
 interface ComposeToolbarProps {
     onMediaPress?: () => void;
@@ -24,6 +25,8 @@ interface ComposeToolbarProps {
     hasMedia?: boolean;
     hasSources?: boolean;
     hasArticle?: boolean;
+    hasSchedule?: boolean;
+    scheduleEnabled?: boolean;
     hasSourceErrors?: boolean;
     disabled?: boolean;
 }
@@ -43,10 +46,18 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     hasMedia = false,
     hasSources = false,
     hasArticle = false,
+    hasSchedule = false,
+    scheduleEnabled = true,
     hasSourceErrors = false,
     disabled = false,
 }) => {
     const theme = useTheme();
+
+    const scheduleColor = (disabled || !scheduleEnabled)
+        ? theme.colors.textTertiary
+        : hasSchedule
+            ? theme.colors.primary
+            : theme.colors.textSecondary;
 
     return (
         <View style={styles.toolbar}>
@@ -138,10 +149,15 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 <TouchableOpacity
                     onPress={onSchedulePress}
                     disabled={disabled}
-                    style={styles.button}
+                    activeOpacity={scheduleEnabled ? 0.7 : 1}
+                    style={[styles.button, !scheduleEnabled && { opacity: 0.6 }]}
                 >
-                    {/* TODO: Add calendar icon when available */}
-                    <View style={{ width: 20, height: 20, backgroundColor: theme.colors.textSecondary, opacity: disabled ? 0.3 : 1 }} />
+                    <View style={{ opacity: disabled ? 0.3 : 1 }}>
+                        <CalendarIcon
+                            size={20}
+                            color={scheduleColor}
+                        />
+                    </View>
                 </TouchableOpacity>
             )}
 

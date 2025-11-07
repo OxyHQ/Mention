@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useContext, useState } from 'react
 import { StyleSheet, View, Share, Platform, Alert, Pressable, TouchableOpacity, Text } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 
-import { UIPost, Reply, FeedRepost as Repost, FeedType } from '@mention/shared-types';
+import { UIPost, Reply, FeedRepost as Repost, FeedType, PostAttachmentDescriptor } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
 import PostHeader from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
@@ -207,6 +207,12 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [viewPost]);
 
     const hasSources = sourcesList.length > 0;
+
+    const attachments: PostAttachmentDescriptor[] | null = React.useMemo(() => {
+        const raw = (viewPost as any)?.content?.attachments;
+        if (!Array.isArray(raw)) return null;
+        return raw.filter(Boolean) as PostAttachmentDescriptor[];
+    }, [viewPost]);
 
     const articleContent = React.useMemo(() => {
         const art = (viewPost as any)?.content?.article;
@@ -449,6 +455,18 @@ const PostItem: React.FC<PostItemProps> = ({
             return null;
         }
     }, [viewPost]);
+
+    const hasMediaContent = Array.isArray((viewPost as any)?.content?.media) && (viewPost as any).content.media.length > 0;
+    const hasLegacyImages = Array.isArray((viewPost as any)?.content?.images) && (viewPost as any).content.images.length > 0;
+    const hasPollContent = Boolean(pollIdMemo || (viewPost as any)?.content?.poll);
+    const hasNestedContent = Boolean(originalPost);
+    const shouldRenderMediaBlock = hasMediaContent || hasLegacyImages || hasPollContent || hasArticle || hasNestedContent;
+
+    const sections = {
+        location: Boolean((attachments?.some(a => a.type === 'location') ?? locationMemo.hasValidLocation) && locationMemo.hasValidLocation),
+        sources: Boolean((attachments?.some(a => a.type === 'sources') ?? hasSources) && hasSources),
+        media: Boolean((attachments?.some(a => a.type === 'media' || a.type === 'poll' || a.type === 'article') ?? shouldRenderMediaBlock) && shouldRenderMediaBlock)
+    };
 
     // Early return if post is invalid
     if (!viewPost || !(viewPost as any).user) {
@@ -703,50 +721,63 @@ const PostItem: React.FC<PostItemProps> = ({
                 )}
             </PostHeader>
 
-            {/* Location information if available */}
-            {locationMemo.hasValidLocation && (
-                <PostLocation
-                    location={locationMemo.location}
-                    paddingHorizontal={BOTTOM_LEFT_PAD}
-                />
-            )}
+            {['location', 'sources', 'media'].map((section) => {
+                if (section === 'location' && sections.location) {
+                    return (
+                        <PostLocation
+                            key="location"
+                            location={locationMemo.location}
+                            paddingHorizontal={BOTTOM_LEFT_PAD}
+                        />
+                    );
+                }
 
-            {hasSources && (
-                <View style={{ paddingLeft: BOTTOM_LEFT_PAD, paddingRight: HPAD }}>
-                    <TouchableOpacity
-                        style={[styles.sourcesChip, {
-                            borderColor: theme.colors.border,
-                            backgroundColor: theme.colors.backgroundSecondary,
-                        }]}
-                        onPress={openSourcesSheet}
-                        activeOpacity={0.8}
-                    >
-                        <SourcesIcon size={14} color={theme.colors.primary} />
-                        <Text style={[styles.sourcesChipText, { color: theme.colors.primary }]}>
-                            {t('post.sourcesChip', { defaultValue: 'Sources' })}
-                            {` (${sourcesList.length})`}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            )}
+                if (section === 'sources' && sections.sources) {
+                    return (
+                        <View key="sources" style={{ paddingLeft: BOTTOM_LEFT_PAD, paddingRight: HPAD }}>
+                            <TouchableOpacity
+                                style={[styles.sourcesChip, {
+                                    borderColor: theme.colors.border,
+                                    backgroundColor: theme.colors.backgroundSecondary,
+                                }]}
+                                onPress={openSourcesSheet}
+                                activeOpacity={0.8}
+                            >
+                                <SourcesIcon size={14} color={theme.colors.primary} />
+                                <Text style={[styles.sourcesChipText, { color: theme.colors.primary }]}
+                                >
+                                    {t('post.sourcesChip', { defaultValue: 'Sources' })}
+                                    {` (${sourcesList.length})`}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    );
+                }
 
-            {/* Middle: horizontal scroller with media and nested post (repost/quote only, not replies) */}
-            <PostMiddle
-                media={(viewPost as any).content?.media || []}
-                attachments={(viewPost as any).content?.attachments || []}
-                nestedPost={originalPost ?? null}
-                leftOffset={BOTTOM_LEFT_PAD}
-                pollData={(viewPost as any).content?.poll}
-                pollId={pollIdMemo as any}
-                nestingDepth={nestingDepth}
-                postId={viewPostId}
-                article={articleContent ? {
-                    title: articleContent.title,
-                    body: articleContent.excerpt || articleContent.body,
-                    articleId: articleContent.articleId,
-                } : null}
-                onArticlePress={hasArticle ? openArticleSheet : undefined}
-            />
+                if (section === 'media' && sections.media) {
+                    return (
+                        <PostMiddle
+                            key="media"
+                            media={(viewPost as any).content?.media || []}
+                            attachments={attachments || undefined}
+                            nestedPost={originalPost ?? null}
+                            leftOffset={BOTTOM_LEFT_PAD}
+                            pollData={(viewPost as any).content?.poll}
+                            pollId={pollIdMemo as any}
+                            nestingDepth={nestingDepth}
+                            postId={viewPostId}
+                            article={articleContent ? {
+                                title: articleContent.title,
+                                body: articleContent.excerpt || articleContent.body,
+                                articleId: articleContent.articleId,
+                            } : null}
+                            onArticlePress={hasArticle ? openArticleSheet : undefined}
+                        />
+                    );
+                }
+
+                return null;
+            })}
 
             {/* Only show engagement buttons for non-nested posts */}
             {!isNested && (

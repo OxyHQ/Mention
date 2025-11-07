@@ -233,11 +233,24 @@ class FeedService {
         mentions: request.mentions || [],
         visibility: request.visibility || 'public',
         parentPostId: request.parentPostId,
-        threadId: request.threadId
+        threadId: request.threadId,
+        ...(request.status && { status: request.status }),
+        ...(request.scheduledFor && { scheduledFor: request.scheduledFor })
       };
       
       const response = await authenticatedClient.post('/posts', backendRequest);
-      return { success: true, post: response.data };
+      const data = response?.data;
+
+      if (data && typeof data === 'object' && data !== null) {
+        if ('post' in data) {
+          return {
+            success: typeof data.success === 'boolean' ? data.success : true,
+            post: (data as any).post
+          };
+        }
+      }
+
+      return { success: true, post: data };
     } catch (error) {
       console.error('Error creating post:', error);
       throw new Error('Failed to create post');

@@ -4,7 +4,7 @@ import { storeData, getData, removeData } from '@/utils/storage';
 export interface Draft {
   id: string;
   postContent: string;
-  mediaIds: Array<{ id: string; type: 'image' | 'video' }>;
+  mediaIds: Array<{ id: string; type: 'image' | 'video' | 'gif' }>;
   pollOptions: string[];
   pollTitle?: string;
   showPollCreator: boolean;
@@ -12,10 +12,11 @@ export interface Draft {
   sources?: Array<{ id?: string; title?: string; url?: string }>;
   article?: { title?: string; body?: string } | null;
   attachmentOrder?: string[];
+  scheduledAt?: string | null;
   threadItems: Array<{
     id: string;
     text: string;
-    mediaIds: Array<{ id: string; type: 'image' | 'video' }>;
+    mediaIds: Array<{ id: string; type: 'image' | 'video' | 'gif' }>;
     pollOptions: string[];
     pollTitle?: string;
     showPollCreator: boolean;

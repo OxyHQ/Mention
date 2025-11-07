@@ -27,6 +27,8 @@ export interface IPost extends Document {
     coordinates: [number, number]; // [longitude, latitude]
     address?: string;
   };
+  status?: 'draft' | 'published' | 'scheduled';
+  scheduledFor?: Date;
   createdAt: string;
   updatedAt: string;
 }
@@ -192,6 +194,13 @@ const PostSchema = new Schema<IPost>({
     default: 'anyone'
   },
   reviewReplies: { type: Boolean, default: false },
+  status: {
+    type: String,
+    enum: ['draft', 'published', 'scheduled'],
+    default: 'published',
+    index: true
+  },
+  scheduledFor: { type: Date },
   stats: { 
     type: PostStatsSchema, 
     default: () => ({

@@ -87,6 +87,8 @@ export interface Post {
   stats: PostStats;
   metadata: PostMetadata;
   location?: GeoJSONPoint; // Post creation location metadata
+  status?: 'draft' | 'published' | 'scheduled';
+  scheduledFor?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -124,6 +126,8 @@ export interface CreatePostRequest {
   hashtags?: string[];
   replyPermission?: ReplyPermission;
   reviewReplies?: boolean;
+  status?: 'draft' | 'published' | 'scheduled';
+  scheduledFor?: string;
 }
 
 export interface CreateThreadRequest {

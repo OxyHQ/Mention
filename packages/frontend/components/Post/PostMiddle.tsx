@@ -424,121 +424,121 @@ const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffse
           const imageSrc = item.src;
           const imageKey = item.mediaId ?? idx;
           const ImageWithAspectRatio = hasExactlyOneMedia && !hasMultipleMedia ? (() => {
-          const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
-            const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
-            
-            React.useEffect(() => {
-              Image.getSize(
-                src,
-                (width, height) => {
-                  if (width > 0 && height > 0) {
-                    setAspectRatio(width / height);
-                  }
-                },
-                () => {
-                  // On error, use default aspect ratio
-                  setAspectRatio(4 / 3);
-                }
-              );
-            }, [src]);
+            const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
+              const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
 
-            return (
-              <View style={[
-                styles.itemContainer,
-                webGrabCursorStyle,
-                { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
-                { maxHeight: undefined, height: undefined }
-              ]}>
-                <Image
-                  source={{ uri: src }}
-                  style={[
-                    styles.imagePreserveAspect,
-                    aspectRatio !== undefined ? { aspectRatio } : undefined
-                  ]}
-                  resizeMode="contain"
-                />
-              </View>
-            );
-          };
-          return <ImageWithRatio key={`img-${imageKey}`} src={imageSrc} />;
-        })() : hasMultipleMedia ? (() => {
-          const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
-            const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
-            
-            React.useEffect(() => {
-              Image.getSize(
-                src,
-                (width, height) => {
-                  if (width > 0 && height > 0) {
-                    setAspectRatio(width / height);
+              React.useEffect(() => {
+                Image.getSize(
+                  src,
+                  (width, height) => {
+                    if (width > 0 && height > 0) {
+                      setAspectRatio(width / height);
+                    }
+                  },
+                  () => {
+                    // On error, use default aspect ratio
+                    setAspectRatio(4 / 3);
                   }
-                },
-                () => {
-                  // On error, use default
-                  setAspectRatio(4 / 3);
-                }
-              );
-            }, [src]);
+                );
+              }, [src]);
 
-            return (
-              <View style={[
-                styles.itemContainer,
-                webGrabCursorStyle,
-                { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
-                { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' }
-              ]}>
-                <Image
-                  source={{ uri: src }}
-                  style={[
-                    styles.imageMultipleMedia,
-                    aspectRatio !== undefined ? { aspectRatio } : undefined
-                  ]}
-                  resizeMode="contain"
-                />
-              </View>
-            );
-          };
-          return <ImageWithRatio key={`img-${imageKey}`} src={imageSrc} />;
-        })() : (() => {
-          // Fallback: Always render with aspect ratio to prevent 0 height issues
-          // This handles edge cases where media count doesn't match expected conditions
-          const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
-            const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
-            
-            React.useEffect(() => {
-              Image.getSize(
-                src,
-                (width, height) => {
-                  if (width > 0 && height > 0) {
-                    setAspectRatio(width / height);
+              return (
+                <View style={[
+                  styles.itemContainer,
+                  webGrabCursorStyle,
+                  { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
+                  { maxHeight: undefined, height: undefined }
+                ]}>
+                  <Image
+                    source={{ uri: src }}
+                    style={[
+                      styles.imagePreserveAspect,
+                      aspectRatio !== undefined ? { aspectRatio } : undefined
+                    ]}
+                    resizeMode="contain"
+                  />
+                </View>
+              );
+            };
+            return <ImageWithRatio key={`img-${imageKey}`} src={imageSrc} />;
+          })() : hasMultipleMedia ? (() => {
+            const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
+              const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
+
+              React.useEffect(() => {
+                Image.getSize(
+                  src,
+                  (width, height) => {
+                    if (width > 0 && height > 0) {
+                      setAspectRatio(width / height);
+                    }
+                  },
+                  () => {
+                    // On error, use default
+                    setAspectRatio(4 / 3);
                   }
-                },
-                () => {
-                  // On error, use default aspect ratio
-                  setAspectRatio(4 / 3);
-                }
-              );
-            }, [src]);
+                );
+              }, [src]);
 
-            return (
-              <View style={[
-                styles.itemContainer,
-                webGrabCursorStyle,
-                { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
-                { maxHeight: undefined, height: undefined }
-              ]}>
-                <Image
-                  source={{ uri: src }}
-                  style={[
-                    styles.imagePreserveAspect,
-                    aspectRatio !== undefined ? { aspectRatio } : undefined
-                  ]}
-                  resizeMode="contain"
-                />
-              </View>
-            );
-          };
-          return <ImageWithRatio key={`img-${imageKey}`} src={imageSrc} />;
+              return (
+                <View style={[
+                  styles.itemContainer,
+                  webGrabCursorStyle,
+                  { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
+                  { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' }
+                ]}>
+                  <Image
+                    source={{ uri: src }}
+                    style={[
+                      styles.imageMultipleMedia,
+                      aspectRatio !== undefined ? { aspectRatio } : undefined
+                    ]}
+                    resizeMode="contain"
+                  />
+                </View>
+              );
+            };
+            return <ImageWithRatio key={`img-${imageKey}`} src={imageSrc} />;
+          })() : (() => {
+            // Fallback: Always render with aspect ratio to prevent 0 height issues
+            // This handles edge cases where media count doesn't match expected conditions
+            const ImageWithRatio: React.FC<{ src: string }> = ({ src }) => {
+              const [aspectRatio, setAspectRatio] = React.useState<number | undefined>(undefined);
+
+              React.useEffect(() => {
+                Image.getSize(
+                  src,
+                  (width, height) => {
+                    if (width > 0 && height > 0) {
+                      setAspectRatio(width / height);
+                    }
+                  },
+                  () => {
+                    // On error, use default aspect ratio
+                    setAspectRatio(4 / 3);
+                  }
+                );
+              }, [src]);
+
+              return (
+                <View style={[
+                  styles.itemContainer,
+                  webGrabCursorStyle,
+                  { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary },
+                  { maxHeight: undefined, height: undefined }
+                ]}>
+                  <Image
+                    source={{ uri: src }}
+                    style={[
+                      styles.imagePreserveAspect,
+                      aspectRatio !== undefined ? { aspectRatio } : undefined
+                    ]}
+                    resizeMode="contain"
+                  />
+                </View>
+              );
+            };
+            return <ImageWithRatio key={`img-${imageKey}`} src={imageSrc} />;
           })();
 
           return ImageWithAspectRatio;

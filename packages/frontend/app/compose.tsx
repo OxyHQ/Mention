@@ -9,23 +9,25 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  ScrollView,
+  Image,
+  Modal,
 } from 'react-native';
 import { useOxy } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
+import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import * as Location from 'expo-location';
 import { colors } from '../styles/colors';
 import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
-import PostMiddle from '@/components/Post/PostMiddle';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { usePostsStore } from '../stores/postsStore';
-import { GeoJSONPoint, PostAttachmentDescriptor } from '@mention/shared-types';
+import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
@@ -38,6 +40,7 @@ import { LocationIcon } from '@/assets/icons/location-icon';
 import { Plus } from '@/assets/icons/plus-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
+import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import DraftsSheet from '@/components/Compose/DraftsSheet';
 import ReplySettingsSheet, { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
@@ -45,137 +48,44 @@ import GifPickerSheet from '@/components/Compose/GifPickerSheet';
 import SourcesSheet from '@/components/Compose/SourcesSheet';
 import { Toggle } from '@/components/Toggle';
 import { useDrafts } from '@/hooks/useDrafts';
-import { VideoView, useVideoPlayer } from 'expo-video';
-import { ScrollView, Image, Dimensions, Modal } from 'react-native';
+import ScheduleSheet, { ScheduleOption } from '@/components/Compose/ScheduleSheet';
 
-const MEDIA_CARD_WIDTH = 280;
-const MEDIA_CARD_HEIGHT = 180;
-const POLL_ATTACHMENT_KEY = 'poll';
-const ARTICLE_ATTACHMENT_KEY = 'article';
-const LOCATION_ATTACHMENT_KEY = 'location';
-const SOURCES_ATTACHMENT_KEY = 'sources';
-const MEDIA_ATTACHMENT_PREFIX = 'media:';
+// New imports for refactored components and hooks
+import { useLocationManager } from '@/hooks/useLocationManager';
+import { useMediaManager } from '@/hooks/useMediaManager';
+import { usePollManager } from '@/hooks/usePollManager';
+import { useSourcesManager } from '@/hooks/useSourcesManager';
+import {
+  PollCreator,
+  PollAttachmentCard,
+  MediaPreview,
+  VideoPreview,
+  ArticleEditor,
+  LocationDisplay,
+} from '@/components/Compose';
+import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
+import { formatScheduledLabel, addMinutes } from '@/utils/dateUtils';
+import {
+  ComposerMediaItem,
+  toComposerMediaType,
+  MEDIA_CARD_WIDTH,
+  MEDIA_CARD_HEIGHT,
+  POLL_ATTACHMENT_KEY,
+  ARTICLE_ATTACHMENT_KEY,
+  LOCATION_ATTACHMENT_KEY,
+  SOURCES_ATTACHMENT_KEY,
+  createMediaAttachmentKey,
+  isMediaAttachmentKey,
+  getMediaIdFromAttachmentKey,
+} from '@/utils/composeUtils';
 
-const createMediaAttachmentKey = (id: string) => `${MEDIA_ATTACHMENT_PREFIX}${id}`;
-const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
-const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
-
-type ComposerMediaType = 'image' | 'video' | 'gif';
-type ComposerMediaItem = { id: string; type: ComposerMediaType };
-
-const toComposerMediaType = (value?: string, mime?: string): ComposerMediaType => {
-  const lowerValue = typeof value === 'string' ? value.toLowerCase() : '';
-  const lowerMime = typeof mime === 'string' ? mime.toLowerCase() : '';
-
-  if (lowerValue === 'video' || lowerMime.startsWith('video/')) return 'video';
-  if (lowerValue === 'gif' || lowerMime.includes('gif')) return 'gif';
-  return 'image';
-};
-
-const buildAttachmentsPayload = (
-  order: string[],
-  mediaList: ComposerMediaItem[],
-  options: {
-    includePoll?: boolean;
-    includeArticle?: boolean;
-    includeLocation?: boolean;
-    includeSources?: boolean;
-  }
-): PostAttachmentDescriptor[] => {
-  const descriptors: PostAttachmentDescriptor[] = [];
-  const mediaMap = new Map<string, ComposerMediaItem>();
-  const usedMedia = new Set<string>();
-
-  mediaList.forEach((item) => {
-    mediaMap.set(item.id, item);
-  });
-
-  const addNonMedia = (type: 'poll' | 'article' | 'location' | 'sources') => {
-    if (!descriptors.some(d => d.type === type)) {
-      descriptors.push({ type });
-    }
-  };
-
-  const addMedia = (id: string) => {
-    if (!id) return;
-    if (usedMedia.has(id)) return;
-    const mediaItem = mediaMap.get(id);
-    if (!mediaItem) return;
-    usedMedia.add(id);
-    descriptors.push({
-      type: 'media',
-      id,
-      mediaType: mediaItem.type,
-    });
-  };
-
-  order.forEach((key) => {
-    if (key === POLL_ATTACHMENT_KEY) {
-      if (options.includePoll) addNonMedia('poll');
-      return;
-    }
-    if (key === ARTICLE_ATTACHMENT_KEY) {
-      if (options.includeArticle) addNonMedia('article');
-      return;
-    }
-    if (key === LOCATION_ATTACHMENT_KEY) {
-      if (options.includeLocation) addNonMedia('location');
-      return;
-    }
-    if (key === SOURCES_ATTACHMENT_KEY) {
-      if (options.includeSources) addNonMedia('sources');
-      return;
-    }
-    if (isMediaAttachmentKey(key)) {
-      const mediaId = getMediaIdFromAttachmentKey(key);
-      addMedia(mediaId);
-    }
-  });
-
-  if (options.includePoll) addNonMedia('poll');
-  if (options.includeArticle) addNonMedia('article');
-  if (options.includeLocation) addNonMedia('location');
-  if (options.includeSources) addNonMedia('sources');
-
-  mediaList.forEach((item) => {
-    if (!usedMedia.has(item.id)) {
-      addMedia(item.id);
-    }
-  });
-
-  return descriptors;
-};
-
-// Video preview component for compose screen
-const VideoItemPreview: React.FC<{ src: string }> = ({ src }) => {
-  const player = useVideoPlayer(src, (player) => {
-    if (player) {
-      player.loop = true;
-      player.muted = true;
-    }
-  });
-
-  React.useEffect(() => {
-    if (player) {
-      player.play();
-    }
-    return () => {
-      if (player) {
-        player.pause();
-      }
-    };
-  }, [player]);
-
-  return (
-    <VideoView
-      player={player}
-      style={{ width: '100%', height: '100%' }}
-      contentFit="cover"
-      nativeControls={false}
-      allowsFullscreen={false}
-    />
-  );
-};
+// Keep this in sync with PostItem constants
+const HPAD = 16;
+const AVATAR_SIZE = 40;
+const AVATAR_GAP = 12;
+const AVATAR_OFFSET = AVATAR_SIZE + AVATAR_GAP; // 52
+const BOTTOM_LEFT_PAD = HPAD + AVATAR_OFFSET; // 68
+const TIMELINE_LINE_OFFSET = HPAD + AVATAR_SIZE / 2 - 1; // Center timeline on avatar
 
 const ComposeScreen = () => {
   const theme = useTheme();
@@ -216,6 +126,7 @@ const ComposeScreen = () => {
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
   const [reviewReplies, setReviewReplies] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
   const { user, showBottomSheet, oxyServices } = useOxy();
   const { createPost, createThread } = usePostsStore();
   const { t } = useTranslation();
@@ -226,6 +137,8 @@ const ComposeScreen = () => {
     const body = article.body?.trim();
     return Boolean(title || body);
   }, [article]);
+
+  const scheduleEnabled = postingMode === 'thread' && threadItems.length === 0;
 
   useEffect(() => {
     const hasLocationAttachment = Boolean(location);
@@ -284,6 +197,7 @@ const ComposeScreen = () => {
   const currentDraftIdRef = useRef(currentDraftId);
   const articleRef = useRef(article);
   const attachmentOrderRef = useRef(attachmentOrder);
+  const scheduledAtRef = useRef<Date | null>(null);
   const pollTitleInputRef = useRef<TextInput | null>(null);
   const threadPollTitleRefs = useRef<Record<string, TextInput | null>>({});
 
@@ -327,6 +241,9 @@ const ComposeScreen = () => {
   useEffect(() => {
     attachmentOrderRef.current = attachmentOrder;
   }, [attachmentOrder]);
+  useEffect(() => {
+    scheduledAtRef.current = scheduledAt;
+  }, [scheduledAt]);
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
 
@@ -455,6 +372,12 @@ const ComposeScreen = () => {
 
   const handlePost = async () => {
     if (isPosting || !user) return;
+    if (scheduledAt && !scheduleEnabled) {
+      toast.error(t('compose.schedule.threadsUnsupported', { defaultValue: 'Scheduling threads is not supported yet' }));
+      return;
+    }
+    const scheduledAtValue = scheduledAt;
+    const wasScheduled = Boolean(scheduledAtValue);
     const hasText = postContent.trim().length > 0;
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
@@ -513,7 +436,11 @@ const ComposeScreen = () => {
         mentions: mentions.map(m => m.userId),
         hashtags: [],
         replyPermission: replyPermission,
-        reviewReplies: reviewReplies
+        reviewReplies: reviewReplies,
+        ...(wasScheduled && scheduledAtRef.current ? {
+          status: 'scheduled' as const,
+          scheduledFor: scheduledAtRef.current.toISOString()
+        } : {})
       });
 
       // Add thread items if any
@@ -588,8 +515,12 @@ const ComposeScreen = () => {
         setCurrentDraftId(null);
       }
 
-      // Show success toast
-      toast.success(t('Post published successfully'));
+      const successMessage = wasScheduled && scheduledAtValue
+        ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
+        : t('Post published successfully');
+      toast.success(successMessage);
+
+      clearSchedule({ silent: true });
 
       setArticle(null);
       setArticleDraftTitle('');
@@ -621,6 +552,7 @@ const ComposeScreen = () => {
     const latestCurrentDraftId = currentDraftIdRef.current;
     const latestArticle = articleRef.current;
     const latestAttachmentOrder = attachmentOrderRef.current;
+    const latestScheduledAt = scheduledAtRef.current;
 
     // Only save if there's content
     const hasContent = latestPostContent.trim().length > 0 || 
@@ -687,6 +619,7 @@ const ComposeScreen = () => {
         })),
         postingMode: latestPostingMode,
         attachmentOrder: latestAttachmentOrder,
+        scheduledAt: latestScheduledAt ? latestScheduledAt.toISOString() : null,
       });
       setCurrentDraftId(draftId);
     } catch (error) {
@@ -717,7 +650,7 @@ const ComposeScreen = () => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-    }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, autoSaveDraft]);
+    }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, autoSaveDraft]);
 
   // Load draft function
   const loadDraft = useCallback((draft: any) => {
@@ -748,8 +681,8 @@ const ComposeScreen = () => {
     }
     setLocation(locationData);
     
-    const sourcesData = (draft.sources || []).map((source: any) => ({
-      id: source.id || generateSourceId(),
+    const sourcesData = (draft.sources || []).map((source: { id?: string; title?: string; url?: string }) => ({
+      id: source.id || '',
       title: source.title || '',
       url: source.url || '',
     }));
@@ -768,6 +701,20 @@ const ComposeScreen = () => {
       setArticleDraftBody('');
     }
 
+    if (draft.scheduledAt) {
+      const parsed = new Date(draft.scheduledAt);
+      if (!Number.isNaN(parsed.getTime())) {
+        setScheduledAt(parsed);
+        scheduledAtRef.current = parsed;
+      } else {
+        setScheduledAt(null);
+        scheduledAtRef.current = null;
+      }
+    } else {
+      setScheduledAt(null);
+      scheduledAtRef.current = null;
+    }
+
     const availableAttachmentKeys: string[] = [];
     if (shouldShowPoll) {
       availableAttachmentKeys.push(POLL_ATTACHMENT_KEY);
@@ -778,7 +725,7 @@ const ComposeScreen = () => {
     if (locationData) {
       availableAttachmentKeys.push(LOCATION_ATTACHMENT_KEY);
     }
-    if (sourcesData.some((source) => source.url?.trim?.().length)) {
+    if (sourcesData.some((source: { id: string; title: string; url: string }) => source.url.trim().length > 0)) {
       availableAttachmentKeys.push(SOURCES_ATTACHMENT_KEY);
     }
     mediaIdsData.forEach((media: ComposerMediaItem) => {
@@ -996,19 +943,19 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
     setIsGettingLocation(true);
     try {
       // Request permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         toast.error(t('Location permission denied'));
         return;
       }
 
       // Get current position
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+      const currentLocation = await ExpoLocation.getCurrentPositionAsync({
+        accuracy: ExpoLocation.Accuracy.Balanced,
       });
 
       // Reverse geocode to get address
-      const reverseGeocode = await Location.reverseGeocodeAsync({
+      const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
       });
@@ -1143,19 +1090,19 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
   const requestThreadLocation = async (threadId: string) => {
     try {
       // Request permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         toast.error(t('Location permission denied'));
         return;
       }
 
       // Get current position
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+      const currentLocation = await ExpoLocation.getCurrentPositionAsync({
+        accuracy: ExpoLocation.Accuracy.Balanced,
       });
 
       // Reverse geocode to get address
-      const reverseGeocode = await Location.reverseGeocodeAsync({
+      const reverseGeocode = await ExpoLocation.reverseGeocodeAsync({
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
       });
@@ -1207,6 +1154,76 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
     }
   };
 
+  const formatScheduledLabel = useCallback((date: Date) => {
+    try {
+      return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+    } catch {
+      return date.toLocaleString();
+    }
+  }, []);
+
+  const clearSchedule = useCallback((options?: { silent?: boolean }) => {
+    setScheduledAt(null);
+    scheduledAtRef.current = null;
+    if (!options?.silent) {
+      toast.success(t('compose.schedule.cleared', { defaultValue: 'Scheduling removed' }));
+    }
+  }, [t]);
+
+  const handleScheduleSelect = useCallback((date: Date) => {
+    setScheduledAt(date);
+    scheduledAtRef.current = date;
+    toast.success(t('compose.schedule.set', { defaultValue: 'Scheduled for {{time}}', time: formatScheduledLabel(date) }));
+    bottomSheet.openBottomSheet(false);
+  }, [bottomSheet, formatScheduledLabel, t]);
+
+  const handleScheduleClear = useCallback(() => {
+    clearSchedule();
+    bottomSheet.openBottomSheet(false);
+  }, [bottomSheet, clearSchedule]);
+
+  const handleScheduleClose = useCallback(() => {
+    bottomSheet.openBottomSheet(false);
+  }, [bottomSheet]);
+
+  const openScheduleSheet = useCallback(() => {
+    if (!scheduleEnabled) {
+      toast.info(t('compose.schedule.singlePostOnly', { defaultValue: 'Scheduling is only available for single posts' }));
+      return;
+    }
+
+    const now = new Date();
+    const tomorrowMorning = new Date(now);
+    tomorrowMorning.setDate(now.getDate() + 1);
+    tomorrowMorning.setHours(9, 0, 0, 0);
+
+    const laterToday = new Date(now);
+    laterToday.setHours(17, 0, 0, 0);
+    if (laterToday <= now) {
+      laterToday.setDate(laterToday.getDate() + 1);
+    }
+
+    const options: ScheduleOption[] = [
+      { key: '15m', label: t('compose.schedule.option.15m', { defaultValue: 'In 15 minutes' }), date: addMinutes(now, 15) },
+      { key: '1h', label: t('compose.schedule.option.1h', { defaultValue: 'In 1 hour' }), date: addMinutes(now, 60) },
+      { key: '3h', label: t('compose.schedule.option.3h', { defaultValue: 'In 3 hours' }), date: addMinutes(now, 180) },
+      { key: 'tomorrow', label: t('compose.schedule.option.tomorrow', { defaultValue: 'Tomorrow morning' }), date: tomorrowMorning },
+      { key: 'later', label: t('compose.schedule.option.later', { defaultValue: 'Later today' }), date: laterToday },
+    ];
+
+    bottomSheet.setBottomSheetContent(
+      <ScheduleSheet
+        scheduledAt={scheduledAt}
+        options={options}
+        onSelect={handleScheduleSelect}
+        onClear={handleScheduleClear}
+        onClose={handleScheduleClose}
+        formatLabel={formatScheduledLabel}
+      />
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [scheduleEnabled, scheduledAt, bottomSheet, t, formatScheduledLabel, handleScheduleSelect, handleScheduleClear, handleScheduleClose]);
+
   const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
 
   // Update bottom sheet content when replyPermission or reviewReplies changes
@@ -1243,6 +1260,12 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
     );
     bottomSheet.openBottomSheet(true);
   };
+
+  useEffect(() => {
+    if (!scheduleEnabled && scheduledAt) {
+      clearSchedule({ silent: true });
+    }
+  }, [scheduleEnabled, scheduledAt, clearSchedule]);
   
   return (
     <>
@@ -1311,6 +1334,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                           setArticleDraftBody('');
                           setThreadItems([]);
                           setMentions([]);
+                          clearSchedule({ silent: true });
                           toast.success(t('common.cleared'));
                         },
                       },
@@ -1538,7 +1562,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                               style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                             >
                               {mediaItem.type === 'video' ? (
-                                <VideoItemPreview src={mediaUrl} />
+                                <VideoPreview src={mediaUrl} />
                               ) : (
                                 <Image
                                   source={{ uri: mediaUrl }}
@@ -1607,6 +1631,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                       // TODO: Implement emoji picker
                       toast.info(t('Emoji picker coming soon'));
                     }}
+                    onSchedulePress={openScheduleSheet}
                     onSourcesPress={openSourcesSheet}
                     onArticlePress={openArticleEditor}
                     hasLocation={!!location}
@@ -1615,6 +1640,8 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                     hasMedia={mediaIds.length > 0}
                     hasSources={sources.length > 0}
                     hasArticle={articleHasContent}
+                    hasSchedule={Boolean(scheduledAt)}
+                    scheduleEnabled={scheduleEnabled}
                     hasSourceErrors={hasInvalidSources}
                     disabled={isPosting}
                   />
@@ -1624,6 +1651,30 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                     </Text>
                   )}
                 </View>
+
+                {scheduledAt && (
+                  <View
+                    style={[
+                      styles.scheduleInfoContainer,
+                      {
+                        borderColor: theme.colors.border,
+                        backgroundColor: theme.colors.backgroundSecondary,
+                      }
+                    ]}
+                  >
+                    <CalendarIcon size={14} color={theme.colors.primary} />
+                    <Text style={[styles.scheduleInfoText, { color: theme.colors.text }]}
+                    >
+                      {t('compose.schedule.set', {
+                        defaultValue: 'Scheduled for {{time}}',
+                        time: formatScheduledLabel(scheduledAt)
+                      })}
+                    </Text>
+                    <TouchableOpacity onPress={() => clearSchedule()} style={styles.scheduleInfoClearButton}>
+                      <Text style={[styles.scheduleInfoClearText, { color: theme.colors.primary }]}>{t('compose.schedule.clear', { defaultValue: 'Clear' })}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {/* Poll Creator */}
                 {showPollCreator && (
@@ -1887,7 +1938,7 @@ const moveThreadMedia = useCallback((threadId: string, mediaId: string, directio
                               style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                             >
                               {mediaItem.type === 'video' ? (
-                                <VideoItemPreview src={mediaUrl} />
+                                <VideoPreview src={mediaUrl} />
                               ) : (
                                 <Image
                                   source={{ uri: mediaUrl }}
@@ -2291,11 +2342,11 @@ const styles = StyleSheet.create({
 
   /* bottom bar and floating post button */
   bottomBar: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 26,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
   bottomText: {
@@ -2873,6 +2924,104 @@ const styles = StyleSheet.create({
   },
   modeToggle: {
     marginHorizontal: 20,
+  },
+  scheduleInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  scheduleInfoText: {
+    flex: 1,
+    fontSize: 13,
+  },
+  scheduleInfoClearButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  scheduleInfoClearText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  scheduleSheetContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 28,
+    gap: 16,
+  },
+  scheduleSheetTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  scheduleSheetSubtitle: {
+    fontSize: 13,
+  },
+  scheduleSheetDivider: {
+    height: StyleSheet.hairlineWidth,
+    width: '100%',
+  },
+  scheduleOptionButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  scheduleOptionLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  scheduleOptionHint: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  scheduleCustomSection: {
+    gap: 12,
+  },
+  scheduleCustomLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  scheduleCustomInputsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  scheduleCustomInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+  },
+  scheduleSheetError: {
+    fontSize: 12,
+  },
+  scheduleSheetActionButton: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  scheduleSheetActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  scheduleSheetActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  scheduleSheetSecondaryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  scheduleSheetSecondaryText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

@@ -11,4 +11,6 @@ export { Video, VideoActive } from './video-icon';
 export { ComposeIcon, ComposeIIconActive } from './compose-icon';
 
 // Types
-export type { IconProps } from './types'; 
+export type { IconProps } from './types';
+
+export { CalendarIcon } from './calendar-icon'; 

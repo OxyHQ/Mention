@@ -453,6 +453,7 @@ class FeedController {
     const query: any = {
       visibility: PostVisibility.PUBLIC // Only show public posts by default
     };
+    query.status = 'published';
 
     // Filter by post type
     switch (type) {
