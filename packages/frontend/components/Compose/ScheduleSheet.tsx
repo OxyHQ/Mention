@@ -93,7 +93,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
   }, [onClose]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}> 
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.grabberContainer}>
         <View style={[styles.grabber, { backgroundColor: theme.colors.border }]} />
       </View>
@@ -107,7 +107,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
         </Text>
 
         {scheduledAt && (
-          <View style={[styles.currentRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}> 
+          <View style={[styles.currentRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.currentLabel, { color: theme.colors.textSecondary }]}>
                 {t('compose.schedule.current', { defaultValue: 'Currently scheduled' })}
@@ -117,7 +117,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               </Text>
             </View>
             <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
-              <Text style={[styles.clearText, { color: theme.colors.danger }]}> 
+              <Text style={[styles.clearText, { color: theme.colors.error }]}>
                 {t('compose.schedule.clear', { defaultValue: 'Clear' })}
               </Text>
             </TouchableOpacity>
@@ -129,7 +129,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
         </Text>
 
         <View style={styles.optionsGrid}>
-          {options.map((option, index) => (
+          {options.map((option) => (
             <TouchableOpacity
               key={option.key}
               style={[
@@ -137,7 +137,6 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
                 {
                   borderColor: theme.colors.border,
                   backgroundColor: theme.colors.card,
-                  marginBottom: index === options.length - 1 ? 0 : 12,
                 },
               ]}
               onPress={() => handleOptionPress(option)}
@@ -264,22 +263,30 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   optionsGrid: {
-    flexDirection: 'column',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
     marginBottom: 20,
   },
   optionButton: {
+    width: "31%",
+    aspectRatio: 1.6,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    borderRadius: 14,
+    padding: 10,
+    justifyContent: "center",
+    alignItems: "flex-start",
   },
   optionLabel: {
     fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: "600",
+    marginBottom: 6,
+    textAlign: "left",
   },
   optionDescription: {
-    fontSize: 13,
+    fontSize: 11,
+    textAlign: "left",
+    lineHeight: 14,
   },
   inputsRow: {
     flexDirection: 'row',

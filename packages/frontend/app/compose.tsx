@@ -63,6 +63,8 @@ import { useScheduleManager } from '@/hooks/useScheduleManager';
 import { useDraftManager } from '@/hooks/useDraftManager';
 import { useComposeValidation } from '@/hooks/useComposeValidation';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
+import { useMultiRefSync } from '@/hooks/useRefSync';
+import { useUrlUtils } from '@/hooks/useUrlUtils';
 import {
   PollCreator,
   PollAttachmentCard,
@@ -266,82 +268,43 @@ const ComposeScreen = () => {
   });
   const { openMediaPicker } = mediaPicker;
 
-  // Use refs to always get latest values in timeout callback
-  const postContentRef = useRef(postContent);
-  const mediaIdsRef = useRef(mediaIds);
-  const pollOptionsRef = useRef(pollOptions);
-  const pollTitleRef = useRef(pollTitle);
-  const showPollCreatorRef = useRef(showPollCreator);
-  const locationRef = useRef(location);
-  const sourcesRef = useRef(sources);
-  const threadItemsRef = useRef(threadItems);
-  const mentionsRef = useRef(mentions);
-  const postingModeRef = useRef(postingMode);
-  const currentDraftIdRef = useRef(currentDraftId);
-  const articleRef = useRef(article);
-  const attachmentOrderRef = useRef(attachmentOrder);
-  const threadPollTitleRefs = useRef<Record<string, TextInput | null>>({});
+  // URL utilities
+  const urlUtils = useUrlUtils();
+  const { normalizeUrl, isValidSourceUrl } = urlUtils;
 
-  // Update refs when state changes
-  useEffect(() => {
-    postContentRef.current = postContent;
-  }, [postContent]);
-  useEffect(() => {
-    mediaIdsRef.current = mediaIds;
-  }, [mediaIds]);
-  useEffect(() => {
-    pollOptionsRef.current = pollOptions;
-  }, [pollOptions]);
-  useEffect(() => {
-    pollTitleRef.current = pollTitle;
-  }, [pollTitle]);
-  useEffect(() => {
-    showPollCreatorRef.current = showPollCreator;
-  }, [showPollCreator]);
-  useEffect(() => {
-    locationRef.current = location;
-  }, [location]);
-  useEffect(() => {
-    sourcesRef.current = sources;
-  }, [sources]);
-  useEffect(() => {
-    threadItemsRef.current = threadItems;
-  }, [threadItems]);
-  useEffect(() => {
-    mentionsRef.current = mentions;
-  }, [mentions]);
-  useEffect(() => {
-    postingModeRef.current = postingMode;
-  }, [postingMode]);
-  useEffect(() => {
-    currentDraftIdRef.current = currentDraftId;
-  }, [currentDraftId]);
-  useEffect(() => {
-    articleRef.current = article;
-  }, [article]);
-  useEffect(() => {
-    attachmentOrderRef.current = attachmentOrder;
-  }, [attachmentOrder]);
-  useEffect(() => {
-    scheduledAtRef.current = scheduledAt;
-  }, [scheduledAt]);
+  // Sync refs with state for timeout/async callbacks
+  const refs = useMultiRefSync({
+    postContent,
+    mediaIds,
+    pollOptions,
+    pollTitle,
+    showPollCreator,
+    location,
+    sources,
+    threadItems,
+    mentions,
+    postingMode,
+    currentDraftId,
+    article,
+    attachmentOrder,
+  });
+  const postContentRef = refs.postContent;
+  const mediaIdsRef = refs.mediaIds;
+  const pollOptionsRef = refs.pollOptions;
+  const pollTitleRef = refs.pollTitle;
+  const showPollCreatorRef = refs.showPollCreator;
+  const locationRef = refs.location;
+  const sourcesRef = refs.sources;
+  const threadItemsRef = refs.threadItems;
+  const mentionsRef = refs.mentions;
+  const postingModeRef = refs.postingMode;
+  const currentDraftIdRef = refs.currentDraftId;
+  const articleRef = refs.article;
+  const attachmentOrderRef = refs.attachmentOrder;
+  const threadPollTitleRefs = useRef<Record<string, TextInput | null>>({});
+  // Note: scheduledAtRef comes from scheduleManager
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
-
-  const normalizeUrl = useCallback((raw: string): string | null => {
-    if (!raw || typeof raw !== 'string') return null;
-    let value = raw.trim();
-    if (!value) return null;
-    if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value)) {
-      value = `https://${value}`;
-    }
-    try {
-      const parsed = new URL(value);
-      return parsed.toString();
-    } catch {
-      return null;
-    }
-  }, []);
 
   const sanitizeSourcesForSubmit = useCallback((list: Array<{ id: string; title: string; url: string }> | undefined) => {
     if (!Array.isArray(list) || list.length === 0) return [] as Array<{ url: string; title?: string }>;
@@ -358,11 +321,6 @@ const ComposeScreen = () => {
 
     const deduped = normalized.filter((source, index, self) => self.findIndex((s) => s.url === source.url) === index);
     return deduped.slice(0, MAX_SOURCES);
-  }, [normalizeUrl]);
-
-  const isValidSourceUrl = useCallback((value: string) => {
-    if (!value || value.trim().length === 0) return true;
-    return Boolean(normalizeUrl(value));
   }, [normalizeUrl]);
 
   const closeSourcesSheet = useCallback(() => {
