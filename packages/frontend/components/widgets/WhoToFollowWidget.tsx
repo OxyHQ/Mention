@@ -42,7 +42,7 @@ export function WhoToFollowWidget() {
         setLoading(true);
         setError(null);
         const response = await oxyServices.getProfileRecommendations();
-        
+
         if (!mounted) return;
 
         const users = Array.isArray(response) ? response : [];
@@ -140,9 +140,9 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
   const router = useRouter();
   const { oxyServices } = useOxy();
   const theme = useTheme();
-  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ 
-    userId: string; 
-    size?: "small" | "medium" | "large" 
+  const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
+    userId: string;
+    size?: "small" | "medium" | "large"
   }>;
 
   const displayName = useMemo(() => {
@@ -154,7 +154,7 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
   }, [profileData.name, profileData.username]);
 
   const avatarUri = useMemo(() => {
-    return profileData.avatar 
+    return profileData.avatar
       ? oxyServices.getFileDownloadUrl(profileData.avatar, "thumb")
       : undefined;
   }, [profileData.avatar, oxyServices]);
@@ -177,8 +177,8 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
             @{username}
           </ThemedText>
           {profileData.bio && (
-            <ThemedText 
-              style={[styles.rowBio, { color: theme.colors.textSecondary }]} 
+            <ThemedText
+              style={[styles.rowBio, { color: theme.colors.textSecondary }]}
               numberOfLines={2}
             >
               {profileData.bio}

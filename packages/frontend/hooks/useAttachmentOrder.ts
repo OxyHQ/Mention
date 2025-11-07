@@ -23,6 +23,7 @@ interface UseAttachmentOrderProps {
   location: any;
   sources: Source[];
   mediaIds: ComposerMediaItem[];
+  setMediaIds?: (updater: (prev: ComposerMediaItem[]) => ComposerMediaItem[]) => void;
 }
 
 export const useAttachmentOrder = ({
@@ -32,6 +33,7 @@ export const useAttachmentOrder = ({
   location,
   sources,
   mediaIds,
+  setMediaIds,
 }: UseAttachmentOrderProps) => {
   const [attachmentOrder, setAttachmentOrder] = useState<string[]>([]);
 
@@ -94,9 +96,51 @@ export const useAttachmentOrder = ({
     setAttachmentOrder([]);
   }, []);
 
+  // Move an attachment left or right in the order
+  const moveAttachment = useCallback((attachmentKey: string, direction: 'left' | 'right') => {
+    setAttachmentOrder(prev => {
+      const index = prev.indexOf(attachmentKey);
+      if (index === -1) return prev;
+      const targetIndex = direction === 'left' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const updated = [...prev];
+      const [item] = updated.splice(index, 1);
+      updated.splice(targetIndex, 0, item);
+
+      // Also reorder mediaIds to match the new attachment order
+      if (setMediaIds) {
+        const newMediaOrderIds = updated
+          .filter(isMediaAttachmentKey)
+          .map(getMediaIdFromAttachmentKey);
+
+        if (newMediaOrderIds.length > 0) {
+          setMediaIds(prevMedia => {
+            const idToMedia = new Map(prevMedia.map(m => [m.id, m]));
+            const reordered: ComposerMediaItem[] = [];
+            newMediaOrderIds.forEach(id => {
+              const mediaItem = idToMedia.get(id);
+              if (mediaItem) {
+                reordered.push(mediaItem);
+              }
+            });
+            prevMedia.forEach(mediaItem => {
+              if (!newMediaOrderIds.includes(mediaItem.id)) {
+                reordered.push(mediaItem);
+              }
+            });
+            return reordered;
+          });
+        }
+      }
+
+      return updated;
+    });
+  }, [setMediaIds]);
+
   return {
     attachmentOrder,
     setAttachmentOrder: setOrder,
     clearAttachmentOrder: clearOrder,
+    moveAttachment,
   };
 };

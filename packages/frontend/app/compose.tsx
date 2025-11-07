@@ -60,6 +60,9 @@ import { useArticleManager } from '@/hooks/useArticleManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { usePostSubmission } from '@/hooks/usePostSubmission';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
+import { useDraftManager } from '@/hooks/useDraftManager';
+import { useComposeValidation } from '@/hooks/useComposeValidation';
+import { useMediaPicker } from '@/hooks/useMediaPicker';
 import {
   PollCreator,
   PollAttachmentCard,
@@ -175,12 +178,11 @@ const ComposeScreen = () => {
     location,
     sources,
     mediaIds,
+    setMediaIds,
   });
-  const { attachmentOrder, setAttachmentOrder, clearAttachmentOrder } = attachmentOrderManager;
+  const { attachmentOrder, setAttachmentOrder, clearAttachmentOrder, moveAttachment } = attachmentOrderManager;
 
   // Remaining local state
-  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
-  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [postContent, setPostContent] = useState('');
   const [mentions, setMentions] = useState<MentionData[]>([]);
   const [isPosting, setIsPosting] = useState(false);
@@ -209,6 +211,60 @@ const ComposeScreen = () => {
     handleScheduleClose,
     openScheduleSheet,
   } = scheduleManager;
+
+  // Draft manager
+  const draftManager = useDraftManager({
+    saveDraft,
+    deleteDraft,
+    onDraftLoad: (draft) => {
+      setPostContent(draft.postContent);
+      setMediaIds(draft.mediaIds);
+      setPollOptions(draft.pollOptions);
+      setPollTitle(draft.pollTitle);
+      setShowPollCreator(draft.showPollCreator);
+      setLocation(draft.location);
+      setSources(draft.sources);
+      setArticle(draft.article);
+      setArticleDraftTitle(draft.articleDraftTitle);
+      setArticleDraftBody(draft.articleDraftBody);
+      setScheduledAt(draft.scheduledAt);
+      if (draft.scheduledAt) {
+        scheduledAtRef.current = draft.scheduledAt;
+      }
+      setAttachmentOrder(draft.attachmentOrder);
+      setMentions(draft.mentions);
+      setPostingMode(draft.postingMode);
+      loadThreadsFromDraft(draft.threadItems);
+    },
+  });
+  const {
+    currentDraftId,
+    setCurrentDraftId,
+    autoSaveTimeoutRef,
+    autoSave: autoSaveDraft,
+    loadDraft,
+  } = draftManager;
+
+  // Validation
+  const validation = useComposeValidation({
+    postContent,
+    mediaIds,
+    pollOptions,
+    location,
+    hasArticleContent,
+    threadItems,
+    sources,
+    isPosting,
+  });
+  const { canPostContent, hasInvalidSources: invalidSources, isPostButtonEnabled } = validation;
+
+  // Media picker
+  const mediaPicker = useMediaPicker({
+    showBottomSheet,
+    setMediaIds,
+    t,
+  });
+  const { openMediaPicker } = mediaPicker;
 
   // Use refs to always get latest values in timeout callback
   const postContentRef = useRef(postContent);
@@ -441,97 +497,6 @@ const ComposeScreen = () => {
     }
   };
 
-  // Auto-save draft function - uses refs to always get latest values
-  const autoSaveDraft = useCallback(async () => {
-    // Get latest values from refs
-    const latestPostContent = postContentRef.current;
-    const latestMediaIds = mediaIdsRef.current;
-    const latestPollOptions = pollOptionsRef.current;
-    const latestPollTitle = pollTitleRef.current;
-    const latestShowPollCreator = showPollCreatorRef.current;
-    const latestLocation = locationRef.current;
-    const latestSources = sourcesRef.current;
-    const latestThreadItems = threadItemsRef.current;
-    const latestMentions = mentionsRef.current;
-    const latestPostingMode = postingModeRef.current;
-    const latestCurrentDraftId = currentDraftIdRef.current;
-    const latestArticle = articleRef.current;
-    const latestAttachmentOrder = attachmentOrderRef.current;
-    const latestScheduledAt = scheduledAtRef.current;
-
-    // Only save if there's content
-    const hasContent = latestPostContent.trim().length > 0 ||
-      latestMediaIds.length > 0 ||
-      (latestPollOptions.length > 0 && latestPollOptions.some(opt => opt.trim().length > 0)) ||
-      latestLocation ||
-      (latestArticle && ((latestArticle.title && latestArticle.title.trim().length > 0) || (latestArticle.body && latestArticle.body.trim().length > 0))) ||
-      latestSources.some(source => (source.title && source.title.trim().length > 0) || (source.url && source.url.trim().length > 0)) ||
-      latestThreadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 ||
-        (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
-
-    if (!hasContent) {
-      // If no content and we have a draft, delete it
-      if (latestCurrentDraftId) {
-        await deleteDraft(latestCurrentDraftId);
-        setCurrentDraftId(null);
-      }
-      return;
-    }
-
-    try {
-      // Ensure showPollCreator is saved correctly - if pollOptions exist, showPollCreator should be true
-      const shouldShowPollCreator = latestShowPollCreator || (latestPollOptions.length > 0 && latestPollOptions.some(opt => opt.trim().length > 0));
-
-      const draftId = await saveDraft({
-        id: latestCurrentDraftId || undefined,
-        postContent: latestPostContent,
-        mediaIds: latestMediaIds.map(m => ({ id: m.id, type: m.type })), // Ensure correct structure
-        pollOptions: latestPollOptions || [],
-        pollTitle: latestPollTitle || '',
-        showPollCreator: shouldShowPollCreator,
-        location: latestLocation ? {
-          latitude: latestLocation.latitude,
-          longitude: latestLocation.longitude,
-          address: latestLocation.address,
-        } : null,
-        sources: latestSources.map((source) => ({ id: source.id, title: source.title, url: source.url })),
-        article: latestArticle ? {
-          ...(latestArticle.title ? { title: latestArticle.title } : {}),
-          ...(latestArticle.body ? { body: latestArticle.body } : {}),
-        } : undefined,
-        threadItems: latestThreadItems.map(item => ({
-          id: item.id,
-          text: item.text,
-          mediaIds: item.mediaIds.map(m => ({ id: m.id, type: m.type })), // Ensure correct structure
-          pollOptions: item.pollOptions || [],
-          pollTitle: item.pollTitle || '',
-          showPollCreator: item.showPollCreator || (item.pollOptions && item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)),
-          location: item.location ? {
-            latitude: item.location.latitude,
-            longitude: item.location.longitude,
-            address: item.location.address,
-          } : null,
-          mentions: item.mentions.map(m => ({
-            userId: m.userId,
-            handle: m.username,
-            name: m.displayName,
-          })),
-        })),
-        mentions: latestMentions.map(m => ({
-          userId: m.userId,
-          handle: m.username,
-          name: m.displayName,
-        })),
-        postingMode: latestPostingMode,
-        attachmentOrder: latestAttachmentOrder,
-        scheduledAt: latestScheduledAt ? latestScheduledAt.toISOString() : null,
-      });
-      setCurrentDraftId(draftId);
-    } catch (error) {
-      console.error('Error auto-saving draft:', error);
-    }
-  }, [saveDraft, deleteDraft]);
-
   // Debounced auto-save - trigger when any content changes
   useEffect(() => {
     // Don't auto-save on initial mount
@@ -546,7 +511,22 @@ const ComposeScreen = () => {
 
     // Set new timeout for auto-save (2 seconds after last change)
     autoSaveTimeoutRef.current = setTimeout(() => {
-      autoSaveDraft();
+      autoSaveDraft({
+        postContent,
+        mediaIds,
+        pollOptions,
+        pollTitle,
+        showPollCreator,
+        location,
+        sources,
+        article,
+        threadItems,
+        mentions,
+        postingMode,
+        attachmentOrder,
+        scheduledAt,
+        currentDraftId,
+      });
     }, 2000);
 
     // Cleanup on unmount
@@ -555,236 +535,9 @@ const ComposeScreen = () => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, autoSaveDraft]);
-
-  // Load draft function
-  const loadDraft = useCallback((draft: any) => {
-    setPostContent(draft.postContent || '');
-
-    // Handle mediaIds - ensure correct structure
-    const mediaIdsData = (draft.mediaIds || []).map((m: any) => ({
-      id: m.id || m,
-      type: toComposerMediaType(m.type, m.mime || m.contentType),
-    })).filter((m: any) => m.id); // Filter out invalid entries
-    setMediaIds(mediaIdsData);
-
-    // Handle poll options - ensure showPollCreator is true if pollOptions exist
-    const pollOpts = draft.pollOptions || [];
-    setPollOptions(pollOpts);
-    setPollTitle(draft.pollTitle || '');
-    const shouldShowPoll = draft.showPollCreator || pollOpts.length > 0;
-    setShowPollCreator(shouldShowPoll);
-
-    // Handle location - ensure it has the correct structure
-    let locationData = null;
-    if (draft.location) {
-      locationData = {
-        latitude: draft.location.latitude,
-        longitude: draft.location.longitude,
-        address: draft.location.address || null,
-      };
-    }
-    setLocation(locationData);
-
-    const sourcesData = (draft.sources || []).map((source: { id?: string; title?: string; url?: string }) => ({
-      id: source.id || '',
-      title: source.title || '',
-      url: source.url || '',
-    }));
-    setSources(sourcesData);
-
-    if (draft.article && (draft.article.title || draft.article.body)) {
-      setArticle({
-        title: draft.article.title || '',
-        body: draft.article.body || '',
-      });
-      setArticleDraftTitle(draft.article.title || '');
-      setArticleDraftBody(draft.article.body || '');
-    } else {
-      setArticle(null);
-      setArticleDraftTitle('');
-      setArticleDraftBody('');
-    }
-
-    if (draft.scheduledAt) {
-      const parsed = new Date(draft.scheduledAt);
-      if (!Number.isNaN(parsed.getTime())) {
-        setScheduledAt(parsed);
-        scheduledAtRef.current = parsed;
-      } else {
-        setScheduledAt(null);
-        scheduledAtRef.current = null;
-      }
-    } else {
-      setScheduledAt(null);
-      scheduledAtRef.current = null;
-    }
-
-    const availableAttachmentKeys: string[] = [];
-    if (shouldShowPoll) {
-      availableAttachmentKeys.push(POLL_ATTACHMENT_KEY);
-    }
-    if (draft.article && (draft.article.title || draft.article.body)) {
-      availableAttachmentKeys.push(ARTICLE_ATTACHMENT_KEY);
-    }
-    if (locationData) {
-      availableAttachmentKeys.push(LOCATION_ATTACHMENT_KEY);
-    }
-    if (sourcesData.some((source: { id: string; title: string; url: string }) => source.url.trim().length > 0)) {
-      availableAttachmentKeys.push(SOURCES_ATTACHMENT_KEY);
-    }
-    mediaIdsData.forEach((media: ComposerMediaItem) => {
-      availableAttachmentKeys.push(createMediaAttachmentKey(media.id));
-    });
-
-    const draftAttachmentOrder = Array.isArray(draft.attachmentOrder) ? draft.attachmentOrder : [];
-    const sanitizedAttachmentOrder: string[] = [];
-
-    draftAttachmentOrder.forEach((key: string) => {
-      if (availableAttachmentKeys.includes(key) && !sanitizedAttachmentOrder.includes(key)) {
-        sanitizedAttachmentOrder.push(key);
-      }
-    });
-
-    availableAttachmentKeys.forEach((key) => {
-      if (!sanitizedAttachmentOrder.includes(key)) {
-        sanitizedAttachmentOrder.push(key);
-      }
-    });
-
-    setAttachmentOrder(sanitizedAttachmentOrder);
-
-    // Handle thread items - ensure they have all required fields
-    const threadItemsData = (draft.threadItems || []).map((item: any) => ({
-      id: item.id || `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      text: item.text || '',
-      mediaIds: (item.mediaIds || []).map((m: any) => ({
-        id: m.id || m,
-        type: toComposerMediaType(m.type, m.mime || m.contentType),
-      })).filter((m: any) => m.id),
-      pollOptions: item.pollOptions || [],
-      pollTitle: item.pollTitle || '',
-      showPollCreator: item.showPollCreator || (item.pollOptions && item.pollOptions.length > 0),
-      location: item.location ? {
-        latitude: item.location.latitude,
-        longitude: item.location.longitude,
-        address: item.location.address || null,
-      } : null,
-      mentions: (item.mentions || []).map((m: any) => ({
-        userId: m.userId || m.id || m,
-        username: m.handle || m.username || '',
-        displayName: m.name || m.displayName || '',
-      })).filter((m: any) => m.userId),
-    }));
-    loadThreadsFromDraft(threadItemsData);
-
-    // Handle mentions - ensure correct structure
-    const mentionsData = (draft.mentions || []).map((m: any) => ({
-      userId: m.userId || m.id || m,
-      username: m.handle || m.username || '',
-      displayName: m.name || m.displayName || '',
-    })).filter((m: any) => m.userId);
-    setMentions(mentionsData);
-
-    setPostingMode(draft.postingMode || 'thread');
-    setCurrentDraftId(draft.id);
-
-    // Close bottom sheet
-    bottomSheet.openBottomSheet(false);
-
-    toast.success(t('compose.draftLoaded'));
-  }, [bottomSheet, generateSourceId, t]);
+  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, article, currentDraftId, autoSaveDraft, autoSaveTimeoutRef]);
 
   // back navigation
-
-  const canPostContent = postContent.trim().length > 0 || mediaIds.length > 0 || (pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0)) || location ||
-    hasArticleContent ||
-    threadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 || (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) || item.location);
-  const invalidSources = hasInvalidSources();
-  const isPostButtonEnabled = canPostContent && !isPosting && !invalidSources;
-
-  const openMediaPicker = () => {
-    showBottomSheet?.({
-      screen: 'FileManagement',
-      props: {
-        selectMode: true,
-        multiSelect: true,
-        disabledMimeTypes: ['audio/', 'application/pdf'],
-        afterSelect: 'back',
-        onSelect: async (file: any) => {
-          const isImage = file?.contentType?.startsWith?.('image/');
-          const isVideo = file?.contentType?.startsWith?.('video/');
-          if (!isImage && !isVideo) {
-            toast.error(t('Please select an image or video file'));
-            return;
-          }
-          try {
-            const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
-            const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
-            setMediaIds(prev => prev.some(m => m.id === file.id) ? prev : [...prev, mediaItem]);
-            toast.success(t(isImage ? 'Image attached' : 'Video attached'));
-          } catch (e: any) {
-            toast.error(e?.message || t('Failed to attach media'));
-          }
-        },
-        onConfirmSelection: async (files: any[]) => {
-          const validFiles = (files || []).filter(f => {
-            const contentType = f?.contentType || '';
-            return contentType.startsWith('image/') || contentType.startsWith('video/');
-          });
-          if (validFiles.length !== (files || []).length) {
-            toast.error(t('Please select only image or video files'));
-          }
-          const mediaItems = validFiles.map(f => ({
-            id: f.id,
-            type: toComposerMediaType(f.contentType?.startsWith('image/') ? 'image' : 'video', f.contentType)
-          }));
-          setMediaIds(prev => {
-            const existingIds = new Set(prev.map(m => m.id));
-            const newItems = mediaItems.filter(m => !existingIds.has(m.id));
-            return [...prev, ...newItems];
-          });
-        }
-      }
-    });
-  };
-
-  const moveAttachment = useCallback((attachmentKey: string, direction: 'left' | 'right') => {
-    setAttachmentOrder(prev => {
-      const index = prev.indexOf(attachmentKey);
-      if (index === -1) return prev;
-      const targetIndex = direction === 'left' ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
-      const updated = [...prev];
-      const [item] = updated.splice(index, 1);
-      updated.splice(targetIndex, 0, item);
-
-      const newMediaOrderIds = updated
-        .filter(isMediaAttachmentKey)
-        .map(getMediaIdFromAttachmentKey);
-
-      if (newMediaOrderIds.length > 0) {
-        setMediaIds(prevMedia => {
-          const idToMedia = new Map(prevMedia.map(m => [m.id, m]));
-          const reordered: ComposerMediaItem[] = [];
-          newMediaOrderIds.forEach(id => {
-            const mediaItem = idToMedia.get(id);
-            if (mediaItem) {
-              reordered.push(mediaItem);
-            }
-          });
-          prevMedia.forEach(mediaItem => {
-            if (!newMediaOrderIds.includes(mediaItem.id)) {
-              reordered.push(mediaItem);
-            }
-          });
-          return reordered;
-        });
-      }
-
-      return updated;
-    });
-  }, []);
 
   // Thread item functions
   const openThreadMediaPicker = (threadId: string) => {
