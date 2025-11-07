@@ -4,7 +4,7 @@ import ArticleModel from '../models/Article';
 export const getArticle = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const article = await ArticleModel.findById(id).lean();
+    const article = await ArticleModel.findById(id);
     if (!article) {
       return res.status(404).json({ message: 'Article not found' });
     }

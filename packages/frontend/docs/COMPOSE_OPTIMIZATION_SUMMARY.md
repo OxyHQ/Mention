@@ -3,9 +3,9 @@
 ## Summary
 
 **Original File Size:** 3,125 lines
-**Current File Size:** 1,991 lines
-**Lines Removed:** 1,134 lines
-**Reduction:** 36.3%
+**Current File Size:** 1,952 lines  
+**Lines Removed:** 1,173 lines
+**Reduction:** 37.5%
 
 ## Optimization Phases
 
@@ -49,16 +49,24 @@
 
 ### Phase 9: Ref Synchronization & URL Utils (COMPLETED)
 - Created `useRefSync` and `useMultiRefSync` hooks (31 lines)
-- Created `useUrlUtils` hook (47 lines)
+- Created `useUrlUtils` hook (90 lines) - includes sanitizeSourcesForSubmit
 - Replaced 14 individual useEffect hooks with single `useMultiRefSync` call
-- Extracted `normalizeUrl` and `isValidSourceUrl` utilities
+- Extracted `normalizeUrl`, `isValidSourceUrl`, and `sanitizeSourcesForSubmit` utilities
 - Removed ~57 lines of repetitive ref sync code
 - Reduction: 2,033 → 1,991 lines (42 lines saved)
+
+### Phase 10: Sources Sheet Management (COMPLETED)
+- Created `useSourcesSheet` hook (68 lines)
+- Extracted sources sheet state management
+- Extracted `openSourcesSheet`, `closeSourcesSheet` functions
+- Extracted `sourcesSheetElement` memoization
+- Removed ~50 lines of sheet management code
+- Reduction: 1,991 → 1,952 lines (39 lines saved)
 
 ## Total Impact
 
 ### Files Created
-- **13 Custom Hooks:** useMediaManager, usePollManager, useLocationManager, useSourcesManager, useThreadManager, useArticleManager, useAttachmentOrder, useScheduleManager, useDraftManager, useComposeValidation, useMediaPicker, useRefSync/useMultiRefSync, useUrlUtils
+- **14 Custom Hooks:** useMediaManager, usePollManager, useLocationManager, useSourcesManager, useThreadManager, useArticleManager, useAttachmentOrder, useScheduleManager, useDraftManager, useComposeValidation, useMediaPicker, useRefSync/useMultiRefSync, useUrlUtils, useSourcesSheet
 - **6 Components:** PollCreator, MediaPreview, ArticleEditor, LocationDisplay, VideoPreview, PollAttachmentCard
 - **4 Utilities:** composeUtils, dateUtils, attachmentsUtils, postBuilder
 - **3 Documentation Files:** This file, COMPOSE_REFACTORING.md, COMPOSE_COMPONENTS_GUIDE.md
@@ -71,7 +79,7 @@
 - Improved code reusability across the app
 
 ### Benefits
-1. **Maintainability:** 36.3% smaller main file, easier to navigate and understand
+1. **Maintainability:** 37.5% smaller main file, easier to navigate and understand
 2. **Reusability:** All extracted components and hooks can be reused in other screens
 3. **Performance:** Better memoization and dependency management
 4. **Testing:** Isolated components and hooks are easier to test
@@ -80,7 +88,7 @@
 
 ## Remaining Opportunities
 
-While we've achieved a 36.3% reduction, the compose screen is now in excellent shape:
+While we've achieved a 37.5% reduction (nearly 40%!), the compose screen is now in excellent shape:
 - ✅ All major state management extracted into hooks
 - ✅ All complex UI sections componentized
 - ✅ All utility functions modularized
@@ -88,6 +96,7 @@ While we've achieved a 36.3% reduction, the compose screen is now in excellent s
 - ✅ Media picker logic modularized
 - ✅ Ref synchronization automated
 - ✅ URL utilities extracted
+- ✅ Sources sheet management extracted
 - ✅ Zero compilation errors
 - ✅ Clean, maintainable codebase
 
@@ -95,7 +104,7 @@ Potential future extractions (optional):
 1. **Thread Media Picker:** Similar to main media picker, could be extracted
 2. **Navigation Logic:** Back navigation and screen management
 3. **Reply Settings:** Reply permission and review settings management
-4. **Sources Sanitization:** Could be moved to a utility function
+4. **generateSourceId:** Could be moved to sources manager or utility
 
 ## Architecture Pattern
 

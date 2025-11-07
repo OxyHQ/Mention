@@ -65,6 +65,7 @@ import { useComposeValidation } from '@/hooks/useComposeValidation';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useMultiRefSync } from '@/hooks/useRefSync';
 import { useUrlUtils } from '@/hooks/useUrlUtils';
+import { useSourcesSheet } from '@/hooks/useSourcesSheet';
 import {
   PollCreator,
   PollAttachmentCard,
@@ -188,7 +189,6 @@ const ComposeScreen = () => {
   const [postContent, setPostContent] = useState('');
   const [mentions, setMentions] = useState<MentionData[]>([]);
   const [isPosting, setIsPosting] = useState(false);
-  const [isSourcesSheetOpen, setIsSourcesSheetOpen] = useState(false);
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
   const [reviewReplies, setReviewReplies] = useState(false);
@@ -270,7 +270,18 @@ const ComposeScreen = () => {
 
   // URL utilities
   const urlUtils = useUrlUtils();
-  const { normalizeUrl, isValidSourceUrl } = urlUtils;
+  const { normalizeUrl, isValidSourceUrl, sanitizeSourcesForSubmit } = urlUtils;
+
+  // Sources sheet management
+  const sourcesSheet = useSourcesSheet({
+    sources,
+    addSource,
+    updateSourceField,
+    removeSourceEntry,
+    isValidSourceUrl,
+    bottomSheet,
+  });
+  const { isSourcesSheetOpen, openSourcesSheet, closeSourcesSheet } = sourcesSheet;
 
   // Sync refs with state for timeout/async callbacks
   const refs = useMultiRefSync({
@@ -305,56 +316,6 @@ const ComposeScreen = () => {
   // Note: scheduledAtRef comes from scheduleManager
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
-
-  const sanitizeSourcesForSubmit = useCallback((list: Array<{ id: string; title: string; url: string }> | undefined) => {
-    if (!Array.isArray(list) || list.length === 0) return [] as Array<{ url: string; title?: string }>;
-
-    const MAX_SOURCES = 5;
-    const normalized: Array<{ url: string; title?: string }> = [];
-
-    list.forEach((item) => {
-      const normalizedUrl = normalizeUrl(item.url);
-      if (!normalizedUrl) return;
-      const title = item.title?.trim();
-      normalized.push(title ? { url: normalizedUrl, title } : { url: normalizedUrl });
-    });
-
-    const deduped = normalized.filter((source, index, self) => self.findIndex((s) => s.url === source.url) === index);
-    return deduped.slice(0, MAX_SOURCES);
-  }, [normalizeUrl]);
-
-  const closeSourcesSheet = useCallback(() => {
-    setIsSourcesSheetOpen((prev) => {
-      if (prev) {
-        bottomSheet.openBottomSheet(false);
-        bottomSheet.setBottomSheetContent(null);
-      }
-      return false;
-    });
-  }, [bottomSheet]);
-
-  const sourcesSheetElement = useMemo(() => (
-    <SourcesSheet
-      sources={sources}
-      onAdd={addSource}
-      onUpdate={updateSourceField}
-      onRemove={removeSourceEntry}
-      onClose={closeSourcesSheet}
-      validateUrl={isValidSourceUrl}
-    />
-  ), [sources, addSource, updateSourceField, removeSourceEntry, closeSourcesSheet, isValidSourceUrl]);
-
-  const openSourcesSheet = useCallback(() => {
-    bottomSheet.setBottomSheetContent(sourcesSheetElement);
-    bottomSheet.openBottomSheet(true);
-    setIsSourcesSheetOpen(true);
-  }, [bottomSheet, sourcesSheetElement]);
-
-  useEffect(() => {
-    if (isSourcesSheetOpen) {
-      bottomSheet.setBottomSheetContent(sourcesSheetElement);
-    }
-  }, [isSourcesSheetOpen, bottomSheet, sourcesSheetElement]);
 
   // Keep this in sync with PostItem constants
   const HPAD = 16;

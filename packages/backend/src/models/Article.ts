@@ -18,5 +18,7 @@ const ArticleSchema = new Schema<IArticle>({
   timestamps: true,
 });
 
-export default mongoose.models.Article || mongoose.model<IArticle>('Article', ArticleSchema);
+const ArticleModel = mongoose.models.Article as mongoose.Model<IArticle> || mongoose.model<IArticle>('Article', ArticleSchema);
+
+export default ArticleModel;
 
