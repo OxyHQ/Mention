@@ -21,8 +21,9 @@ const UsernameLayout = () => {
     if (typeof username === 'string' && username.startsWith('@')) {
         const isFollowersRoute = pathname?.endsWith('/followers');
         const isFollowingRoute = pathname?.endsWith('/following');
+        const isWhoMayKnowRoute = pathname?.endsWith('/who-may-know');
 
-        if (isFollowersRoute || isFollowingRoute) {
+        if (isFollowersRoute || isFollowingRoute || isWhoMayKnowRoute) {
             return <Slot />;
         }
 
