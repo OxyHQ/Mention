@@ -25,7 +25,7 @@ interface ProfileData {
 const MAX_DISPLAY_USERS = 5;
 
 export function WhoToFollowWidget() {
-  const { oxyServices } = useOxy();
+  const { oxyServices, isAuthenticated } = useOxy();
   const { t } = useTranslation();
   const router = useRouter();
   const theme = useTheme();
@@ -35,6 +35,12 @@ export function WhoToFollowWidget() {
   const [recommendations, setRecommendations] = useState<ProfileData[]>([]);
 
   useEffect(() => {
+    // Don't fetch recommendations if user is not authenticated
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
+
     let mounted = true;
 
     const fetchRecommendations = async () => {
@@ -72,7 +78,7 @@ export function WhoToFollowWidget() {
     return () => {
       mounted = false;
     };
-  }, [oxyServices]);
+  }, [oxyServices, isAuthenticated]);
 
   const handleShowMore = useCallback(() => {
     router.push("/explore");
@@ -82,6 +88,11 @@ export function WhoToFollowWidget() {
     () => recommendations.slice(0, MAX_DISPLAY_USERS),
     [recommendations]
   );
+
+  // Hide widget when user is not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (loading) {
     return (
