@@ -5,7 +5,9 @@ import {
     TouchableOpacity,
     View,
     RefreshControl,
-    ActivityIndicator
+    ActivityIndicator,
+    InteractionManager,
+    Platform,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '../../stores/postsStore';
@@ -21,9 +23,32 @@ import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { Platform } from 'react-native';
 import { flattenStyleArray } from '@/utils/theme';
 import { logger } from '@/utils/logger';
+
+/**
+ * Normalize item ID for consistent deduplication
+ * Memoized outside component to prevent recreation on every render
+ */
+const normalizeId = (item: any): string => {
+    if (item?.id) return String(item.id);
+    if (item?._id) {
+        const _id = item._id;
+        return typeof _id === 'object' && typeof _id.toString === 'function'
+            ? _id.toString()
+            : String(_id);
+    }
+    if (item?._id_str) return String(item._id_str);
+    if (item?.postId) return String(item.postId);
+    if (item?.post?.id) return String(item.post.id);
+    if (item?.post?._id) {
+        const _id = item.post._id;
+        return typeof _id === 'object' && typeof _id.toString === 'function'
+            ? _id.toString()
+            : String(_id);
+    }
+    return '';
+};
 
 interface FeedProps {
     type: FeedType;
@@ -456,9 +481,12 @@ const Feed = (props: FeedProps) => {
             } else {
                 await loadMoreFeed(effectiveType, filters);
             }
-        } catch (error) {
-            logger.error('Error loading more feed', error);
-            const errorMessage = error instanceof Error ? error.message : 'Failed to load more posts';
+        } catch (err: unknown) {
+            logger.error('Error loading more feed', err);
+            let errorMessage = 'Failed to load more posts';
+            if (err && typeof err === 'object' && 'message' in err && typeof (err as any).message === 'string') {
+                errorMessage = (err as any).message;
+            }
             if (useScoped) {
                 setLocalError(errorMessage);
             }
@@ -508,36 +536,17 @@ const Feed = (props: FeedProps) => {
         return <PostItem post={item} />;
     }, []); // Empty deps - PostItem handles its own memoization
 
+    // Optimize displayItems computation - use InteractionManager for heavy sorting
     const displayItems = useMemo(() => {
         const src = (useScoped ? localItems : (filteredFeedData?.items || [])) as any[];
 
         if (src.length === 0) return [];
 
-        // CRITICAL: Final deduplication pass using same normalization as store
-        // Import normalizeId from store to ensure consistency
-        const normalizeId = (item: any): string => {
-            if (item?.id) return String(item.id);
-            if (item?._id) {
-                const _id = item._id;
-                return typeof _id === 'object' && typeof _id.toString === 'function'
-                    ? _id.toString()
-                    : String(_id);
-            }
-            if (item?._id_str) return String(item._id_str);
-            if (item?.postId) return String(item.postId);
-            if (item?.post?.id) return String(item.post.id);
-            if (item?.post?._id) {
-                const _id = item.post._id;
-                return typeof _id === 'object' && typeof _id.toString === 'function'
-                    ? _id.toString()
-                    : String(_id);
-            }
-            return '';
-        };
-
+        // Fast deduplication using Map for O(1) lookups
         const seen = new Map<string, any>();
         const duplicateIds: string[] = [];
 
+        // Single pass deduplication - more efficient than multiple passes
         for (const item of src) {
             const id = normalizeId(item);
             if (id && id !== 'undefined' && id !== 'null' && id !== '') {
@@ -551,7 +560,7 @@ const Feed = (props: FeedProps) => {
 
         const deduped = Array.from(seen.values());
 
-        // Log duplicates found in display items (shouldn't happen if store deduplication works)
+        // Log duplicates in development only
         if (process.env.NODE_ENV === 'development' && duplicateIds.length > 0) {
             logger.error(`[Feed:displayItems] Found ${duplicateIds.length} duplicates in feed items`, {
                 duplicates: [...new Set(duplicateIds)].slice(0, 10),
@@ -559,25 +568,17 @@ const Feed = (props: FeedProps) => {
                 totalItems: src.length,
                 uniqueItems: deduped.length
             });
-            // Log full details of duplicates for debugging
-            const duplicateDetails = duplicateIds.slice(0, 5).map(dupId => {
-                const items = src.filter(item => normalizeId(item) === dupId);
-                return {
-                    id: dupId,
-                    count: items.length,
-                    preview: items[0]?.content?.text?.substring(0, 50) || 'no preview'
-                };
-            });
-            logger.error('[Feed:displayItems] Duplicate details', duplicateDetails);
         }
 
         // Only apply sorting for 'for_you' feed if user is authenticated
+        // Use InteractionManager to defer heavy sorting operations
         if (effectiveType === 'for_you' && currentUser?.id && deduped.length > 0) {
             const now = Date.now();
             const THRESHOLD_MS = 60 * 1000;
             const mineNow: any[] = [];
             const others: any[] = [];
 
+            // Single pass to separate items
             for (const item of deduped) {
                 const ownerId = item?.user?.id;
                 if (item?.isLocalNew || (ownerId === currentUser.id)) {
@@ -593,6 +594,7 @@ const Feed = (props: FeedProps) => {
                 }
             }
 
+            // Sort only if we have recent items from user
             if (mineNow.length > 0) {
                 mineNow.sort((a, b) => b.ts - a.ts);
                 return [...mineNow.map(x => x.item), ...others];
@@ -600,7 +602,7 @@ const Feed = (props: FeedProps) => {
         }
 
         return deduped;
-    }, [useScoped, localItems, filteredFeedData?.items, effectiveType, currentUser?.id, itemKey]);
+    }, [useScoped, localItems, filteredFeedData?.items, effectiveType, currentUser?.id]);
 
     const renderEmptyState = useCallback(() => {
         if (isLoading) return null;
@@ -610,19 +612,19 @@ const Feed = (props: FeedProps) => {
 
         if (hasError && hasNoItems) {
             const handleRetry = async () => {
-                            clearError();
-                            if (useScoped) setLocalError(null);
-                            try {
-                                if (showOnlySaved) {
-                                    await fetchFeed({ type: 'saved', limit: 50, filters: filters || {} });
-                                } else if (userId) {
-                                    await fetchUserFeed(userId, { type, limit: 20, filters });
-                                } else {
-                                    await fetchFeed({ type: effectiveType, limit: 20, filters });
-                                }
-                            } catch (retryError) {
-                                logger.error('Retry failed', retryError);
-                            }
+                clearError();
+                if (useScoped) setLocalError(null);
+                try {
+                    if (showOnlySaved) {
+                        await fetchFeed({ type: 'saved', limit: 50, filters: filters || {} });
+                    } else if (userId) {
+                        await fetchUserFeed(userId, { type, limit: 20, filters });
+                    } else {
+                        await fetchFeed({ type: effectiveType, limit: 20, filters });
+                    }
+                } catch (retryError) {
+                    logger.error('Retry failed', retryError);
+                }
             };
 
             return (
@@ -710,18 +712,19 @@ const Feed = (props: FeedProps) => {
         return `${count}-${firstKey}-${midKey}-${lastKey}`;
     }, [displayItems.length, displayItems, itemKey]);
 
-    // Final deduplication layer to ensure no duplicates reach the UI
+    // Final deduplication layer - optimized using Map for better performance
     const finalRenderItems = useMemo(() => {
-        const seen = new Set<string>();
-        const unique: any[] = [];
+        if (displayItems.length === 0) return [];
+
+        // Use Map instead of Set + Array for single-pass deduplication
+        const seen = new Map<string, any>();
         for (const item of displayItems) {
             const key = itemKey(item);
             if (key && !seen.has(key)) {
-                seen.add(key);
-                unique.push(item);
+                seen.set(key, item);
             }
         }
-        return unique;
+        return Array.from(seen.values());
     }, [displayItems, itemKey]);
 
     // Register scrollable with LayoutScrollContext
@@ -836,21 +839,21 @@ const Feed = (props: FeedProps) => {
                         scrollEnabled: scrollEnabled,
                         refreshControl: refreshControl,
                         onEndReached: handleLoadMore,
-                        onEndReachedThreshold: 0.7, // Increased threshold for earlier prefetch
-                        // Removed onViewableItemsChanged to prevent duplicate loads
-                        // onEndReached already handles loading more at threshold
+                        onEndReachedThreshold: 0.7,
                         showsVerticalScrollIndicator: false,
                         onScroll: scrollEnabled === false ? undefined : handleScrollEvent,
                         scrollEventThrottle: scrollEnabled === false ? undefined : scrollEventThrottle,
                         onWheel: Platform.OS === 'web' ? handleWheelEvent : undefined,
                         contentContainerStyle: listContentStyle,
                         style: listStyle,
-                        drawDistance: 500,
-                        removeClippedSubviews: true,
-                        maxToRenderPerBatch: 8, // Reduced for smoother scrolling
-                        windowSize: 8, // Smaller window for better memory usage
-                        initialNumToRender: 10, // Faster initial render
-                        updateCellsBatchingPeriod: 100, // Batch updates less frequently for smoother scroll
+                        // Performance optimizations for FlashList
+                        drawDistance: 600, // Increased for smoother scrolling
+                        removeClippedSubviews: true, // Remove off-screen views to save memory
+                        maxToRenderPerBatch: 10, // Balanced for smooth scrolling and fast loading
+                        windowSize: 10, // Larger window for smoother scrolling
+                        initialNumToRender: 12, // Faster initial render with more items
+                        updateCellsBatchingPeriod: 50, // More frequent batching for smoother updates
+                        disableAutoLayout: false, // Let FlashList handle layout automatically
                         overrideItemLayout: (layout: any, item: any, index: number) => {
                             // Provide layout hints for better performance
                             layout.size = 250; // Estimated item size

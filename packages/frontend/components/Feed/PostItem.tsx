@@ -897,48 +897,71 @@ const styles = StyleSheet.create({
     },
 });
 
-// Custom comparison function to prevent unnecessary re-renders
+/**
+ * Optimized comparison function to prevent unnecessary re-renders
+ * Only re-renders when meaningful post data or interaction states change
+ */
 const arePropsEqual = (prevProps: PostItemProps, nextProps: PostItemProps) => {
-    // Only re-render if the post ID changes or meaningful post data changes
     const prevPost = prevProps.post as any;
     const nextPost = nextProps.post as any;
 
-    // Check if it's the same post
+    // Fast path: check post ID first (most common change)
     if (prevPost?.id !== nextPost?.id) {
         return false;
     }
 
-    // Check if nested flag changed
-    if (prevProps.isNested !== nextProps.isNested) {
-        return false;
-    }
-
-    // Check if nesting depth changed
-    if (prevProps.nestingDepth !== nextProps.nestingDepth) {
-        return false;
-    }
-
-    // Check if style prop changed (shallow comparison)
-    if (prevProps.style !== nextProps.style) {
-        return false;
-    }
-
-    // For same post, check if engagement or interaction states changed
-    const prevEngagement = prevPost?.engagement;
-    const nextEngagement = nextPost?.engagement;
-
+    // Fast path: check props that don't require deep inspection
     if (
-        prevEngagement?.likes !== nextEngagement?.likes ||
-        prevEngagement?.reposts !== nextEngagement?.reposts ||
-        prevEngagement?.replies !== nextEngagement?.replies ||
-        prevPost?.isLiked !== nextPost?.isLiked ||
-        prevPost?.isReposted !== nextPost?.isReposted ||
-        prevPost?.isSaved !== nextPost?.isSaved
+        prevProps.isNested !== nextProps.isNested ||
+        prevProps.nestingDepth !== nextProps.nestingDepth ||
+        prevProps.style !== nextProps.style
     ) {
         return false;
     }
 
-    // Props are equal, skip re-render
+    // Check engagement state changes (common interaction)
+    const prevEngagement = prevPost?.engagement;
+    const nextEngagement = nextPost?.engagement;
+
+    if (prevEngagement && nextEngagement) {
+        if (
+            prevEngagement.likes !== nextEngagement.likes ||
+            prevEngagement.reposts !== nextEngagement.reposts ||
+            prevEngagement.replies !== nextEngagement.replies ||
+            prevEngagement.saves !== nextEngagement.saves
+        ) {
+            return false;
+        }
+    } else if (prevEngagement !== nextEngagement) {
+        return false;
+    }
+
+    // Check interaction flags (liked, reposted, saved)
+    if (
+        prevPost?.isLiked !== nextPost?.isLiked ||
+        prevPost?.isReposted !== nextPost?.isReposted ||
+        prevPost?.isSaved !== nextPost?.isSaved ||
+        prevPost?.isPinned !== nextPost?.isPinned
+    ) {
+        return false;
+    }
+
+    // Check if content changed (text, media count)
+    const prevContent = prevPost?.content;
+    const nextContent = nextPost?.content;
+
+    if (prevContent && nextContent) {
+        if (
+            prevContent.text !== nextContent.text ||
+            (prevContent.media?.length || 0) !== (nextContent.media?.length || 0)
+        ) {
+            return false;
+        }
+    } else if (prevContent !== nextContent) {
+        return false;
+    }
+
+    // All relevant props are equal, skip re-render
     return true;
 };
 
