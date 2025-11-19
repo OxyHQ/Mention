@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { articleService } from '@/services/articleService';
+import LinkifiedText from '@/components/common/LinkifiedText';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
@@ -277,22 +278,28 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
                 showsVerticalScrollIndicator={true}
                 bounces={true}
               >
-                <Text style={articleTitleStyle}>
-                  {trimmedTitle || untitledText}
-                </Text>
-                {trimmedBody ? (
-                  <Text style={articleBodyStyle}>
-                    {trimmedBody}
-                  </Text>
-                ) : loadError ? (
-                  <Text style={errorStyle}>
-                    {loadError}
-                  </Text>
-                ) : (
-                  <Text style={articleBodyPlaceholderStyle}>
-                    {emptyBodyText}
-                  </Text>
-                )}
+                <View style={styles.articleWrapper}>
+                  <LinkifiedText
+                    text={trimmedTitle || untitledText}
+                    style={articleTitleStyle}
+                    linkStyle={[{ color: theme.colors.primary }]}
+                  />
+                  {trimmedBody ? (
+                    <LinkifiedText
+                      text={trimmedBody}
+                      style={articleBodyStyle}
+                      linkStyle={[{ color: theme.colors.primary }]}
+                    />
+                  ) : loadError ? (
+                    <Text style={errorStyle}>
+                      {loadError}
+                    </Text>
+                  ) : (
+                    <Text style={articleBodyPlaceholderStyle}>
+                      {emptyBodyText}
+                    </Text>
+                  )}
+                </View>
               </ScrollView>
             )}
           </Pressable>
@@ -357,6 +364,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 40,
+  },
+  articleWrapper: {
+    maxWidth: 1100,
+    width: '100%',
+    alignSelf: 'center',
     gap: 16,
   },
   articleTitle: {
