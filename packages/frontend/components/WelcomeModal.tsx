@@ -262,7 +262,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
               />
             </View>
 
-            {/* Buttons and Links Container */}
+            {/* Buttons and Links Container - positioned in middle */}
             <View style={styles.actionsContainer}>
               {/* Create Account Button */}
               <Pressable
@@ -377,11 +377,13 @@ const styles = StyleSheet.create({
   },
   taglineContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 0,
   },
   actionsContainer: {
     alignItems: 'center',
     gap: 12,
+    marginTop: 'auto',
+    marginBottom: 'auto',
   },
   createAccountButton: {
     paddingVertical: 12,
@@ -390,6 +392,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 44,
     justifyContent: 'center',
+    alignSelf: 'center',
   },
   createAccountButtonText: {
     color: '#FFFFFF',
