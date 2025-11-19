@@ -237,10 +237,9 @@ const PostDetailScreen: React.FC = () => {
         toast.success(t('Location removed'));
     }, [t]);
 
-    // Using Feed component with filters for replies
-
+    // Load post instantly from cache, fetch from API only if not cached
     useEffect(() => {
-        const fetchPost = async () => {
+        const loadPost = async () => {
             if (!id) {
                 setError('Post ID is required');
                 setLoading(false);
@@ -248,67 +247,73 @@ const PostDetailScreen: React.FC = () => {
             }
 
             try {
-                setLoading(true);
                 setError(null);
-
-                // Try to get post from feeds first
-                const { feeds } = usePostsStore.getState();
-                const feedTypes = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved'] as const;
-
-                let foundPost = null;
-                for (const feedType of feedTypes) {
-                    const feed = (feeds as any)[feedType];
-                    if (feed?.items) {
-                        foundPost = feed.items.find((p: any) => p.id === id);
-                        if (foundPost) break;
+                
+                // Check cache first for instant loading (offline support)
+                const { postsById } = usePostsStore.getState();
+                const cachedPost = postsById[id];
+                
+                if (cachedPost) {
+                    // Post is cached - load instantly
+                    setPost(cachedPost as any);
+                    setLoading(false);
+                    
+                    // Fetch parent post if this is a reply
+                    if ((cachedPost as any).parentPostId) {
+                        const cachedParent = postsById[(cachedPost as any).parentPostId];
+                        if (cachedParent) {
+                            setParentPost(cachedParent as any);
+                        } else {
+                            // Parent not cached, fetch it
+                            try {
+                                const parentResponse = await getPostById((cachedPost as any).parentPostId);
+                                setParentPost(parentResponse);
+                            } catch (parentErr) {
+                                console.error('Error fetching parent post:', parentErr);
+                            }
+                        }
                     }
-                }
-
-                if (foundPost) {
-                    // If the item from store lacks user data (edge cases), fetch transformed version
-                    // @ts-ignore
-                    if (!foundPost.user || !foundPost.user.handle) {
-                        const response = await getPostById(id);
-                        setPost(response);
-                    } else {
-                        setPost(foundPost as any);
+                    
+                    // Track view in background (non-blocking)
+                    if (user) {
+                        statisticsService.trackPostView(String(id)).catch(() => {
+                            // Silently fail - view tracking is not critical
+                        });
                     }
                 } else {
-                    // Fetch from API if not in store
+                    // Post not in cache - fetch from API
+                    setLoading(true);
                     const response = await getPostById(id);
                     setPost(response);
-                }
-
-                // Fetch parent post if this is a reply
-                const currentPost = foundPost || await getPostById(id);
-                if (currentPost && (currentPost as any).parentPostId) {
-                    try {
-                        const parentResponse = await getPostById((currentPost as any).parentPostId);
-                        setParentPost(parentResponse);
-                    } catch (parentErr) {
-                        console.error('Error fetching parent post:', parentErr);
-                        // Continue without parent post
+                    
+                    // Fetch parent post if this is a reply
+                    if (response && (response as any).parentPostId) {
+                        try {
+                            const parentResponse = await getPostById((response as any).parentPostId);
+                            setParentPost(parentResponse);
+                        } catch (parentErr) {
+                            console.error('Error fetching parent post:', parentErr);
+                        }
                     }
-                }
-
-                // Track post view
-                if (id && user) {
-                    try {
-                        await statisticsService.trackPostView(String(id));
-                    } catch (viewErr) {
-                        // Silently fail - view tracking is not critical
-                        console.debug('Failed to track post view:', viewErr);
+                    
+                    // Track post view
+                    if (user) {
+                        try {
+                            await statisticsService.trackPostView(String(id));
+                        } catch (viewErr) {
+                            console.debug('Failed to track post view:', viewErr);
+                        }
                     }
                 }
             } catch (err) {
-                console.error('Error fetching post:', err);
+                console.error('Error loading post:', err);
                 setError('Failed to load post');
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchPost();
+        loadPost();
     }, [id, getPostById, user]);
 
     const handleBack = () => {

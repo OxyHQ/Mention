@@ -1,10 +1,9 @@
-import React, { memo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { memo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { FeedType } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
 import { flattenStyleArray } from '@/utils/theme';
-import { Error } from '../Error';
-import { FeedFilters } from '@/utils/feedUtils';
+import { Ionicons } from '@expo/vector-icons';
 
 interface FeedEmptyStateProps {
     isLoading: boolean;
@@ -22,21 +21,101 @@ interface FeedEmptyStateProps {
 export const FeedEmptyState = memo<FeedEmptyStateProps>(
     ({ isLoading, error, hasItems, type, showOnlySaved, onRetry }) => {
         const theme = useTheme();
+        const [isRetrying, setIsRetrying] = useState(false);
 
         if (isLoading) return null;
 
         const hasError = !!error;
         const hasNoItems = !hasItems;
 
+        const handleRetry = async () => {
+            if (!onRetry || isRetrying) return;
+            setIsRetrying(true);
+            try {
+                await onRetry();
+            } finally {
+                setIsRetrying(false);
+            }
+        };
+
         if (hasError && hasNoItems && onRetry) {
             return (
-                <Error
-                    title="Failed to load posts"
-                    message="Unable to fetch posts. Please check your connection and try again."
-                    onRetry={onRetry}
-                    hideBackButton={true}
-                    style={{ flex: 1, paddingVertical: 60 }}
-                />
+                <View
+                    style={flattenStyleArray([
+                        styles.errorContainer,
+                        { backgroundColor: theme.colors.background },
+                    ])}
+                >
+                    <View style={styles.errorContent}>
+                        <View
+                            style={[
+                                styles.iconWrapper,
+                                { backgroundColor: theme.colors.error + '15' },
+                            ]}
+                        >
+                            <Ionicons
+                                name="cloud-offline-outline"
+                                size={48}
+                                color={theme.colors.error}
+                            />
+                        </View>
+
+                        <Text
+                            style={flattenStyleArray([
+                                styles.errorTitle,
+                                { color: theme.colors.text },
+                            ])}
+                        >
+                            Couldn't load posts
+                        </Text>
+
+                        <Text
+                            style={flattenStyleArray([
+                                styles.errorMessage,
+                                { color: theme.colors.textSecondary },
+                            ])}
+                        >
+                            Something went wrong while loading your feed. Pull down to refresh or tap the button below to try again.
+                        </Text>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.retryButton,
+                                {
+                                    backgroundColor: theme.colors.primary,
+                                    opacity: isRetrying ? 0.6 : 1,
+                                },
+                            ]}
+                            onPress={handleRetry}
+                            disabled={isRetrying}
+                            activeOpacity={0.8}
+                        >
+                            {isRetrying ? (
+                                <ActivityIndicator
+                                    size="small"
+                                    color={theme.colors.card}
+                                />
+                            ) : (
+                                <>
+                                    <Ionicons
+                                        name="refresh"
+                                        size={18}
+                                        color={theme.colors.card}
+                                        style={styles.retryIcon}
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.retryButtonText,
+                                            { color: theme.colors.card },
+                                        ]}
+                                    >
+                                        Try again
+                                    </Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
             );
         }
 
@@ -104,6 +183,56 @@ function getEmptySubtext(type: FeedType, showOnlySaved?: boolean): string {
 }
 
 const styles = StyleSheet.create({
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+        paddingHorizontal: 32,
+    },
+    errorContent: {
+        alignItems: 'center',
+        maxWidth: 320,
+        width: '100%',
+    },
+    iconWrapper: {
+        width: 96,
+        height: 96,
+        borderRadius: 48,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    errorTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        textAlign: 'center',
+        marginBottom: 12,
+        letterSpacing: -0.3,
+    },
+    errorMessage: {
+        fontSize: 15,
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 32,
+    },
+    retryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 24,
+        borderRadius: 24,
+        minWidth: 140,
+        gap: 8,
+    },
+    retryIcon: {
+        marginRight: 0,
+    },
+    retryButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
     emptyState: {
         flex: 1,
         justifyContent: 'center',
