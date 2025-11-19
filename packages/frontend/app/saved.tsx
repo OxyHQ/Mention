@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TextInput, View, TouchableOpacity, ScrollView, ActivityIndicator, Text } from 'react-native';
+import { StyleSheet, TextInput, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { Search } from '@/assets/icons/search-icon';
 import { feedService } from '../services/feedService';
 import SEO from '@/components/SEO';
+import { EmptyState } from '@/components/common/EmptyState';
 
 const SavedPostsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
@@ -86,14 +87,13 @@ const SavedPostsScreen: React.FC = () => {
                 )}
 
                 {!loading && posts.length === 0 && (
-                    <View style={styles.emptyContainer}>
-                        <Search size={48} color={theme.colors.textSecondary} />
-                        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                            {searchQuery.trim() 
-                                ? t("search.noResults", "No results found")
-                                : t("search.startSearching", "No saved posts yet")}
-                        </Text>
-                    </View>
+                    <EmptyState
+                        title={searchQuery.trim() 
+                            ? t("search.noResults", "No results found")
+                            : t("search.startSearching", "No saved posts yet")}
+                        customIcon={<Search size={48} color={theme.colors.textSecondary} />}
+                        containerStyle={styles.emptyContainer}
+                    />
                 )}
 
                 {!loading && posts.length > 0 && (
@@ -141,13 +141,7 @@ const styles = StyleSheet.create({
     },
     emptyContainer: {
         flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
         paddingTop: 60,
-    },
-    emptyText: {
-        fontSize: 16,
-        marginTop: 16,
     },
     postsContainer: {
         flex: 1,

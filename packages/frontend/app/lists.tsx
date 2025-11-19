@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import SEO from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
+import { EmptyState } from '@/components/common/EmptyState';
 
 export default function ListsScreen() {
   const [myLists, setMyLists] = useState<any[]>([]);
@@ -64,14 +65,19 @@ export default function ListsScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
         {myLists.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="list" size={64} color={theme.colors.border} />
-            <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>No lists yet</Text>
-            <Text style={[styles.emptyStateDescription, { color: theme.colors.textSecondary }]}>Create a list to group accounts you follow and keep organized.</Text>
-            <TouchableOpacity style={[styles.emptyStateButton, { backgroundColor: theme.colors.primary }]} onPress={() => router.push('/lists/create')}>
-              <Text style={[styles.emptyStateButtonText, { color: theme.colors.card }]}>Create list</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            title="No lists yet"
+            subtitle="Create a list to group accounts you follow and keep organized."
+            icon={{
+              name: 'list',
+              size: 48,
+            }}
+            action={{
+              label: 'Create list',
+              onPress: () => router.push('/lists/create'),
+            }}
+            containerStyle={styles.emptyState}
+          />
         ) : (
           <View style={styles.listsContainer}>
             {myLists.map((l: any) => {
@@ -140,11 +146,7 @@ const styles = StyleSheet.create({
   newPill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.primaryColor, alignItems: 'center', justifyContent: 'center' },
   newPillText: { color: colors.primaryLight, fontWeight: '700' },
   // empty state
-  emptyState: { alignItems: 'center', paddingVertical: 36, paddingHorizontal: 20 },
-  emptyStateTitle: { fontSize: 20, fontWeight: '700', color: colors.COLOR_BLACK_LIGHT_1, marginTop: 12 },
-  emptyStateDescription: { fontSize: 14, color: colors.COLOR_BLACK_LIGHT_4, textAlign: 'center', marginTop: 8, lineHeight: 20 },
-  emptyStateButton: { marginTop: 18, backgroundColor: colors.primaryColor, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  emptyStateButtonText: { color: colors.primaryLight, fontWeight: '700' },
+  emptyState: { paddingVertical: 36, paddingHorizontal: 20 },
 
 });
 

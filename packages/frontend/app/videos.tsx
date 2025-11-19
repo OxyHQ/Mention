@@ -16,6 +16,7 @@ import { feedService } from '@/services/feedService';
 import LoadingTopSpinner from '@/components/LoadingTopSpinner';
 import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
+import { EmptyState } from '@/components/common/EmptyState';
 
 // Constants
 const FLATLIST_CONFIG = {
@@ -758,15 +759,15 @@ export default function VideosScreen() {
             )}
 
             {!isLoading && posts.length === 0 && (
-                <View style={styles.emptyState}>
-                    <Ionicons name="videocam-outline" size={64} color={theme.colors.textSecondary} />
-                    <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                        {t('videos.no_video_posts_yet')}
-                    </Text>
-                    <Text style={[styles.emptyText, styles.emptySubtext, { color: theme.colors.textSecondary }]}>
-                        {t('videos.no_posts_found')}
-                    </Text>
-                </View>
+                <EmptyState
+                    title={t('videos.no_video_posts_yet')}
+                    subtitle={t('videos.no_posts_found')}
+                    icon={{
+                        name: 'videocam-outline',
+                        size: 48,
+                    }}
+                    containerStyle={styles.emptyState}
+                />
             )}
 
             {loadingMore && (
@@ -947,22 +948,6 @@ const styles = StyleSheet.create({
     },
     emptyState: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 20,
-        paddingHorizontal: 32,
-    },
-    emptyText: {
-        fontSize: 18,
-        fontWeight: '700',
-        textAlign: 'center',
-    },
-    emptySubtext: {
-        fontSize: 14,
-        fontWeight: '500',
-        marginTop: 4,
-        textAlign: 'center',
-        opacity: 0.8,
     },
     loadingMore: {
         position: 'absolute',

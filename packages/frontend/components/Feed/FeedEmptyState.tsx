@@ -1,9 +1,6 @@
-import React, { memo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { memo } from 'react';
 import { FeedType } from '@mention/shared-types';
-import { useTheme } from '@/hooks/useTheme';
-import { flattenStyleArray } from '@/utils/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { EmptyState } from '@/components/common/EmptyState';
 
 interface FeedEmptyStateProps {
     isLoading: boolean;
@@ -20,102 +17,24 @@ interface FeedEmptyStateProps {
  */
 export const FeedEmptyState = memo<FeedEmptyStateProps>(
     ({ isLoading, error, hasItems, type, showOnlySaved, onRetry }) => {
-        const theme = useTheme();
-        const [isRetrying, setIsRetrying] = useState(false);
-
         if (isLoading) return null;
 
         const hasError = !!error;
         const hasNoItems = !hasItems;
 
-        const handleRetry = async () => {
-            if (!onRetry || isRetrying) return;
-            setIsRetrying(true);
-            try {
-                await onRetry();
-            } finally {
-                setIsRetrying(false);
-            }
-        };
-
         if (hasError && hasNoItems && onRetry) {
             return (
-                <View
-                    style={flattenStyleArray([
-                        styles.errorContainer,
-                        { backgroundColor: theme.colors.background },
-                    ])}
-                >
-                    <View style={styles.errorContent}>
-                        <View
-                            style={[
-                                styles.iconWrapper,
-                                { backgroundColor: theme.colors.error + '15' },
-                            ]}
-                        >
-                            <Ionicons
-                                name="cloud-offline-outline"
-                                size={36}
-                                color={theme.colors.error}
-                            />
-                        </View>
-
-                        <Text
-                            style={flattenStyleArray([
-                                styles.errorTitle,
-                                { color: theme.colors.text },
-                            ])}
-                        >
-                            Couldn't load posts
-                        </Text>
-
-                        <Text
-                            style={flattenStyleArray([
-                                styles.errorMessage,
-                                { color: theme.colors.textSecondary },
-                            ])}
-                        >
-                            Something went wrong while loading your feed. Pull down to refresh or tap the button below to try again.
-                        </Text>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.retryButton,
-                                {
-                                    backgroundColor: theme.colors.primary,
-                                    opacity: isRetrying ? 0.6 : 1,
-                                },
-                            ]}
-                            onPress={handleRetry}
-                            disabled={isRetrying}
-                            activeOpacity={0.8}
-                        >
-                            {isRetrying ? (
-                                <ActivityIndicator
-                                    size="small"
-                                    color={theme.colors.card}
-                                />
-                            ) : (
-                                <>
-                                    <Ionicons
-                                        name="refresh"
-                                        size={18}
-                                        color={theme.colors.card}
-                                        style={styles.retryIcon}
-                                    />
-                                    <Text
-                                        style={[
-                                            styles.retryButtonText,
-                                            { color: theme.colors.card },
-                                        ]}
-                                    >
-                                        Try again
-                                    </Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                <EmptyState
+                    error={{
+                        title: "Couldn't load posts",
+                        message: "Something went wrong while loading your feed. Pull down to refresh or tap the button below to try again.",
+                        onRetry,
+                    }}
+                    icon={{
+                        name: 'cloud-offline-outline',
+                        size: 36,
+                    }}
+                />
             );
         }
 
@@ -123,32 +42,10 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
         const emptySubtext = getEmptySubtext(type, showOnlySaved);
 
         return (
-            <View
-                style={flattenStyleArray([
-                    styles.emptyState,
-                    { backgroundColor: theme.colors.background },
-                ])}
-                accessible={true}
-                accessibilityRole="text"
-                accessibilityLabel={`${emptyText}. ${emptySubtext}`}
-            >
-                <Text
-                    style={flattenStyleArray([
-                        styles.emptyStateText,
-                        { color: theme.colors.text },
-                    ])}
-                >
-                    {emptyText}
-                </Text>
-                <Text
-                    style={flattenStyleArray([
-                        styles.emptyStateSubtext,
-                        { color: theme.colors.textSecondary },
-                    ])}
-                >
-                    {emptySubtext}
-                </Text>
-            </View>
+            <EmptyState
+                title={emptyText}
+                subtitle={emptySubtext}
+            />
         );
     }
 );
@@ -181,78 +78,4 @@ function getEmptySubtext(type: FeedType, showOnlySaved?: boolean): string {
             return 'Start following people to see their posts';
     }
 }
-
-const styles = StyleSheet.create({
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 32,
-        paddingHorizontal: 24,
-    },
-    errorContent: {
-        alignItems: 'center',
-        maxWidth: 320,
-        width: '100%',
-    },
-    iconWrapper: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    errorTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        textAlign: 'center',
-        marginBottom: 6,
-        letterSpacing: -0.3,
-    },
-    errorMessage: {
-        fontSize: 14,
-        textAlign: 'center',
-        lineHeight: 20,
-        marginBottom: 16,
-    },
-    retryButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        minWidth: 100,
-        gap: 6,
-    },
-    retryIcon: {
-        marginRight: 0,
-    },
-    retryButtonText: {
-        fontSize: 15,
-        fontWeight: '600',
-    },
-    emptyState: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 32,
-        paddingHorizontal: 24,
-    },
-    emptyStateText: {
-        fontSize: 18,
-        fontWeight: '700',
-        marginTop: 12,
-        textAlign: 'center',
-        letterSpacing: -0.5,
-    },
-    emptyStateSubtext: {
-        fontSize: 14,
-        marginTop: 6,
-        textAlign: 'center',
-        lineHeight: 20,
-        maxWidth: 280,
-    },
-});
 
