@@ -354,7 +354,7 @@ export function useFeedState({
         fetchUserFeed,
     ]);
 
-    // Handle reloadKey changes
+    // Handle reloadKey changes - force refresh when user presses same tab
     useDeepCompareEffect(() => {
         const reloadKeyChanged =
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
@@ -363,13 +363,13 @@ export function useFeedState({
         if (reloadKeyChanged) {
             fetchInitial(true);
         }
-    }, [reloadKey]);
+    }, [reloadKey, fetchInitial]);
 
-    // Handle initial load and filter changes
+    // Handle initial load and filter changes - skip if feed already has items
     useDeepCompareEffect(() => {
         const reloadKeyChanged =
             previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
-        if (reloadKeyChanged) return;
+        if (reloadKeyChanged) return; // Let reloadKey effect handle it
 
         if (!useScoped && !showOnlySaved) {
             const feedTypeToCheck = type;
@@ -383,7 +383,7 @@ export function useFeedState({
         }
 
         fetchInitial(false);
-    }, [type, filters, useScoped, showOnlySaved, reloadKey]);
+    }, [type, filters, useScoped, showOnlySaved, reloadKey, fetchInitial]);
 
     // Return appropriate state based on scoped vs global
     const items = useScoped ? localItems : globalFeed?.items || [];

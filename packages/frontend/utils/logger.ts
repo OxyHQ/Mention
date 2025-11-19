@@ -50,7 +50,7 @@ const createLogger = (): Logger => {
     },
     warn: (message: string, ...args: any[]) => {
       if (shouldLog('warn')) {
-        console.warn(`${PREFIX} [WARN] ${message}`, ...args);
+      console.warn(`${PREFIX} [WARN] ${message}`, ...args);
       }
     },
     error: (message: string, ...args: any[]) => {

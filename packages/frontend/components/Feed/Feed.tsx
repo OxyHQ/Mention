@@ -17,7 +17,7 @@ import { flattenStyleArray } from '@/utils/theme';
 import { createScopedLogger } from '@/utils/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
-import { FeedFilters, getItemKey, deduplicateItems, normalizeItemId } from '@/utils/feedUtils';
+import { FeedFilters, getItemKey, deduplicateItems, deepEqual } from '@/utils/feedUtils';
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
@@ -35,17 +35,9 @@ interface FeedProps {
     showOnlySaved?: boolean;
     filters?: FeedFilters;
     reloadKey?: string | number;
-    autoRefresh?: boolean;
-    refreshInterval?: number;
-    onSavePress?: (postId: string) => void;
     style?: React.ComponentProps<typeof View>['style'];
     contentContainerStyle?: React.ComponentProps<typeof View>['style'];
     listHeaderComponent?: React.ReactElement | null;
-    recycleItems?: boolean;
-    maintainScrollAtEnd?: boolean;
-    maintainScrollAtEndThreshold?: number;
-    alignItemsAtEnd?: boolean;
-    maintainVisibleContentPosition?: boolean;
 }
 
 const DEFAULT_FEED_PROPS = {
@@ -54,13 +46,6 @@ const DEFAULT_FEED_PROPS = {
     hideRefreshControl: false,
     scrollEnabled: true,
     showOnlySaved: false,
-    autoRefresh: false,
-    refreshInterval: 30000,
-    recycleItems: true,
-    maintainScrollAtEnd: false,
-    maintainScrollAtEndThreshold: 0.1,
-    alignItemsAtEnd: false,
-    maintainVisibleContentPosition: true,
 } as const;
 
 const Feed = memo((props: FeedProps) => {
@@ -75,17 +60,9 @@ const Feed = memo((props: FeedProps) => {
         showOnlySaved,
         filters,
         reloadKey,
-        autoRefresh: _autoRefresh,
-        refreshInterval: _refreshInterval,
-        onSavePress: _onSavePress,
         style,
         contentContainerStyle,
         listHeaderComponent,
-        recycleItems: _recycleItems,
-        maintainScrollAtEnd,
-        maintainScrollAtEndThreshold,
-        alignItemsAtEnd,
-        maintainVisibleContentPosition,
     } = { ...DEFAULT_FEED_PROPS, ...props };
 
     const theme = useTheme();
@@ -121,46 +98,21 @@ const Feed = memo((props: FeedProps) => {
         } finally {
             setRefreshing(false);
         }
-    }, [feedState]);
+    }, [feedState.refresh]);
 
-    // Handle load more
-    const handleLoadMore = useCallback(async () => {
+    // Handle load more - debounced in hook
+    const handleLoadMore = useCallback(() => {
         if (!feedState.hasMore || feedState.isLoading) return;
-        await feedState.loadMore();
-    }, [feedState]);
+        feedState.loadMore();
+    }, [feedState.hasMore, feedState.isLoading, feedState.loadMore]);
 
-    // Process display items with deduplication and sorting
-    const displayItems = useDeepCompareMemo(() => {
+    // Process items with single-pass deduplication and sorting
+    const finalRenderItems = useDeepCompareMemo(() => {
         const src = feedState.items;
         if (src.length === 0) return [];
 
-        // Fast deduplication using utility function
+        // Single deduplication pass using utility
         const deduped = deduplicateItems(src, getItemKey);
-
-        // Log duplicates in development only
-        if (process.env.NODE_ENV === 'development') {
-            const seen = new Set<string>();
-            const duplicateIds: string[] = [];
-            for (const item of src) {
-                const id = normalizeItemId(item);
-                if (id && id !== 'undefined' && id !== 'null' && id !== '') {
-                    if (!seen.has(id)) {
-                        seen.add(id);
-                    } else {
-                        duplicateIds.push(id);
-                    }
-                }
-            }
-
-            if (duplicateIds.length > 0) {
-                logger.error(`Found ${duplicateIds.length} duplicates in feed items`, {
-                    duplicates: [...new Set(duplicateIds)].slice(0, 10),
-                    feedType: type,
-                    totalItems: src.length,
-                    uniqueItems: deduped.length,
-                });
-            }
-        }
 
         // Only apply sorting for 'for_you' feed if user is authenticated
         const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
@@ -196,21 +148,6 @@ const Feed = memo((props: FeedProps) => {
         return deduped;
     }, [feedState.items, type, showOnlySaved, currentUser?.id]);
 
-    // Final deduplication layer - optimized using Map for better performance
-    const finalRenderItems = useMemo(() => {
-        if (displayItems.length === 0) return [];
-        
-        // Use Map instead of Set + Array for single-pass deduplication
-        const seen = new Map<string, FeedItem>();
-        for (const item of displayItems) {
-            const key = getItemKey(item);
-            if (key && !seen.has(key)) {
-                seen.set(key, item);
-            }
-        }
-        return Array.from(seen.values());
-    }, [displayItems]);
-
     // Memoize renderPostItem to prevent recreating on every render
     const renderPostItem = useCallback(({ item }: { item: FeedItem; index: number }) => {
         // Validate item before rendering to prevent crashes
@@ -235,17 +172,16 @@ const Feed = memo((props: FeedProps) => {
         return 'post'; // Default type
     }, []);
 
-    // Optimized data hash - only recalculate when items actually change
+    // Optimized data hash for FlashList extraData - only recalculate when items change
     const dataHash = useMemo(() => {
-        const count = displayItems.length;
+        const count = finalRenderItems.length;
         if (count === 0) return 'empty';
-        // Use first few and last few IDs for hash - faster than all items
-        const firstKey = getItemKey(displayItems[0]);
-        const lastKey = getItemKey(displayItems[count - 1]);
-        // Include count and a few middle items for better uniqueness
-        const midKey = count > 2 ? getItemKey(displayItems[Math.floor(count / 2)]) : '';
+        // Use first, middle, and last IDs for hash - faster than processing all items
+        const firstKey = getItemKey(finalRenderItems[0]);
+        const lastKey = getItemKey(finalRenderItems[count - 1]);
+        const midKey = count > 2 ? getItemKey(finalRenderItems[Math.floor(count / 2)]) : '';
         return `${count}-${firstKey}-${midKey}-${lastKey}`;
-    }, [displayItems.length, displayItems]);
+    }, [finalRenderItems]);
 
     // Register scrollable with LayoutScrollContext
     const clearScrollableRegistration = useCallback(() => {
@@ -292,11 +228,8 @@ const Feed = memo((props: FeedProps) => {
         }
     }, [forwardWheelEvent]);
 
-    // Web-specific dataSet for scroll detection
-    const dataSetForWeb = useMemo(() => {
-        if (Platform.OS !== 'web') return undefined;
-        return { layoutscroll: 'true' };
-    }, []);
+    // Web-specific dataSet for scroll detection - memoized once
+    const dataSetForWeb = Platform.OS === 'web' ? { layoutscroll: 'true' } : undefined;
 
     // Memoize RefreshControl to prevent recreation on every render
     const refreshControl = useMemo(() => {
@@ -436,45 +369,24 @@ const Feed = memo((props: FeedProps) => {
 
 Feed.displayName = 'Feed';
 
-// Custom comparison function to prevent unnecessary re-renders
-const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps) => {
-    // Always rerender if reloadKey changes (user pressed same tab)
-    if (prevProps.reloadKey !== nextProps.reloadKey) {
+/**
+ * Optimized props comparison to prevent unnecessary re-renders
+ * Uses deep comparison for filters to avoid re-renders when filter objects change by reference only
+ */
+const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
+    // Fast path checks - most common changes
+    if (
+        prevProps.reloadKey !== nextProps.reloadKey ||
+        prevProps.type !== nextProps.type ||
+        prevProps.userId !== nextProps.userId ||
+        prevProps.showOnlySaved !== nextProps.showOnlySaved ||
+        prevProps.scrollEnabled !== nextProps.scrollEnabled
+    ) {
         return false;
     }
 
-    // Rerender if feed type changed
-    if (prevProps.type !== nextProps.type) {
-        return false;
-    }
-
-    // Rerender if userId changed
-    if (prevProps.userId !== nextProps.userId) {
-        return false;
-    }
-
-    // Rerender if filters changed (deep comparison using utility)
-    if (prevProps.filters !== nextProps.filters) {
-        // If both are undefined/null, they're equal
-        if (!prevProps.filters && !nextProps.filters) {
-            // Continue to next check
-        } else {
-            // Use JSON.stringify for deep comparison (same as before but clearer)
-            const prevFilters = JSON.stringify(prevProps.filters || {});
-            const nextFilters = JSON.stringify(nextProps.filters || {});
-            if (prevFilters !== nextFilters) {
-                return false;
-            }
-        }
-    }
-
-    // Rerender if showOnlySaved changed
-    if (prevProps.showOnlySaved !== nextProps.showOnlySaved) {
-        return false;
-    }
-
-    // Rerender if scrollEnabled changed
-    if (prevProps.scrollEnabled !== nextProps.scrollEnabled) {
+    // Deep comparison for filters using utility
+    if (!deepEqual(prevProps.filters, nextProps.filters)) {
         return false;
     }
 

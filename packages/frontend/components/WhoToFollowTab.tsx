@@ -31,7 +31,7 @@ export function WhoToFollowTab() {
       : 'Someone';
     const userHandle = user?.username || '';
     const appUrl = 'https://mention.earth';
-
+    
     // Use a more engaging invite message with proper translation
     if (userHandle) {
       return t('settings.inviteContacts.shareMessageWithHandle', {
@@ -76,13 +76,13 @@ export function WhoToFollowTab() {
       const shareOptions: any = {
         message: inviteMessage, // Full message with URL already included
       };
-
+      
       // On iOS, we can optionally add title, but message should be primary
       if (Platform.OS === 'ios') {
         // Don't set title as it might override the message in some apps
         // Just use message which contains everything
       }
-
+      
       await Share.share(shareOptions);
     } catch (error: unknown) {
       const err = error as { message?: string; code?: string };
@@ -174,27 +174,27 @@ export function WhoToFollowTab() {
 
   if (error && recommendations.length === 0) {
     const handleRetry = async () => {
-      setError(null);
-      try {
-        setLoading(true);
-        const response = await oxyServices.getProfileRecommendations();
-        const recommendationsList = Array.isArray(response) ? response : [];
-        setRecommendations(recommendationsList);
-        try {
-          if (recommendationsList.length) {
-            useUsersStore.getState().upsertMany(recommendationsList as any);
-          }
-        } catch { }
+            setError(null);
+              try {
+                setLoading(true);
+                const response = await oxyServices.getProfileRecommendations();
+                const recommendationsList = Array.isArray(response) ? response : [];
+                setRecommendations(recommendationsList);
+                try {
+                  if (recommendationsList.length) {
+                    useUsersStore.getState().upsertMany(recommendationsList as any);
+                  }
+                } catch { }
       } catch (err: unknown) {
         let errorMessage = 'Failed to fetch recommendations';
         if (err instanceof Error) {
           errorMessage = err.message;
         }
         setError(errorMessage);
-      } finally {
-        setLoading(false);
-      }
-    };
+              } finally {
+                setLoading(false);
+              }
+            };
 
     return (
       <Error

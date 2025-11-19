@@ -75,10 +75,10 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
   const renderUser = useCallback(({ item }: { item: User }) => {
     return (
       <View>
-        <TouchableOpacity
+      <TouchableOpacity
           style={styles.userRow}
-          onPress={() => handleUserPress(item.handle)}
-        >
+        onPress={() => handleUserPress(item.handle)}
+      >
         <Image
           source={{ uri: item.avatar || 'https://via.placeholder.com/50' }}
           style={styles.avatar}

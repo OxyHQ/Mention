@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback, memo } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  ActivityIndicator, 
-  Modal, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Modal,
   Platform,
   Pressable,
 } from 'react-native';
@@ -51,12 +51,12 @@ interface PostArticleModalProps {
   onClose: () => void;
 }
 
-const PostArticleModal: React.FC<PostArticleModalProps> = ({ 
-  visible, 
-  articleId, 
-  title, 
-  body, 
-  onClose 
+const PostArticleModal: React.FC<PostArticleModalProps> = ({
+  visible,
+  articleId,
+  title,
+  body,
+  onClose
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -254,7 +254,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
         style={contentContainerStyle}
         pointerEvents="box-none"
       >
-        <Pressable 
+        <Pressable
           onPress={handleContentPress}
           style={styles.pressableContent}
         >
@@ -273,9 +273,9 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
               <ActivityIndicator size="small" color={theme.colors.primary} />
             </View>
           ) : (
-            <ScrollView 
+            <ScrollView
               style={styles.scrollView}
-              contentContainerStyle={styles.content} 
+              contentContainerStyle={styles.content}
               showsVerticalScrollIndicator={true}
               bounces={true}
             >
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
         zIndex: Z_INDEX.MODAL,
       },
       default: {
-        flex: 1,
+    flex: 1,
       },
     }),
   },

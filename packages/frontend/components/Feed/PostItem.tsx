@@ -930,8 +930,8 @@ const arePropsEqual = (prevProps: PostItemProps, nextProps: PostItemProps) => {
             prevEngagement.replies !== nextEngagement.replies ||
             prevEngagement.saves !== nextEngagement.saves
         ) {
-            return false;
-        }
+        return false;
+    }
     } else if (prevEngagement !== nextEngagement) {
         return false;
     }
