@@ -56,11 +56,15 @@ const makePublicRequest = async (endpoint: string, params?: Record<string, any>)
   return response.json();
 };
 
+interface FeedServiceOptions {
+  signal?: AbortSignal;
+}
+
 class FeedService {
   /**
    * Get feed data from backend using Oxy authenticated client
    */
-  async getFeed(request: FeedRequest): Promise<FeedResponse> {
+  async getFeed(request: FeedRequest, options?: FeedServiceOptions): Promise<FeedResponse> {
     try {
       const params: any = {
         type: request.type // Always include type in params
@@ -93,7 +97,10 @@ class FeedService {
         if (request.limit) timelineParams.limit = request.limit;
         
         try {
-          const response = await authenticatedClient.get(`/feeds/${feedId}/timeline`, { params: timelineParams });
+          const response = await authenticatedClient.get(`/feeds/${feedId}/timeline`, { 
+            params: timelineParams,
+            signal: options?.signal,
+          });
           // Backend returns posts directly in FeedResponse format
           return response.data;
         } catch (authError: any) {
@@ -135,7 +142,10 @@ class FeedService {
       }
 
       try {
-        const response = await authenticatedClient.get(endpoint, { params });
+        const response = await authenticatedClient.get(endpoint, { 
+          params,
+          signal: options?.signal,
+        });
         return response.data;
       } catch (authError: any) {
         // If authentication fails (401/403) or network error, try public request
