@@ -51,6 +51,7 @@ export interface FeedFilters {
     searchQuery?: string;
     postId?: string;
     parentPostId?: string;
+    customFeedId?: string;
     [key: string]: any;
 }
 
