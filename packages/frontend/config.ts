@@ -3,7 +3,7 @@
 export const API_URL =
   process.env.NODE_ENV === 'production'
     ? 'https://api.mention.earth/api'
-    : (process.env.API_URL ?? 'http://localhost:3000/api');
+    : (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api');
 export const SOCKET_URL =
   process.env.NODE_ENV === "production"
     ? "wss://api.mention.earth"
