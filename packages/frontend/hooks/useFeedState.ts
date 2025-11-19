@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { FeedType, FeedItem } from '@mention/shared-types';
-import { usePostsStore } from '@/stores/postsStore';
+import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
-import { logger } from '@/utils/logger';
+import { createScopedLogger } from '@/utils/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
+
+const logger = createScopedLogger('useFeedState');
 
 export interface UseFeedStateOptions {
     type: FeedType;
@@ -61,13 +63,11 @@ export function useFeedState({
     const [localLoading, setLocalLoading] = useState<boolean>(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
-    // Global feed state
+    // Global feed state - use exported selectors for consistency
     const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
-    const globalFeed = usePostsStore((state) => {
-        if (showOnlySaved) return state.feeds.saved;
-        if (userId) return state.feedsForUser[userId]?.[effectiveType];
-        return state.feeds[effectiveType];
-    });
+    const globalFeedSelector = useFeedSelector(effectiveType);
+    const userFeedSelector = useUserFeedSelector(userId || '', effectiveType);
+    const globalFeed = showOnlySaved ? globalFeedSelector : (userId ? userFeedSelector : globalFeedSelector);
 
     // Refs for preventing duplicate calls
     const isFetchingRef = useRef(false);
