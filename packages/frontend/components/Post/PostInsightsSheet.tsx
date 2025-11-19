@@ -113,7 +113,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
             <Header
                 options={{
-                    title: 'Post Insights',
+                    title: t('insights.post.title'),
                     rightComponents: [
                         <HeaderIconButton
                             key="close"
