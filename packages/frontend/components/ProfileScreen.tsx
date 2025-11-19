@@ -239,10 +239,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         t('profile.tabs.reposts')
     ];
 
-    // Memoize own profile check
+    // Memoize own profile check - compare Oxy user IDs only
     const isOwnProfile = useMemo(() => {
-        return currentUser?.username === username || currentUser?.id === profileData?.id;
-    }, [currentUser?.username, currentUser?.id, username, profileData?.id]);
+        if (!currentUser?.id || !profileData?.id) return false;
+        return currentUser.id === profileData.id;
+    }, [currentUser?.id, profileData?.id]);
 
     // Subscription (post notifications) state
     const [subscribed, setSubscribed] = useState<boolean>(false);
@@ -440,6 +441,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     <>
                         {/* Header actions */}
                         <View style={[styles.headerActions, { top: insets.top + 6 }]}>
+                            {/* Only show notifications icon for other users' profiles, not your own */}
                             {!isOwnProfile && (
                                 <HeaderIconButton
                                     onPress={toggleSubscription}
