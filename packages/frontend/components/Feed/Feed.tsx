@@ -22,6 +22,7 @@ import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { Platform } from 'react-native';
 import { flattenStyleArray } from '@/utils/theme';
+import { logger } from '@/utils/logger';
 
 interface FeedProps {
     type: FeedType;
@@ -170,7 +171,7 @@ const Feed = (props: FeedProps) => {
     const fetchInitialFeed = useCallback(async (forceRefresh: boolean = false) => {
         // Debounce rapid calls
         if (isFetchingRef.current) {
-            console.log('[Feed] fetchInitialFeed: Already fetching, skipping');
+            logger.debug('[Feed] fetchInitialFeed: Already fetching, skipping');
             return;
         }
 
@@ -178,7 +179,7 @@ const Feed = (props: FeedProps) => {
         isFetchingRef.current = true;
 
         if (isAuthenticated && !currentUser?.id) {
-            console.log('[Feed] fetchInitialFeed: Not authenticated, skipping');
+            logger.debug('[Feed] fetchInitialFeed: Not authenticated, skipping');
             isFetchingRef.current = false;
             return;
         }
@@ -188,7 +189,7 @@ const Feed = (props: FeedProps) => {
         const currentFeed = !useScoped ? usePostsStore.getState().feeds[feedTypeToCheck] : null;
         const hasItems = currentFeed?.items && currentFeed.items.length > 0;
 
-        console.log('[Feed] fetchInitialFeed:', {
+        logger.debug('[Feed] fetchInitialFeed:', {
             forceRefresh,
             showOnlySaved,
             feedTypeToCheck,
@@ -204,7 +205,7 @@ const Feed = (props: FeedProps) => {
         // For saved posts, always fetch to support search filtering
         if (!useScoped && hasItems && !forceRefresh && !showOnlySaved && !filters?.searchQuery) {
             // Feed already loaded and user is just switching tabs - don't reload
-            console.log('[Feed] fetchInitialFeed: Skipping - feed has items and not saved');
+            logger.debug('[Feed] fetchInitialFeed: Skipping - feed has items and not saved');
             return;
         }
 
@@ -222,7 +223,7 @@ const Feed = (props: FeedProps) => {
             if (showOnlySaved) {
                 // Use feed endpoint with type='saved' and searchQuery filter
                 // Always fetch saved posts to ensure fresh data and search filtering
-                console.log('[Feed] fetchInitialFeed: Fetching saved posts with filters:', filters || {});
+                logger.debug('[Feed] fetchInitialFeed: Fetching saved posts with filters:', filters || {});
                 await fetchFeed({ type: 'saved', limit: 50, filters: filters || {} });
                 return;
             }
@@ -262,7 +263,7 @@ const Feed = (props: FeedProps) => {
                 }
             }
         } catch (error) {
-            console.error('Feed: Error fetching initial feed:', error);
+            logger.error('Feed: Error fetching initial feed', error);
             if (useScoped) {
                 setLocalError('Failed to load');
             }
@@ -285,7 +286,7 @@ const Feed = (props: FeedProps) => {
 
     // Handle initial load and type/filter changes
     useEffect(() => {
-        console.log('[Feed] useEffect triggered:', {
+        logger.debug('[Feed] useEffect triggered:', {
             filtersKey,
             showOnlySaved,
             filters: filters
@@ -294,7 +295,7 @@ const Feed = (props: FeedProps) => {
         // Skip if reloadKey just changed (handled by above effect)
         const reloadKeyChanged = previousReloadKeyRef.current !== undefined && previousReloadKeyRef.current !== reloadKey;
         if (reloadKeyChanged) {
-            console.log('[Feed] useEffect: Skipping - reloadKey changed');
+            logger.debug('[Feed] useEffect: Skipping - reloadKey changed');
             return; // Let the reloadKey effect handle it
         }
 
@@ -307,14 +308,14 @@ const Feed = (props: FeedProps) => {
 
             // If feed has items and no filters/search, skip fetching (just switching tabs)
             if (hasItems && !filters?.searchQuery) {
-                console.log('[Feed] useEffect: Skipping - feed has items and no search query');
+                logger.debug('[Feed] useEffect: Skipping - feed has items and no search query');
                 return;
             }
         }
 
         // Feed doesn't have items yet or filters changed, fetch it
         // For saved posts, always fetch to support search filtering
-        console.log('[Feed] useEffect: Calling fetchInitialFeed');
+        logger.debug('[Feed] useEffect: Calling fetchInitialFeed');
         fetchInitialFeed(false);
     }, [type, filtersKey, fetchInitialFeed, useScoped, reloadKey, showOnlySaved, filters]);
 
@@ -351,7 +352,7 @@ const Feed = (props: FeedProps) => {
                     setLocalHasMore(!!resp.hasMore);
                     setLocalNextCursor(resp.nextCursor);
                 } catch (error) {
-                    console.error('Error refreshing scoped feed:', error);
+                    logger.error('Error refreshing scoped feed', error);
                     setLocalError('Failed to refresh');
                 } finally {
                     setLocalLoading(false);
@@ -362,7 +363,7 @@ const Feed = (props: FeedProps) => {
                 await refreshFeed(type, filters);
             }
         } catch (error) {
-            console.error('Error refreshing feed:', error);
+            logger.error('Error refreshing feed', error);
             if (useScoped) {
                 setLocalError('Failed to refresh');
             }
@@ -375,7 +376,7 @@ const Feed = (props: FeedProps) => {
         // CRITICAL: Use ref-based guard to prevent concurrent calls synchronously
         // State-based guards (isLoadingMore) are async and can allow race conditions
         if (isLoadingMoreRef.current) {
-            console.log('[Feed] handleLoadMore: Already loading, skipping duplicate call');
+            logger.debug('[Feed] handleLoadMore: Already loading, skipping duplicate call');
             return;
         }
 
@@ -455,7 +456,7 @@ const Feed = (props: FeedProps) => {
                 await loadMoreFeed(effectiveType, filters);
             }
         } catch (error) {
-            console.error('Error loading more feed:', error);
+            logger.error('Error loading more feed', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to load more posts';
             if (useScoped) {
                 setLocalError(errorMessage);
@@ -496,7 +497,7 @@ const Feed = (props: FeedProps) => {
     const renderPostItem = useCallback(({ item, index }: { item: any; index: number }) => {
         // Validate item before rendering to prevent crashes
         if (!item || !item.id) {
-            console.warn('[Feed] Invalid post item:', item);
+            logger.warn('[Feed] Invalid post item', item);
             return null;
         }
 
@@ -551,7 +552,7 @@ const Feed = (props: FeedProps) => {
 
         // Log duplicates found in display items (shouldn't happen if store deduplication works)
         if (process.env.NODE_ENV === 'development' && duplicateIds.length > 0) {
-            console.error(`[Feed:displayItems] 🚨 Found ${duplicateIds.length} duplicates in feed items!`, {
+            logger.error(`[Feed:displayItems] Found ${duplicateIds.length} duplicates in feed items`, {
                 duplicates: [...new Set(duplicateIds)].slice(0, 10),
                 feedType: effectiveType,
                 totalItems: src.length,
@@ -566,7 +567,7 @@ const Feed = (props: FeedProps) => {
                     preview: items[0]?.content?.text?.substring(0, 50) || 'no preview'
                 };
             });
-            console.error('[Feed:displayItems] Duplicate details:', duplicateDetails);
+            logger.error('[Feed:displayItems] Duplicate details', duplicateDetails);
         }
 
         // Only apply sorting for 'for_you' feed if user is authenticated
@@ -624,7 +625,7 @@ const Feed = (props: FeedProps) => {
                                     await fetchFeed({ type: effectiveType, limit: 20, filters });
                                 }
                             } catch (retryError) {
-                                console.error('Retry failed:', retryError);
+                                logger.error('Retry failed', retryError);
                             }
                         }}
                     >

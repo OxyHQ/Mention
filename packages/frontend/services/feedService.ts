@@ -10,6 +10,7 @@ import {
   FeedType
 } from '@mention/shared-types';
 import { authenticatedClient, API_CONFIG } from '../utils/api';
+import { logger } from '../utils/logger';
 
 // Helper function to make unauthenticated requests using fetch
 const makePublicRequest = async (endpoint: string, params?: Record<string, any>): Promise<any> => {
@@ -160,8 +161,7 @@ class FeedService {
         throw authError;
       }
     } catch (error: any) {
-      console.error('❌ Error fetching feed:', error);
-      console.error('Error details:', {
+      logger.error('Error fetching feed', {
         message: error?.message,
         status: error?.response?.status,
         statusText: error?.response?.statusText,
@@ -170,11 +170,6 @@ class FeedService {
         params,
         stack: error?.stack
       });
-      
-      // Log the full error for debugging
-      if (error?.response?.data) {
-        console.error('Response data:', JSON.stringify(error.response.data, null, 2));
-      }
       
       // Re-throw with more context
       const errorMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Failed to fetch feed';

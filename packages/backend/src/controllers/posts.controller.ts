@@ -625,7 +625,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         );
       }
     } catch (e) {
-      console.error('Failed to create mention notifications:', e);
+      logger.error('Failed to create mention notifications', e);
     }
     
     res.status(201).json({ success: true, post: transformedPost });
@@ -786,7 +786,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           pendingArticleDoc.postId = post._id.toString();
           await pendingArticleDoc.save();
         } catch (articleError) {
-          console.error('Failed to save article content (thread):', articleError);
+          logger.error('Failed to save article content (thread)', articleError);
         }
       }
 
@@ -819,7 +819,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       try {
         userData = await oxyClient.getUserById(userId);
       } catch (error) {
-        console.error('Failed to fetch user data from Oxy for thread post:', error);
+        logger.error('Failed to fetch user data from Oxy for thread post', error);
       }
 
       // Transform response
@@ -1228,15 +1228,14 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     ).lean();
 
     // Record interaction for user preference learning
-    console.log(`[Posts Controller] Recording interaction for user ${userId}, post ${postId}`);
+    logger.debug(`Recording interaction for user ${userId}, post ${postId}`);
     try {
       await userPreferenceService.recordInteraction(userId, postId, 'like');
-      console.log(`[Posts Controller] Successfully recorded interaction`);
+      logger.debug('Successfully recorded interaction');
       // Invalidate cached feed for this user
       await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
-      console.error(`[Posts Controller] Failed to record interaction for preferences:`, error);
-      console.error(`[Posts Controller] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      logger.error('Failed to record interaction for preferences', error);
       // Don't fail the request if preference tracking fails, but log the error
     }
 
@@ -1345,13 +1344,13 @@ export const savePost = async (req: AuthRequest, res: Response) => {
         await userPreferenceService.recordInteraction(userId, postId, 'save');
         logger.debug('Recorded interaction for already-saved post');
       } catch (error) {
-        console.warn(`[Posts Controller] Failed to record interaction for already-saved post:`, error);
+        logger.warn('Failed to record interaction for already-saved post', error);
       }
       
       return res.json({ message: 'Post already saved' });
     }
 
-    console.log(`[Posts Controller] User ${userId} saving post ${postId} (not already saved)`);
+    logger.debug(`User ${userId} saving post ${postId} (not already saved)`);
 
     // Create save record
     await Bookmark.create({ userId, postId });
@@ -1365,21 +1364,20 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     );
 
     // Record interaction for user preference learning
-    console.log(`[Posts Controller] Recording interaction for user ${userId}, post ${postId}`);
+    logger.debug(`Recording interaction for user ${userId}, post ${postId}`);
     try {
       await userPreferenceService.recordInteraction(userId, postId, 'save');
-      console.log(`[Posts Controller] Successfully recorded interaction`);
+      logger.debug('Successfully recorded interaction');
       // Invalidate cached feed for this user
       await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
-      console.error(`[Posts Controller] Failed to record interaction for preferences:`, error);
-      console.error(`[Posts Controller] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      logger.error('Failed to record interaction for preferences', error);
       // Don't fail the request if preference tracking fails, but log the error
     }
 
     res.json({ message: 'Post saved successfully' });
   } catch (error) {
-    console.error('Error saving post:', error);
+    logger.error('Error saving post', error);
     res.status(500).json({ message: 'Error saving post', error });
   }
 };
@@ -1417,7 +1415,7 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Post unsaved successfully' });
   } catch (error) {
-    console.error('Error unsaving post:', error);
+    logger.error('Error unsaving post', error);
     res.status(500).json({ message: 'Error unsaving post', error });
   }
 };
@@ -1447,11 +1445,11 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
     // Record interaction for user preference learning
     try {
       await userPreferenceService.recordInteraction(userId, req.params.id, 'repost');
-      console.log(`[Posts Controller] Successfully recorded repost interaction`);
+      logger.debug('Successfully recorded repost interaction');
       // Invalidate cached feed for this user
       await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
-      console.warn(`[Posts Controller] Failed to record repost interaction:`, error);
+      logger.warn('Failed to record repost interaction', error);
     }
 
     // Notify original author about repost
@@ -1467,12 +1465,12 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
         });
       }
     } catch (e) {
-      console.error('Failed to create repost notification:', e);
+      logger.error('Failed to create repost notification', e);
     }
 
     res.status(201).json(repost);
   } catch (error) {
-    console.error('Error creating repost:', error);
+    logger.error('Error creating repost', error);
     res.status(500).json({ message: 'Error creating repost', error });
   }
 };
@@ -1512,12 +1510,12 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
         });
       }
     } catch (e) {
-      console.error('Failed to create quote notification:', e);
+      logger.error('Failed to create quote notification', e);
     }
 
     res.status(201).json(quotePost);
   } catch (error) {
-    console.error('Error creating quote post:', error);
+    logger.error('Error creating quote post', error);
     res.status(500).json({ message: 'Error creating quote post', error });
   }
 };
@@ -1550,7 +1548,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     // Add search filter if provided
     if (searchQuery && searchQuery.trim()) {
       const trimmedQuery = searchQuery.trim();
-      console.log(`[Saved Posts] Applying search filter: "${trimmedQuery}"`);
+      logger.debug(`Applying search filter: "${trimmedQuery}"`);
       // Use MongoDB $regex for partial text matching (case-insensitive)
       // Escape special regex characters but allow partial matching
       const escapedQuery = trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1558,7 +1556,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
         $regex: escapedQuery,
         $options: 'i' // case-insensitive
       };
-      console.log(`[Saved Posts] Final query:`, JSON.stringify(postQuery, null, 2));
+      logger.debug('Final query', JSON.stringify(postQuery, null, 2));
     }
 
     // Get the actual posts
@@ -1590,7 +1588,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       limit
     });
   } catch (error) {
-    console.error('Error fetching saved posts:', error);
+    logger.error('Error fetching saved posts', error);
     res.status(500).json({ message: 'Error fetching saved posts', error });
   }
 };
@@ -1620,7 +1618,7 @@ export const getPostsByHashtag = async (req: Request, res: Response) => {
       limit
     });
   } catch (error) {
-    console.error('Error fetching posts by hashtag:', error);
+    logger.error('Error fetching posts by hashtag', error);
     res.status(500).json({ message: 'Error fetching posts by hashtag', error });
   }
 };
@@ -1643,7 +1641,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
 
     res.json(drafts);
   } catch (error) {
-    console.error('Error fetching drafts:', error);
+    logger.error('Error fetching drafts', error);
     res.status(500).json({ message: 'Error fetching drafts', error });
   }
 };
@@ -1666,7 +1664,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
 
     res.json(scheduledPosts);
   } catch (error) {
-    console.error('Error fetching scheduled posts:', error);
+    logger.error('Error fetching scheduled posts', error);
     res.status(500).json({ message: 'Error fetching scheduled posts', error });
   }
 }; 
@@ -1752,7 +1750,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
       count: transformedPosts.length
     });
   } catch (error) {
-    console.error('Error fetching nearby posts:', error);
+    logger.error('Error fetching nearby posts', error);
     res.status(500).json({ message: 'Error fetching nearby posts', error });
   }
 };
@@ -1839,7 +1837,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
       count: transformedPosts.length
     });
   } catch (error) {
-    console.error('Error fetching posts in area:', error);
+    logger.error('Error fetching posts in area', error);
     res.status(500).json({ message: 'Error fetching posts in area', error });
   }
 };
@@ -1885,7 +1883,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
             verified: userData.verified || false
           };
         } catch (error) {
-          console.error(`Error fetching user ${userId}:`, error);
+          logger.error(`Error fetching user ${userId}`, error);
           return {
             id: userId,
             name: 'User',
@@ -1904,7 +1902,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
       totalCount: likesToReturn.length
     });
   } catch (error) {
-    console.error('Error fetching post likes:', error);
+    logger.error('Error fetching post likes', error);
     res.status(500).json({ message: 'Error fetching post likes', error });
   }
 };
@@ -1950,7 +1948,7 @@ export const getPostReposts = async (req: AuthRequest, res: Response) => {
             verified: userData.verified || false
           };
         } catch (error) {
-          console.error(`Error fetching user ${userId}:`, error);
+          logger.error(`Error fetching user ${userId}`, error);
           return {
             id: userId,
             name: 'User',
@@ -1969,7 +1967,7 @@ export const getPostReposts = async (req: AuthRequest, res: Response) => {
       totalCount: repostsToReturn.length
     });
   } catch (error) {
-    console.error('Error fetching post reposts:', error);
+    logger.error('Error fetching post reposts', error);
     res.status(500).json({ message: 'Error fetching post reposts', error });
   }
 };
@@ -2064,7 +2062,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
       count: transformedPosts.length
     });
   } catch (error) {
-    console.error('Error fetching nearby posts (both locations):', error);
+    logger.error('Error fetching nearby posts (both locations)', error);
     res.status(500).json({ message: 'Error fetching nearby posts (both locations)', error });
   }
 };
@@ -2117,7 +2115,7 @@ export const getLocationStats = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching location stats:', error);
+    logger.error('Error fetching location stats', error);
     res.status(500).json({ message: 'Error fetching location stats', error });
   }
 };

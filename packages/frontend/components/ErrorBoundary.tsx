@@ -25,7 +25,9 @@ class ErrorBoundaryBase extends Component<Props, State> {
     }
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error('Error caught by boundary:', error, errorInfo);
+        // Import logger at module level to avoid circular dependencies
+        const { logger } = require('../utils/logger');
+        logger.error('Error caught by boundary', { error, errorInfo });
     }
 
     private handleRetry = () => {
