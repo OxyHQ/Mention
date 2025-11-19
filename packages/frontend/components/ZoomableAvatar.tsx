@@ -33,6 +33,9 @@ import { Z_INDEX } from '@/lib/constants';
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
+// Memoize the default avatar source to prevent re-creation on every render
+const DEFAULT_AVATAR_SOURCE = DefaultAvatar;
+
 interface ZoomableAvatarProps {
   source?: ImageSourcePropType | string | undefined | null;
   size?: number;
@@ -82,9 +85,13 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   const originX = useSharedValue(0);
   const originY = useSharedValue(0);
 
-  const imageSource = source && !errored
-    ? (typeof source === 'string' ? { uri: source } : source)
-    : DefaultAvatar;
+  // Memoize imageSource to prevent unnecessary re-renders and image reloads
+  const imageSource = useMemo(() => {
+    if (source && !errored) {
+      return typeof source === 'string' ? { uri: source } : source;
+    }
+    return DEFAULT_AVATAR_SOURCE;
+  }, [source, errored]);
 
   // Get original image dimensions when source changes
   React.useEffect(() => {

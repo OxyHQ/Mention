@@ -764,6 +764,29 @@ export default function SettingsScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
+                        {/* Link Management */}
+                        <TouchableOpacity
+                            style={styles.settingItem}
+                            onPress={() => router.push('/settings/links')}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="link" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {t("settings.data.linkManagement")}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t("settings.data.linkManagementDesc")}
+                                    </Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
                         <TouchableOpacity
                             style={styles.settingItem}
                             onPress={handleClearCache}

@@ -18,6 +18,7 @@
     "@ai-sdk/openai": "^1.3.22",
     "@mention/shared-types": "file:../shared-types",
     "@types/multer": "^2.0.0",
+    "@types/sharp": "^0.31.1",
     "ai": "^4.3.16",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.3",
@@ -35,6 +36,7 @@
     "multer": "^2.0.2",
     "node-telegram-bot-api": "^0.66.0",
     "qrcode-terminal": "^0.11.0",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
     "validator": "^13.11.0"
   },

@@ -3,6 +3,7 @@ import * as http from 'http';
 import { URL } from 'url';
 import { logger } from '../utils/logger';
 import { validateUrlSecurity, sanitizeHtml, sanitizeText, validateUrlLength } from '../utils/urlSecurity';
+import { imageCacheService } from './imageCacheService';
 
 export interface LinkMetadataResult {
   url: string;
@@ -65,7 +66,7 @@ class LinkMetadataService {
 
       // Sanitize HTML before parsing (XSS protection)
       const sanitizedHtml = sanitizeHtml(html);
-      return this.parseMetadata(sanitizedHtml, normalizedUrl);
+      return await this.parseMetadata(sanitizedHtml, normalizedUrl);
     } catch (error: any) {
       logger.error('[LinkMetadataService] Error fetching metadata:', error);
       // Return basic metadata on error instead of throwing
@@ -175,7 +176,7 @@ class LinkMetadataService {
   /**
    * Parse metadata from HTML
    */
-  private parseMetadata(html: string, url: string): LinkMetadataResult {
+  private async parseMetadata(html: string, url: string): Promise<LinkMetadataResult> {
     const result: LinkMetadataResult = { url };
     
     try {
@@ -194,7 +195,65 @@ class LinkMetadataService {
       
       // Prioritize: og:image > twitter:image > twitter:image:src > first img tag
       const imageUrl = ogImage || twitterImage || twitterImageSrc || firstImageTag;
-      const image = imageUrl ? this.resolveUrl(imageUrl, urlObj) : undefined;
+      let image: string | undefined = undefined;
+      
+      if (imageUrl) {
+        const resolved = this.resolveUrl(imageUrl, urlObj, true); // true = isImage
+        if (resolved) {
+          image = resolved;
+        } else {
+          // If resolution fails, try to use the original URL if it's already absolute
+          if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+            image = imageUrl;
+          } else {
+            // Try to construct absolute URL
+            try {
+              image = new URL(imageUrl, urlObj.toString()).toString();
+            } catch {
+              logger.debug('[LinkMetadataService] Could not resolve image URL:', imageUrl);
+            }
+          }
+        }
+      }
+      
+      logger.debug('[LinkMetadataService] Extracted image URL:', { 
+        ogImage, 
+        twitterImage, 
+        twitterImageSrc, 
+        firstImageTag,
+        original: imageUrl,
+        resolved: image 
+      });
+      
+      // Cache and optimize image if URL is valid
+      // Check cache first, then cache if needed
+      if (image && image.trim().length > 0) {
+        try {
+          // Check if already cached
+          const cachedUrl = await imageCacheService.getCachedImage(image);
+          if (cachedUrl) {
+            // Use cached version (already optimized)
+            logger.debug('[LinkMetadataService] Using cached image:', cachedUrl);
+            image = cachedUrl;
+          } else {
+            // Cache it now (this may take a few seconds but ensures optimized images)
+            logger.debug('[LinkMetadataService] Caching image:', image);
+            const cachedImageUrl = await imageCacheService.cacheImage(image);
+            if (cachedImageUrl) {
+              logger.debug('[LinkMetadataService] Image cached successfully:', cachedImageUrl);
+              image = cachedImageUrl;
+            } else {
+              logger.warn('[LinkMetadataService] Image caching returned null, using original URL');
+              // Keep original URL if caching fails
+            }
+          }
+        } catch (error) {
+          logger.warn('[LinkMetadataService] Image caching failed, using original URL:', error);
+          // Continue with original URL if caching fails
+        }
+      } else {
+        logger.debug('[LinkMetadataService] No image found in metadata');
+      }
 
       // Extract standard meta tags
       const title = ogTitle || this.extractTag(html, 'title');
@@ -203,13 +262,34 @@ class LinkMetadataService {
 
       // Extract favicon
       const favicon = this.extractFavicon(html, urlObj);
-
+      
+      // Log image value before assignment
+      logger.debug('[LinkMetadataService] Image value before assignment:', {
+        image,
+        imageType: typeof image,
+        imageLength: image?.length,
+        isTruthy: !!image,
+        isNonEmpty: image && image.trim().length > 0,
+      });
+      
       // Sanitize all text fields (XSS protection)
       result.title = title ? sanitizeText(title) : undefined;
       result.description = description ? sanitizeText(description) : undefined;
-      result.image = image ? sanitizeText(image) : undefined;
+      // URLs should not be HTML-escaped, just validated
+      // Use explicit check to handle empty strings correctly
+      result.image = (image && image.trim().length > 0) ? image : undefined;
       result.siteName = siteName ? sanitizeText(siteName) : undefined;
-      result.favicon = favicon ? sanitizeText(favicon) : undefined;
+      // Favicon is a URL, don't HTML-escape it
+      result.favicon = favicon || undefined;
+      
+      // Log final result for debugging (after assignment)
+      logger.debug('[LinkMetadataService] Final metadata:', {
+        url: result.url,
+        hasImage: !!result.image,
+        image: result.image,
+        hasTitle: !!result.title,
+        hasDescription: !!result.description,
+      });
     } catch (error) {
       logger.error('[LinkMetadataService] Error parsing metadata:', error);
       // Return basic metadata on parse error
@@ -287,21 +367,42 @@ class LinkMetadataService {
 
   /**
    * Resolve relative URL to absolute
-   * Validates resolved URL for security
+   * For images, we're more lenient - we validate but don't block if it's for display only
    */
-  private resolveUrl(url: string, baseUrl: URL): string {
+  private resolveUrl(url: string, baseUrl: URL, isImage: boolean = false): string {
     try {
+      // If URL is already absolute, use it directly
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        // For absolute URLs, validate security
+        const securityCheck = validateUrlSecurity(url);
+        if (!securityCheck.valid && !isImage) {
+          logger.warn('[LinkMetadataService] URL failed security check:', url);
+          return '';
+        }
+        // For images, we'll allow them even if security check fails (they're just displayed)
+        // The actual fetching will be validated separately
+        return url;
+      }
+      
+      // Resolve relative URL
       const resolved = new URL(url, baseUrl.toString()).toString();
       
-      // Validate resolved URL for security (prevent SSRF via redirects)
+      // For images, be more lenient - just return the resolved URL
+      // The image cache service will validate when actually fetching
+      if (isImage) {
+        return resolved;
+      }
+      
+      // For non-images, validate security
       const securityCheck = validateUrlSecurity(resolved);
       if (!securityCheck.valid) {
         logger.warn('[LinkMetadataService] Resolved URL failed security check:', resolved);
-        return ''; // Return empty string instead of unsafe URL
+        return '';
       }
       
       return resolved;
-    } catch {
+    } catch (error) {
+      logger.debug('[LinkMetadataService] Error resolving URL:', error);
       return '';
     }
   }

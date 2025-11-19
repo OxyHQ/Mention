@@ -34,11 +34,32 @@ class LinkMetadataService {
         if (response.ok) {
           const data = await response.json();
           if (data && data.success && data.url) {
+            // Handle image URL - could be cached (relative) or external (absolute)
+            let imageUrl = data.image;
+            if (imageUrl) {
+              if (imageUrl.startsWith('/api/links/images/')) {
+                // Cached image URL - baseURL already includes /api, so remove /api prefix
+                // imageUrl: /api/links/images/...
+                // baseURL: http://localhost:3000/api
+                // Result: http://localhost:3000/api/links/images/...
+                const imagePath = imageUrl.substring(4); // Remove leading '/api'
+                imageUrl = `${baseURL}${imagePath}`;
+              } else if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                // External image URL - use as-is
+                // Note: External images may have CORS issues, but cached images won't
+                imageUrl = imageUrl;
+              } else if (imageUrl.startsWith('/')) {
+                // Relative URL - make absolute
+                const imagePath = imageUrl.startsWith('/api/') ? imageUrl.substring(4) : imageUrl;
+                imageUrl = `${baseURL}${imagePath}`;
+              }
+            }
+            
             return {
               url: normalizedUrl,
               title: data.title,
               description: data.description,
-              image: data.image,
+              image: imageUrl,
               siteName: data.siteName,
               favicon: data.favicon,
               fetchedAt: Date.now(),

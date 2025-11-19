@@ -18,6 +18,9 @@ import { useTheme } from '@/hooks/useTheme';
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
+// Memoize the default avatar source to prevent re-creation on every render
+const DEFAULT_AVATAR_SOURCE = DefaultAvatar;
+
 interface AvatarProps {
   source?: ImageSourcePropType | string | undefined | null;
   size?: number;
@@ -42,9 +45,13 @@ const Avatar: React.FC<AvatarProps> = ({
   const theme = useTheme();
   const [errored, setErrored] = React.useState(false);
 
-  const imageSource = source && !errored
-    ? (typeof source === 'string' ? { uri: source } : source)
-    : DefaultAvatar;
+  // Memoize imageSource to prevent unnecessary re-renders and image reloads
+  const imageSource = React.useMemo(() => {
+    if (source && !errored) {
+      return typeof source === 'string' ? { uri: source } : source;
+    }
+    return DEFAULT_AVATAR_SOURCE;
+  }, [source, errored]);
 
   const Container: any = onPress ? TouchableOpacity : View;
 
@@ -57,7 +64,7 @@ const Avatar: React.FC<AvatarProps> = ({
             onError={() => setErrored(true)}
             resizeMode="cover"
             style={[StyleSheet.absoluteFillObject, { borderRadius: size / 2 }, imageStyle]}
-            defaultSource={DefaultAvatar}
+            defaultSource={DEFAULT_AVATAR_SOURCE}
           />
         ) : (
           <Image
@@ -65,7 +72,7 @@ const Avatar: React.FC<AvatarProps> = ({
             onError={() => setErrored(true)}
             resizeMode="cover"
             style={[StyleSheet.absoluteFillObject, { borderRadius: size / 2 }, imageStyle]}
-            defaultSource={DefaultAvatar}
+            defaultSource={DEFAULT_AVATAR_SOURCE}
           />
         )
       ) : (
