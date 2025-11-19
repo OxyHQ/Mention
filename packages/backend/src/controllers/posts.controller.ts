@@ -282,7 +282,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
 
     // Extract hashtags from text if not provided
-    const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
+    const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g) as Iterable<RegExpMatchArray>).map((m) => m[1].toLowerCase());
     const uniqueTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
 
     // Process content location data (user's shared location)
@@ -384,7 +384,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         });
         
         const savedPoll = await pollDoc.save();
-        pollId = savedPoll._id.toString();
+        pollId = String(savedPoll._id);
         postContent.pollId = pollId;
         
       } catch (pollError) {
@@ -481,10 +481,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     await post.save();
 
-    if (pendingArticleDoc) {
-      try {
-        pendingArticleDoc.postId = post._id.toString();
-        await pendingArticleDoc.save();
+      if (pendingArticleDoc) {
+        try {
+          pendingArticleDoc.postId = String(post._id);
+          await pendingArticleDoc.save();
       } catch (articleError) {
         logger.error('Failed to save article content', articleError);
       }
@@ -492,7 +492,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     
     if (!isScheduled && pollId) {
       try {
-        await Poll.findByIdAndUpdate(pollId, { postId: post._id.toString() });
+        await Poll.findByIdAndUpdate(pollId, { postId: String(post._id) });
       } catch (pollUpdateError) {
         logger.error('Failed to update poll postId', pollUpdateError);
         // Continue execution - post was created successfully
@@ -506,7 +506,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           const isReply = Boolean(parentPostId || in_reply_to_status_id);
           await createMentionNotifications(
             mentions,
-            post._id.toString(),
+            String(post._id),
             userId,
             isReply ? 'reply' : 'post'
           );
@@ -526,7 +526,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
               recipientId,
               actorId: userId,
               type: 'reply',
-              entityId: post._id.toString(),
+              entityId: String(post._id),
               entityType: 'reply'
             });
           }
@@ -540,12 +540,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         if (quoted_post_id) {
           const original = await Post.findById(quoted_post_id).lean();
           const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
-          if (recipientId && recipientId !== userId) {
+          if (recipientId && recipientId !== userId && original) {
             await createNotification({
               recipientId,
               actorId: userId,
               type: 'quote',
-              entityId: original._id.toString(),
+              entityId: String(original._id),
               entityType: 'post'
             });
           }
@@ -553,12 +553,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         if (repost_of) {
           const original = await Post.findById(repost_of).lean();
           const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
-          if (recipientId && recipientId !== userId) {
+          if (recipientId && recipientId !== userId && original) {
             await createNotification({
               recipientId,
               actorId: userId,
               type: 'repost',
-              entityId: original._id.toString(),
+              entityId: String(original._id),
               entityType: 'post'
             });
           }
@@ -579,7 +579,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
                 recipientId: s.subscriberId,
                 actorId: userId,
                 type: 'post' as const,
-                entityId: post._id.toString(),
+                entityId: String(post._id),
                 entityType: 'post' as const,
               }));
             if (notifications.length) {
@@ -601,7 +601,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     }
     
     const transformedPost = post.toObject() as any;
-    transformedPost.id = post._id.toString(); // Add string ID for frontend
+    transformedPost.id = String(post._id); // Add string ID for frontend
     
     transformedPost.user = {
         id: userId,
@@ -619,7 +619,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         const isReply = Boolean(parentPostId || in_reply_to_status_id);
         await createMentionNotifications(
           mentions,
-          post._id.toString(),
+          String(post._id),
           userId,
           isReply ? 'reply' : 'post'
         );
@@ -730,13 +730,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           createdBy: userId
         });
         await newPoll.save();
-        pollId = newPoll._id.toString();
+        pollId = String(newPoll._id);
         postContent.pollId = pollId;
       }
 
       // Extract hashtags from text
       const text = content?.text || '';
-      const extractedTags = Array.from(text.matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
+      const extractedTags = Array.from(text.matchAll(/#([A-Za-z0-9_]+)/g) as Iterable<RegExpMatchArray>).map((m) => m[1].toLowerCase());
       const uniqueTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
 
       // Create post
@@ -756,7 +756,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         delete postContent.attachments;
       }
 
-      const post = new Post({
+      const post: any = new Post({
         oxyUserId: userId,
         content: postContent,
         hashtags: uniqueTags,
@@ -783,7 +783,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       if (pendingArticleDoc) {
         try {
-          pendingArticleDoc.postId = post._id.toString();
+          pendingArticleDoc.postId = String(post._id);
           await pendingArticleDoc.save();
         } catch (articleError) {
           logger.error('Failed to save article content (thread)', articleError);
@@ -806,12 +806,12 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Update poll's postId
       if (pollId) {
-        await Poll.findByIdAndUpdate(pollId, { postId: post._id.toString() });
+        await Poll.findByIdAndUpdate(pollId, { postId: String(post._id) });
       }
 
       // Store the first post ID as the main post for thread linking
       if (i === 0) {
-        mainPostId = post._id.toString();
+        mainPostId = String(post._id);
       }
 
       // Fetch user data from Oxy
@@ -824,7 +824,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Transform response
       const transformedPost = post.toObject() as any;
-      transformedPost.id = post._id.toString();
+      transformedPost.id = String(post._id);
       
       transformedPost.user = {
         id: userId,
@@ -1022,7 +1022,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     if (text !== undefined) {
       post.content.text = text;
       // Re-extract hashtags when text changes
-      const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
+      const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g) as Iterable<RegExpMatchArray>).map((m) => m[1].toLowerCase());
       const uniqueTags = Array.from(new Set([...(hashtags || post.hashtags || []), ...extractedTags]));
       post.hashtags = uniqueTags;
     }
@@ -1085,11 +1085,11 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
           if (sanitizedArticle.body !== undefined) {
             articleDoc.body = sanitizedArticle.body || undefined;
           }
-          articleDoc.postId = post._id.toString();
+          articleDoc.postId = String(post._id);
         } else {
           articleDoc = new ArticleModel({
             createdBy: userId,
-            postId: post._id.toString(),
+            postId: String(post._id),
             title: sanitizedArticle.title || undefined,
             body: sanitizedArticle.body || undefined,
           });
@@ -1460,7 +1460,7 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
           recipientId,
           actorId: userId,
           type: 'repost',
-          entityId: originalPost._id.toString(),
+          entityId: String(originalPost._id),
           entityType: 'post'
         });
       }
@@ -1505,7 +1505,7 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
           recipientId,
           actorId: userId,
           type: 'quote',
-          entityId: originalPost._id.toString(),
+          entityId: String(originalPost._id),
           entityType: 'post'
         });
       }

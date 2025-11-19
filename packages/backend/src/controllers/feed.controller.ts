@@ -697,7 +697,7 @@ class FeedController {
                 authors = Array.from(new Set(authors));
               }
             } catch (e) {
-              console.warn('Failed to expand feed.sourceListIds:', e?.message || e);
+              console.warn('Failed to expand feed.sourceListIds:', (e as Error)?.message || e);
             }
 
             // Exclude owner unless they're in the member list
@@ -724,7 +724,7 @@ class FeedController {
           }
         }
       } catch (e) {
-        console.warn('Optional customFeedId expansion failed:', e?.message || e);
+        console.warn('Optional customFeedId expansion failed:', (e as Error)?.message || e);
       }
 
       // If a listId or listIds is provided, expand to authors
@@ -748,7 +748,7 @@ class FeedController {
           }
         }
       } catch (e) {
-        console.warn('Optional listIds expansion failed:', e?.message || e);
+        console.warn('Optional listIds expansion failed:', (e as Error)?.message || e);
       }
 
       // Handle saved posts type
@@ -2122,6 +2122,10 @@ class FeedController {
         { new: true }
       );
 
+      if (!updateResult) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       // Record interaction for user preference learning
       console.log(`[Like] Recording interaction for user ${currentUserId}, post ${postId}`);
       try {
@@ -2202,6 +2206,10 @@ class FeedController {
         },
         { new: true }
       );
+
+      if (!updateResult) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
 
       // Invalidate cached feed for this user
       try {

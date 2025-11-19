@@ -98,9 +98,11 @@ export class UserPreferenceService {
       }
 
       // Update post type preference
-      const postType = (post.type || 'text').toLowerCase();
-      userBehavior.preferredPostTypes[postType] = 
-        (userBehavior.preferredPostTypes[postType] || 0) + Math.abs(weight);
+      const postType = (post.type || 'text').toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
+      if (postType in userBehavior.preferredPostTypes) {
+        userBehavior.preferredPostTypes[postType] = 
+          (userBehavior.preferredPostTypes[postType] || 0) + Math.abs(weight);
+      }
       // Mark nested object as modified
       userBehavior.markModified('preferredPostTypes');
 

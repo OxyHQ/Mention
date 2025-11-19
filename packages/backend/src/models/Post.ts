@@ -80,7 +80,7 @@ const PostContentSchema = new Schema({
     type: { 
       type: String, 
       enum: ['Point'], 
-      required: function() {
+      required: function(this: any) {
         // Require type only if coordinates are provided
         return this.coordinates && this.coordinates.length > 0;
       }

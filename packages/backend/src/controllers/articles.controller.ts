@@ -10,7 +10,7 @@ export const getArticle = async (req: Request, res: Response) => {
     }
 
     return res.json({
-      id: article._id.toString(),
+      id: String(article._id),
       postId: article.postId,
       title: article.title,
       body: article.body,

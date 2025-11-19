@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FeedType, FeedItem } from '@mention/shared-types';
+import { FeedType } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
+
+// FeedItem type matches what the store returns (UIPost-like structure)
+type FeedItem = any; // Store returns items that match PostItem's expected types
 import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems } from '@/utils/feedUtils';
 import { createScopedLogger } from '@/utils/logger';
@@ -225,6 +228,7 @@ export function useFeedState({
 
                 if (signal.aborted) return;
 
+                // Filter and deduplicate items
                 let items = resp.items || [];
                 const pid = filters?.postId || filters?.parentPostId;
                 if (pid) {
@@ -233,8 +237,7 @@ export function useFeedState({
                     );
                 }
 
-                const uniqueItems = deduplicateItems(items, getItemKey);
-                setLocalItems(uniqueItems);
+                setLocalItems(deduplicateItems(items, getItemKey));
                 setLocalHasMore(!!resp.hasMore);
                 setLocalNextCursor(resp.nextCursor);
             } else if (userId) {
@@ -299,11 +302,13 @@ export function useFeedState({
                     );
                 }
 
+                // Deduplicate against existing items - O(n) with Set lookup
                 setLocalItems((prev) => {
-                    const uniqueNew = deduplicateItems(items, getItemKey);
-                    const existingIds = new Set(prev.map((p) => getItemKey(p)));
-                    const filtered = uniqueNew.filter((p) => !existingIds.has(getItemKey(p)));
-                    return prev.concat(filtered);
+                    const existingIds = new Set(prev.map(getItemKey));
+                    const uniqueNew = deduplicateItems(items, getItemKey).filter(
+                        (p) => !existingIds.has(getItemKey(p))
+                    );
+                    return prev.concat(uniqueNew);
                 });
 
                 const prevCursor = localNextCursor;

@@ -53,7 +53,7 @@ class PollsController {
           }
 
           // Check if user is the post owner
-          if (post.userID.toString() !== userId) {
+          if (post.oxyUserId.toString() !== userId) {
             return res.status(403).json({
               error: 'Forbidden',
               message: 'You can only create polls for your own posts'

@@ -3,13 +3,22 @@
  * Shared utilities for feed normalization, deduplication, and type safety
  */
 
-import { FeedItem, FeedType } from '@mention/shared-types';
+import { FeedType, FeedFilters as SharedFeedFilters } from '@mention/shared-types';
+
+// Extended FeedFilters with additional properties used by the app
+export interface FeedFilters extends SharedFeedFilters {
+    searchQuery?: string;
+    postId?: string;
+    parentPostId?: string;
+    customFeedId?: string;
+    [key: string]: any;
+}
 
 /**
  * Normalize item ID for consistent deduplication
  * Handles various ID formats: id, _id, _id_str, postId, post.id, post._id
  */
-export function normalizeItemId(item: FeedItem | any): string {
+export function normalizeItemId(item: any): string {
     if (item?.id) return String(item.id);
     if (item?._id) {
         const _id = item._id;
@@ -32,7 +41,7 @@ export function normalizeItemId(item: FeedItem | any): string {
 /**
  * Extract item key using normalization
  */
-export function getItemKey(item: FeedItem | any): string {
+export function getItemKey(item: any): string {
     const normalizedId = normalizeItemId(item);
     
     if (normalizedId && normalizedId !== 'undefined' && normalizedId !== 'null' && normalizedId !== '') {
@@ -75,9 +84,9 @@ export function deepEqual<T>(a: T, b: T): boolean {
 /**
  * Deduplicate items using Map for O(1) lookups
  */
-export function deduplicateItems<T extends FeedItem | any>(
+export function deduplicateItems<T>(
     items: T[],
-    getKey: (item: T) => string = getItemKey
+    getKey: (item: T) => string = getItemKey as (item: T) => string
 ): T[] {
     if (items.length === 0) return [];
     

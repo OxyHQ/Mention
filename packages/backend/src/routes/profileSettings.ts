@@ -136,7 +136,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         update['interests.tags'] = [];
       } else if (Array.isArray(interests.tags)) {
         // Validate that all tags are strings
-        const validTags = interests.tags.filter(tag => typeof tag === 'string');
+        const validTags = interests.tags.filter((tag: any) => typeof tag === 'string');
         update['interests.tags'] = validTags;
       }
     }

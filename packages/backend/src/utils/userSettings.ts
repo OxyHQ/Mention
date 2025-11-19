@@ -16,10 +16,11 @@ export async function ensureUserSettings(oxyUserId: string) {
   let doc = await UserSettings.findOne({ oxyUserId }).lean();
   
   if (!doc) {
-    doc = (await UserSettings.create({ 
+    const created = await UserSettings.create({ 
       oxyUserId,
       profileCustomization: DEFAULT_PROFILE_CUSTOMIZATION,
-    })).toObject();
+    });
+    doc = created.toObject() as any;
   } else if (!doc.profileCustomization) {
     doc = await UserSettings.findOneAndUpdate(
       { oxyUserId },

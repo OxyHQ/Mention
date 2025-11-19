@@ -6,8 +6,11 @@ import {
     Platform,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { FeedType, FeedItem } from '@mention/shared-types';
+import { FeedType, UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import PostItem from './PostItem';
+
+// Type alias for feed items (what PostItem expects)
+type FeedItem = UIPost | Reply | Repost;
 import ErrorBoundary from '../ErrorBoundary';
 import LoadingTopSpinner from '../LoadingTopSpinner';
 import { useOxy } from '@oxyhq/services';
@@ -98,7 +101,7 @@ const Feed = memo((props: FeedProps) => {
         } finally {
             setRefreshing(false);
         }
-    }, [feedState.refresh]);
+    }, [feedState]);
 
     // Handle load more - debounced in hook
     const handleLoadMore = useCallback(() => {
@@ -278,7 +281,7 @@ const Feed = memo((props: FeedProps) => {
         [listHeaderComponent, showComposeButton, onComposePress, hideHeader]
     );
 
-    // Memoize empty state handler
+    // Memoize empty state retry handler
     const handleRetry = useCallback(async () => {
         feedState.clearError();
         try {
@@ -355,10 +358,8 @@ const Feed = memo((props: FeedProps) => {
                         windowSize: 10,
                         initialNumToRender: 12,
                         updateCellsBatchingPeriod: 50,
-                        disableAutoLayout: false,
-                        overrideItemLayout: (layout: any, item: any, index: number) => {
-                            // Provide layout hints for better performance
-                            layout.size = 250; // Estimated item size
+                        overrideItemLayout: (layout: any) => {
+                            layout.size = 250; // Estimated item size for better recycling
                         },
                     } as any)}
                 />
