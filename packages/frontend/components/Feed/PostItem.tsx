@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useContext, useState } from 'react
 import { StyleSheet, View, Share, Platform, Alert, Pressable, TouchableOpacity, Text } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 
-import { UIPost, Reply, FeedRepost as Repost, FeedType, PostAttachmentDescriptor, ReplyPermission } from '@mention/shared-types';
+import { UIPost, Reply, FeedRepost as Repost, FeedType, PostAttachmentDescriptor } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
 import PostHeader from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
@@ -34,35 +34,13 @@ import { confirmDialog } from '@/utils/alerts';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { useCurrentUserPrivacySettings } from '@/hooks/usePrivacySettings';
-import type { ViewStyle, TextStyle } from 'react-native';
-import type { ReactElement } from 'react';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
     isNested?: boolean; // Flag to indicate if this is a nested post (for reposts/replies)
-    style?: ViewStyle; // Additional styles for the post container
+    style?: object; // Additional styles for the post container
     onReply?: () => void; // Optional override for reply action
     nestingDepth?: number; // Track nesting depth to prevent infinite recursion
-}
-
-interface ActionItem {
-    icon: ReactElement;
-    text: string;
-    onPress: () => void;
-    color?: string;
-}
-
-interface ActionRowProps {
-    icon: ReactElement;
-    text: string;
-    onPress: () => void;
-    color?: string;
-    isFirst?: boolean;
-    isLast?: boolean;
-}
-
-interface ActionGroupProps {
-    actions: ActionItem[];
 }
 
 const PostItem: React.FC<PostItemProps> = ({
@@ -618,13 +596,13 @@ const PostItem: React.FC<PostItemProps> = ({
                                 onPress: () => {
                                     bottomSheet.setBottomSheetContent(
                                         <ReplySettingsSheet
-                                            replyPermission={((viewPost as any)?.replyPermission as ReplyPermission) || 'anyone'}
-                                            onReplyPermissionChange={(permission: ReplyPermission) => {
+                                            replyPermission={(viewPost as any)?.replyPermission || 'anyone'}
+                                            onReplyPermissionChange={(permission) => {
                                                 // TODO: Implement update reply permission
                                                 console.log('Update reply permission:', permission);
                                             }}
-                                            reviewReplies={Boolean((viewPost as any)?.reviewReplies)}
-                                            onReviewRepliesChange={(enabled: boolean) => {
+                                            reviewReplies={(viewPost as any)?.reviewReplies || false}
+                                            onReviewRepliesChange={(enabled) => {
                                                 // TODO: Implement update review replies
                                                 console.log('Update review replies:', enabled);
                                             }}
@@ -676,7 +654,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             }
                         ];
 
-                        const ActionRow: React.FC<ActionRowProps> = ({ icon, text, onPress, color, isFirst, isLast }) => (
+                        const ActionRow: React.FC<{ icon: any; text: string; onPress: () => void; color?: string; isFirst?: boolean; isLast?: boolean }> = ({ icon, text, onPress, color, isFirst, isLast }) => (
                             <TouchableOpacity
                                 style={[
                                     styles.sheetItem,
@@ -697,7 +675,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             </TouchableOpacity>
                         );
 
-                        const ActionGroup: React.FC<ActionGroupProps> = ({ actions }) => {
+                        const ActionGroup: React.FC<{ actions: Array<{ icon: any; text: string; onPress: () => void; color?: string }> }> = ({ actions }) => {
                             if (actions.length === 0) return null;
                             return (
                                 <View style={styles.actionGroup}>
@@ -748,7 +726,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
                     if (section === 'sources' && sections.sources) {
                         return (
-                            <View key="sources" style={{ paddingLeft: BOTTOM_LEFT_PAD, paddingRight: HPAD } as ViewStyle}>
+                            <View key="sources" style={{ paddingLeft: BOTTOM_LEFT_PAD, paddingRight: HPAD }}>
                                 <TouchableOpacity
                                     style={[styles.sourcesChip, {
                                         borderColor: theme.colors.border,
