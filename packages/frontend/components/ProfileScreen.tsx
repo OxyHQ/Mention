@@ -230,7 +230,14 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const primaryColor = design?.primaryColor || theme.colors.primary;
     const privacySettings = profileData?.privacy;
 
-    const tabs = ['Posts', 'Replies', 'Media', 'Videos', 'Likes', 'Reposts'];
+    const tabs = [
+        t('profile.tabs.posts'),
+        t('profile.tabs.replies'),
+        t('profile.tabs.media'),
+        t('profile.tabs.videos'),
+        t('profile.tabs.likes'),
+        t('profile.tabs.reposts')
+    ];
 
     // Memoize own profile check
     const isOwnProfile = useMemo(() => {
@@ -302,12 +309,18 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
         try {
             const shareUrl = `https://mention.earth/@${profileData.username}`;
-            const shareMessage = `Check out ${displayName || profileData.username}'s profile on Mention!`;
+            const shareMessage = t('profile.share.message', {
+                name: displayName || profileData.username,
+                defaultValue: `Check out ${displayName || profileData.username}'s profile on Mention!`
+            });
 
             await Share.share({
                 message: `${shareMessage}\n\n${shareUrl}`,
                 url: shareUrl,
-                title: `${displayName || profileData.username} on Mention`
+                title: t('profile.share.title', {
+                    name: displayName || profileData.username,
+                    defaultValue: `${displayName || profileData.username} on Mention`
+                })
             });
         } catch (error) {
             console.error('Error sharing profile:', error);
@@ -465,7 +478,10 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 unifiedColors={true}
                             />
                             <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
-                                {(profileData as any)?.postCount || 0} posts
+                                {t('profile.postsCount', {
+                                    count: (profileData as any)?.postCount || 0,
+                                    defaultValue: `${(profileData as any)?.postCount || 0} posts`
+                                })}
                             </Text>
                         </View>
 
@@ -608,7 +624,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                                         style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
                                                         onPress={() => showBottomSheet?.('EditProfile')}
                                                     >
-                                                        <Text style={styles.followButtonText}>Edit Profile</Text>
+                                                        <Text style={styles.followButtonText}>{t('profile.editProfile')}</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
@@ -639,7 +655,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                                     style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
                                                     onPress={() => showBottomSheet?.('EditProfile')}
                                                 >
-                                                    <Text style={styles.followButtonText}>Edit Profile</Text>
+                                                    <Text style={styles.followButtonText}>{t('profile.editProfile')}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
@@ -717,7 +733,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     )}
                                     <View style={styles.metaItem}>
                                         <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
-                                        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>Joined {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''}</Text>
+                                        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+                                            {t('profile.joined')} {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''}
+                                        </Text>
                                     </View>
                                 </View>
 
@@ -735,7 +753,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                                 <Text style={[styles.statNumber, { color: theme.colors.text }]}>
                                                     {followingCount ?? 0}
                                                 </Text>
-                                                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Following</Text>
+                                                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('profile.following')}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={styles.statItem}
@@ -744,7 +762,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                                 <Text style={[styles.statNumber, { color: theme.colors.text }]}>
                                                     {followerCount ?? 0}
                                                 </Text>
-                                                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Followers</Text>
+                                                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('profile.followers')}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
@@ -753,7 +771,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 {profileData?.communities && profileData.communities.length > 0 &&
                                     (!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
                                         <View style={styles.communitiesSection}>
-                                            <Text style={[styles.communitiesTitle, { color: theme.colors.text }]}>Communities</Text>
+                                            <Text style={[styles.communitiesTitle, { color: theme.colors.text }]}>{t('profile.communities')}</Text>
                                             {profileData.communities.map((community: any, index: number) => (
                                                 <View key={community.id || index} style={[styles.communityCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
                                                     <View style={styles.communityHeader}>
@@ -776,14 +794,17 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                                             {community.memberCount && (
                                                                 <View style={styles.communityMembers}>
                                                                     <Text style={[styles.memberCount, { color: theme.colors.textSecondary }]}>
-                                                                        {community.memberCount} Members
+                                                                        {t('profile.memberCount', {
+                                                                            count: community.memberCount,
+                                                                            defaultValue: `${community.memberCount} Members`
+                                                                        })}
                                                                     </Text>
                                                                 </View>
                                                             )}
                                                         </View>
                                                     </View>
                                                     <TouchableOpacity style={styles.viewButtonInCard}>
-                                                        <Text style={[styles.viewButtonText, { color: theme.colors.primary }]}>View</Text>
+                                                        <Text style={[styles.viewButtonText, { color: theme.colors.primary }]}>{t('profile.view')}</Text>
                                                     </TouchableOpacity>
                                                 </View>
                                             ))}
