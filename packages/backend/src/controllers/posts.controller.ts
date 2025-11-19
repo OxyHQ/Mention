@@ -13,6 +13,7 @@ import { feedController } from './feed.controller';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
 import ArticleModel from '../models/Article';
+import { logger } from '../utils/logger';
 
 const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
   if (!Array.isArray(arr)) return [];
@@ -334,7 +335,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         longitude = postLocation.longitude;
         latitude = postLocation.latitude;
         address = postLocation.address;
-        console.log('📍 Received legacy format post location');
+        logger.debug('Received legacy format post location');
       }
       
       // Validate coordinates
@@ -387,7 +388,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         postContent.pollId = pollId;
         
       } catch (pollError) {
-        console.error('Failed to create poll:', pollError);
+        logger.error('Failed to create poll', pollError);
         return res.status(400).json({ message: 'Failed to create poll', error: pollError });
       }
     }
@@ -485,7 +486,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         pendingArticleDoc.postId = post._id.toString();
         await pendingArticleDoc.save();
       } catch (articleError) {
-        console.error('Failed to save article content:', articleError);
+        logger.error('Failed to save article content', articleError);
       }
     }
     
@@ -493,7 +494,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       try {
         await Poll.findByIdAndUpdate(pollId, { postId: post._id.toString() });
       } catch (pollUpdateError) {
-        console.error('Failed to update poll postId:', pollUpdateError);
+        logger.error('Failed to update poll postId', pollUpdateError);
         // Continue execution - post was created successfully
       }
     }
@@ -511,7 +512,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           );
         }
       } catch (e) {
-        console.error('Failed to create mention notifications:', e);
+        logger.error('Failed to create mention notifications', e);
       }
 
       // Reply notification if replying to an existing post
@@ -531,7 +532,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           }
         }
       } catch (e) {
-        console.error('Failed to create reply notification:', e);
+        logger.error('Failed to create reply notification', e);
       }
 
       // Quote and Repost notifications if created via this endpoint
@@ -563,7 +564,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           }
         }
       } catch (e) {
-        console.error('Failed to create quote/repost notification:', e);
+        logger.error('Failed to create quote/repost notification', e);
       }
 
       // Notify subscribers of a new post (only for top-level posts, not replies)
@@ -587,7 +588,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           }
         }
       } catch (e) {
-        console.error('Failed to notify subscribers about new post:', e);
+        logger.error('Failed to notify subscribers about new post', e);
       }
     }
 
@@ -596,7 +597,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     try {
       userData = await oxyClient.getUserById(userId);
     } catch (error) {
-      console.error('Failed to fetch user data from Oxy:', error);
+      logger.error('Failed to fetch user data from Oxy', error);
     }
     
     const transformedPost = post.toObject() as any;
@@ -629,7 +630,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     
     res.status(201).json({ success: true, post: transformedPost });
   } catch (error) {
-    console.error('Error creating post:', error);
+    logger.error('Error creating post', error);
     res.status(500).json({ message: 'Error creating post', error });
   }
 };
@@ -646,7 +647,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Scheduling threads is not supported yet' });
     }
 
-    console.log('🧵 Creating thread with body:', JSON.stringify(req.body, null, 2));
+    logger.debug('Creating thread with body', JSON.stringify(req.body, null, 2));
 
     const { mode, posts } = req.body;
 
@@ -837,10 +838,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       createdPosts.push(transformedPost);
     }
 
-    console.log(`✅ Created ${createdPosts.length} posts in ${mode} mode`);
+    logger.info(`Created ${createdPosts.length} posts in ${mode} mode`);
     res.status(201).json({ success: true, posts: createdPosts });
   } catch (error) {
-    console.error('Error creating thread:', error);
+    logger.error('Error creating thread', error);
     res.status(500).json({ message: 'Error creating thread', error });
   }
 };
@@ -914,7 +915,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
       limit
     });
   } catch (error) {
-    console.error('Error fetching posts:', error);
+    logger.error('Error fetching posts', error);
     res.status(500).json({ message: 'Error fetching posts', error });
   }
 };
@@ -951,7 +952,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       }).lean();
       isThread = !!repliesFromSameUser;
     } catch (e) {
-      console.error('Error checking if post is thread:', e);
+      logger.error('Error checking if post is thread', e);
     }
 
     // Transform post to match frontend expectations
@@ -978,7 +979,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
         };
       } catch (e) {
         // keep fallback user
-        console.error('Failed fetching user from Oxy for post', req.params.id, e);
+        logger.error(`Failed fetching user from Oxy for post ${req.params.id}`, e);
       }
     }
 
@@ -998,7 +999,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
 
     res.json(transformedPost);
   } catch (error) {
-    console.error('Error fetching post:', error);
+    logger.error('Error fetching post', error);
     res.status(500).json({ message: 'Error fetching post', error });
   }
 };
@@ -1145,7 +1146,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     res.json(transformedPost);
   } catch (error) {
-    console.error('Error updating post:', error);
+    logger.error('Error updating post', error);
     res.status(500).json({ message: 'Error updating post', error });
   }
 };
@@ -1169,12 +1170,12 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
         await (ArticleModel as any).deleteOne({ _id: articleId } as any).exec();
       }
     } catch (articleError) {
-      console.error('Failed to delete article content with post:', articleError);
+      logger.error('Failed to delete article content with post', articleError);
     }
 
     res.json({ message: 'Post deleted successfully' });
   } catch (error) {
-    console.error('Error deleting post:', error);
+    logger.error('Error deleting post', error);
     res.status(500).json({ message: 'Error deleting post', error });
   }
 };
@@ -1189,20 +1190,20 @@ export const likePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id;
 
-    console.log(`[Posts Controller] Like request received: userId=${userId}, postId=${postId}`);
+    logger.debug(`Like request received: userId=${userId}, postId=${postId}`);
 
     // Check if already liked
     const existingLike = await Like.findOne({ userId, postId });
     if (existingLike) {
-      console.log(`[Posts Controller] Post ${postId} already liked by user ${userId}`);
+      logger.debug(`Post ${postId} already liked by user ${userId}`);
       const currentPost = await Post.findById(postId).select('stats.likesCount metadata.likedBy').lean();
       
       // Still record the interaction even if already liked (user expressed interest)
       try {
         await userPreferenceService.recordInteraction(userId, postId, 'like');
-        console.log(`[Posts Controller] Recorded interaction for already-liked post`);
+        logger.debug('Recorded interaction for already-liked post');
       } catch (error) {
-        console.warn(`[Posts Controller] Failed to record interaction for already-liked post:`, error);
+        logger.warn('Failed to record interaction for already-liked post', error);
       }
       
       return res.json({ 
@@ -1212,7 +1213,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    console.log(`[Posts Controller] User ${userId} liking post ${postId} (not already liked)`);
+    logger.debug(`User ${userId} liking post ${postId} (not already liked)`);
 
     // Create like record (legacy tracking)
     await Like.create({ userId, postId });
@@ -1252,7 +1253,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
         });
       }
     } catch (e) {
-      console.error('Failed to create like notification:', e);
+      logger.error('Failed to create like notification', e);
     }
 
     const likesCount = likedPost?.stats?.likesCount ?? 0;
@@ -1263,7 +1264,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       liked: true
     });
   } catch (error) {
-    console.error('Error liking post:', error);
+    logger.error('Error liking post', error);
     res.status(500).json({ message: 'Error liking post', error });
   }
 };
@@ -1302,7 +1303,7 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
     try {
       await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
-      console.warn(`[Posts Controller] Failed to invalidate cache:`, error);
+      logger.warn('Failed to invalidate cache', error);
     }
 
     let likesCount = updatedPost?.stats?.likesCount ?? 0;
@@ -1317,7 +1318,7 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
       liked: false
     });
   } catch (error) {
-    console.error('Error unliking post:', error);
+    logger.error('Error unliking post', error);
     res.status(500).json({ message: 'Error unliking post', error });
   }
 };
@@ -1332,17 +1333,17 @@ export const savePost = async (req: AuthRequest, res: Response) => {
 
     const postId = req.params.id;
 
-    console.log(`[Posts Controller] Save request received: userId=${userId}, postId=${postId}`);
+    logger.debug(`Save request received: userId=${userId}, postId=${postId}`);
 
     // Check if already saved
     const existingSave = await Bookmark.findOne({ userId, postId });
     if (existingSave) {
-      console.log(`[Posts Controller] Post ${postId} already saved by user ${userId}`);
+      logger.debug(`Post ${postId} already saved by user ${userId}`);
       
       // Still record the interaction even if already saved (user expressed interest)
       try {
         await userPreferenceService.recordInteraction(userId, postId, 'save');
-        console.log(`[Posts Controller] Recorded interaction for already-saved post`);
+        logger.debug('Recorded interaction for already-saved post');
       } catch (error) {
         console.warn(`[Posts Controller] Failed to record interaction for already-saved post:`, error);
       }
@@ -1411,7 +1412,7 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
     try {
       await feedCacheService.invalidateUserCache(userId);
     } catch (error) {
-      console.warn(`[Posts Controller] Failed to invalidate cache:`, error);
+      logger.warn('Failed to invalidate cache', error);
     }
 
     res.json({ message: 'Post unsaved successfully' });

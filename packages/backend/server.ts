@@ -4,8 +4,8 @@ import http from "http";
 import mongoose from "mongoose";
 import { connectToDatabase } from "./src/utils/database";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
-import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import { logger } from "./src/utils/logger";
 
 // Models
 import { Post } from "./src/models/Post";
@@ -70,7 +70,7 @@ app.use(async (req, res, next) => {
     await connectToDatabase();
     next();
   } catch (error) {
-    console.error("MongoDB connection unavailable:", error);
+    logger.error("MongoDB connection unavailable", error);
     if (res.headersSent) {
       return;
     }
@@ -79,10 +79,16 @@ app.use(async (req, res, next) => {
 });
 
 // CORS and security headers
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL || "https://mention.earth",
+  "http://localhost:8081",
+  "http://localhost:8082",
+  "http://192.168.86.44:8081",
+] as const;
+
 app.use((req, res, next) => {
-  const allowedOrigins = [process.env.FRONTEND_URL || "https://mention.earth", "http://localhost:8081", "http://localhost:8082", "http://192.168.86.44:8081"];
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin && ALLOWED_ORIGINS.includes(origin as typeof ALLOWED_ORIGINS[number])) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else {
     res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL || "*");
@@ -146,13 +152,13 @@ const io = new SocketIOServer(server, {
 
 const configureNamespaceErrorHandling = (namespace: Namespace) => {
   namespace.on("connection_error", (error: Error) => {
-    console.error("Connection error:", error.message);
+    logger.error(`Connection error in namespace ${namespace.name}`, error);
   });
   namespace.on("connect_error", (error: Error) => {
-    console.error("Connect error:", error.message);
+    logger.error(`Connect error in namespace ${namespace.name}`, error);
   });
   namespace.on("connect_timeout", () => {
-    console.error("Connection timeout");
+    logger.warn(`Connection timeout in namespace ${namespace.name}`);
   });
 };
 
@@ -183,15 +189,12 @@ const postsNamespace = io.of("/posts");
 
 // Configure notifications namespace
 notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
-  console.log(
-    "Client connected to notifications namespace from ip:",
-    socket.handshake.address
+  logger.info(
+    `Client connected to notifications namespace from ip: ${socket.handshake.address}`
   );
 
   if (!socket.user?.id) {
-    console.log(
-      "Unauthenticated client attempted to connect to notifications namespace"
-    );
+    logger.warn("Unauthenticated client attempted to connect to notifications namespace");
     socket.disconnect(true);
     return;
   }
@@ -199,10 +202,10 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   const userRoom = `user:${socket.user.id}`;
   const userId = socket.user.id;
   socket.join(userRoom);
-  console.log(`Client ${socket.id} joined notification room:`, userRoom);
+  logger.debug(`Client ${socket.id} joined notification room: ${userRoom}`);
 
   socket.on("error", (error: Error) => {
-    console.error("Notifications socket error:", error.message);
+    logger.error("Notifications socket error", error);
   });
 
   socket.on("markNotificationRead", async ({ notificationId }) => {
@@ -219,7 +222,7 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
           .emit("notificationUpdated", notification);
       }
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      logger.error("Error marking notification as read", error);
     }
   });
 
@@ -229,15 +232,13 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
       await Notification.updateMany({ recipientId: userId }, { read: true });
       notificationsNamespace.to(userRoom).emit("allNotificationsRead");
     } catch (error) {
-      console.error("Error marking all notifications as read:", error);
+      logger.error("Error marking all notifications as read", error);
     }
   });
 
   socket.on("disconnect", (reason: DisconnectReason, description?: any) => {
-    console.log(
-      `Client ${socket.id} disconnected from notifications namespace:`,
-      reason,
-      description || ""
+    logger.debug(
+      `Client ${socket.id} disconnected from notifications namespace: ${reason}${description ? ` - ${description}` : ""}`
     );
     socket.leave(userRoom);
   });
@@ -245,32 +246,26 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
 
 // Configure postsNamespace events
 postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
-  console.log(
-    "Client connected to posts namespace from ip:",
-    socket.handshake.address
-  );
+  logger.info(`Client connected to posts namespace from ip: ${socket.handshake.address}`);
 
   socket.on("error", (error: Error) => {
-    console.error("Posts socket error:", error.message);
+    logger.error("Posts socket error", error);
   });
 
   socket.on("joinPost", (postId: string) => {
     const room = `post:${postId}`;
     socket.join(room);
-    console.log(`Client ${socket.id} joined post room:`, room);
+    logger.debug(`Client ${socket.id} joined post room: ${room}`);
   });
 
   socket.on("leavePost", (postId: string) => {
     const room = `post:${postId}`;
     socket.leave(room);
-    console.log(`Client ${socket.id} left post room:`, room);
+    logger.debug(`Client ${socket.id} left post room: ${room}`);
   });
 
   socket.on("disconnect", (reason: DisconnectReason) => {
-    console.log(
-      `Client ${socket.id} disconnected from posts namespace:`,
-      reason
-    );
+    logger.debug(`Client ${socket.id} disconnected from posts namespace: ${reason}`);
   });
 });
 
@@ -284,11 +279,11 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
 
 // Configure main namespace with enhanced error handling
 io.on("connection", (socket: AuthenticatedSocket) => {
-  console.log("Client connected from ip:", socket.handshake.address);
+  logger.info(`Client connected from ip: ${socket.handshake.address}`);
 
   // Enhanced error handling
   socket.on("error", (error: Error) => {
-    console.error("Socket error:", error.message);
+    logger.error("Socket error", error);
     // Attempt to reconnect on error
     if (socket.connected) {
       socket.disconnect();
@@ -296,43 +291,43 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   });
 
   socket.on("disconnect", (reason: DisconnectReason, description?: any) => {
-    console.log("Client disconnected:", reason, description || "");
+    logger.debug(`Client disconnected: ${reason}${description ? ` - ${description}` : ""}`);
     // Handle specific disconnect reasons
     if (reason === "server disconnect") {
       // Reconnect if server initiated the disconnect
       socket.disconnect();
     }
     if (reason === "transport close" || reason === "transport error") {
-      console.log("Transport issue detected, attempting reconnection...");
+      logger.debug("Transport issue detected, attempting reconnection...");
     }
   });
 
   socket.on("connect_error", (error: Error) => {
-    console.error("Connection error:", error.message);
+    logger.error("Connection error", error);
   });
 
   socket.on("reconnect_attempt", (attemptNumber: number) => {
-    console.log(`Reconnection attempt ${attemptNumber}`);
+    logger.debug(`Reconnection attempt ${attemptNumber}`);
   });
 
   socket.on("reconnect_error", (error: Error) => {
-    console.error("Reconnection error:", error.message);
+    logger.error("Reconnection error", error);
   });
 
   socket.on("reconnect_failed", () => {
-    console.error("Failed to reconnect");
+    logger.error("Failed to reconnect");
   });
 
   socket.on("joinPost", (postId: string) => {
     const room = `post:${postId}`;
     socket.join(room);
-    console.log(`Client ${socket.id} joined room:`, room);
+    logger.debug(`Client ${socket.id} joined room: ${room}`);
   });
 
   socket.on("leavePost", (postId: string) => {
     const room = `post:${postId}`;
     socket.leave(room);
-    console.log(`Client ${socket.id} left room:`, room);
+    logger.debug(`Client ${socket.id} left room: ${room}`);
   });
 });
 
@@ -340,22 +335,22 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 [notificationsNamespace, postsNamespace].forEach(
   (namespace: Namespace) => {
     namespace.on("connection_error", (error: Error) => {
-      console.error(
-        `Namespace ${namespace.name} connection error:`,
-        error.message
-      );
+      logger.error(`Namespace ${namespace.name} connection error`, error);
     });
 
     namespace.on("connect_error", (error: SocketError) => {
-      console.error(`${namespace.name}: Connect error:`, error.message);
+      logger.error(`${namespace.name}: Connect error`, error);
       // Log detailed error info
-      if (error.description)
-        console.error("Error description:", error.description);
-      if (error.context) console.error("Error context:", error.context);
+      if (error.description) {
+        logger.error("Error description", error.description);
+      }
+      if (error.context) {
+        logger.error("Error context", error.context);
+      }
     });
 
     namespace.on("connect_timeout", () => {
-      console.error(`${namespace.name}: Connect timeout`);
+      logger.warn(`${namespace.name}: Connect timeout`);
     });
   }
 );
@@ -376,7 +371,7 @@ const optionalAuth = (req: express.Request, res: express.Response, next: express
   
   if (!authHeader) {
     // No auth header, continue as unauthenticated
-    console.log('Optional auth: No authorization header, continuing as unauthenticated');
+    logger.debug("Optional auth: No authorization header, continuing as unauthenticated");
     return next();
   }
   
@@ -385,7 +380,7 @@ const optionalAuth = (req: express.Request, res: express.Response, next: express
   authMiddleware(req, res, (err?: any) => {
     if (err) {
       // Auth failed (invalid token, expired, etc.), but continue anyway
-      console.log('Optional auth: Authentication failed, continuing as unauthenticated:', err?.message || 'Unknown error');
+      logger.debug(`Optional auth: Authentication failed, continuing as unauthenticated: ${err?.message || "Unknown error"}`);
       // Clear any partial user data that might have been set
       (req as any).user = undefined;
     }
@@ -440,29 +435,30 @@ app.get("", async (req, res) => {
     const postsCount = await Post.countDocuments();
     res.json({ message: "Welcome to the API", posts: postsCount });
   } catch (error) {
+    logger.error("Error fetching stats for root route", error);
     res.status(500).json({ message: "Error fetching stats", error });
   }
 });
 
 // --- MongoDB Connection ---
 const db = mongoose.connection;
-db.on("error", (error) => { console.error("MongoDB connection error:", error); });
-db.once("open", () => { console.log("Connected to MongoDB successfully"); });
-db.once("open", () => { 
+db.on("error", (error) => {
+  logger.error("MongoDB connection error", error);
+});
+db.once("open", () => {
+  logger.info("Connected to MongoDB successfully");
+  // Load models
   require("./src/models/Post"); 
   require("./src/models/Block"); 
   require("./src/models/UserBehavior"); // Load UserBehavior model
-});
 
-// --- Initialize Feed Services ---
-db.once("open", () => {
-  // Start feed job scheduler for background feed computation
+  // Initialize Feed Services
   try {
     const { feedJobScheduler } = require("./src/services/FeedJobScheduler");
     feedJobScheduler.start();
-    console.log("Feed job scheduler started");
+    logger.info("Feed job scheduler started");
   } catch (error) {
-    console.warn("Failed to start feed job scheduler:", error);
+    logger.warn("Failed to start feed job scheduler", error);
   }
 });
 
@@ -472,10 +468,10 @@ const bootServer = async () => {
   try {
     await connectToDatabase();
     server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      logger.info(`Server running on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Failed to start server: unable to connect to MongoDB", error);
+    logger.error("Failed to start server: unable to connect to MongoDB", error);
     process.exit(1);
   }
 };
