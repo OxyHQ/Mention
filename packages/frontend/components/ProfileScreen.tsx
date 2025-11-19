@@ -33,13 +33,14 @@ import { useProfileData } from '@/hooks/useProfileData';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
 import { Search } from '@/assets/icons/search-icon';
-import { Bell } from '@/assets/icons/bell-icon';
+import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import SEO from '@/components/SEO';
 import { useTranslation } from 'react-i18next';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { toast } from 'sonner';
 
 // Constants for better maintainability and responsive design
 const HEADER_HEIGHT_EXPANDED = 120;
@@ -79,6 +80,7 @@ interface ProfileScreenProps {
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
     const theme = useTheme();
+    const { t } = useTranslation();
 
     // Type-safe component references
     const TypedFollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<FollowButtonProps>;
@@ -103,7 +105,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         }
     };
     const activeTab = tabToIndex(tab);
-    
+
     // Unified profile data hook - handles Oxy profile + backend settings
     const { data: profileData, loading } = useProfileData(username);
     const {
@@ -154,7 +156,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     // Optimized scroll handler - check less frequently but smoothly
     const lastScrollCheckRef = useRef(0);
     const SCROLL_CHECK_THROTTLE = 250; // Check every 250ms for load more (balanced)
-    
+
     const handleProfileScrollEvent = useCallback((event: any) => {
         const now = Date.now();
         // Throttle load-more checks but allow scroll tracking for animations
@@ -162,7 +164,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             return;
         }
         lastScrollCheckRef.current = now;
-        
+
         try {
             const nativeEvent = event?.nativeEvent ?? {};
             const contentOffset = nativeEvent.contentOffset ?? {};
@@ -230,44 +232,57 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     const tabs = ['Posts', 'Replies', 'Media', 'Videos', 'Likes', 'Reposts'];
 
+    // Memoize own profile check
+    const isOwnProfile = useMemo(() => {
+        return currentUser?.username === username || currentUser?.id === profileData?.id;
+    }, [currentUser?.username, currentUser?.id, username, profileData?.id]);
+
     // Subscription (post notifications) state
     const [subscribed, setSubscribed] = useState<boolean>(false);
     const [subLoading, setSubLoading] = useState<boolean>(false);
 
-    // Load subscription status when profile data is available
+    // Load subscription status when profile data is available (only for other users)
     useEffect(() => {
+        if (isOwnProfile || !profileData?.id) return;
+
         let cancelled = false;
         const load = async () => {
             try {
-                if (!profileData?.id) return;
                 const { subscribed } = await subscriptionService.getStatus(profileData.id);
                 if (!cancelled) setSubscribed(!!subscribed);
-            } catch {
+            } catch (error) {
                 // silent fail; keep default false
+                console.error('Error loading subscription status:', error);
             }
         };
         load();
         return () => { cancelled = true; };
-    }, [profileData?.id]);
+    }, [profileData?.id, isOwnProfile]);
 
-    const toggleSubscription = async () => {
-        if (!profileData?.id || subLoading) return;
+    const toggleSubscription = useCallback(async () => {
+        if (!profileData?.id || subLoading || isOwnProfile) return;
+
         setSubLoading(true);
         const prev = subscribed;
         setSubscribed(!prev);
         try {
             if (!prev) {
                 await subscriptionService.subscribe(profileData.id);
+                toast.success(t('subscription.subscribed'));
             } else {
                 await subscriptionService.unsubscribe(profileData.id);
+                toast.success(t('subscription.unsubscribed'));
             }
-        } catch {
+        } catch (error: any) {
             // rollback on error
             setSubscribed(prev);
+            const errorMessage = error?.response?.data?.message || error?.message || t('subscription.error');
+            toast.error(errorMessage);
+            console.error('Error toggling subscription:', error);
         } finally {
             setSubLoading(false);
         }
-    };
+    }, [profileData?.id, subLoading, subscribed, isOwnProfile, t]);
 
 
     const onTabPress = (index: number) => {
@@ -328,8 +343,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 hideHeader={true}
                 scrollEnabled={false}
                 contentContainerStyle={{ paddingBottom: 100 }}
-                recycleItems={true}
-                maintainVisibleContentPosition={true}
             />
         );
     }, [tab, profileData?.id]);
@@ -386,19 +399,19 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     return (
         <>
             <SEO
-                title={tProfile('seo.profile.title', { 
-                    name: profileDisplayName, 
+                title={tProfile('seo.profile.title', {
+                    name: profileDisplayName,
                     username: username,
                     defaultValue: `${profileDisplayName} (@${username}) on Mention`
                 })}
-                description={profileBio 
-                    ? tProfile('seo.profile.description', { 
-                        name: profileDisplayName, 
+                description={profileBio
+                    ? tProfile('seo.profile.description', {
+                        name: profileDisplayName,
                         bio: profileBio,
                         defaultValue: `View ${profileDisplayName}'s profile on Mention. ${profileBio}`
                     })
-                    : tProfile('seo.profile.description', { 
-                        name: profileDisplayName, 
+                    : tProfile('seo.profile.description', {
+                        name: profileDisplayName,
                         bio: '',
                         defaultValue: `View ${profileDisplayName}'s profile on Mention.`
                     })}
@@ -412,114 +425,120 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     <ProfileSkeleton />
                 ) : (
                     <>
-                    {/* Header actions */}
-                    <View style={[styles.headerActions, { top: insets.top + 6 }]}>
-                        <HeaderIconButton 
-                            onPress={toggleSubscription} 
-                            disabled={subLoading}
-                        >
-                            <Bell size={20} color={theme.colors.text} />
-                        </HeaderIconButton>
-                        <HeaderIconButton>
-                            <Search size={20} color={theme.colors.text} />
-                        </HeaderIconButton>
-                        <HeaderIconButton onPress={handleShare}>
-                            <ShareIcon size={20} color={theme.colors.text} />
-                        </HeaderIconButton>
-                    </View>
+                        {/* Header actions */}
+                        <View style={[styles.headerActions, { top: insets.top + 6 }]}>
+                            {!isOwnProfile && (
+                                <HeaderIconButton
+                                    onPress={toggleSubscription}
+                                    disabled={subLoading}
+                                >
+                                    {subscribed ? (
+                                        <BellActive size={20} color={theme.colors.primary} />
+                                    ) : (
+                                        <Bell size={20} color={theme.colors.text} />
+                                    )}
+                                </HeaderIconButton>
+                            )}
+                            <HeaderIconButton>
+                                <Search size={20} color={theme.colors.text} />
+                            </HeaderIconButton>
+                            <HeaderIconButton onPress={handleShare}>
+                                <ShareIcon size={20} color={theme.colors.text} />
+                            </HeaderIconButton>
+                        </View>
 
-                    {/* Name + posts count - disabled animation for performance */}
-                    <View
-                        style={[
-                            styles.headerNameOverlay,
-                            {
-                                top: insets.top + 6,
-                                opacity: 0, // Disabled animation
-                                backgroundColor: 'transparent', // Ensure transparent background
-                            },
-                        ]}
-                    >
-                        <TypedUserName
-                            name={displayName}
-                            verified={profileData?.verified}
-                            style={{ name: [styles.headerTitle, { color: theme.colors.text }] }}
-                            unifiedColors={true}
-                        />
-                        <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
-                            {(profileData as any)?.postCount || 0} posts
-                        </Text>
-                    </View>
-
-                    {/* Banner - simplified: single layer with fade overlay only */}
-                    {!minimalistMode && (bannerUri ? (
-                        <>
-                            {/* Base banner image - no transform for better performance */}
-                            <ImageBackground
-                                source={{ uri: bannerUri }}
-                                style={[
-                                    styles.banner,
-                                    {
-                                        height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
-                                    },
-                                ]}
-                            />
-                            {/* Background overlay - animated on scroll */}
-                            <Animated.View
-                                pointerEvents={'none' as any}
-                                style={[
-                                    styles.banner,
-                                    {
-                                        height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        right: 0,
-                                        zIndex: 1,
-                                        backgroundColor: theme.colors.background,
-                                        opacity: headerBackgroundOpacity,
-                                    },
-                                ]}
-                            />
-                        </>
-                    ) : (
+                        {/* Name + posts count - disabled animation for performance */}
                         <View
                             style={[
-                                styles.banner,
+                                styles.headerNameOverlay,
                                 {
-                                    height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
-                                    backgroundColor: `${theme.colors.primary}20`,
+                                    top: insets.top + 6,
+                                    opacity: 0, // Disabled animation
+                                    backgroundColor: 'transparent', // Ensure transparent background
                                 },
                             ]}
                         >
-                            {/* Overlay - animated on scroll */}
-                            <Animated.View
+                            <TypedUserName
+                                name={displayName}
+                                verified={profileData?.verified}
+                                style={{ name: [styles.headerTitle, { color: theme.colors.text }] }}
+                                unifiedColors={true}
+                            />
+                            <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
+                                {(profileData as any)?.postCount || 0} posts
+                            </Text>
+                        </View>
+
+                        {/* Banner - simplified: single layer with fade overlay only */}
+                        {!minimalistMode && (bannerUri ? (
+                            <>
+                                {/* Base banner image - no transform for better performance */}
+                                <ImageBackground
+                                    source={{ uri: bannerUri }}
+                                    style={[
+                                        styles.banner,
+                                        {
+                                            height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
+                                        },
+                                    ]}
+                                />
+                                {/* Background overlay - animated on scroll */}
+                                <Animated.View
+                                    pointerEvents={'none' as any}
+                                    style={[
+                                        styles.banner,
+                                        {
+                                            height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            right: 0,
+                                            zIndex: 1,
+                                            backgroundColor: theme.colors.background,
+                                            opacity: headerBackgroundOpacity,
+                                        },
+                                    ]}
+                                />
+                            </>
+                        ) : (
+                            <View
                                 style={[
-                                    StyleSheet.absoluteFillObject,
+                                    styles.banner,
                                     {
-                                        backgroundColor: theme.colors.background,
-                                        opacity: headerBackgroundOpacity,
+                                        height: HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED,
+                                        backgroundColor: `${theme.colors.primary}20`,
                                     },
                                 ]}
-                            />
-                        </View>
-                    ))}
+                            >
+                                {/* Overlay - animated on scroll */}
+                                <Animated.View
+                                    style={[
+                                        StyleSheet.absoluteFillObject,
+                                        {
+                                            backgroundColor: theme.colors.background,
+                                            opacity: headerBackgroundOpacity,
+                                        },
+                                    ]}
+                                />
+                            </View>
+                        ))}
 
-                    {/* Profile content + posts */}
-                    {/* Optimized ScrollView - Instagram/Twitter-level smoothness */}
-                    <Animated.ScrollView
-                        ref={assignProfileScrollRef}
-                        showsVerticalScrollIndicator={false}
-                        onScroll={onProfileScroll}
-                        scrollEventThrottle={16} // 60fps smooth scrolling like Instagram/Twitter
-                        style={[styles.scrollView, { marginTop: minimalistMode ? 0 : HEADER_HEIGHT_NARROWED }]}
-                        contentContainerStyle={{ paddingTop: minimalistMode ? insets.top + 60 : HEADER_HEIGHT_EXPANDED - insets.top }}
-                        stickyHeaderIndices={[1]} // Tab bar is sticky (index 1: profile info is 0, tabs are 1)
-                        nestedScrollEnabled={false} // Disabled nested scrolling for performance
-                        removeClippedSubviews={Platform.OS !== 'web'}
-                        disableIntervalMomentum={true}
-                        decelerationRate="normal" // Smooth deceleration
-                        {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
-                    >
+                        {/* Profile content + posts */}
+                        {/* Optimized ScrollView - Instagram/Twitter-level smoothness */}
+                        <Animated.ScrollView
+                            ref={assignProfileScrollRef}
+                            showsVerticalScrollIndicator={false}
+                            onScroll={onProfileScroll}
+                            scrollEventThrottle={16} // 60fps smooth scrolling like Instagram/Twitter
+                            style={[styles.scrollView, { marginTop: minimalistMode ? 0 : HEADER_HEIGHT_NARROWED }]}
+                            contentContainerStyle={{ paddingTop: minimalistMode ? insets.top + 60 : HEADER_HEIGHT_EXPANDED - insets.top }}
+                            stickyHeaderIndices={[1]} // Tab bar is sticky (index 1: profile info is 0, tabs are 1)
+                            nestedScrollEnabled={false} // Disabled nested scrolling for performance
+                            removeClippedSubviews={Platform.OS !== 'web'}
+                            disableIntervalMomentum={true}
+                            decelerationRate="normal" // Smooth deceleration
+                            {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
+                        >
                             {/* Profile info */}
                             <View style={[styles.profileContent, { backgroundColor: theme.colors.background }, minimalistMode && styles.profileContentMinimalist]}>
                                 {minimalistMode ? (
@@ -534,16 +553,16 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                                 style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
                                             />
                                             {(() => {
-                                                const isPrivate = profileData?.privacySettings?.isPrivateAccount || 
-                                                                 privacySettings?.profileVisibility === 'private' ||
-                                                                 privacySettings?.profileVisibility === 'followers_only';
+                                                const isPrivate = profileData?.privacySettings?.isPrivateAccount ||
+                                                    privacySettings?.profileVisibility === 'private' ||
+                                                    privacySettings?.profileVisibility === 'followers_only';
                                                 if (isPrivate) {
                                                     return (
                                                         <View style={styles.privateIndicator}>
                                                             <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
                                                             <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>
-                                                                {privacySettings?.profileVisibility === 'followers_only' 
-                                                                    ? tProfile('settings.privacy.followersOnly') 
+                                                                {privacySettings?.profileVisibility === 'followers_only'
+                                                                    ? tProfile('settings.privacy.followersOnly')
                                                                     : tProfile('settings.privacy.private')}
                                                             </Text>
                                                         </View>
@@ -583,32 +602,32 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         />
 
                                         <View style={styles.profileActions}>
-                                        {currentUser?.username === username ? (
-                                            <View style={styles.actionButtons}>
-                                                <TouchableOpacity
-                                                    style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
-                                                    onPress={() => showBottomSheet?.('EditProfile')}
-                                                >
-                                                    <Text style={styles.followButtonText}>Edit Profile</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                    onPress={() => router.push('/insights')}
-                                                >
-                                                    <AnalyticsIcon size={20} color={theme.colors.text} />
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                    onPress={() => router.push('/settings')}
-                                                >
-                                                    <Gear size={20} color={theme.colors.text} />
-                                                </TouchableOpacity>
-                                            </View>
-                                        ) : profileData?.id ? (
-                                            <TypedFollowButton userId={profileData.id} />
-                                        ) : null}
+                                            {currentUser?.username === username ? (
+                                                <View style={styles.actionButtons}>
+                                                    <TouchableOpacity
+                                                        style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
+                                                        onPress={() => showBottomSheet?.('EditProfile')}
+                                                    >
+                                                        <Text style={styles.followButtonText}>Edit Profile</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                                                        onPress={() => router.push('/insights')}
+                                                    >
+                                                        <AnalyticsIcon size={20} color={theme.colors.text} />
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                                                        onPress={() => router.push('/settings')}
+                                                    >
+                                                        <Gear size={20} color={theme.colors.text} />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            ) : profileData?.id ? (
+                                                <TypedFollowButton userId={profileData.id} />
+                                            ) : null}
+                                        </View>
                                     </View>
-                                </View>
                                 )}
 
                                 {/* Action buttons for minimalist mode */}
@@ -643,32 +662,32 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
                                 {!minimalistMode && (
                                     <View>
-                                    <TypedUserName
-                                        name={displayName}
-                                        handle={profileData?.username}
-                                        verified={profileData?.verified}
-                                        variant="default"
-                                        style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
-                                    />
-                                    {(() => {
-                                        // Check both old structure (privacySettings.isPrivateAccount) and new structure (privacySettings.profileVisibility)
-                                        const isPrivate = profileData?.privacySettings?.isPrivateAccount || 
-                                                         privacySettings?.profileVisibility === 'private' ||
-                                                         privacySettings?.profileVisibility === 'followers_only';
-                                        if (isPrivate) {
-                                            return (
-                                                <View style={styles.privateIndicator}>
-                                                    <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
-                                                    <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>
-                                                        {privacySettings?.profileVisibility === 'followers_only' 
-                                                            ? tProfile('settings.privacy.followersOnly') 
-                                                            : tProfile('settings.privacy.private')}
-                                                    </Text>
-                                                </View>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
+                                        <TypedUserName
+                                            name={displayName}
+                                            handle={profileData?.username}
+                                            verified={profileData?.verified}
+                                            variant="default"
+                                            style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
+                                        />
+                                        {(() => {
+                                            // Check both old structure (privacySettings.isPrivateAccount) and new structure (privacySettings.profileVisibility)
+                                            const isPrivate = profileData?.privacySettings?.isPrivateAccount ||
+                                                privacySettings?.profileVisibility === 'private' ||
+                                                privacySettings?.profileVisibility === 'followers_only';
+                                            if (isPrivate) {
+                                                return (
+                                                    <View style={styles.privateIndicator}>
+                                                        <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
+                                                        <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>
+                                                            {privacySettings?.profileVisibility === 'followers_only'
+                                                                ? tProfile('settings.privacy.followersOnly')
+                                                                : tProfile('settings.privacy.private')}
+                                                        </Text>
+                                                    </View>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
                                     </View>
                                 )}
                                 {!minimalistMode && profileData?.bio && (
@@ -703,32 +722,32 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 </View>
 
                                 {(() => {
-                                    const isPrivate = profileData?.privacySettings?.isPrivateAccount || 
-                                                     privacySettings?.profileVisibility === 'private' ||
-                                                     privacySettings?.profileVisibility === 'followers_only';
+                                    const isPrivate = profileData?.privacySettings?.isPrivateAccount ||
+                                        privacySettings?.profileVisibility === 'private' ||
+                                        privacySettings?.profileVisibility === 'followers_only';
                                     return (!isPrivate || currentUser?.username === username);
                                 })() && (
-                                    <View style={styles.followStats}>
-                                        <TouchableOpacity
-                                            style={styles.statItem}
-                                            onPress={() => router.push(`/@${profileData?.username || username}/following` as any)}
-                                        >
-                                            <Text style={[styles.statNumber, { color: theme.colors.text }]}>
-                                                {followingCount ?? 0}
-                                            </Text>
-                                            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Following</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={styles.statItem}
-                                            onPress={() => router.push(`/@${profileData?.username || username}/followers` as any)}
-                                        >
-                                            <Text style={[styles.statNumber, { color: theme.colors.text }]}>
-                                                {followerCount ?? 0}
-                                            </Text>
-                                            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Followers</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
+                                        <View style={styles.followStats}>
+                                            <TouchableOpacity
+                                                style={styles.statItem}
+                                                onPress={() => router.push(`/@${profileData?.username || username}/following` as any)}
+                                            >
+                                                <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                                                    {followingCount ?? 0}
+                                                </Text>
+                                                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Following</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.statItem}
+                                                onPress={() => router.push(`/@${profileData?.username || username}/followers` as any)}
+                                            >
+                                                <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                                                    {followerCount ?? 0}
+                                                </Text>
+                                                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Followers</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
 
                                 {/* Communities section */}
                                 {profileData?.communities && profileData.communities.length > 0 &&
@@ -786,17 +805,17 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
                             {/* Tab Content */}
                             {renderTabContent()}
-                    </Animated.ScrollView>
+                        </Animated.ScrollView>
 
-                    {/* FAB - rendered after ScrollView to ensure visibility */}
-                    <FloatingActionButton
-                        onPress={() => router.push('/compose')}
-                        animatedTranslateY={fabTranslateY}
-                        style={{ position: 'absolute', bottom: 24 + insets.bottom, right: 24, zIndex: 1000 }}
-                    />
-                </>
-            )}
-        </View>
+                        {/* FAB - rendered after ScrollView to ensure visibility */}
+                        <FloatingActionButton
+                            onPress={() => router.push('/compose')}
+                            animatedTranslateY={fabTranslateY}
+                            style={{ position: 'absolute', bottom: 24 + insets.bottom, right: 24, zIndex: 1000 }}
+                        />
+                    </>
+                )}
+            </View>
         </>
     );
 };

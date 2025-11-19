@@ -380,6 +380,9 @@
     "permission.notifications.subtitle": "Enable notifications to get updates when people you follow post.",
     "permission.notifications.enable": "Enable notifications",
     "permission.notifications.later": "Not now",
+    "subscription.subscribed": "Subscribed to notifications",
+    "subscription.unsubscribed": "Unsubscribed from notifications",
+    "subscription.error": "Failed to update subscription",
     "notifications": {
         "tabs": {
             "all": "All",
