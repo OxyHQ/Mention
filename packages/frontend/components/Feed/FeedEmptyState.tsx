@@ -55,7 +55,7 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
                         >
                             <Ionicons
                                 name="cloud-offline-outline"
-                                size={48}
+                                size={36}
                                 color={theme.colors.error}
                             />
                         </View>
@@ -187,8 +187,8 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 60,
-        paddingHorizontal: 32,
+        paddingVertical: 32,
+        paddingHorizontal: 24,
     },
     errorContent: {
         alignItems: 'center',
@@ -196,62 +196,62 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     iconWrapper: {
-        width: 96,
-        height: 96,
-        borderRadius: 48,
+        width: 72,
+        height: 72,
+        borderRadius: 36,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 24,
+        marginBottom: 12,
     },
     errorTitle: {
-        fontSize: 22,
+        fontSize: 18,
         fontWeight: '700',
         textAlign: 'center',
-        marginBottom: 12,
+        marginBottom: 6,
         letterSpacing: -0.3,
     },
     errorMessage: {
-        fontSize: 15,
+        fontSize: 14,
         textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: 32,
+        lineHeight: 20,
+        marginBottom: 16,
     },
     retryButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 24,
-        borderRadius: 24,
-        minWidth: 140,
-        gap: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        minWidth: 100,
+        gap: 6,
     },
     retryIcon: {
         marginRight: 0,
     },
     retryButtonText: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '600',
     },
     emptyState: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 80,
-        paddingHorizontal: 32,
+        paddingVertical: 32,
+        paddingHorizontal: 24,
     },
     emptyStateText: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '700',
-        marginTop: 24,
+        marginTop: 12,
         textAlign: 'center',
         letterSpacing: -0.5,
     },
     emptyStateSubtext: {
-        fontSize: 16,
-        marginTop: 12,
+        fontSize: 14,
+        marginTop: 6,
         textAlign: 'center',
-        lineHeight: 24,
+        lineHeight: 20,
         maxWidth: 280,
     },
 });
