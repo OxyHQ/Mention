@@ -19,6 +19,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { useRouter } from 'expo-router';
 import PostArticlePreview from './PostArticlePreview';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
+import { LinkPreview } from '../Compose/LinkPreview';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)
@@ -39,6 +40,8 @@ interface Props {
   location?: GeoJSONPoint | null;
   sources?: PostSourceLink[];
   onSourcesPress?: (() => void) | null;
+  text?: string; // Post text to extract links from
+  linkMetadata?: { url: string; title?: string; description?: string; image?: string; siteName?: string } | null; // Link metadata if available
 }
 
 // Video item component to properly use the hook
@@ -111,7 +114,7 @@ const VideoItem: React.FC<{
   );
 };
 
-const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0, postId, article, onArticlePress }) => {
+const PostMiddle: React.FC<Props> = React.memo(({ media, attachments, nestedPost, leftOffset = 0, pollId, pollData, nestingDepth = 0, postId, article, onArticlePress, text, linkMetadata }) => {
   const theme = useTheme();
   const router = useRouter();
   const { oxyServices } = useOxy();
@@ -121,6 +124,7 @@ const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffse
 
   const hasPoll = useMemo(() => Boolean(pollId || pollData), [pollId, pollData]);
   const hasArticle = useMemo(() => Boolean(article && ((article.title?.trim?.() || article.body?.trim?.()))), [article]);
+  const hasLink = useMemo(() => Boolean(linkMetadata?.url), [linkMetadata]);
 
   const resolveMediaSrc = useCallback((id: string) => {
     if (!id) return '';
@@ -134,6 +138,7 @@ const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffse
   type AttachmentItem =
     | { type: 'poll' }
     | { type: 'article' }
+    | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string }
     | { type: 'video'; mediaId: string; src: string }
     | { type: 'image'; mediaId: string; src: string; mediaType: 'image' | 'gif' };
 
@@ -179,6 +184,18 @@ const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffse
               results.push({ type: 'article' });
             }
             break;
+          case 'link':
+            if (hasLink && linkMetadata && !results.some(item => item.type === 'link')) {
+              results.push({ 
+                type: 'link', 
+                url: linkMetadata.url,
+                title: linkMetadata.title,
+                description: linkMetadata.description,
+                image: linkMetadata.image,
+                siteName: linkMetadata.siteName,
+              });
+            }
+            break;
           case 'media':
             if (descriptor.id) {
               addMediaItem(descriptor.id, descriptor.mediaType as any);
@@ -189,10 +206,22 @@ const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffse
         }
       });
     } else {
+      // If no attachment descriptors, add items in default order
       if (hasPoll) results.push({ type: 'poll' });
       if (hasArticle) results.push({ type: 'article' });
+      if (hasLink && linkMetadata) {
+        results.push({ 
+          type: 'link', 
+          url: linkMetadata.url,
+          title: linkMetadata.title,
+          description: linkMetadata.description,
+          image: linkMetadata.image,
+          siteName: linkMetadata.siteName,
+        });
+      }
     }
-
+    
+    // Process any remaining media from mediaArray that wasn't in descriptors
     mediaArray.forEach((m) => {
       if (!m?.id) return;
       const id = String(m.id);
@@ -200,8 +229,45 @@ const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffse
       addMediaItem(id, m.type);
     });
 
+    // Always add link if detected, even if not in attachment descriptors
+    // This ensures links are shown even if they weren't saved in attachments
+    // Links aren't saved in the backend attachment schema, so we detect them from text
+    // Insert link AFTER all media processing so we know the final media positions
+    if (hasLink && linkMetadata && !results.some(item => item.type === 'link')) {
+      const linkItem: AttachmentItem = { 
+        type: 'link', 
+        url: linkMetadata.url,
+        title: linkMetadata.title,
+        description: linkMetadata.description,
+        image: linkMetadata.image,
+        siteName: linkMetadata.siteName,
+      };
+      
+      // Find the best position to insert the link:
+      // 1. After poll/article (if they exist)
+      // 2. Before first media (if media exists)
+      // 3. At the end (if no media)
+      let insertIdx = -1;
+      
+      // Find last poll/article index
+      for (let i = results.length - 1; i >= 0; i--) {
+        if (results[i].type === 'poll' || results[i].type === 'article') {
+          insertIdx = i + 1;
+          break;
+        }
+      }
+      
+      // If no poll/article, find first media index
+      if (insertIdx === -1) {
+        const firstMediaIdx = results.findIndex(item => item.type === 'image' || item.type === 'video');
+        insertIdx = firstMediaIdx !== -1 ? firstMediaIdx : results.length;
+      }
+      
+      results.splice(insertIdx, 0, linkItem);
+    }
+
     return results;
-  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, resolveMediaSrc]);
+  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasLink, linkMetadata, resolveMediaSrc]);
 
   type Item =
     | { type: 'nested' }
@@ -353,11 +419,26 @@ const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffse
             />
           );
         }
+        if (item.type === 'link') {
+          return (
+            <View
+              key={`link-${idx}`}
+              style={[styles.itemContainer, webGrabCursorStyle, styles.linkWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+            >
+              <LinkPreview
+                link={{
+                  url: item.url,
+                  title: item.title,
+                  description: item.description,
+                  image: item.image,
+                  siteName: item.siteName,
+                  fetchedAt: Date.now(),
+                }}
+              />
+            </View>
+          );
+        }
         if (item.type === 'poll') {
-          // Debug logging in development
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[PostMiddle] Rendering poll:', { pollId, hasPollData: !!pollData, pollData });
-          }
           return (
             <View
               key={`poll-${idx}`}
@@ -547,7 +628,26 @@ const PostMiddle: React.FC<Props> = ({ media, attachments, nestedPost, leftOffse
       })}
     </ScrollView>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for memo - only re-render if props actually change
+  return (
+    prevProps.media === nextProps.media &&
+    prevProps.attachments === nextProps.attachments &&
+    prevProps.nestedPost === nextProps.nestedPost &&
+    prevProps.leftOffset === nextProps.leftOffset &&
+    prevProps.pollId === nextProps.pollId &&
+    prevProps.pollData === nextProps.pollData &&
+    prevProps.nestingDepth === nextProps.nestingDepth &&
+    prevProps.postId === nextProps.postId &&
+    prevProps.article === nextProps.article &&
+    prevProps.onArticlePress === nextProps.onArticlePress &&
+    prevProps.text === nextProps.text &&
+    prevProps.linkMetadata?.url === nextProps.linkMetadata?.url &&
+    prevProps.location === nextProps.location &&
+    prevProps.sources === nextProps.sources &&
+    prevProps.onSourcesPress === nextProps.onSourcesPress
+  );
+});
 
 export default PostMiddle;
 
@@ -565,6 +665,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden', // Ensure content respects border radius
   },
   pollWrapper: {
+    width: CARD_WIDTH,
+  },
+  linkWrapper: {
     width: CARD_WIDTH,
   },
   mediaImage: {

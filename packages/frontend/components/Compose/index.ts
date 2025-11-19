@@ -10,6 +10,7 @@ export { MediaPreview } from "./MediaPreview";
 export { VideoPreview } from "./VideoPreview";
 export { ArticleEditor } from "./ArticleEditor";
 export { LocationDisplay } from "./LocationDisplay";
+export { LinkPreview, LinkPreviewLoading } from "./LinkPreview";
 
 // Re-export existing sheets
 export { default as DraftsSheet } from "./DraftsSheet";

@@ -67,6 +67,8 @@ import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useMultiRefSync } from '@/hooks/useRefSync';
 import { useUrlUtils } from '@/hooks/useUrlUtils';
 import { useSourcesSheet } from '@/hooks/useSourcesSheet';
+import { useLinkDetection } from '@/hooks/useLinkDetection';
+import { LinkPreview, LinkPreviewLoading } from '@/components/Compose/LinkPreview';
 import {
   PollCreator,
   PollAttachmentCard,
@@ -87,6 +89,7 @@ import {
   ARTICLE_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
+  LINK_ATTACHMENT_KEY,
   createMediaAttachmentKey,
   isMediaAttachmentKey,
   getMediaIdFromAttachmentKey,
@@ -173,18 +176,6 @@ const ComposeScreen = () => {
   } = articleManager;
 
   const hasArticleContent = articleHasContent();
-
-  // Attachment order manager
-  const attachmentOrderManager = useAttachmentOrder({
-    showPollCreator,
-    hasArticleContent,
-    article,
-    location,
-    sources,
-    mediaIds,
-    setMediaIds,
-  });
-  const { attachmentOrder, setAttachmentOrder, clearAttachmentOrder, moveAttachment } = attachmentOrderManager;
 
   // Remaining local state
   const [postContent, setPostContent] = useState('');
@@ -284,6 +275,23 @@ const ComposeScreen = () => {
     bottomSheet,
   });
   const { isSourcesSheetOpen, openSourcesSheet, closeSourcesSheet } = sourcesSheet;
+
+  // Link detection and preview (must be before useAttachmentOrder)
+  const linkDetection = useLinkDetection(postContent);
+  const { detectedLinks, isLoading: isLoadingLinks } = linkDetection;
+
+  // Attachment order manager (needs detectedLinks)
+  const attachmentOrderManager = useAttachmentOrder({
+    showPollCreator,
+    hasArticleContent,
+    article,
+    location,
+    sources,
+    mediaIds,
+    hasLink: detectedLinks.length > 0,
+    setMediaIds,
+  });
+  const { attachmentOrder, setAttachmentOrder, clearAttachmentOrder, moveAttachment } = attachmentOrderManager;
 
   // Sync refs with state for timeout/async callbacks
   const refs = useMultiRefSync({
@@ -761,7 +769,7 @@ const ComposeScreen = () => {
                     />
                   </PostHeader>
 
-                  {/* Attachments row (poll + article + media) */}
+                  {/* Attachments row (poll + article + media + link) */}
                   {attachmentOrder.length > 0 ? (
                     <View style={[styles.timelineForeground, styles.mediaPreviewContainer]}
                     >
@@ -894,6 +902,51 @@ const ComposeScreen = () => {
                                     removeArticle();
                                   }}
                                   style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <CloseIcon size={16} color={theme.colors.text} />
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          }
+
+                          if (key === LINK_ATTACHMENT_KEY) {
+                            if (detectedLinks.length === 0) return null;
+                            const link = detectedLinks[0];
+                            return (
+                              <View
+                                key={key}
+                                style={[styles.linkAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                              >
+                                {total > 1 ? (
+                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(LINK_ATTACHMENT_KEY, 'left')}
+                                      disabled={!canMoveLeft}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(LINK_ATTACHMENT_KEY, 'right')}
+                                      disabled={!canMoveRight}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                  </View>
+                                ) : null}
+                                <LinkPreview
+                                  link={link}
+                                />
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    // Remove link by clearing the URL from text
+                                    const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+                                    const newContent = postContent.replace(urlPattern, '').trim();
+                                    setPostContent(newContent);
+                                  }}
+                                  style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
                                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                                 >
                                   <CloseIcon size={16} color={theme.colors.text} />
@@ -1829,6 +1882,15 @@ const styles = StyleSheet.create({
   },
   mediaReorderButtonDisabled: {
     opacity: 0.4,
+  },
+  // Link attachment styles
+  linkAttachmentWrapper: {
+    position: 'relative',
+    alignSelf: 'flex-start',
+    width: MEDIA_CARD_WIDTH,
+    borderRadius: 15,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   // Mode toggle styles
   modeToggleContainer: {

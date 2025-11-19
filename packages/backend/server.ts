@@ -29,6 +29,7 @@ import profileDesignRoutes from './src/routes/profileDesign';
 import subscriptionsRoutes from './src/routes/subscriptions';
 import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
+import linksRoutes from './src/routes/links';
 
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
@@ -406,6 +407,7 @@ publicApiRouter.use("/feed", optionalAuth, feedRoutes);
 // GET /api/profile/design/:userId - public profile design data (no auth required)
 publicApiRouter.use("/profile/design", profileDesignRoutes);
 publicApiRouter.use("/articles", articlesRoutes);
+publicApiRouter.use("/links", optionalAuth, linksRoutes); // Link metadata (optional auth for tracking)
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();

@@ -8,6 +8,7 @@ export const POLL_ATTACHMENT_KEY = "poll";
 export const ARTICLE_ATTACHMENT_KEY = "article";
 export const LOCATION_ATTACHMENT_KEY = "location";
 export const SOURCES_ATTACHMENT_KEY = "sources";
+export const LINK_ATTACHMENT_KEY = "link";
 export const MEDIA_ATTACHMENT_PREFIX = "media:";
 
 export const createMediaAttachmentKey = (id: string) => `${MEDIA_ATTACHMENT_PREFIX}${id}`;

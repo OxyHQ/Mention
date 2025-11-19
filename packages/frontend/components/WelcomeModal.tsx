@@ -354,6 +354,7 @@ const styles = StyleSheet.create({
     height: '100%',
     padding: 32,
     justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
   },
   modalBoxImage: {
     resizeMode: 'cover',

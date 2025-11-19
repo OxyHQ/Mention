@@ -8,6 +8,7 @@ import {
   ARTICLE_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
+  LINK_ATTACHMENT_KEY,
 } from '@/utils/composeUtils';
 
 interface Source {
@@ -23,6 +24,7 @@ interface UseAttachmentOrderProps {
   location: any;
   sources: Source[];
   mediaIds: ComposerMediaItem[];
+  hasLink: boolean;
   setMediaIds?: (updater: (prev: ComposerMediaItem[]) => ComposerMediaItem[]) => void;
 }
 
@@ -33,6 +35,7 @@ export const useAttachmentOrder = ({
   location,
   sources,
   mediaIds,
+  hasLink,
   setMediaIds,
 }: UseAttachmentOrderProps) => {
   const [attachmentOrder, setAttachmentOrder] = useState<string[]>([]);
@@ -49,6 +52,7 @@ export const useAttachmentOrder = ({
         if (key === ARTICLE_ATTACHMENT_KEY) return hasArticleContent && article;
         if (key === LOCATION_ATTACHMENT_KEY) return hasLocationAttachment;
         if (key === SOURCES_ATTACHMENT_KEY) return hasSourcesAttachment;
+        if (key === LINK_ATTACHMENT_KEY) return hasLink;
         if (isMediaAttachmentKey(key)) {
           const mediaId = getMediaIdFromAttachmentKey(key);
           return mediaIds.some(m => m.id === mediaId);
@@ -71,6 +75,9 @@ export const useAttachmentOrder = ({
       if (hasSourcesAttachment && !next.includes(SOURCES_ATTACHMENT_KEY)) {
         next.push(SOURCES_ATTACHMENT_KEY);
       }
+      if (hasLink && !next.includes(LINK_ATTACHMENT_KEY)) {
+        next.push(LINK_ATTACHMENT_KEY);
+      }
       mediaIds.forEach((media: ComposerMediaItem) => {
         const key = createMediaAttachmentKey(media.id);
         if (!next.includes(key)) {
@@ -80,7 +87,7 @@ export const useAttachmentOrder = ({
 
       return next;
     });
-  }, [showPollCreator, hasArticleContent, article, location, sources, mediaIds]);
+  }, [showPollCreator, hasArticleContent, article, location, sources, mediaIds, hasLink]);
 
   // Set the attachment order directly (for draft loading)
   const setOrder = useCallback((order: string[] | ((prev: string[]) => string[])) => {

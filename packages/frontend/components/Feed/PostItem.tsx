@@ -14,6 +14,7 @@ import PostLocation from '../Post/PostLocation';
 import { colors } from '../../styles/colors';
 import PostMiddle from '../Post/PostMiddle';
 import PostSourcesSheet from '@/components/Post/PostSourcesSheet';
+import { useLinkDetection } from '@/hooks/useLinkDetection';
 import PostArticleModal from '@/components/Post/PostArticleModal';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { useOxy } from '@oxyhq/services';
@@ -447,7 +448,17 @@ const PostItem: React.FC<PostItemProps> = ({
     const hasLegacyImages = Array.isArray((viewPost as any)?.content?.images) && (viewPost as any).content.images.length > 0;
     const hasPollContent = Boolean(pollIdMemo || (viewPost as any)?.content?.poll);
     const hasNestedContent = Boolean(originalPost);
-    const shouldRenderMediaBlock = hasMediaContent || hasLegacyImages || hasPollContent || hasArticle || hasNestedContent;
+    
+    // Extract links from post text - only if text exists
+    const postText = (viewPost as any)?.content?.text || '';
+    const linkDetection = useLinkDetection(postText);
+    const linkMetadata = React.useMemo(() => {
+      const links = linkDetection.detectedLinks;
+      return links.length > 0 ? links[0] : null;
+    }, [linkDetection.detectedLinks]);
+    const hasLink = Boolean(linkMetadata);
+    
+    const shouldRenderMediaBlock = hasMediaContent || hasLegacyImages || hasPollContent || hasArticle || hasNestedContent || hasLink;
 
     const sections = {
         location: Boolean((attachments?.some(a => a.type === 'location') ?? locationMemo.hasValidLocation) && locationMemo.hasValidLocation),
@@ -764,6 +775,14 @@ const PostItem: React.FC<PostItemProps> = ({
                                     articleId: articleContent.articleId,
                                 } : null}
                                 onArticlePress={hasArticle ? openArticleSheet : undefined}
+                                text={postText}
+                                linkMetadata={linkMetadata ? {
+                                    url: linkMetadata.url,
+                                    title: linkMetadata.title,
+                                    description: linkMetadata.description,
+                                    image: linkMetadata.image,
+                                    siteName: linkMetadata.siteName,
+                                } : null}
                             />
                         );
                     }
