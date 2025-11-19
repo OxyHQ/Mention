@@ -1,37 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import Avatar from '@/components/Avatar';
 import { colors } from '@/styles/colors';
 import { listsService } from '@/services/listsService';
-// storage no longer used
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import SEO from '@/components/SEO';
-
-
-const ListCard = ({ item }: { item: any }) => {
-  const theme = useTheme();
-  const owner = item.owner || item.createdBy || item.creator;
-  const username = owner?.username || (owner?.handle) || '';
-  return (
-    <TouchableOpacity onPress={() => router.push(`/lists/${item._id || item.id}`)} style={styles.listRow}>
-      <Avatar source={item.avatar || owner?.avatar} size={40} />
-      <View style={{ marginLeft: 12, flex: 1 }}>
-        <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{item.title}</Text>
-        <Text style={[styles.cardBy, { color: theme.colors.textSecondary }]}>{`List by ${username ? `@${username}` : (owner?.displayName || '')}`}</Text>
-      </View>
-      <View style={{ width: 56, alignItems: 'flex-end' }}>
-        <Ionicons name="chevron-forward" size={22} color={theme.colors.textSecondary} />
-      </View>
-    </TouchableOpacity>
-  );
-};
+import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
 
 export default function ListsScreen() {
   const [myLists, setMyLists] = useState<any[]>([]);
@@ -81,7 +62,7 @@ export default function ListsScreen() {
       disableSticky={true}
       />
 
-      <View style={styles.content}>
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
         {myLists.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="list" size={64} color={theme.colors.border} />
@@ -92,11 +73,36 @@ export default function ListsScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          myLists.map((l) => (
-            <ListCard key={String(l._id || l.id)} item={l} />
-          ))
+          <View style={styles.listsContainer}>
+            {myLists.map((l: any) => {
+              const owner = l.owner || l.createdBy || l.creator;
+              const listData: ListCardData = {
+                id: String(l._id || l.id),
+                uri: l.uri || `list:${l._id || l.id}`,
+                name: l.title || 'Untitled List',
+                description: l.description,
+                avatar: l.avatar,
+                creator: owner ? {
+                  username: owner.username || owner.handle || '',
+                  displayName: owner.displayName,
+                  avatar: owner.avatar,
+                } : undefined,
+                purpose: l.purpose === 'modlist' ? 'modlist' : 'curatelist',
+                itemCount: l.itemCount || l.memberCount || 0,
+              };
+
+              return (
+                <View key={String(l._id || l.id)} style={styles.listCardWrapper}>
+                  <ListCardComponent
+                    list={listData}
+                    onPress={() => router.push(`/lists/${l._id || l.id}`)}
+                  />
+                </View>
+              );
+            })}
+          </View>
         )}
-      </View>
+      </ScrollView>
 
 
     </ThemedView>
@@ -119,7 +125,13 @@ const styles = StyleSheet.create({
   pinBtnText: { marginLeft: 6, fontSize: 12, fontWeight: '700', color: colors.primaryColor },
   separator: { height: 1, backgroundColor: colors.COLOR_BLACK_LIGHT_6 },
   // new styles
-  listRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.COLOR_BLACK_LIGHT_6 },
+  listsContainer: {
+    paddingHorizontal: 4,
+  },
+  listCardWrapper: {
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
   newBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.COLOR_BLACK_LIGHT_9 },
   newBtnText: { color: colors.primaryLight, fontWeight: '700' },
   content: { paddingHorizontal: 12, paddingTop: 10 },

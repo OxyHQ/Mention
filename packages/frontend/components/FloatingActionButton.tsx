@@ -6,6 +6,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
+import { Z_INDEX } from '@/lib/constants';
 
 interface FloatingActionButtonProps {
     onPress: () => void;
@@ -81,7 +82,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
             position: 'absolute' as const, 
             bottom: defaultBottom, 
             right: 24, 
-            zIndex: 10000 // Higher than bottom bar's zIndex: 1000
+            zIndex: Z_INDEX.FLOATING_ACTION_BUTTON
           };
 
     // Base FAB styles (visual only, no positioning)

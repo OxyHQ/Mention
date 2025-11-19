@@ -24,6 +24,10 @@ import Avatar from "@/components/Avatar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@/assets/icons/search-icon";
 import SEO from "@/components/SEO";
+import { ProfileCard, type ProfileCardData } from "@/components/ProfileCard";
+import { FeedCard, type FeedCardData } from "@/components/FeedCard";
+import { ListCard as ListCardComponent, type ListCardData } from "@/components/ListCard";
+import { Divider } from "@/components/Divider";
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 
@@ -257,66 +261,60 @@ export default function SearchIndex() {
             ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb')
             : undefined;
 
+        const profileData: ProfileCardData = {
+            id: String(user.id || user.username || ''),
+            username,
+            displayName,
+            avatar: avatarUri || undefined,
+            verified: user.verified || false,
+            description: user.bio,
+        };
+
         return (
-            <TouchableOpacity
-                key={user.id || user.username}
-                style={[styles.userItem, { borderBottomColor: theme.colors.border }]}
+            <View key={user.id || user.username} style={styles.userItemWrapper}>
+                <ProfileCard
+                    profile={profileData}
                 onPress={() => router.push(`/@${username}`)}
-            >
-                <Avatar
-                    source={avatarUri ? { uri: avatarUri } : undefined}
-                    size={48}
-                    label={displayName?.[0] || username?.[0]}
+                    style={styles.profileCardStyle}
                 />
-                <View style={styles.userInfo}>
-                    <Text style={[styles.userName, { color: theme.colors.text }]}>
-                        {displayName}
-                    </Text>
-                    <Text style={[styles.userHandle, { color: theme.colors.textSecondary }]}>
-                        @{username}
-                    </Text>
-                    {user.bio && (
-                        <Text
-                            style={[styles.userBio, { color: theme.colors.textSecondary }]}
-                            numberOfLines={2}
-                        >
-                            {user.bio}
-                        </Text>
-                    )}
                 </View>
-            </TouchableOpacity>
         );
     };
 
-    const renderFeedItem = (feed: any) => (
-        <TouchableOpacity
-            key={feed.id}
-            style={[styles.feedItem, { borderBottomColor: theme.colors.border }]}
+    const renderFeedItem = (feed: any) => {
+        const feedData: FeedCardData = {
+            id: String(feed.id || feed._id || ''),
+            uri: feed.uri || `feed:${feed.id || feed._id}`,
+            displayName: feed.title || feed.displayName || 'Untitled Feed',
+            description: feed.description,
+            avatar: feed.avatar,
+            creator: feed.creator ? {
+                username: feed.creator.username || feed.creator.handle || '',
+                displayName: feed.creator.displayName,
+                avatar: feed.creator.avatar,
+            } : feed.owner ? {
+                username: feed.owner.username || feed.owner.handle || '',
+                displayName: feed.owner.displayName,
+                avatar: feed.owner.avatar,
+            } : undefined,
+            likeCount: feed.likeCount,
+            subscriberCount: feed.subscriberCount || feed.memberCount,
+        };
+
+        return (
+            <View key={feed.id} style={styles.feedItemWrapper}>
+                <FeedCard
+                    feed={feedData}
             onPress={() => router.push(`/feeds/${feed.id}`)}
-        >
-            <View style={styles.feedInfo}>
-                <Text style={[styles.feedTitle, { color: theme.colors.text }]}>
-                    {feed.title}
-                </Text>
-                {feed.description && (
-                    <Text
-                        style={[styles.feedDescription, { color: theme.colors.textSecondary }]}
-                        numberOfLines={2}
-                    >
-                        {feed.description}
-                    </Text>
-                )}
-                <Text style={[styles.feedMeta, { color: theme.colors.textSecondary }]}>
-                    {feed.memberCount || 0} members
-                </Text>
+                />
             </View>
-        </TouchableOpacity>
     );
+    };
 
     const renderHashtagItem = (hashtag: any) => (
+        <View key={hashtag.tag}>
         <TouchableOpacity
-            key={hashtag.tag}
-            style={[styles.hashtagItem, { borderBottomColor: theme.colors.border }]}
+                style={styles.hashtagItem}
             onPress={() => router.push(`/hashtag/${hashtag.tag}`)}
         >
             <Text style={[styles.hashtagText, { color: theme.colors.primary }]}>
@@ -326,32 +324,36 @@ export default function SearchIndex() {
                 {hashtag.count || 0} posts
             </Text>
         </TouchableOpacity>
+            <Divider />
+        </View>
     );
 
-    const renderListItem = (list: any) => (
-        <TouchableOpacity
-            key={list.id}
-            style={[styles.listItem, { borderBottomColor: theme.colors.border }]}
+    const renderListItem = (list: any) => {
+        const owner = list.owner || list.createdBy || list.creator;
+        const listData: ListCardData = {
+            id: String(list.id || list._id || ''),
+            uri: list.uri || `list:${list.id || list._id}`,
+            name: list.name || list.title || 'Untitled List',
+            description: list.description,
+            avatar: list.avatar,
+            creator: owner ? {
+                username: owner.username || owner.handle || '',
+                displayName: owner.displayName,
+                avatar: owner.avatar,
+            } : undefined,
+            purpose: list.purpose === 'modlist' ? 'modlist' : 'curatelist',
+            itemCount: list.itemCount || list.memberCount || 0,
+        };
+
+        return (
+            <View key={list.id} style={styles.listItemWrapper}>
+                <ListCardComponent
+                    list={listData}
             onPress={() => router.push(`/lists/${list.id}`)}
-        >
-            <View style={[styles.listIcon, { backgroundColor: theme.colors.primary }]}>
-                <Ionicons name="list" size={20} color={theme.colors.card} />
+                />
             </View>
-            <View style={styles.listInfo}>
-                <Text style={[styles.listTitle, { color: theme.colors.text }]}>
-                    {list.name}
-                </Text>
-                {list.description && (
-                    <Text
-                        style={[styles.listDescription, { color: theme.colors.textSecondary }]}
-                        numberOfLines={1}
-                    >
-                        {list.description}
-                    </Text>
-                )}
-            </View>
-        </TouchableOpacity>
     );
+    };
 
     const tabs = [
         { id: "all", label: t("search.tabs.all", "All") },
@@ -586,52 +588,27 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
     },
-    userItem: {
-        flexDirection: "row",
-        padding: 16,
-        borderBottomWidth: 1,
+    userItemWrapper: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
     },
-    userInfo: {
-        marginLeft: 12,
-        flex: 1,
+    profileCardStyle: {
+        borderWidth: 0,
+        padding: 0,
     },
-    userName: {
-        fontSize: 16,
-        fontWeight: "600",
+    feedItemWrapper: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
     },
-    userHandle: {
-        fontSize: 14,
-        marginTop: 2,
-    },
-    userBio: {
-        fontSize: 14,
-        marginTop: 4,
-    },
-    feedItem: {
-        padding: 16,
-        borderBottomWidth: 1,
-    },
-    feedInfo: {
-        flex: 1,
-    },
-    feedTitle: {
-        fontSize: 16,
-        fontWeight: "600",
-    },
-    feedDescription: {
-        fontSize: 14,
-        marginTop: 4,
-    },
-    feedMeta: {
-        fontSize: 12,
-        marginTop: 4,
+    listItemWrapper: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
     },
     hashtagItem: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
         padding: 16,
-        borderBottomWidth: 1,
     },
     hashtagText: {
         fontSize: 16,
@@ -639,30 +616,5 @@ const styles = StyleSheet.create({
     },
     hashtagCount: {
         fontSize: 14,
-    },
-    listItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        padding: 16,
-        borderBottomWidth: 1,
-    },
-    listIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 8,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    listInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    listTitle: {
-        fontSize: 16,
-        fontWeight: "600",
-    },
-    listDescription: {
-        fontSize: 14,
-        marginTop: 4,
     },
 });

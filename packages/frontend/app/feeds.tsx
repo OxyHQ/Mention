@@ -19,6 +19,7 @@ import { customFeedsService } from '@/services/customFeedsService';
 import { useTheme } from '@/hooks/useTheme';
 import { Search } from '@/assets/icons/search-icon';
 import SEO from '@/components/SEO';
+import { FeedCard, type FeedCardData } from '@/components/FeedCard';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
@@ -45,7 +46,7 @@ const MyFeedsRow = ({
   );
 };
 
-const PublicFeedCard = ({
+const FeedCardWithPin = ({
   item,
   pinned,
   onTogglePin,
@@ -55,22 +56,49 @@ const PublicFeedCard = ({
   onTogglePin: (id: string) => void;
 }) => {
   const theme = useTheme();
+  const feedData: FeedCardData = {
+    id: String(item._id || item.id),
+    uri: item.uri || `custom:${item._id || item.id}`,
+    displayName: item.title || 'Untitled Feed',
+    description: item.description,
+    avatar: item.avatar,
+    creator: item.owner ? {
+      username: item.owner.username || item.owner.handle || '',
+      displayName: item.owner.displayName,
+      avatar: item.owner.avatar,
+    } : undefined,
+    subscriberCount: (item.memberOxyUserIds || []).length,
+  };
+
   return (
-    <View style={[styles.card, { backgroundColor: theme.colors.card }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <View style={[styles.cardEmojiBubble, { backgroundColor: theme.colors.backgroundSecondary }]}><Text style={{ fontSize: 18 }}>🧩</Text></View>
-        <View style={{ marginLeft: 10, flex: 1 }}>
-          <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{item.title}</Text>
-          <Text style={[styles.cardBy, { color: theme.colors.textSecondary }]}>{(item.memberOxyUserIds || []).length} members • Public</Text>
-        </View>
-        <TouchableOpacity onPress={() => onTogglePin(`custom:${item._id || item.id}`)} style={[styles.pinBtn, { backgroundColor: pinned ? theme.colors.primary : theme.colors.backgroundSecondary, borderColor: theme.colors.primary }]}>
-          <Ionicons name={pinned ? 'pin' : 'pin-outline'} size={16} color={pinned ? theme.colors.card : theme.colors.primary} />
-          <Text style={[styles.pinBtnText, { color: pinned ? theme.colors.card : theme.colors.primary }]}>{pinned ? 'Pinned' : 'Pin'}</Text>
-        </TouchableOpacity>
-      </View>
-      {item.description ? <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>{item.description}</Text> : null}
-      <TouchableOpacity onPress={() => router.push(`/feeds/${item._id || item.id}`)} style={{ marginTop: 8 }}>
-        <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Open feed</Text>
+    <View style={styles.feedCardWrapper}>
+      <FeedCard
+        feed={feedData}
+        onPress={() => router.push(`/feeds/${item._id || item.id}`)}
+        showSaveButton={false}
+      />
+      <TouchableOpacity
+        onPress={() => onTogglePin(`custom:${item._id || item.id}`)}
+        style={[
+          styles.pinBtn,
+          {
+            backgroundColor: pinned ? theme.colors.primary : theme.colors.backgroundSecondary,
+            borderColor: theme.colors.primary,
+            marginTop: 12,
+          },
+        ]}>
+        <Ionicons
+          name={pinned ? 'pin' : 'pin-outline'}
+          size={16}
+          color={pinned ? theme.colors.card : theme.colors.primary}
+        />
+        <Text
+          style={[
+            styles.pinBtnText,
+            { color: pinned ? theme.colors.card : theme.colors.primary },
+          ]}>
+          {pinned ? 'Pinned' : 'Pin'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -201,7 +229,7 @@ const FeedsScreen: React.FC = () => {
           </View>
 
           {publicFeeds.map((item: any) => (
-            <PublicFeedCard
+            <FeedCardWithPin
               key={String(item._id || item.id)}
               item={item}
               pinned={pinned.includes(`custom:${item._id || item.id}`)}
@@ -222,23 +250,12 @@ const FeedsScreen: React.FC = () => {
                 </View>
               </View>
               {myFeeds.map((f: any) => (
-                <View key={String(f._id || f.id)} style={[styles.card, { backgroundColor: theme.colors.card }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={[styles.cardEmojiBubble, { backgroundColor: theme.colors.backgroundSecondary }]}><Text style={{ fontSize: 18 }}>🧩</Text></View>
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{f.title}</Text>
-                      <Text style={[styles.cardBy, { color: theme.colors.textSecondary }]}>{(f.memberOxyUserIds || []).length} members • {f.isPublic ? 'Public' : 'Private'}</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => onTogglePin(`custom:${f._id || f.id}`)} style={[styles.pinBtn, { backgroundColor: pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.primary : theme.colors.backgroundSecondary, borderColor: theme.colors.primary }]}>
-                      <Ionicons name={pinned.includes(`custom:${f._id || f.id}`) ? 'pin' : 'pin-outline'} size={16} color={pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.card : theme.colors.primary} />
-                      <Text style={[styles.pinBtnText, { color: pinned.includes(`custom:${f._id || f.id}`) ? theme.colors.card : theme.colors.primary }]}>{pinned.includes(`custom:${f._id || f.id}`) ? 'Pinned' : 'Pin'}</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {f.description ? <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>{f.description}</Text> : null}
-                  <TouchableOpacity onPress={() => router.push(`/feeds/${f._id || f.id}`)} style={{ marginTop: 8 }}>
-                    <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Open feed</Text>
-                  </TouchableOpacity>
-                </View>
+                <FeedCardWithPin
+                  key={String(f._id || f.id)}
+                  item={f}
+                  pinned={pinned.includes(`custom:${f._id || f.id}`)}
+                  onTogglePin={onTogglePin}
+                />
               ))}
             </>
           )}
@@ -302,34 +319,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  card: {
+  feedCardWrapper: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 1,
-  },
-  cardEmojiBubble: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  cardBy: {
-    marginTop: 2,
-    fontSize: 12,
-  },
-  cardDesc: {
-    marginTop: 10,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  cardLikes: {
-    marginTop: 8,
-    fontSize: 12,
+    marginBottom: 8,
   },
   pinBtn: {
     flexDirection: 'row',

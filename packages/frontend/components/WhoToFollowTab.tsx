@@ -11,6 +11,7 @@ import LegendList from '@/components/LegendList';
 import { ThemedText } from '@/components/ThemedText';
 import { colors } from '@/styles/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { Error } from '@/components/Error';
 
 export function WhoToFollowTab() {
   const { oxyServices, user } = useOxy();
@@ -30,7 +31,7 @@ export function WhoToFollowTab() {
       : 'Someone';
     const userHandle = user?.username || '';
     const appUrl = 'https://mention.earth';
-    
+
     // Use a more engaging invite message with proper translation
     if (userHandle) {
       return t('settings.inviteContacts.shareMessageWithHandle', {
@@ -75,16 +76,17 @@ export function WhoToFollowTab() {
       const shareOptions: any = {
         message: inviteMessage, // Full message with URL already included
       };
-      
+
       // On iOS, we can optionally add title, but message should be primary
       if (Platform.OS === 'ios') {
         // Don't set title as it might override the message in some apps
         // Just use message which contains everything
       }
-      
+
       await Share.share(shareOptions);
-    } catch (error: any) {
-      if (error?.message !== 'User did not share' && error?.code !== 'ERR_SHARE_CANCELLED') {
+    } catch (error: unknown) {
+      const err = error as { message?: string; code?: string };
+      if (err?.message !== 'User did not share' && err?.code !== 'ERR_SHARE_CANCELLED') {
         console.error('Error inviting friends:', error);
       }
     }
@@ -103,8 +105,12 @@ export function WhoToFollowTab() {
             useUsersStore.getState().upsertMany(recommendationsList as any);
           }
         } catch { }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
+      } catch (err: unknown) {
+        let errorMessage = 'Failed to fetch recommendations';
+        if (err instanceof Error) {
+          errorMessage = err.message;
+        }
+        setError(errorMessage);
         console.error('Error fetching recommendations:', err);
       } finally {
         setLoading(false);
@@ -167,38 +173,37 @@ export function WhoToFollowTab() {
   }
 
   if (error && recommendations.length === 0) {
+    const handleRetry = async () => {
+      setError(null);
+      try {
+        setLoading(true);
+        const response = await oxyServices.getProfileRecommendations();
+        const recommendationsList = Array.isArray(response) ? response : [];
+        setRecommendations(recommendationsList);
+        try {
+          if (recommendationsList.length) {
+            useUsersStore.getState().upsertMany(recommendationsList as any);
+          }
+        } catch { }
+      } catch (err: unknown) {
+        let errorMessage = 'Failed to fetch recommendations';
+        if (err instanceof Error) {
+          errorMessage = err.message;
+        }
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     return (
-      <View style={styles.errorContainer}>
-        <ThemedText style={[styles.errorText, { color: theme.colors.error }]}>
-          {t('Error')}: {error}
-        </ThemedText>
-        <TouchableOpacity
-          style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
-          onPress={() => {
-            setError(null);
-            const fetchRecommendations = async () => {
-              try {
-                setLoading(true);
-                const response = await oxyServices.getProfileRecommendations();
-                const recommendationsList = Array.isArray(response) ? response : [];
-                setRecommendations(recommendationsList);
-                try {
-                  if (recommendationsList.length) {
-                    useUsersStore.getState().upsertMany(recommendationsList as any);
-                  }
-                } catch { }
-              } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
-              } finally {
-                setLoading(false);
-              }
-            };
-            fetchRecommendations();
-          }}
-        >
-          <ThemedText style={styles.retryButtonText}>{t('action.retry')}</ThemedText>
-        </TouchableOpacity>
-      </View>
+      <Error
+        title={t('Error', { defaultValue: 'Error' })}
+        message={error}
+        onRetry={handleRetry}
+        hideBackButton={true}
+        style={{ flex: 1, paddingVertical: 40 }}
+      />
     );
   }
 
@@ -257,8 +262,12 @@ export function WhoToFollowTab() {
                 useUsersStore.getState().upsertMany(recommendationsList as any);
               }
             } catch { }
-          } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
+          } catch (err: unknown) {
+            let errorMessage = 'Failed to fetch recommendations';
+            if (err instanceof Error) {
+              errorMessage = err.message;
+            }
+            setError(errorMessage);
           } finally {
             setLoading(false);
           }

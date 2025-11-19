@@ -13,6 +13,7 @@ import { FeedType } from '@mention/shared-types';
 import PostItem from './PostItem';
 import ErrorBoundary from '../ErrorBoundary';
 import LoadingTopSpinner from '../LoadingTopSpinner';
+import { Error } from '../Error';
 import { colors } from '../../styles/colors';
 import { useOxy } from '@oxyhq/services';
 import { feedService } from '../../services/feedService';
@@ -608,12 +609,7 @@ const Feed = (props: FeedProps) => {
         const hasNoItems = displayItems.length === 0;
 
         if (hasError && hasNoItems) {
-            return (
-                <View style={flattenStyleArray([styles.emptyState, { backgroundColor: theme.colors.background }])}>
-                    <Text style={flattenStyleArray([styles.errorText, { color: theme.colors.error }])}>Failed to load posts</Text>
-                    <TouchableOpacity
-                        style={flattenStyleArray([styles.retryButton, { backgroundColor: theme.colors.primary, shadowColor: theme.colors.shadow }])}
-                        onPress={async () => {
+            const handleRetry = async () => {
                             clearError();
                             if (useScoped) setLocalError(null);
                             try {
@@ -627,11 +623,16 @@ const Feed = (props: FeedProps) => {
                             } catch (retryError) {
                                 logger.error('Retry failed', retryError);
                             }
-                        }}
-                    >
-                        <Text style={flattenStyleArray([styles.retryButtonText, { color: theme.colors.card }])}>Retry</Text>
-                    </TouchableOpacity>
-                </View>
+            };
+
+            return (
+                <Error
+                    title="Failed to load posts"
+                    message="Unable to fetch posts. Please check your connection and try again."
+                    onRetry={handleRetry}
+                    hideBackButton={true}
+                    style={{ flex: 1, paddingVertical: 60 }}
+                />
             );
         }
 

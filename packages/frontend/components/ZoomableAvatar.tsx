@@ -27,6 +27,8 @@ import {
 } from 'react-native-gesture-handler';
 import { useTheme } from '@/hooks/useTheme';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
+import { Portal } from '@/components/Portal';
+import { Z_INDEX } from '@/lib/constants';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const AnimatedImage = Animated.createAnimatedComponent(Image);
@@ -363,74 +365,140 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
       </Pressable>
 
       {isZoomed && (
-        <Modal
-          visible={isZoomed}
-          transparent
-          animationType="none"
-          statusBarTranslucent={Platform.OS === 'android'}
-          onRequestClose={handleDismiss}
-          hardwareAccelerated={Platform.OS === 'android'}
-        >
-          <GestureHandlerRootView style={styles.modalContainer}>
-            <Pressable
-              style={StyleSheet.absoluteFillObject}
-              onPress={handleDismiss}
-              hitSlop={0}
-            >
-              <AnimatedBlurView
-                intensity={80}
-                tint={theme.isDark ? 'dark' : 'light'}
-                style={[StyleSheet.absoluteFillObject, blurAnimatedStyle]}
-              >
-                <Animated.View
-                  style={[
-                    StyleSheet.absoluteFillObject,
-                    { backgroundColor: theme.colors.overlay },
-                    blurAnimatedStyle,
-                  ]}
-                />
-              </AnimatedBlurView>
-            </Pressable>
+        <>
+          {Platform.OS === 'web' ? (
+            <Portal>
+              <GestureHandlerRootView style={styles.modalContainer}>
+                <Pressable
+                  style={StyleSheet.absoluteFillObject}
+                  onPress={handleDismiss}
+                  hitSlop={0}
+                >
+                  <AnimatedBlurView
+                    intensity={80}
+                    tint={theme.isDark ? 'dark' : 'light'}
+                    style={[StyleSheet.absoluteFillObject, blurAnimatedStyle]}
+                  >
+                    <Animated.View
+                      style={[
+                        StyleSheet.absoluteFillObject,
+                        { backgroundColor: theme.colors.overlay },
+                        blurAnimatedStyle,
+                      ]}
+                    />
+                  </AnimatedBlurView>
+                </Pressable>
 
-            <GestureDetector gesture={panGesture}>
-              <Animated.View
-                style={[
-                  StyleSheet.absoluteFillObject,
-                  styles.zoomContainer,
-                  { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
-                ]}
-                pointerEvents={Platform.OS === 'web' ? 'box-none' : 'auto'}
-              >
-                <AnimatedImage
-                  source={imageSource}
-                  contentFit="cover"
-                  onLoad={(event) => {
-                    // Store original image dimensions if not already set
-                    if (!originalImageSize) {
-                      const { width, height } = event.source;
-                      if (width && height) {
-                        const imageSize = Math.min(width, height);
-                        setOriginalImageSize(imageSize);
-                      }
-                    }
-                  }}
-                  style={[
-                    {
-                      width: size,
-                      height: size,
-                      borderRadius: size / 2,
-                      overflow: 'hidden',
-                      maxWidth: MAX_ZOOM_SIZE,
-                      maxHeight: MAX_ZOOM_SIZE,
-                    },
-                    zoomedImageAnimatedStyle,
-                  ]}
-                  transition={200}
-                />
-              </Animated.View>
-            </GestureDetector>
-          </GestureHandlerRootView>
-        </Modal>
+                <GestureDetector gesture={panGesture}>
+                  <Animated.View
+                    style={[
+                      StyleSheet.absoluteFillObject,
+                      styles.zoomContainer,
+                      { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+                    ]}
+                    pointerEvents="box-none"
+                  >
+                    <AnimatedImage
+                      source={imageSource}
+                      contentFit="cover"
+                      onLoad={(event) => {
+                        // Store original image dimensions if not already set
+                        if (!originalImageSize) {
+                          const { width, height } = event.source;
+                          if (width && height) {
+                            const imageSize = Math.min(width, height);
+                            setOriginalImageSize(imageSize);
+                          }
+                        }
+                      }}
+                      style={[
+                        {
+                          width: size,
+                          height: size,
+                          borderRadius: size / 2,
+                          overflow: 'hidden',
+                          maxWidth: MAX_ZOOM_SIZE,
+                          maxHeight: MAX_ZOOM_SIZE,
+                        },
+                        zoomedImageAnimatedStyle,
+                      ]}
+                      transition={200}
+                    />
+                  </Animated.View>
+                </GestureDetector>
+              </GestureHandlerRootView>
+            </Portal>
+          ) : (
+            <Modal
+              visible={isZoomed}
+              transparent
+              animationType="none"
+              statusBarTranslucent={Platform.OS === 'android'}
+              onRequestClose={handleDismiss}
+              hardwareAccelerated={Platform.OS === 'android'}
+            >
+              <GestureHandlerRootView style={styles.modalContainer}>
+                <Pressable
+                  style={StyleSheet.absoluteFillObject}
+                  onPress={handleDismiss}
+                  hitSlop={0}
+                >
+                  <AnimatedBlurView
+                    intensity={80}
+                    tint={theme.isDark ? 'dark' : 'light'}
+                    style={[StyleSheet.absoluteFillObject, blurAnimatedStyle]}
+                  >
+                    <Animated.View
+                      style={[
+                        StyleSheet.absoluteFillObject,
+                        { backgroundColor: theme.colors.overlay },
+                        blurAnimatedStyle,
+                      ]}
+                    />
+                  </AnimatedBlurView>
+                </Pressable>
+
+                <GestureDetector gesture={panGesture}>
+                  <Animated.View
+                    style={[
+                      StyleSheet.absoluteFillObject,
+                      styles.zoomContainer,
+                      { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+                    ]}
+                    pointerEvents="auto"
+                  >
+                    <AnimatedImage
+                      source={imageSource}
+                      contentFit="cover"
+                      onLoad={(event) => {
+                        // Store original image dimensions if not already set
+                        if (!originalImageSize) {
+                          const { width, height } = event.source;
+                          if (width && height) {
+                            const imageSize = Math.min(width, height);
+                            setOriginalImageSize(imageSize);
+                          }
+                        }
+                      }}
+                      style={[
+                        {
+                          width: size,
+                          height: size,
+                          borderRadius: size / 2,
+                          overflow: 'hidden',
+                          maxWidth: MAX_ZOOM_SIZE,
+                          maxHeight: MAX_ZOOM_SIZE,
+                        },
+                        zoomedImageAnimatedStyle,
+                      ]}
+                      transition={200}
+                    />
+                  </Animated.View>
+                </GestureDetector>
+              </GestureHandlerRootView>
+            </Modal>
+          )}
+        </>
       )}
     </>
   );
@@ -444,10 +512,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
+    ...Platform.select({
+      web: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: Z_INDEX.MODAL,
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      default: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'transparent',
+      },
+    }),
   },
   zoomContainer: {
     justifyContent: 'center',

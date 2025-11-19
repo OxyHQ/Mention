@@ -469,7 +469,7 @@ const PostItem: React.FC<PostItemProps> = ({
             <Container
                 style={[
                     !isNested && styles.postContainer,
-                    !isNested && { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background },
+                    !isNested && { backgroundColor: theme.colors.background },
                     isNested && { backgroundColor: theme.colors.background },
                     isNested && [styles.nestedPostContainer, { borderColor: theme.colors.border }],
                     style
@@ -825,7 +825,8 @@ const PostItem: React.FC<PostItemProps> = ({
 
                 {/* Post Insights Modal - removed, now using bottom sheet */}
             </Container>
-            {articleContent && isArticleModalVisible && (
+            {/* Always render article modal when content exists - Portal handles visibility */}
+            {articleContent && (
                 <PostArticleModal
                     visible={isArticleModalVisible}
                     articleId={articleContent.articleId}
@@ -843,7 +844,6 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
         gap: 8,
         paddingVertical: 8,
-        borderBottomWidth: 1,
     },
     nestedPostContainer: {
         flexDirection: 'column',

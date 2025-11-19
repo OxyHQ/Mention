@@ -74,10 +74,11 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
 
   const renderUser = useCallback(({ item }: { item: User }) => {
     return (
-      <TouchableOpacity
-        style={[styles.userRow, { borderBottomColor: theme.colors.border }]}
-        onPress={() => handleUserPress(item.handle)}
-      >
+      <View>
+        <TouchableOpacity
+          style={styles.userRow}
+          onPress={() => handleUserPress(item.handle)}
+        >
         <Image
           source={{ uri: item.avatar || 'https://via.placeholder.com/50' }}
           style={styles.avatar}
@@ -97,6 +98,8 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
       </TouchableOpacity>
+      <Divider />
+      </View>
     );
   }, [theme, handleUserPress]);
 

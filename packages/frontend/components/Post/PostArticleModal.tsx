@@ -24,10 +24,14 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { articleService } from '@/services/articleService';
 import LinkifiedText from '@/components/common/LinkifiedText';
+import { Portal } from '@/components/Portal';
+import { Z_INDEX } from '@/lib/constants';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
-// Animation constants for smooth, non-bouncy animations
+/**
+ * Animation configuration for smooth, non-bouncy modal transitions
+ */
 const ANIMATION_CONFIG = {
   IN: {
     duration: 300,
@@ -86,7 +90,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
     }
   }, [visible, opacity, scale, translateY]);
 
-  // Optimize data loading - only fetch when needed
+  // Fetch article data when modal becomes visible and articleId is provided
   useEffect(() => {
     if (!visible) return;
 
@@ -114,7 +118,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
           }
         });
     } else {
-      // Use provided data directly
+      // Use provided data directly when no fetch is needed
       setArticleTitle(title);
       setArticleBody(body);
       setIsLoading(false);
@@ -220,92 +224,110 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
     [theme.colors.error]
   );
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      statusBarTranslucent={Platform.OS === 'android'}
-      onRequestClose={stableOnClose}
-      hardwareAccelerated={Platform.OS === 'android'}
-    >
-      <GestureHandlerRootView style={styles.modalContainer}>
-        <Pressable
-          style={StyleSheet.absoluteFillObject}
-          onPress={handleBackdropPress}
-        >
-          <AnimatedBlurView
-            intensity={80}
-            tint={blurTint}
-            style={[StyleSheet.absoluteFillObject, backdropAnimatedStyle]}
-          >
-            <Animated.View
-              style={[
-                StyleSheet.absoluteFillObject,
-                { backgroundColor: overlayColor },
-                backdropAnimatedStyle,
-              ]}
-            />
-          </AnimatedBlurView>
-        </Pressable>
+  // Early return if not visible (prevents unnecessary rendering)
+  if (!visible) {
+    return null;
+  }
 
-        <Animated.View
-          style={contentContainerStyle}
-          pointerEvents="box-none"
+  const modalContent = (
+    <GestureHandlerRootView style={styles.modalContainer}>
+      <Pressable
+        style={StyleSheet.absoluteFillObject}
+        onPress={handleBackdropPress}
+      >
+        <AnimatedBlurView
+          intensity={80}
+          tint={blurTint}
+          style={[StyleSheet.absoluteFillObject, backdropAnimatedStyle]}
         >
-          <Pressable 
-            onPress={handleContentPress}
-            style={styles.pressableContent}
-          >
-            <View style={headerStyle}>
-              <HeaderIconButton onPress={stableOnClose} style={styles.closeButton}>
-                <CloseIcon size={20} color={theme.colors.text} />
-              </HeaderIconButton>
-              <Text style={headerTitleStyle} pointerEvents="none">
-                {titleText}
-              </Text>
-              <View style={styles.headerRight} />
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: overlayColor },
+              backdropAnimatedStyle,
+            ]}
+          />
+        </AnimatedBlurView>
+      </Pressable>
+
+      <Animated.View
+        style={contentContainerStyle}
+        pointerEvents="box-none"
+      >
+        <Pressable 
+          onPress={handleContentPress}
+          style={styles.pressableContent}
+        >
+          <View style={headerStyle}>
+            <HeaderIconButton onPress={stableOnClose} style={styles.closeButton}>
+              <CloseIcon size={20} color={theme.colors.text} />
+            </HeaderIconButton>
+            <Text style={headerTitleStyle} pointerEvents="none">
+              {titleText}
+            </Text>
+            <View style={styles.headerRight} />
+          </View>
+
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
             </View>
-
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              </View>
-            ) : (
-              <ScrollView 
-                style={styles.scrollView}
-                contentContainerStyle={styles.content} 
-                showsVerticalScrollIndicator={true}
-                bounces={true}
-              >
-                <View style={styles.articleWrapper}>
+          ) : (
+            <ScrollView 
+              style={styles.scrollView}
+              contentContainerStyle={styles.content} 
+              showsVerticalScrollIndicator={true}
+              bounces={true}
+            >
+              <View style={styles.articleWrapper}>
+                <LinkifiedText
+                  text={trimmedTitle || untitledText}
+                  style={articleTitleStyle}
+                  linkStyle={[{ color: theme.colors.primary }]}
+                />
+                {trimmedBody ? (
                   <LinkifiedText
-                    text={trimmedTitle || untitledText}
-                    style={articleTitleStyle}
+                    text={trimmedBody}
+                    style={articleBodyStyle}
                     linkStyle={[{ color: theme.colors.primary }]}
                   />
-                  {trimmedBody ? (
-                    <LinkifiedText
-                      text={trimmedBody}
-                      style={articleBodyStyle}
-                      linkStyle={[{ color: theme.colors.primary }]}
-                    />
-                  ) : loadError ? (
-                    <Text style={errorStyle}>
-                      {loadError}
-                    </Text>
-                  ) : (
-                    <Text style={articleBodyPlaceholderStyle}>
-                      {emptyBodyText}
-                    </Text>
-                  )}
-                </View>
-              </ScrollView>
-            )}
-          </Pressable>
-        </Animated.View>
-      </GestureHandlerRootView>
-    </Modal>
+                ) : loadError ? (
+                  <Text style={errorStyle}>
+                    {loadError}
+                  </Text>
+                ) : (
+                  <Text style={articleBodyPlaceholderStyle}>
+                    {emptyBodyText}
+                  </Text>
+                )}
+              </View>
+            </ScrollView>
+          )}
+        </Pressable>
+      </Animated.View>
+    </GestureHandlerRootView>
+  );
+
+  // On web: Portal handles full-screen positioning via fixed positioning
+  if (Platform.OS === 'web') {
+    return <Portal>{modalContent}</Portal>;
+  }
+
+  // On native: Use Modal for system integration (status bar, back button, etc.)
+  // Portal ensures it renders at root level for proper z-index stacking
+  return (
+    <Portal>
+      <Modal
+        visible={visible}
+        transparent
+        animationType="none"
+        statusBarTranslucent={Platform.OS === 'android'}
+        onRequestClose={stableOnClose}
+        hardwareAccelerated={Platform.OS === 'android'}
+      >
+        {modalContent}
+      </Modal>
+    </Portal>
   );
 };
 
@@ -314,7 +336,19 @@ export default memo(PostArticleModal);
 
 const styles = StyleSheet.create({
   modalContainer: {
-    flex: 1,
+    ...Platform.select({
+      web: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: Z_INDEX.MODAL,
+      },
+      default: {
+        flex: 1,
+      },
+    }),
   },
   contentContainer: {
     position: 'absolute',

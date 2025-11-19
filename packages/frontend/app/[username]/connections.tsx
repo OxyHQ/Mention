@@ -16,6 +16,8 @@ import { useTheme } from '@/hooks/useTheme';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useOxy } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
+import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
+import { Divider } from '@/components/Divider';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
 
@@ -241,35 +243,27 @@ export default function ConnectionsScreen() {
 
     const bio = item?.profile?.bio || item?.bio;
 
+    const profileData: ProfileCardData = {
+      id: String((item as any).id || (item as any)._id || (item as any).userID),
+      username: usernameValue,
+      displayName,
+      avatar: avatarSource || undefined,
+      verified: item?.verified || false,
+      description: bio,
+    };
+
     return (
-      <View style={[styles.row, { borderBottomColor: theme.colors.border }]}> 
-        <TouchableOpacity
-          style={styles.rowLeft}
+      <View style={styles.row}> 
+        <ProfileCard
+          profile={profileData}
           onPress={() => router.push(`/@${usernameValue}` as any)}
-          activeOpacity={0.75}
-        >
-        <Avatar source={avatarSource} size={40} />
-          <View style={styles.rowTextWrap}>
-            <ThemedText style={[styles.rowTitle, { color: theme.colors.text }]}>
-              {displayName}
-            </ThemedText>
-            <ThemedText style={[styles.rowSubtitle, { color: theme.colors.textSecondary }]}>
-              @{usernameValue}
-            </ThemedText>
-            {bio ? (
-              <ThemedText
-                style={[styles.rowBio, { color: theme.colors.textSecondary }]}
-                numberOfLines={1}
-              >
-                {bio}
-              </ThemedText>
-            ) : null}
-          </View>
-        </TouchableOpacity>
+          style={styles.profileCardStyle}
+        />
         <FollowButton
           userId={(item as any).id || (item as any)._id || (item as any).userID}
           size="small"
         />
+        <Divider />
       </View>
     );
   };
@@ -415,6 +409,20 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    position: 'relative',
+  },
+  profileCardStyle: {
+    flex: 1,
+    marginRight: 12,
+    borderWidth: 0,
+    padding: 0,
+  },
+  rowOld: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

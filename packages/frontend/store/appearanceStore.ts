@@ -37,6 +37,9 @@ export interface UserAppearance {
     displayName?: string;
     coverImage?: string;
   };
+  interests?: {
+    tags?: string[];
+  };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -127,6 +130,9 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
         }),
         ...(partial.profileCustomization && {
           profileCustomization: partial.profileCustomization,
+        }),
+        ...(partial.interests && {
+          interests: partial.interests,
         }),
       };
       

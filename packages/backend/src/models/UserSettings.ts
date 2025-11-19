@@ -28,12 +28,17 @@ export interface ProfileCustomization {
   coverImage?: string; // Custom cover image (alternative to profileHeaderImage)
 }
 
+export interface InterestsSettings {
+  tags?: string[]; // Array of interest tags
+}
+
 export interface IUserSettings extends Document {
   oxyUserId: string;
   appearance: AppearanceSettings;
   profileHeaderImage?: string;
   privacy?: PrivacySettings;
   profileCustomization?: ProfileCustomization;
+  interests?: InterestsSettings;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,12 +69,17 @@ const ProfileCustomizationSchema = new Schema<ProfileCustomization>({
   coverImage: { type: String },
 }, { _id: false });
 
+const InterestsSchema = new Schema<InterestsSettings>({
+  tags: [{ type: String }],
+}, { _id: false });
+
 const UserSettingsSchema = new Schema<IUserSettings>({
   oxyUserId: { type: String, required: true, index: true, unique: true },
   appearance: { type: AppearanceSchema, default: () => ({ themeMode: 'system' }) },
   profileHeaderImage: { type: String },
   privacy: { type: PrivacySchema, default: () => ({ profileVisibility: 'public' }) },
   profileCustomization: { type: ProfileCustomizationSchema },
+  interests: { type: InterestsSchema },
 }, { timestamps: true, versionKey: false });
 
 export const UserSettings = mongoose.model<IUserSettings>('UserSettings', UserSettingsSchema);

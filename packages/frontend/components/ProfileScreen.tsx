@@ -335,55 +335,41 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     }, [tab, profileData?.id]);
 
     const ProfileSkeleton: React.FC = () => {
-        const pulse = useRef(new Animated.Value(0.5)).current;
-        useEffect(() => {
-            const anim = Animated.loop(
-                Animated.sequence([
-                    Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
-                    Animated.timing(pulse, { toValue: 0.5, duration: 700, useNativeDriver: true }),
-                ])
-            );
-            anim.start();
-            return () => anim.stop();
-        }, [pulse]);
-
-        const Shimmer = ({ style }: { style?: any }) => (
-            <Animated.View style={[styles.skeletonBlock, style, { opacity: pulse, backgroundColor: theme.colors.backgroundSecondary }]} />
-        );
+        const { SkeletonCircle, SkeletonText, SkeletonPill } = require('@/components/Skeleton');
 
         return (
             <View style={[styles.skeletonContainer, { backgroundColor: theme.colors.background }]}>
                 {/* Banner placeholder */}
-                <Shimmer style={[styles.skeletonBanner, { backgroundColor: theme.colors.backgroundSecondary }]} />
+                <View style={[styles.skeletonBanner, { backgroundColor: theme.colors.backgroundSecondary, height: 150 }]} />
 
                 <View style={styles.skeletonContent}>
                     {/* Avatar row */}
                     <View style={styles.skeletonAvatarRow}>
-                        <Shimmer style={[styles.skeletonAvatar, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.background }]} />
+                        <SkeletonCircle size={90} style={{ borderWidth: 3, borderColor: theme.colors.background }} />
                         <View style={{ flex: 1 }} />
-                        <Shimmer style={[styles.skeletonBtn, { backgroundColor: theme.colors.backgroundSecondary }]} />
-                        <Shimmer style={[styles.skeletonIconBtn, { backgroundColor: theme.colors.backgroundSecondary }]} />
+                        <SkeletonPill size={36} style={{ width: 100, height: 36, marginRight: 8 }} />
+                        <SkeletonCircle size={36} />
                     </View>
 
                     {/* Name + handle */}
-                    <Shimmer style={[styles.skeletonLine, { width: '40%', height: 20, backgroundColor: theme.colors.backgroundSecondary }]} />
-                    <Shimmer style={[styles.skeletonLine, { width: '30%', marginTop: 8, backgroundColor: theme.colors.backgroundSecondary }]} />
+                    <SkeletonText style={{ width: '40%', fontSize: 20, marginTop: 12 }} />
+                    <SkeletonText style={{ width: '30%', fontSize: 14, marginTop: 8 }} />
 
                     {/* Bio lines */}
-                    <Shimmer style={[styles.skeletonLine, { width: '90%', marginTop: 12, backgroundColor: theme.colors.backgroundSecondary }]} />
-                    <Shimmer style={[styles.skeletonLine, { width: '80%', marginTop: 8, backgroundColor: theme.colors.backgroundSecondary }]} />
+                    <SkeletonText style={{ width: '90%', fontSize: 14, marginTop: 12 }} />
+                    <SkeletonText style={{ width: '80%', fontSize: 14, marginTop: 8 }} />
 
                     {/* Meta */}
-                    <View style={[styles.skeletonMetaRow]}>
-                        <Shimmer style={[styles.skeletonChip, { width: 120, backgroundColor: theme.colors.backgroundSecondary }]} />
-                        <Shimmer style={[styles.skeletonChip, { width: 160, backgroundColor: theme.colors.backgroundSecondary }]} />
-                        <Shimmer style={[styles.skeletonChip, { width: 180, backgroundColor: theme.colors.backgroundSecondary }]} />
+                    <View style={[styles.skeletonMetaRow, { marginTop: 12 }]}>
+                        <SkeletonPill size={24} style={{ width: 120, height: 24 }} />
+                        <SkeletonPill size={24} style={{ width: 160, height: 24, marginLeft: 8 }} />
+                        <SkeletonPill size={24} style={{ width: 180, height: 24, marginLeft: 8 }} />
                     </View>
 
                     {/* Tabs */}
-                    <View style={[styles.skeletonTabs, { borderColor: theme.colors.border }]}>
+                    <View style={[styles.skeletonTabs, { borderColor: theme.colors.border, marginTop: 16 }]}>
                         {[...Array(5)].map((_, i) => (
-                            <Shimmer key={i} style={[styles.skeletonTab, { backgroundColor: theme.colors.backgroundSecondary }]} />
+                            <SkeletonPill key={i} size={32} style={{ width: 60, height: 32, marginRight: 8 }} />
                         ))}
                     </View>
                 </View>

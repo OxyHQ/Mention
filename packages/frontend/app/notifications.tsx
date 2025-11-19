@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { confirmDialog } from '../utils/alerts';
 import SEO from '@/components/SEO';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { Error } from '@/components/Error';
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
 
@@ -84,10 +85,10 @@ const NotificationsScreen: React.FC = () => {
             try {
                 // Invalidate all notification queries first
                 queryClient.invalidateQueries({ queryKey: ['notifications'] });
-                
+
                 // Use the refetch function from useQuery hook
                 await refetch();
-                
+
                 toast.success(t('notification.mark_all_read_success') || 'All notifications marked as read');
             } catch (refetchError) {
                 console.error('Error refetching notifications:', refetchError);
@@ -101,7 +102,7 @@ const NotificationsScreen: React.FC = () => {
             const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
             const statusCode = error?.response?.status;
             toast.error(
-                t('notification.mark_all_read_error') || 
+                t('notification.mark_all_read_error') ||
                 `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`
             );
         },
@@ -124,14 +125,14 @@ const NotificationsScreen: React.FC = () => {
             toast.info(t('notification.all_already_read') || 'All notifications are already read');
             return;
         }
-        
+
         const confirmed = await confirmDialog({
             title: t('notification.mark_all_read'),
             message: t('notification.mark_all_read_confirm') || 'Are you sure you want to mark all notifications as read?',
             okText: t('notification.mark_all_read') || 'Mark All as Read',
             cancelText: t('cancel') || 'Cancel',
         });
-        
+
         if (confirmed) {
             markAllAsReadMutation.mutate();
         }
@@ -265,17 +266,13 @@ const NotificationsScreen: React.FC = () => {
     );
 
     const renderErrorState = () => (
-        <ThemedView style={styles.errorContainer}>
-            <Ionicons
-                name="alert-circle-outline"
-                size={64}
-                color={theme.colors.error}
-            />
-            <ThemedText style={[styles.errorTitle, { color: theme.colors.error }]}>{t('notification.error.load')}</ThemedText>
-            <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} onPress={() => refetch()}>
-                <ThemedText style={[styles.retryText, { color: theme.colors.card }]}>{t('notification.retry')}</ThemedText>
-            </TouchableOpacity>
-        </ThemedView>
+        <Error
+            title={t('notification.error.load', { defaultValue: 'Failed to load notifications' })}
+            message={t('notification.error.message', { defaultValue: 'Unable to fetch your notifications. Please try again.' })}
+            onRetry={() => refetch()}
+            hideBackButton={true}
+            style={{ flex: 1 }}
+        />
     );
 
     const renderContent = () => {
@@ -302,7 +299,7 @@ const NotificationsScreen: React.FC = () => {
         }
 
         return (
-            <View 
+            <View
                 style={{ flex: 1, minHeight: 0 }}
                 {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
             >
@@ -349,48 +346,48 @@ const NotificationsScreen: React.FC = () => {
                 <ThemedView style={{ flex: 1 }}>
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-                {/* Header */}
-                <Header
-                    options={{
-                        title: t('Notifications'),
-                        showBackButton: false,
-                        rightComponents: [
-                            unreadCount > 0 ? (
-                                <HeaderIconButton
-                                    key="mark-all"
-                                    onPress={handleMarkAllAsRead}
-                                    disabled={markAllAsReadMutation.isPending}
-                                >
-                                    <ThemedText style={[styles.markAllText, { color: theme.colors.primary }]}>
-                                        {t('notification.mark_all_read')}
-                                    </ThemedText>
-                                </HeaderIconButton>
-                            ) : null,
-                        ].filter(Boolean),
-                    }}
-                    hideBottomBorder={isAuthenticated}
-                />
-
-                {/* Tab Navigation */}
-                {isAuthenticated && (
-                    <AnimatedTabBar
-                        tabs={[
-                            { id: 'all', label: t('notifications.tabs.all') },
-                            { id: 'mentions', label: t('notifications.tabs.mentions') },
-                            { id: 'follows', label: t('notifications.tabs.follows') },
-                            { id: 'likes', label: t('notifications.tabs.likes') },
-                            { id: 'posts', label: t('notifications.tabs.posts') },
-                        ]}
-                        activeTabId={activeTab}
-                        onTabPress={handleTabPress}
-                        scrollEnabled={true}
+                    {/* Header */}
+                    <Header
+                        options={{
+                            title: t('Notifications'),
+                            showBackButton: false,
+                            rightComponents: [
+                                unreadCount > 0 ? (
+                                    <HeaderIconButton
+                                        key="mark-all"
+                                        onPress={handleMarkAllAsRead}
+                                        disabled={markAllAsReadMutation.isPending}
+                                    >
+                                        <ThemedText style={[styles.markAllText, { color: theme.colors.primary }]}>
+                                            {t('notification.mark_all_read')}
+                                        </ThemedText>
+                                    </HeaderIconButton>
+                                ) : null,
+                            ].filter(Boolean),
+                        }}
+                        hideBottomBorder={isAuthenticated}
                     />
-                )}
 
-                {/* Content */}
-                {renderContent()}
-            </ThemedView>
-        </SafeAreaView>
+                    {/* Tab Navigation */}
+                    {isAuthenticated && (
+                        <AnimatedTabBar
+                            tabs={[
+                                { id: 'all', label: t('notifications.tabs.all') },
+                                { id: 'mentions', label: t('notifications.tabs.mentions') },
+                                { id: 'follows', label: t('notifications.tabs.follows') },
+                                { id: 'likes', label: t('notifications.tabs.likes') },
+                                { id: 'posts', label: t('notifications.tabs.posts') },
+                            ]}
+                            activeTabId={activeTab}
+                            onTabPress={handleTabPress}
+                            scrollEnabled={true}
+                        />
+                    )}
+
+                    {/* Content */}
+                    {renderContent()}
+                </ThemedView>
+            </SafeAreaView>
         </>
     );
 };

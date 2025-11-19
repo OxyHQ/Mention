@@ -674,6 +674,29 @@ export default function SettingsScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
+                        {/* Your Interests */}
+                        <TouchableOpacity
+                            style={styles.settingItem}
+                            onPress={() => router.push('/settings/interests')}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="heart-outline" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {t('settings.preferences.interests', { defaultValue: 'Your interests' })}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.preferences.interestsDesc', { defaultValue: 'Select your interests to personalize your feed' })}
+                                    </Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
                         <View style={styles.settingItem}>
                             <View style={styles.settingInfo}>
                                 <View style={styles.settingIcon}>

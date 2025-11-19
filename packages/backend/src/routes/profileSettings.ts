@@ -61,7 +61,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const { appearance, profileHeaderImage, privacy, profileCustomization } = req.body || {};
+    const { appearance, profileHeaderImage, privacy, profileCustomization, interests } = req.body || {};
 
     const update: Record<string, any> = {};
     
@@ -127,6 +127,17 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       }
       if (Array.isArray(privacy.restrictedUsers)) {
         update['privacy.restrictedUsers'] = privacy.restrictedUsers;
+      }
+    }
+
+    if (interests) {
+      if (interests.tags === null || interests.tags === undefined) {
+        // Allow clearing interests
+        update['interests.tags'] = [];
+      } else if (Array.isArray(interests.tags)) {
+        // Validate that all tags are strings
+        const validTags = interests.tags.filter(tag => typeof tag === 'string');
+        update['interests.tags'] = validTags;
       }
     }
 

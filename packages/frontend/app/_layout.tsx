@@ -19,6 +19,7 @@ import { SideBar } from "@/components/SideBar";
 import { ThemedView } from "@/components/ThemedView";
 import { AppProviders } from '@/components/providers/AppProviders';
 import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
+import { Provider as PortalProvider, Outlet as PortalOutlet } from '@/components/Portal';
 
 // Hooks
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -145,7 +146,7 @@ export default function RootLayout() {
     if (!fontsLoaded) return;
 
     const result = await AppInitializer.initializeApp(fontsLoaded, oxyServices);
-    
+
     if (result.success) {
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
     } else {
@@ -199,7 +200,7 @@ export default function RootLayout() {
 
   const theme = useTheme();
   const colorScheme = useColorScheme();
-  
+
   // Memoize app content to prevent unnecessary re-renders
   const appContent = useMemo(() => {
     if (!appIsReady) {
@@ -224,11 +225,15 @@ export default function RootLayout() {
             initializationComplete={splashState.initializationComplete}
           />
         )}
-        {/* Keep posts socket connected (mounted under OxyProvider) */}
-        <RealtimePostsBridge />
-        <MainLayout isScreenNotMobile={isScreenNotMobile} />
-        <RegisterPush />
-        {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+        {/* Portal Provider for rendering components outside tree */}
+        <PortalProvider>
+          {/* Keep posts socket connected (mounted under OxyProvider) */}
+          <RealtimePostsBridge />
+          <MainLayout isScreenNotMobile={isScreenNotMobile} />
+          <RegisterPush />
+          {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+          <PortalOutlet />
+        </PortalProvider>
       </AppProviders>
     );
   }, [
@@ -242,7 +247,7 @@ export default function RootLayout() {
     queryClient,
     // oxyServices is stable (imported singleton), but included for completeness
   ]);
-  
+
   return (
     <ThemedView style={{ flex: 1 }}>
       {appContent}
