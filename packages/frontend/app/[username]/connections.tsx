@@ -18,6 +18,7 @@ import { useOxy } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
 import { Divider } from '@/components/Divider';
+import { EmptyState } from '@/components/common/EmptyState';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
 
@@ -383,12 +384,14 @@ export default function ConnectionsScreen() {
           keyExtractor={(item: any) => String((item as any).id || (item as any)._id || (item as any).userID || (item as any).username)}
           ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={22} color={theme.colors.textSecondary} style={{ marginBottom: 4 }} />
-              <ThemedText style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                {getEmptyMessage()}
-              </ThemedText>
-            </View>
+            <EmptyState
+              title={getEmptyMessage()}
+              icon={{
+                name: 'people-outline',
+                size: 48,
+              }}
+              containerStyle={styles.emptyState}
+            />
           }
           removeClippedSubviews={false}
           maxToRenderPerBatch={10}
@@ -485,14 +488,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   emptyState: {
-    paddingVertical: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  emptyText: {
-    fontSize: 13,
-    textAlign: 'center',
+    flex: 1,
   },
   loadingState: {
     flex: 1,

@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
+import { EmptyState } from '@/components/common/EmptyState';
 
 interface VideosGridProps {
     userId?: string;
@@ -209,12 +210,14 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId }) => {
 
     if (videoItems.length === 0) {
         return (
-            <View style={styles.emptyContainer}>
-                <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                    No videos yet
-                </Text>
-            </View>
+            <EmptyState
+                title="No videos yet"
+                icon={{
+                    name: 'videocam-outline',
+                    size: 48,
+                }}
+                containerStyle={styles.emptyContainer}
+            />
         );
     }
 
@@ -272,14 +275,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     emptyContainer: {
-        padding: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 12,
-    },
-    emptyText: {
-        fontSize: 16,
-        fontWeight: '500',
+        flex: 1,
     },
 });
 

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { Plus } from '@/assets/icons/plus-icon';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { EmptyState } from '@/components/common/EmptyState';
 
 type SourceField = 'title' | 'url';
 

@@ -6,6 +6,7 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import PostSources from './PostSources';
 import { PostSourceLink } from '@mention/shared-types';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { EmptyState } from '@/components/common/EmptyState';
 
 interface PostSourcesSheetProps {
   sources: PostSourceLink[];
@@ -34,11 +35,14 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
         {hasSources ? (
           <PostSources sources={sources} />
         ) : (
-          <View style={[styles.emptyState, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}> 
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}> 
-              {t('post.sourcesSheet.empty', { defaultValue: 'No sources available for this post.' })}
-            </Text>
-          </View>
+          <EmptyState
+            title={t('post.sourcesSheet.empty', { defaultValue: 'No sources available for this post.' })}
+            icon={{
+              name: 'link-outline',
+              size: 48,
+            }}
+            containerStyle={[styles.emptyState, { backgroundColor: theme.colors.backgroundSecondary }]}
+          />
         )}
       </View>
     </View>
@@ -82,14 +86,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   emptyState: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: 'center',
+    flex: 1,
   },
 });
 

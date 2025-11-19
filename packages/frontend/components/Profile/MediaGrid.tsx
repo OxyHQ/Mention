@@ -15,6 +15,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
+import { EmptyState } from '@/components/common/EmptyState';
 
 interface MediaGridProps {
     userId?: string;
@@ -305,10 +306,15 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
 
     if (!isLoading && mediaItems.length === 0) {
         return (
-            <View style={styles.empty}>
-                <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>No media posts yet</Text>
-                <Text style={[styles.emptySub, { color: theme.colors.textSecondary }]}>Photos and videos you share will appear here.</Text>
-            </View>
+            <EmptyState
+                title="No media posts yet"
+                subtitle="Photos and videos you share will appear here."
+                icon={{
+                    name: 'images-outline',
+                    size: 48,
+                }}
+                containerStyle={styles.empty}
+            />
         );
     }
 
@@ -342,18 +348,7 @@ const styles = StyleSheet.create({
         paddingVertical: 24,
     },
     empty: {
-        alignItems: 'center',
-        paddingVertical: 40,
-        gap: 8,
-    },
-    emptyTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        // color set dynamically via theme
-    },
-    emptySub: {
-        fontSize: 14,
-        // color set dynamically via theme
+        flex: 1,
     },
     videoOverlay: {
         position: 'absolute',

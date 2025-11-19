@@ -7,6 +7,7 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { feedService } from '@/services/feedService';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { EmptyState } from '@/components/common/EmptyState';
 
 interface User {
   id: string;
@@ -147,16 +148,14 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
       />
       
       {users.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons 
-            name={type === 'likes' ? 'heart-outline' : 'repeat-outline'} 
-            size={48} 
-            color={theme.colors.textSecondary} 
-          />
-          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-            No {type === 'likes' ? 'likes' : 'reposts'} yet
-          </Text>
-        </View>
+        <EmptyState
+          title={`No ${type === 'likes' ? 'likes' : 'reposts'} yet`}
+          icon={{
+            name: type === 'likes' ? 'heart-outline' : 'repeat-outline',
+            size: 48,
+          }}
+          containerStyle={styles.emptyContainer}
+        />
       ) : (
         <FlatList
           data={users}
@@ -188,13 +187,6 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 48,
-  },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 16,
   },
   userRow: {
     flexDirection: 'row',

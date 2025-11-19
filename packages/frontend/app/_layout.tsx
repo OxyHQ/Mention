@@ -20,6 +20,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { AppProviders } from '@/components/providers/AppProviders';
 import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 import { Provider as PortalProvider, Outlet as PortalOutlet } from '@/components/Portal';
+import WelcomeModalGate from '@/components/WelcomeModalGate';
 
 // Hooks
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -232,6 +233,7 @@ export default function RootLayout() {
           <MainLayout isScreenNotMobile={isScreenNotMobile} />
           <RegisterPush />
           {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+          <WelcomeModalGate appIsReady={appIsReady} />
           <PortalOutlet />
         </PortalProvider>
       </AppProviders>
