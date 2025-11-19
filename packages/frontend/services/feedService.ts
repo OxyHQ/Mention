@@ -65,29 +65,30 @@ class FeedService {
    * Get feed data from backend using Oxy authenticated client
    */
   async getFeed(request: FeedRequest, options?: FeedServiceOptions): Promise<FeedResponse> {
-    try {
-      const params: any = {
-        type: request.type // Always include type in params
-      };
-      
-      if (request.cursor) params.cursor = request.cursor;
-      if (request.limit) params.limit = request.limit;
-      if (request.userId) params.userId = request.userId;
-      if (request.filters) {
-        Object.entries(request.filters).forEach(([key, value]) => {
-          if (value !== undefined) {
-            // Special handling for array-based filters
-            if (key === 'authors' && Array.isArray(value)) {
-              params[`filters[${key}]`] = (value as any[]).join(',');
-            } else {
-              params[`filters[${key}]`] = value as any;
-            }
+    const params: any = {
+      type: request.type // Always include type in params
+    };
+    
+    if (request.cursor) params.cursor = request.cursor;
+    if (request.limit) params.limit = request.limit;
+    if (request.userId) params.userId = request.userId;
+    if (request.filters) {
+      Object.entries(request.filters).forEach(([key, value]) => {
+        if (value !== undefined) {
+          // Special handling for array-based filters
+          if (key === 'authors' && Array.isArray(value)) {
+            params[`filters[${key}]`] = (value as any[]).join(',');
+          } else {
+            params[`filters[${key}]`] = value as any;
           }
-        });
-      }
+        }
+      });
+    }
 
-      // Map feed types to backend endpoints
-      let endpoint = '/feed/feed'; // default endpoint
+    // Map feed types to backend endpoints
+    let endpoint = '/feed/feed'; // default endpoint
+    
+    try {
       
       // Handle custom feed type - use dedicated timeline endpoint (backend-driven)
       if (request.type === 'custom' && request.filters?.customFeedId) {
