@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 16,
-    marginBottom: 24,
+    marginBottom: 40,
   },
   logoIcon: {
     // No margin needed since there's no text next to it
@@ -378,6 +378,7 @@ const styles = StyleSheet.create({
   taglineContainer: {
     alignItems: 'center',
     marginBottom: 0,
+    marginTop: 60,
   },
   actionsContainer: {
     alignItems: 'center',

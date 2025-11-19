@@ -35,5 +35,6 @@
     "**/dist",
     "**/build",
     "**/.expo"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }
