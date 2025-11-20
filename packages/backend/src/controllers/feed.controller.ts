@@ -1276,6 +1276,9 @@ class FeedController {
 
       // Stage 2: Transform deduplicated posts
       const transformedPosts = await this.transformPostsWithProfiles(deduplicatedRawPosts, currentUserId);
+      
+      // Filter out posts from private profiles
+      const filteredPosts = await this.filterPostsByProfilePrivacy(transformedPosts, currentUserId);
 
       // Stage 3: Deduplicate transformed posts by id (defensive check)
       const transformedIdsSeen = new Map<string, any>();
@@ -1551,12 +1554,15 @@ class FeedController {
       const nextCursor = hasMore ? posts[Number(limit) - 1]._id.toString() : undefined;
 
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+      
+      // Filter out posts from private profiles
+      const filteredPosts = await this.filterPostsByProfilePrivacy(transformedPosts, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts,
+        items: filteredPosts,
         hasMore,
         nextCursor,
-        totalCount: transformedPosts.length
+        totalCount: filteredPosts.length
       };
 
       res.json(response);
@@ -1717,12 +1723,15 @@ class FeedController {
       }
 
       const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+      
+      // Filter out posts from private profiles
+      const filteredPosts = await this.filterPostsByProfilePrivacy(transformedPosts, currentUserId);
 
       const response: FeedResponse = {
-        items: transformedPosts,
+        items: filteredPosts,
         hasMore,
         nextCursor,
-        totalCount: transformedPosts.length
+        totalCount: filteredPosts.length
       };
 
       res.json(response);

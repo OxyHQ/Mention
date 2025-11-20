@@ -903,7 +903,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         theme={theme}
                                         t={t}
                                     />
-                                    )}
+                                )}
 
                                 {/* Communities section */}
                                 {profileData?.communities && profileData.communities.length > 0 &&
@@ -929,8 +929,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             />
 
                             {/* Tab Content */}
-                            <ProfileTabs 
-                                tab={tab} 
+                            <ProfileTabs
+                                tab={tab}
                                 profileId={profileData?.id}
                                 isPrivate={isPrivate}
                                 isOwnProfile={isOwnProfile}
