@@ -1,8 +1,7 @@
 import { useTheme } from "@/hooks/useTheme";
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-// BlurView removed — not used after switching to image overlay approach
+import React, { useRef, useState, useEffect, useMemo, useCallback, memo } from 'react';
 import {
     Animated,
     ImageBackground,
@@ -29,9 +28,8 @@ import type { FeedType } from '@mention/shared-types';
 import MediaGrid from '@/components/Profile/MediaGrid';
 import VideosGrid from '@/components/Profile/VideosGrid';
 import { subscriptionService } from '@/services/subscriptionService';
-import { useProfileData } from '@/hooks/useProfileData';
+import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
-import { useSharedValue, withTiming } from 'react-native-reanimated';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
@@ -42,40 +40,352 @@ import { useTranslation } from 'react-i18next';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { toast } from 'sonner';
 
-// Constants for better maintainability and responsive design
+// Constants
 const HEADER_HEIGHT_EXPANDED = 120;
 const HEADER_HEIGHT_NARROWED = 50;
+const SCROLL_CHECK_THROTTLE = 180; // ms - balanced for snappy feel
+const LOAD_MORE_THRESHOLD = 500; // pixels from bottom
+const FEED_LIMIT = 20;
+const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'reposts'] as const;
+const DEFAULT_PADDING = 16;
+const FAB_BOTTOM_MARGIN = 24;
+const FAB_RIGHT_MARGIN = 24;
 
-// Responsive breakpoints following industry standards
-const BREAKPOINTS = {
-    mobile: 768,
-    tablet: 1024,
-    desktop: 1200,
-} as const;
-
-// Type definitions for better type safety
-interface ProfileData {
-    id: string;
-    username: string;
-    displayName?: string;
-    bio?: string;
-    avatarUrl?: string;
-    bannerUrl?: string;
-    isPrivate?: boolean;
-    [key: string]: any;
-}
-
-// Properly typed Follow Button component
-interface FollowButtonProps {
-    userId: string;
-    [key: string]: any;
-}
-
-const AnimatedImageBackground = Animated.createAnimatedComponent(ImageBackground);
-
+// Type definitions
 interface ProfileScreenProps {
     tab?: 'posts' | 'replies' | 'media' | 'videos' | 'likes' | 'reposts';
 }
+
+type FollowButtonComponent = React.ComponentType<{ userId: string }>;
+type UserNameComponent = React.ComponentType<{
+    name?: string | null;
+    handle?: string;
+    verified?: boolean;
+    variant?: 'default' | 'small';
+    style?: {
+        name?: any;
+        handle?: any;
+        container?: any;
+    };
+    unifiedColors?: boolean;
+}>;
+
+// Helper functions
+const isProfilePrivate = (profileData: ProfileData | null, privacySettings?: ProfileData['privacy']): boolean => {
+    if (!profileData) return false;
+    return Boolean(
+        profileData.privacySettings?.isPrivateAccount ||
+        privacySettings?.profileVisibility === 'private' ||
+        privacySettings?.profileVisibility === 'followers_only'
+    );
+};
+
+const tabToIndex = (tabName: string): number => {
+    const index = TAB_NAMES.indexOf(tabName as typeof TAB_NAMES[number]);
+    return index >= 0 ? index : 0;
+};
+
+// Extracted Components
+const ProfileSkeleton = memo<{ theme: ReturnType<typeof useTheme> }>(({ theme }) => {
+    const { SkeletonCircle, SkeletonText, SkeletonPill } = require('@/components/Skeleton');
+
+    return (
+        <View style={[styles.skeletonContainer, { backgroundColor: theme.colors.background }]}>
+            <View style={[styles.skeletonBanner, { backgroundColor: theme.colors.backgroundSecondary, height: 150 }]} />
+            <View style={styles.skeletonContent}>
+                <View style={styles.skeletonAvatarRow}>
+                    <SkeletonCircle size={90} style={{ borderWidth: 3, borderColor: theme.colors.background }} />
+                    <View style={{ flex: 1 }} />
+                    <SkeletonPill size={36} style={{ width: 100, height: 36, marginRight: 8 }} />
+                    <SkeletonCircle size={36} />
+                </View>
+                <SkeletonText style={{ width: '40%', fontSize: 20, marginTop: 12 }} />
+                <SkeletonText style={{ width: '30%', fontSize: 14, marginTop: 8 }} />
+                <SkeletonText style={{ width: '90%', fontSize: 14, marginTop: 12 }} />
+                <SkeletonText style={{ width: '80%', fontSize: 14, marginTop: 8 }} />
+                <View style={[styles.skeletonMetaRow, { marginTop: 12 }]}>
+                    <SkeletonPill size={24} style={{ width: 120, height: 24 }} />
+                    <SkeletonPill size={24} style={{ width: 160, height: 24, marginLeft: 8 }} />
+                    <SkeletonPill size={24} style={{ width: 180, height: 24, marginLeft: 8 }} />
+                </View>
+                <View style={[styles.skeletonTabs, { borderColor: theme.colors.border, marginTop: 16 }]}>
+                    {[...Array(5)].map((_, i) => (
+                        <SkeletonPill key={i} size={32} style={{ width: 60, height: 32, marginRight: 8 }} />
+                    ))}
+                </View>
+            </View>
+        </View>
+    );
+});
+ProfileSkeleton.displayName = 'ProfileSkeleton';
+
+const PrivateBadge = memo<{
+    privacySettings?: ProfileData['privacy'];
+    theme: ReturnType<typeof useTheme>;
+    t: (key: string) => string;
+}>(({ privacySettings, theme, t }) => {
+    const isFollowersOnly = privacySettings?.profileVisibility === 'followers_only';
+    return (
+        <View style={styles.privateIndicator}>
+            <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
+            <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>
+                {isFollowersOnly ? t('settings.privacy.followersOnly') : t('settings.privacy.private')}
+            </Text>
+        </View>
+    );
+});
+PrivateBadge.displayName = 'PrivateBadge';
+
+const ProfileHeaderMinimalist = memo<{
+    displayName: string;
+    username?: string;
+    avatarUri?: string;
+    verified?: boolean;
+    isPrivate: boolean;
+    privacySettings?: ProfileData['privacy'];
+    theme: ReturnType<typeof useTheme>;
+    UserNameComponent: UserNameComponent;
+    t: (key: string) => string;
+}>(({ displayName, username, avatarUri, verified, isPrivate, privacySettings, theme, UserNameComponent, t }) => (
+    <>
+        <View style={styles.minimalistHeader}>
+            <View style={styles.minimalistInfo}>
+                <UserNameComponent
+                    name={displayName}
+                    handle={username}
+                    verified={false}
+                    variant="default"
+                    style={{
+                        name: [styles.profileName, { color: theme.colors.text }],
+                        handle: [styles.profileHandle, { color: theme.colors.textSecondary }],
+                        container: undefined,
+                    }}
+                />
+                {isPrivate && <PrivateBadge privacySettings={privacySettings} theme={theme} t={t} />}
+            </View>
+            <View style={styles.minimalistAvatarContainer}>
+                <ZoomableAvatar
+                    source={avatarUri}
+                    size={70}
+                    style={[styles.avatarMinimalist, {
+                        borderColor: theme.colors.background,
+                        backgroundColor: theme.colors.backgroundSecondary,
+                    }]}
+                    imageStyle={{}}
+                />
+                {verified && (
+                    <View style={[styles.verifiedBadgeMinimalist, { backgroundColor: theme.colors.background }]}>
+                        <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+                    </View>
+                )}
+            </View>
+        </View>
+    </>
+));
+ProfileHeaderMinimalist.displayName = 'ProfileHeaderMinimalist';
+
+const ProfileHeaderDefault = memo<{
+    displayName: string;
+    username?: string;
+    avatarUri?: string;
+    verified?: boolean;
+    isOwnProfile: boolean;
+    currentUsername?: string;
+    profileId?: string;
+    theme: ReturnType<typeof useTheme>;
+    UserNameComponent: UserNameComponent;
+    FollowButtonComponent: FollowButtonComponent;
+    showBottomSheet?: (sheet: string) => void;
+    t: (key: string) => string;
+}>(({ displayName, username, avatarUri, verified, isOwnProfile, currentUsername, profileId, theme, UserNameComponent, FollowButtonComponent, showBottomSheet, t }) => (
+    <View style={styles.avatarRow}>
+        <ZoomableAvatar
+            source={avatarUri}
+            size={90}
+            style={[styles.avatar, {
+                borderColor: theme.colors.background,
+                backgroundColor: theme.colors.backgroundSecondary,
+            }]}
+            imageStyle={{}}
+        />
+        <View style={styles.profileActions}>
+            {isOwnProfile && currentUsername === username ? (
+                <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                        style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
+                        onPress={() => showBottomSheet?.('EditProfile')}
+                    >
+                        <Text style={styles.followButtonText}>{t('profile.editProfile')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                        onPress={() => router.push('/insights')}
+                    >
+                        <AnalyticsIcon size={20} color={theme.colors.text} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                        onPress={() => router.push('/settings')}
+                    >
+                        <Gear size={20} color={theme.colors.text} />
+                    </TouchableOpacity>
+                </View>
+            ) : profileId ? (
+                <FollowButtonComponent userId={profileId} />
+            ) : null}
+        </View>
+    </View>
+));
+ProfileHeaderDefault.displayName = 'ProfileHeaderDefault';
+
+const ProfileActions = memo<{
+    isOwnProfile: boolean;
+    currentUsername?: string;
+    profileUsername?: string;
+    profileId?: string;
+    theme: ReturnType<typeof useTheme>;
+    FollowButtonComponent: FollowButtonComponent;
+    showBottomSheet?: (sheet: string) => void;
+    t: (key: string) => string;
+}>(({ isOwnProfile, currentUsername, profileUsername, profileId, theme, FollowButtonComponent, showBottomSheet, t }) => {
+    if (!isOwnProfile || currentUsername !== profileUsername) {
+        return profileId ? <FollowButtonComponent userId={profileId} /> : null;
+    }
+
+    return (
+        <View style={styles.actionButtons}>
+            <TouchableOpacity
+                style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => showBottomSheet?.('EditProfile')}
+            >
+                <Text style={styles.followButtonText}>{t('profile.editProfile')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                onPress={() => router.push('/insights')}
+            >
+                <AnalyticsIcon size={20} color={theme.colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                onPress={() => router.push('/settings')}
+            >
+                <Gear size={20} color={theme.colors.text} />
+            </TouchableOpacity>
+        </View>
+    );
+});
+ProfileActions.displayName = 'ProfileActions';
+
+const ProfileStats = memo<{
+    followingCount: number;
+    followerCount: number;
+    profileUsername?: string;
+    username: string;
+    theme: ReturnType<typeof useTheme>;
+    t: (key: string) => string;
+}>(({ followingCount, followerCount, profileUsername, username, theme, t }) => (
+    <View style={styles.followStats}>
+        <TouchableOpacity
+            style={styles.statItem}
+            onPress={() => router.push(`/@${profileUsername || username}/following` as any)}
+        >
+            <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                {followingCount ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('profile.following')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+            style={styles.statItem}
+            onPress={() => router.push(`/@${profileUsername || username}/followers` as any)}
+        >
+            <Text style={[styles.statNumber, { color: theme.colors.text }]}>
+                {followerCount ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('profile.followers')}</Text>
+        </TouchableOpacity>
+    </View>
+));
+ProfileStats.displayName = 'ProfileStats';
+
+interface Community {
+    id?: string;
+    name: string;
+    description?: string;
+    icon?: string;
+    memberCount?: number;
+}
+
+const ProfileCommunities = memo<{
+    communities: Community[];
+    theme: ReturnType<typeof useTheme>;
+    t: (key: string) => string;
+}>(({ communities, theme, t }) => (
+    <View style={styles.communitiesSection}>
+        <Text style={[styles.communitiesTitle, { color: theme.colors.text }]}>{t('profile.communities')}</Text>
+        {communities.map((community, index) => (
+            <View key={community.id || index} style={[styles.communityCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+                <View style={styles.communityHeader}>
+                    {community.icon && (
+                        <View style={styles.communityIcon}>
+                            <Image
+                                source={{ uri: community.icon }}
+                                resizeMode="cover"
+                                style={styles.communityIconImage}
+                            />
+                        </View>
+                    )}
+                    <View style={styles.communityInfo}>
+                        <Text style={[styles.communityName, { color: theme.colors.text }]}>{community.name}</Text>
+                        {community.description && (
+                            <Text style={[styles.communityDescription, { color: theme.colors.textSecondary }]}>
+                                {community.description}
+                            </Text>
+                        )}
+                        {community.memberCount && (
+                            <View style={styles.communityMembers}>
+                                <Text style={[styles.memberCount, { color: theme.colors.textSecondary }]}>
+                                    {(t as any)('profile.memberCount', {
+                                        count: community.memberCount,
+                                        defaultValue: `${community.memberCount} Members`
+                                    })}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+                <TouchableOpacity style={styles.viewButtonInCard}>
+                    <Text style={[styles.viewButtonText, { color: theme.colors.primary }]}>{t('profile.view')}</Text>
+                </TouchableOpacity>
+            </View>
+        ))}
+    </View>
+));
+ProfileCommunities.displayName = 'ProfileCommunities';
+
+const ProfileTabs = memo<{
+    tab: string;
+    profileId?: string;
+}>(({ tab, profileId }) => {
+    if (tab === 'media') {
+        return <MediaGrid userId={profileId} />;
+    }
+
+    if (tab === 'videos') {
+        return <VideosGrid userId={profileId} />;
+    }
+
+    return (
+        <Feed
+            type={tab as FeedType}
+            userId={profileId}
+            hideHeader={true}
+            scrollEnabled={false}
+            contentContainerStyle={{ paddingBottom: 100 }}
+        />
+    );
+});
+ProfileTabs.displayName = 'ProfileTabs';
 
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
@@ -83,8 +393,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const { t } = useTranslation();
 
     // Type-safe component references
-    const TypedFollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<FollowButtonProps>;
-    const TypedUserName = UserName as React.ComponentType<any>;
+    const FollowButtonComponent = (OxyServicesNS as { FollowButton?: FollowButtonComponent }).FollowButton as FollowButtonComponent;
+    const UserNameComponent = UserName as UserNameComponent;
 
     let { username: urlUsername } = useLocalSearchParams<{ username: string }>();
     if (urlUsername && urlUsername.startsWith('@')) {
@@ -92,54 +402,48 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     }
     const username = urlUsername || '';
 
-    // Determine active tab from route prop
-    const tabToIndex = (tabName: string): number => {
-        switch (tabName) {
-            case 'posts': return 0;
-            case 'replies': return 1;
-            case 'media': return 2;
-            case 'videos': return 3;
-            case 'likes': return 4;
-            case 'reposts': return 5;
-            default: return 0;
-        }
-    };
-    const activeTab = tabToIndex(tab);
+    const activeTab = useMemo(() => tabToIndex(tab), [tab]);
 
-    // Unified profile data hook - handles Oxy profile + backend settings
+    // Unified profile data hook
     const { data: profileData, loading } = useProfileData(username);
     const {
         scrollY,
         createAnimatedScrollHandler,
-        scrollEventThrottle,
         registerScrollable,
     } = useLayoutScroll();
     const insets = useSafeAreaInsets();
     const { width } = useWindowDimensions();
-    const isWideWeb = Platform.OS === 'web' && width >= BREAKPOINTS.mobile;
-    const isTablet = width >= BREAKPOINTS.tablet;
-    const isDesktop = width >= BREAKPOINTS.desktop;
-    const fabTranslateY = useSharedValue(0);
-    const fabHeight = 80; // FAB height + bottom margin
 
-    // Responsive spacing based on screen size
-    const responsiveSpacing = useMemo(() => ({
-        horizontal: isDesktop ? 32 : isTablet ? 24 : 16,
-        vertical: isDesktop ? 24 : isTablet ? 20 : 16,
-        headerPadding: isWideWeb ? 24 : 16,
-    }), [isDesktop, isTablet, isWideWeb]);
-
-    // Track current feed type for the active tab
-    const currentFeedType = useMemo<FeedType>(() => tab as FeedType, [tab]);
+    // Refs for scroll handling
     const loadingMoreRef = useRef(false);
     const profileScrollRef = useRef<any>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
+    const lastScrollCheckRef = useRef(0);
+
+    // Pre-read store methods for performance
+    const fetchUserFeedRef = useRef<((userId: string, request: { type: FeedType; cursor?: string; limit: number }) => Promise<void>) | null>(null);
+    const getUserSliceRef = useRef<((userId: string, type: FeedType) => {
+        hasMore: boolean;
+        nextCursor?: string;
+        isLoading: boolean;
+    } | undefined) | null>(null);
+
+    useEffect(() => {
+        const store = usePostsStore.getState();
+        fetchUserFeedRef.current = store.fetchUserFeed;
+        getUserSliceRef.current = (userId: string, type: FeedType) => {
+            const state = usePostsStore.getState();
+            return state.userFeeds[userId]?.[type];
+        };
+    }, []);
+
     const clearProfileRegistration = useCallback(() => {
         if (unregisterScrollableRef.current) {
             unregisterScrollableRef.current();
             unregisterScrollableRef.current = null;
         }
     }, []);
+
     const assignProfileScrollRef = useCallback((node: any) => {
         profileScrollRef.current = node;
         clearProfileRegistration();
@@ -148,18 +452,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         }
     }, [clearProfileRegistration, registerScrollable]);
 
-    // Disable FAB animation completely for better performance
-    // useEffect(() => {
-    //     ... FAB animation code disabled ...
-    // }, [scrollY, fabTranslateY, fabHeight]);
-
-    // Optimized scroll handler - check less frequently but smoothly
-    const lastScrollCheckRef = useRef(0);
-    const SCROLL_CHECK_THROTTLE = 250; // Check every 250ms for load more (balanced)
-
+    // Optimized scroll handler
     const handleProfileScrollEvent = useCallback((event: any) => {
         const now = Date.now();
-        // Throttle load-more checks but allow scroll tracking for animations
         if (now - lastScrollCheckRef.current < SCROLL_CHECK_THROTTLE) {
             return;
         }
@@ -179,18 +474,17 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             const viewH = layoutMeasurement?.height || 0;
             const contentH = contentSize?.height || 0;
             const distanceFromBottom = contentH - (y + viewH);
-            if (distanceFromBottom < 400) {
+
+            if (distanceFromBottom < LOAD_MORE_THRESHOLD) {
                 const uid = profileData?.id;
-                if (!uid || loadingMoreRef.current) return;
-                const state: any = (usePostsStore as any).getState?.();
-                if (!state) return;
-                const type = currentFeedType;
-                const slice = state?.userFeeds?.[uid]?.[type];
+                if (!uid || loadingMoreRef.current || !fetchUserFeedRef.current || !getUserSliceRef.current) return;
+
+                const slice = getUserSliceRef.current(uid, tab as FeedType);
                 if (slice && slice.hasMore && !slice.isLoading) {
                     loadingMoreRef.current = true;
                     void (async () => {
                         try {
-                            await state.fetchUserFeed(uid, { type, cursor: slice.nextCursor, limit: 20 });
+                            await fetchUserFeedRef.current!(uid, { type: tab as FeedType, cursor: slice.nextCursor, limit: FEED_LIMIT });
                         } finally {
                             loadingMoreRef.current = false;
                         }
@@ -200,7 +494,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         } catch {
             // ignore scroll read errors
         }
-    }, [currentFeedType, profileData?.id]);
+    }, [tab, profileData?.id]);
+
     const onProfileScroll = useMemo(
         () => createAnimatedScrollHandler(handleProfileScrollEvent),
         [createAnimatedScrollHandler, handleProfileScrollEvent]
@@ -210,14 +505,12 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         clearProfileRegistration();
     }, [clearProfileRegistration]);
 
+    // Stable userId for useFollow - use empty string if no profile to avoid hook issues
+    const stableUserId = profileData?.id || '';
     const {
-        followerCount,
-        followingCount,
-        isLoadingCounts: _isLoadingCounts,
-        fetchUserCounts: _fetchUserCounts,
-        setFollowerCount: _setFollowerCount,
-        setFollowingCount: _setFollowingCount,
-    } = (useFollow as any)(profileData?.id);
+        followerCount = 0,
+        followingCount = 0,
+    } = (useFollow as (userId: string) => { followerCount?: number; followingCount?: number })(stableUserId);
 
     // Extract computed values from unified profile data
     const design = profileData?.design;
@@ -227,29 +520,32 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         ? oxyServices.getFileDownloadUrl(design.coverImage, 'full')
         : undefined;
     const minimalistMode = design?.minimalistMode ?? false;
-    const primaryColor = design?.primaryColor || theme.colors.primary;
     const privacySettings = profileData?.privacy;
 
-    const tabs = [
+    // Memoized tabs array
+    const tabs = useMemo(() => [
         t('profile.tabs.posts'),
         t('profile.tabs.replies'),
         t('profile.tabs.media'),
         t('profile.tabs.videos'),
         t('profile.tabs.likes'),
         t('profile.tabs.reposts')
-    ];
+    ], [t]);
 
-    // Memoize own profile check - compare Oxy user IDs only
+    // Memoize own profile check
     const isOwnProfile = useMemo(() => {
         if (!currentUser?.id || !profileData?.id) return false;
         return currentUser.id === profileData.id;
     }, [currentUser?.id, profileData?.id]);
 
-    // Subscription (post notifications) state
+    // Memoize privacy check
+    const isPrivate = useMemo(() => isProfilePrivate(profileData, privacySettings), [profileData, privacySettings]);
+
+    // Subscription state
     const [subscribed, setSubscribed] = useState<boolean>(false);
     const [subLoading, setSubLoading] = useState<boolean>(false);
 
-    // Load subscription status when profile data is available (only for other users)
+    // Load subscription status
     useEffect(() => {
         if (isOwnProfile || !profileData?.id) return;
 
@@ -259,7 +555,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 const { subscribed } = await subscriptionService.getStatus(profileData.id);
                 if (!cancelled) setSubscribed(!!subscribed);
             } catch (error) {
-                // silent fail; keep default false
                 console.error('Error loading subscription status:', error);
             }
         };
@@ -282,7 +577,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 toast.success(t('subscription.unsubscribed'));
             }
         } catch (error: any) {
-            // rollback on error
             setSubscribed(prev);
             const errorMessage = error?.response?.data?.message || error?.message || t('subscription.error');
             toast.error(errorMessage);
@@ -292,20 +586,16 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         }
     }, [profileData?.id, subLoading, subscribed, isOwnProfile, t]);
 
-
-    const onTabPress = (index: number) => {
+    const onTabPress = useCallback((index: number) => {
         if (!username) return;
-        const tabNames = ['posts', 'replies', 'media', 'videos', 'likes', 'reposts'];
-        const tabName = tabNames[index];
+        const tabName = TAB_NAMES[index];
         const path = index === 0
             ? `/@${username}`
             : `/@${username}/${tabName}`;
-        // Use push to maintain browser history for back button
-        // Animation still works because layout route keeps component mounted
         router.push(path as any);
-    };
+    }, [username]);
 
-    const handleShare = async () => {
+    const handleShare = useCallback(async () => {
         if (!profileData) return;
 
         try {
@@ -326,9 +616,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         } catch (error) {
             console.error('Error sharing profile:', error);
         }
-    };
-
-
+    }, [profileData, displayName, t]);
 
     // Header background opacity animation
     const headerBackgroundOpacity = useMemo(() => scrollY.interpolate({
@@ -337,94 +625,36 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         extrapolate: 'clamp',
     }), [scrollY]);
 
-    const renderTabContent = useCallback(() => {
-        if (tab === 'media') {
-            return (
-                <MediaGrid userId={profileData?.id} />
-            );
-        }
+    // Memoized SEO data
+    const profileDisplayName = useMemo(() => displayName || profileData?.username || username, [displayName, profileData?.username, username]);
+    const profileBio = useMemo(() => profileData?.bio || '', [profileData?.bio]);
+    const profileImage = useMemo(() => avatarUri || bannerUri, [avatarUri, bannerUri]);
 
-        if (tab === 'videos') {
-            return (
-                <VideosGrid userId={profileData?.id} />
-            );
-        }
-
-        return (
-            <Feed
-                type={tab as any}
-                userId={profileData?.id}
-                hideHeader={true}
-                scrollEnabled={false}
-                contentContainerStyle={{ paddingBottom: 100 }}
-            />
-        );
-    }, [tab, profileData?.id]);
-
-    const ProfileSkeleton: React.FC = () => {
-        const { SkeletonCircle, SkeletonText, SkeletonPill } = require('@/components/Skeleton');
-
-        return (
-            <View style={[styles.skeletonContainer, { backgroundColor: theme.colors.background }]}>
-                {/* Banner placeholder */}
-                <View style={[styles.skeletonBanner, { backgroundColor: theme.colors.backgroundSecondary, height: 150 }]} />
-
-                <View style={styles.skeletonContent}>
-                    {/* Avatar row */}
-                    <View style={styles.skeletonAvatarRow}>
-                        <SkeletonCircle size={90} style={{ borderWidth: 3, borderColor: theme.colors.background }} />
-                        <View style={{ flex: 1 }} />
-                        <SkeletonPill size={36} style={{ width: 100, height: 36, marginRight: 8 }} />
-                        <SkeletonCircle size={36} />
-                    </View>
-
-                    {/* Name + handle */}
-                    <SkeletonText style={{ width: '40%', fontSize: 20, marginTop: 12 }} />
-                    <SkeletonText style={{ width: '30%', fontSize: 14, marginTop: 8 }} />
-
-                    {/* Bio lines */}
-                    <SkeletonText style={{ width: '90%', fontSize: 14, marginTop: 12 }} />
-                    <SkeletonText style={{ width: '80%', fontSize: 14, marginTop: 8 }} />
-
-                    {/* Meta */}
-                    <View style={[styles.skeletonMetaRow, { marginTop: 12 }]}>
-                        <SkeletonPill size={24} style={{ width: 120, height: 24 }} />
-                        <SkeletonPill size={24} style={{ width: 160, height: 24, marginLeft: 8 }} />
-                        <SkeletonPill size={24} style={{ width: 180, height: 24, marginLeft: 8 }} />
-                    </View>
-
-                    {/* Tabs */}
-                    <View style={[styles.skeletonTabs, { borderColor: theme.colors.border, marginTop: 16 }]}>
-                        {[...Array(5)].map((_, i) => (
-                            <SkeletonPill key={i} size={32} style={{ width: 60, height: 32, marginRight: 8 }} />
-                        ))}
-                    </View>
-                </View>
-            </View>
-        );
-    };
-
-    // Generate SEO data for profile
-    const profileDisplayName = displayName || profileData?.username || username;
-    const profileBio = profileData?.bio || '';
-    const profileImage = avatarUri || bannerUri;
-    const { t: tProfile } = useTranslation();
+    // Memoized themed styles
+    const themedStyles = useMemo(() => ({
+        container: { paddingTop: insets.top, backgroundColor: theme.colors.background },
+        headerActions: { top: insets.top + 6 },
+        headerNameOverlay: { top: insets.top + 6 },
+        scrollView: { marginTop: minimalistMode ? 0 : HEADER_HEIGHT_NARROWED },
+        contentContainer: { paddingTop: minimalistMode ? insets.top + 60 : HEADER_HEIGHT_EXPANDED - insets.top },
+        fabStyle: { position: 'absolute' as const, bottom: FAB_BOTTOM_MARGIN + insets.bottom, right: FAB_RIGHT_MARGIN, zIndex: 1000 },
+    }), [insets.top, insets.bottom, minimalistMode, theme.colors.background]);
 
     return (
         <>
             <SEO
-                title={tProfile('seo.profile.title', {
+                title={t('seo.profile.title', {
                     name: profileDisplayName,
                     username: username,
                     defaultValue: `${profileDisplayName} (@${username}) on Mention`
                 })}
                 description={profileBio
-                    ? tProfile('seo.profile.description', {
+                    ? t('seo.profile.description', {
                         name: profileDisplayName,
                         bio: profileBio,
                         defaultValue: `View ${profileDisplayName}'s profile on Mention. ${profileBio}`
                     })
-                    : tProfile('seo.profile.description', {
+                    : t('seo.profile.description', {
                         name: profileDisplayName,
                         bio: '',
                         defaultValue: `View ${profileDisplayName}'s profile on Mention.`
@@ -432,16 +662,15 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 image={profileImage}
                 type="profile"
             />
-            <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
+            <View style={[styles.container, themedStyles.container]}>
                 <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} />
 
                 {loading ? (
-                    <ProfileSkeleton />
+                    <ProfileSkeleton theme={theme} />
                 ) : (
                     <>
                         {/* Header actions */}
-                        <View style={[styles.headerActions, { top: insets.top + 6 }]}>
-                            {/* Only show notifications icon for other users' profiles, not your own */}
+                        <View style={[styles.headerActions, themedStyles.headerActions]}>
                             {!isOwnProfile && (
                                 <HeaderIconButton
                                     onPress={toggleSubscription}
@@ -466,14 +695,14 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         <View
                             style={[
                                 styles.headerNameOverlay,
+                                themedStyles.headerNameOverlay,
                                 {
-                                    top: insets.top + 6,
-                                    opacity: 0, // Disabled animation
-                                    backgroundColor: 'transparent', // Ensure transparent background
+                                    opacity: 0,
+                                    backgroundColor: 'transparent',
                                 },
                             ]}
                         >
-                            <TypedUserName
+                            <UserNameComponent
                                 name={displayName}
                                 verified={profileData?.verified}
                                 style={{ name: [styles.headerTitle, { color: theme.colors.text }] }}
@@ -487,10 +716,9 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             </Text>
                         </View>
 
-                        {/* Banner - simplified: single layer with fade overlay only */}
+                        {/* Banner */}
                         {!minimalistMode && (bannerUri ? (
                             <>
-                                {/* Base banner image - no transform for better performance */}
                                 <ImageBackground
                                     source={{ uri: bannerUri }}
                                     style={[
@@ -500,9 +728,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         },
                                     ]}
                                 />
-                                {/* Background overlay - animated on scroll */}
                                 <Animated.View
-                                    pointerEvents={'none' as any}
+                                    pointerEvents="none"
                                     style={[
                                         styles.banner,
                                         {
@@ -528,7 +755,6 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     },
                                 ]}
                             >
-                                {/* Overlay - animated on scroll */}
                                 <Animated.View
                                     style={[
                                         StyleSheet.absoluteFillObject,
@@ -542,172 +768,84 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         ))}
 
                         {/* Profile content + posts */}
-                        {/* Optimized ScrollView - Instagram/Twitter-level smoothness */}
                         <Animated.ScrollView
                             ref={assignProfileScrollRef}
                             showsVerticalScrollIndicator={false}
                             onScroll={onProfileScroll}
-                            scrollEventThrottle={16} // 60fps smooth scrolling like Instagram/Twitter
-                            style={[styles.scrollView, { marginTop: minimalistMode ? 0 : HEADER_HEIGHT_NARROWED }]}
-                            contentContainerStyle={{ paddingTop: minimalistMode ? insets.top + 60 : HEADER_HEIGHT_EXPANDED - insets.top }}
-                            stickyHeaderIndices={[1]} // Tab bar is sticky (index 1: profile info is 0, tabs are 1)
-                            nestedScrollEnabled={false} // Disabled nested scrolling for performance
+                            scrollEventThrottle={16}
+                            style={[styles.scrollView, themedStyles.scrollView]}
+                            contentContainerStyle={themedStyles.contentContainer}
+                            stickyHeaderIndices={[1]}
+                            nestedScrollEnabled={false}
                             removeClippedSubviews={Platform.OS !== 'web'}
                             disableIntervalMomentum={true}
-                            decelerationRate="normal" // Smooth deceleration
+                            decelerationRate="normal"
                             {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
                         >
                             {/* Profile info */}
                             <View style={[styles.profileContent, { backgroundColor: theme.colors.background }, minimalistMode && styles.profileContentMinimalist]}>
                                 {minimalistMode ? (
-                                    // Minimalist layout: horizontal with avatar on right
-                                    <View style={styles.minimalistHeader}>
-                                        <View style={styles.minimalistInfo}>
-                                            <TypedUserName
-                                                name={displayName}
-                                                handle={profileData?.username}
-                                                verified={false}
-                                                variant="default"
-                                                style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
-                                            />
-                                            {(() => {
-                                                const isPrivate = profileData?.privacySettings?.isPrivateAccount ||
-                                                    privacySettings?.profileVisibility === 'private' ||
-                                                    privacySettings?.profileVisibility === 'followers_only';
-                                                if (isPrivate) {
-                                                    return (
-                                                        <View style={styles.privateIndicator}>
-                                                            <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
-                                                            <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>
-                                                                {privacySettings?.profileVisibility === 'followers_only'
-                                                                    ? tProfile('settings.privacy.followersOnly')
-                                                                    : tProfile('settings.privacy.private')}
-                                                            </Text>
-                                                        </View>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
-                                        </View>
-                                        <View style={styles.minimalistAvatarContainer}>
-                                            <ZoomableAvatar
-                                                source={avatarUri}
-                                                size={70}
-                                                style={[styles.avatarMinimalist, {
-                                                    borderColor: theme.colors.background,
-                                                    backgroundColor: theme.colors.backgroundSecondary,
-                                                }]}
-                                                imageStyle={{}}
-                                            />
-                                            {profileData?.verified && (
-                                                <View style={[styles.verifiedBadgeMinimalist, { backgroundColor: theme.colors.background }]}>
-                                                    <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
-                                                </View>
-                                            )}
-                                        </View>
-                                    </View>
+                                    <ProfileHeaderMinimalist
+                                        displayName={displayName}
+                                        username={profileData?.username}
+                                        avatarUri={avatarUri}
+                                        verified={profileData?.verified}
+                                        isPrivate={isPrivate}
+                                        privacySettings={privacySettings}
+                                        theme={theme}
+                                        UserNameComponent={UserNameComponent}
+                                        t={t}
+                                    />
                                 ) : (
-                                    // Default layout: avatar overlapping banner
-                                    <View style={styles.avatarRow}>
-                                        <ZoomableAvatar
-                                            source={avatarUri}
-                                            size={90}
-                                            style={[styles.avatar, {
-                                                borderColor: theme.colors.background,
-                                                backgroundColor: theme.colors.backgroundSecondary,
-                                            }]}
-                                            imageStyle={{}}
-                                        />
-
-                                        <View style={styles.profileActions}>
-                                            {currentUser?.username === username ? (
-                                                <View style={styles.actionButtons}>
-                                                    <TouchableOpacity
-                                                        style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
-                                                        onPress={() => showBottomSheet?.('EditProfile')}
-                                                    >
-                                                        <Text style={styles.followButtonText}>{t('profile.editProfile')}</Text>
-                                                    </TouchableOpacity>
-                                                    <TouchableOpacity
-                                                        style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                        onPress={() => router.push('/insights')}
-                                                    >
-                                                        <AnalyticsIcon size={20} color={theme.colors.text} />
-                                                    </TouchableOpacity>
-                                                    <TouchableOpacity
-                                                        style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                        onPress={() => router.push('/settings')}
-                                                    >
-                                                        <Gear size={20} color={theme.colors.text} />
-                                                    </TouchableOpacity>
-                                                </View>
-                                            ) : profileData?.id ? (
-                                                <TypedFollowButton userId={profileData.id} />
-                                            ) : null}
-                                        </View>
-                                    </View>
+                                    <ProfileHeaderDefault
+                                        displayName={displayName}
+                                        username={profileData?.username}
+                                        avatarUri={avatarUri}
+                                        verified={profileData?.verified}
+                                        isOwnProfile={isOwnProfile}
+                                        currentUsername={currentUser?.username}
+                                        profileId={profileData?.id}
+                                        theme={theme}
+                                        UserNameComponent={UserNameComponent}
+                                        FollowButtonComponent={FollowButtonComponent}
+                                        showBottomSheet={showBottomSheet}
+                                        t={t}
+                                    />
                                 )}
 
                                 {/* Action buttons for minimalist mode */}
                                 {minimalistMode && (
                                     <View style={styles.minimalistActions}>
-                                        {currentUser?.username === username ? (
-                                            <View style={styles.actionButtons}>
-                                                <TouchableOpacity
-                                                    style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
-                                                    onPress={() => showBottomSheet?.('EditProfile')}
-                                                >
-                                                    <Text style={styles.followButtonText}>{t('profile.editProfile')}</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                    onPress={() => router.push('/insights')}
-                                                >
-                                                    <AnalyticsIcon size={20} color={theme.colors.text} />
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={[styles.settingsButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                                                    onPress={() => router.push('/settings')}
-                                                >
-                                                    <Gear size={20} color={theme.colors.text} />
-                                                </TouchableOpacity>
-                                            </View>
-                                        ) : profileData?.id ? (
-                                            <TypedFollowButton userId={profileData.id} />
-                                        ) : null}
+                                        <ProfileActions
+                                            isOwnProfile={isOwnProfile}
+                                            currentUsername={currentUser?.username}
+                                            profileUsername={profileData?.username}
+                                            profileId={profileData?.id}
+                                            theme={theme}
+                                            FollowButtonComponent={FollowButtonComponent}
+                                            showBottomSheet={showBottomSheet}
+                                            t={t}
+                                        />
                                     </View>
                                 )}
 
                                 {!minimalistMode && (
                                     <View>
-                                        <TypedUserName
+                                        <UserNameComponent
                                             name={displayName}
                                             handle={profileData?.username}
                                             verified={profileData?.verified}
                                             variant="default"
-                                            style={{ name: [styles.profileName, { color: theme.colors.text }], handle: [styles.profileHandle, { color: theme.colors.textSecondary }], container: undefined } as any}
+                                            style={{
+                                                name: [styles.profileName, { color: theme.colors.text }],
+                                                handle: [styles.profileHandle, { color: theme.colors.textSecondary }],
+                                                container: undefined,
+                                            }}
                                         />
-                                        {(() => {
-                                            // Check both old structure (privacySettings.isPrivateAccount) and new structure (privacySettings.profileVisibility)
-                                            const isPrivate = profileData?.privacySettings?.isPrivateAccount ||
-                                                privacySettings?.profileVisibility === 'private' ||
-                                                privacySettings?.profileVisibility === 'followers_only';
-                                            if (isPrivate) {
-                                                return (
-                                                    <View style={styles.privateIndicator}>
-                                                        <Ionicons name="lock-closed" size={12} color={theme.colors.textSecondary} />
-                                                        <Text style={[styles.privateText, { color: theme.colors.textSecondary }]}>
-                                                            {privacySettings?.profileVisibility === 'followers_only'
-                                                                ? tProfile('settings.privacy.followersOnly')
-                                                                : tProfile('settings.privacy.private')}
-                                                        </Text>
-                                                    </View>
-                                                );
-                                            }
-                                            return null;
-                                        })()}
+                                        {isPrivate && <PrivateBadge privacySettings={privacySettings} theme={theme} t={t} />}
                                     </View>
                                 )}
+
                                 {!minimalistMode && profileData?.bio && (
                                     <Text style={[styles.profileBio, { color: theme.colors.text }]}>
                                         {profileData.bio}
@@ -723,11 +861,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     )}
                                     {profileData?.links && profileData.links.length > 0 && (
                                         <View style={styles.metaItem}>
-                                            <View
-                                                style={{
-                                                    transform: [{ rotate: '-45deg' }],
-                                                }}
-                                            >
+                                            <View style={{ transform: [{ rotate: '-45deg' }] }}>
                                                 <Ionicons name="link-outline" size={16} color={theme.colors.textSecondary} />
                                             </View>
                                             <Text style={[styles.metaText, styles.linkText, { color: theme.colors.primary }]}>{profileData.links[0]}</Text>
@@ -741,82 +875,31 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     </View>
                                 </View>
 
-                                {(() => {
-                                    const isPrivate = profileData?.privacySettings?.isPrivateAccount ||
-                                        privacySettings?.profileVisibility === 'private' ||
-                                        privacySettings?.profileVisibility === 'followers_only';
-                                    return (!isPrivate || currentUser?.username === username);
-                                })() && (
-                                        <View style={styles.followStats}>
-                                            <TouchableOpacity
-                                                style={styles.statItem}
-                                                onPress={() => router.push(`/@${profileData?.username || username}/following` as any)}
-                                            >
-                                                <Text style={[styles.statNumber, { color: theme.colors.text }]}>
-                                                    {followingCount ?? 0}
-                                                </Text>
-                                                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('profile.following')}</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={styles.statItem}
-                                                onPress={() => router.push(`/@${profileData?.username || username}/followers` as any)}
-                                            >
-                                                <Text style={[styles.statNumber, { color: theme.colors.text }]}>
-                                                    {followerCount ?? 0}
-                                                </Text>
-                                                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('profile.followers')}</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
+                                {(!isPrivate || isOwnProfile) && (
+                                    <ProfileStats
+                                        followingCount={followingCount}
+                                        followerCount={followerCount}
+                                        profileUsername={profileData?.username}
+                                        username={username}
+                                        theme={theme}
+                                        t={t}
+                                    />
+                                )}
 
                                 {/* Communities section */}
                                 {profileData?.communities && profileData.communities.length > 0 &&
-                                    (!profileData?.privacySettings?.isPrivateAccount || currentUser?.username === username) && (
-                                        <View style={styles.communitiesSection}>
-                                            <Text style={[styles.communitiesTitle, { color: theme.colors.text }]}>{t('profile.communities')}</Text>
-                                            {profileData.communities.map((community: any, index: number) => (
-                                                <View key={community.id || index} style={[styles.communityCard, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-                                                    <View style={styles.communityHeader}>
-                                                        {community.icon && (
-                                                            <View style={styles.communityIcon}>
-                                                                <Image
-                                                                    source={{ uri: community.icon }}
-                                                                    resizeMode="cover"
-                                                                    style={styles.communityIconImage as any}
-                                                                />
-                                                            </View>
-                                                        )}
-                                                        <View style={styles.communityInfo}>
-                                                            <Text style={[styles.communityName, { color: theme.colors.text }]}>{community.name}</Text>
-                                                            {community.description && (
-                                                                <Text style={[styles.communityDescription, { color: theme.colors.textSecondary }]}>
-                                                                    {community.description}
-                                                                </Text>
-                                                            )}
-                                                            {community.memberCount && (
-                                                                <View style={styles.communityMembers}>
-                                                                    <Text style={[styles.memberCount, { color: theme.colors.textSecondary }]}>
-                                                                        {t('profile.memberCount', {
-                                                                            count: community.memberCount,
-                                                                            defaultValue: `${community.memberCount} Members`
-                                                                        })}
-                                                                    </Text>
-                                                                </View>
-                                                            )}
-                                                        </View>
-                                                    </View>
-                                                    <TouchableOpacity style={styles.viewButtonInCard}>
-                                                        <Text style={[styles.viewButtonText, { color: theme.colors.primary }]}>{t('profile.view')}</Text>
-                                                    </TouchableOpacity>
-                                                </View>
-                                            ))}
-                                        </View>
+                                    (!isPrivate || isOwnProfile) && (
+                                        <ProfileCommunities
+                                            communities={profileData.communities}
+                                            theme={theme}
+                                            t={t}
+                                        />
                                     )}
                             </View>
 
                             {/* Tabs */}
                             <AnimatedTabBar
-                                tabs={tabs.map((tab, i) => ({ id: String(i), label: tab }))}
+                                tabs={tabs.map((tabLabel, i) => ({ id: String(i), label: tabLabel }))}
                                 activeTabId={String(activeTab)}
                                 onTabPress={(id) => {
                                     const index = parseInt(id);
@@ -827,14 +910,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             />
 
                             {/* Tab Content */}
-                            {renderTabContent()}
+                            <ProfileTabs tab={tab} profileId={profileData?.id} />
                         </Animated.ScrollView>
 
-                        {/* FAB - rendered after ScrollView to ensure visibility */}
+                        {/* FAB */}
                         <FloatingActionButton
                             onPress={() => router.push('/compose')}
-                            animatedTranslateY={fabTranslateY}
-                            style={{ position: 'absolute', bottom: 24 + insets.bottom, right: 24, zIndex: 1000 }}
+                            style={themedStyles.fabStyle}
                         />
                     </>
                 )}
@@ -851,7 +933,7 @@ const styles = StyleSheet.create({
     headerActions: {
         zIndex: 10,
         position: 'absolute',
-        right: 16,
+        right: DEFAULT_PADDING,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
@@ -859,7 +941,7 @@ const styles = StyleSheet.create({
     headerNameOverlay: {
         zIndex: 10,
         position: 'absolute',
-        left: 16,
+        left: DEFAULT_PADDING,
         alignItems: 'flex-start',
     },
     headerTitle: {
@@ -879,11 +961,9 @@ const styles = StyleSheet.create({
     scrollView: {
         zIndex: 3,
     },
-    profileContainer: {
-    },
     profileContent: {
-        paddingHorizontal: 16,
-        paddingBottom: 16,
+        paddingHorizontal: DEFAULT_PADDING,
+        paddingBottom: DEFAULT_PADDING,
     },
     avatarRow: {
         flexDirection: 'row',
@@ -891,10 +971,6 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
         marginTop: -45,
         marginBottom: 10,
-    },
-    avatarRowMinimalist: {
-        marginTop: 0,
-        marginBottom: 16,
     },
     profileContentMinimalist: {
         paddingTop: 0,
@@ -941,16 +1017,6 @@ const styles = StyleSheet.create({
     profileActions: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    notificationButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        borderWidth: 1,
-        // borderColor will be set inline with theme
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 8,
     },
     followButton: {
         paddingHorizontal: 24,
@@ -1011,10 +1077,6 @@ const styles = StyleSheet.create({
     statLabel: {
         fontSize: 15,
     },
-    followedBy: {
-        fontSize: 15,
-    },
-
     communitiesSection: {
         marginTop: 16,
     },
@@ -1044,10 +1106,6 @@ const styles = StyleSheet.create({
         marginRight: 12,
         overflow: 'hidden',
     },
-    communityIconGradient: {
-        flex: 1,
-        borderRadius: 8,
-    },
     communityInfo: {
         flex: 1,
     },
@@ -1066,22 +1124,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 12,
     },
-    memberAvatars: {
-        flexDirection: 'row',
-        marginRight: 8,
-    },
-    memberAvatar: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        borderWidth: 2,
-        // borderColor will be set inline with theme
-    },
-    avatarCircle: {
-        flex: 1,
-        // backgroundColor will be set inline with theme
-        borderRadius: 10,
-    },
     memberCount: {
         fontSize: 13,
     },
@@ -1099,78 +1141,26 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textAlign: "center"
     },
-    skeletonTab: {
-        flex: 1,
-        height: 28,
-        borderRadius: 14,
-    },
-    handleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    stickyTabBarContent: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    // Skeleton styles
     skeletonContainer: {
         flex: 1,
     },
     skeletonContent: {
-        paddingHorizontal: 16,
+        paddingHorizontal: DEFAULT_PADDING,
         marginTop: 16,
     },
     skeletonBanner: {
-        height: 170, // HEADER_HEIGHT_EXPANDED + HEADER_HEIGHT_NARROWED
+        height: 170,
     },
     skeletonAvatarRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: -40,
     },
-    skeletonAvatar: {
-        width: 96,
-        height: 96,
-        borderRadius: 48,
-        borderWidth: 2,
-    },
-    skeletonBtn: {
-        width: 120,
-        height: 36,
-        borderRadius: 18,
-        marginRight: 8,
-    },
-    skeletonIconBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-    },
-    skeletonBlock: {
-        borderRadius: 8,
-    },
-    skeletonLine: {
-        height: 14,
-        borderRadius: 7,
-    },
     skeletonMetaRow: {
         flexDirection: 'row',
         gap: 12,
         marginTop: 12,
         flexWrap: 'wrap',
-    },
-    skeletonChip: {
-        height: 20,
-        borderRadius: 10,
     },
     skeletonTabs: {
         flexDirection: 'row',
@@ -1209,7 +1199,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 1,
     },
-
 });
 
 export default MentionProfile;
