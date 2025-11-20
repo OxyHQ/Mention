@@ -33,7 +33,7 @@ const initGridFS = () => {
 };
 
 class ImageCacheService {
-  private readonly TIMEOUT_MS = 15000; // 15 seconds for image downloads
+  private readonly TIMEOUT_MS = 10000; // 10 seconds for image downloads
   private readonly USER_AGENT = 'MentionBot/1.0 (+https://mention.earth)';
 
   /**
