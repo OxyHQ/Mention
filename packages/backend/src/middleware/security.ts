@@ -1,11 +1,12 @@
-import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
+import { AuthRequest } from "../types/auth";
 
 // Rate limiting middleware (exclude file uploads)
 const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50000, // limit each IP to 100 requests per window
+  max: 50000, // limit each IP to 50000 requests per window
   message: "Too many requests from this IP, please try again later.",
   skip: (req: Request) => req.path.startsWith('/files/upload')
 });
@@ -13,30 +14,40 @@ const rateLimiter = rateLimit({
 // Brute force protection middleware (exclude file uploads)
 const bruteForceProtection: any = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  delayAfter: 50000, // allow 100 requests per 15 minutes, then...
-  delayMs: () => 500, // add 500ms delay per request above 100 (new behavior)
+  delayAfter: 50000, // allow 50000 requests per 15 minutes, then...
+  delayMs: () => 500, // add 500ms delay per request above limit (new behavior)
   skip: (req: Request) => req.path.startsWith('/files/upload')
 });
+
+/**
+ * Generate a rate limit key based on user authentication status
+ * Uses user ID for authenticated users, IP address for unauthenticated users
+ */
+function generateRateLimitKey(req: Request, res: Response, prefix: string): string {
+  const authReq = req as AuthRequest;
+  if (authReq.user?.id) {
+    return `${prefix}:user:${authReq.user.id}`;
+  }
+  // Extract IP address with fallback for proper handling
+  // Express sets req.ip when trust proxy is configured, otherwise use socket address
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  return `${prefix}:ip:${ip}`;
+}
+
+/**
+ * Get rate limit max value based on authentication status
+ */
+function getRateLimitMax(req: Request, authenticatedLimit: number, unauthenticatedLimit: number): number {
+  const authReq = req as AuthRequest;
+  return authReq.user?.id ? authenticatedLimit : unauthenticatedLimit;
+}
 
 // Rate limiter for link refresh operations (stricter limits)
 // Link refresh is expensive (fetching HTML, downloading images, processing)
 export const linkRefreshRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: (req: Request) => {
-    // Authenticated users get higher limits (50 per hour)
-    // Unauthenticated users get lower limits (20 per hour)
-    const user = (req as any).user;
-    return user?.id ? 50 : 20;
-  },
-  keyGenerator: (req: Request, res: Response) => {
-    // Use user ID for authenticated users, IP for unauthenticated
-    const user = (req as any).user;
-    if (user?.id) {
-      return `link-refresh:user:${user.id}`;
-    }
-    // Use ipKeyGenerator helper for proper IPv6 handling
-    return `link-refresh:ip:${ipKeyGenerator(req as any, res as any)}`;
-  },
+  max: (req: Request) => getRateLimitMax(req, 50, 20),
+  keyGenerator: (req: Request, res: Response) => generateRateLimitKey(req, res, 'link-refresh'),
   message: "Too many link refresh requests. Please wait before refreshing more links.",
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
@@ -45,21 +56,8 @@ export const linkRefreshRateLimiter = rateLimit({
 // Rate limiter for clearing cache (very strict - should be rare)
 export const linkCacheClearRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: (req: Request) => {
-    // Authenticated users get slightly higher limits (10 per hour)
-    // Unauthenticated users get lower limits (5 per hour)
-    const user = (req as any).user;
-    return user?.id ? 10 : 5;
-  },
-  keyGenerator: (req: Request, res: Response) => {
-    // Use user ID for authenticated users, IP for unauthenticated
-    const user = (req as any).user;
-    if (user?.id) {
-      return `link-cache-clear:user:${user.id}`;
-    }
-    // Use ipKeyGenerator helper for proper IPv6 handling
-    return `link-cache-clear:ip:${ipKeyGenerator(req as any, res as any)}`;
-  },
+  max: (req: Request) => getRateLimitMax(req, 10, 5),
+  keyGenerator: (req: Request, res: Response) => generateRateLimitKey(req, res, 'link-cache-clear'),
   message: "Too many cache clear requests. Please wait before clearing cache again.",
   standardHeaders: true,
   legacyHeaders: false,
