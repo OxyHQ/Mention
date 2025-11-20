@@ -31,19 +31,19 @@ export class FeedJobScheduler {
       this.precomputeActiveUserFeeds().catch(err => {
         console.error('Error in precompute feeds job:', err);
       });
-    }, 15 * 60 * 1000)); // 15 minutes
+    }, 15 * 60 * 1000) as NodeJS.Timeout); // 15 minutes
 
     // Update user preferences every hour
     this.intervals.set('updatePreferences', setInterval(() => {
       this.updateUserPreferences().catch(err => {
         console.error('Error in update preferences job:', err);
       });
-    }, 60 * 60 * 1000)); // 1 hour
+    }, 60 * 60 * 1000) as NodeJS.Timeout); // 1 hour
 
     // Clean cache every 5 minutes
     this.intervals.set('cleanCache', setInterval(() => {
       feedCacheService.getCacheStats(); // This triggers internal cleanup
-    }, 5 * 60 * 1000)); // 5 minutes
+    }, 5 * 60 * 1000) as NodeJS.Timeout); // 5 minutes
 
     console.log('Feed job scheduler started');
   }

@@ -100,6 +100,22 @@ export async function getRestrictedUserIds(): Promise<string[]> {
 }
 
 /**
+ * Extract user ID from blocked/restricted user entry
+ * Handles different response formats from Oxy API
+ */
+export function extractUserIdFromBlockedRestricted(entry: any): string | undefined {
+  if (!entry) return undefined;
+  
+  if (entry?.blockedId) {
+    return typeof entry.blockedId === 'string' ? entry.blockedId : entry.blockedId._id;
+  }
+  if (entry?.restrictedId) {
+    return typeof entry.restrictedId === 'string' ? entry.restrictedId : entry.restrictedId._id;
+  }
+  return entry?.id || entry?._id || entry?.userId || entry?.targetId;
+}
+
+/**
  * Extract user IDs from Oxy following response
  * Handles various response formats from Oxy API
  */
