@@ -15,6 +15,7 @@ import { statisticsService, PostInsights } from '@/services/statisticsService';
 import SectionHeader from '@/components/insights/SectionHeader';
 import SummaryCard from '@/components/insights/SummaryCard';
 import { useTranslation } from 'react-i18next';
+import { EmptyState } from '@/components/common/EmptyState';
 
 interface PostInsightsSheetProps {
     postId: string | null;
@@ -99,12 +100,13 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                     hideBottomBorder={true}
                     disableSticky={true}
                 />
-                <View style={styles.emptyContainer}>
-                    <Ionicons name="bar-chart-outline" size={64} color={theme.colors.textSecondary} />
-                    <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                        {t('insights.post.noInsightsAvailable')}
-                    </Text>
-                </View>
+                <EmptyState
+                    title={t('insights.post.noInsightsAvailable')}
+                    icon={{
+                        name: 'bar-chart-outline',
+                        size: 48,
+                    }}
+                />
             </View>
         );
     }

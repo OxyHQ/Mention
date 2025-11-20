@@ -79,28 +79,19 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
         showsVerticalScrollIndicator={false}
       >
         {sources.length === 0 ? (
-          <View style={[styles.emptyState, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-            <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
-              {t('compose.sources.emptyTitle', { defaultValue: 'No sources added yet' })}
-            </Text>
-            <Text style={[styles.emptyStateSubtitle, { color: theme.colors.textSecondary }]}>
-              {t('compose.sources.emptySubtitle', { defaultValue: 'Add credible references to support your post.' })}
-            </Text>
-            <TouchableOpacity
-              onPress={onAdd}
-              style={[styles.addButton, {
-                borderColor: theme.colors.border,
-                backgroundColor: theme.colors.card,
-                opacity: canAddMore ? 1 : 0.6,
-              }]}
-              disabled={!canAddMore}
-            >
-              <Plus size={16} color={theme.colors.primary} />
-              <Text style={[styles.addButtonText, { color: theme.colors.text }]}>
-                {t('compose.sources.add', { defaultValue: 'Add source' })}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            title={t('compose.sources.emptyTitle', { defaultValue: 'No sources added yet' })}
+            subtitle={t('compose.sources.emptySubtitle', { defaultValue: 'Add credible references to support your post.' })}
+            icon={{
+              name: 'link-outline',
+              size: 48,
+            }}
+            action={canAddMore ? {
+              label: t('compose.sources.add', { defaultValue: 'Add source' }),
+              onPress: onAdd,
+              icon: 'add-outline',
+            } : undefined}
+          />
         ) : (
           <View style={styles.list}>
             {sources.map((source, index) => {

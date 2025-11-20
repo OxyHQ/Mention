@@ -15,6 +15,7 @@ import { useOxy } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
+import { EmptyState } from '@/components/common/EmptyState';
 
 // Production check - disable verbose logging in production
 const IS_DEV = __DEV__;
@@ -555,12 +556,13 @@ export default function RestrictedUsersScreen() {
                             <ActivityIndicator size="large" color={theme.colors.primary} />
                         </View>
                     ) : restrictedUsers.length === 0 ? (
-                        <View style={styles.emptyContainer}>
-                            <IconComponent name="people-outline" size={48} color={theme.colors.textSecondary} />
-                            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                                {t('settings.privacy.noRestrictedUsers')}
-                            </Text>
-                        </View>
+                        <EmptyState
+                            title={t('settings.privacy.noRestrictedUsers')}
+                            icon={{
+                                name: 'people-outline',
+                                size: 48,
+                            }}
+                        />
                     ) : (
                         <View style={[styles.restrictedList, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             {restrictedUsers.map((user, index) => {

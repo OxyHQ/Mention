@@ -15,6 +15,7 @@ import { useOxy } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
+import { EmptyState } from '@/components/common/EmptyState';
 
 const IconComponent = Ionicons as any;
 
@@ -464,12 +465,13 @@ export default function BlockedUsersScreen() {
                             <ActivityIndicator size="large" color={theme.colors.primary} />
                         </View>
                     ) : blockedUsers.length === 0 ? (
-                        <View style={styles.emptyContainer}>
-                            <IconComponent name="people-outline" size={48} color={theme.colors.textSecondary} />
-                            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                                {t('settings.privacy.noBlockedUsers')}
-                            </Text>
-                        </View>
+                        <EmptyState
+                            title={t('settings.privacy.noBlockedUsers')}
+                            icon={{
+                                name: 'people-outline',
+                                size: 48,
+                            }}
+                        />
                     ) : (
                         <View style={[styles.blockedList, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             {blockedUsers.map((user, index) => {

@@ -27,6 +27,7 @@ import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard as ListCardComponent, type ListCardData } from "@/components/ListCard";
 import { Divider } from "@/components/Divider";
 import { useOxy } from "@oxyhq/services";
+import { EmptyState } from "@/components/common/EmptyState";
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 
@@ -443,21 +444,23 @@ export default function SearchIndex() {
                     )}
 
                     {!loading && query.trim() && !hasResults && (
-                        <View style={styles.emptyContainer}>
-                            <Search size={48} color={theme.colors.textSecondary} />
-                            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                                {t("search.noResults", "No results found")}
-                            </Text>
-                        </View>
+                        <EmptyState
+                            title={t("search.noResults", "No results found")}
+                            icon={{
+                                name: 'search-outline',
+                                size: 48,
+                            }}
+                        />
                     )}
 
                     {!loading && !query.trim() && (
-                        <View style={styles.emptyContainer}>
-                            <Search size={48} color={theme.colors.textSecondary} />
-                            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                                {t("search.startSearching", "Start searching")}
-                            </Text>
-                        </View>
+                        <EmptyState
+                            title={t("search.startSearching", "Start searching")}
+                            icon={{
+                                name: 'search-outline',
+                                size: 48,
+                            }}
+                        />
                     )}
 
                     {!loading && hasResults && (
