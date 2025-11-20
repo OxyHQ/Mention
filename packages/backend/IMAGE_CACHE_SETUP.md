@@ -4,52 +4,15 @@
 The image cache service downloads, resizes, and compresses images from external URLs to improve performance and security.
 
 ## Current Status
-The service is implemented but uses basic image validation. For production, you should add image processing capabilities.
+The service now uses the `sharp` library to resize and compress preview images before caching. Static images are converted to WebP (quality defaults to 80) and limited to `MAX_IMAGE_WIDTH` x `MAX_IMAGE_HEIGHT`. Animated assets (GIF/WebP) preserve animation but still respect max dimensions. SVGs are cached as-is with size validation.
 
-## Required: Install Sharp Library
+If you need to tweak processing:
 
-To enable image resizing and compression, install the Sharp library:
+- `LINK_PREVIEW_MAX_WIDTH`, `LINK_PREVIEW_MAX_HEIGHT`
+- `LINK_PREVIEW_WEBP_QUALITY`, `LINK_PREVIEW_JPEG_QUALITY`, `LINK_PREVIEW_PNG_QUALITY`
+- `LINK_PREVIEW_MAX_FILE_SIZE`
 
-```bash
-npm install sharp
-npm install --save-dev @types/sharp
-```
-
-## Update imageCacheService.ts
-
-After installing Sharp, update the `processImage` method in `packages/backend/src/services/imageCacheService.ts`:
-
-```typescript
-import sharp from 'sharp';
-
-private async processImage(imageBuffer: Buffer, originalUrl: string): Promise<Buffer> {
-  try {
-    // Resize and compress image
-    const processed = await sharp(imageBuffer)
-      .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_HEIGHT, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: JPEG_QUALITY })
-      .png({ quality: PNG_QUALITY })
-      .webp({ quality: WEBP_QUALITY })
-      .toBuffer();
-
-    // Ensure file size is within limit
-    if (processed.length > MAX_FILE_SIZE) {
-      // Further compress if needed
-      return await sharp(processed)
-        .jpeg({ quality: 70 })
-        .toBuffer();
-    }
-
-    return processed;
-  } catch (error) {
-    logger.error('[ImageCacheService] Error processing image:', error);
-    throw error;
-  }
-}
-```
+These environment variables override the defaults defined near the top of `imageCacheService.ts`.
 
 ## Configuration
 
