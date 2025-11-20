@@ -7,6 +7,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
+import { EmptyState } from '@/components/common/EmptyState';
 
 export default function HiddenWordsScreen() {
     const { t } = useTranslation();
@@ -30,11 +31,13 @@ export default function HiddenWordsScreen() {
                 disableSticky={true}
             />
 
-            <View style={styles.emptyContainer}>
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                    {t('settings.privacy.hiddenWordsComingSoon')}
-                </Text>
-            </View>
+            <EmptyState
+                title={t('settings.privacy.hiddenWordsComingSoon')}
+                icon={{
+                    name: 'eye-off-outline',
+                    size: 48,
+                }}
+            />
         </ThemedView>
     );
 }
@@ -42,16 +45,6 @@ export default function HiddenWordsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
-    },
-    emptyText: {
-        fontSize: 16,
-        textAlign: 'center',
     },
 });
 
