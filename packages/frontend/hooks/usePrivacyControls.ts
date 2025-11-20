@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useOxy } from '@oxyhq/services';
 import { usePrivacyStore } from '@/stores/privacyStore';
 
@@ -13,18 +13,20 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
     const { autoRefresh = true, minIntervalMs = DEFAULT_INTERVAL } = options || {};
     const { oxyServices, isAuthenticated } = useOxy();
 
-    const blockedIds = usePrivacyStore((state) => state.blockedIds);
-    const restrictedIds = usePrivacyStore((state) => state.restrictedIds);
+    // Use individual selectors for optimal performance (Zustand automatically shallow compares)
+    const blockedSet = usePrivacyStore((state) => state.blockedSet);
+    const restrictedSet = usePrivacyStore((state) => state.restrictedSet);
     const loading = usePrivacyStore((state) => state.loading);
     const lastFetchedAt = usePrivacyStore((state) => state.lastFetchedAt);
     const hasFetched = usePrivacyStore((state) => state.hasFetched);
+
     const setLists = usePrivacyStore((state) => state.setLists);
     const setLoading = usePrivacyStore((state) => state.setLoading);
     const setError = usePrivacyStore((state) => state.setError);
     const resetStore = usePrivacyStore((state) => state.reset);
 
-    // Normalize legacy state name if it exists
-    const normalizedHasFetched = typeof hasFetched === 'boolean' ? hasFetched : false;
+    // Use ref to track if we've initialized to avoid unnecessary checks
+    const hasInitializedRef = useRef(false);
 
     const refreshPrivacyLists = useCallback(async () => {
         if (!oxyServices) return;
@@ -85,31 +87,30 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
 
         const now = Date.now();
         const shouldRefresh =
-            !normalizedHasFetched ||
+            !hasFetched ||
             !lastFetchedAt ||
             (typeof minIntervalMs === 'number' && now - lastFetchedAt > minIntervalMs);
 
         if (shouldRefresh && !loading) {
             refreshPrivacyLists();
+            hasInitializedRef.current = true;
         }
     }, [
         autoRefresh,
         isAuthenticated,
         oxyServices,
-        normalizedHasFetched,
+        hasFetched,
         lastFetchedAt,
         minIntervalMs,
         refreshPrivacyLists,
         loading,
     ]);
 
-    const blockedSet = useMemo(() => new Set(blockedIds), [blockedIds]);
-    const restrictedSet = useMemo(() => new Set(restrictedIds), [restrictedIds]);
-
+    // Stable callbacks - Sets are already memoized in store
     const isBlocked = useCallback(
         (userId?: string | null): boolean => {
             if (!userId) return false;
-            return blockedSet.has(userId);
+            return blockedSet.has(String(userId));
         },
         [blockedSet],
     );
@@ -117,7 +118,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
     const isRestricted = useCallback(
         (userId?: string | null): boolean => {
             if (!userId) return false;
-            return restrictedSet.has(userId);
+            return restrictedSet.has(String(userId));
         },
         [restrictedSet],
     );
@@ -130,8 +131,6 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
     );
 
     return {
-        blockedIds,
-        restrictedIds,
         blockedSet,
         restrictedSet,
         loading,

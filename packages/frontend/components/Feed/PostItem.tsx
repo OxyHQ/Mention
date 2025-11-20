@@ -35,6 +35,7 @@ import { confirmDialog } from '@/utils/alerts';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { useCurrentUserPrivacySettings } from '@/hooks/usePrivacySettings';
+import { extractAuthorId } from '@/utils/postUtils';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
 
 interface PostItemProps {
@@ -53,7 +54,7 @@ const PostItem: React.FC<PostItemProps> = ({
     nestingDepth = 0,
 }) => {
     const { oxyServices, user } = useOxy();
-    const { isBlocked, isRestricted } = usePrivacyControls({ autoRefresh: false });
+    const { blockedSet, restrictedSet } = usePrivacyControls({ autoRefresh: false });
     const theme = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
@@ -95,9 +96,11 @@ const PostItem: React.FC<PostItemProps> = ({
 
     // Check if current user is the post owner (for showing insights button)
     const isOwner = !!(user && ((user as any).id === postOwnerId || (user as any)._id === postOwnerId));
-    const normalizedAuthorId = typeof postOwnerId === 'string' ? postOwnerId : postOwnerId?.toString?.();
-    const isAuthorBlocked = isBlocked(normalizedAuthorId);
-    const isAuthorRestricted = isRestricted(normalizedAuthorId);
+    
+    // Fast privacy check using Set lookup
+    const authorId = extractAuthorId(viewPost);
+    const isAuthorBlocked = authorId ? blockedSet.has(authorId) : false;
+    const isAuthorRestricted = authorId ? restrictedSet.has(authorId) : false;
 
     if (isAuthorBlocked) {
         return null;
