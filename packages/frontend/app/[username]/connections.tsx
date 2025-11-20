@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
 import { Divider } from '@/components/Divider';
 import { EmptyState } from '@/components/common/EmptyState';
+import { useProfileData } from '@/hooks/useProfileData';
 
 type TabType = 'followers' | 'following' | 'who-may-know';
 
@@ -32,10 +33,12 @@ export default function ConnectionsScreen() {
   const [followers, setFollowers] = useState<any[]>([]);
   const [following, setFollowing] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
-  const [profile, setProfile] = useState<any | null>(null);
   const { t } = useTranslation();
   const theme = useTheme();
   const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string; size?: 'small' | 'medium' | 'large' }>;
+  
+  // Use unified profile data hook - automatically fetches profile and appearance settings
+  const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
 
   // Determine active tab from pathname
   const getActiveTab = useCallback((): TabType => {
@@ -58,33 +61,12 @@ export default function ConnectionsScreen() {
     }
   }, [pathname, activeTab, getActiveTab]);
 
-  // Load profile data
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const userProfile = await useUsersStore.getState().ensureByUsername(
-          cleanUsername,
-          (u) => oxyServices.getProfileByUsername(u)
-        );
-        if (userProfile) {
-          setProfile(userProfile);
-        }
-      } catch (error) {
-        console.error('Error loading profile:', error);
-      }
-    };
-
-    if (cleanUsername) {
-      loadProfile();
-    }
-  }, [cleanUsername, oxyServices]);
-
   // Load followers
   const loadFollowers = useCallback(async () => {
-    if (!profile?._id && !profile?.id) return;
+    if (!profileData?.id) return;
     
     try {
-      const followersList: any = await oxyServices.getUserFollowers((profile as any)._id || (profile as any).id);
+      const followersList: any = await oxyServices.getUserFollowers(profileData.id);
       const list = Array.isArray(followersList?.followers)
         ? followersList.followers
         : Array.isArray(followersList)
@@ -95,14 +77,14 @@ export default function ConnectionsScreen() {
     } catch (error) {
       console.error('Error loading followers:', error);
     }
-  }, [profile, oxyServices]);
+  }, [profileData?.id, oxyServices]);
 
   // Load following
   const loadFollowing = useCallback(async () => {
-    if (!profile?._id && !profile?.id) return;
+    if (!profileData?.id) return;
     
     try {
-      const followingList: any = await oxyServices.getUserFollowing((profile as any)._id || (profile as any).id);
+      const followingList: any = await oxyServices.getUserFollowing(profileData.id);
       const list = Array.isArray(followingList?.following)
         ? followingList.following
         : Array.isArray(followingList)
@@ -113,7 +95,7 @@ export default function ConnectionsScreen() {
     } catch (error) {
       console.error('Error loading following:', error);
     }
-  }, [profile, oxyServices]);
+  }, [profileData?.id, oxyServices]);
 
   // Load recommendations (who may know)
   const loadRecommendations = useCallback(async () => {
@@ -148,10 +130,10 @@ export default function ConnectionsScreen() {
       }
     };
 
-    if (profile || activeTab === 'who-may-know') {
+    if (profileData || activeTab === 'who-may-know') {
       loadData();
     }
-  }, [activeTab, profile, loadFollowers, loadFollowing, loadRecommendations]);
+  }, [activeTab, profileData, loadFollowers, loadFollowing, loadRecommendations]);
 
   const handleTabPress = useCallback((tabId: string) => {
     if (!username) return;
@@ -318,12 +300,12 @@ export default function ConnectionsScreen() {
     }
   };
 
+  // Use displayName from profileData (includes customized display name from appearance settings)
   const profileDisplayName = useMemo(() => (
-    profile?.profile?.name?.full ||
-    (profile?.name?.first ? `${profile.name.first} ${profile.name.last || ''}`.trim() : '') ||
-    profile?.displayName ||
+    profileData?.design?.displayName ||
+    profileData?.username ||
     cleanUsername
-  ), [profile, cleanUsername]);
+  ), [profileData, cleanUsername]);
 
   const getTitle = () => {
     switch (activeTab) {

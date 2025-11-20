@@ -22,6 +22,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { getThemedBorder, getThemedShadow } from "@/utils/theme";
 import { useAppearanceStore } from "@/store/appearanceStore";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useProfileData } from "@/hooks/useProfileData";
 import i18n from 'i18next';
 
 // Type assertion for Ionicons compatibility with React 19
@@ -32,6 +33,8 @@ export default function SettingsScreen() {
     const router = useRouter();
     const { user, showBottomSheet } = useOxy();
     const theme = useTheme();
+    // Use useProfileData to get customized display name for current user
+    const { data: currentUserProfile } = useProfileData(user?.username);
     const scrollViewRef = useRef<ScrollView>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
     const { handleScroll, scrollEventThrottle, registerScrollable, forwardWheelEvent, createAnimatedScrollHandler } = useLayoutScroll();
@@ -321,11 +324,12 @@ export default function SettingsScreen() {
                             <View style={styles.settingInfo}>
                                 <View>
                                     <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                                        {user
-                                            ? typeof user.name === 'string'
-                                                ? user.name
-                                                : user.name?.full || user.name?.first || user.username
-                                            : 'User'}
+                                        {currentUserProfile?.design?.displayName ||
+                                            (user
+                                                ? typeof user.name === 'string'
+                                                    ? user.name
+                                                    : user.name?.full || user.name?.first || user.username
+                                                : 'User')}
                                     </Text>
                                     <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>
                                 </View>
