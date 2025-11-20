@@ -225,36 +225,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 16,
   },
-  emptyState: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    gap: 10,
-    marginHorizontal: 16,
-  },
-  emptyStateTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  emptyStateSubtitle: {
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    marginTop: 4,
-  },
-  addButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
   list: {
     gap: 12,
     paddingHorizontal: 16,

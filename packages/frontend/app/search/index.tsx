@@ -572,16 +572,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingTop: 60,
     },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        paddingTop: 60,
-    },
-    emptyText: {
-        fontSize: 16,
-        marginTop: 16,
-    },
     section: {
         marginBottom: 24,
     },

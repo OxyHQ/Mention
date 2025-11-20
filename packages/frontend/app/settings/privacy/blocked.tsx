@@ -616,15 +616,6 @@ const styles = StyleSheet.create({
         paddingVertical: 40,
         alignItems: 'center',
     },
-    emptyContainer: {
-        paddingVertical: 60,
-        alignItems: 'center',
-    },
-    emptyText: {
-        fontSize: 16,
-        marginTop: 12,
-        textAlign: 'center',
-    },
     blockedList: {
         borderRadius: 16,
         borderWidth: 1,
