@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
-import { authenticatedClient } from '@/utils/api';
+import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PRIVACY_SETTINGS_CACHE_KEY = '@mention_privacy_settings';
+
+const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
+    profileVisibility: 'public',
+    hideLikeCounts: false,
+    hideShareCounts: false,
+    hideReplyCounts: false,
+    hideSaveCounts: false,
+};
 
 export interface PrivacySettings {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -38,13 +46,11 @@ export function usePrivacySettings(userId?: string | null): PrivacySettings | nu
                 if (response.data?.privacy) {
                     setSettings(response.data.privacy);
                 } else {
-                    // Default to public if no settings exist
-                    setSettings({ profileVisibility: 'public', hideLikeCounts: false, hideShareCounts: false, hideReplyCounts: false, hideSaveCounts: false });
+                    setSettings(DEFAULT_PRIVACY_SETTINGS);
                 }
             } catch (error: any) {
-                // If 404, user might not have settings yet - use defaults
-                if (error?.response?.status === 404) {
-                    setSettings({ profileVisibility: 'public', hideLikeCounts: false, hideShareCounts: false, hideReplyCounts: false, hideSaveCounts: false });
+                if (isNotFoundError(error)) {
+                    setSettings(DEFAULT_PRIVACY_SETTINGS);
                 } else {
                     console.debug('Could not load privacy settings:', error);
                     setSettings(null);
@@ -113,32 +119,31 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
                         console.debug('Failed to cache privacy settings:', cacheErr);
                     }
                 } else {
-                    const defaultSettings = { profileVisibility: 'public' as const, hideLikeCounts: false, hideShareCounts: false, hideReplyCounts: false, hideSaveCounts: false };
-                    cachedPrivacySettings = defaultSettings;
-                    setSettings(defaultSettings);
+                    cachedPrivacySettings = DEFAULT_PRIVACY_SETTINGS;
+                    setSettings(DEFAULT_PRIVACY_SETTINGS);
                     try {
-                        await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(defaultSettings));
+                        await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(DEFAULT_PRIVACY_SETTINGS));
                     } catch (cacheErr) {
                         console.debug('Failed to cache default privacy settings:', cacheErr);
                     }
                 }
             } catch (error: any) {
-                if (error?.response?.status === 404) {
-                    const defaultSettings = { profileVisibility: 'public' as const, hideLikeCounts: false, hideShareCounts: false, hideReplyCounts: false, hideSaveCounts: false };
-                    cachedPrivacySettings = defaultSettings;
-                    setSettings(defaultSettings);
+                if (isUnauthorizedError(error)) {
+                    setSettings(cachedPrivacySettings || DEFAULT_PRIVACY_SETTINGS);
+                    return;
+                }
+                if (isNotFoundError(error)) {
+                    cachedPrivacySettings = DEFAULT_PRIVACY_SETTINGS;
+                    setSettings(DEFAULT_PRIVACY_SETTINGS);
                     try {
-                        await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(defaultSettings));
+                        await AsyncStorage.setItem(PRIVACY_SETTINGS_CACHE_KEY, JSON.stringify(DEFAULT_PRIVACY_SETTINGS));
                     } catch (cacheErr) {
                         console.debug('Failed to cache default privacy settings:', cacheErr);
                     }
                 } else {
                     console.debug('Could not load current user privacy settings:', error);
-                    // If we have cached settings, keep using them
-                    if (!settings && cachedPrivacySettings) {
-                        setSettings(cachedPrivacySettings);
-                    } else if (!settings) {
-                        setSettings({ profileVisibility: 'public', hideLikeCounts: false, hideShareCounts: false, hideReplyCounts: false, hideSaveCounts: false });
+                    if (!settings) {
+                        setSettings(cachedPrivacySettings || DEFAULT_PRIVACY_SETTINGS);
                     }
                 }
             }

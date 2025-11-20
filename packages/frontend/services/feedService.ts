@@ -149,26 +149,17 @@ class FeedService {
         });
         return response.data;
       } catch (authError: any) {
-        // If authentication fails (401/403) or network error, try public request
-        const isAuthError = authError?.response?.status === 401 || authError?.response?.status === 403;
+        const status = authError?.response?.status;
+        const isAuthError = status === 401 || status === 403;
         const isNetworkError = !authError?.response && authError?.message?.includes('Network');
         
         if (isAuthError || isNetworkError) {
-          console.log('🔄 Authenticated request failed, trying public request for feed:', {
-            isAuthError,
-            isNetworkError,
-            error: authError?.message
-          });
           try {
             return await makePublicRequest(endpoint, params);
           } catch (publicError: any) {
-            console.error('❌ Public request also failed:', publicError);
-            // If public request fails, throw the original auth error if it was an auth error
-            // Otherwise throw the public error
             throw isAuthError ? authError : publicError;
           }
         }
-        // Re-throw other errors (server errors, etc.)
         throw authError;
       }
     } catch (error: any) {

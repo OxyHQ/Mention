@@ -29,6 +29,11 @@ interface ProfileStore {
   refreshProfile: (oxyUserId: string) => Promise<void>;
 }
 
+const fetchProfileData = async (oxyUserId: string) => {
+  const response = await api.get(`profiles/${oxyUserId}`);
+  return response.data;
+};
+
 export const useProfileStore = create<ProfileStore>((set) => ({
   profile: null,
   profileLoading: false,
@@ -36,8 +41,8 @@ export const useProfileStore = create<ProfileStore>((set) => ({
   fetchProfile: async (oxyUserId: string) => {
     set({ profileLoading: true, profileError: null });
     try {
-      const response = await api.get(`profiles/${oxyUserId}`);
-      set({ profile: response.data, profileLoading: false });
+      const data = await fetchProfileData(oxyUserId);
+      set({ profile: data, profileLoading: false });
     } catch (error: any) {
       set({ profileError: error?.message || 'Failed to fetch profile', profileLoading: false });
     }
@@ -47,8 +52,8 @@ export const useProfileStore = create<ProfileStore>((set) => ({
   refreshProfile: async (oxyUserId: string) => {
     set({ profileLoading: true, profileError: null });
     try {
-      const response = await api.get(`profiles/${oxyUserId}`);
-      set({ profile: response.data, profileLoading: false });
+      const data = await fetchProfileData(oxyUserId);
+      set({ profile: data, profileLoading: false });
     } catch (error: any) {
       set({ profileError: error?.message || 'Failed to refresh profile', profileLoading: false });
     }

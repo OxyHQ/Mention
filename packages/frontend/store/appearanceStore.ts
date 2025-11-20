@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, publicApi } from '@/utils/api';
+import { api, publicApi, isUnauthorizedError } from '@/utils/api';
 import { Storage } from '@/utils/storage';
 
 const APPEARANCE_CACHE_KEY = 'oxy_appearance_settings';
@@ -95,6 +95,10 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
         set({ loading: false });
       }
     } catch (e: any) {
+      if (isUnauthorizedError(e)) {
+        set({ loading: false, error: null });
+        return;
+      }
       set({ loading: false, error: e?.message || 'Failed to load settings' });
     }
   },
