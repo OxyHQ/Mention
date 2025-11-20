@@ -366,7 +366,26 @@ ProfileCommunities.displayName = 'ProfileCommunities';
 const ProfileTabs = memo<{
     tab: string;
     profileId?: string;
-}>(({ tab, profileId }) => {
+    isPrivate: boolean;
+    isOwnProfile: boolean;
+    theme: ReturnType<typeof useTheme>;
+    t: (key: string) => string;
+}>(({ tab, profileId, isPrivate, isOwnProfile, theme, t }) => {
+    // If profile is private and not own profile, show message instead of content
+    if (isPrivate && !isOwnProfile) {
+        return (
+            <View style={{ padding: 32, alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+                <Ionicons name="lock-closed" size={48} color={theme.colors.textSecondary} style={{ marginBottom: 16 }} />
+                <Text style={[styles.privateProfileMessage, { color: theme.colors.text }]}>
+                    {(t as any)('profile.private.message', { defaultValue: 'This profile is private' })}
+                </Text>
+                <Text style={[styles.privateProfileSubtext, { color: theme.colors.textSecondary }]}>
+                    {(t as any)('profile.private.subtext', { defaultValue: 'Follow this account to see their posts' })}
+                </Text>
+            </View>
+        );
+    }
+
     if (tab === 'media') {
         return <MediaGrid userId={profileId} />;
     }
@@ -884,7 +903,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         theme={theme}
                                         t={t}
                                     />
-                                )}
+                                    )}
 
                                 {/* Communities section */}
                                 {profileData?.communities && profileData.communities.length > 0 &&
@@ -910,7 +929,14 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             />
 
                             {/* Tab Content */}
-                            <ProfileTabs tab={tab} profileId={profileData?.id} />
+                            <ProfileTabs 
+                                tab={tab} 
+                                profileId={profileData?.id}
+                                isPrivate={isPrivate}
+                                isOwnProfile={isOwnProfile}
+                                theme={theme}
+                                t={t}
+                            />
                         </Animated.ScrollView>
 
                         {/* FAB */}
@@ -1198,6 +1224,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
+    },
+    privateProfileMessage: {
+        fontSize: 18,
+        fontWeight: '600',
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    privateProfileSubtext: {
+        fontSize: 14,
+        textAlign: 'center',
     },
 });
 

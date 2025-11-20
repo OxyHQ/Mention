@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import slowDown from "express-slow-down";
 import { Request, Response, NextFunction } from "express";
 
@@ -28,10 +28,14 @@ export const linkRefreshRateLimiter = rateLimit({
     const user = (req as any).user;
     return user?.id ? 50 : 20;
   },
-  keyGenerator: (req: Request) => {
+  keyGenerator: (req: Request, res: Response) => {
     // Use user ID for authenticated users, IP for unauthenticated
     const user = (req as any).user;
-    return user?.id ? `link-refresh:user:${user.id}` : `link-refresh:ip:${req.ip}`;
+    if (user?.id) {
+      return `link-refresh:user:${user.id}`;
+    }
+    // Use ipKeyGenerator helper for proper IPv6 handling
+    return `link-refresh:ip:${ipKeyGenerator(req, res)}`;
   },
   message: "Too many link refresh requests. Please wait before refreshing more links.",
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
@@ -47,10 +51,14 @@ export const linkCacheClearRateLimiter = rateLimit({
     const user = (req as any).user;
     return user?.id ? 10 : 5;
   },
-  keyGenerator: (req: Request) => {
+  keyGenerator: (req: Request, res: Response) => {
     // Use user ID for authenticated users, IP for unauthenticated
     const user = (req as any).user;
-    return user?.id ? `link-cache-clear:user:${user.id}` : `link-cache-clear:ip:${req.ip}`;
+    if (user?.id) {
+      return `link-cache-clear:user:${user.id}`;
+    }
+    // Use ipKeyGenerator helper for proper IPv6 handling
+    return `link-cache-clear:ip:${ipKeyGenerator(req, res)}`;
   },
   message: "Too many cache clear requests. Please wait before clearing cache again.",
   standardHeaders: true,

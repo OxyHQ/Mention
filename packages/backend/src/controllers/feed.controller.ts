@@ -22,6 +22,7 @@ import { feedRankingService } from '../services/FeedRankingService';
 import { feedCacheService } from '../services/FeedCacheService';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import UserBehavior from '../models/UserBehavior';
+import UserSettings from '../models/UserSettings';
 
 interface AuthRequest extends Request {
   user?: {
@@ -31,6 +32,64 @@ interface AuthRequest extends Request {
 }
 
 class FeedController {
+  /**
+   * Filter out posts from private/followers_only profiles that the viewer doesn't have access to
+   */
+  private async filterPostsByProfilePrivacy(
+    posts: any[],
+    currentUserId?: string
+  ): Promise<any[]> {
+    if (!posts || posts.length === 0) return posts;
+    
+    // Get unique author IDs
+    const authorIds = [...new Set(posts.map(p => p.oxyUserId).filter(Boolean))];
+    if (authorIds.length === 0) return posts;
+    
+    // Get privacy settings for all authors
+    const privacySettings = await UserSettings.find({
+      oxyUserId: { $in: authorIds },
+      'privacy.profileVisibility': { $in: ['private', 'followers_only'] }
+    }).lean();
+    
+    const privateProfileIds = new Set(
+      privacySettings.map(s => s.oxyUserId)
+    );
+    
+    if (privateProfileIds.size === 0) return posts; // No private profiles
+    
+    // If no current user, filter out all posts from private profiles
+    if (!currentUserId) {
+      return posts.filter(p => !privateProfileIds.has(p.oxyUserId));
+    }
+    
+    // Get following list for current user
+    let followingIds: string[] = [];
+    try {
+      const followingRes = await oxyClient.getUserFollowing(currentUserId);
+      const followingList = Array.isArray((followingRes as any)?.following)
+        ? (followingRes as any).following
+        : (Array.isArray(followingRes) ? followingRes : []);
+      followingIds = followingList.map((u: any) => 
+        typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
+      ).filter(Boolean);
+    } catch (error) {
+      console.error('Error getting following list for privacy filter:', error);
+      // On error, filter out private profiles for safety
+      return posts.filter(p => !privateProfileIds.has(p.oxyUserId));
+    }
+    
+    // Filter posts: keep if:
+    // - Author profile is not private
+    // - Author is the current user (own posts)
+    // - Current user is following the author (for followers_only)
+    return posts.filter(p => {
+      const authorId = p.oxyUserId;
+      if (!privateProfileIds.has(authorId)) return true; // Public profile
+      if (authorId === currentUserId) return true; // Own posts
+      return followingIds.includes(authorId); // Following the author
+    });
+  }
+
   /**
    * Replace [mention:userId] placeholders in text with [@displayName](username) format
    * This allows the frontend to render the display name without @ but keep it clickable
@@ -1220,7 +1279,7 @@ class FeedController {
 
       // Stage 3: Deduplicate transformed posts by id (defensive check)
       const transformedIdsSeen = new Map<string, any>();
-      const deduplicatedPosts = transformedPosts.filter(post => {
+      const deduplicatedPosts = filteredPosts.filter(post => {
         // Check both id and _id fields for robustness
         const id1 = post.id ? String(post.id) : null;
         const id2 = (post as any)._id 
@@ -1743,6 +1802,41 @@ class FeedController {
 
       if (!userId) {
         return res.status(400).json({ error: 'User ID is required' });
+      }
+
+      // Check profile privacy settings
+      const userSettings = await UserSettings.findOne({ oxyUserId: userId }).lean();
+      const profileVisibility = userSettings?.privacy?.profileVisibility || 'public';
+      const isOwnProfile = currentUserId === userId;
+      
+      // If profile is private or followers_only, check access
+      if (!isOwnProfile && (profileVisibility === 'private' || profileVisibility === 'followers_only')) {
+        if (!currentUserId) {
+          // Not authenticated - return empty feed
+          return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
+        }
+        
+        // Check if current user is following the profile owner
+        try {
+          const followingRes = await oxyClient.getUserFollowing(currentUserId);
+          const followingList = Array.isArray((followingRes as any)?.following)
+            ? (followingRes as any).following
+            : (Array.isArray(followingRes) ? followingRes : []);
+          const followingIds = followingList.map((u: any) => 
+            typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
+          ).filter(Boolean);
+          
+          const isFollowing = followingIds.includes(userId);
+          
+          if (!isFollowing) {
+            // Not following - return empty feed
+            return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
+          }
+        } catch (error) {
+          console.error('Error checking follow status:', error);
+          // On error, deny access for privacy
+          return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
+        }
       }
 
       // Handle Likes feed separately (posts the user liked)
