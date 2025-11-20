@@ -19,13 +19,15 @@ import { EmptyState } from '@/components/common/EmptyState';
 
 interface MediaGridProps {
     userId?: string;
+    isPrivate?: boolean;
+    isOwnProfile?: boolean;
 }
 
 const NUM_COLUMNS = 3;
 const GAP = 1; // instagram-like tight spacing
 const H_PADDING = 0;
 
-const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
+const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
     const { oxyServices } = useOxy();
     const router = useRouter();
     const theme = useTheme();
@@ -40,27 +42,23 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId }) => {
     }, [containerWidth]);
 
     useEffect(() => {
-        const load = async () => {
-            if (!userId) return;
-            await fetchUserFeed(userId, { type: 'media', limit: 50 });
-        };
-        load();
-        return () => { };
-    }, [userId, fetchUserFeed]);
+        if (!userId || (isPrivate && !isOwnProfile)) return;
+        
+        fetchUserFeed(userId, { type: 'media', limit: 50 });
+    }, [userId, fetchUserFeed, isPrivate, isOwnProfile]);
 
     // Fallback: if media feed finished and is empty, attempt to load posts feed for media extraction
     useEffect(() => {
-        const maybeFallback = async () => {
-            if (!userId) return;
-            const isLoaded = !!mediaFeed && !mediaFeed.isLoading;
-            const isEmpty = (mediaFeed?.items?.length || 0) === 0;
-            const postsLoaded = !!postsFeed;
-            if (isLoaded && isEmpty && !postsLoaded) {
-                await fetchUserFeed(userId, { type: 'posts', limit: 60 });
-            }
-        };
-        maybeFallback();
-    }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed]);
+        if (!userId || (isPrivate && !isOwnProfile)) return;
+        
+        const isLoaded = !!mediaFeed && !mediaFeed.isLoading;
+        const isEmpty = (mediaFeed?.items?.length || 0) === 0;
+        const postsLoaded = !!postsFeed;
+        
+        if (isLoaded && isEmpty && !postsLoaded) {
+            fetchUserFeed(userId, { type: 'posts', limit: 60 });
+        }
+    }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
 
     const resolveImageUri = useCallback(
         (path?: string): string | undefined => {

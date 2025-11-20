@@ -18,13 +18,15 @@ import { EmptyState } from '@/components/common/EmptyState';
 
 interface VideosGridProps {
     userId?: string;
+    isPrivate?: boolean;
+    isOwnProfile?: boolean;
 }
 
 const NUM_COLUMNS = 3;
 const GAP = 1;
 const H_PADDING = 0;
 
-const VideosGrid: React.FC<VideosGridProps> = ({ userId }) => {
+const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
     const { oxyServices } = useOxy();
     const router = useRouter();
     const theme = useTheme();
@@ -38,26 +40,22 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId }) => {
     }, [containerWidth]);
 
     useEffect(() => {
-        const load = async () => {
-            if (!userId) return;
-            await fetchUserFeed(userId, { type: 'media', limit: 50 });
-        };
-        load();
-        return () => { };
-    }, [userId, fetchUserFeed]);
+        if (!userId || (isPrivate && !isOwnProfile)) return;
+        
+        fetchUserFeed(userId, { type: 'media', limit: 50 });
+    }, [userId, fetchUserFeed, isPrivate, isOwnProfile]);
 
     useEffect(() => {
-        const maybeFallback = async () => {
-            if (!userId) return;
-            const isLoaded = !!mediaFeed && !mediaFeed.isLoading;
-            const isEmpty = (mediaFeed?.items?.length || 0) === 0;
-            const postsLoaded = !!postsFeed;
-            if (isLoaded && isEmpty && !postsLoaded) {
-                await fetchUserFeed(userId, { type: 'posts', limit: 60 });
-            }
-        };
-        maybeFallback();
-    }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed]);
+        if (!userId || (isPrivate && !isOwnProfile)) return;
+        
+        const isLoaded = !!mediaFeed && !mediaFeed.isLoading;
+        const isEmpty = (mediaFeed?.items?.length || 0) === 0;
+        const postsLoaded = !!postsFeed;
+        
+        if (isLoaded && isEmpty && !postsLoaded) {
+            fetchUserFeed(userId, { type: 'posts', limit: 60 });
+        }
+    }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
 
     const resolveVideoUri = useCallback(
         (path?: string): string | undefined => {

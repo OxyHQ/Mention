@@ -372,6 +372,7 @@ const ProfileTabs = memo<{
     t: (key: string) => string;
 }>(({ tab, profileId, isPrivate, isOwnProfile, theme, t }) => {
     // If profile is private and not own profile, show message instead of content
+    // This prevents any feed loading attempts
     if (isPrivate && !isOwnProfile) {
         return (
             <View style={{ padding: 32, alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
@@ -386,12 +387,13 @@ const ProfileTabs = memo<{
         );
     }
 
+    // Only render feed components if user has access
     if (tab === 'media') {
-        return <MediaGrid userId={profileId} />;
+        return <MediaGrid userId={profileId} isPrivate={isPrivate} isOwnProfile={isOwnProfile} />;
     }
 
     if (tab === 'videos') {
-        return <VideosGrid userId={profileId} />;
+        return <VideosGrid userId={profileId} isPrivate={isPrivate} isOwnProfile={isOwnProfile} />;
     }
 
     return (
@@ -405,6 +407,9 @@ const ProfileTabs = memo<{
     );
 });
 ProfileTabs.displayName = 'ProfileTabs';
+
+// Feed types constant - only include valid FeedType values
+const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'reposts'];
 
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
@@ -559,6 +564,18 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     // Memoize privacy check
     const isPrivate = useMemo(() => isProfilePrivate(profileData, privacySettings), [profileData, privacySettings]);
+
+    // Clear cached feed data immediately if profile is private and not own profile
+    // This prevents showing cached posts from when the profile was public
+    useEffect(() => {
+        if (isPrivate && !isOwnProfile && profileData?.id) {
+            const { clearUserFeed } = usePostsStore.getState();
+            // Clear all feed types for this user immediately
+            FEED_TYPES.forEach((type) => {
+                clearUserFeed(profileData.id, type);
+            });
+        }
+    }, [isPrivate, isOwnProfile, profileData?.id]);
 
     // Subscription state
     const [subscribed, setSubscribed] = useState<boolean>(false);

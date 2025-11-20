@@ -122,12 +122,17 @@ export function useProfileData(username?: string): {
 
     const design = computeDesign(oxyProfile, appearance);
 
+    // Use privacy from appearance data (from profileDesign endpoint) if available,
+    // otherwise fall back to privacySettings hook (requires auth)
+    // This ensures unauthenticated users can see privacy info
+    const privacy = appearance?.privacy || privacySettings || undefined;
+
     return {
       ...oxyProfile,
       id: oxyProfile.id || '',
       username: oxyProfile.username || '',
       design,
-      privacy: privacySettings || undefined,
+      privacy,
     };
   }, [oxyProfile, appearance, privacySettings]);
 

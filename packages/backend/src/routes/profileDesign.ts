@@ -31,6 +31,9 @@ interface PublicProfileDesignResponse {
     displayName?: string;
     coverImage?: string;
   };
+  privacy?: {
+    profileVisibility?: 'public' | 'private' | 'followers_only';
+  };
 }
 
 /**
@@ -55,12 +58,15 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     // Check privacy settings
     if (!isOwnProfile && (profileVisibility === 'private' || profileVisibility === 'followers_only')) {
       if (!currentUserId) {
-        // Not authenticated - return minimal public data only
+        // Not authenticated - return minimal public data but include privacy info so frontend knows it's private
         return sendSuccessResponse(res, 200, {
           oxyUserId: userId,
           appearance: undefined,
           profileHeaderImage: undefined,
           profileCustomization: undefined,
+          privacy: {
+            profileVisibility: profileVisibility,
+          },
         } as PublicProfileDesignResponse);
       }
       
@@ -77,28 +83,40 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
         const isFollowing = followingIds.includes(userId);
         
         if (!isFollowing) {
-          // Not following - return minimal public data only
+          // Not following - return minimal public data but include privacy info
           return sendSuccessResponse(res, 200, {
             oxyUserId: userId,
             appearance: undefined,
             profileHeaderImage: undefined,
             profileCustomization: undefined,
+            privacy: {
+              profileVisibility: profileVisibility,
+            },
           } as PublicProfileDesignResponse);
         }
       } catch (error) {
         console.error('[ProfileDesign] Error checking follow status:', error);
-        // On error, return minimal data for privacy
+        // On error, return minimal data for privacy but include privacy info
         return sendSuccessResponse(res, 200, {
           oxyUserId: userId,
           appearance: undefined,
           profileHeaderImage: undefined,
           profileCustomization: undefined,
+          privacy: {
+            profileVisibility: profileVisibility,
+          },
         } as PublicProfileDesignResponse);
       }
     }
 
-    // User has access - return full profile design data
+    // User has access - return full profile design data with privacy info
     const response = extractPublicProfileData(doc, userId) as PublicProfileDesignResponse;
+    // Include privacy info in response
+    if (doc?.privacy?.profileVisibility) {
+      response.privacy = {
+        profileVisibility: doc.privacy.profileVisibility,
+      };
+    }
     return sendSuccessResponse(res, 200, response);
   } catch (error) {
     console.error('[ProfileDesign] Error fetching profile design:', error);

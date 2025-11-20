@@ -37,6 +37,9 @@ export interface UserAppearance {
     displayName?: string;
     coverImage?: string;
   };
+  privacy?: {
+    profileVisibility?: 'public' | 'private' | 'followers_only';
+  };
   interests?: {
     tags?: string[];
   };
