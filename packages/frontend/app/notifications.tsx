@@ -9,12 +9,10 @@ import {
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { NoUpdatesIllustration } from '../assets/illustrations/NoUpdates';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import { ThemedText } from '../components/ThemedText';
 import { ThemedView } from '../components/ThemedView';
-import { colors } from '../styles/colors';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { NotificationItem } from '../components/NotificationItem';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -32,6 +30,7 @@ import { confirmDialog } from '../utils/alerts';
 import SEO from '@/components/SEO';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { Error } from '@/components/Error';
+import { EmptyState } from '@/components/common/EmptyState';
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
 
@@ -253,17 +252,17 @@ const NotificationsScreen: React.FC = () => {
         </ErrorBoundary>
     );
 
-    const renderEmptyState = () => (
-        <ThemedView style={styles.emptyContainer}>
-            <View style={styles.illustrationWrap}>
-                <NoUpdatesIllustration width={200} height={200} />
-            </View>
-            <ThemedText style={styles.emptyTitle}>{t('notification.empty.title')}</ThemedText>
-            <ThemedText style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-                {t('notification.empty.subtitle')}
-            </ThemedText>
-        </ThemedView>
-    );
+    const renderEmptyState = useCallback(() => (
+        <EmptyState
+            title={t('notification.empty.title', { defaultValue: "You're all caught up" })}
+            subtitle={t('notification.empty.subtitle', { defaultValue: 'We will let you know when something new happens.' })}
+            icon={{
+                name: 'notifications-outline',
+                size: 48,
+                backgroundColor: theme.colors.surfaceSecondary ?? `${theme.colors.border}33`,
+            }}
+        />
+    ), [t, theme]);
 
     const renderErrorState = () => (
         <Error
@@ -410,29 +409,6 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 40,
-        gap: 12,
-    },
-    illustrationWrap: {
-        width: 220,
-        height: 220,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    emptyTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-    emptySubtitle: {
-        fontSize: 16,
-        textAlign: 'center',
-        lineHeight: 24,
     },
     errorContainer: {
         flex: 1,
