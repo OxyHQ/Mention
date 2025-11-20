@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import UserSettings from '../models/UserSettings';
 import { extractPublicProfileData } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
-import { oxy } from '../../server';
+import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 
 interface AuthRequest extends Request {
   user?: {
@@ -52,60 +52,32 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     }
 
     const doc = await UserSettings.findOne({ oxyUserId: userId }).lean();
-    const profileVisibility = doc?.privacy?.profileVisibility || 'public';
+    const profileVisibility = doc?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
     const isOwnProfile = currentUserId === userId;
     
+    // Build minimal response helper
+    const buildMinimalResponse = (): PublicProfileDesignResponse => ({
+      oxyUserId: userId,
+      appearance: undefined,
+      profileHeaderImage: undefined,
+      profileCustomization: undefined,
+      privacy: {
+        profileVisibility: profileVisibility,
+      },
+    });
+    
     // Check privacy settings
-    if (!isOwnProfile && (profileVisibility === 'private' || profileVisibility === 'followers_only')) {
+    if (!isOwnProfile && requiresAccessCheck(profileVisibility)) {
       if (!currentUserId) {
         // Not authenticated - return minimal public data but include privacy info so frontend knows it's private
-        return sendSuccessResponse(res, 200, {
-          oxyUserId: userId,
-          appearance: undefined,
-          profileHeaderImage: undefined,
-          profileCustomization: undefined,
-          privacy: {
-            profileVisibility: profileVisibility,
-          },
-        } as PublicProfileDesignResponse);
+        return sendSuccessResponse(res, 200, buildMinimalResponse());
       }
       
       // Check if current user is following the profile owner
-      try {
-        const followingRes = await oxy.getUserFollowing(currentUserId);
-        const followingList = Array.isArray((followingRes as any)?.following)
-          ? (followingRes as any).following
-          : (Array.isArray(followingRes) ? followingRes : []);
-        const followingIds = followingList.map((u: any) => 
-          typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
-        ).filter(Boolean);
-        
-        const isFollowing = followingIds.includes(userId);
-        
-        if (!isFollowing) {
-          // Not following - return minimal public data but include privacy info
-          return sendSuccessResponse(res, 200, {
-            oxyUserId: userId,
-            appearance: undefined,
-            profileHeaderImage: undefined,
-            profileCustomization: undefined,
-            privacy: {
-              profileVisibility: profileVisibility,
-            },
-          } as PublicProfileDesignResponse);
-        }
-      } catch (error) {
-        console.error('[ProfileDesign] Error checking follow status:', error);
-        // On error, return minimal data for privacy but include privacy info
-        return sendSuccessResponse(res, 200, {
-          oxyUserId: userId,
-          appearance: undefined,
-          profileHeaderImage: undefined,
-          profileCustomization: undefined,
-          privacy: {
-            profileVisibility: profileVisibility,
-          },
-        } as PublicProfileDesignResponse);
+      const hasAccess = await checkFollowAccess(currentUserId, userId);
+      if (!hasAccess) {
+        // No access - return minimal public data but include privacy info
+        return sendSuccessResponse(res, 200, buildMinimalResponse());
       }
     }
 

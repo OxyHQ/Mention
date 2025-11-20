@@ -23,6 +23,7 @@ import { feedCacheService } from '../services/FeedCacheService';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import UserBehavior from '../models/UserBehavior';
 import UserSettings from '../models/UserSettings';
+import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 
 interface AuthRequest extends Request {
   user?: {
@@ -32,25 +33,7 @@ interface AuthRequest extends Request {
 }
 
 class FeedController {
-  /**
-   * Check if a user has access to another user's profile (for private/followers_only)
-   * Returns true if viewer is the owner, or if profile is public, or if viewer follows the user
-   */
-  private async checkFollowAccess(viewerId: string, targetUserId: string): Promise<boolean> {
-    try {
-      const followingRes = await oxyClient.getUserFollowing(viewerId);
-      const followingList = Array.isArray((followingRes as any)?.following)
-        ? (followingRes as any).following
-        : (Array.isArray(followingRes) ? followingRes : []);
-      const followingIds = followingList.map((u: any) => 
-        typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
-      ).filter(Boolean);
-      return followingIds.includes(targetUserId);
-    } catch (error) {
-      console.error('Error checking follow access:', error);
-      return false; // On error, deny access for privacy
-    }
-  }
+  // Note: checkFollowAccess is now imported from privacyHelpers
 
   /**
    * Filter out posts from private/followers_only profiles that the viewer doesn't have access to
@@ -68,7 +51,7 @@ class FeedController {
     // Get privacy settings for all authors
     const privacySettings = await UserSettings.find({
       oxyUserId: { $in: authorIds },
-      'privacy.profileVisibility': { $in: ['private', 'followers_only'] }
+      'privacy.profileVisibility': { $in: [ProfileVisibility.PRIVATE, ProfileVisibility.FOLLOWERS_ONLY] }
     }).lean();
     
     const privateProfileIds = new Set(
@@ -86,12 +69,7 @@ class FeedController {
     let followingIds: string[] = [];
     try {
       const followingRes = await oxyClient.getUserFollowing(currentUserId);
-      const followingList = Array.isArray((followingRes as any)?.following)
-        ? (followingRes as any).following
-        : (Array.isArray(followingRes) ? followingRes : []);
-      followingIds = followingList.map((u: any) => 
-        typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
-      ).filter(Boolean);
+      followingIds = extractFollowingIds(followingRes);
     } catch (error) {
       console.error('Error getting following list for privacy filter:', error);
       // On error, filter out private profiles for safety
@@ -1836,11 +1814,11 @@ class FeedController {
       // CRITICAL: Check profile privacy settings FIRST, before any database queries
       // This prevents fetching posts that will be filtered out
       const userSettings = await UserSettings.findOne({ oxyUserId: userId }).lean();
-      const profileVisibility = userSettings?.privacy?.profileVisibility || 'public';
+      const profileVisibility = userSettings?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
       const isOwnProfile = currentUserId === userId;
       
       // If profile is private or followers_only, check access BEFORE fetching posts
-      if (!isOwnProfile && (profileVisibility === 'private' || profileVisibility === 'followers_only')) {
+      if (!isOwnProfile && requiresAccessCheck(profileVisibility)) {
         if (!currentUserId) {
           // Not authenticated - return empty feed immediately
           return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });

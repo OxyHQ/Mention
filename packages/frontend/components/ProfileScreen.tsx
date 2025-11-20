@@ -73,10 +73,11 @@ type UserNameComponent = React.ComponentType<{
 // Helper functions
 const isProfilePrivate = (profileData: ProfileData | null, privacySettings?: ProfileData['privacy']): boolean => {
     if (!profileData) return false;
+    // Check privacy from profileData.privacy (from appearance store) or privacySettings parameter
+    const privacy = profileData.privacy || privacySettings;
     return Boolean(
-        profileData.privacySettings?.isPrivateAccount ||
-        privacySettings?.profileVisibility === 'private' ||
-        privacySettings?.profileVisibility === 'followers_only'
+        privacy?.profileVisibility === 'private' ||
+        privacy?.profileVisibility === 'followers_only'
     );
 };
 
