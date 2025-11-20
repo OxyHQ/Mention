@@ -921,7 +921,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         theme={theme}
                                         t={t}
                                     />
-                                )}
+                                    )}
 
                                 {/* Communities section */}
                                 {profileData?.communities && profileData.communities.length > 0 &&

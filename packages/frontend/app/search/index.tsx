@@ -17,10 +17,8 @@ import { Header } from "@/components/Header";
 import { HeaderIconButton } from "@/components/HeaderIconButton";
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTheme } from "@/hooks/useTheme";
-import { oxyServices } from "@/lib/oxyServices";
 import { searchService } from "@/services/searchService";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
-import Avatar from "@/components/Avatar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@/assets/icons/search-icon";
 import SEO from "@/components/SEO";
@@ -28,6 +26,7 @@ import { ProfileCard, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard as ListCardComponent, type ListCardData } from "@/components/ListCard";
 import { Divider } from "@/components/Divider";
+import { useOxy } from "@oxyhq/services";
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 
@@ -45,6 +44,7 @@ export default function SearchIndex() {
     const theme = useTheme();
     const params = useLocalSearchParams();
     const urlQuery = (params.q as string) || "";
+    const { oxyServices } = useOxy();
 
     const [query, setQuery] = useState(urlQuery);
     const [activeTab, setActiveTab] = useState<SearchTab>("all");
@@ -257,7 +257,7 @@ export default function SearchIndex() {
         const username = user.username || user.handle || '';
         
         // Get avatar URL using oxyServices
-        const avatarUri = user?.avatar 
+        const avatarUri = user?.avatar && oxyServices?.getFileDownloadUrl
             ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb')
             : undefined;
 

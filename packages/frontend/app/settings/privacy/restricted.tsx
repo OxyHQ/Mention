@@ -219,7 +219,8 @@ export default function RestrictedUsersScreen() {
             let results: any[] = [];
             if (oxyServices?.searchProfiles) {
                 try {
-                    results = await oxyServices.searchProfiles(query, { limit: 20 });
+                    const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
+                    results = Array.isArray(data) ? data : [];
                 } catch (oxyError) {
                     logWarn('[RestrictedUsers] oxyServices.searchProfiles failed, falling back:', oxyError);
                     results = await searchService.searchUsers(query);

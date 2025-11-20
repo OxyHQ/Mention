@@ -35,6 +35,7 @@ import { confirmDialog } from '@/utils/alerts';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { useCurrentUserPrivacySettings } from '@/hooks/usePrivacySettings';
+import { usePrivacyControls } from '@/hooks/usePrivacyControls';
 
 interface PostItemProps {
     post: UIPost | Reply | Repost;
@@ -52,6 +53,7 @@ const PostItem: React.FC<PostItemProps> = ({
     nestingDepth = 0,
 }) => {
     const { oxyServices, user } = useOxy();
+    const { isBlocked, isRestricted } = usePrivacyControls({ autoRefresh: false });
     const theme = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
@@ -93,6 +95,13 @@ const PostItem: React.FC<PostItemProps> = ({
 
     // Check if current user is the post owner (for showing insights button)
     const isOwner = !!(user && ((user as any).id === postOwnerId || (user as any)._id === postOwnerId));
+    const normalizedAuthorId = typeof postOwnerId === 'string' ? postOwnerId : postOwnerId?.toString?.();
+    const isAuthorBlocked = isBlocked(normalizedAuthorId);
+    const isAuthorRestricted = isRestricted(normalizedAuthorId);
+
+    if (isAuthorBlocked) {
+        return null;
+    }
 
     // Get current user's privacy settings - this controls what THEY see, not what others see
     const currentUserPrivacySettings = useCurrentUserPrivacySettings();
@@ -718,6 +727,14 @@ const PostItem: React.FC<PostItemProps> = ({
                         bottomSheet.openBottomSheet(true);
                     }}
                 >
+                    {isAuthorRestricted ? (
+                        <View style={[styles.restrictedBadge, { backgroundColor: theme.colors.surfaceSecondary ?? `${theme.colors.border}33` }]}>
+                            <Ionicons name="eye-off" size={12} color={theme.colors.textSecondary} />
+                            <Text style={[styles.restrictedBadgeText, { color: theme.colors.textSecondary }]}>
+                                {t('privacy.restricted.badge', 'Restricted contact')}
+                            </Text>
+                        </View>
+                    ) : null}
                     {/* Top: text content */}
                     {Boolean((viewPost as any)?.content?.text) && (
                         <PostContentText content={(viewPost as any).content} postId={(viewPost as any).id} />
@@ -912,6 +929,20 @@ const styles = StyleSheet.create({
     },
     sourcesChipText: {
         fontSize: 12,
+        fontWeight: '600',
+    },
+    restrictedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        gap: 6,
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        marginTop: 2,
+    },
+    restrictedBadgeText: {
+        fontSize: 11,
         fontWeight: '600',
     },
 });

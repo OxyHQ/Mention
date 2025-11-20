@@ -169,7 +169,8 @@ export default function BlockedUsersScreen() {
     const searchUsersViaOxy = useCallback(async (query: string) => {
         if (oxyServices?.searchProfiles) {
             try {
-                return await oxyServices.searchProfiles(query, { limit: 20 });
+                const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
+                return Array.isArray(data) ? data : [];
             } catch (error) {
                 console.warn('[BlockedUsers] oxyServices.searchProfiles failed, falling back:', error);
             }

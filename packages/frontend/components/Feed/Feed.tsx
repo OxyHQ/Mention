@@ -24,6 +24,7 @@ import { FeedFilters, getItemKey, deduplicateItems, deepEqual } from '@/utils/fe
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
+import { usePrivacyControls } from '@/hooks/usePrivacyControls';
 
 const logger = createScopedLogger('Feed');
 
@@ -78,6 +79,7 @@ const Feed = memo((props: FeedProps) => {
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
 
     const { user: currentUser, isAuthenticated } = useOxy();
+    const { isBlocked } = usePrivacyControls();
 
     // Use the feed state hook for all feed operations
     const feedState = useFeedState({
@@ -117,16 +119,28 @@ const Feed = memo((props: FeedProps) => {
         // Single deduplication pass using utility
         const deduped = deduplicateItems(src, getItemKey);
 
+        const filteredByPrivacy = deduped.filter((item) => {
+            const authorId =
+                (item as any)?.user?.id ||
+                (item as any)?.user?._id ||
+                (item as any)?.user?.userId ||
+                (item as any)?.authorId;
+            if (isBlocked(typeof authorId === 'string' ? authorId : authorId?.toString?.())) {
+                return false;
+            }
+            return true;
+        });
+
         // Only apply sorting for 'for_you' feed if user is authenticated
         const effectiveType = (showOnlySaved ? 'saved' : type) as FeedType;
-        if (effectiveType === 'for_you' && currentUser?.id && deduped.length > 0) {
+        if (effectiveType === 'for_you' && currentUser?.id && filteredByPrivacy.length > 0) {
             const now = Date.now();
             const THRESHOLD_MS = 60 * 1000;
             const mineNow: Array<{ item: FeedItem; ts: number }> = [];
             const others: FeedItem[] = [];
 
             // Single pass to separate items
-            for (const item of deduped) {
+            for (const item of filteredByPrivacy) {
                 const ownerId = (item as any)?.user?.id;
                 if ((item as any)?.isLocalNew || ownerId === currentUser.id) {
                     const d = (item as any)?.date || (item as any)?.createdAt;
@@ -148,8 +162,8 @@ const Feed = memo((props: FeedProps) => {
             }
         }
 
-        return deduped;
-    }, [feedState.items, type, showOnlySaved, currentUser?.id]);
+        return filteredByPrivacy;
+    }, [feedState.items, type, showOnlySaved, currentUser?.id, isBlocked]);
 
     // Memoize renderPostItem to prevent recreating on every render
     const renderPostItem = useCallback(({ item }: { item: FeedItem; index: number }) => {

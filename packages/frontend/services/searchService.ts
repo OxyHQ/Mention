@@ -29,8 +29,11 @@ class SearchService {
   async searchUsers(query: string): Promise<any[]> {
     try {
       // Use OxyServices searchProfiles method
-      const results = await oxyServices.searchProfiles(query, { limit: 20 });
-      return results || [];
+      const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
+      if (Array.isArray(data)) {
+        return data;
+      }
+      return [];
     } catch (error) {
       console.warn("Failed searching users", error);
       
