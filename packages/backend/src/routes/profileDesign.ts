@@ -1,15 +1,9 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import UserSettings from '../models/UserSettings';
 import { extractPublicProfileData } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    [key: string]: any;
-  };
-}
+import { AuthRequest } from '../types/auth';
 
 const router = Router();
 

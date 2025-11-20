@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
@@ -24,13 +24,7 @@ import { userPreferenceService } from '../services/UserPreferenceService';
 import UserBehavior from '../models/UserBehavior';
 import UserSettings from '../models/UserSettings';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    [key: string]: any;
-  };
-}
+import { AuthRequest } from '../types/auth';
 
 class FeedController {
   // Note: checkFollowAccess is now imported from privacyHelpers
@@ -1104,11 +1098,12 @@ class FeedController {
       try {
         if (currentUserId) {
           // Get following list
-          const followingRes = await oxyClient.getUserFollowing(currentUserId);
-          const followingUsers = (followingRes as any)?.following || [];
-          followingIds = followingUsers.map((u: any) => 
-            typeof u === 'string' ? u : (u?.id || u?._id || u?.userId)
-          ).filter(Boolean);
+          try {
+            const followingRes = await oxyClient.getUserFollowing(currentUserId);
+            followingIds = extractFollowingIds(followingRes);
+          } catch (error) {
+            console.warn('Failed to load following list:', error);
+          }
           
           // Get user behavior for personalization
           userBehavior = await UserBehavior.findOne({ oxyUserId: currentUserId }).lean();
@@ -1516,16 +1511,8 @@ class FeedController {
 
       // Get following list from Oxy
       const followingRes = await oxyClient.getUserFollowing(currentUserId);
-      const rawList = Array.isArray((followingRes as any)?.following)
-        ? (followingRes as any).following
-        : (Array.isArray(followingRes) ? (followingRes as any) : []);
-      const extracted = (rawList as any[]).map((u: any) => (
-        typeof u === 'string' 
-          ? u 
-          : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
-      ));
       // Only include people the user follows, NOT the user's own posts
-      const followingIds = [...new Set(extracted.filter(Boolean))];
+      const followingIds = [...new Set(extractFollowingIds(followingRes))];
 
       if (followingIds.length === 0) {
         return res.json({ items: [], hasMore: false, totalCount: 0 });
@@ -1825,7 +1812,7 @@ class FeedController {
         }
         
         // Check if current user is following the profile owner
-        const hasAccess = await this.checkFollowAccess(currentUserId, userId);
+        const hasAccess = await checkFollowAccess(currentUserId, userId);
         if (!hasAccess) {
           // No access - return empty feed immediately, BEFORE any post queries
           return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
@@ -1988,11 +1975,14 @@ class FeedController {
                 break;
               case 'following':
                 // Check if post author follows current user (current user is in author's following list)
-                const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
-                canReply = authorFollowing?.following?.some((f: any) => {
-                  const followingId = f.id || f._id || f;
-                  return followingId === currentUserId || String(followingId) === String(currentUserId);
-                }) || false;
+                try {
+                  const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
+                  const followingIds = extractFollowingIds(authorFollowing);
+                  canReply = followingIds.includes(currentUserId);
+                } catch (error) {
+                  console.warn('Failed to check author following:', error);
+                  canReply = false;
+                }
                 break;
               case 'mentioned':
                 // Check if current user is mentioned in the post

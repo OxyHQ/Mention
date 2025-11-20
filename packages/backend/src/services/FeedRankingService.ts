@@ -1,6 +1,7 @@
 import { Post } from '../models/Post';
 import UserBehavior from '../models/UserBehavior';
 import mongoose from 'mongoose';
+import { extractFollowingIds } from '../utils/privacyHelpers';
 
 /**
  * FeedRankingService - Advanced feed ranking algorithm
@@ -382,10 +383,7 @@ export class FeedRankingService {
       try {
         const { oxy } = require('../../server');
         const followingRes = await oxy.getUserFollowing(userId);
-        const followingUsers = (followingRes as any)?.following || [];
-        followingIds = followingUsers.map((u: any) => 
-          typeof u === 'string' ? u : (u?.id || u?._id || u?.userId)
-        ).filter(Boolean);
+        followingIds = extractFollowingIds(followingRes);
       } catch (error) {
         console.warn('Failed to load following list:', error);
         followingIds = [];

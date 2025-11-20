@@ -2,6 +2,7 @@ import { Post } from '../models/Post';
 import UserBehavior from '../models/UserBehavior';
 import { feedRankingService } from './FeedRankingService';
 import mongoose from 'mongoose';
+import { extractFollowingIds } from '../utils/privacyHelpers';
 
 /**
  * FeedCacheService - Caches precomputed feeds for performance
@@ -122,10 +123,7 @@ export class FeedCacheService {
     let followingIds: string[] = [];
     try {
       const followingRes = await oxy.getUserFollowing(userId);
-      const followingUsers = (followingRes as any)?.following || [];
-      followingIds = followingUsers.map((u: any) => 
-        typeof u === 'string' ? u : (u?.id || u?._id || u?.userId)
-      ).filter(Boolean);
+      followingIds = extractFollowingIds(followingRes);
     } catch (error) {
       console.warn('Failed to load following list:', error);
     }
@@ -165,11 +163,7 @@ export class FeedCacheService {
     let followingIds: string[] = [];
     try {
       const followingRes = await oxy.getUserFollowing(userId);
-      const followingUsers = (followingRes as any)?.following || [];
-      followingIds = followingUsers.map((u: any) => 
-        typeof u === 'string' ? u : (u?.id || u?._id || u?.userId)
-      ).filter(Boolean);
-      
+      followingIds = extractFollowingIds(followingRes);
       // Include user's own posts
       followingIds.push(userId);
     } catch (error) {

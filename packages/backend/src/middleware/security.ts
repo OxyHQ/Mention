@@ -35,7 +35,7 @@ export const linkRefreshRateLimiter = rateLimit({
       return `link-refresh:user:${user.id}`;
     }
     // Use ipKeyGenerator helper for proper IPv6 handling
-    return `link-refresh:ip:${ipKeyGenerator(req, res)}`;
+    return `link-refresh:ip:${ipKeyGenerator(req as any, res as any)}`;
   },
   message: "Too many link refresh requests. Please wait before refreshing more links.",
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
@@ -58,7 +58,7 @@ export const linkCacheClearRateLimiter = rateLimit({
       return `link-cache-clear:user:${user.id}`;
     }
     // Use ipKeyGenerator helper for proper IPv6 handling
-    return `link-cache-clear:ip:${ipKeyGenerator(req, res)}`;
+    return `link-cache-clear:ip:${ipKeyGenerator(req as any, res as any)}`;
   },
   message: "Too many cache clear requests. Please wait before clearing cache again.",
   standardHeaders: true,
