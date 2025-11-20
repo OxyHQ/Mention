@@ -7,9 +7,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { authenticatedClient } from '@/utils/api';
 import { searchService } from '@/services/searchService';
-import { oxyServices } from '@/lib/oxyServices';
 import Avatar from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -37,7 +35,7 @@ interface RestrictedUser {
 export default function RestrictedUsersScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
-    const { user: currentUser, isAuthenticated } = useOxy();
+    const { user: currentUser, isAuthenticated, oxyServices } = useOxy();
     const bottomSheet = React.useContext(BottomSheetContext);
     const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
     const [restrictedUsers, setRestrictedUsers] = useState<RestrictedUser[]>([]);
@@ -62,9 +60,18 @@ export default function RestrictedUsersScreen() {
         try {
             setLoading(true);
             log('[RestrictedUsers] Loading restricted users...');
-            const response = await authenticatedClient.get('/profile/restricts');
-            log('[RestrictedUsers] API response:', response.data);
-            let userIds = response.data?.restrictedUsers || [];
+            // Use Oxy services directly
+            const restrictedUsersList = await oxyServices.getRestrictedUsers();
+            log('[RestrictedUsers] Oxy response:', restrictedUsersList);
+            // Extract user IDs from RestrictedUser objects (restrictedId can be string or object)
+            let userIds = restrictedUsersList
+                .map((user: any) => {
+                    if (user.restrictedId) {
+                        return typeof user.restrictedId === 'string' ? user.restrictedId : user.restrictedId._id;
+                    }
+                    return user.id || user._id || user.userId;
+                })
+                .filter(Boolean);
             
             // Filter out the current user's ID (can't restrict yourself)
             const currentUserId = currentUser?.id;
@@ -174,7 +181,7 @@ export default function RestrictedUsersScreen() {
         } finally {
             setLoading(false);
         }
-    }, [t, currentUser?.id, isAuthenticated, bottomSheet]);
+    }, [t, currentUser?.id, isAuthenticated, bottomSheet, oxyServices]);
 
     useFocusEffect(
         useCallback(() => {
@@ -209,7 +216,17 @@ export default function RestrictedUsersScreen() {
 
         try {
             setSearching(true);
-            const results = await searchService.searchUsers(query);
+            let results: any[] = [];
+            if (oxyServices?.searchProfiles) {
+                try {
+                    results = await oxyServices.searchProfiles(query, { limit: 20 });
+                } catch (oxyError) {
+                    logWarn('[RestrictedUsers] oxyServices.searchProfiles failed, falling back:', oxyError);
+                    results = await searchService.searchUsers(query);
+                }
+            } else {
+                results = await searchService.searchUsers(query);
+            }
             
             // Check if request was cancelled
             if (abortController.signal.aborted) {
@@ -234,7 +251,7 @@ export default function RestrictedUsersScreen() {
                 setSearching(false);
             }
         }
-    }, [restrictedUserIdsSet]);
+    }, [restrictedUserIdsSet, currentUser?.id, oxyServices]);
 
     const handleSearch = useCallback((query: string) => {
         setSearchQuery(query);
@@ -298,10 +315,9 @@ export default function RestrictedUsersScreen() {
                 const id = u.id || (u as any)._id;
                 return id !== userId;
             }));
-            const restrictResponse = await authenticatedClient.post('/profile/restricts', {
-                restrictedId: userId
-            });
-            log('[RestrictedUsers] Restrict response:', restrictResponse.data);
+            // Use Oxy services directly
+            await oxyServices.restrictUser(userId);
+            log('[RestrictedUsers] User restricted successfully');
             
             // Reload from server to ensure consistency
             await loadRestrictedUsers();
@@ -357,8 +373,9 @@ export default function RestrictedUsersScreen() {
                     return id !== userId;
                 }));
                 
-                const unrestrictResponse = await authenticatedClient.delete(`/profile/restricts/${userId}`);
-                log('[RestrictedUsers] Unrestrict response:', unrestrictResponse.data);
+                // Use Oxy services directly
+                await oxyServices.unrestrictUser(userId);
+                log('[RestrictedUsers] User unrestricted successfully');
                 
                 // Reload from server to ensure consistency
                 await loadRestrictedUsers();

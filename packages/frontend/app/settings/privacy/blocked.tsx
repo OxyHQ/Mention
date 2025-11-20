@@ -7,9 +7,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { authenticatedClient } from '@/utils/api';
 import { searchService } from '@/services/searchService';
-import { oxyServices } from '@/lib/oxyServices';
 import Avatar from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -31,7 +29,7 @@ interface BlockedUser {
 export default function BlockedUsersScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
-    const { user: currentUser } = useOxy();
+    const { user: currentUser, oxyServices } = useOxy();
     const bottomSheet = React.useContext(BottomSheetContext);
     const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
     const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
@@ -42,12 +40,29 @@ export default function BlockedUsersScreen() {
     const [blocking, setBlocking] = useState<string | null>(null);
 
     const loadBlockedUsers = useCallback(async () => {
+        if (!oxyServices?.getBlockedUsers) {
+            console.warn('[BlockedUsers] oxyServices.getBlockedUsers not available');
+            setBlockedUsers([]);
+            setBlockedUserIds([]);
+            setLoading(false);
+            return;
+        }
+
         try {
             setLoading(true);
             console.log('[BlockedUsers] Loading blocked users...');
-            const response = await authenticatedClient.get('/profile/blocks');
-            console.log('[BlockedUsers] API response:', response.data);
-            const userIds = response.data?.blockedUsers || [];
+            // Use Oxy services directly
+            const blockedUsersList = await oxyServices.getBlockedUsers();
+            console.log('[BlockedUsers] Oxy response:', blockedUsersList);
+            // Extract user IDs from BlockedUser objects (blockedId can be string or object)
+            const userIds = blockedUsersList
+                .map((user: any) => {
+                    if (user.blockedId) {
+                        return typeof user.blockedId === 'string' ? user.blockedId : user.blockedId._id;
+                    }
+                    return user.id || user._id || user.userId;
+                })
+                .filter(Boolean);
             console.log('[BlockedUsers] Blocked user IDs:', userIds);
             setBlockedUserIds(userIds);
 
@@ -61,11 +76,11 @@ export default function BlockedUsersScreen() {
             const userPromises = userIds.map(async (userId: string) => {
                 try {
                     console.log(`[BlockedUsers] Fetching user details for: ${userId}`);
-                    
+
                     // Use usersStore's ensureById which tries multiple methods
                     const { useUsersStore } = await import('@/stores/usersStore');
                     const usersState = useUsersStore.getState();
-                    
+
                     const svc: any = oxyServices as any;
                     const loader = async (id: string) => {
                         // Try multiple methods like NotificationItem does
@@ -99,10 +114,10 @@ export default function BlockedUsersScreen() {
                         }
                         return null;
                     };
-                    
+
                     const user = await usersState.ensureById(String(userId), loader);
                     console.log(`[BlockedUsers] Found user for ${userId}:`, user ? 'yes' : 'no', user);
-                    
+
                     // If we couldn't fetch user details, create a minimal user object
                     if (!user) {
                         console.log(`[BlockedUsers] Creating fallback user object for ${userId}`);
@@ -112,7 +127,7 @@ export default function BlockedUsersScreen() {
                             handle: userId.substring(0, 8) + '...',
                         } as BlockedUser;
                     }
-                    
+
                     return user;
                 } catch (error) {
                     console.warn(`[BlockedUsers] Failed to fetch user ${userId}:`, error);
@@ -143,7 +158,7 @@ export default function BlockedUsersScreen() {
         } finally {
             setLoading(false);
         }
-    }, [t, bottomSheet]);
+    }, [t, bottomSheet, oxyServices]);
 
     useFocusEffect(
         useCallback(() => {
@@ -151,7 +166,18 @@ export default function BlockedUsersScreen() {
         }, [loadBlockedUsers])
     );
 
-    const handleSearch = async (query: string) => {
+    const searchUsersViaOxy = useCallback(async (query: string) => {
+        if (oxyServices?.searchProfiles) {
+            try {
+                return await oxyServices.searchProfiles(query, { limit: 20 });
+            } catch (error) {
+                console.warn('[BlockedUsers] oxyServices.searchProfiles failed, falling back:', error);
+            }
+        }
+        return searchService.searchUsers(query);
+    }, [oxyServices]);
+
+    const handleSearch = useCallback(async (query: string) => {
         setSearchQuery(query);
         if (!query.trim()) {
             setSearchResults([]);
@@ -160,13 +186,13 @@ export default function BlockedUsersScreen() {
 
         try {
             setSearching(true);
-            const results = await searchService.searchUsers(query);
+            const results = await searchUsersViaOxy(query);
             // Filter out already blocked users and current user
             const filtered = results.filter((user: any) => {
                 const userId = user.id || user._id;
-                return userId && 
-                       !blockedUserIds.includes(userId) && 
-                       userId !== currentUser?.id;
+                return userId &&
+                    !blockedUserIds.includes(userId) &&
+                    userId !== currentUser?.id;
             });
             setSearchResults(filtered);
         } catch (error) {
@@ -174,7 +200,7 @@ export default function BlockedUsersScreen() {
         } finally {
             setSearching(false);
         }
-    };
+    }, [blockedUserIds, currentUser?.id, searchUsersViaOxy]);
 
     const handleBlock = async (user: BlockedUser) => {
         const userId = user.id || (user as any)._id;
@@ -196,23 +222,24 @@ export default function BlockedUsersScreen() {
 
         try {
             setBlocking(userId);
-            
+
             // Optimistically update the state
             setBlockedUserIds(prev => [...prev, userId]);
             setBlockedUsers(prev => [...prev, user]);
-            
+
             // Remove from search results immediately
             setSearchResults(prev => prev.filter(u => {
                 const id = u.id || (u as any)._id;
                 return id !== userId;
             }));
-            
-            const blockResponse = await authenticatedClient.post('/profile/blocks', { blockedId: userId });
-            console.log('[BlockedUsers] Block response:', blockResponse.data);
-            
+
+            // Use Oxy services directly
+            await oxyServices.blockUser(userId);
+            console.log('[BlockedUsers] User blocked successfully');
+
             // Reload from server to ensure consistency
             await loadBlockedUsers();
-            
+
             setSearchQuery('');
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
@@ -256,20 +283,21 @@ export default function BlockedUsersScreen() {
         const performUnblock = async () => {
             try {
                 console.log('[BlockedUsers] Unblocking user:', userId);
-                
+
                 // Optimistically remove from list
                 setBlockedUserIds(prev => prev.filter(id => id !== userId));
                 setBlockedUsers(prev => prev.filter(u => {
                     const id = u.id || (u as any)._id;
                     return id !== userId;
                 }));
-                
-                const unblockResponse = await authenticatedClient.delete(`/profile/blocks/${userId}`);
-                console.log('[BlockedUsers] Unblock response:', unblockResponse.data);
-                
+
+                // Use Oxy services directly
+                await oxyServices.unblockUser(userId);
+                console.log('[BlockedUsers] User unblocked successfully');
+
                 // Reload from server to ensure consistency
                 await loadBlockedUsers();
-                
+
                 bottomSheet.setBottomSheetContent(
                     <MessageBottomSheet
                         title={t('common.success')}
@@ -351,7 +379,7 @@ export default function BlockedUsersScreen() {
                 disableSticky={true}
             />
 
-            <ScrollView 
+            <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.content}
                 showsVerticalScrollIndicator={false}

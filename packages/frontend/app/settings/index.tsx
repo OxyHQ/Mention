@@ -326,9 +326,9 @@ export default function SettingsScreen() {
                                     <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                                         {currentUserProfile?.design?.displayName ||
                                             (user
-                                                ? typeof user.name === 'string'
-                                                    ? user.name
-                                                    : user.name?.full || user.name?.first || user.username
+                                            ? typeof user.name === 'string'
+                                                ? user.name
+                                                : user.name?.full || user.name?.first || user.username
                                                 : 'User')}
                                     </Text>
                                     <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>

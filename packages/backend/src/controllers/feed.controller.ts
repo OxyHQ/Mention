@@ -31,6 +31,7 @@ class FeedController {
 
   /**
    * Filter out posts from private/followers_only profiles that the viewer doesn't have access to
+   * Also filters out posts from blocked and restricted users
    */
   private async filterPostsByProfilePrivacy(
     posts: any[],
@@ -42,6 +43,25 @@ class FeedController {
     const authorIds = [...new Set(posts.map(p => p.oxyUserId).filter(Boolean))];
     if (authorIds.length === 0) return posts;
     
+      // If current user exists, get blocked and restricted user lists from Oxy
+      // Note: Oxy services use authenticated context from the request
+      let blockedUserIds: string[] = [];
+      let restrictedUserIds: string[] = [];
+      if (currentUserId) {
+        try {
+          const { getBlockedUserIds, getRestrictedUserIds } = await import('../utils/privacyHelpers.js');
+          // These functions use authenticated context, so they'll get the current user's blocked/restricted lists
+          blockedUserIds = await getBlockedUserIds();
+          restrictedUserIds = await getRestrictedUserIds();
+        } catch (error) {
+          console.error('Error getting blocked/restricted users:', error);
+          // Continue without blocking/restricting if Oxy service fails
+        }
+      }
+    
+    const blockedSet = new Set(blockedUserIds);
+    const restrictedSet = new Set(restrictedUserIds);
+    
     // Get privacy settings for all authors
     const privacySettings = await UserSettings.find({
       oxyUserId: { $in: authorIds },
@@ -52,11 +72,13 @@ class FeedController {
       privacySettings.map(s => s.oxyUserId)
     );
     
-    if (privateProfileIds.size === 0) return posts; // No private profiles
-    
-    // If no current user, filter out all posts from private profiles
+    // If no current user, filter out all posts from private profiles and blocked users
     if (!currentUserId) {
-      return posts.filter(p => !privateProfileIds.has(p.oxyUserId));
+      return posts.filter(p => {
+        const authorId = p.oxyUserId;
+        // Filter out private profiles and blocked users
+        return !privateProfileIds.has(authorId) && !blockedSet.has(authorId);
+      });
     }
     
     // Get following list for current user
@@ -67,18 +89,34 @@ class FeedController {
     } catch (error) {
       console.error('Error getting following list for privacy filter:', error);
       // On error, filter out private profiles for safety
-      return posts.filter(p => !privateProfileIds.has(p.oxyUserId));
-    }
-    
+      return posts.filter(p => {
+        const authorId = p.oxyUserId;
+        return !privateProfileIds.has(authorId) && !blockedSet.has(authorId);
+      });
+}
+
     // Filter posts: keep if:
-    // - Author profile is not private
-    // - Author is the current user (own posts)
-    // - Current user is following the author (for followers_only)
+    // - Author is not blocked
+    // - Author is not restricted (or is current user)
+    // - Author profile is not private (or user has access)
+    // - Author is the current user (own posts always visible)
     return posts.filter(p => {
       const authorId = p.oxyUserId;
+      
+      // Always filter out blocked users
+      if (blockedSet.has(authorId)) return false;
+      
+      // Filter out restricted users (they can't see posts from the user who restricted them)
+      // Note: This is from the perspective of the restricted user - they can't see posts from the restrictor
+      // If current user restricted author, author's posts are hidden from current user
+      if (restrictedSet.has(authorId)) return false;
+      
+      // Own posts are always visible
+      if (authorId === currentUserId) return true;
+      
+      // Check privacy settings
       if (!privateProfileIds.has(authorId)) return true; // Public profile
-      if (authorId === currentUserId) return true; // Own posts
-      return followingIds.includes(authorId); // Following the author
+      return followingIds.includes(authorId); // Following the author (for followers_only)
     });
   }
 
@@ -1099,7 +1137,7 @@ class FeedController {
         if (currentUserId) {
           // Get following list
           try {
-            const followingRes = await oxyClient.getUserFollowing(currentUserId);
+          const followingRes = await oxyClient.getUserFollowing(currentUserId);
             followingIds = extractFollowingIds(followingRes);
           } catch (error) {
             console.warn('Failed to load following list:', error);
@@ -1976,7 +2014,7 @@ class FeedController {
               case 'following':
                 // Check if post author follows current user (current user is in author's following list)
                 try {
-                  const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
+                const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
                   const followingIds = extractFollowingIds(authorFollowing);
                   canReply = followingIds.includes(currentUserId);
                 } catch (error) {
