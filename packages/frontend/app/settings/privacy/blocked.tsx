@@ -77,11 +77,11 @@ export default function BlockedUsersScreen() {
             const userPromises = userIds.map(async (userId: string) => {
                 try {
                     console.log(`[BlockedUsers] Fetching user details for: ${userId}`);
-
+                    
                     // Use usersStore's ensureById which tries multiple methods
                     const { useUsersStore } = await import('@/stores/usersStore');
                     const usersState = useUsersStore.getState();
-
+                    
                     const svc: any = oxyServices as any;
                     const loader = async (id: string) => {
                         // Try multiple methods like NotificationItem does
@@ -115,10 +115,10 @@ export default function BlockedUsersScreen() {
                         }
                         return null;
                     };
-
+                    
                     const user = await usersState.ensureById(String(userId), loader);
                     console.log(`[BlockedUsers] Found user for ${userId}:`, user ? 'yes' : 'no', user);
-
+                    
                     // If we couldn't fetch user details, create a minimal user object
                     if (!user) {
                         console.log(`[BlockedUsers] Creating fallback user object for ${userId}`);
@@ -128,7 +128,7 @@ export default function BlockedUsersScreen() {
                             handle: userId.substring(0, 8) + '...',
                         } as BlockedUser;
                     }
-
+                    
                     return user;
                 } catch (error) {
                     console.warn(`[BlockedUsers] Failed to fetch user ${userId}:`, error);
@@ -192,9 +192,9 @@ export default function BlockedUsersScreen() {
             // Filter out already blocked users and current user
             const filtered = results.filter((user: any) => {
                 const userId = user.id || user._id;
-                return userId &&
-                    !blockedUserIds.includes(userId) &&
-                    userId !== currentUser?.id;
+                return userId && 
+                       !blockedUserIds.includes(userId) && 
+                       userId !== currentUser?.id;
             });
             setSearchResults(filtered);
         } catch (error) {
@@ -224,24 +224,24 @@ export default function BlockedUsersScreen() {
 
         try {
             setBlocking(userId);
-
+            
             // Optimistically update the state
             setBlockedUserIds(prev => [...prev, userId]);
             setBlockedUsers(prev => [...prev, user]);
-
+            
             // Remove from search results immediately
             setSearchResults(prev => prev.filter(u => {
                 const id = u.id || (u as any)._id;
                 return id !== userId;
             }));
-
+            
             // Use Oxy services directly
             await oxyServices.blockUser(userId);
             console.log('[BlockedUsers] User blocked successfully');
-
+            
             // Reload from server to ensure consistency
             await loadBlockedUsers();
-
+            
             setSearchQuery('');
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
@@ -285,21 +285,21 @@ export default function BlockedUsersScreen() {
         const performUnblock = async () => {
             try {
                 console.log('[BlockedUsers] Unblocking user:', userId);
-
+                
                 // Optimistically remove from list
                 setBlockedUserIds(prev => prev.filter(id => id !== userId));
                 setBlockedUsers(prev => prev.filter(u => {
                     const id = u.id || (u as any)._id;
                     return id !== userId;
                 }));
-
+                
                 // Use Oxy services directly
                 await oxyServices.unblockUser(userId);
                 console.log('[BlockedUsers] User unblocked successfully');
-
+                
                 // Reload from server to ensure consistency
                 await loadBlockedUsers();
-
+                
                 bottomSheet.setBottomSheetContent(
                     <MessageBottomSheet
                         title={t('common.success')}
@@ -381,7 +381,7 @@ export default function BlockedUsersScreen() {
                 disableSticky={true}
             />
 
-            <ScrollView
+            <ScrollView 
                 style={styles.scrollView}
                 contentContainerStyle={styles.content}
                 showsVerticalScrollIndicator={false}

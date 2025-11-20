@@ -308,57 +308,161 @@ class LinkMetadataService {
 
   /**
    * Extract meta tag content
+   * Handles attributes in any order, mixed quotes, and self-closing tags
    */
   private extractMetaTag(html: string, attribute: string, value: string): string | null {
-    const regex = new RegExp(`<meta[^>]*${attribute}=["']${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*content=["']([^"']+)["']`, 'i');
-    const match = html.match(regex);
-    return match ? match[1] : null;
+    // Escape special regex characters in the value
+    const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Find all meta tags
+    const metaTagPattern = /<meta[^>]*?\/?>/gi;
+    const metaTags: string[] = [];
+    let match;
+    
+    while ((match = metaTagPattern.exec(html)) !== null) {
+      metaTags.push(match[0]);
+    }
+    
+    // Find meta tag with the specified attribute and value
+    for (const metaTag of metaTags) {
+      // Check if this meta tag has the attribute we're looking for
+      const attributePattern = new RegExp(
+        `${attribute}\\s*=\\s*["']${escapedValue}["']`,
+        'i'
+      );
+      
+      if (!attributePattern.test(metaTag)) continue;
+      
+      // Extract content attribute value - handles both single and double quotes, any order
+      const contentPatterns = [
+        /content\s*=\s*["']([^"']+)["']/i,  // Double or single quotes
+        /content\s*=\s*([^\s>]+)/i,          // Unquoted (less common but possible)
+      ];
+      
+      for (const pattern of contentPatterns) {
+        const contentMatch = metaTag.match(pattern);
+        if (contentMatch && contentMatch[1]) {
+          return contentMatch[1].trim();
+        }
+      }
+    }
+    
+    return null;
   }
 
   /**
    * Extract title tag
+   * Handles whitespace and nested content
    */
   private extractTag(html: string, tagName: string): string | null {
-    const regex = new RegExp(`<${tagName}[^>]*>([^<]+)</${tagName}>`, 'i');
+    // Match opening tag, capture content (including nested tags), then closing tag
+    const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)</${tagName}>`, 'i');
     const match = html.match(regex);
-    return match ? match[1].trim() : null;
+    if (!match || !match[1]) return null;
+    
+    // Remove nested tags and decode HTML entities
+    let content = match[1]
+      .replace(/<[^>]+>/g, '') // Remove all HTML tags
+      .replace(/\s+/g, ' ')    // Normalize whitespace
+      .trim();
+    
+    // Basic HTML entity decoding
+    content = content
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ');
+    
+    return content || null;
   }
 
   /**
    * Extract first image tag from HTML
    * Looks for <img> tags and returns the src attribute
+   * Handles various attribute orders and quote styles
    */
   private extractFirstImageTag(html: string): string | null {
-    // Try to find img tags, prioritizing those with common class names for featured/hero images
-    const imgPatterns = [
-      /<img[^>]*class=["'][^"']*(?:featured|hero|main|cover|header|og-image|social)[^"']*["'][^>]*src=["']([^"']+)["']/i,
-      /<img[^>]*src=["']([^"']+)["'][^>]*class=["'][^"']*(?:featured|hero|main|cover|header|og-image|social)[^"']*["']/i,
-      /<img[^>]*src=["']([^"']+)["']/i,
-    ];
-
-    for (const pattern of imgPatterns) {
-      const match = html.match(pattern);
-      if (match && match[1]) {
-        const src = match[1].trim();
-        // Skip data URIs and very small images (likely icons)
-        if (!src.startsWith('data:') && !src.includes('icon') && !src.includes('logo')) {
-          return src;
+    // Find all img tags
+    const imgTagPattern = /<img[^>]*?\/?>/gi;
+    const imgTags: string[] = [];
+    let match;
+    
+    while ((match = imgTagPattern.exec(html)) !== null) {
+      imgTags.push(match[0]);
+    }
+    
+    // Prioritize images with featured/hero/main classes
+    const priorityClasses = ['featured', 'hero', 'main', 'cover', 'header', 'og-image', 'social'];
+    let firstValidImage: string | null = null;
+    
+    for (const imgTag of imgTags) {
+      // Check if it has priority classes
+      const hasPriorityClass = priorityClasses.some(className => 
+        new RegExp(`class\\s*=\\s*["'][^"']*${className}[^"']*["']`, 'i').test(imgTag)
+      );
+      
+      // Extract src attribute - handles both single and double quotes, any order
+      const srcPatterns = [
+        /src\s*=\s*["']([^"']+)["']/i,
+        /src\s*=\s*([^\s>]+)/i,
+      ];
+      
+      for (const pattern of srcPatterns) {
+        const srcMatch = imgTag.match(pattern);
+        if (srcMatch && srcMatch[1]) {
+          const src = srcMatch[1].trim();
+          // Skip data URIs and very small images (likely icons)
+          if (!src.startsWith('data:') && !src.includes('icon') && !src.includes('logo')) {
+            // If it has priority class, return immediately
+            if (hasPriorityClass) {
+              return src;
+            }
+            // Store first valid image as fallback
+            if (!firstValidImage) {
+              firstValidImage = src;
+            }
+          }
         }
       }
     }
-
-    return null;
+    
+    // Return first valid image found (or null if none)
+    return firstValidImage;
   }
 
   /**
    * Extract favicon
+   * Handles various rel attribute formats and quote styles
    */
   private extractFavicon(html: string, baseUrl: URL): string | null {
-    // Try link rel="icon" or rel="shortcut icon"
-    const linkRegex = /<link[^>]*rel=["'](?:icon|shortcut icon)["'][^>]*href=["']([^"']+)["']/i;
-    const match = html.match(linkRegex);
-    if (match) {
-      return this.resolveUrl(match[1], baseUrl);
+    // Find link tags with icon rel
+    const linkTagPattern = /<link[^>]*?\/?>/gi;
+    let match;
+    
+    while ((match = linkTagPattern.exec(html)) !== null) {
+      const linkTag = match[0];
+      
+      // Check if it's an icon link (handles various rel formats)
+      const isIconLink = /rel\s*=\s*["'](?:icon|shortcut\s+icon)["']/i.test(linkTag);
+      if (!isIconLink) continue;
+      
+      // Extract href attribute - handles both single and double quotes, any order
+      const hrefPatterns = [
+        /href\s*=\s*["']([^"']+)["']/i,
+        /href\s*=\s*([^\s>]+)/i,
+      ];
+      
+      for (const pattern of hrefPatterns) {
+        const hrefMatch = linkTag.match(pattern);
+        if (hrefMatch && hrefMatch[1]) {
+          const resolved = this.resolveUrl(hrefMatch[1].trim(), baseUrl);
+          if (resolved) {
+            return resolved;
+          }
+        }
+      }
     }
 
     // Fallback to default favicon location

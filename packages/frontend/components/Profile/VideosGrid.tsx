@@ -48,13 +48,13 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
     useEffect(() => {
         if (!userId || (isPrivate && !isOwnProfile)) return;
         
-        const isLoaded = !!mediaFeed && !mediaFeed.isLoading;
-        const isEmpty = (mediaFeed?.items?.length || 0) === 0;
-        const postsLoaded = !!postsFeed;
+            const isLoaded = !!mediaFeed && !mediaFeed.isLoading;
+            const isEmpty = (mediaFeed?.items?.length || 0) === 0;
+            const postsLoaded = !!postsFeed;
         
-        if (isLoaded && isEmpty && !postsLoaded) {
+            if (isLoaded && isEmpty && !postsLoaded) {
             fetchUserFeed(userId, { type: 'posts', limit: 60 });
-        }
+            }
     }, [userId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
 
     const resolveVideoUri = useCallback(
