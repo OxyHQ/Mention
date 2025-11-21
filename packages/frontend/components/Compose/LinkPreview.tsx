@@ -29,7 +29,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
     let title = link.title || link.siteName;
     let description = link.description || '';
     let siteName = link.siteName;
-    
+
     try {
       const urlObj = new URL(link.url);
       if (!siteName) {
@@ -47,7 +47,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
         title = link.url;
       }
     }
-    
+
     return { displayTitle: title, displayDescription: description, displaySiteName: siteName };
   }, [link.title, link.siteName, link.description, link.url]);
 
@@ -74,7 +74,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
           }}
         />
       ) : null}
-      
+
       <View style={styles.content}>
         {displaySiteName ? (
           <Text
@@ -84,7 +84,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
             {displaySiteName}
           </Text>
         ) : null}
-        
+
         {displayTitle ? (
           <Text
             style={[styles.title, { color: theme.colors.text }]}
@@ -93,7 +93,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
             {displayTitle}
           </Text>
         ) : null}
-        
+
         {displayDescription ? (
           <Text
             style={[styles.description, { color: theme.colors.textSecondary }]}
@@ -169,11 +169,10 @@ const styles = StyleSheet.create({
     height: MEDIA_CARD_HEIGHT, // Fixed height to match media cards
   },
   image: {
+    flex: 1,
     width: '100%',
-    height: MEDIA_CARD_HEIGHT - 80, // Account for content padding and text (~80px)
     backgroundColor: '#EFEFEF',
-    minHeight: 100,
-    maxHeight: MEDIA_CARD_HEIGHT - 80,
+    minHeight: 50,
   },
   content: {
     padding: 12,
