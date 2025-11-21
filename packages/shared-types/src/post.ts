@@ -24,7 +24,7 @@ export interface MediaItem {
   type: 'image' | 'video' | 'gif';
 }
 
-export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources';
+export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event';
 
 export interface PostAttachmentDescriptor {
   type: PostAttachmentType;
@@ -44,6 +44,14 @@ export interface PostArticleContent {
   excerpt?: string;
 }
 
+export interface PostEventContent {
+  eventId?: string;
+  name: string;
+  date: string; // ISO date string
+  location?: string;
+  description?: string;
+}
+
 export interface PostContent {
   text?: string;
   media?: MediaItem[]; // Media items for images and videos
@@ -52,7 +60,8 @@ export interface PostContent {
   location?: GeoJSONPoint; // Location shared by user as part of post content
   sources?: PostSourceLink[]; // External sources cited within the post content
   article?: PostArticleContent; // Optional article content authored with the post
-  attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, etc.)
+  event?: PostEventContent; // Optional event content
+  attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, event, etc.)
 }
 
 export interface PollData {

@@ -82,6 +82,9 @@ const PostItem: React.FC<PostItemProps> = ({
     const articleContent = attachmentsBundle.article ?? null;
     const hasArticle = Boolean(articleContent);
 
+    const eventContent = attachmentsBundle.event ?? content.event ?? null;
+    const hasEvent = Boolean(eventContent);
+
     const pollData = attachmentsBundle.poll ?? content.poll ?? null;
     const pollId = content.pollId ?? null;
 
@@ -104,6 +107,7 @@ const PostItem: React.FC<PostItemProps> = ({
         Boolean(nestedPost) ||
         Boolean(pollData) ||
         Boolean(articleContent) ||
+        Boolean(eventContent) ||
         Boolean(linkPreview) ||
         hasValidLocation;
 
@@ -370,6 +374,17 @@ const PostItem: React.FC<PostItemProps> = ({
                                 : null
                         }
                         onArticlePress={hasArticle ? openArticleSheet : undefined}
+                        event={
+                            eventContent
+                                ? {
+                                    eventId: eventContent.eventId,
+                                    name: eventContent.name,
+                                    date: eventContent.date,
+                                    location: eventContent.location,
+                                    description: eventContent.description,
+                                }
+                                : null
+                        }
                         location={location}
                         sources={sourcesList}
                         onSourcesPress={hasSources ? openSourcesSheet : undefined}

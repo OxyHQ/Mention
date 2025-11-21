@@ -6,6 +6,7 @@ import {
   isMediaAttachmentKey,
   POLL_ATTACHMENT_KEY,
   ARTICLE_ATTACHMENT_KEY,
+  EVENT_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
   LINK_ATTACHMENT_KEY,
@@ -21,6 +22,8 @@ interface UseAttachmentOrderProps {
   showPollCreator: boolean;
   hasArticleContent: boolean;
   article: any;
+  hasEventContent: boolean;
+  event: any;
   location: any;
   sources: Source[];
   mediaIds: ComposerMediaItem[];
@@ -32,6 +35,8 @@ export const useAttachmentOrder = ({
   showPollCreator,
   hasArticleContent,
   article,
+  hasEventContent,
+  event,
   location,
   sources,
   mediaIds,
@@ -42,6 +47,7 @@ export const useAttachmentOrder = ({
 
   // Update attachment order when dependencies change
   useEffect(() => {
+    const hasEventAttachment = Boolean(hasEventContent && event);
     const hasLocationAttachment = Boolean(location);
     const hasSourcesAttachment = sources.some(source => source?.url?.trim?.().length);
 
@@ -50,6 +56,7 @@ export const useAttachmentOrder = ({
       const filtered = prev.filter((key) => {
         if (key === POLL_ATTACHMENT_KEY) return showPollCreator;
         if (key === ARTICLE_ATTACHMENT_KEY) return hasArticleContent && article;
+        if (key === EVENT_ATTACHMENT_KEY) return hasEventAttachment;
         if (key === LOCATION_ATTACHMENT_KEY) return hasLocationAttachment;
         if (key === SOURCES_ATTACHMENT_KEY) return hasSourcesAttachment;
         if (key === LINK_ATTACHMENT_KEY) return hasLink;
@@ -69,6 +76,9 @@ export const useAttachmentOrder = ({
       if (hasArticleContent && article && !next.includes(ARTICLE_ATTACHMENT_KEY)) {
         next.push(ARTICLE_ATTACHMENT_KEY);
       }
+      if (hasEventAttachment && !next.includes(EVENT_ATTACHMENT_KEY)) {
+        next.push(EVENT_ATTACHMENT_KEY);
+      }
       if (hasLocationAttachment && !next.includes(LOCATION_ATTACHMENT_KEY)) {
         next.push(LOCATION_ATTACHMENT_KEY);
       }
@@ -87,7 +97,7 @@ export const useAttachmentOrder = ({
 
       return next;
     });
-  }, [showPollCreator, hasArticleContent, article, location, sources, mediaIds, hasLink]);
+  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, location, sources, mediaIds, hasLink]);
 
   // Set the attachment order directly (for draft loading)
   const setOrder = useCallback((order: string[] | ((prev: string[]) => string[])) => {

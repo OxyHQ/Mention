@@ -7,6 +7,7 @@ export const buildAttachmentsPayload = (
   options: {
     includePoll?: boolean;
     includeArticle?: boolean;
+    includeEvent?: boolean;
     includeLocation?: boolean;
     includeSources?: boolean;
   }
@@ -19,7 +20,7 @@ export const buildAttachmentsPayload = (
     mediaMap.set(item.id, item);
   });
 
-  const addNonMedia = (type: "poll" | "article" | "location" | "sources") => {
+  const addNonMedia = (type: "poll" | "article" | "event" | "location" | "sources") => {
     if (!descriptors.some((d) => d.type === type)) {
       descriptors.push({ type });
     }
@@ -40,6 +41,7 @@ export const buildAttachmentsPayload = (
 
   const POLL_ATTACHMENT_KEY = "poll";
   const ARTICLE_ATTACHMENT_KEY = "article";
+  const EVENT_ATTACHMENT_KEY = "event";
   const LOCATION_ATTACHMENT_KEY = "location";
   const SOURCES_ATTACHMENT_KEY = "sources";
   const MEDIA_ATTACHMENT_PREFIX = "media:";
@@ -53,6 +55,10 @@ export const buildAttachmentsPayload = (
     }
     if (key === ARTICLE_ATTACHMENT_KEY) {
       if (options.includeArticle) addNonMedia("article");
+      return;
+    }
+    if (key === EVENT_ATTACHMENT_KEY) {
+      if (options.includeEvent) addNonMedia("event");
       return;
     }
     if (key === LOCATION_ATTACHMENT_KEY) {
@@ -71,6 +77,7 @@ export const buildAttachmentsPayload = (
 
   if (options.includePoll) addNonMedia("poll");
   if (options.includeArticle) addNonMedia("article");
+  if (options.includeEvent) addNonMedia("event");
   if (options.includeLocation) addNonMedia("location");
   if (options.includeSources) addNonMedia("sources");
 

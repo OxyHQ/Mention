@@ -10,6 +10,7 @@ import {
   PostAttachmentMedia,
   PostAttachmentPoll,
   PostAttachmentNested,
+  PostAttachmentEvent,
 } from './Attachments';
 
 interface MediaObj { id: string; type: 'image' | 'video' | 'gif' }
@@ -24,6 +25,8 @@ interface Props {
   postId?: string; // Post ID for navigation to videos screen
   article?: { articleId?: string; title?: string; body?: string } | null;
   onArticlePress?: (() => void) | null;
+  event?: { eventId?: string; name: string; date: string; location?: string; description?: string } | null;
+  onEventPress?: (() => void) | null;
   location?: GeoJSONPoint | null;
   sources?: PostSourceLink[];
   onSourcesPress?: (() => void) | null;
@@ -35,6 +38,7 @@ interface Props {
 type AttachmentItem =
   | { type: 'poll' }
   | { type: 'article' }
+  | { type: 'event' }
   | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string }
   | { type: 'video'; mediaId: string; src: string }
   | { type: 'image'; mediaId: string; src: string; mediaType: 'image' | 'gif' };
@@ -63,6 +67,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   const hasPoll = useMemo(() => Boolean(pollId || pollData), [pollId, pollData]);
   const hasArticle = useMemo(() => Boolean(article && ((article.title?.trim?.() || article.body?.trim?.()))), [article]);
+  const hasEvent = useMemo(() => Boolean(event && event.name?.trim?.()), [event]);
   const hasLink = useMemo(() => Boolean(linkMetadata?.url), [linkMetadata]);
 
   const resolveMediaSrc = useCallback((id: string, variant: 'thumb' | 'full' = 'thumb') => {
@@ -118,6 +123,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               results.push({ type: 'article' });
             }
             break;
+          case 'event':
+            if (hasEvent && !results.some(item => item.type === 'event')) {
+              results.push({ type: 'event' });
+            }
+            break;
           case 'link':
             if (hasLink && linkMetadata && !results.some(item => item.type === 'link')) {
               results.push({ 
@@ -143,6 +153,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       // If no attachment descriptors, add items in default order
       if (hasPoll) results.push({ type: 'poll' });
       if (hasArticle) results.push({ type: 'article' });
+      if (hasEvent) results.push({ type: 'event' });
       if (hasLink && linkMetadata) {
         results.push({ 
           type: 'link', 
@@ -190,7 +201,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
 
     return results;
-  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasLink, linkMetadata, resolveMediaSrc]);
+  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasLink, linkMetadata, resolveMediaSrc]);
 
   type Item =
     | { type: 'nested' }
@@ -340,6 +351,17 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
             />
           );
         }
+        if (item.type === 'event') {
+          return (
+            <PostAttachmentEvent
+              key={`event-${idx}`}
+              name={event?.name || ''}
+              date={event?.date || ''}
+              location={event?.location}
+              onPress={onEventPress || undefined}
+            />
+          );
+        }
         if (item.type === 'link') {
           return (
             <PostAttachmentLink
@@ -401,6 +423,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     prevProps.postId === nextProps.postId &&
     prevProps.article === nextProps.article &&
     prevProps.onArticlePress === nextProps.onArticlePress &&
+    prevProps.event === nextProps.event &&
+    prevProps.onEventPress === nextProps.onEventPress &&
     prevProps.text === nextProps.text &&
     prevProps.linkMetadata?.url === nextProps.linkMetadata?.url &&
     prevProps.location === nextProps.location &&

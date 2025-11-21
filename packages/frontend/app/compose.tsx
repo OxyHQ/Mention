@@ -23,6 +23,7 @@ import { colors } from '../styles/colors';
 import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
+import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -58,6 +59,7 @@ import { usePollManager } from '@/hooks/usePollManager';
 import { useSourcesManager } from '@/hooks/useSourcesManager';
 import { useThreadManager } from '@/hooks/useThreadManager';
 import { useArticleManager } from '@/hooks/useArticleManager';
+import { useEventManager } from '@/hooks/useEventManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { usePostSubmission } from '@/hooks/usePostSubmission';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
@@ -75,6 +77,7 @@ import {
   MediaPreview,
   VideoPreview,
   ArticleEditor,
+  EventEditor,
   LocationDisplay,
 } from '@/components/Compose';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
@@ -87,6 +90,7 @@ import {
   MEDIA_CARD_HEIGHT,
   POLL_ATTACHMENT_KEY,
   ARTICLE_ATTACHMENT_KEY,
+  EVENT_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
   LINK_ATTACHMENT_KEY,
@@ -118,6 +122,7 @@ const ComposeScreen = () => {
   const sourcesManager = useSourcesManager();
   const threadManager = useThreadManager();
   const articleManager = useArticleManager();
+  const eventManager = useEventManager();
 
   // Destructure for easier access (need these first for useAttachmentOrder)
   const { mediaIds, setMediaIds, addMedia, addMultipleMedia, removeMedia, moveMedia } = mediaManager;
@@ -174,8 +179,29 @@ const ComposeScreen = () => {
     loadArticleFromDraft,
     clearArticle,
   } = articleManager;
+  const {
+    event,
+    setEvent,
+    isEventEditorVisible,
+    eventDraftName,
+    setEventDraftName,
+    eventDraftDate,
+    setEventDraftDate,
+    eventDraftLocation,
+    setEventDraftLocation,
+    eventDraftDescription,
+    setEventDraftDescription,
+    openEventEditor,
+    closeEventEditor,
+    saveEvent: handleEventSave,
+    removeEvent,
+    hasContent: eventHasContent,
+    loadEventFromDraft,
+    clearEvent,
+  } = eventManager;
 
   const hasArticleContent = articleHasContent();
+  const hasEventContent = eventHasContent();
 
   // Remaining local state
   const [postContent, setPostContent] = useState('');
@@ -285,6 +311,8 @@ const ComposeScreen = () => {
     showPollCreator,
     hasArticleContent,
     article,
+    hasEventContent,
+    event,
     location,
     sources,
     mediaIds,
@@ -348,7 +376,7 @@ const ComposeScreen = () => {
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
 
-    if (!(hasText || hasMedia || hasPoll || hasArticleContent)) {
+    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent)) {
       toast.error(t('Add text, an image, a poll, or an article'));
       return;
     }
@@ -370,6 +398,8 @@ const ComposeScreen = () => {
         pollOptions,
         article,
         hasArticleContent,
+        event,
+        hasEventContent,
         location,
         formattedSources,
         attachmentOrder: attachmentOrderRef.current || attachmentOrder,
@@ -415,6 +445,11 @@ const ComposeScreen = () => {
       setArticle(null);
       setArticleDraftTitle('');
       setArticleDraftBody('');
+      setEvent(null);
+      setEventDraftName('');
+      setEventDraftDate('');
+      setEventDraftLocation('');
+      setEventDraftDescription('');
 
       // Navigate back after posting
       router.back();
@@ -910,6 +945,52 @@ const ComposeScreen = () => {
                             );
                           }
 
+                          if (key === EVENT_ATTACHMENT_KEY) {
+                            if (!(hasEventContent && event)) return null;
+                            return (
+                              <View
+                                key={key}
+                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                              >
+                                {total > 1 ? (
+                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(EVENT_ATTACHMENT_KEY, 'left')}
+                                      disabled={!canMoveLeft}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(EVENT_ATTACHMENT_KEY, 'right')}
+                                      disabled={!canMoveRight}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                  </View>
+                                ) : null}
+                                <PostAttachmentEvent
+                                  name={event.name}
+                                  date={event.date}
+                                  location={event.location}
+                                  onPress={openEventEditor}
+                                  style={styles.articleAttachmentPreview}
+                                />
+                                <TouchableOpacity
+                                  onPress={(event) => {
+                                    event.stopPropagation();
+                                    removeEvent();
+                                  }}
+                                  style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <CloseIcon size={16} color={theme.colors.text} />
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          }
+
                           if (key === LINK_ATTACHMENT_KEY) {
                             if (detectedLinks.length === 0) return null;
                             const link = detectedLinks[0];
@@ -1038,12 +1119,14 @@ const ComposeScreen = () => {
                       onSchedulePress={handleSchedulePress}
                       onSourcesPress={openSourcesSheet}
                       onArticlePress={openArticleEditor}
+                      onEventPress={openEventEditor}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
                       hasMedia={mediaIds.length > 0}
                       hasSources={sources.length > 0}
                       hasArticle={hasArticleContent}
+                      hasEvent={hasEventContent}
                       hasSchedule={Boolean(scheduledAt)}
                       scheduleEnabled={scheduleEnabled}
                       hasSourceErrors={invalidSources}
@@ -1383,6 +1466,19 @@ const ComposeScreen = () => {
           onBodyChange={setArticleDraftBody}
           onClose={closeArticleEditor}
           onSave={handleArticleSave}
+        />
+        <EventEditor
+          visible={isEventEditorVisible}
+          name={eventDraftName}
+          date={eventDraftDate}
+          location={eventDraftLocation}
+          description={eventDraftDescription}
+          onNameChange={setEventDraftName}
+          onDateChange={setEventDraftDate}
+          onLocationChange={setEventDraftLocation}
+          onDescriptionChange={setEventDraftDescription}
+          onClose={closeEventEditor}
+          onSave={handleEventSave}
         />
       </SafeAreaView>
     </>

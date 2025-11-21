@@ -19,12 +19,14 @@ interface ComposeToolbarProps {
     onSchedulePress?: () => void;
     onSourcesPress?: () => void;
     onArticlePress?: () => void;
+    onEventPress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
     hasMedia?: boolean;
     hasSources?: boolean;
     hasArticle?: boolean;
+    hasEvent?: boolean;
     hasSchedule?: boolean;
     scheduleEnabled?: boolean;
     hasSourceErrors?: boolean;
@@ -40,12 +42,14 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     onSchedulePress,
     onSourcesPress,
     onArticlePress,
+    onEventPress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
     hasMedia = false,
     hasSources = false,
     hasArticle = false,
+    hasEvent = false,
     hasSchedule = false,
     scheduleEnabled = true,
     hasSourceErrors = false,
@@ -140,7 +144,20 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 >
                     <ArticleIcon
                         size={20}
-                        color={disabled ? theme.colors.textTertiary : theme.colors.textSecondary}
+                        color={disabled ? theme.colors.textTertiary : (hasArticle ? theme.colors.primary : theme.colors.textSecondary)}
+                    />
+                </TouchableOpacity>
+            )}
+
+            {onEventPress && (
+                <TouchableOpacity
+                    onPress={onEventPress}
+                    disabled={disabled}
+                    style={styles.button}
+                >
+                    <CalendarIcon
+                        size={20}
+                        color={disabled ? theme.colors.textTertiary : (hasEvent ? theme.colors.primary : theme.colors.textSecondary)}
                     />
                 </TouchableOpacity>
             )}

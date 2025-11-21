@@ -32,6 +32,8 @@ interface PostSubmissionProps {
   pollOptions: string[];
   article: any;
   hasArticleContent: boolean;
+  event: any;
+  hasEventContent: boolean;
   location: any;
   sources: any[];
   attachmentOrder: string[];
@@ -60,6 +62,8 @@ export const usePostSubmission = ({
   pollOptions,
   article,
   hasArticleContent,
+  event,
+  hasEventContent,
   location,
   sources,
   attachmentOrder,
@@ -93,7 +97,7 @@ export const usePostSubmission = ({
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
     
-    return hasText || hasMedia || hasPoll || hasArticleContent;
+    return hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent;
   }, [postContent, mediaIds, pollOptions, hasArticleContent]);
 
   const buildMainPost = useCallback(() => {
@@ -106,6 +110,7 @@ export const usePostSubmission = ({
       {
         includePoll: hasPoll,
         includeArticle: Boolean(hasArticleContent && article),
+        includeEvent: Boolean(hasEventContent && event),
         includeLocation: Boolean(location),
         includeSources: formattedSources.length > 0,
       }
@@ -140,6 +145,14 @@ export const usePostSubmission = ({
         }),
         ...(formattedSources.length > 0 && { sources: formattedSources }),
         ...(articlePayload && { article: articlePayload }),
+        ...(hasEventContent && event && {
+          event: {
+            name: event.name.trim(),
+            date: event.date,
+            ...(event.location?.trim() && { location: event.location.trim() }),
+            ...(event.description?.trim() && { description: event.description.trim() }),
+          }
+        }),
         ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
       },
       mentions: mentions.map(m => m.userId),

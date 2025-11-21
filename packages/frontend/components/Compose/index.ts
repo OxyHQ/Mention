@@ -9,6 +9,7 @@ export { PollAttachmentCard } from "./PollAttachmentCard";
 export { MediaPreview } from "./MediaPreview";
 export { VideoPreview } from "./VideoPreview";
 export { ArticleEditor } from "./ArticleEditor";
+export { EventEditor } from "./EventEditor";
 export { LocationDisplay } from "./LocationDisplay";
 export { LinkPreview, LinkPreviewLoading } from "./LinkPreview";
 

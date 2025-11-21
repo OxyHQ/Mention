@@ -16,6 +16,8 @@ interface BuildMainPostParams {
   pollOptions: string[];
   article: any;
   hasArticleContent: boolean;
+  event: any;
+  hasEventContent: boolean;
   location: any;
   formattedSources: any[];
   attachmentOrder: string[];
@@ -47,6 +49,8 @@ export const buildMainPost = (params: BuildMainPostParams) => {
     pollOptions,
     article,
     hasArticleContent,
+    event,
+    hasEventContent,
     location,
     formattedSources,
     attachmentOrder,
@@ -61,6 +65,7 @@ export const buildMainPost = (params: BuildMainPostParams) => {
   const attachmentsPayload = buildAttachmentsPayload(attachmentOrder, mediaIds, {
     includePoll: hasPoll,
     includeArticle: Boolean(hasArticleContent && article),
+    includeEvent: Boolean(hasEventContent && event),
     includeLocation: Boolean(location),
     includeSources: formattedSources.length > 0,
   });
@@ -92,6 +97,14 @@ export const buildMainPost = (params: BuildMainPostParams) => {
       }),
       ...(formattedSources.length > 0 && { sources: formattedSources }),
       ...(articlePayload && { article: articlePayload }),
+      ...(hasEventContent && event && {
+        event: {
+          name: event.name.trim(),
+          date: event.date,
+          ...(event.location?.trim() && { location: event.location.trim() }),
+          ...(event.description?.trim() && { description: event.description.trim() }),
+        }
+      }),
       ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
     },
     mentions: mentions.map(m => m.userId),
