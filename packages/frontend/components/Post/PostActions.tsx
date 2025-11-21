@@ -11,9 +11,10 @@ import AnimatedNumber from '../common/AnimatedNumber';
 import { useTheme } from '@/hooks/useTheme';
 
 interface Engagement {
-  replies: number;
-  reposts: number;
-  likes: number;
+  replies: number | null;
+  reposts: number | null;
+  likes: number | null;
+  saves?: number | null;
 }
 
 interface Props {
@@ -86,7 +87,7 @@ const PostActions: React.FC<Props> = ({
             <HeartIcon size={18} color={theme.colors.textSecondary} />
           )}
         </TouchableOpacity>
-        {!hideLikeCounts && (
+        {!hideLikeCounts && engagement?.likes !== null && (
           <TouchableOpacity onPress={handleLikesPress} style={styles.countButton}>
             <AnimatedNumber
               value={engagement?.likes ?? 0}
@@ -99,7 +100,7 @@ const PostActions: React.FC<Props> = ({
       {/* Reply (comment) */}
       <TouchableOpacity style={styles.engagementButton} onPress={onReply}>
         <CommentIcon size={18} color={theme.colors.textSecondary} />
-        {!hideReplyCounts && (
+        {!hideReplyCounts && engagement?.replies !== null && (
           <AnimatedNumber
             value={engagement?.replies ?? 0}
             style={[styles.engagementText, { color: theme.colors.textSecondary }]}
@@ -116,7 +117,7 @@ const PostActions: React.FC<Props> = ({
             <RepostIcon size={18} color={theme.colors.textSecondary} />
           )}
         </TouchableOpacity>
-        {!hideShareCounts && (
+        {!hideShareCounts && engagement?.reposts !== null && (
           <TouchableOpacity onPress={handleRepostsPress} style={styles.countButton}>
             <AnimatedNumber
               value={engagement?.reposts ?? 0}

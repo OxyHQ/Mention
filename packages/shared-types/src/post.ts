@@ -2,7 +2,7 @@
  * Post-related types for Mention social network
  */
 
-import { Timestamps, Coordinates, GeoJSONPoint } from './common';
+import { GeoJSONPoint } from './common';
 
 export enum PostType {
   TEXT = 'text',
@@ -167,3 +167,106 @@ export interface PostFilters {
   dateTo?: string;
   isEdited?: boolean;
 } 
+
+/**
+ * Normalized API response structures for hydrated posts
+ */
+
+export interface PostActorSummary {
+  id: string;
+  handle: string;
+  displayName: string;
+  name?: string;
+  avatarUrl?: string;
+  avatar?: string;
+  badges?: string[];
+  isVerified?: boolean;
+}
+
+export interface PostViewerState {
+  isOwner: boolean;
+  isLiked: boolean;
+  isReposted: boolean;
+  isSaved: boolean;
+}
+
+export interface PostPermissions {
+  canReply: boolean;
+  canDelete: boolean;
+  canPin: boolean;
+  canViewSources: boolean;
+  canEdit?: boolean;
+}
+
+export interface PostEngagementSummary {
+  likes: number | null;
+  reposts: number | null;
+  replies: number | null;
+  saves?: number | null;
+  views?: number | null;
+  impressions?: number | null;
+}
+
+export interface PostAttachmentBundle {
+  media?: MediaItem[];
+  poll?: PollData;
+  article?: PostArticleContent;
+  sources?: PostSourceLink[];
+  location?: GeoJSONPoint;
+}
+
+export interface PostLinkPreview {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  siteName?: string;
+}
+
+export interface PostFeedContext {
+  reason?: string;
+  position?: number;
+  parentThreadId?: string;
+  isThreadParent?: boolean;
+}
+
+export interface PostMetadataState {
+  visibility: PostVisibility;
+  replyPermission?: ReplyPermission;
+  reviewReplies?: boolean;
+  isPinned?: boolean;
+  isSensitive?: boolean;
+  isThread?: boolean;
+  language?: string;
+  tags?: string[];
+  mentions?: string[];
+  hashtags?: string[];
+  createdAt: string;
+  updatedAt: string;
+  status?: 'draft' | 'published' | 'scheduled';
+}
+
+export interface HydratedPostSummary {
+  id: string;
+  content: PostContent;
+  attachments: PostAttachmentBundle;
+  linkPreview?: PostLinkPreview | null;
+  user: PostActorSummary;
+  engagement: PostEngagementSummary;
+  viewerState: PostViewerState;
+  permissions: PostPermissions;
+  metadata: PostMetadataState;
+}
+
+export interface HydratedRepostContext {
+  originalPost: HydratedPostSummary;
+  actor: PostActorSummary;
+  reason?: string;
+}
+
+export interface HydratedPost extends HydratedPostSummary {
+  originalPost?: HydratedPostSummary | null;
+  quotedPost?: HydratedPostSummary | null;
+  repost?: HydratedRepostContext | null;
+  context?: PostFeedContext;
+}

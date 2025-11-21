@@ -152,12 +152,8 @@ return {
                     'expo-font',
                     {
                       fonts: [
-                        './assets/fonts/inter/Inter-Regular.otf',
-                        './assets/fonts/inter/Inter-Italic.otf',
-                        './assets/fonts/inter/Inter-SemiBold.otf',
-                        './assets/fonts/inter/Inter-SemiBoldItalic.otf',
-                        './assets/fonts/inter/Inter-ExtraBold.otf',
-                        './assets/fonts/inter/Inter-ExtraBoldItalic.otf',
+                        './assets/fonts/inter/InterVariable.ttf',
+                        './assets/fonts/inter/InterVariable-Italic.ttf',
                         './assets/fonts/Phudu-VariableFont_wght.ttf',
                       ],
                     },

@@ -121,16 +121,17 @@ export default function RootLayout() {
   const queryClient = useMemo(() => new QueryClient(QUERY_CLIENT_CONFIG), []);
 
   // Font Loading
+  // Using variable fonts to reduce bundle size - all weights from a single file
   const [fontsLoaded] = useFonts({
-    'Inter-Black': require('@/assets/fonts/inter/Inter-Black.otf'),
-    'Inter-Bold': require('@/assets/fonts/inter/Inter-Bold.otf'),
-    'Inter-ExtraBold': require('@/assets/fonts/inter/Inter-ExtraBold.otf'),
-    'Inter-ExtraLight': require('@/assets/fonts/inter/Inter-ExtraLight.otf'),
-    'Inter-Light': require('@/assets/fonts/inter/Inter-Light.otf'),
-    'Inter-Medium': require('@/assets/fonts/inter/Inter-Medium.otf'),
-    'Inter-Regular': require('@/assets/fonts/inter/Inter-Regular.otf'),
-    'Inter-SemiBold': require('@/assets/fonts/inter/Inter-SemiBold.otf'),
-    'Inter-Thin': require('@/assets/fonts/inter/Inter-Thin.otf'),
+    'Inter-Thin': require('@/assets/fonts/inter/InterVariable.ttf'),
+    'Inter-ExtraLight': require('@/assets/fonts/inter/InterVariable.ttf'),
+    'Inter-Light': require('@/assets/fonts/inter/InterVariable.ttf'),
+    'Inter-Regular': require('@/assets/fonts/inter/InterVariable.ttf'),
+    'Inter-Medium': require('@/assets/fonts/inter/InterVariable.ttf'),
+    'Inter-SemiBold': require('@/assets/fonts/inter/InterVariable.ttf'),
+    'Inter-Bold': require('@/assets/fonts/inter/InterVariable.ttf'),
+    'Inter-ExtraBold': require('@/assets/fonts/inter/InterVariable.ttf'),
+    'Inter-Black': require('@/assets/fonts/inter/InterVariable.ttf'),
     'Phudu-Thin': require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),
     'Phudu-Regular': require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),
     'Phudu-Medium': require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),

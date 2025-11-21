@@ -3,17 +3,17 @@ import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
-import { 
-  FeedRequest, 
-  CreateReplyRequest, 
-  CreateRepostRequest, 
-  LikeRequest, 
+import {
+  FeedRequest,
+  CreateReplyRequest,
+  CreateRepostRequest,
+  LikeRequest,
   UnlikeRequest,
   FeedResponse,
   FeedType,
-  Post as DomainPost,
   PostType,
-  PostVisibility
+  PostVisibility,
+  HydratedPost,
 } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { io } from '../../server';
@@ -21,6 +21,7 @@ import { oxy as oxyClient } from '../../server';
 import { feedRankingService } from '../services/FeedRankingService';
 import { feedCacheService } from '../services/FeedCacheService';
 import { userPreferenceService } from '../services/UserPreferenceService';
+import { postHydrationService } from '../services/PostHydrationService';
 import UserBehavior from '../models/UserBehavior';
 import UserSettings from '../models/UserSettings';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
@@ -156,382 +157,36 @@ class FeedController {
   /**
    * Transform posts to include full profile data and engagement stats
    */
-  private async transformPostsWithProfiles(posts: any[], currentUserId?: string): Promise<any[]> {
+  private async transformPostsWithProfiles(posts: any[], currentUserId?: string): Promise<HydratedPost[]> {
     try {
-      // First, populate poll data for posts that have polls
-      const postsWithPolls = await this.populatePollData(posts);
-      // Collect any referenced original/quoted posts to resolve their media and embed originals
-      const originalIds = Array.from(new Set(
-        postsWithPolls
-          .map((p: any) => {
-            const obj = p.toObject ? p.toObject() : p;
-            return obj.repostOf || obj.quoteOf;
-          })
-          .filter(Boolean)
-          .map((id: any) => id.toString())
-      ));
-
-      const originalsMap = new Map<string, any>();
-      if (originalIds.length) {
-        try {
-          const originals = await Post.find({ _id: { $in: originalIds } })
-            .select('_id oxyUserId type content visibility stats metadata createdAt updatedAt repostOf quoteOf parentPostId threadId tags mentions hashtags media')
-            .lean();
-          originals.forEach((op: any) => originalsMap.set(op._id.toString(), op));
-        } catch (e) {
-          console.warn('Failed fetching originals for media aggregation:', e);
-        }
+      if (!posts || posts.length === 0) {
+        return [];
       }
       
-      // Get unique user IDs to fetch user data in batch, include original authors
-      const userIds = [...new Set([
-        ...postsWithPolls.map(post => {
-          const postObj = post.toObject ? post.toObject() : post;
-          return postObj.oxyUserId;
-        }),
-        ...Array.from(originalsMap.values()).map((op: any) => op?.oxyUserId).filter(Boolean)
-      ])];
-
-      // Fetch user data from Oxy in parallel
-      const userDataMap = new Map();
-      await Promise.all(userIds.map(async (userId) => {
-        try {
-          if (userId) {
-            const userData = await oxyClient.getUserById(userId);
-            userDataMap.set(userId, {
-              id: userData.id,
-              name: userData.name?.full || userData.username,
-              handle: userData.username,
-              avatar: typeof userData.avatar === 'string' ? userData.avatar : (userData.avatar as any)?.url || '',
-              verified: userData.verified || false
-            });
-          }
-        } catch (error) {
-          console.error(`Error fetching user data for ${userId}:`, error);
-          // Fallback user data
-          userDataMap.set(userId, {
-            id: userId,
-            name: 'User',
-            handle: 'user',
-            avatar: '',
-            verified: false
-          });
+      const hydrated = await postHydrationService.hydratePosts(posts, {
+        viewerId: currentUserId,
+        maxDepth: 1,
+        includeLinkMetadata: true,
+        includeFullArticleBody: false, // Don't include article bodies in feed
+        includeFullMetadata: false, // Skip some metadata fields for performance
+      });
+      
+      // Ensure all posts have required fields
+      return hydrated.filter((post) => {
+        if (!post || !post.id) {
+          console.warn('[Feed] Filtered out post without id:', post);
+          return false;
         }
-      }));
-
-      // Get user interaction data for current user if authenticated
-      const userInteractions = new Map();
-      if (currentUserId) {
-        try {
-          // Get all post IDs
-          const postIds = postsWithPolls.map(post => {
-            const postObj = post.toObject ? post.toObject() : post;
-            return postObj._id.toString();
-          });
-
-          // Use Like collection to check if current user liked posts (more efficient than storing full array)
-          // This avoids loading metadata.likedBy arrays which can be huge for popular posts
-          const userLikes = await Like.find({
-            userId: currentUserId,
-            postId: { $in: postIds }
-          }).select('postId').lean();
-
-          const likedPostIds = new Set(
-            userLikes.map((like: any) => like.postId?.toString?.()).filter(Boolean)
-          );
-
-          // Check saves using Bookmark collection (also more efficient)
-          const userBookmarks = await Bookmark.find({
-            userId: currentUserId,
-            postId: { $in: postIds }
-          }).select('postId').lean();
-
-          const savedPostIds = new Set(
-            userBookmarks.map((bookmark: any) => bookmark.postId?.toString?.()).filter(Boolean)
-          );
-
-          // Set user interactions based on Like/Bookmark collections
-          postIds.forEach(postId => {
-            const interactions: any = {};
-            if (likedPostIds.has(postId)) {
-              interactions.isLiked = true;
-            }
-            if (savedPostIds.has(postId)) {
-              interactions.isSaved = true;
-            }
-            if (Object.keys(interactions).length > 0) {
-              userInteractions.set(postId, interactions);
-            }
-          });
-
-          // Check reposts for current user
-          const repostedPosts = await Post.find({
-            oxyUserId: currentUserId,
-            repostOf: { $in: postIds }
-          }).select('repostOf');
-
-          repostedPosts.forEach(post => {
-            userInteractions.set(post.repostOf, {
-              ...userInteractions.get(post.repostOf),
-              isReposted: true
-            });
-          });
-        } catch (error) {
-          console.error('Error fetching user interactions:', error);
+        if (!post.user || !post.user.id) {
+          console.warn('[Feed] Filtered out post without user:', post.id);
+          return false;
         }
-      }
-
-      // Check which posts are threads (have replies from the same user)
-      const threadStatusMap = new Map();
-      try {
-        const postIds = postsWithPolls.map(post => {
-          const postObj = post.toObject ? post.toObject() : post;
-          return postObj._id.toString();
-        });
-
-        const threadChecks = await Promise.all(postIds.map(async (postId) => {
-          const postObj = postsWithPolls.find(p => {
-            const obj = p.toObject ? p.toObject() : p;
-            return obj._id.toString() === postId;
-          });
-          
-          if (postObj) {
-            const obj = postObj.toObject ? postObj.toObject() : postObj;
-            const repliesFromSameUser = await Post.findOne({
-              parentPostId: postId,
-              oxyUserId: obj.oxyUserId
-            }).lean();
-            
-            return { postId, isThread: !!repliesFromSameUser };
-          }
-          return { postId, isThread: false };
-        }));
-
-        threadChecks.forEach(({ postId, isThread }) => {
-          threadStatusMap.set(postId, isThread);
-        });
-      } catch (error) {
-        console.error('Error checking thread status:', error);
-      }
-
-      // Helper to extract media ids from any raw post-like object
-      const extractMediaIds = (obj: any): string[] => {
-        if (!obj) return [];
-        const out: string[] = [];
-        const pushFrom = (arr?: any[]) => {
-          if (!Array.isArray(arr) || !arr.length) return;
-          arr.forEach((m: any) => {
-            if (!m) return;
-            if (typeof m === 'string') {
-              out.push(m);
-            } else if (typeof m === 'object') {
-              const id = m.id || m.url || m.src || m.path;
-              if (id) out.push(String(id));
-            }
-          });
-        };
-        pushFrom(obj?.content?.media);
-        pushFrom((obj as any)?.content?.images);
-        pushFrom((obj as any)?.content?.attachments);
-        pushFrom((obj as any)?.content?.files);
-        pushFrom((obj as any)?.media); // legacy
-        // unique preserve order
-        const seen = new Set<string>();
-        return out.filter((id) => (seen.has(id) ? false : (seen.add(id), true)));
-      };
-
-      // Helper to build a minimal transformed post for embedding (no nested originals)
-      const buildEmbedded = async (obj: any) => {
-        if (!obj) return undefined;
-        const oid = obj._id?.toString?.() || String(obj._id || obj.id);
-        const u = userDataMap.get(obj.oxyUserId) || {
-          id: obj.oxyUserId,
-          name: 'User',
-          handle: 'user',
-          avatar: '',
-          verified: false
-        };
-        const stats = obj.stats || { likesCount: 0, repostsCount: 0, commentsCount: 0, viewsCount: 0, sharesCount: 0 };
-        const engagement = {
-          replies: stats.commentsCount || 0,
-          reposts: stats.repostsCount || 0,
-          likes: stats.likesCount || 0
-        };
-        const mediaIds = extractMediaIds(obj);
-        
-        // Replace mention placeholders in embedded post content
-        const embeddedContentText = obj.content?.text || '';
-        const embeddedReplacedText = await this.replaceMentionPlaceholders(embeddedContentText, obj.mentions || []);
-        
-        return {
-          id: oid,
-          _id: obj._id,
-          oxyUserId: obj.oxyUserId,
-          type: obj.type,
-          content: {
-            ...obj.content,
-            text: embeddedReplacedText
-          },
-          visibility: obj.visibility,
-          isEdited: obj.isEdited,
-          editHistory: obj.editHistory,
-          language: obj.language,
-          tags: obj.tags || [],
-          mentions: obj.mentions || [],
-          hashtags: obj.hashtags || [],
-          repostOf: obj.repostOf,
-          quoteOf: obj.quoteOf,
-          parentPostId: obj.parentPostId,
-          threadId: obj.threadId,
-          stats,
-          // Don't include likedBy/savedBy arrays in response (too much data)
-          // Only include isLiked/isSaved flags which are set from userInteractions map
-          metadata: (() => {
-            const md = obj.metadata || {};
-            // Remove likedBy/savedBy arrays to reduce payload size
-            const { likedBy, savedBy, ...cleanMetadata } = md;
-            return cleanMetadata;
-          })(),
-          createdAt: obj.createdAt,
-          updatedAt: obj.updatedAt,
-          date: obj.createdAt,
-          user: u,
-          engagement,
-          mediaIds
-        };
-      };
-
-      // Transform posts with real user data and engagement stats
-      const transformedPosts = await Promise.all(postsWithPolls.map(async post => {
-        const postObj = post.toObject ? post.toObject() : post;
-        const userId = postObj.oxyUserId;
-        const postId = postObj._id.toString();
-        const userData = userDataMap.get(userId) || {
-          id: userId,
-          name: 'User',
-          handle: 'user',
-          avatar: '',
-          verified: false
-        };
-
-        // Calculate engagement stats from actual database values
-        // Ensure stats object exists with default values if not present
-        const stats = postObj.stats || {
-          likesCount: 0,
-          repostsCount: 0, 
-          commentsCount: 0,
-          viewsCount: 0,
-          sharesCount: 0
-        };
-        
-        const engagement = {
-          replies: stats.commentsCount || 0,
-          reposts: stats.repostsCount || 0,
-          likes: stats.likesCount || 0
-        };
-
-        // Get user-specific interaction flags
-        const interactions = userInteractions.get(postId) || {};
-        const isLiked = Boolean(interactions.isLiked);
-        const isReposted = Boolean(interactions.isReposted);
-        const isSaved = Boolean(interactions.isSaved);
-        const isThread = threadStatusMap.get(postId) || false;
-
-        // Media aggregation for this post and its original/quoted if applicable
-        const mediaIds = extractMediaIds(postObj);
-  const originalRef = postObj.repostOf || postObj.quoteOf;
-  const originalObj = originalRef ? originalsMap.get(originalRef.toString()) : undefined;
-        const originalMediaIds = extractMediaIds(originalObj);
-        const allMediaIds = (() => {
-          const seen = new Set<string>();
-          const merged = [...mediaIds, ...originalMediaIds];
-          return merged.filter((id) => (seen.has(id) ? false : (seen.add(id), true)));
-        })();
-
-        // Optionally embed original/quoted post
-        const embeddedOriginal = originalObj ? await buildEmbedded(originalObj) : undefined;
-
-        // Build lightweight actor label for reposts
-        const repostedBy = postObj.repostOf ? {
-          id: userData.id,
-          name: userData.name,
-          handle: userData.handle,
-          avatar: userData.avatar,
-          verified: userData.verified,
-          date: postObj.createdAt,
-        } : undefined;
-
-        // Replace mention placeholders in post content text
-        const contentText = postObj.content?.text || '';
-        const mentionsArray = postObj.mentions || [];
-        if (mentionsArray.length > 0 && contentText.includes('[mention:')) {
-          console.log(`[Feed Transform] Processing mentions for post ${postId}:`, mentionsArray);
-          console.log(`[Feed Transform] Content before:`, contentText.substring(0, 100));
-        }
-        const replacedText = await this.replaceMentionPlaceholders(contentText, mentionsArray);
-        if (mentionsArray.length > 0 && contentText.includes('[mention:') && replacedText !== contentText) {
-          console.log(`[Feed Transform] Content after:`, replacedText.substring(0, 100));
-        }
-
-        // Return post in standard Post schema format
-        const transformedPost = {
-          id: postId,
-          _id: postObj._id,
-          oxyUserId: postObj.oxyUserId,
-          type: postObj.type,
-          content: {
-            ...postObj.content,
-            text: replacedText
-          }, // Return complete content structure with replaced mentions
-          visibility: postObj.visibility,
-          isEdited: postObj.isEdited,
-          editHistory: postObj.editHistory,
-          language: postObj.language,
-          tags: postObj.tags || [],
-          mentions: postObj.mentions || [],
-          hashtags: postObj.hashtags || [],
-          repostOf: postObj.repostOf,
-          quoteOf: postObj.quoteOf,
-          parentPostId: postObj.parentPostId,
-          threadId: postObj.threadId,
-          replyPermission: postObj.replyPermission,
-          reviewReplies: postObj.reviewReplies,
-          stats: stats, // Use the processed stats object
-          metadata: {
-            ...postObj.metadata,
-            isLiked,
-            isReposted,
-            isSaved,
-          },
-          // Set top-level flags for easier frontend access (preferred by frontend)
-          isLiked,
-          isReposted,
-          isSaved,
-          location: postObj.location, // Post creation location metadata
-          createdAt: postObj.createdAt,
-          updatedAt: postObj.updatedAt,
-          // Additional fields for UI compatibility
-          date: postObj.createdAt, // Frontend expects 'date' field
-          user: userData,
-          engagement,
-          isThread,
-          // Normalized media fields for clients
-          mediaIds,
-          originalMediaIds,
-          allMediaIds,
-          // Embed original/quoted to avoid extra client roundtrips
-          ...(postObj.repostOf ? { original: embeddedOriginal } : {}),
-          ...(postObj.quoteOf ? { quoted: embeddedOriginal } : {}),
-          ...(repostedBy ? { repostedBy } : {})
-        };
-
-        return transformedPost;
-      }));
-
-      return transformedPosts;
+        return true;
+      });
     } catch (error) {
-      console.error('Error transforming posts:', error);
-      throw new Error('Failed to transform posts');
+      console.error('[Feed] Error transforming posts:', error);
+      // Return empty array instead of throwing to prevent feed from breaking
+      return [];
     }
   }
 
@@ -1008,7 +663,7 @@ class FeedController {
       // Final deduplication after transformation (ensures no duplicates in response)
       const finalUniqueMap = new Map<string, any>();
       for (const post of transformedPosts) {
-        const id = post.id?.toString() || post._id?.toString() || '';
+        const id = post.id?.toString() || '';
         if (id && id !== 'undefined' && id !== 'null') {
           if (!finalUniqueMap.has(id)) {
             finalUniqueMap.set(id, post);
@@ -1021,10 +676,8 @@ class FeedController {
       const finalHasMore = hasMore && finalUniquePosts.length >= limit;
 
       // Calculate cursor from the last post in the deduplicated array
-      const finalCursor = finalHasMore && finalUniquePosts.length > 0 
-        ? (finalUniquePosts[finalUniquePosts.length - 1].id?.toString() || 
-           finalUniquePosts[finalUniquePosts.length - 1]._id?.toString() || 
-           undefined)
+        const finalCursor = finalHasMore && finalUniquePosts.length > 0 
+        ? (finalUniquePosts[finalUniquePosts.length - 1].id?.toString() || undefined)
         : undefined;
 
       // DON'T emit feed:updated for fetch requests - this causes duplicates!
@@ -1107,7 +760,7 @@ class FeedController {
         // Deduplicate transformed posts for For You feed (unauthenticated path)
         const finalUniqueMap = new Map<string, any>();
         for (const post of transformedPosts) {
-          const id = post.id?.toString() || post._id?.toString() || '';
+          const id = post.id?.toString() || '';
           if (id && id !== 'undefined' && id !== 'null') {
             if (!finalUniqueMap.has(id)) {
               finalUniqueMap.set(id, post);
@@ -1120,7 +773,7 @@ class FeedController {
           items: finalUniquePosts,
           hasMore: hasMore && finalUniquePosts.length >= Number(limit),
           nextCursor: hasMore && finalUniquePosts.length > 0 
-            ? finalUniquePosts[finalUniquePosts.length - 1]._id?.toString() 
+            ? finalUniquePosts[finalUniquePosts.length - 1].id?.toString() 
             : undefined,
           totalCount: finalUniquePosts.length
         };
@@ -1305,10 +958,11 @@ class FeedController {
         });
       }
 
-      // Stage 2: Transform deduplicated posts
+      // Stage 2: Transform deduplicated posts using hydration service
+      // Hydration service already handles privacy filtering (blocked/restricted users)
       const transformedPosts = await this.transformPostsWithProfiles(deduplicatedRawPosts, currentUserId);
       
-      // Filter out posts from private profiles
+      // Additional privacy filtering for profile visibility (private/followers_only)
       const filteredPosts = await this.filterPostsByProfilePrivacy(transformedPosts, currentUserId);
 
       // Stage 3: Deduplicate transformed posts by id (defensive check)
@@ -1501,7 +1155,7 @@ class FeedController {
       }
 
       // FINAL VERIFICATION: Log what we're sending to ensure no duplicates
-      const responseIds = finalDeduplicated.map(p => p.id?.toString() || (p as any)._id?.toString() || 'NO_ID');
+      const responseIds = finalDeduplicated.map(p => p.id?.toString() || 'NO_ID');
       const uniqueResponseIds = new Set(responseIds);
       
       console.log('📤 For You feed response:', {

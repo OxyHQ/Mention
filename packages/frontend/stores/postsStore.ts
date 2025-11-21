@@ -1,59 +1,41 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { 
-  FeedRequest, 
-  CreateReplyRequest, 
-  CreateRepostRequest, 
+import {
+  FeedRequest,
+  CreateReplyRequest,
+  CreateRepostRequest,
   CreatePostRequest,
   CreateThreadRequest,
-  LikeRequest, 
+  LikeRequest,
   UnlikeRequest,
   FeedType,
-  PostContent
+  PostContent,
+  HydratedPost,
+  HydratedPostSummary,
+  PostAttachmentBundle,
+  PostEngagementSummary,
 } from '@mention/shared-types';
 import { feedService } from '../services/feedService';
 import { useUsersStore } from './usersStore';
 import { markLocalAction } from '../services/echoGuard';
 
-interface FeedItem {
-  id: string;
-  user: {
-    id: string;
+type FeedItem = HydratedPost & {
+  date?: string;
+  isLiked?: boolean;
+  isReposted?: boolean;
+  isSaved?: boolean;
+  user: HydratedPost['user'] & {
     name: string;
-    handle: string;
     avatar: string;
-    verified: boolean;
-  };
-  content: PostContent;
-  date: string;
-  engagement: {
-    replies: number;
-    reposts: number;
-    likes: number;
   };
   media?: string[];
   mediaIds?: string[];
   originalMediaIds?: string[];
   allMediaIds?: string[];
-  isLiked?: boolean;
-  isReposted?: boolean;
-  isSaved?: boolean;
-  type?: string;
-  visibility?: string;
-  hashtags?: string[];
-  mentions?: string[];
-  parentPostId?: string;
-  threadId?: string;
-  repostOf?: string;
-  quoteOf?: string;
-  isEdited?: boolean;
-  language?: string;
-  stats?: any;
-  metadata?: any;
-  status?: 'draft' | 'published' | 'scheduled';
-  scheduledFor?: string | null;
+  original?: FeedItem | null;
+  quoted?: FeedItem | null;
   isLocalNew?: boolean;
-}
+};
 
 interface FeedState {
   feeds: Record<FeedType, {
@@ -248,71 +230,128 @@ const deduplicateItems = <T = any>(items: T[], source?: string): T[] => {
   return Array.from(seen.values());
 };
 
-const transformToUIItem = (raw: any, options: TransformOptions = {}) => {
-  const engagement = raw?.engagement || {
-    replies: raw?.stats?.commentsCount || 0,
-    reposts: raw?.stats?.repostsCount || 0,
-    likes: raw?.stats?.likesCount || 0,
+const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, options: TransformOptions = {}): FeedItem => {
+  if (!raw) return raw;
+
+  const id = normalizeId(raw);
+
+  const viewerState = {
+    isOwner: raw?.viewerState?.isOwner ?? false,
+    isLiked: raw?.viewerState?.isLiked ?? raw?.isLiked ?? false,
+    isReposted: raw?.viewerState?.isReposted ?? raw?.isReposted ?? false,
+    isSaved: raw?.viewerState?.isSaved ?? raw?.isSaved ?? false,
   };
 
-  // Extract isLiked with proper fallback - check multiple sources
-  const extractIsLiked = (): boolean => {
-    // 1. Check top-level isLiked (preferred - backend now sets this)
-    if (raw?.isLiked !== undefined && raw?.isLiked !== null) {
-      return Boolean(raw.isLiked);
-    }
-    // 2. Check metadata.isLiked (fallback)
-    if (raw?.metadata?.isLiked !== undefined && raw?.metadata?.isLiked !== null) {
-      return Boolean(raw.metadata.isLiked);
-    }
-    // 3. Check likedBy array as last resort (for edge cases where backend didn't set flags)
-    if (raw?.metadata?.likedBy && Array.isArray(raw.metadata.likedBy) && raw.metadata.likedBy.length > 0) {
-      // This is a fallback - ideally backend should always set isLiked
-      // We can't check currentUserId here, so we'll default to false
-      // Backend should handle this properly
-    }
-    return false;
+  const permissions = raw?.permissions ?? {
+    canReply: true,
+    canDelete: false,
+    canPin: false,
+    canViewSources: Boolean(raw?.attachments?.sources?.length || raw?.content?.sources?.length),
+    canEdit: false,
   };
 
-  const extractIsSaved = (): boolean => {
-    if (raw?.isSaved !== undefined) return Boolean(raw.isSaved);
-    if (raw?.metadata?.isSaved !== undefined) return Boolean(raw.metadata.isSaved);
-    return false;
+  const engagement: PostEngagementSummary = {
+    likes:
+      raw?.engagement?.likes !== undefined
+        ? raw.engagement.likes
+        : raw?.stats?.likesCount ?? 0,
+    reposts:
+      raw?.engagement?.reposts !== undefined
+        ? raw.engagement.reposts
+        : raw?.stats?.repostsCount ?? 0,
+    replies:
+      raw?.engagement?.replies !== undefined
+        ? raw.engagement.replies
+        : raw?.stats?.commentsCount ?? 0,
+    saves: raw?.engagement?.saves ?? null,
+    views: raw?.engagement?.views ?? null,
+    impressions: raw?.engagement?.impressions ?? null,
   };
 
-  const extractIsReposted = (): boolean => {
-    if (raw?.isReposted !== undefined) return Boolean(raw.isReposted);
-    if (raw?.metadata?.isReposted !== undefined) return Boolean(raw.metadata.isReposted);
-    return false;
+  const attachments: PostAttachmentBundle = raw?.attachments ?? {
+    media: raw?.content?.media,
+    poll: raw?.content?.poll,
+    article: raw?.content?.article,
+    sources: raw?.content?.sources,
+    location: raw?.content?.location,
   };
 
-  const base = {
-    ...raw,
-    id: String(raw?.id || raw?._id),
-    content: raw?.content || { text: '' },
-    mediaIds: raw?.mediaIds,
-    originalMediaIds: raw?.originalMediaIds,
-    allMediaIds: raw?.allMediaIds,
-    isSaved: extractIsSaved(),
-    isLiked: extractIsLiked(),
-    isReposted: extractIsReposted(),
-    postId: raw?.postId || raw?.parentPostId,
-    originalPostId: raw?.originalPostId || raw?.repostOf,
+  const user = raw?.user ?? {};
+  const displayName = user.displayName || user.name || user.handle || 'User';
+  const avatarUrl = user.avatarUrl || user.avatar || '';
+
+  const metadata = {
+    ...raw?.metadata,
+    createdAt:
+      raw?.metadata?.createdAt ||
+      raw?.createdAt ||
+      raw?.date ||
+      new Date().toISOString(),
+    updatedAt:
+      raw?.metadata?.updatedAt ||
+      raw?.updatedAt ||
+      raw?.metadata?.createdAt ||
+      raw?.createdAt ||
+      new Date().toISOString(),
+  };
+
+  const mediaIds =
+    attachments.media?.map((item: any) =>
+      typeof item === 'string' ? item : item?.id,
+    ).filter(Boolean) ?? [];
+
+  const base: FeedItem = {
+    ...(raw as HydratedPost),
+    id,
+    content: raw?.content ?? { text: '' },
+    viewerState,
+    permissions,
     engagement,
+    attachments,
+    metadata,
+    linkPreview: raw?.linkPreview ?? null,
+    user: {
+      ...user,
+      displayName,
+      name: displayName,
+      avatarUrl,
+      avatar: avatarUrl,
+      handle: user.handle || '',
+      badges: user.badges,
+      isVerified: user.isVerified,
+      id: user.id || '',
+    },
+    date: metadata.createdAt,
+    isLiked: viewerState.isLiked,
+    isSaved: viewerState.isSaved,
+    isReposted: viewerState.isReposted,
+    mediaIds,
+    originalMediaIds: (raw as any)?.originalMediaIds ?? undefined,
+    allMediaIds:
+      (raw as any)?.allMediaIds ??
+      (raw as any)?.mediaIds ??
+      mediaIds,
+    original: null,
+    quoted: null,
+    repost: raw?.repost
+      ? {
+          ...raw.repost,
+          originalPost: raw.repost.originalPost
+            ? transformToUIItem(raw.repost.originalPost, { skipRelated: true })
+            : null,
+        }
+      : null,
   };
 
   if (!options.skipRelated) {
-    if (raw?.original) {
-      const original = transformToUIItem(raw.original, { skipRelated: true });
-      if (original?.id) {
-        (base as any).original = original;
-      }
+    const originalSource = raw?.originalPost ?? (raw as any)?.original;
+    if (originalSource) {
+      base.original = transformToUIItem(originalSource, { skipRelated: true });
     }
-    if (raw?.quoted) {
-      const quoted = transformToUIItem(raw.quoted, { skipRelated: true });
-      if (quoted?.id) {
-        (base as any).quoted = quoted;
-      }
+
+    const quotedSource = raw?.quotedPost ?? (raw as any)?.quoted;
+    if (quotedSource) {
+      base.quoted = transformToUIItem(quotedSource, { skipRelated: true });
     }
   }
 
@@ -1168,7 +1207,8 @@ export const usePostsStore = create<FeedState>()(
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
             isReposted: true,
-            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts || 0) + 1 }
+            viewerState: { ...prev.viewerState, isReposted: true },
+            engagement: { ...prev.engagement, reposts: (prev.engagement.reposts ?? 0) + 1 },
           }));
         }
 
@@ -1211,7 +1251,8 @@ export const usePostsStore = create<FeedState>()(
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
             isReposted: false,
-            engagement: { ...prev.engagement, reposts: Math.max(0, (prev.engagement.reposts || 0) - 1) }
+            viewerState: { ...prev.viewerState, isReposted: false },
+            engagement: { ...prev.engagement, reposts: Math.max(0, (prev.engagement.reposts ?? 0) - 1) },
           }));
         }
 
@@ -1253,7 +1294,8 @@ export const usePostsStore = create<FeedState>()(
             get().updatePostEverywhere(postId, (prev) => ({
               ...prev,
               isLiked: true,
-              engagement: { ...prev.engagement, likes: (prev.engagement.likes || 0) + 1 }
+              viewerState: { ...prev.viewerState, isLiked: true },
+              engagement: { ...prev.engagement, likes: (prev.engagement.likes ?? 0) + 1 },
             }));
           }
         }
@@ -1285,7 +1327,8 @@ export const usePostsStore = create<FeedState>()(
             return {
               ...prev,
               isLiked: serverLiked,
-              engagement: { ...prev.engagement, likes: serverLikesCount }
+              viewerState: { ...prev.viewerState, isLiked: serverLiked },
+              engagement: { ...prev.engagement, likes: serverLikesCount },
             };
           });
         }
@@ -1318,7 +1361,8 @@ export const usePostsStore = create<FeedState>()(
             get().updatePostEverywhere(postId, (prev) => ({
               ...prev,
               isLiked: false,
-              engagement: { ...prev.engagement, likes: Math.max(0, (prev.engagement.likes || 0) - 1) }
+              viewerState: { ...prev.viewerState, isLiked: false },
+              engagement: { ...prev.engagement, likes: Math.max(0, (prev.engagement.likes ?? 0) - 1) },
             }));
           }
         }
@@ -1350,7 +1394,8 @@ export const usePostsStore = create<FeedState>()(
             return {
               ...prev,
               isLiked: serverLiked,
-              engagement: { ...prev.engagement, likes: serverLikesCount }
+              viewerState: { ...prev.viewerState, isLiked: serverLiked },
+              engagement: { ...prev.engagement, likes: serverLikesCount },
             };
           });
         }
@@ -1377,7 +1422,11 @@ export const usePostsStore = create<FeedState>()(
         const currentPost = get().postsById[postId];
         if (currentPost) {
           previousState = { ...currentPost };
-          get().updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: true }));
+          get().updatePostEverywhere(postId, (prev) => ({
+            ...prev,
+            isSaved: true,
+            viewerState: { ...prev.viewerState, isSaved: true },
+          }));
         }
 
         const response = await feedService.saveItem(request);
@@ -1412,7 +1461,11 @@ export const usePostsStore = create<FeedState>()(
         const currentPost = get().postsById[postId];
         if (currentPost) {
           previousState = { ...currentPost };
-          get().updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: false }));
+          get().updatePostEverywhere(postId, (prev) => ({
+            ...prev,
+            isSaved: false,
+            viewerState: { ...prev.viewerState, isSaved: false },
+          }));
         }
 
         const response = await feedService.unsaveItem(request);

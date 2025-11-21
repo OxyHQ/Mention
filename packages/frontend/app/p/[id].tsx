@@ -19,7 +19,7 @@ import * as Location from 'expo-location';
 import { colors } from '../../styles/colors';
 import PostItem from '../../components/Feed/PostItem';
 import Feed from '../../components/Feed/Feed';
-import PostMiddle from '../../components/Post/PostMiddle';
+import PostAttachmentsRow from '../../components/Post/PostAttachmentsRow';
 import { usePostsStore } from '../../stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
@@ -565,7 +565,7 @@ const PostDetailScreen: React.FC = () => {
                             {/* Media Preview */}
                             {mediaIds.length > 0 && (
                                 <View style={styles.mediaPreview}>
-                                    <PostMiddle
+                                    <PostAttachmentsRow
                                         media={mediaIds.map(m => ({ id: m.id, type: m.type }))}
                                         leftOffset={0}
                                     />

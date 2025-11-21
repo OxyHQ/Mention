@@ -3,61 +3,29 @@
  * Shared between frontend and backend
  */
 
-import { Post as DomainPost, PostContent, PostVisibility } from './post';
+import {
+  HydratedPost as DomainPost,
+  PostContent,
+  PostVisibility,
+  PostActorSummary,
+  PostEngagementSummary,
+} from './post';
 
 // Common user interface for feed items
-export interface FeedUser {
-  id?: string;
-  name: string;
-  handle: string;
-  avatar: string;
-  verified: boolean;
-}
+export type FeedUser = PostActorSummary;
 
 // Common engagement interface for feed items
-export interface FeedEngagement {
-  replies: number;
-  reposts: number;
-  likes: number;
-}
+export type FeedEngagement = PostEngagementSummary;
 
 // Feed item types for frontend components
-export interface Post {
-  id: string;
-  user: FeedUser;
-  content: PostContent | string; // Support both new PostContent structure and legacy string
-  date: string;
-  engagement: FeedEngagement;
-  media?: string[];
-  isLiked?: boolean;
-  isReposted?: boolean;
-  isSaved?: boolean;
-  isThread?: boolean;
+export type Post = DomainPost;
+
+export interface Reply extends DomainPost {
+  postId?: string;
 }
 
-export interface Reply {
-  id: string;
-  postId: string;
-  user: FeedUser;
-  content: PostContent | string; // Support both new PostContent structure and legacy string
-  date: string;
-  engagement: FeedEngagement;
-  isLiked?: boolean;
-  isReposted?: boolean;
-  isSaved?: boolean;
-  isThread?: boolean;
-}
-
-export interface FeedRepost {
-  id: string;
-  originalPostId: string;
-  user: FeedUser;
-  date: string;
-  engagement: FeedEngagement;
-  isLiked?: boolean;
-  isReposted?: boolean;
-  isSaved?: boolean;
-  isThread?: boolean;
+export interface FeedRepost extends DomainPost {
+  originalPostId?: string;
 }
 
 // Feed types and actions
@@ -75,7 +43,7 @@ export interface FeedItem {
 }
 
 export interface FeedResponse {
-  items: FeedItem[];
+  items: any[]; // HydratedPost[] - using any[] for flexibility during migration
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;

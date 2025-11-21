@@ -9,11 +9,11 @@ import { oxy as oxyClient } from '../../server';
 import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
 import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType } from '@mention/shared-types';
-import { feedController } from './feed.controller';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { feedCacheService } from '../services/FeedCacheService';
 import ArticleModel from '../models/Article';
 import { logger } from '../utils/logger';
+import { postHydrationService } from '../services/PostHydrationService';
 
 const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
   if (!Array.isArray(arr)) return [];
@@ -859,57 +859,14 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
       .limit(limit)
       .lean();
 
-    // Get saved status for current user if authenticated
-    let savedPostIds: string[] = [];
-    let likedPostIds: string[] = [];
-    if (currentUserId) {
-      const savedPosts = await Bookmark.find({ userId: currentUserId }).lean();
-      savedPostIds = savedPosts.map(saved => saved.postId.toString());
-
-      const likedPosts = await Like.find({ userId: currentUserId }).lean();
-      likedPostIds = likedPosts.map(liked => liked.postId.toString());
-    }
-
-    // Transform posts to match frontend expectations
-    const transformedPosts = posts.map((post: any) => {
-      const userData = post.oxyUserId;
-      const isSaved = savedPostIds.includes(post._id.toString());
-      const isLiked = likedPostIds.includes(post._id.toString());
-
-      const metadata = {
-        ...(post.metadata || {}),
-        isSaved,
-        isLiked
-      } as any;
-
-      if (isLiked && currentUserId) {
-        const likedSet = new Set(
-          Array.isArray(metadata.likedBy)
-            ? metadata.likedBy.map((id: any) => id?.toString?.() || String(id))
-            : []
-        );
-        likedSet.add(currentUserId);
-        metadata.likedBy = Array.from(likedSet);
-      }
-
-      return {
-        ...post,
-        user: {
-          id: typeof userData === 'object' ? userData._id : userData,
-          name: typeof userData === 'object' ? userData.name?.full : 'Unknown User',
-          handle: typeof userData === 'object' ? userData.username : 'unknown',
-          avatar: typeof userData === 'object' ? userData.avatar : '',
-          verified: typeof userData === 'object' ? userData.verified : false
-        },
-        isSaved,
-        isLiked,
-        metadata,
-        oxyUserId: undefined
-      };
+    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+      viewerId: currentUserId,
+      maxDepth: 1,
+      includeLinkMetadata: true,
     });
 
     res.json({
-      posts: transformedPosts,
+      posts: hydratedPosts,
       hasMore: posts.length === limit,
       page,
       limit
@@ -931,73 +888,18 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // Check if current user has saved/liked this post
-    let isSaved = false;
-    let isLiked = false;
-    if (currentUserId) {
-      const savedPost = await Bookmark.findOne({ userId: currentUserId, postId: post._id.toString() });
-      isSaved = !!savedPost;
+    const hydrated = await postHydrationService.hydratePosts([post], {
+      viewerId: currentUserId,
+      maxDepth: 2,
+      includeLinkMetadata: true,
+    });
 
-      // Use Like collection instead of metadata.likedBy (more efficient)
-      const likedPost = await Like.findOne({ userId: currentUserId, postId: post._id.toString() }).lean();
-      isLiked = !!likedPost;
+    const hydratedPost = hydrated[0];
+    if (!hydratedPost) {
+      return res.status(404).json({ message: 'Post not available' });
     }
 
-    // Check if this post is a thread (has replies from the same user)
-    let isThread = false;
-    try {
-      const repliesFromSameUser = await Post.findOne({
-        parentPostId: post._id.toString(),
-        oxyUserId: post.oxyUserId
-      }).lean();
-      isThread = !!repliesFromSameUser;
-    } catch (e) {
-      logger.error('Error checking if post is thread', e);
-    }
-
-    // Transform post to match frontend expectations
-    const oxyUserId = post.oxyUserId as any;
-
-    // Build user object; fetch from Oxy when we only have an ID string
-    let user = {
-      id: typeof oxyUserId === 'object' ? oxyUserId._id : (oxyUserId || 'unknown'),
-      name: typeof oxyUserId === 'object' ? oxyUserId.name.full : 'User',
-      handle: typeof oxyUserId === 'object' ? oxyUserId.username : 'user',
-      avatar: typeof oxyUserId === 'object' ? oxyUserId.avatar : '',
-      verified: typeof oxyUserId === 'object' ? !!oxyUserId.verified : false,
-    } as any;
-
-    if (oxyUserId && typeof oxyUserId === 'string') {
-      try {
-        const fetched = await oxyClient.getUserById(oxyUserId);
-        user = {
-          id: fetched.id,
-          name: fetched.name?.full || fetched.username || 'User',
-          handle: fetched.username || 'user',
-          avatar: typeof fetched.avatar === 'string' ? fetched.avatar : (fetched.avatar as any)?.url || '',
-          verified: !!fetched.verified,
-        };
-      } catch (e) {
-        // keep fallback user
-        logger.error(`Failed fetching user from Oxy for post ${req.params.id}`, e);
-      }
-    }
-
-    const transformedPost = {
-      ...post,
-      user,
-      isSaved,
-      isLiked,
-      isThread,
-      metadata: {
-        ...(post.metadata || {}),
-        isSaved,
-        isLiked,
-      },
-      oxyUserId: undefined,
-    } as any;
-
-    res.json(transformedPost);
+    res.json(hydratedPost);
   } catch (error) {
     logger.error('Error fetching post', error);
     res.status(500).json({ message: 'Error fetching post', error });
@@ -1566,23 +1468,14 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       .limit(limit)
       .lean();
 
-    // Use feed controller's transformPostsWithProfiles to ensure mentions are transformed
-    // This handles user profiles, engagement stats, like status, and mention transformation
-    // This matches the transformation used in the feed endpoint
-    const transformedPosts = await (feedController as any).transformPostsWithProfiles(posts, userId);
-    
-    // Ensure all posts are marked as saved
-    transformedPosts.forEach((post: any) => {
-      post.isSaved = true;
-      if (post.metadata) {
-        post.metadata.isSaved = true;
-      } else {
-        post.metadata = { isSaved: true };
-      }
+    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+      viewerId: userId,
+      maxDepth: 1,
+      includeLinkMetadata: true,
     });
 
     res.json({
-      posts: transformedPosts,
+      posts: hydratedPosts,
       hasMore: posts.length === limit,
       page,
       limit
@@ -1594,7 +1487,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
 };
 
 // Get posts by hashtag
-export const getPostsByHashtag = async (req: Request, res: Response) => {
+export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
   try {
     const hashtag = req.params.hashtag;
     const page = parseInt(req.query.page as string) || 1;
@@ -1607,11 +1500,16 @@ export const getPostsByHashtag = async (req: Request, res: Response) => {
       .sort({ created_at: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate('userID', 'username name avatar verified')
       .lean();
 
+    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+      viewerId: req.user?.id,
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+
     res.json({
-      posts,
+      posts: hydratedPosts,
       hashtag,
       hasMore: posts.length === limit,
       page,
@@ -1709,45 +1607,18 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
       .limit(50) // Limit to prevent too many results
       .lean();
 
-    // Get current user for liked/saved status
-    const currentUserId = req.user?.id;
-    let savedPostIds: string[] = [];
-    let likedPostIds: string[] = [];
-    
-    if (currentUserId) {
-      const savedPosts = await Bookmark.find({ userId: currentUserId }).lean();
-      savedPostIds = savedPosts.map(saved => saved.postId.toString());
-
-      const likedPosts = await Like.find({ userId: currentUserId }).lean();
-      likedPostIds = likedPosts.map(liked => liked.postId.toString());
-    }
-
-    // Transform posts to match frontend expectations
-    const transformedPosts = posts.map((post: any) => {
-      const userData = post.oxyUserId;
-      return {
-        ...post,
-        user: {
-          id: typeof userData === 'object' ? userData._id : userData,
-          name: typeof userData === 'object' ? userData.name?.full : 'Unknown User',
-          handle: typeof userData === 'object' ? userData.username : 'unknown',
-          avatar: typeof userData === 'object' ? userData.avatar : '',
-          verified: typeof userData === 'object' ? userData.verified : false
-        },
-        isLiked: likedPostIds.includes(post._id.toString()),
-        isSaved: savedPostIds.includes(post._id.toString())
-      };
+    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+      viewerId: req.user?.id,
+      maxDepth: 1,
+      includeLinkMetadata: false,
     });
 
-    // Remove oxyUserId from response
-    transformedPosts.forEach(post => delete post.oxyUserId);
-
     res.json({
-      posts: transformedPosts,
+      posts: hydratedPosts,
       center: { latitude, longitude },
       radius: radiusMeters,
       locationType,
-      count: transformedPosts.length
+      count: hydratedPosts.length
     });
   } catch (error) {
     logger.error('Error fetching nearby posts', error);
@@ -1797,44 +1668,17 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
       .limit(100) // Limit to prevent too many results
       .lean();
 
-    // Get current user for liked/saved status
-    const currentUserId = req.user?.id;
-    let savedPostIds: string[] = [];
-    let likedPostIds: string[] = [];
-    
-    if (currentUserId) {
-      const savedPosts = await Bookmark.find({ userId: currentUserId }).lean();
-      savedPostIds = savedPosts.map(saved => saved.postId.toString());
-
-      const likedPosts = await Like.find({ userId: currentUserId }).lean();
-      likedPostIds = likedPosts.map(liked => liked.postId.toString());
-    }
-
-    // Transform posts to match frontend expectations
-    const transformedPosts = posts.map((post: any) => {
-      const userData = post.oxyUserId;
-      return {
-        ...post,
-        user: {
-          id: typeof userData === 'object' ? userData._id : userData,
-          name: typeof userData === 'object' ? userData.name?.full : 'Unknown User',
-          handle: typeof userData === 'object' ? userData.username : 'unknown',
-          avatar: typeof userData === 'object' ? userData.avatar : '',
-          verified: typeof userData === 'object' ? userData.verified : false
-        },
-        isLiked: likedPostIds.includes(post._id.toString()),
-        isSaved: savedPostIds.includes(post._id.toString())
-      };
+    const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+      viewerId: req.user?.id,
+      maxDepth: 1,
+      includeLinkMetadata: false,
     });
 
-    // Remove oxyUserId from response
-    transformedPosts.forEach(post => delete post.oxyUserId);
-
     res.json({
-      posts: transformedPosts,
+      posts: hydratedPosts,
       boundingBox: { north: northLat, south: southLat, east: eastLng, west: westLng },
       locationType,
-      count: transformedPosts.length
+      count: hydratedPosts.length
     });
   } catch (error) {
     logger.error('Error fetching posts in area', error);
