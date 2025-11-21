@@ -5,6 +5,8 @@ import {
     HydratedPost,
     HydratedPostSummary,
     PostAttachmentDescriptor,
+    PostAttachmentBundle,
+    PostContent,
     PostEngagementSummary,
 } from '@mention/shared-types';
 import { usePostsStore } from '../../stores/postsStore';
@@ -67,8 +69,8 @@ const PostItem: React.FC<PostItemProps> = ({
         viewPost.viewerState ?? { isOwner: false, isLiked: false, isReposted: false, isSaved: false };
 
     const metadata = viewPost.metadata ?? {};
-    const content = viewPost.content ?? {};
-    const attachmentsBundle = viewPost.attachments ?? {};
+    const content: PostContent = viewPost.content ?? {};
+    const attachmentsBundle: PostAttachmentBundle = viewPost.attachments ?? {};
     const linkPreview = viewPost.linkPreview ?? null;
 
     const isOwner = viewerState.isOwner ?? false;

@@ -222,6 +222,7 @@ export interface PostAttachmentBundle {
   article?: PostArticleContent;
   sources?: PostSourceLink[];
   location?: GeoJSONPoint;
+  event?: PostEventContent;
 }
 
 export interface PostLinkPreview {

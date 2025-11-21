@@ -584,20 +584,23 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     // Load subscription status
     useEffect(() => {
-        if (isOwnProfile || !profileData?.id) return;
+        if (isOwnProfile || !profileData?.id || !currentUser?.id) return;
 
         let cancelled = false;
         const load = async () => {
             try {
                 const { subscribed } = await subscriptionService.getStatus(profileData.id);
                 if (!cancelled) setSubscribed(!!subscribed);
-            } catch (error) {
-                console.error('Error loading subscription status:', error);
+            } catch (error: any) {
+                // Silently ignore 401 errors (user not authenticated or viewing own profile)
+                if (error?.response?.status !== 401) {
+                    console.error('Error loading subscription status:', error);
+                }
             }
         };
         load();
         return () => { cancelled = true; };
-    }, [profileData?.id, isOwnProfile]);
+    }, [profileData?.id, isOwnProfile, currentUser?.id]);
 
     const toggleSubscription = useCallback(async () => {
         if (!profileData?.id || subLoading || isOwnProfile) return;
@@ -904,12 +907,14 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                             <Text style={[styles.metaText, styles.linkText, { color: theme.colors.primary }]}>{profileData.links[0]}</Text>
                                         </View>
                                     )}
-                                    <View style={styles.metaItem}>
-                                        <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
-                                        <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
-                                            {t('profile.joined')} {profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : ''}
-                                        </Text>
-                                    </View>
+                                    {profileData?.createdAt && (
+                                        <View style={styles.metaItem}>
+                                            <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
+                                            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+                                                {t('profile.joined')} {new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
 
                                 {(!isPrivate || isOwnProfile) && (
