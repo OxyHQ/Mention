@@ -36,7 +36,7 @@ export interface IPost extends Document {
 const AttachmentSchema = new Schema({
   type: {
     type: String,
-    enum: ['media', 'poll', 'article', 'location', 'sources'],
+    enum: ['media', 'poll', 'article', 'event', 'location', 'sources'],
     required: true
   },
   id: {
@@ -135,6 +135,34 @@ const PostContentSchema = new Schema({
       type: String,
       required: false,
       trim: true
+    }
+  },
+  event: {
+    eventId: {
+      type: String,
+      required: false
+    },
+    name: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 200
+    },
+    date: {
+      type: String, // ISO date string
+      required: false
+    },
+    location: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 200
+    },
+    description: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 500
     }
   }
 });

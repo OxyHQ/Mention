@@ -53,7 +53,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   nestingDepth = 0, 
   postId, 
   article, 
-  onArticlePress, 
+  onArticlePress,
+  event,
+  onEventPress,
   text, 
   linkMetadata,
   style

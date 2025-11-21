@@ -671,6 +671,7 @@ export class PostHydrationService {
         : undefined,
       sources: Array.isArray(baseContent.sources) ? baseContent.sources : undefined,
       location: baseContent.location,
+      event: baseContent.event,
       attachments: Array.isArray(baseContent.attachments) ? baseContent.attachments : undefined,
     };
   }
@@ -725,6 +726,16 @@ export class PostHydrationService {
 
     if (content.location?.coordinates?.length === 2) {
       attachments.location = content.location;
+    }
+
+    if (content.event) {
+      attachments.event = {
+        eventId: content.event.eventId,
+        name: content.event.name,
+        date: content.event.date,
+        location: content.event.location,
+        description: content.event.description,
+      };
     }
 
     return attachments;

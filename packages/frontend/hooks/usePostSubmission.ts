@@ -121,6 +121,19 @@ export const usePostSubmission = ({
       ...(article.body?.trim() ? { body: article.body.trim() } : {}),
     } : undefined;
 
+    const eventPayload = hasEventContent && event ? {
+      name: event.name.trim(),
+      date: event.date,
+      ...(event.location?.trim() && { location: event.location.trim() }),
+      ...(event.description?.trim() && { description: event.description.trim() }),
+    } : undefined;
+
+    if (__DEV__ && hasEventContent) {
+      console.log('[PostSubmission] Event data:', event);
+      console.log('[PostSubmission] Event payload:', eventPayload);
+      console.log('[PostSubmission] hasEventContent:', hasEventContent);
+    }
+
     const wasScheduled = Boolean(scheduledAtRef.current);
 
     return {
@@ -145,14 +158,7 @@ export const usePostSubmission = ({
         }),
         ...(formattedSources.length > 0 && { sources: formattedSources }),
         ...(articlePayload && { article: articlePayload }),
-        ...(hasEventContent && event && {
-          event: {
-            name: event.name.trim(),
-            date: event.date,
-            ...(event.location?.trim() && { location: event.location.trim() }),
-            ...(event.description?.trim() && { description: event.description.trim() }),
-          }
-        }),
+        ...(eventPayload && { event: eventPayload }),
         ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
       },
       mentions: mentions.map(m => m.userId),

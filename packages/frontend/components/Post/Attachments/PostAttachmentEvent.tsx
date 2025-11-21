@@ -66,7 +66,8 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
         )}
         {location && (
           <Text style={[styles.locationText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-            📍 {location}
+            <Text>📍 </Text>
+            <Text>{location}</Text>
           </Text>
         )}
       </View>

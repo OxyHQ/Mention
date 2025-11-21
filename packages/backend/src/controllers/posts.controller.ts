@@ -116,7 +116,7 @@ const normalizeMediaItems = (arr: any): NormalizedMediaItem[] => {
   return normalized;
 };
 
-const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'location', 'sources'];
+const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'location', 'sources'];
 
 const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
   if (!entry) return null;
@@ -169,6 +169,7 @@ interface AttachmentBuildOptions {
   media: NormalizedMediaItem[];
   includePoll?: boolean;
   includeArticle?: boolean;
+  includeEvent?: boolean;
   includeLocation?: boolean;
   includeSources?: boolean;
 }
@@ -178,6 +179,7 @@ const buildOrderedAttachments = ({
   media,
   includePoll = false,
   includeArticle = false,
+  includeEvent = false,
   includeLocation = false,
   includeSources = false
 }: AttachmentBuildOptions): PostAttachmentDescriptor[] | undefined => {
@@ -227,6 +229,9 @@ const buildOrderedAttachments = ({
       case 'article':
         if (includeArticle) addNonMedia('article');
         break;
+      case 'event':
+        if (includeEvent) addNonMedia('event');
+        break;
       case 'location':
         if (includeLocation) addNonMedia('location');
         break;
@@ -250,6 +255,7 @@ const buildOrderedAttachments = ({
 
   if (includePoll) addNonMedia('poll');
   if (includeArticle) addNonMedia('article');
+  if (includeEvent) addNonMedia('event');
   if (includeSources) addNonMedia('sources');
   if (includeLocation) addNonMedia('location');
 
@@ -418,12 +424,48 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       };
     }
 
+    // Handle event data
+    const eventData = content?.event || req.body.event;
+    logger.debug('Event data received:', JSON.stringify(eventData, null, 2));
+    if (eventData && typeof eventData === 'object') {
+      const sanitizedEvent = {
+        eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
+        name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, 200) : undefined,
+        date: typeof eventData.date === 'string' ? eventData.date.trim() : (eventData.date instanceof Date ? eventData.date.toISOString() : undefined),
+        location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, 200) : undefined,
+        description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, 500) : undefined,
+      };
+      
+      logger.debug('Sanitized event:', JSON.stringify(sanitizedEvent, null, 2));
+      
+      // Validate required fields
+      if (sanitizedEvent.name && sanitizedEvent.date) {
+        // Validate date is a valid ISO string
+        try {
+          const dateObj = new Date(sanitizedEvent.date);
+          if (!isNaN(dateObj.getTime())) {
+            postContent.event = sanitizedEvent;
+            logger.debug('Event added to postContent:', JSON.stringify(postContent.event, null, 2));
+          } else {
+            logger.warn('Invalid event date (NaN):', sanitizedEvent.date);
+          }
+        } catch (e) {
+          logger.warn('Invalid event date format:', sanitizedEvent.date, e);
+        }
+      } else {
+        logger.warn('Event missing required fields - name:', sanitizedEvent.name, 'date:', sanitizedEvent.date);
+      }
+    } else {
+      logger.debug('No event data found in request');
+    }
+
     const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
     const computedAttachments = buildOrderedAttachments({
       rawAttachments: attachmentsInput || postContent.attachments,
       media: Array.isArray(postContent.media) ? postContent.media : [],
       includePoll: Boolean(postContent.pollId),
       includeArticle: Boolean(postContent.article),
+      includeEvent: Boolean(postContent.event),
       includeLocation: Boolean(postContent.location),
       includeSources: Boolean(postContent.sources && postContent.sources.length)
     });
@@ -717,6 +759,30 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         }
       }
 
+      // Handle event data
+      const eventData = content?.event;
+      if (eventData && typeof eventData === 'object') {
+        const sanitizedEvent = {
+          eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
+          name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, 200) : undefined,
+          date: typeof eventData.date === 'string' ? eventData.date.trim() : undefined,
+          location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, 200) : undefined,
+          description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, 500) : undefined,
+        };
+        
+        // Validate required fields
+        if (sanitizedEvent.name && sanitizedEvent.date) {
+          try {
+            const dateObj = new Date(sanitizedEvent.date);
+            if (!isNaN(dateObj.getTime())) {
+              postContent.event = sanitizedEvent;
+            }
+          } catch (e) {
+            logger.warn('Invalid event date format in thread:', sanitizedEvent.date);
+          }
+        }
+      }
+
       // Handle poll creation
       let pollId = null;
       if (content?.poll) {
@@ -746,6 +812,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         media: Array.isArray(postContent.media) ? postContent.media : [],
         includePoll: Boolean(postContent.pollId),
         includeArticle: Boolean(postContent.article),
+        includeEvent: Boolean(postContent.event),
         includeLocation: Boolean(postContent.location),
         includeSources: Boolean(postContent.sources && postContent.sources.length)
       });

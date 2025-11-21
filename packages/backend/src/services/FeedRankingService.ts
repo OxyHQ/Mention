@@ -395,8 +395,9 @@ export class FeedRankingService {
     const recentTopics: string[] = [];
     
     // Calculate scores for all posts
+    // Preserve original index to maintain MongoDB's createdAt sort order for tie-breaking
     const postsWithScores = await Promise.all(
-      posts.map(async (post) => {
+      posts.map(async (post, originalIndex) => {
         const score = await this.calculatePostScore(post, userId, {
           followingIds,
           userBehavior,
@@ -416,12 +417,21 @@ export class FeedRankingService {
           });
         }
         
-        return { post, score };
+        return { post, score, originalIndex };
       })
     );
     
-    // Sort by score (descending)
-    postsWithScores.sort((a, b) => b.score - a.score);
+    // Sort by score (descending), preserving MongoDB's createdAt order for ties
+    // MongoDB already sorted by createdAt: -1, so originalIndex reflects that order
+    postsWithScores.sort((a, b) => {
+      const scoreDiff = b.score - a.score;
+      if (Math.abs(scoreDiff) > 0.001) {
+        return scoreDiff; // Significant score difference, use score
+      }
+      // Scores are very close or equal - preserve MongoDB's createdAt order
+      // Lower originalIndex = newer post (MongoDB sorted createdAt: -1)
+      return a.originalIndex - b.originalIndex;
+    });
     
     // Return ranked posts
     return postsWithScores.map(item => item.post);

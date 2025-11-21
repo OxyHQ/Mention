@@ -17,7 +17,7 @@ export const useEventManager = () => {
 
   const openEventEditor = useCallback(() => {
     setEventDraftName(event?.name || "");
-    setEventDraftDate(event?.date || "");
+    setEventDraftDate(event?.date || new Date().toISOString());
     setEventDraftLocation(event?.location || "");
     setEventDraftDescription(event?.description || "");
     setIsEventEditorVisible(true);
