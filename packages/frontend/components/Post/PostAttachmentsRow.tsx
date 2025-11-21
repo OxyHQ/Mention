@@ -4,6 +4,7 @@ import { useOxy } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
+import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import {
   PostAttachmentArticle,
   PostAttachmentLink,
@@ -43,20 +44,20 @@ type AttachmentItem =
   | { type: 'video'; mediaId: string; src: string }
   | { type: 'image'; mediaId: string; src: string; mediaType: 'image' | 'gif' };
 
-const PostAttachmentsRow: React.FC<Props> = React.memo(({ 
-  media, 
-  attachments, 
-  nestedPost, 
-  leftOffset = 0, 
-  pollId, 
-  pollData, 
-  nestingDepth = 0, 
-  postId, 
-  article, 
+const PostAttachmentsRow: React.FC<Props> = React.memo(({
+  media,
+  attachments,
+  nestedPost,
+  leftOffset = 0,
+  pollId,
+  pollData,
+  nestingDepth = 0,
+  postId,
+  article,
   onArticlePress,
   event,
   onEventPress,
-  text, 
+  text,
   linkMetadata,
   style
 }) => {
@@ -75,7 +76,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const resolveMediaSrc = useCallback((id: string, variant: 'thumb' | 'full' = 'thumb') => {
     if (!id) return '';
     try {
-      return oxyServices?.getFileDownloadUrl?.(id, variant) ?? id;
+      return getCachedFileDownloadUrlSync(oxyServices, id, variant);
     } catch {
       return id;
     }
@@ -130,18 +131,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               results.push({ type: 'event' });
             }
             break;
-          case 'link':
-            if (hasLink && linkMetadata && !results.some(item => item.type === 'link')) {
-              results.push({ 
-                type: 'link', 
-                url: linkMetadata.url,
-                title: linkMetadata.title,
-                description: linkMetadata.description,
-                image: linkMetadata.image,
-                siteName: linkMetadata.siteName,
-              });
-            }
-            break;
+          // Note: 'link' is not a PostAttachmentType - links are handled separately via linkMetadata prop
           case 'media':
             if (descriptor.id) {
               addMediaItem(descriptor.id, descriptor.mediaType as any);
@@ -157,8 +147,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       if (hasArticle) results.push({ type: 'article' });
       if (hasEvent) results.push({ type: 'event' });
       if (hasLink && linkMetadata) {
-        results.push({ 
-          type: 'link', 
+        results.push({
+          type: 'link',
           url: linkMetadata.url,
           title: linkMetadata.title,
           description: linkMetadata.description,
@@ -167,7 +157,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         });
       }
     }
-    
+
     // Process any remaining media from mediaArray that wasn't in descriptors
     mediaArray.forEach((m) => {
       if (!m?.id) return;
@@ -178,15 +168,15 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
     // Always add link if detected, even if not in attachment descriptors
     if (hasLink && linkMetadata && !results.some(item => item.type === 'link')) {
-      const linkItem: AttachmentItem = { 
-        type: 'link', 
+      const linkItem: AttachmentItem = {
+        type: 'link',
         url: linkMetadata.url,
         title: linkMetadata.title,
         description: linkMetadata.description,
         image: linkMetadata.image,
         siteName: linkMetadata.siteName,
       };
-      
+
       // Find the best position to insert the link
       let insertIdx = -1;
       for (let i = results.length - 1; i >= 0; i--) {
@@ -226,7 +216,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   const mediaItems = useMemo(() =>
     items.filter((item): item is Extract<Item, { type: 'image' | 'video' }> => item.type === 'image' || item.type === 'video'),
-  [items]);
+    [items]);
 
   const videoItems = useMemo(() => mediaItems.filter(item => item.type === 'video'), [mediaItems]);
   const hasSingleVideo = videoItems.length === 1 && mediaItems.length === 1;

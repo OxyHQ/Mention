@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, View, Pressable, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTheme } from '@/hooks/useTheme';
+import { LazyImage } from '@/components/LazyImage';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)
@@ -112,22 +113,28 @@ const PostAttachmentImage: React.FC<{
   }, [src, hasMultipleMedia]);
 
   return (
-    <View style={[
-      styles.itemContainer,
-      webGrabCursorStyle,
-      { borderColor, backgroundColor },
-      hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' },
-      hasSingleMedia && { maxHeight: undefined, height: undefined }
-    ]}>
-      <Image
-        source={{ uri: src }}
-        style={[
+    <LazyImage
+      source={{ uri: src }}
+      containerStyle={[
+        styles.itemContainer,
+        webGrabCursorStyle,
+        { borderColor, backgroundColor },
+        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' },
+        hasSingleMedia && { maxHeight: undefined, height: undefined }
+      ]}
+      style={[
+        hasSingleMedia ? styles.imagePreserveAspect : styles.imageMultipleMedia,
+        aspectRatio !== undefined ? { aspectRatio } : undefined
+      ]}
+      resizeMode="contain"
+      placeholder={
+        <View style={[
           hasSingleMedia ? styles.imagePreserveAspect : styles.imageMultipleMedia,
-          aspectRatio !== undefined ? { aspectRatio } : undefined
-        ]}
-        resizeMode="contain"
-      />
-    </View>
+          { backgroundColor, justifyContent: 'center', alignItems: 'center' }
+        ]} />
+      }
+      threshold={300}
+    />
   );
 };
 

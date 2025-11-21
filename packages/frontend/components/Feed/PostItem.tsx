@@ -22,6 +22,8 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
+import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { useImagePreload } from '@/hooks/useImagePreload';
 import { usePostLike } from '@/hooks/usePostLike';
 import { usePostSave } from '@/hooks/usePostSave';
 import { usePostRepost } from '@/hooks/usePostRepost';
@@ -121,9 +123,30 @@ const PostItem: React.FC<PostItemProps> = ({
         const avatar = viewPost.user?.avatarUrl || (viewPost.user as any)?.avatar;
         if (!avatar) return undefined;
         if (typeof avatar === 'string' && avatar.startsWith('http')) return avatar;
-        if (!oxyServices || typeof (oxyServices as any).getFileDownloadUrl !== 'function') return avatar;
-        return (oxyServices as any).getFileDownloadUrl(String(avatar), 'thumb');
+        if (!oxyServices) return avatar;
+        try {
+            return getCachedFileDownloadUrlSync(oxyServices, String(avatar), 'thumb');
+        } catch {
+            return avatar;
+        }
     }, [viewPost.user?.avatarUrl, (viewPost.user as any)?.avatar, oxyServices]);
+
+    // Preload images for better perceived performance
+    const imageUrls = useMemo(() => {
+        const urls: string[] = [];
+        if (avatarUri && (avatarUri.startsWith('http://') || avatarUri.startsWith('https://'))) {
+            urls.push(avatarUri);
+        }
+        // Filter and collect valid URLs in one pass
+        for (const item of mediaItems) {
+            if (item.src && (item.src.startsWith('http://') || item.src.startsWith('https://'))) {
+                urls.push(item.src);
+            }
+        }
+        return urls;
+    }, [avatarUri, mediaItems]);
+
+    useImagePreload(imageUrls, true);
 
     const isPostDetail = (pathname || '').startsWith('/p/');
     const goToPost = useCallback(() => {

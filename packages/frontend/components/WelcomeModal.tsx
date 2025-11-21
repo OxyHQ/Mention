@@ -229,6 +229,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
             source={backgroundImage}
             style={styles.modalBox}
             imageStyle={styles.modalBoxImage}
+            resizeMode="cover"
           >
             {/* Close Button */}
             <Pressable
@@ -357,7 +358,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   modalBoxImage: {
-    resizeMode: 'cover',
     opacity: 0.95,
   },
   closeButton: {
