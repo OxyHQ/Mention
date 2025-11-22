@@ -15,10 +15,25 @@ import ArticleModel from '../models/Article';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 
+// Constants
+const MAX_SOURCES = 5;
+const MAX_SOURCE_TITLE_LENGTH = 200;
+const MAX_ARTICLE_TITLE_LENGTH = 280;
+const MAX_ARTICLE_EXCERPT_LENGTH = 280;
+const DEFAULT_POLL_DURATION_DAYS = 7;
+const MAX_EVENT_NAME_LENGTH = 200;
+const MAX_EVENT_LOCATION_LENGTH = 200;
+const MAX_EVENT_DESCRIPTION_LENGTH = 500;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+const DEFAULT_NEARBY_RADIUS_METERS = 10000; // 10km
+const MAX_NEARBY_POSTS = 50;
+const MAX_AREA_POSTS = 100;
+const DEFAULT_LIKES_LIMIT = 50;
+const DEFAULT_REPOSTS_LIMIT = 50;
+
 const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
   if (!Array.isArray(arr)) return [];
-
-  const MAX_SOURCES = 5;
 
   const normalized = arr
     .map((item: any) => {
@@ -32,7 +47,7 @@ const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
       try {
         const parsed = new URL(urlTrimmed);
         const normalizedUrl = parsed.toString();
-        const title = typeof item?.title === 'string' ? item.title.trim().slice(0, 200) : undefined;
+        const title = typeof item?.title === 'string' ? item.title.trim().slice(0, MAX_SOURCE_TITLE_LENGTH) : undefined;
         return title ? { url: normalizedUrl, title } : { url: normalizedUrl };
       } catch {
         return null;
@@ -45,7 +60,7 @@ const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
 
 const sanitizeArticle = (input: any): { title?: string; body?: string } | undefined => {
   if (!input || typeof input !== 'object') return undefined;
-  const title = typeof input.title === 'string' ? input.title.trim().slice(0, 280) : undefined;
+  const title = typeof input.title === 'string' ? input.title.trim().slice(0, MAX_ARTICLE_TITLE_LENGTH) : undefined;
   const body = typeof input.body === 'string' ? input.body.trim() : undefined;
   if (!title && !body) return undefined;
   return { ...(title ? { title } : {}), ...(body ? { body } : {}) };
@@ -384,7 +399,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           options: poll.options.map((option: string) => ({ text: option, votes: [] })),
           postId: 'temp_' + Date.now(), // Temporary ID, will be updated after post creation
           createdBy: userId,
-          endsAt: new Date(poll.endTime || Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days default
+          endsAt: new Date(poll.endTime || Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000),
           isMultipleChoice: poll.isMultipleChoice || false,
           isAnonymous: poll.isAnonymous || false
         });
@@ -420,7 +435,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.article = {
         articleId: pendingArticleDoc._id.toString(),
         title: sanitizedArticle.title,
-        excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, 280) : undefined,
+        excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
       };
     }
 
@@ -430,10 +445,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     if (eventData && typeof eventData === 'object') {
       const sanitizedEvent = {
         eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
-        name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, 200) : undefined,
+        name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
         date: typeof eventData.date === 'string' ? eventData.date.trim() : (eventData.date instanceof Date ? eventData.date.toISOString() : undefined),
-        location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, 200) : undefined,
-        description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, 500) : undefined,
+        location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
+        description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
       };
       
       logger.debug('Sanitized event:', JSON.stringify(sanitizedEvent, null, 2));
@@ -754,7 +769,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           postContent.article = {
             articleId: pendingArticleDoc._id.toString(),
             title: sanitizedArticle.title,
-            excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, 280) : undefined,
+            excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
           };
         }
       }
@@ -790,7 +805,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         const newPoll = new Poll({
           question: poll.question || 'Poll',
           options: poll.options || [],
-          endTime: poll.endTime || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          endTime: poll.endTime || new Date(Date.now() + DEFAULT_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
           votes: poll.votes || {},
           userVotes: poll.userVotes || {},
           createdBy: userId
@@ -868,7 +883,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           );
         }
       } catch (e) {
-        console.error('Failed to create mention notifications (thread):', e);
+        logger.error('Failed to create mention notifications (thread)', e);
       }
 
       // Update poll's postId
@@ -917,7 +932,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 export const getPosts = async (req: AuthRequest, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     const currentUserId = req.user?.id;
 
     const posts = await Post.find({ visibility: 'public', status: 'published' })
@@ -1498,7 +1513,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     }
 
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     const searchQuery = req.query.search as string;
 
     // Get saved post IDs for the user
@@ -1558,7 +1573,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
   try {
     const hashtag = req.params.hashtag;
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
     const posts = await Post.find({
       hashtags: { $in: [hashtag] },
@@ -1637,7 +1652,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
 // Get nearby posts based on location
 export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
   try {
-    const { lat, lng, radius = 10000, locationType = 'content' } = req.query; // radius in meters, default 10km
+    const { lat, lng, radius = DEFAULT_NEARBY_RADIUS_METERS, locationType = 'content' } = req.query;
     
     if (!lat || !lng) {
       return res.status(400).json({ message: 'Latitude and longitude are required' });
@@ -1671,7 +1686,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
       }
     })
       .sort({ createdAt: -1 })
-      .limit(50) // Limit to prevent too many results
+      .limit(MAX_NEARBY_POSTS)
       .lean();
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
@@ -1732,7 +1747,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
       }
     })
       .sort({ createdAt: -1 })
-      .limit(100) // Limit to prevent too many results
+      .limit(MAX_AREA_POSTS)
       .lean();
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
@@ -1758,7 +1773,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
 export const getPostLikes = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { limit = 50, cursor } = req.query as any;
+    const { limit = DEFAULT_LIKES_LIMIT, cursor } = req.query as any;
     
     if (!id) {
       return res.status(400).json({ message: 'Post ID is required' });
@@ -1822,7 +1837,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
 export const getPostReposts = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { limit = 50, cursor } = req.query as any;
+    const { limit = DEFAULT_LIKES_LIMIT, cursor } = req.query as any;
     
     if (!id) {
       return res.status(400).json({ message: 'Post ID is required' });

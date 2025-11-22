@@ -26,6 +26,7 @@ import UserBehavior from '../models/UserBehavior';
 import UserSettings from '../models/UserSettings';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 import { AuthRequest } from '../types/auth';
+import { logger } from '../utils/logger';
 
 class FeedController {
   // Note: checkFollowAccess is now imported from privacyHelpers
@@ -55,7 +56,7 @@ class FeedController {
           blockedUserIds = await getBlockedUserIds();
           restrictedUserIds = await getRestrictedUserIds();
         } catch (error) {
-          console.error('Error getting blocked/restricted users:', error);
+          logger.error('Error getting blocked/restricted users', error);
           // Continue without blocking/restricting if Oxy service fails
         }
       }
@@ -88,7 +89,7 @@ class FeedController {
       const followingRes = await oxyClient.getUserFollowing(currentUserId);
       followingIds = extractFollowingIds(followingRes);
     } catch (error) {
-      console.error('Error getting following list for privacy filter:', error);
+      logger.error('Error getting following list for privacy filter', error);
       // On error, filter out private profiles for safety
       return posts.filter(p => {
         const authorId = p.oxyUserId;
@@ -144,7 +145,7 @@ class FeedController {
         const placeholder = `[mention:${userId}]`;
         result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `[@${displayName}](${username})`);
       } catch (error) {
-        console.error(`Error fetching user data for mention ${userId}:`, error);
+        logger.error(`Error fetching user data for mention ${userId}`, error);
         // If user fetch fails, replace with generic mention
         const placeholder = `[mention:${userId}]`;
         result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[@User](user)');
@@ -174,17 +175,17 @@ class FeedController {
       // Ensure all posts have required fields
       return hydrated.filter((post) => {
         if (!post || !post.id) {
-          console.warn('[Feed] Filtered out post without id:', post);
+          logger.warn('[Feed] Filtered out post without id', post);
           return false;
         }
         if (!post.user || !post.user.id) {
-          console.warn('[Feed] Filtered out post without user:', post.id);
+          logger.warn('[Feed] Filtered out post without user', post.id);
           return false;
         }
         return true;
       });
     } catch (error) {
-      console.error('[Feed] Error transforming posts:', error);
+      logger.error('[Feed] Error transforming posts', error);
       // Return empty array instead of throwing to prevent feed from breaking
       return [];
     }
@@ -372,7 +373,7 @@ class FeedController {
         return post;
       });
     } catch (error) {
-      console.error('Error populating poll data:', error);
+      logger.error('Error populating poll data', error);
       return posts; // Return posts without poll data if population fails
     }
   }
@@ -392,7 +393,7 @@ class FeedController {
         try {
           filters = JSON.parse(filters);
         } catch (e) {
-          console.warn('Failed to parse filters JSON:', e);
+          logger.warn('Failed to parse filters JSON', e);
           filters = {};
         }
       }
@@ -411,8 +412,8 @@ class FeedController {
       
       // Debug logging for saved posts
       if (type === 'saved') {
-        console.log('[Saved Feed] Raw query params:', JSON.stringify(req.query, null, 2));
-        console.log('[Saved Feed] Parsed filters:', JSON.stringify(filters, null, 2));
+        logger.debug('[Saved Feed] Raw query params', JSON.stringify(req.query, null, 2));
+        logger.debug('[Saved Feed] Parsed filters', JSON.stringify(filters, null, 2));
       }
 
       // Handle customFeedId filter - expand to custom feed configuration
@@ -441,7 +442,7 @@ class FeedController {
                 authors = Array.from(new Set(authors));
               }
             } catch (e) {
-              console.warn('Failed to expand feed.sourceListIds:', (e as Error)?.message || e);
+              logger.warn('Failed to expand feed.sourceListIds', (e as Error)?.message || e);
             }
 
             // Exclude owner unless they're in the member list
@@ -468,7 +469,7 @@ class FeedController {
           }
         }
       } catch (e) {
-        console.warn('Optional customFeedId expansion failed:', (e as Error)?.message || e);
+        logger.warn('Optional customFeedId expansion failed', (e as Error)?.message || e);
       }
 
       // If a listId or listIds is provided, expand to authors
@@ -492,7 +493,7 @@ class FeedController {
           }
         }
       } catch (e) {
-        console.warn('Optional listIds expansion failed:', (e as Error)?.message || e);
+        logger.warn('Optional listIds expansion failed', (e as Error)?.message || e);
       }
 
       // Handle saved posts type
@@ -511,12 +512,12 @@ class FeedController {
               ? saved.postId 
               : new mongoose.Types.ObjectId(saved.postId);
           } catch (e) {
-            console.error('Invalid postId in bookmark:', saved.postId, e);
+            logger.error('Invalid postId in bookmark', { postId: saved.postId, error: e });
             return null;
           }
         }).filter((id): id is mongoose.Types.ObjectId => id !== null);
         
-        console.log(`[Saved Feed] Found ${savedPostIds.length} saved posts for user ${currentUserId}`);
+        logger.debug(`[Saved Feed] Found ${savedPostIds.length} saved posts for user ${currentUserId}`);
         
         if (savedPostIds.length === 0) {
           return res.json({
@@ -540,7 +541,7 @@ class FeedController {
         // Apply search query filter if provided
         if (filters?.searchQuery) {
           const searchQuery = String(filters.searchQuery).trim();
-          console.log(`[Saved Feed] Applying search filter: "${searchQuery}"`);
+          logger.debug(`[Saved Feed] Applying search filter: "${searchQuery}"`);
           if (searchQuery) {
             // Use MongoDB $regex for partial text matching (case-insensitive)
             // Escape special regex characters but allow partial matching
@@ -552,7 +553,7 @@ class FeedController {
           }
         }
         
-        console.log(`[Saved Feed] Final query:`, JSON.stringify(query, null, 2));
+        logger.debug(`[Saved Feed] Final query`, JSON.stringify(query, null, 2));
       } else {
         query = this.buildFeedQuery(type, filters, currentUserId);
       }
@@ -609,17 +610,17 @@ class FeedController {
         // Authenticated users get chronological feed
         // For saved posts, sort by bookmark creation date (when saved), not post creation date
         if (type === 'saved' && savedPostIds.length > 0) {
-          console.log(`[Saved Feed] Query:`, JSON.stringify(query, null, 2));
+          logger.debug(`[Saved Feed] Query`, JSON.stringify(query, null, 2));
           posts = await Post.find(query)
             .sort({ createdAt: -1 })
             .limit(limit + 1)
             .lean();
-          console.log(`[Saved Feed] Found ${posts.length} posts matching query`);
+          logger.debug(`[Saved Feed] Found ${posts.length} posts matching query`);
           // Log mentions for debugging
           if (posts.length > 0) {
             const samplePost = posts[0];
-            console.log(`[Saved Feed] Sample post mentions:`, samplePost?.mentions);
-            console.log(`[Saved Feed] Sample post content.text:`, samplePost?.content?.text?.substring(0, 100));
+            logger.debug(`[Saved Feed] Sample post mentions`, samplePost?.mentions);
+            logger.debug(`[Saved Feed] Sample post content.text`, samplePost?.content?.text?.substring(0, 100));
           }
         } else {
           posts = await Post.find(query)
@@ -697,7 +698,7 @@ class FeedController {
 
       res.json(response);
     } catch (error) {
-      console.error('Error fetching feed:', error);
+      logger.error('Error fetching feed', error);
       res.status(500).json({ 
         error: 'Failed to fetch feed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -793,14 +794,14 @@ class FeedController {
           const followingRes = await oxyClient.getUserFollowing(currentUserId);
             followingIds = extractFollowingIds(followingRes);
           } catch (error) {
-            console.warn('Failed to load following list:', error);
+            logger.warn('Failed to load following list', error);
           }
           
           // Get user behavior for personalization
           userBehavior = await UserBehavior.findOne({ oxyUserId: currentUserId }).lean();
         }
       } catch (e) {
-        console.error('ForYou: Failed to load user data; continuing with basic ranking', e);
+        logger.error('ForYou: Failed to load user data; continuing with basic ranking', e);
       }
 
       const match: any = {
@@ -825,7 +826,7 @@ class FeedController {
             minFinalScore = parsed.minScore;
             // IMPORTANT: Don't filter by _id in initial match when using compound cursor
             // We'll filter by both score and _id together later to prevent duplicates
-            console.log('📌 Parsed compound cursor:', { cursorId, minFinalScore });
+            logger.debug('📌 Parsed compound cursor', { cursorId, minFinalScore });
           } else {
             throw new Error('Invalid compound cursor structure');
           }
@@ -838,14 +839,14 @@ class FeedController {
             cursorId = cursor;
             // Apply _id filter for simple cursor-based pagination
             match._id = { $lt: new mongoose.Types.ObjectId(cursorId) };
-            console.log('📌 Using simple cursor:', cursorId);
+            logger.debug('📌 Using simple cursor', cursorId);
           } catch {
             // Invalid cursor format, ignore it
-            console.warn('⚠️ Invalid cursor format:', cursor);
+            logger.warn('⚠️ Invalid cursor format', cursor);
           }
         }
       } else {
-        console.log('📌 No cursor - first page request');
+        logger.debug('📌 No cursor - first page request');
       }
 
       // Get candidate posts (fetch more than needed for ranking)
@@ -948,7 +949,7 @@ class FeedController {
         nextCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
         
         // Log cursor for debugging
-        console.log('📌 Generated nextCursor (after dedup):', {
+        logger.debug('📌 Generated nextCursor (after dedup)', {
           lastPostId: lastPost._id.toString(),
           lastPostScore,
           nextCursor: nextCursor.substring(0, 30) + '...',
@@ -1003,7 +1004,7 @@ class FeedController {
         const duplicates = rawPostIds.filter((id, index) => rawPostIds.indexOf(id) !== index);
         const finalDuplicates = postIdsInResponse.filter((id, index) => postIdsInResponse.indexOf(id) !== index);
         
-        console.error('⚠️ DUPLICATES DETECTED in For You feed:', {
+        logger.error('⚠️ DUPLICATES DETECTED in For You feed', {
           stage: 'raw',
           rawTotal: rawPostIds.length,
           rawUnique: uniqueRawIds.size,
@@ -1038,7 +1039,7 @@ class FeedController {
         
         if (finalUniqueIds.has(normalizedId)) {
           const existing = finalUniqueIds.get(normalizedId);
-          console.error('⚠️ FINAL backend response: Duplicate ID detected and removed:', {
+          logger.error('⚠️ FINAL backend response: Duplicate ID detected and removed', {
             id: normalizedId,
             existing: { id: existing?.id || existing?._id, content: existing?.content?.text?.substring(0, 50) },
             duplicate: { id: post?.id || post?._id, content: post?.content?.text?.substring(0, 50) }
@@ -1059,7 +1060,7 @@ class FeedController {
           })
           .filter((id, index, arr) => arr.indexOf(id) !== index);
         
-        console.error('⚠️ FINAL deduplication removed duplicates:', {
+        logger.error('⚠️ FINAL deduplication removed duplicates', {
           before: deduplicatedPosts.length,
           after: finalDeduplicated.length,
           removed: deduplicatedPosts.length - finalDeduplicated.length,
@@ -1077,7 +1078,7 @@ class FeedController {
       
       if (allReturnedIds.length !== uniqueReturnedIds.size) {
         const duplicates = allReturnedIds.filter((id, idx) => allReturnedIds.indexOf(id) !== idx);
-        console.error('⚠️ CRITICAL: Backend response STILL has duplicate IDs after all deduplication!', {
+        logger.error('⚠️ CRITICAL: Backend response STILL has duplicate IDs after all deduplication!', {
           total: allReturnedIds.length,
           unique: uniqueReturnedIds.size,
           duplicates: [...new Set(duplicates)].slice(0, 10),
@@ -1095,7 +1096,7 @@ class FeedController {
         finalDeduplicated.length = 0;
         finalDeduplicated.push(...emergencyUnique.values());
         
-        console.error('Deduplication mismatch detected:', {
+        logger.error('Deduplication mismatch detected', {
           before: allReturnedIds.length,
           after: finalDeduplicated.length
         });
@@ -1143,7 +1144,7 @@ class FeedController {
               minScore: actualLastPostScore
             };
             finalCursor = Buffer.from(JSON.stringify(cursorData)).toString('base64');
-            console.log('📌 Cursor recalculated due to deduplication:', {
+            logger.debug('📌 Cursor recalculated due to deduplication', {
               originalLastPostId: originalCursorId || 'none',
               newLastPostId: actualLastPostId
             });
@@ -1158,7 +1159,7 @@ class FeedController {
       const responseIds = finalDeduplicated.map(p => p.id?.toString() || 'NO_ID');
       const uniqueResponseIds = new Set(responseIds);
       
-      console.log('📤 For You feed response:', {
+      logger.debug('📤 For You feed response', {
         requestCursor: cursor ? (cursor.length > 50 ? cursor.substring(0, 50) + '...' : cursor) : 'none',
         totalPosts: finalDeduplicated.length,
         uniqueIds: uniqueResponseIds.size,
@@ -1170,7 +1171,7 @@ class FeedController {
       
       if (responseIds.length !== uniqueResponseIds.size) {
         const duplicates = responseIds.filter((id, idx) => responseIds.indexOf(id) !== idx);
-        console.error('🚨 CRITICAL: Backend sending duplicate IDs:', [...new Set(duplicates)]);
+        logger.error('🚨 CRITICAL: Backend sending duplicate IDs', [...new Set(duplicates)]);
       }
 
       const response: FeedResponse = {
@@ -1182,7 +1183,7 @@ class FeedController {
 
       res.json(response);
     } catch (error) {
-      console.error('Error fetching For You feed:', error);
+      logger.error('Error fetching For You feed', error);
       res.status(500).json({ 
         error: 'Failed to fetch For You feed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -1244,7 +1245,7 @@ class FeedController {
 
       res.json(response);
     } catch (error) {
-      console.error('Error fetching Following feed:', error);
+      logger.error('Error fetching Following feed', error);
       res.status(500).json({ 
         error: 'Failed to fetch Following feed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -1413,7 +1414,7 @@ class FeedController {
 
       res.json(response);
     } catch (error) {
-      console.error('Error fetching explore feed:', error);
+      logger.error('Error fetching explore feed', error);
       res.status(500).json({ 
         error: 'Failed to fetch explore feed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -1469,7 +1470,7 @@ class FeedController {
 
       res.json(response);
     } catch (error) {
-      console.error('Error fetching media feed:', error);
+      logger.error('Error fetching media feed', error);
       res.status(500).json({ 
         error: 'Failed to fetch media feed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -1612,7 +1613,7 @@ class FeedController {
 
       res.json(response);
     } catch (error) {
-      console.error('Error fetching user profile feed:', error);
+      logger.error('Error fetching user profile feed', error);
       res.status(500).json({ 
         error: 'Failed to fetch user profile feed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -1672,7 +1673,7 @@ class FeedController {
                   const followingIds = extractFollowingIds(authorFollowing);
                   canReply = followingIds.includes(currentUserId);
                 } catch (error) {
-                  console.warn('Failed to check author following:', error);
+                  logger.warn('Failed to check author following', error);
                   canReply = false;
                 }
                 break;
@@ -1685,7 +1686,7 @@ class FeedController {
                 break;
             }
           } catch (error) {
-            console.error('Error checking reply permissions:', error);
+            logger.error('Error checking reply permissions', error);
             // If we can't verify, deny for safety
             canReply = false;
           }
@@ -1742,7 +1743,7 @@ class FeedController {
         reply: reply.toObject() 
       });
     } catch (error) {
-      console.error('Error creating reply:', error);
+      logger.error('Error creating reply', error);
       res.status(500).json({ 
         error: 'Failed to create reply',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -1811,7 +1812,7 @@ class FeedController {
         // Invalidate cached feed for this user
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
-        console.warn('Failed to record interaction for preferences:', error);
+        logger.warn('Failed to record interaction for preferences', error);
       }
 
       // Emit real-time update
@@ -1826,7 +1827,7 @@ class FeedController {
         repost: repost.toObject() 
       });
     } catch (error) {
-      console.error('Error creating repost:', error);
+      logger.error('Error creating repost', error);
       res.status(500).json({ 
         error: 'Failed to create repost',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -1842,7 +1843,7 @@ class FeedController {
       const { postId, type } = req.body as LikeRequest;
       const currentUserId = req.user?.id;
 
-      console.log(`[Like] Like request received: userId=${currentUserId}, postId=${postId}`);
+      logger.debug(`[Like] Like request received: userId=${currentUserId}, postId=${postId}`);
 
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -1862,13 +1863,13 @@ class FeedController {
       }
       
       if (alreadyLiked) {
-        console.log(`[Like] Post ${postId} already liked by user ${currentUserId}`);
+        logger.debug(`[Like] Post ${postId} already liked by user ${currentUserId}`);
         // Still record the interaction even if already liked (user expressed interest)
         try {
           await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
-          console.log(`[Like] Recorded interaction for already-liked post`);
+          logger.debug(`[Like] Recorded interaction for already-liked post`);
         } catch (error) {
-          console.warn(`[Like] Failed to record interaction for already-liked post:`, error);
+          logger.warn(`[Like] Failed to record interaction for already-liked post`, error);
         }
         return res.json({ 
           success: true, 
@@ -1878,7 +1879,7 @@ class FeedController {
         });
       }
 
-      console.log(`[Like] User ${currentUserId} liking post ${postId} (not already liked)`);
+      logger.debug(`[Like] User ${currentUserId} liking post ${postId} (not already liked)`);
 
       // Create like record in Like collection (single source of truth)
       await Like.create({ userId: currentUserId, postId });
@@ -1897,15 +1898,14 @@ class FeedController {
       }
 
       // Record interaction for user preference learning
-      console.log(`[Like] Recording interaction for user ${currentUserId}, post ${postId}`);
+      logger.debug(`[Like] Recording interaction for user ${currentUserId}, post ${postId}`);
       try {
         await userPreferenceService.recordInteraction(currentUserId, postId, 'like');
-        console.log(`[Like] Successfully recorded interaction`);
+        logger.debug(`[Like] Successfully recorded interaction`);
         // Invalidate cached feed for this user
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
-        console.error(`[Like] Failed to record interaction for preferences:`, error);
-        console.error(`[Like] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+        logger.error(`[Like] Failed to record interaction for preferences`, error);
         // Don't fail the request if preference tracking fails, but log the error
       }
 
@@ -1923,7 +1923,7 @@ class FeedController {
         likesCount: updateResult.stats.likesCount
       });
     } catch (error) {
-      console.error('Error liking post:', error);
+      logger.error('Error liking post', error);
       res.status(500).json({ 
         error: 'Failed to like post',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -1985,7 +1985,7 @@ class FeedController {
       try {
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
-        console.warn('Failed to invalidate cache:', error);
+        logger.warn('Failed to invalidate cache', error);
       }
 
       // Emit real-time update
@@ -2002,7 +2002,7 @@ class FeedController {
         likesCount: updateResult.stats.likesCount
       });
     } catch (error) {
-      console.error('Error unliking post:', error);
+      logger.error('Error unliking post', error);
       res.status(500).json({ 
         error: 'Failed to unlike post',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -2018,7 +2018,7 @@ class FeedController {
       const { postId } = req.params;
       const currentUserId = req.user?.id;
 
-      console.log('🔄 Unrepost request:', { postId, currentUserId });
+      logger.debug('🔄 Unrepost request', { postId, currentUserId });
 
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -2057,7 +2057,7 @@ class FeedController {
         message: 'Repost removed successfully'
       });
     } catch (error) {
-      console.error('Error unreposting:', error);
+      logger.error('Error unreposting', error);
       res.status(500).json({
         error: 'Failed to unrepost',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -2073,7 +2073,7 @@ class FeedController {
       const { postId } = req.params;
       const currentUserId = req.user?.id;
 
-      console.log(`[Save] Save request received: userId=${currentUserId}, postId=${postId}`);
+      logger.debug(`[Save] Save request received: userId=${currentUserId}, postId=${postId}`);
 
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -2092,13 +2092,13 @@ class FeedController {
       const alreadySaved = existingPost.metadata?.savedBy?.includes(currentUserId);
       
       if (alreadySaved) {
-        console.log(`[Save] Post ${postId} already saved by user ${currentUserId}`);
+        logger.debug(`[Save] Post ${postId} already saved by user ${currentUserId}`);
         // Still record the interaction even if already saved (user expressed interest)
         try {
           await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
-          console.log(`[Save] Recorded interaction for already-saved post`);
+          logger.debug(`[Save] Recorded interaction for already-saved post`);
         } catch (error) {
-          console.warn(`[Save] Failed to record interaction for already-saved post:`, error);
+          logger.warn(`[Save] Failed to record interaction for already-saved post`, error);
         }
         return res.json({ 
           success: true, 
@@ -2117,15 +2117,14 @@ class FeedController {
       );
 
       // Record interaction for user preference learning
-      console.log(`[Save] Recording interaction for user ${currentUserId}, post ${postId}`);
+      logger.debug(`[Save] Recording interaction for user ${currentUserId}, post ${postId}`);
       try {
         await userPreferenceService.recordInteraction(currentUserId, postId, 'save');
-        console.log(`[Save] Successfully recorded interaction`);
+        logger.debug(`[Save] Successfully recorded interaction`);
         // Invalidate cached feed for this user
         await feedCacheService.invalidateUserCache(currentUserId);
       } catch (error) {
-        console.error(`[Save] Failed to record interaction for preferences:`, error);
-        console.error(`[Save] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+        logger.error(`[Save] Failed to record interaction for preferences`, error);
       }
 
       // Emit real-time update
@@ -2140,7 +2139,7 @@ class FeedController {
         saved: true
       });
     } catch (error) {
-      console.error('Error saving post:', error);
+      logger.error('Error saving post', error);
       res.status(500).json({ 
         error: 'Failed to save post',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -2156,7 +2155,7 @@ class FeedController {
       const { postId } = req.params;
       const currentUserId = req.user?.id;
 
-      console.log('🗑️ Unsave endpoint called:', { postId, currentUserId, user: req.user });
+      logger.debug('🗑️ Unsave endpoint called', { postId, currentUserId, user: req.user });
 
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -2203,7 +2202,7 @@ class FeedController {
         saved: false
       });
     } catch (error) {
-      console.error('Error unsaving post:', error);
+      logger.error('Error unsaving post', error);
       res.status(500).json({ 
         error: 'Failed to unsave post',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -2258,7 +2257,7 @@ class FeedController {
 
       return res.json(transformed);
     } catch (error) {
-      console.error('Error fetching feed item:', error);
+      logger.error('Error fetching feed item', error);
       res.status(500).json({ error: 'Failed to fetch feed item' });
     }
   }
