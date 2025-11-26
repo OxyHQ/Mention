@@ -107,14 +107,8 @@ return {
             include: ['@expo/vector-icons'],
           },
         },
-        // Add Metro configuration for better module resolution
-        metro: {
-          resolver: {
-            alias: {
-              '@react-native-async-storage/async-storage': require.resolve('@react-native-async-storage/async-storage'),
-            },
-          },
-        },
+        // Metro configuration is handled in metro.config.js
+        // Removing duplicate configuration here to avoid conflicts
         },
         // Build the plugins array dynamically so we can exclude certain
         // native-only plugins (like expo-notifications) from web builds.

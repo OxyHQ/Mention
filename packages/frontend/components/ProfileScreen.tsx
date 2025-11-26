@@ -908,12 +908,17 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         </View>
                                     )}
                                     {profileData?.createdAt && (
-                                        <View style={styles.metaItem}>
+                                        <TouchableOpacity 
+                                            style={styles.metaItem}
+                                            onPress={() => router.push(`/@${profileData?.username || username}/about` as any)}
+                                            activeOpacity={0.7}
+                                        >
                                             <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
                                             <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
                                                 {t('profile.joined')} {new Date(profileData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                                             </Text>
-                                        </View>
+                                            <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+                                        </TouchableOpacity>
                                     )}
                                 </View>
 

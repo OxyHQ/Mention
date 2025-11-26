@@ -4,7 +4,9 @@
   "version": "2.0.0",
   "scripts": {
     "start": "expo start --reset-cache --tunnel --clear",
+    "start:local": "expo start --reset-cache --clear",
     "dev": "expo start --reset-cache --tunnel --clear",
+    "dev:local": "expo start --reset-cache --clear",
     "reset-project": "node ./scripts/reset-project.js",
     "clear-cache": "node ./scripts/clear-cache.js",
     "android": "expo run:android",

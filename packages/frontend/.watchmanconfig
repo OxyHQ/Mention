@@ -1,0 +1,18 @@
+{
+    "ignore_dirs": [
+        "../backend",
+        "../../node_modules",
+        "../../docs",
+        "../shared-types/src",
+        ".expo",
+        ".expo-shared",
+        ".metro",
+        ".cache",
+        "dist",
+        "build",
+        "out",
+        "__tests__",
+        "node_modules/.cache",
+        "../shared-types/node_modules"
+    ]
+}

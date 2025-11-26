@@ -22,8 +22,9 @@ const UsernameLayout = () => {
         const isFollowersRoute = pathname?.endsWith('/followers');
         const isFollowingRoute = pathname?.endsWith('/following');
         const isWhoMayKnowRoute = pathname?.endsWith('/who-may-know');
+        const isAboutRoute = pathname?.endsWith('/about');
 
-        if (isFollowersRoute || isFollowingRoute || isWhoMayKnowRoute) {
+        if (isFollowersRoute || isFollowingRoute || isWhoMayKnowRoute || isAboutRoute) {
             return <Slot />;
         }
 
