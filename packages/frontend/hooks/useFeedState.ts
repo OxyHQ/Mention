@@ -368,7 +368,8 @@ export function useFeedState({
         if (reloadKeyChanged) {
             fetchInitial(true);
         }
-    }, [reloadKey, fetchInitial]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [reloadKey]); // Only depend on reloadKey to avoid unnecessary re-runs
 
     // Handle initial load and filter changes - skip if feed already has items
     useDeepCompareEffect(() => {
@@ -388,7 +389,8 @@ export function useFeedState({
         }
 
         fetchInitial(false);
-    }, [type, filters, useScoped, showOnlySaved, reloadKey, fetchInitial]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [type, filters, useScoped, showOnlySaved]); // Removed reloadKey and fetchInitial from deps to reduce re-runs
 
     // Return appropriate state based on scoped vs global
     const items = useScoped ? localItems : globalFeed?.items || [];

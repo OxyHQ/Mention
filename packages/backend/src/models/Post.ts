@@ -329,6 +329,10 @@ PostSchema.index({ hashtags: 1, visibility: 1, createdAt: -1 });
 // Geospatial compound indexes for location + time queries
 PostSchema.index({ 'content.location': '2dsphere', createdAt: -1 });
 PostSchema.index({ 'location': '2dsphere', createdAt: -1 });
+// Critical compound index for cursor-based pagination (optimizes feed queries)
+PostSchema.index({ visibility: 1, createdAt: -1, _id: 1 });
+// Index for saved posts queries
+PostSchema.index({ _id: 1, createdAt: -1 });
 
 export const Post = mongoose.model<IPost>('Post', PostSchema);
 export default Post;

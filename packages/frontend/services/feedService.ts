@@ -60,11 +60,53 @@ interface FeedServiceOptions {
   signal?: AbortSignal;
 }
 
+interface CachedFeedResponse {
+  data: FeedResponse;
+  timestamp: number;
+  expiresAt: number;
+}
+
+// Client-side cache for feed responses (30 second TTL)
+const feedCache = new Map<string, CachedFeedResponse>();
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds
+
+// Generate cache key from request
+function getCacheKey(request: FeedRequest): string {
+  const parts = [
+    request.type,
+    request.cursor || 'initial',
+    request.userId || '',
+    JSON.stringify(request.filters || {})
+  ];
+  return parts.join('|');
+}
+
+// Clean up expired cache entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, cached] of feedCache.entries()) {
+    if (now > cached.expiresAt) {
+      feedCache.delete(key);
+    }
+  }
+}, 60000); // Clean up every minute
+
 class FeedService {
   /**
    * Get feed data from backend using Oxy authenticated client
+   * Includes client-side caching for 30 seconds to reduce redundant requests
    */
   async getFeed(request: FeedRequest, options?: FeedServiceOptions): Promise<FeedResponse> {
+      // Check cache first (only for non-cursor requests to avoid stale pagination)
+      if (!request.cursor) {
+        const cacheKey = getCacheKey(request);
+        const cached = feedCache.get(cacheKey);
+        if (cached && Date.now() < cached.expiresAt) {
+          logger.debug('[FeedService] Cache hit', { type: request.type });
+          return cached.data;
+        }
+      }
+      
       const params: any = {
         type: request.type // Always include type in params
       };
@@ -147,7 +189,20 @@ class FeedService {
           params,
           signal: options?.signal,
         });
-        return response.data;
+        
+        const feedResponse = response.data;
+        
+        // Cache response for non-cursor requests (initial loads)
+        if (!request.cursor && feedResponse) {
+          const cacheKey = getCacheKey(request);
+          feedCache.set(cacheKey, {
+            data: feedResponse,
+            timestamp: Date.now(),
+            expiresAt: Date.now() + CACHE_TTL_MS
+          });
+        }
+        
+        return feedResponse;
       } catch (authError: any) {
         const status = authError?.response?.status;
         const isAuthError = status === 401 || status === 403;

@@ -358,6 +358,9 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   return base;
 };
 
+// Request tracking for debouncing and race condition prevention
+const pendingRequests = new Map<string, { timestamp: number; abortController?: AbortController }>();
+
 export const usePostsStore = create<FeedState>()(
   subscribeWithSelector((set, get) => ({
     feeds: createDefaultFeedsState(),
@@ -372,10 +375,31 @@ export const usePostsStore = create<FeedState>()(
       const state = get();
       const currentFeed = state.feeds[type];
       
-      // Prevent concurrent requests
-      if (currentFeed?.isLoading) {
+      // Create request key for tracking
+      const requestKey = `${type}:${request.cursor || 'initial'}`;
+      const now = Date.now();
+      
+      // Debounce: cancel previous request if same request made within 300ms
+      const pending = pendingRequests.get(requestKey);
+      if (pending) {
+        if (now - pending.timestamp < 300) {
+          // Request made too soon, debounce it
+          return;
+        }
+        // Cancel previous request
+        if (pending.abortController) {
+          pending.abortController.abort();
+        }
+      }
+      
+      // Prevent concurrent requests for same feed type
+      if (currentFeed?.isLoading && !request.cursor) {
         return;
       }
+      
+      // Create abort controller for this request
+      const abortController = new AbortController();
+      pendingRequests.set(requestKey, { timestamp: now, abortController });
       
       // Check if filters changed - if so, clear old items before fetching
       const filtersChanged = !request.cursor && currentFeed?.items && currentFeed.items.length > 0 &&
@@ -401,13 +425,25 @@ export const usePostsStore = create<FeedState>()(
       }));
 
       try {
-        const response = await feedService.getFeed(request);
+        const response = await feedService.getFeed(request, { signal: abortController.signal });
+        
+        // Check if request was aborted
+        if (abortController.signal.aborted) {
+          return;
+        }
         
         set(state => {
           // Re-check loading state - another request might have completed
           const currentFeedState = state.feeds[type];
           if (!currentFeedState?.isLoading && request.cursor) {
             // Another request completed, discard this response to prevent race conditions
+            return state;
+          }
+          
+          // Verify this is still the latest request
+          const latestPending = pendingRequests.get(requestKey);
+          if (!latestPending || latestPending.timestamp !== now) {
+            // A newer request was made, discard this response
             return state;
           }
           
@@ -466,6 +502,11 @@ export const usePostsStore = create<FeedState>()(
           });
         });
       } catch (error) {
+        // Don't handle aborted requests as errors
+        if (abortController.signal.aborted) {
+          return;
+        }
+        
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch feed';
         
         set(state => ({
@@ -479,6 +520,9 @@ export const usePostsStore = create<FeedState>()(
           },
           error: errorMessage
         }));
+      } finally {
+        // Clean up request tracking
+        pendingRequests.delete(requestKey);
       }
     },
 
@@ -772,6 +816,27 @@ export const usePostsStore = create<FeedState>()(
         return;
       }
 
+      // Create request key for tracking and debouncing
+      const requestKey = `${type}:loadMore:${currentFeed.nextCursor || 'none'}`;
+      const now = Date.now();
+      
+      // Debounce: cancel previous request if same request made within 500ms
+      const pending = pendingRequests.get(requestKey);
+      if (pending) {
+        if (now - pending.timestamp < 500) {
+          // Request made too soon, debounce it
+          return;
+        }
+        // Cancel previous request
+        if (pending.abortController) {
+          pending.abortController.abort();
+        }
+      }
+      
+      // Create abort controller for this request
+      const abortController = new AbortController();
+      pendingRequests.set(requestKey, { timestamp: now, abortController });
+
       // Set loading state immediately to prevent race conditions
       set(state => ({
         feeds: {
@@ -792,11 +857,31 @@ export const usePostsStore = create<FeedState>()(
           cursor: cursorAtRequestTime,
           limit: 20,
           filters
-        } as any);
+        } as any, { signal: abortController.signal });
+        
+        // Check if request was aborted
+        if (abortController.signal.aborted) {
+          return;
+        }
         
         set(state => {
           // Re-check state after async operation - another request might have updated it
           const currentFeedAfterAsync = state.feeds[type];
+          
+          // Verify this is still the latest request
+          const latestPending = pendingRequests.get(requestKey);
+          if (!latestPending || latestPending.timestamp !== now) {
+            // A newer request was made, discard this response
+            return {
+              feeds: {
+                ...state.feeds,
+                [type]: {
+                  ...currentFeedAfterAsync,
+                  isLoading: false
+                }
+              }
+            };
+          }
           
           // Ensure we're still using the correct cursor and haven't been superseded
           if (currentFeedAfterAsync.nextCursor !== cursorAtRequestTime && cursorAtRequestTime) {
@@ -908,6 +993,11 @@ export const usePostsStore = create<FeedState>()(
           });
         });
       } catch (error) {
+        // Don't handle aborted requests as errors
+        if (abortController.signal.aborted) {
+          return;
+        }
+        
         const errorMessage = error instanceof Error ? error.message : 'Failed to load more feed';
         
         set(state => ({
@@ -920,6 +1010,9 @@ export const usePostsStore = create<FeedState>()(
             }
           }
         }));
+      } finally {
+        // Clean up request tracking
+        pendingRequests.delete(requestKey);
       }
     },
 
