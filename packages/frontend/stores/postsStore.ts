@@ -947,19 +947,27 @@ export const usePostsStore = create<FeedState>()(
           const finalItems = [...cleanedExistingItems, ...trulyNewItems];
           
           // Track duplicate rate for monitoring (only log if significant)
+          // Note: For ranked feeds (for_you), some duplicates are expected due to ranking changes
+          // The deduplication is working correctly - this is just for monitoring
           if (process.env.NODE_ENV === 'development') {
             const duplicateRate = mapped.length > 0 ? (duplicatesAgainstExisting / mapped.length) * 100 : 0;
             
-            // Only log if duplicate rate is high (>30%) to reduce noise
-            if (duplicateRate > 30) {
+            // Only log if duplicate rate is very high (>50%) and it's not a ranked feed
+            // Ranked feeds can have higher duplicate rates due to score changes
+            const isRankedFeed = type === 'for_you' || type === 'explore';
+            const threshold = isRankedFeed ? 80 : 30; // Higher threshold for ranked feeds
+            
+            if (duplicateRate > threshold) {
               // eslint-disable-next-line no-console
               console.warn(`[loadMoreFeed:${type}] High duplicate rate detected: ${duplicateRate.toFixed(1)}% (${duplicatesAgainstExisting}/${mapped.length})`, {
                 cursor: cursorAtRequestTime ? 'present' : 'none',
-                existingItems: cleanedExistingItems.length
+                existingItems: cleanedExistingItems.length,
+                isRankedFeed,
+                note: isRankedFeed ? 'Ranked feeds may have duplicates due to score changes - this is expected' : 'Unexpected duplicates'
               });
             }
             
-            // Log backend duplicates as error
+            // Log backend duplicates as error (these are actual bugs)
             if (duplicatesInResponse > 0) {
               // eslint-disable-next-line no-console
               console.error(`[loadMoreFeed:${type}] Backend returned ${duplicatesInResponse} duplicate IDs in response`);

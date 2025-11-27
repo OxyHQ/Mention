@@ -895,13 +895,26 @@ class FeedController {
         ? await feedSeenPostsService.getSeenPostIds(currentUserId)
         : [];
 
-      const match: any = {
+      const match: Record<string, unknown> = {
         visibility: PostVisibility.PUBLIC,
         $and: [
           { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
           { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
         ]
       };
+
+      // For ranked feeds (for_you), add cursor to seen posts to ensure it's excluded
+      // This prevents the cursor post from appearing again due to ranking changes
+      if (cursor && currentUserId && mongoose.Types.ObjectId.isValid(cursor)) {
+        if (!seenPostIds.includes(cursor)) {
+          seenPostIds.push(cursor);
+          // Mark cursor post as seen immediately to prevent it from appearing
+          feedSeenPostsService.markPostsAsSeen(currentUserId, [cursor])
+            .catch(error => {
+              logger.warn('Failed to mark cursor post as seen (non-critical)', error);
+            });
+        }
+      }
 
       // Exclude seen posts at DB level for guaranteed deduplication
       // This is more efficient than filtering after ranking
@@ -919,14 +932,25 @@ class FeedController {
         }
       }
 
-      // Simplified cursor: use simple ObjectId-based cursor for all feeds
-      // This is more reliable and easier to maintain than compound cursors
+      // Apply cursor filter (posts with _id < cursor)
+      // Note: This works together with seen posts exclusion - seen posts take precedence
       if (cursor) {
         try {
           // Validate and use as ObjectId cursor
           if (mongoose.Types.ObjectId.isValid(cursor)) {
-            match._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-            logger.debug('📌 Using ObjectId cursor', cursor);
+            const cursorId = new mongoose.Types.ObjectId(cursor);
+            // Combine cursor with existing _id filter if any
+            const existingIdFilter = match._id as Record<string, unknown> | undefined;
+            if (existingIdFilter && typeof existingIdFilter === 'object' && '$nin' in existingIdFilter) {
+              // If we have $nin, we need to use $and to combine with $lt
+              if (!match.$and) {
+                match.$and = [];
+              }
+              match.$and.push({ _id: { $lt: cursorId } });
+            } else {
+              match._id = { $lt: cursorId };
+            }
+            logger.debug('📌 Using ObjectId cursor for for_you feed', { cursor, seenPostsCount: seenPostIds.length });
           } else {
             logger.warn('⚠️ Invalid cursor format, ignoring', cursor);
           }
