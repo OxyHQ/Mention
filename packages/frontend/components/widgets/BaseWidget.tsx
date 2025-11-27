@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     widgetContainer: {
         borderRadius: 15,
         overflow: 'hidden',
-        pointerEvents: 'auto' as any,
+        pointerEvents: 'auto',
         borderWidth: 1,
     },
     widgetHeader: {
