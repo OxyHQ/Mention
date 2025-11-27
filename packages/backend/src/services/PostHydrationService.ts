@@ -885,7 +885,7 @@ export class PostHydrationService {
           } else if (userData.name?.first) {
             fullName = `${userData.name.first} ${userData.name.last || ''}`.trim();
           } else if (userData.displayName) {
-            fullName = userData.displayName;
+            fullName = typeof userData.displayName === 'string' ? userData.displayName : String(userData.displayName || username);
           } else {
             fullName = username;
           }

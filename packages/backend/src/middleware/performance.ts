@@ -23,8 +23,8 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
   const method = req.method;
 
   // Override res.end to capture response time
-  const originalEnd = res.end;
-  res.end = function(chunk?: any, encoding?: any) {
+  const originalEnd = res.end.bind(res);
+  res.end = function(chunk?: any, encoding?: any, cb?: () => void): Response {
     const responseTime = Date.now() - startTime;
     const statusCode = res.statusCode;
 
@@ -55,7 +55,7 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
     }
 
     // Call original end
-    originalEnd.call(this, chunk, encoding);
+    return originalEnd(chunk, encoding, cb);
   };
 
   next();

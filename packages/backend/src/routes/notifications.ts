@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import mongoose from 'mongoose';
 import Notification from "../models/Notification";
 import Post from "../models/Post";
 import { Server } from 'socket.io';

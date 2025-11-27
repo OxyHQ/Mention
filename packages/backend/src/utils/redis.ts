@@ -48,12 +48,11 @@ function createRedisOptions(): RedisClientOptions {
         return delay;
       },
       connectTimeout: 10000,
-      keepAlive: 30000,
+      keepAlive: true,
     },
     database: config.redisDb,
     commandsQueueMaxLength: 1000,
-    enableOfflineQueue: false,
-    enableAutoPipelining: true,
+    disableOfflineQueue: true,
     ...(config.redisPassword && { password: config.redisPassword }),
   };
 }
@@ -83,61 +82,63 @@ export function getRedisClient(): RedisClientType {
   const options = createRedisOptions();
 
   if (config.redisUrl) {
-    redisClient = createClient({ url: config.redisUrl, ...options });
+    redisClient = createClient({ url: config.redisUrl, ...options }) as RedisClientType;
   } else {
-    redisClient = createClient(options);
+    redisClient = createClient(options) as RedisClientType;
   }
 
   // Set up event handlers
-  redisClient.on('connect', () => {
-    logger.info('Redis client connecting...');
-  });
+  if (redisClient) {
+    redisClient.on('connect', () => {
+      logger.info('Redis client connecting...');
+    });
 
-  redisClient.on('ready', () => {
-    logger.info('Redis client ready');
-  });
+    redisClient.on('ready', () => {
+      logger.info('Redis client ready');
+    });
 
-  redisClient.on('error', (err: Error) => {
-    // Only log connection errors once from main client to reduce spam
-    // The app can continue without Redis (graceful degradation)
-    if (err.message.includes('ECONNREFUSED') || err.message.includes('ENOTFOUND')) {
-      if (!hasLoggedRedisUnavailable && isMainClient) {
-        logger.warn('Redis connection unavailable - app will continue without caching');
-        hasLoggedRedisUnavailable = true;
+    redisClient.on('error', (err: Error) => {
+      // Only log connection errors once from main client to reduce spam
+      // The app can continue without Redis (graceful degradation)
+      if (err.message.includes('ECONNREFUSED') || err.message.includes('ENOTFOUND')) {
+        if (!hasLoggedRedisUnavailable && isMainClient) {
+          logger.warn('Redis connection unavailable - app will continue without caching');
+          hasLoggedRedisUnavailable = true;
+        }
+      } else {
+        logger.error('Redis client error:', err);
       }
-    } else {
-      logger.error('Redis client error:', err);
-    }
-  });
+    });
 
-  redisClient.on('end', () => {
-    logger.warn('Redis client connection ended');
-    redisClient = null;
-    redisClientPromise = null;
-  });
+    redisClient.on('end', () => {
+      logger.warn('Redis client connection ended');
+      redisClient = null;
+      redisClientPromise = null;
+    });
 
-  redisClient.on('reconnecting', () => {
-    // Don't log reconnecting - it's too noisy when Redis is unavailable
-    // The reconnect strategy will handle logging
-  });
+    redisClient.on('reconnecting', () => {
+      // Don't log reconnecting - it's too noisy when Redis is unavailable
+      // The reconnect strategy will handle logging
+    });
 
-  // Connect the client (non-blocking - app can start without Redis)
-  redisClientPromise = redisClient.connect().then(() => {
-    hasLoggedRedisUnavailable = false; // Reset flag on successful connection
-    isMainClient = true; // Reset flag
-    return redisClient!;
-  }).catch((error: any) => {
-    // Don't crash the app if Redis is unavailable
-    // The app will gracefully degrade without Redis
-    // Error logging is handled by the error event handler and reconnect strategy
-    // Keep the client reference but mark promise as failed
-    // This allows the app to continue and Redis operations will gracefully degrade
-    redisClientPromise = null;
-    // Don't throw - allow app to start without Redis
-    return redisClient!;
-  });
+    // Connect the client (non-blocking - app can start without Redis)
+    redisClientPromise = redisClient.connect().then(() => {
+      hasLoggedRedisUnavailable = false; // Reset flag on successful connection
+      isMainClient = true; // Reset flag
+      return redisClient!;
+    }).catch((error: any) => {
+      // Don't crash the app if Redis is unavailable
+      // The app will gracefully degrade without Redis
+      // Error logging is handled by the error event handler and reconnect strategy
+      // Keep the client reference but mark promise as failed
+      // This allows the app to continue and Redis operations will gracefully degrade
+      redisClientPromise = null;
+      // Don't throw - allow app to start without Redis
+      return redisClient!;
+    });
+  }
 
-  return redisClient;
+  return redisClient!;
 }
 
 /**
@@ -146,7 +147,7 @@ export function getRedisClient(): RedisClientType {
 export async function isRedisConnected(): Promise<boolean> {
   try {
     const client = getRedisClient();
-    if (!client.isReady) {
+    if (!client || !client.isReady) {
       return false;
     }
     await client.ping();
@@ -198,7 +199,7 @@ export function createRedisPubSub(): { publisher: RedisClientType; subscriber: R
   const baseOptions: RedisClientOptions = {
     ...createRedisOptions(),
     // Pub/sub clients don't need command queuing
-    enableOfflineQueue: false,
+    disableOfflineQueue: true,
     socket: {
       ...createRedisOptions().socket,
       // Silent reconnect strategy for pub/sub clients (main client already logs)
@@ -212,9 +213,9 @@ export function createRedisPubSub(): { publisher: RedisClientType; subscriber: R
   };
 
   const createPubSubClient = (): RedisClientType => {
-    const client = config.redisUrl 
+    const client = (config.redisUrl 
       ? createClient({ url: config.redisUrl, ...baseOptions })
-      : createClient(baseOptions);
+      : createClient(baseOptions)) as RedisClientType;
     
     // Set up error handlers - don't log connection errors (already logged by main client)
     client.on('error', (err: Error) => {

@@ -526,7 +526,7 @@ export class FeedRankingService {
     if (userId && !followingIds) {
       try {
         // Lazy import to avoid circular dependency with server.ts
-        const { oxy } = await import('../../server');
+        const { oxy } = await import('../../server.js');
         const followingRes = await oxy.getUserFollowing(userId);
         followingIds = extractFollowingIds(followingRes);
       } catch (error) {
