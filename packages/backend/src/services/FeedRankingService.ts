@@ -3,6 +3,9 @@ import UserBehavior from '../models/UserBehavior';
 import mongoose from 'mongoose';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
+import { getRedisClient } from '../utils/redis';
+import { withRedisFallback } from '../utils/redisHelpers';
+import { metrics } from '../utils/metrics';
 
 /**
  * FeedRankingService - Advanced feed ranking algorithm
@@ -18,6 +21,12 @@ import { logger } from '../utils/logger';
  * 7. Negative Signals - hidden, muted, blocked content
  */
 export class FeedRankingService {
+  private redis: ReturnType<typeof getRedisClient>;
+  private readonly ENGAGEMENT_SCORE_CACHE_TTL = 5 * 60; // 5 minutes
+  private readonly ENGAGEMENT_SCORE_CACHE_PREFIX = 'engagement:score:';
+  private readonly LARGE_CANDIDATE_SET_THRESHOLD = 1000; // Use approximate ranking for sets larger than this
+  private readonly TOP_K_FOR_APPROXIMATE = 500; // Top K posts to fully rank when using approximate method
+  
   // Weight configuration (can be tuned based on A/B testing)
   private readonly WEIGHTS = {
     engagement: {
@@ -53,6 +62,45 @@ export class FeedRankingService {
     }
   };
 
+  constructor() {
+    this.redis = getRedisClient();
+  }
+
+  /**
+   * Get cached engagement score or calculate and cache
+   */
+  private async getCachedEngagementScore(postId: string, post: any): Promise<number> {
+    const cacheKey = `${this.ENGAGEMENT_SCORE_CACHE_PREFIX}${postId}`;
+    
+    // Try to get from cache
+    const cached = await withRedisFallback(
+      this.redis,
+      async () => {
+        const data = await this.redis.get(cacheKey);
+        return data ? parseFloat(data) : null;
+      },
+      null,
+      'engagement score cache'
+    );
+    
+    if (cached !== null) {
+      return cached;
+    }
+    
+    // Calculate and cache
+    const score = this.calculateEngagementScore(post);
+    await withRedisFallback(
+      this.redis,
+      async () => {
+        await this.redis.setEx(cacheKey, this.ENGAGEMENT_SCORE_CACHE_TTL, score.toString());
+      },
+      undefined,
+      'engagement score cache set'
+    );
+    
+    return score;
+  }
+
   /**
    * Calculate comprehensive feed score for a post
    * Public method for use in controllers
@@ -70,10 +118,17 @@ export class FeedRankingService {
       recentAuthors?: string[];
       recentTopics?: string[];
       feedSettings?: any; // User feed settings
+      engagementScoreCache?: Map<string, number>; // Optional pre-calculated engagement scores
     } = {}
   ): Promise<number> {
-    // Base engagement score (with logarithmic normalization)
-    const engagementScore = this.calculateEngagementScore(post);
+    // Base engagement score (use cache if available, otherwise calculate)
+    const postId = post._id?.toString() || '';
+    let engagementScore: number;
+    if (context.engagementScoreCache?.has(postId)) {
+      engagementScore = context.engagementScoreCache.get(postId)!;
+    } else {
+      engagementScore = this.calculateEngagementScore(post);
+    }
     
     // Recency score with time decay (using user settings if provided)
     const recencyScore = this.calculateRecencyScore(
@@ -506,6 +561,8 @@ export class FeedRankingService {
       feedSettings?: any; // User feed settings
     } = {}
   ): Promise<any[]> {
+    const rankingStartTime = Date.now();
+    
     // Early return for empty posts
     if (posts.length === 0) {
       return [];
@@ -535,29 +592,56 @@ export class FeedRankingService {
       }
     }
     
-    // Pre-calculate engagement scores once (used in multiple places)
+    // Pre-calculate engagement scores with caching (batch load from cache)
     const engagementScoreCache = new Map<string, number>();
-    posts.forEach(post => {
+    const engagementScorePromises = posts.map(async (post) => {
       const postId = post._id?.toString() || '';
       if (!engagementScoreCache.has(postId)) {
-        engagementScoreCache.set(postId, this.calculateEngagementScore(post));
+        const score = await this.getCachedEngagementScore(postId, post);
+        engagementScoreCache.set(postId, score);
       }
     });
+    await Promise.all(engagementScorePromises);
+    
+    // For large candidate sets, use approximate ranking (top-k selection)
+    let postsToRank = posts;
+    if (posts.length > this.LARGE_CANDIDATE_SET_THRESHOLD) {
+      logger.debug(`Using approximate ranking for large candidate set (${posts.length} posts)`);
+      // Quick pre-ranking based on engagement score only (fast approximation)
+      const quickScores = posts.map((post, index) => {
+        const postId = post._id?.toString() || '';
+        const engagementScore = engagementScoreCache.get(postId) || 0;
+        // Simple recency boost
+        const postAge = (Date.now() - new Date(post.createdAt).getTime()) / (1000 * 60 * 60);
+        const recencyBoost = postAge < 24 ? Math.exp(-postAge / 24) : 0.1;
+        return {
+          post,
+          quickScore: engagementScore * recencyBoost,
+          originalIndex: index
+        };
+      });
+      
+      // Sort by quick score and take top K
+      quickScores.sort((a, b) => b.quickScore - a.quickScore);
+      postsToRank = quickScores.slice(0, this.TOP_K_FOR_APPROXIMATE).map(item => item.post);
+      logger.debug(`Reduced candidate set from ${posts.length} to ${postsToRank.length} posts for full ranking`);
+    }
     
     // Track recent authors and topics for diversity (build incrementally)
     const recentAuthors: string[] = [];
     const recentTopics: string[] = [];
     
-    // Calculate scores for all posts in parallel
+    // Calculate scores for all posts in parallel (batch processing)
     // Preserve original index to maintain MongoDB's createdAt sort order for tie-breaking
     const postsWithScores = await Promise.all(
-      posts.map(async (post, originalIndex) => {
+      postsToRank.map(async (post, originalIndex) => {
         const score = await this.calculatePostScore(post, userId, {
           followingIds,
           userBehavior,
           recentAuthors: [...recentAuthors], // Copy current state
           recentTopics: [...recentTopics], // Copy current state
-          feedSettings: context.feedSettings
+          feedSettings: context.feedSettings,
+          engagementScoreCache // Pass pre-calculated engagement scores
         });
         
         // Update recent lists for diversity calculation (for next posts)
@@ -595,6 +679,14 @@ export class FeedRankingService {
     postsWithScores.forEach(({ post, score }) => {
       (post as any).finalScore = score;
     });
+    
+    // Record ranking metrics
+    const rankingDuration = Date.now() - rankingStartTime;
+    metrics.recordLatency('feed_ranking_duration_ms', rankingDuration, { 
+      post_count: posts.length.toString(),
+      user_id: userId || 'anonymous'
+    });
+    metrics.setGauge('feed_ranking_posts_processed', posts.length);
     
     // Return ranked posts with scores attached
     return postsWithScores.map(item => item.post);

@@ -103,4 +103,83 @@ export const linkCacheClearRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiter for feed endpoints (per user: 100 requests/minute)
+const feedStore = new RedisStore({ 
+  prefix: 'rate-limit:feed:',
+  windowMs: 60 * 1000 // 1 minute
+});
+export const feedRateLimiter = rateLimit({
+  store: feedStore,
+  windowMs: 60 * 1000, // 1 minute
+  max: (req: Request) => {
+    const authReq = req as AuthRequest;
+    // Authenticated users: 100 requests per minute
+    // Unauthenticated users: 50 requests per minute
+    return authReq.user?.id ? 100 : 50;
+  },
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    if (authReq.user?.id) {
+      return `user:${authReq.user.id}`;
+    }
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    return ipKeyGenerator(ip);
+  },
+  message: "Too many feed requests. Please slow down.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiter for feed endpoints (per IP: 10 requests/second)
+const feedIPStore = new RedisStore({ 
+  prefix: 'rate-limit:feed-ip:',
+  windowMs: 1000 // 1 second
+});
+export const feedIPRateLimiter = rateLimit({
+  store: feedIPStore,
+  windowMs: 1000, // 1 second
+  max: 10, // 10 requests per second per IP
+  keyGenerator: (req: Request) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    return ipKeyGenerator(ip);
+  },
+  message: "Too many requests from this IP. Please slow down.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Request throttling for expensive feed operations (For You feed with ranking)
+const feedThrottleStore = new RedisStore({ 
+  prefix: 'rate-limit:feed-throttle:',
+  windowMs: 60 * 1000 // 1 minute
+});
+export const feedThrottle = slowDown({
+  store: feedThrottleStore,
+  windowMs: 60 * 1000, // 1 minute
+  delayAfter: (req: Request) => {
+    // Throttle expensive operations (For You feed, Explore feed)
+    const feedType = (req.query.type as string) || '';
+    if (feedType === 'for_you' || feedType === 'explore') {
+      const authReq = req as AuthRequest;
+      return authReq.user?.id ? 20 : 10; // Lower limit for expensive operations
+    }
+    return 100; // Higher limit for simple operations
+  },
+  delayMs: () => 1000, // Add 1 second delay per request above limit
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    const feedType = (req.query.type as string) || 'mixed';
+    if (authReq.user?.id) {
+      return `user:${authReq.user.id}:${feedType}`;
+    }
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    return `${ipKeyGenerator(ip)}:${feedType}`;
+  },
+  skip: (req: Request) => {
+    // Don't throttle simple feed types
+    const feedType = (req.query.type as string) || '';
+    return !['for_you', 'explore'].includes(feedType);
+  }
+});
+
 export { rateLimiter, bruteForceProtection };

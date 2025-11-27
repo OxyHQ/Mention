@@ -9,8 +9,14 @@ import {
   UnlikeRequest,
   FeedType
 } from '@mention/shared-types';
+import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, API_CONFIG } from '../utils/api';
 import { logger } from '../utils/logger';
+
+// Extended FeedRequest with frontend-specific filter properties
+interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
+  filters?: FeedFilters;
+}
 
 // Helper function to make unauthenticated requests using fetch
 const makePublicRequest = async (endpoint: string, params?: Record<string, any>): Promise<any> => {
@@ -66,12 +72,13 @@ interface CachedFeedResponse {
   expiresAt: number;
 }
 
-// Client-side cache for feed responses (30 second TTL)
+// Client-side cache for feed responses (L3 cache - 2-5 minutes TTL for initial loads)
 const feedCache = new Map<string, CachedFeedResponse>();
-const CACHE_TTL_MS = 30 * 1000; // 30 seconds
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes for initial loads (increased from 30s)
+const CACHE_TTL_PAGINATION_MS = 30 * 1000; // 30 seconds for pagination requests
 
 // Generate cache key from request
-function getCacheKey(request: FeedRequest): string {
+function getCacheKey(request: ExtendedFeedRequest): string {
   const parts = [
     request.type,
     request.cursor || 'initial',
@@ -96,7 +103,7 @@ class FeedService {
    * Get feed data from backend using Oxy authenticated client
    * Includes client-side caching for 30 seconds to reduce redundant requests
    */
-  async getFeed(request: FeedRequest, options?: FeedServiceOptions): Promise<FeedResponse> {
+  async getFeed(request: ExtendedFeedRequest, options?: FeedServiceOptions): Promise<FeedResponse> {
       // Check cache first (only for non-cursor requests to avoid stale pagination)
       if (!request.cursor) {
         const cacheKey = getCacheKey(request);
@@ -192,13 +199,14 @@ class FeedService {
         
         const feedResponse = response.data;
         
-        // Cache response for non-cursor requests (initial loads)
-        if (!request.cursor && feedResponse) {
+        // Cache response with appropriate TTL based on request type
+        if (feedResponse) {
           const cacheKey = getCacheKey(request);
+          const ttl = request.cursor ? CACHE_TTL_PAGINATION_MS : CACHE_TTL_MS;
           feedCache.set(cacheKey, {
             data: feedResponse,
             timestamp: Date.now(),
-            expiresAt: Date.now() + CACHE_TTL_MS
+            expiresAt: Date.now() + ttl
           });
         }
         

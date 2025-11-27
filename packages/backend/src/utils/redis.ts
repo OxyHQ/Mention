@@ -475,12 +475,49 @@ export function createRedisPubSub(): { publisher: RedisClientType; subscriber: R
       }) as RedisClientType;
     }
     
-    // Set up error handlers - don't log connection errors (already logged by main client)
+    // Set up error handlers - gracefully handle connection issues
+    let lastConnectionErrorTime = 0;
+    const CONNECTION_ERROR_THROTTLE_MS = 10000; // Throttle connection error logs to once per 10 seconds
+    
     client.on('error', (err: Error) => {
-      // Only log non-connection errors for pub/sub
-      if (!err.message.includes('ECONNREFUSED') && !err.message.includes('ENOTFOUND')) {
+      const errorMessage = err.message || '';
+      const errorName = err.name || '';
+      const now = Date.now();
+      
+      // Don't log expected connection errors (already handled by main client)
+      // These are normal during reconnection and should not spam logs
+      const isConnectionError = 
+        errorMessage.includes('ECONNREFUSED') ||
+        errorMessage.includes('ENOTFOUND') ||
+        errorMessage.includes('Socket closed unexpectedly') ||
+        errorMessage.includes('SocketClosedUnexpectedlyError') ||
+        errorName.includes('SocketClosed') ||
+        errorName === 'SocketClosedUnexpectedlyError' ||
+        errorMessage.includes('Connection closed') ||
+        errorMessage.includes('Connection lost') ||
+        errorMessage.includes('The socket closed unexpectedly');
+      
+      // Only log unexpected errors (not connection-related)
+      if (!isConnectionError) {
         logger.error('Redis pub/sub error:', err);
+      } else {
+        // Throttle connection error logging (only log once per 10 seconds per client)
+        if (now - lastConnectionErrorTime > CONNECTION_ERROR_THROTTLE_MS) {
+          logger.debug(`Redis pub/sub connection issue (reconnecting automatically): ${errorName || errorMessage}`);
+          lastConnectionErrorTime = now;
+        }
+        // Don't log as error - this is expected during reconnection, Redis client will auto-reconnect
       }
+    });
+    
+    // Handle reconnection events gracefully
+    client.on('reconnecting', () => {
+      // Don't log - too noisy during normal reconnection
+    });
+    
+    // Handle connection end gracefully
+    client.on('end', () => {
+      logger.debug('Redis pub/sub connection ended (will reconnect if needed)');
     });
     
     return client;

@@ -1,11 +1,16 @@
 import { Router } from 'express';
 import { feedController } from '../controllers/feed.controller';
-import { feedRateLimiter } from '../middleware/rateLimiter';
+import { feedRateLimiter, feedIPRateLimiter, feedThrottle } from '../middleware/security';
 
 const router = Router();
 
-// Apply rate limiting to all feed routes
+// Apply multi-layer rate limiting to all feed routes
+// Layer 1: Per-IP rate limiting (10 requests/second)
+router.use(feedIPRateLimiter);
+// Layer 2: Per-user rate limiting (100 requests/minute for authenticated, 50 for unauthenticated)
 router.use(feedRateLimiter);
+// Layer 3: Throttling for expensive operations (For You, Explore feeds)
+router.use(feedThrottle);
 
 // Public routes (accessible without authentication)
 router.get('/feed', feedController.getFeed.bind(feedController));

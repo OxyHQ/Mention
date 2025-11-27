@@ -334,5 +334,35 @@ PostSchema.index({ visibility: 1, createdAt: -1, _id: 1 });
 // Index for saved posts queries
 PostSchema.index({ _id: 1, createdAt: -1 });
 
+// Enterprise-grade compound indexes for feed queries
+// For You feed: optimizes queries with visibility + parentPostId + repostOf filters
+// Note: MongoDB can use this index efficiently even with $or null checks
+PostSchema.index(
+  { visibility: 1, parentPostId: 1, repostOf: 1, createdAt: -1 },
+  { name: 'for_you_feed_idx' }
+);
+
+// Saved posts with text search: optimizes saved posts queries with content.text regex search
+// Compound index helps when filtering by _id (from savedPostIds) and searching content.text
+PostSchema.index(
+  { _id: 1, 'content.text': 1 },
+  { name: 'saved_posts_text_idx' }
+);
+
+// Explore feed: optimizes trending score aggregation queries
+// This index helps with the base query before aggregation (visibility + time sorting)
+// Stats fields are used in aggregation $addFields, so index on them helps less, but createdAt is critical
+PostSchema.index(
+  { visibility: 1, createdAt: -1 },
+  { name: 'explore_feed_base_idx' }
+);
+
+// Following feed: optimizes queries for posts from followed users
+// Compound index for oxyUserId + visibility + filters + time sorting
+PostSchema.index(
+  { oxyUserId: 1, visibility: 1, parentPostId: 1, repostOf: 1, createdAt: -1 },
+  { name: 'following_feed_idx' }
+);
+
 export const Post = mongoose.model<IPost>('Post', PostSchema);
 export default Post;

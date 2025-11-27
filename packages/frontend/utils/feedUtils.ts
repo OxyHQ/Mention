@@ -54,17 +54,6 @@ export function getItemKey(item: any): string {
 }
 
 /**
- * Feed filter interface
- */
-export interface FeedFilters {
-    searchQuery?: string;
-    postId?: string;
-    parentPostId?: string;
-    customFeedId?: string;
-    [key: string]: any;
-}
-
-/**
  * Deep equality check for objects/arrays
  * Uses JSON.stringify for simple comparison - optimized for filters
  */

@@ -28,12 +28,50 @@ import UserSettings from '../models/UserSettings';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, getBlockedUserIds, getRestrictedUserIds } from '../utils/privacyHelpers';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
+import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
+import { FeedResponseBuilder } from '../utils/FeedResponseBuilder';
+import {
+  validateAndNormalizeLimit,
+  parseFeedFilters,
+  parseFeedCursor,
+  buildFeedCursor,
+  validateCursorAdvanced,
+  deduplicatePosts,
+  validateResultSize,
+  applyQueryOptimizations,
+  FEED_CONSTANTS
+} from '../utils/feedUtils';
+import { metrics } from '../utils/metrics';
 
+/**
+ * Feed Controller
+ * 
+ * Handles all feed-related endpoints with enterprise-grade optimizations:
+ * - Optimized database queries with field selection
+ * - Cursor-based pagination for scalability
+ * - Advanced ranking algorithms for personalized feeds
+ * - Comprehensive error handling and performance monitoring
+ * 
+ * @class FeedController
+ */
 class FeedController {
   // Note: checkFollowAccess is now imported from privacyHelpers
 
-  // Optimized field selection for feed queries - reduces data transfer by 60-80%
+  // ============================================================================
+  // Constants - Enterprise Configuration
+  // ============================================================================
+  
+  /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
   private readonly FEED_FIELDS = '_id oxyUserId createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
+  
+  /** Slow query threshold in milliseconds (logs warnings for queries exceeding this) */
+  private readonly SLOW_QUERY_THRESHOLD_MS = 100;
+  
+  /** Candidate multiplier for ranked feeds (fetch 2x posts for ranking) */
+  private readonly RANKED_FEED_CANDIDATE_MULTIPLIER = 2;
+  
+  /** Score comparison epsilon for ranking (prevents floating point issues) */
+  private readonly SCORE_EPSILON = 0.001;
 
   /**
    * Filter out posts from private/followers_only profiles that the viewer doesn't have access to
@@ -160,8 +198,12 @@ class FeedController {
 
   /**
    * Transform posts to include full profile data and engagement stats
+   * 
+   * @param posts - Raw post documents from database
+   * @param currentUserId - Current user ID for personalization
+   * @returns Array of hydrated posts with user data and engagement stats
    */
-  private async transformPostsWithProfiles(posts: any[], currentUserId?: string): Promise<HydratedPost[]> {
+  private async transformPostsWithProfiles(posts: unknown[], currentUserId?: string): Promise<HydratedPost[]> {
     try {
       if (!posts || posts.length === 0) {
         return [];
@@ -197,160 +239,35 @@ class FeedController {
   }
 
   /**
-   * Build query based on feed type and filters
+   * Build MongoDB query based on feed type and filters
+   * 
+   * @deprecated Use FeedQueryBuilder.buildQuery instead
+   * @param type - Feed type (mixed, posts, media, replies, reposts)
+   * @param filters - Optional filters (authors, keywords, date range, etc.)
+   * @param currentUserId - Current user ID for privacy filtering
+   * @returns MongoDB query object
    */
-  private buildFeedQuery(type: FeedType, filters?: Record<string, unknown>, currentUserId?: string): any {
-    const query: any = {
-      visibility: PostVisibility.PUBLIC // Only show public posts by default
-    };
-    query.status = 'published';
-
-    // Filter by post type
-    switch (type) {
-      case 'posts':
-        // Regular posts (not replies or reposts)
-        query.type = { $in: [PostType.TEXT, PostType.IMAGE, PostType.VIDEO, PostType.POLL] };
-        query.parentPostId = null; // matches null or non-existent
-        query.repostOf = null;
-        break;
-      case 'media': {
-        // Media posts: either typed as IMAGE/VIDEO OR have media arrays populated; exclude replies/reposts
-        query.$and = [
-          { $or: [
-            { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
-            { 'content.media.0': { $exists: true } },
-            { 'content.images.0': { $exists: true } },
-            { 'content.attachments.0': { $exists: true } },
-            { 'content.files.0': { $exists: true } },
-            { 'media.0': { $exists: true } }
-          ] },
-          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
-        ];
-        break;
-      }
-      case 'replies':
-        // Replies have a parentPostId set (not null)
-        query.parentPostId = { $ne: null };
-        break;
-      case 'reposts':
-        // Reposts have repostOf set (not null)
-        query.repostOf = { $ne: null };
-        break;
-      case 'mixed':
-      default:
-        // Show all types
-        break;
-    }
-
-    // Apply filters
-    if (filters) {
-      // Author filter: limit to posts authored by specific user IDs
-      if (filters.authors) {
-        let authors: string[] = [];
-        if (Array.isArray(filters.authors)) {
-          authors = filters.authors as string[];
-        } else if (typeof filters.authors === 'string') {
-          authors = String(filters.authors)
-            .split(',')
-            .map((s: string) => s.trim())
-            .filter(Boolean);
-        }
-        if (authors.length) {
-          query.oxyUserId = { $in: authors };
-        } else {
-          // If authors filter is provided but empty, return no results
-          // This handles empty lists or empty author filters correctly
-          query.oxyUserId = { $in: [] }; // Empty array will match nothing
-        }
-      }
-      
-      // Exclude owner from custom feeds if explicitly requested
-      // This ensures custom feeds don't include the creator's posts unless they're in the member list
-      if (filters.excludeOwner && currentUserId) {
-        // Add condition to exclude owner's posts
-        const oxyUserIdFilter = query.oxyUserId as any;
-        if (oxyUserIdFilter && typeof oxyUserIdFilter === 'object' && '$in' in oxyUserIdFilter && Array.isArray(oxyUserIdFilter.$in)) {
-          // If authors filter exists, owner should already be excluded if not in list
-          // But add explicit exclusion as safety measure
-          query.oxyUserId = {
-            $in: oxyUserIdFilter.$in.filter((id: string) => id !== currentUserId)
-          };
-        } else {
-          // No authors filter, so exclude owner explicitly
-          query.oxyUserId = { $ne: currentUserId };
-        }
-      }
-      if (filters.includeReplies === false) {
-        query.parentPostId = { $exists: false };
-      }
-      if (filters.includeReposts === false) {
-        query.repostOf = { $exists: false };
-      }
-      if (filters.includeMedia === false) {
-        query.type = { $nin: [PostType.IMAGE, PostType.VIDEO] };
-      }
-      if (filters.includeSensitive === false) {
-        query['metadata.isSensitive'] = { $ne: true };
-      }
-      if (filters.language) {
-        query.language = filters.language;
-      }
-      if (filters.dateFrom) {
-        const dateFrom = typeof filters.dateFrom === 'string' || filters.dateFrom instanceof Date 
-          ? new Date(filters.dateFrom as string | Date)
-          : new Date(String(filters.dateFrom));
-        query.createdAt = { $gte: dateFrom };
-      }
-      if (filters.dateTo) {
-        const dateTo = typeof filters.dateTo === 'string' || filters.dateTo instanceof Date
-          ? new Date(filters.dateTo as string | Date)
-          : new Date(String(filters.dateTo));
-        const existingCreatedAt = query.createdAt as any;
-        query.createdAt = existingCreatedAt && typeof existingCreatedAt === 'object'
-          ? { ...existingCreatedAt, $lte: dateTo }
-          : { $lte: dateTo };
-      }
-      // Keywords: OR match against text or hashtags
-      if (filters.keywords) {
-        const kws = Array.isArray(filters.keywords)
-          ? filters.keywords
-          : String(filters.keywords).split(',').map((s: string) => s.trim()).filter(Boolean);
-        if (kws.length) {
-          const regexes = kws.map((k: string) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-          const keywordConditions = [
-            { 'content.text': { $in: regexes } },
-            { hashtags: { $in: kws.map((k: string) => k.toLowerCase()) } }
-          ];
-          
-          // If there's already an $or (from other filters), combine with $and
-          // Otherwise, use $or for keywords
-          if (query.$or) {
-            // Combine existing $or with keyword conditions using $and
-            const existingOr = Array.isArray(query.$or) ? query.$or : [query.$or];
-            if (!Array.isArray(query.$and)) {
-              query.$and = [];
-            }
-            query.$and.push({ $or: [...existingOr, ...keywordConditions] });
-            delete query.$or;
-          } else {
-            query.$or = keywordConditions;
-          }
-        }
-      }
-    }
-
-    return query;
+  private buildFeedQuery(type: FeedType, filters?: Record<string, unknown>, currentUserId?: string): Record<string, unknown> {
+    // Delegate to FeedQueryBuilder for consistency
+    return FeedQueryBuilder.buildQuery({
+      type,
+      filters,
+      currentUserId,
+      limit: FEED_CONSTANTS.DEFAULT_LIMIT
+    });
   }
 
   /**
-   * Populate poll data for posts
+   * Populate poll data for posts that have polls
+   * 
+   * @param posts - Array of posts that may contain poll references
+   * @returns Posts with poll data populated
    */
-  async populatePollData(posts: any[]): Promise<any[]> {
+  async populatePollData(posts: unknown[]): Promise<unknown[]> {
     try {
       // Get all poll IDs from posts
       const pollIds = posts
-        .map(post => post.content?.pollId)
+        .map((post: any) => post?.content?.pollId)
         .filter(Boolean);
 
       if (pollIds.length === 0) {
@@ -381,8 +298,8 @@ class FeedController {
       });
 
       // Add poll data to posts
-      return posts.map(post => {
-        if (post.content?.pollId) {
+      return posts.map((post: any) => {
+        if (post?.content?.pollId) {
           const pollData = pollMap.get(post.content.pollId);
           if (pollData) {
             post.content.poll = pollData;
@@ -402,45 +319,28 @@ class FeedController {
   async getFeed(req: AuthRequest, res: Response) {
     const startTime = Date.now();
     try {
+      // Input validation and sanitization - Enterprise-grade
       const { type = 'mixed', cursor } = req.query as { type?: FeedType; cursor?: string };
-      // Parse and validate limit parameter (default 20, clamp between 1-200)
-      const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20), 10), 1), 200);
-      let filters: Record<string, unknown> | undefined = req.query.filters as Record<string, unknown> | undefined;
+      
+      // Validate feed type (prevent injection and invalid types)
+      const validFeedTypes: FeedType[] = ['mixed', 'posts', 'media', 'replies', 'reposts', 'saved', 'for_you', 'following', 'explore'];
+      const feedType: FeedType = validFeedTypes.includes(type as FeedType) ? (type as FeedType) : 'mixed';
+      
+      // Parse and validate limit parameter using utility
+      const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
+      
+      // Parse filters using utility
+      const feedFilters = parseFeedFilters(req.query);
       const currentUserId = req.user?.id;
-
-      // Parse filters - Express should parse filters[searchQuery]=value automatically
-      // But handle cases where it might be a string or need manual parsing
-      if (typeof filters === 'string') {
-        try {
-          filters = JSON.parse(filters) as Record<string, unknown>;
-        } catch (e) {
-          logger.warn('Failed to parse filters JSON', e);
-          filters = {} as Record<string, unknown>;
-        }
-      }
-      
-      // If filters is not an object, try to parse from query params with filters[] prefix
-      if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
-        filters = {} as Record<string, unknown>;
-        // Extract all query params that start with 'filters['
-        Object.keys(req.query).forEach(key => {
-          if (key.startsWith('filters[') && key.endsWith(']')) {
-            const filterKey = key.slice(8, -1); // Remove 'filters[' and ']'
-            (filters as Record<string, unknown>)[filterKey] = (req.query as any)[key];
-          }
-        });
-      }
-      
-      // Ensure filters is defined for type safety
-      const feedFilters: Record<string, unknown> = filters || {};
       
       // Debug logging for saved posts
-      if (type === 'saved') {
+      if (feedType === 'saved') {
         logger.debug('[Saved Feed] Raw query params', JSON.stringify(req.query, null, 2));
         logger.debug('[Saved Feed] Parsed filters', JSON.stringify(feedFilters, null, 2));
       }
 
       // Handle customFeedId filter - expand to custom feed configuration
+      let filters = feedFilters;
       try {
         if (filters && filters.customFeedId) {
           const { CustomFeed } = require('../models/CustomFeed');
@@ -478,7 +378,7 @@ class FeedController {
 
             // Build filters from custom feed configuration
             filters = {
-              ...filters,
+              ...(filters || {}),
               authors: authors.length > 0 ? authors.join(',') : undefined,
               keywords: feed.keywords && feed.keywords.length > 0 ? feed.keywords.join(',') : undefined,
               includeReplies: feed.includeReplies,
@@ -513,7 +413,7 @@ class FeedController {
                 .filter(Boolean)
             );
             lists.forEach((l: any) => (l.memberOxyUserIds || []).forEach((id: string) => authors.add(id)));
-            filters = { ...filters, authors: Array.from(authors).join(',') };
+            filters = { ...(filters || {}), authors: Array.from(authors).join(',') };
           }
         }
       } catch (e) {
@@ -522,7 +422,7 @@ class FeedController {
 
       // Handle saved posts type
       let savedPostIds: mongoose.Types.ObjectId[] = [];
-      if (type === 'saved') {
+      if (feedType === 'saved') {
         if (!currentUserId) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
@@ -555,7 +455,7 @@ class FeedController {
 
       // Build query
       let query: any;
-      if (type === 'saved' && savedPostIds.length > 0) {
+      if (feedType === 'saved' && savedPostIds.length > 0) {
         // For saved posts, use a simple query that only filters by saved post IDs
         // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
         query = {
@@ -579,14 +479,17 @@ class FeedController {
         
         logger.debug(`[Saved Feed] Final query`, JSON.stringify(query, null, 2));
       } else {
-        query = this.buildFeedQuery(type, feedFilters, currentUserId);
+        query = this.buildFeedQuery(feedType, feedFilters, currentUserId);
       }
 
       // Add cursor-based pagination (handle conflict with saved posts _id filter)
       if (cursor) {
-        if (type === 'saved' && savedPostIds.length > 0) {
+        if (feedType === 'saved' && savedPostIds.length > 0) {
           // For saved posts with cursor, filter savedPostIds to only include those before cursor
-          const cursorId = new mongoose.Types.ObjectId(cursor);
+          const cursorId = parseFeedCursor(cursor);
+          if (!cursorId) {
+            return res.json(FeedResponseBuilder.buildEmptyResponse());
+          }
           const filteredSavedIds = savedPostIds.filter(id => id < cursorId);
           if (filteredSavedIds.length === 0) {
             return res.json({
@@ -605,7 +508,10 @@ class FeedController {
             query['content.text'] = searchQuery;
           }
         } else {
-          query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+          const cursorId = parseFeedCursor(cursor);
+          if (cursorId) {
+            query._id = { $lt: cursorId };
+          }
         }
       }
 
@@ -648,16 +554,20 @@ class FeedController {
           },
           { $sort: { engagementScore: -1, createdAt: -1 } },
           { $limit: limit + 1 }
-        ]);
+        ]).option({ maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
+        
+        // Validate result size
+        validateResultSize(posts, limit + 1);
       } else {
         // Authenticated users get chronological feed
         // For saved posts, sort by bookmark creation date (when saved), not post creation date
-        if (type === 'saved' && savedPostIds.length > 0) {
+        if (feedType === 'saved' && savedPostIds.length > 0) {
           logger.debug(`[Saved Feed] Query`, JSON.stringify(query, null, 2));
           posts = await Post.find(query)
             .select(this.FEED_FIELDS)
             .sort({ createdAt: -1 })
             .limit(limit + 1)
+            .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
             .lean();
           logger.debug(`[Saved Feed] Found ${posts.length} posts matching query`);
           // Log mentions for debugging
@@ -671,64 +581,30 @@ class FeedController {
             .select(this.FEED_FIELDS)
             .sort({ createdAt: -1 })
             .limit(limit + 1)
+            .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
             .lean();
         }
-      }
-
-      // Single-pass deduplication: remove duplicates by _id BEFORE transformation
-      const uniquePostsMap = new Map<string, any>();
-      for (const post of posts) {
-        const id = post._id?.toString() || post.id?.toString() || '';
-        if (id && id !== 'undefined' && id !== 'null') {
-          if (!uniquePostsMap.has(id)) {
-            uniquePostsMap.set(id, post);
-          }
-        }
-      }
-      const deduplicatedPosts = Array.from(uniquePostsMap.values());
-
-      // Check if there are more posts after deduplication
-      const hasMore = deduplicatedPosts.length > limit;
-      const postsToReturn = hasMore ? deduplicatedPosts.slice(0, limit) : deduplicatedPosts;
-      
-      // CRITICAL: Calculate cursor BEFORE transformation using the actual last post that will be returned
-      // This ensures cursor points to the correct post and prevents skipping/duplicates
-      let nextCursor: string | undefined;
-      if (postsToReturn.length > 0 && hasMore) {
-        const lastPost = postsToReturn[postsToReturn.length - 1];
-        nextCursor = lastPost._id?.toString() || undefined;
         
-        // Validate cursor advanced (prevent infinite loops)
-        if (cursor && nextCursor === cursor) {
-          logger.warn('⚠️ Cursor did not advance, stopping pagination', { cursor, nextCursor });
-          nextCursor = undefined;
-        }
+        // Validate result size
+        validateResultSize(posts, limit + 1);
       }
 
-      // Transform posts with user data
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
-      
-      // For saved posts, mark all posts as saved
-      if (type === 'saved') {
-        transformedPosts.forEach((post: any) => {
-          post.isSaved = true;
-          if (post.metadata) {
-            post.metadata.isSaved = true;
-          } else {
-            post.metadata = { isSaved: true };
-          }
-        });
-      }
-
-      // Single deduplication pass: already done before transformation, no need to deduplicate again
-      // Transformation doesn't create duplicates, so we can use transformed posts directly
-      const finalUniquePosts = transformedPosts;
-
-      // Calculate hasMore: only true if we got limit+1 originally AND still have at least limit after dedup
-      const finalHasMore = finalUniquePosts.length >= limit && nextCursor !== undefined;
-
-      // Use cursor calculated before transformation
-      const finalCursor = nextCursor;
+      // Use FeedResponseBuilder for consistent response building
+      const response = feedType === 'saved'
+        ? await FeedResponseBuilder.buildSavedPostsResponse(
+            posts,
+            limit,
+            cursor,
+            (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+            currentUserId
+          )
+        : await FeedResponseBuilder.buildResponse({
+            posts,
+            limit,
+            previousCursor: cursor,
+            transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+            currentUserId
+          });
 
       // DON'T emit feed:updated for fetch requests - this causes duplicates!
       // Socket feed:updated events should only be emitted when new posts are created,
@@ -738,24 +614,34 @@ class FeedController {
       // 2. Socket event arrives and tries to add same posts again
       // Socket updates are handled in post creation endpoints, not here.
 
-      const response: FeedResponse = {
-        items: finalUniquePosts, // Return deduplicated posts
-        hasMore: finalHasMore, // Use recalculated hasMore after deduplication
-        nextCursor: finalCursor,
-        totalCount: finalUniquePosts.length
-      };
-
-      // Performance logging
+      // Enterprise-grade performance monitoring
       const duration = Date.now() - startTime;
-      if (duration > 100) {
-        logger.warn(`[Feed] Slow query detected: ${duration}ms`, { type, cursor: cursor ? 'present' : 'none', itemCount: finalUniquePosts.length });
+      const performanceMetrics = {
+        type,
+        duration,
+        itemCount: response.items.length,
+        cursor: cursor ? 'present' : 'none',
+        hasMore: response.hasMore
+      };
+      
+      // Record metrics
+      metrics.recordLatency('feed_request_duration_ms', duration, { feed_type: type });
+      metrics.incrementCounter('feed_requests_total', 1, { feed_type: type });
+      metrics.setGauge('feed_items_returned', response.items.length, { feed_type: type });
+      
+      if (duration > this.SLOW_QUERY_THRESHOLD_MS) {
+        logger.warn(`[Feed] Slow query detected: ${duration}ms`, performanceMetrics);
+        metrics.incrementCounter('feed_slow_queries_total', 1, { feed_type: type });
       } else if (process.env.NODE_ENV === 'development') {
-        logger.debug(`[Feed] Query completed: ${duration}ms`, { type, itemCount: finalUniquePosts.length });
+        logger.debug(`[Feed] Query completed: ${duration}ms`, performanceMetrics);
       }
 
       res.json(response);
     } catch (error) {
       const duration = Date.now() - startTime;
+      const feedType = (req.query.type as string) || 'unknown';
+      metrics.recordLatency('feed_request_duration_ms', duration, { feed_type: feedType, status: 'error' });
+      metrics.incrementCounter('feed_errors_total', 1, { feed_type: feedType });
       logger.error('Error fetching feed', { 
         error, 
         type: req.query.type,
@@ -775,7 +661,10 @@ class FeedController {
    */
   async getForYouFeed(req: AuthRequest, res: Response) {
     try {
-      const { cursor, limit = 20 } = req.query as any;
+      const { cursor } = req.query as { cursor?: string };
+      
+      // Validate and sanitize limit parameter using utility
+      const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
       const currentUserId = req.user?.id;
 
       // For unauthenticated users, return popular posts (simplified aggregation)
@@ -788,12 +677,9 @@ class FeedController {
           ]
         };
 
-        if (cursor) {
-          try {
-            match._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-          } catch {
-            // Invalid cursor, ignore it
-          }
+        const cursorId = parseFeedCursor(cursor);
+        if (cursorId) {
+          match._id = { $lt: cursorId };
         }
 
         const posts = await Post.aggregate([
@@ -829,37 +715,20 @@ class FeedController {
             }
           },
           { $sort: { engagementScore: -1, createdAt: -1 } },
-          { $limit: Number(limit) + 1 }
-        ]);
-
-        const hasMore = posts.length > Number(limit);
-        const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
-        const nextCursor = hasMore && postsToReturn.length > 0 
-          ? postsToReturn[postsToReturn.length - 1]._id.toString() 
-          : undefined;
-
-        const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
+          { $limit: limit + 1 }
+        ]).option({ maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
         
-        // Deduplicate transformed posts for For You feed (unauthenticated path)
-        const finalUniqueMap = new Map<string, any>();
-        for (const post of transformedPosts) {
-          const id = post.id?.toString() || '';
-          if (id && id !== 'undefined' && id !== 'null') {
-            if (!finalUniqueMap.has(id)) {
-              finalUniqueMap.set(id, post);
-            }
-          }
-        }
-        const finalUniquePosts = Array.from(finalUniqueMap.values());
+        // Validate result size
+        validateResultSize(posts, limit + 1);
 
-        const response: FeedResponse = {
-          items: finalUniquePosts,
-          hasMore: hasMore && finalUniquePosts.length >= Number(limit),
-          nextCursor: hasMore && finalUniquePosts.length > 0 
-            ? finalUniquePosts[finalUniquePosts.length - 1].id?.toString() 
-            : undefined,
-          totalCount: finalUniquePosts.length
-        };
+        // Use FeedResponseBuilder for consistent response building
+        const response = await FeedResponseBuilder.buildResponse({
+          posts,
+          limit,
+          previousCursor: cursor,
+          transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+          currentUserId
+        });
 
         return res.json(response);
       }
@@ -911,18 +780,14 @@ class FeedController {
         ? await feedSeenPostsService.getSeenPostIds(currentUserId)
         : [];
 
-      const match: Record<string, unknown> = {
-        visibility: PostVisibility.PUBLIC,
-        $and: [
-          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
-        ]
-      };
+      // Use FeedQueryBuilder for consistent query building
+      const match = FeedQueryBuilder.buildForYouQuery(seenPostIds, cursor);
 
       // For ranked feeds (for_you), add cursor to seen posts to ensure it's excluded
       // This prevents the cursor post from appearing again due to ranking changes
-      if (cursor && currentUserId && mongoose.Types.ObjectId.isValid(cursor)) {
-        if (!seenPostIds.includes(cursor)) {
+      if (cursor && currentUserId) {
+        const cursorId = parseFeedCursor(cursor);
+        if (cursorId && !seenPostIds.includes(cursor)) {
           seenPostIds.push(cursor);
           // Mark cursor post as seen immediately to prevent it from appearing
           feedSeenPostsService.markPostsAsSeen(currentUserId, [cursor])
@@ -932,60 +797,19 @@ class FeedController {
         }
       }
 
-      // Exclude seen posts at DB level for guaranteed deduplication
-      // This is more efficient than filtering after ranking
-      if (seenPostIds.length > 0) {
-        // Convert string IDs to ObjectIds for MongoDB query
-        const seenObjectIds = seenPostIds
-          .filter(id => mongoose.Types.ObjectId.isValid(id))
-          .map(id => new mongoose.Types.ObjectId(id));
-        
-        if (seenObjectIds.length > 0) {
-          if (!Array.isArray(match.$and)) {
-            match.$and = [];
-          }
-          (match.$and as any[]).push({ _id: { $nin: seenObjectIds } });
-        }
-      }
-
-      // Apply cursor filter (posts with _id < cursor)
-      // Note: This works together with seen posts exclusion - seen posts take precedence
-      if (cursor) {
-        try {
-          // Validate and use as ObjectId cursor
-          if (mongoose.Types.ObjectId.isValid(cursor)) {
-            const cursorId = new mongoose.Types.ObjectId(cursor);
-            // Combine cursor with existing _id filter if any
-            const existingIdFilter = match._id as Record<string, unknown> | undefined;
-            if (existingIdFilter && typeof existingIdFilter === 'object' && '$nin' in existingIdFilter) {
-              // If we have $nin, we need to use $and to combine with $lt
-              if (!Array.isArray(match.$and)) {
-                match.$and = [];
-              }
-              (match.$and as any[]).push({ _id: { $lt: cursorId } });
-            } else {
-              match._id = { $lt: cursorId };
-            }
-            logger.debug('📌 Using ObjectId cursor for for_you feed', { cursor, seenPostsCount: seenPostIds.length });
-          } else {
-            logger.warn('⚠️ Invalid cursor format, ignoring', cursor);
-          }
-        } catch (error) {
-          logger.warn('⚠️ Error parsing cursor, ignoring', { cursor, error });
-        }
-      } else {
-        logger.debug('📌 No cursor - first page request');
-      }
-
       // Get candidate posts (fetch more than needed for ranking)
-      // Reduced from 3x to 2x for better performance while still sufficient for ranking
-      const candidateLimit = Number(limit) * 2; // Get 2x posts for ranking/filtering
+      // Fetch multiplier ensures sufficient posts for ranking algorithm
+      const candidateLimit = Number(limit) * this.RANKED_FEED_CANDIDATE_MULTIPLIER;
 
       let candidatePosts = await Post.find(match)
         .select(this.FEED_FIELDS)
         .sort({ createdAt: -1 })
         .limit(candidateLimit)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
         .lean();
+      
+      // Validate result size
+      validateResultSize(candidatePosts, candidateLimit);
 
       // Use advanced ranking service to rank and sort posts
       const rankedPosts = await feedRankingService.rankPosts(
@@ -1005,92 +829,37 @@ class FeedController {
         const scoreDiff = scoreB - scoreA;
         
         // If scores are very close, use _id as tiebreaker for consistent ordering
-        if (Math.abs(scoreDiff) < 0.001) {
+        if (Math.abs(scoreDiff) < this.SCORE_EPSILON) {
           return a._id.toString().localeCompare(b._id.toString()) * -1; // Descending
         }
         return scoreDiff;
       });
 
-      // OPTIMIZED: Single-pass deduplication using Map for O(1) lookups
-      // Deduplicate raw posts by _id before transformation to ensure cursor accuracy
-      const rawIdsSeen = new Map<string, any>();
-      const deduplicatedRawPosts: any[] = [];
-      
-      for (const post of posts) {
-        const rawId = post._id;
-        if (!rawId) continue;
-        
-        // Convert to string for consistent comparison
-        const rawIdStr = typeof rawId === 'object' && rawId.toString 
-          ? rawId.toString() 
-          : String(rawId);
-        
-        if (!rawIdsSeen.has(rawIdStr)) {
-          rawIdsSeen.set(rawIdStr, post);
-          deduplicatedRawPosts.push(post);
-        }
-      }
-      
-      const hasMore = deduplicatedRawPosts.length > Number(limit);
-      const postsToReturn = hasMore ? deduplicatedRawPosts.slice(0, Number(limit)) : deduplicatedRawPosts;
-      
-      // CRITICAL: Calculate cursor BEFORE transformation using the actual last post that will be returned
-      // This ensures cursor points to the correct post and prevents skipping/duplicates
-      // Use simple ObjectId cursor for reliability
-      let nextCursor: string | undefined;
-      if (postsToReturn.length > 0 && hasMore) {
-        const lastPost = postsToReturn[postsToReturn.length - 1];
-        nextCursor = lastPost._id.toString();
-        
-        // Validate cursor advanced (prevent infinite loops)
-        if (cursor && nextCursor === cursor) {
-          logger.warn('⚠️ Cursor did not advance, stopping pagination', { cursor, nextCursor });
-          nextCursor = undefined;
-        }
-        
-        logger.debug('📌 Generated nextCursor', {
-          lastPostId: nextCursor,
-          returnedCount: postsToReturn.length,
-          originalCount: deduplicatedRawPosts.length,
-          duplicatesRemoved: posts.length - deduplicatedRawPosts.length
-        });
-      }
-
-      // Stage 2: Transform deduplicated posts using hydration service
-      // Hydration service already handles privacy filtering (blocked/restricted users)
-      const transformedPosts = await this.transformPostsWithProfiles(deduplicatedRawPosts, currentUserId);
-      
-      // Additional privacy filtering for profile visibility (private/followers_only)
-      const filteredPosts = await this.filterPostsByProfilePrivacy(transformedPosts, currentUserId);
-
-      // Single deduplication pass: already done before transformation on raw posts
-      // Transformation and privacy filtering don't create duplicates, so use filtered posts directly
-      const finalDeduplicated = filteredPosts;
-
-      // CRITICAL: Recalculate hasMore based on final deduplicated count
-      // If deduplication removed posts, we might not have enough for another page
-      const finalHasMore = finalDeduplicated.length >= Number(limit) && nextCursor !== undefined;
-      
-      // Use the cursor calculated before transformation (simple ObjectId cursor)
-      // No need to recalculate - cursor is already based on the last post that will be returned
-      let finalCursor = nextCursor;
-      
-      // Validate cursor advanced (prevent infinite loops)
-      if (finalCursor && cursor && finalCursor === cursor) {
-        logger.warn('⚠️ Cursor did not advance after transformation, stopping pagination', { cursor, finalCursor });
-        finalCursor = undefined;
-      }
+      // Use FeedResponseBuilder for consistent response building
+      // Note: We need to handle privacy filtering separately as it's applied after transformation
+      const response = await FeedResponseBuilder.buildResponse({
+        posts,
+        limit,
+        previousCursor: cursor,
+        transformPosts: async (postsToTransform, userId) => {
+          // Transform posts using hydration service
+          const transformed = await this.transformPostsWithProfiles(postsToTransform, userId);
+          // Additional privacy filtering for profile visibility (private/followers_only)
+          return await this.filterPostsByProfilePrivacy(transformed, userId);
+        },
+        currentUserId
+      });
 
       // FINAL VERIFICATION: Log what we're sending to ensure no duplicates
-      const responseIds = finalDeduplicated.map(p => p.id?.toString() || 'NO_ID');
+      const responseIds = response.items.map(p => p.id?.toString() || 'NO_ID');
       const uniqueResponseIds = new Set(responseIds);
       
       logger.debug('📤 For You feed response', {
         requestCursor: cursor ? (cursor.length > 50 ? cursor.substring(0, 50) + '...' : cursor) : 'none',
-        totalPosts: finalDeduplicated.length,
+        totalPosts: response.items.length,
         uniqueIds: uniqueResponseIds.size,
-        hasMore: finalHasMore,
-        hasCursor: !!finalCursor,
+        hasMore: response.hasMore,
+        hasCursor: !!response.nextCursor,
         firstPostId: responseIds[0] || 'none',
         lastPostId: responseIds[responseIds.length - 1] || 'none'
       });
@@ -1100,22 +869,15 @@ class FeedController {
         logger.error('🚨 CRITICAL: Backend sending duplicate IDs', [...new Set(duplicates)]);
       }
 
-      const response: FeedResponse = {
-        items: finalDeduplicated, // Return fully deduplicated posts
-        hasMore: finalHasMore, // Use recalculated hasMore
-        nextCursor: finalCursor, // Use recalculated cursor
-        totalCount: finalDeduplicated.length
-      };
-
       res.json(response);
 
       // Mark returned posts as seen in Redis (async, non-blocking)
       // This prevents these posts from appearing in future pagination requests
       // Industry-standard approach: track seen posts server-side, not in cursor
-      if (currentUserId && finalDeduplicated.length > 0) {
-        const postIdsToMark = finalDeduplicated
-          .map(post => post.id?.toString())
-          .filter((id): id is string => !!id && id !== 'undefined' && id !== 'null');
+      if (currentUserId && response.items.length > 0) {
+        const postIdsToMark = response.items
+          .map((post: any) => post.id?.toString())
+          .filter((id: string | undefined): id is string => !!id && id !== 'undefined' && id !== 'null');
         
         if (postIdsToMark.length > 0) {
           // Mark as seen asynchronously (don't block response)
@@ -1140,7 +902,10 @@ class FeedController {
    */
   async getFollowingFeed(req: AuthRequest, res: Response) {
     try {
-      const { cursor, limit = 20 } = req.query as any;
+      const { cursor } = req.query as { cursor?: string };
+      
+      // Validate and sanitize limit parameter using utility
+      const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
       const currentUserId = req.user?.id;
       if (!currentUserId) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -1152,41 +917,34 @@ class FeedController {
       const followingIds = [...new Set(extractFollowingIds(followingRes))];
 
       if (followingIds.length === 0) {
-        return res.json({ items: [], hasMore: false, totalCount: 0 });
+        return res.json(FeedResponseBuilder.buildEmptyResponse());
       }
 
-      const query: any = {
-        oxyUserId: { $in: followingIds },
-        visibility: PostVisibility.PUBLIC,
-        parentPostId: null,
-        repostOf: null
-      };
-
-      if (cursor) {
-        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-      }
+      // Use FeedQueryBuilder for consistent query building
+      const query = FeedQueryBuilder.buildFollowingQuery(followingIds, cursor);
 
       const posts = await Post.find(query)
         .select(this.FEED_FIELDS)
         .sort({ createdAt: -1 })
-        .limit(Number(limit) + 1)
+        .limit(limit + 1)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
         .lean();
-
-      const hasMore = posts.length > Number(limit);
-      const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
-      const nextCursor = hasMore ? posts[Number(limit) - 1]._id.toString() : undefined;
-
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
       
-      // Filter out posts from private profiles
-      const filteredPosts = await this.filterPostsByProfilePrivacy(transformedPosts, currentUserId);
+      // Validate result size
+      validateResultSize(posts, limit + 1);
 
-      const response: FeedResponse = {
-        items: filteredPosts,
-        hasMore,
-        nextCursor,
-        totalCount: filteredPosts.length
-      };
+      // Use FeedResponseBuilder for consistent response building
+      const response = await FeedResponseBuilder.buildResponse({
+        posts,
+        limit,
+        previousCursor: cursor,
+        transformPosts: async (postsToTransform, userId) => {
+          const transformed = await this.transformPostsWithProfiles(postsToTransform, userId);
+          // Filter out posts from private profiles
+          return await this.filterPostsByProfilePrivacy(transformed, userId);
+        },
+        currentUserId
+      });
 
       res.json(response);
     } catch (error) {
@@ -1205,8 +963,8 @@ class FeedController {
    */
   async getExploreFeed(req: AuthRequest, res: Response) {
     try {
-      // Validate and sanitize inputs
-      const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20)), 1), 100); // Clamp between 1-100
+      // Validate and sanitize inputs using utility
+      const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
       const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : undefined;
       const currentUserId = req.user?.id;
 
@@ -1254,19 +1012,11 @@ class FeedController {
         }
       }
 
-      // Simplified cursor: use simple ObjectId-based cursor for all feeds
-      if (cursor) {
-        try {
-          // Validate and use as ObjectId cursor
-          if (mongoose.Types.ObjectId.isValid(cursor)) {
-            match._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-            logger.debug('📌 Using ObjectId cursor for explore feed', cursor);
-          } else {
-            logger.warn('⚠️ Invalid cursor format for explore feed, ignoring', cursor);
-          }
-        } catch (error) {
-          logger.warn('⚠️ Error parsing cursor for explore feed, ignoring', { cursor, error });
-        }
+      // Apply cursor using utility
+      const cursorId = parseFeedCursor(cursor);
+      if (cursorId) {
+        match._id = { $lt: cursorId };
+        logger.debug('📌 Using ObjectId cursor for explore feed', cursor);
       }
 
       // Calculate trending score based on raw engagement metrics
@@ -1314,35 +1064,23 @@ class FeedController {
         // Sort by trending score (highest first), then by _id for consistent ordering
         { $sort: { trendingScore: -1, _id: -1 } },
         { $limit: limit + 1 }
-      ]);
-
-      const hasMore = posts.length > limit;
-      const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
+      ]).option({ maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
       
-      // Calculate simple ObjectId cursor for reliable pagination
-      let nextCursor: string | undefined;
-      if (postsToReturn.length > 0 && hasMore) {
-        const lastPost = postsToReturn[postsToReturn.length - 1];
-        nextCursor = lastPost._id.toString();
-        
-        // Validate cursor advanced (prevent infinite loops)
-        if (cursor && nextCursor === cursor) {
-          logger.warn('⚠️ Cursor did not advance in explore feed, stopping pagination', { cursor, nextCursor });
-          nextCursor = undefined;
-        }
-      }
+      // Validate result size
+      validateResultSize(posts, limit + 1);
 
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
-      
-      // Filter out posts from private profiles
-      const filteredPosts = await this.filterPostsByProfilePrivacy(transformedPosts, currentUserId);
-
-      const response: FeedResponse = {
-        items: filteredPosts,
-        hasMore,
-        nextCursor,
-        totalCount: filteredPosts.length
-      };
+      // Use FeedResponseBuilder for consistent response building
+      const response = await FeedResponseBuilder.buildResponse({
+        posts,
+        limit,
+        previousCursor: cursor,
+        transformPosts: async (postsToTransform, userId) => {
+          const transformed = await this.transformPostsWithProfiles(postsToTransform, userId);
+          // Filter out posts from private profiles
+          return await this.filterPostsByProfilePrivacy(transformed, userId);
+        },
+        currentUserId
+      });
 
       res.json(response);
     } catch (error) {
@@ -1359,47 +1097,32 @@ class FeedController {
    */
   async getMediaFeed(req: AuthRequest, res: Response) {
     try {
-      const { cursor, limit = 20 } = req.query as any;
+      const { cursor } = req.query as { cursor?: string };
+      
+      // Validate and sanitize limit parameter using utility
+      const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
       const currentUserId = req.user?.id;
 
-      const query: any = {
-        visibility: PostVisibility.PUBLIC,
-        $and: [
-          { $or: [
-            { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
-            { 'content.media.0': { $exists: true } },
-            { 'content.images.0': { $exists: true } },
-            { 'content.attachments.0': { $exists: true } },
-            { 'content.files.0': { $exists: true } },
-            { 'media.0': { $exists: true } }
-          ] },
-          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
-        ]
-      };
-
-      if (cursor) {
-        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-      }
+      // Use FeedQueryBuilder for consistent query building
+      const query = FeedQueryBuilder.buildMediaQuery(cursor);
 
       const posts = await Post.find(query)
         .select(this.FEED_FIELDS)
         .sort({ createdAt: -1 })
         .limit(limit + 1)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
         .lean();
 
-      const hasMore = posts.length > limit;
-      const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
-      const nextCursor = hasMore ? posts[limit - 1]._id.toString() : undefined;
+      validateResultSize(posts, limit + 1);
 
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
-
-      const response: FeedResponse = {
-        items: transformedPosts, // Return posts directly in new schema format
-        hasMore,
-        nextCursor,
-        totalCount: transformedPosts.length
-      };
+      // Use FeedResponseBuilder for consistent response building
+      const response = await FeedResponseBuilder.buildResponse({
+        posts,
+        limit,
+        previousCursor: cursor,
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+        currentUserId
+      });
 
       res.json(response);
     } catch (error) {
@@ -1417,7 +1140,13 @@ class FeedController {
   async getUserProfileFeed(req: AuthRequest, res: Response) {
     try {
       const { userId } = req.params;
-      const { cursor, limit = 20, type = 'posts' } = req.query as any;
+      const { cursor, type = 'posts' } = req.query as { 
+        cursor?: string; 
+        type?: FeedType 
+      };
+      
+      // Validate and sanitize limit parameter using utility
+      const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
       const currentUserId = req.user?.id;
 
       if (!userId) {
@@ -1434,14 +1163,14 @@ class FeedController {
       if (!isOwnProfile && requiresAccessCheck(profileVisibility)) {
         if (!currentUserId) {
           // Not authenticated - return empty feed immediately
-          return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
+          return res.json(FeedResponseBuilder.buildEmptyResponse());
         }
         
         // Check if current user is following the profile owner
         const hasAccess = await checkFollowAccess(currentUserId, userId);
         if (!hasAccess) {
           // No access - return empty feed immediately, BEFORE any post queries
-          return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
+          return res.json(FeedResponseBuilder.buildEmptyResponse());
         }
       }
 
@@ -1450,8 +1179,9 @@ class FeedController {
       if (type === 'likes') {
         // Paginate likes by Like document _id (chronological like order)
         const likeQuery: any = { userId };
-        if (cursor) {
-          likeQuery._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+        const cursorId = parseFeedCursor(cursor);
+        if (cursorId) {
+          likeQuery._id = { $lt: cursorId };
         }
 
         const likes = await Like.find(likeQuery)
@@ -1465,7 +1195,7 @@ class FeedController {
 
         const likedPostIds = likesToReturn.map(l => l.postId);
         if (likedPostIds.length === 0) {
-          return res.json({ items: [], hasMore: false, nextCursor: undefined, totalCount: 0 });
+          return res.json(FeedResponseBuilder.buildEmptyResponse());
         }
 
         const posts = await Post.find({
@@ -1473,79 +1203,51 @@ class FeedController {
           visibility: PostVisibility.PUBLIC
         })
         .select(this.FEED_FIELDS)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
         .lean();
+      
+      // Validate result size
+      validateResultSize(posts, likedPostIds.length);
 
         // Preserve the like order
         const postsOrdered = likedPostIds
           .map(id => posts.find(p => p._id.toString() === id.toString()))
           .filter(Boolean) as any[];
 
-        const transformedPosts = await this.transformPostsWithProfiles(postsOrdered, currentUserId);
-
-        const response: FeedResponse = {
-          items: transformedPosts, // Return posts directly in new schema format
-          hasMore,
-          nextCursor,
-          totalCount: transformedPosts.length
-        };
+        // Use FeedResponseBuilder for consistent response building
+        const response = await FeedResponseBuilder.buildResponse({
+          posts: postsOrdered,
+          limit,
+          previousCursor: cursor,
+          transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+          currentUserId,
+          validateSize: false // Already validated above
+        });
 
         return res.json(response);
       }
 
-      const query: any = {
-        oxyUserId: userId,
-        visibility: PostVisibility.PUBLIC
-      };
-
-      // Filter by content type
-      if (type === 'posts') {
-        // Profile Posts tab should include originals and reposts (exclude only replies)
-        // Show top-level items authored by the user; allow reposts/quotes to appear here like Twitter
-        query.parentPostId = null;
-      } else if (type === 'replies') {
-        // Replies
-        query.parentPostId = { $ne: null };
-      } else if (type === 'media') {
-        // Media-only top-level posts: include posts typed TEXT but with media arrays
-        query.$and = [
-          { $or: [
-            { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
-            { 'content.media.0': { $exists: true } },
-            { 'content.images.0': { $exists: true } },
-            { 'content.attachments.0': { $exists: true } },
-            { 'content.files.0': { $exists: true } },
-            { 'media.0': { $exists: true } }
-          ] },
-          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-          { $or: [{ repostOf: null }, { repostOf: { $exists: false } }] }
-        ];
-      } else if (type === 'reposts') {
-        // Reposts only
-        query.repostOf = { $ne: null };
-      }
-
-      if (cursor) {
-        query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-      }
+      // Use FeedQueryBuilder for consistent query building
+      const query = FeedQueryBuilder.buildUserProfileQuery(userId, type, cursor);
 
       const posts = await Post.find(query)
         .select(this.FEED_FIELDS)
         .sort({ createdAt: -1 })
         .limit(limit + 1)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
         .lean();
+      
+      // Validate result size
+      validateResultSize(posts, limit + 1);
 
-      const hasMore = posts.length > limit;
-      const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
-      const nextCursor = hasMore ? posts[limit - 1]._id.toString() : undefined;
-
-      const transformedPosts = await this.transformPostsWithProfiles(postsToReturn, currentUserId);
-
-      const response: FeedResponse = {
-        items: transformedPosts, // Return posts directly in new schema format
-        hasMore,
-        nextCursor,
-        totalCount: transformedPosts.length
-      };
+      // Use FeedResponseBuilder for consistent response building
+      const response = await FeedResponseBuilder.buildResponse({
+        posts,
+        limit,
+        previousCursor: cursor,
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+        currentUserId
+      });
 
       res.json(response);
     } catch (error) {
@@ -1576,7 +1278,9 @@ class FeedController {
       }
 
       // Fetch parent post to check reply permissions
-      const parentPost = await Post.findById(postId).lean();
+      const parentPost = await Post.findById(postId)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+        .lean();
       if (!parentPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
@@ -1665,7 +1369,7 @@ class FeedController {
       // Update parent post comment count
       await Post.findByIdAndUpdate(postId, {
         $inc: { 'stats.commentsCount': 1 }
-      });
+      }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
       // Emit real-time update
       io.emit('post:replied', {
@@ -1707,7 +1411,8 @@ class FeedController {
       const existingRepost = await Post.findOne({
         oxyUserId: currentUserId,
         repostOf: originalPostId
-      });
+      })
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS);
 
       if (existingRepost) {
         return res.status(400).json({ error: 'You have already reposted this content' });
@@ -1740,7 +1445,7 @@ class FeedController {
       // Update original post repost count
       await Post.findByIdAndUpdate(originalPostId, {
         $inc: { 'stats.repostsCount': 1 }
-      });
+      }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
       // Record interaction for user preference learning
       try {
@@ -1793,7 +1498,8 @@ class FeedController {
       const existingLike = await Like.findOne({ userId: currentUserId, postId });
       const alreadyLiked = !!existingLike;
       
-      const existingPost = await Post.findById(postId);
+      const existingPost = await Post.findById(postId)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS);
       if (!existingPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
@@ -1826,7 +1532,7 @@ class FeedController {
         {
           $inc: { 'stats.likesCount': 1 }
         },
-        { new: true }
+        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
       if (!updateResult) {
@@ -1887,7 +1593,8 @@ class FeedController {
       const existingLike = await Like.findOne({ userId: currentUserId, postId });
       const hasLiked = !!existingLike;
       
-      const existingPost = await Post.findById(postId);
+      const existingPost = await Post.findById(postId)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS);
       if (!existingPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
@@ -1910,7 +1617,7 @@ class FeedController {
         {
           $inc: { 'stats.likesCount': -1 }
         },
-        { new: true }
+        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
       if (!updateResult) {
@@ -1969,7 +1676,7 @@ class FeedController {
       const repost = await Post.findOneAndDelete({
         oxyUserId: currentUserId,
         repostOf: postId
-      });
+      }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
       if (!repost) {
         return res.status(404).json({ error: 'Repost not found' });
@@ -1978,7 +1685,7 @@ class FeedController {
       // Update original post repost count
       await Post.findByIdAndUpdate(repost.repostOf, {
         $inc: { 'stats.repostsCount': -1 }
-      });
+      }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
       // Emit real-time update
       io.emit('post:unreposted', {
@@ -2020,7 +1727,8 @@ class FeedController {
       }
 
       // Check if user already saved this post
-      const existingPost = await Post.findById(postId);
+      const existingPost = await Post.findById(postId)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS);
       if (!existingPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
@@ -2049,7 +1757,7 @@ class FeedController {
         {
           $addToSet: { 'metadata.savedBy': currentUserId }
         },
-        { new: true }
+        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
       // Record interaction for user preference learning
@@ -2102,7 +1810,8 @@ class FeedController {
       }
 
       // Check if user has saved this post
-      const existingPost = await Post.findById(postId);
+      const existingPost = await Post.findById(postId)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS);
       if (!existingPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
@@ -2123,7 +1832,7 @@ class FeedController {
         {
           $pull: { 'metadata.savedBy': currentUserId }
         },
-        { new: true }
+        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
       // Emit real-time update
@@ -2184,7 +1893,9 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      const post = await Post.findById(id).lean();
+      const post = await Post.findById(id)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+        .lean();
       if (!post) {
         return res.status(404).json({ error: 'Post not found' });
       }

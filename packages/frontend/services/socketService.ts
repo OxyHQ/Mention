@@ -9,14 +9,18 @@ class SocketService {
   private socket: Socket | null = null;
   private isConnected = false;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private maxReconnectAttempts = 10; // Increased from 5
+  private baseReconnectDelay = 1000; // Base delay in ms
+  private maxReconnectDelay = 30000; // Maximum delay: 30 seconds
   private currentUserId?: string;
   private appStateSubscription: { remove: () => void } | null = null;
   // recentActions handled by echoGuard
   private feedUpdateQueue: Map<string, any[]> = new Map(); // Queue for batched feed updates
   private feedUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly FEED_UPDATE_DEBOUNCE_MS = 500; // Batch updates every 500ms
+  private readonly MAX_BATCH_SIZE = 50; // Maximum items per batch
+  private connectionHealthCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private lastPongTime: number = 0;
   
   // Queue for engagement updates to batch rapid changes
   private engagementUpdateQueue: Map<string, {
@@ -94,6 +98,27 @@ class SocketService {
     // Clear queues
     this.feedUpdateQueue.clear();
     this.engagementUpdateQueue.clear();
+    
+    // Stop health monitoring
+    this.stopHealthMonitoring();
+  }
+  
+  /**
+   * Join feed room for real-time updates (room-based subscription)
+   */
+  joinFeed(feedType: string): void {
+    if (this.socket?.connected) {
+      this.socket.emit('joinFeed', { feedType, userId: this.currentUserId });
+    }
+  }
+  
+  /**
+   * Leave feed room
+   */
+  leaveFeed(feedType: string): void {
+    if (this.socket?.connected) {
+      this.socket.emit('leaveFeed', { feedType, userId: this.currentUserId });
+    }
   }
 
   /**
@@ -124,11 +149,24 @@ class SocketService {
       console.log('Socket connected');
       this.isConnected = true;
       this.reconnectAttempts = 0;
+      this.lastPongTime = Date.now();
+      this.startHealthMonitoring();
+      
+      // Join feed rooms for real-time updates
+      if (this.currentUserId) {
+        this.socket.emit('joinFeed', { userId: this.currentUserId });
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log('Socket disconnected:', reason);
       this.isConnected = false;
+      this.stopHealthMonitoring();
+    });
+    
+    // Handle pong for health monitoring
+    this.socket.on('pong', () => {
+      this.lastPongTime = Date.now();
     });
 
     this.socket.on('connect_error', (error) => {
@@ -216,18 +254,65 @@ class SocketService {
   }
 
   /**
-   * Handle reconnection logic
+   * Calculate exponential backoff delay with jitter
+   */
+  private calculateReconnectDelay(attempt: number): number {
+    // Exponential backoff: baseDelay * 2^attempt
+    const exponentialDelay = this.baseReconnectDelay * Math.pow(2, attempt);
+    // Add jitter (random 0-25% of delay) to prevent thundering herd
+    const jitter = Math.random() * 0.25 * exponentialDelay;
+    // Cap at maximum delay
+    return Math.min(exponentialDelay + jitter, this.maxReconnectDelay);
+  }
+
+  /**
+   * Handle reconnection logic with exponential backoff
    */
   private handleReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      
-      setTimeout(() => {
-        if (this.socket && !this.socket.connected) {
-          this.socket.connect();
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.warn('Max reconnection attempts reached');
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = this.calculateReconnectDelay(this.reconnectAttempts);
+    console.log(`Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    
+    setTimeout(() => {
+      if (this.socket && !this.socket.connected) {
+        this.socket.connect();
+      }
+    }, delay);
+  }
+  
+  /**
+   * Start connection health monitoring
+   */
+  private startHealthMonitoring(): void {
+    if (this.connectionHealthCheckInterval) {
+      clearInterval(this.connectionHealthCheckInterval);
+    }
+    
+    this.connectionHealthCheckInterval = setInterval(() => {
+      if (this.socket && this.socket.connected) {
+        const timeSinceLastPong = Date.now() - this.lastPongTime;
+        // If no pong received in 60 seconds, consider connection unhealthy
+        if (timeSinceLastPong > 60000 && this.lastPongTime > 0) {
+          console.warn('Socket connection health check failed, reconnecting...');
+          this.socket.disconnect();
+          this.handleReconnect();
         }
-      }, this.reconnectDelay * this.reconnectAttempts);
+      }
+    }, 30000) as unknown as ReturnType<typeof setInterval>; // Check every 30 seconds
+  }
+  
+  /**
+   * Stop connection health monitoring
+   */
+  private stopHealthMonitoring(): void {
+    if (this.connectionHealthCheckInterval) {
+      clearInterval(this.connectionHealthCheckInterval);
+      this.connectionHealthCheckInterval = null;
     }
   }
 
