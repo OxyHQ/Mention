@@ -382,7 +382,9 @@ class FeedController {
    */
   async getFeed(req: AuthRequest, res: Response) {
     try {
-      const { type = 'mixed', cursor, limit = 20 } = req.query as any;
+      const { type = 'mixed', cursor } = req.query as any;
+      // Parse and validate limit parameter (default 20, clamp between 1-200)
+      const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20), 10), 1), 200);
       let filters: any = req.query.filters as any;
       const currentUserId = req.user?.id;
 

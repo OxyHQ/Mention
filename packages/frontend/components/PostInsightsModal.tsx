@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { statisticsService, PostInsights } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
-import { formatCompactNumber } from '@/utils/formatCompactNumber';
+import { formatCompactNumber } from '@/utils/formatNumber';
 
 interface PostInsightsModalProps {
     visible: boolean;
@@ -51,8 +51,6 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
             setLoading(false);
         }
     };
-
-import { formatCompactNumber } from '@/utils/formatCompactNumber';
 
     return (
         <Modal

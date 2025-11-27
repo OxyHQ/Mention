@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, TextProps } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
+import { formatCompactNumber } from '@/utils/formatNumber';
 
 interface AnimatedNumberProps extends Omit<TextProps, 'children'> {
     value: number;
@@ -66,8 +67,6 @@ const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
 
     // Use Animated.Text for smoother updates
     const DisplayTag = Animated.createAnimatedComponent(Text);
-
-import { formatCompactNumber } from '@/utils/formatNumber';
 
     // Format number for display (e.g., 1.2K, 1.5M)
     const formatNumber = React.useCallback((n: number): string => {

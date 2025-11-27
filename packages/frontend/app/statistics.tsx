@@ -20,7 +20,7 @@ import { useOxy } from '@oxyhq/services';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
 import { UIPost } from '@mention/shared-types';
-import { formatCompactNumber } from '@/utils/formatCompactNumber';
+import { formatCompactNumber } from '@/utils/formatNumber';
 
 const { width } = Dimensions.get('window');
 

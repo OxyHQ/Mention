@@ -28,7 +28,7 @@ import HeroCard from '@/components/insights/HeroCard';
 import SummaryCard from '@/components/insights/SummaryCard';
 import { Header } from '@/components/Header';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
-import { formatCompactNumber } from '@/utils/formatCompactNumber';
+import { formatCompactNumber } from '@/utils/formatNumber';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { StatusBar } from 'expo-status-bar';
 import SEO from '@/components/SEO';
