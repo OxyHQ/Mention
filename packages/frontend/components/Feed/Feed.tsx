@@ -79,7 +79,7 @@ const Feed = memo((props: FeedProps) => {
     // Determine if we should use scoped (local) feed state
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
 
-    const { user: currentUser, isAuthenticated } = useOxy();
+    const { user: currentUser, isAuthenticated, showBottomSheet } = useOxy();
     const { blockedSet } = usePrivacyControls();
 
     // Use the feed state hook for all feed operations
@@ -107,10 +107,18 @@ const Feed = memo((props: FeedProps) => {
     }, [feedState]);
 
     // Handle load more - debounced in hook
+    // For unauthenticated users, show sign-in prompt instead of loading more
     const handleLoadMore = useCallback(() => {
         if (!feedState.hasMore || feedState.isLoading) return;
+
+        // If user is not authenticated, show sign-in prompt instead of loading more
+        if (!isAuthenticated) {
+            showBottomSheet?.('SignIn');
+            return;
+        }
+
         feedState.loadMore();
-    }, [feedState.hasMore, feedState.isLoading, feedState.loadMore]);
+    }, [feedState.hasMore, feedState.isLoading, feedState.loadMore, isAuthenticated, showBottomSheet]);
 
     // Process items with single-pass deduplication and sorting
     const finalRenderItems = useDeepCompareMemo(() => {
@@ -319,6 +327,9 @@ const Feed = memo((props: FeedProps) => {
     // Track if we're loading more (loading while we already have items)
     const isLoadingMore = feedState.isLoading && finalRenderItems.length > 0;
 
+    // Show footer for loading more or sign-in prompt for unauthenticated users
+    const showFooter = isLoadingMore || (!isAuthenticated && finalRenderItems.length > 0);
+
     const footerComponent = useMemo(
         () => (
             <FeedFooter
@@ -351,7 +362,7 @@ const Feed = memo((props: FeedProps) => {
                         extraData: dataHash,
                         ListHeaderComponent: headerComponent,
                         ListEmptyComponent: emptyStateComponent,
-                        ListFooterComponent: isLoadingMore ? footerComponent : null,
+                        ListFooterComponent: showFooter ? footerComponent : null,
                         scrollEnabled: scrollEnabled,
                         refreshControl: refreshControl,
                         onEndReached: handleLoadMore,

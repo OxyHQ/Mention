@@ -759,31 +759,17 @@ export const usePostsStore = create<FeedState>()(
       
       // Enhanced guard: prevent concurrent loads and ensure we have a valid cursor
       if (!currentFeed || !currentFeed.hasMore || currentFeed.isLoading) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[loadMoreFeed:${type}] Skipped - guard check failed:`, {
-            hasFeed: !!currentFeed,
-            hasMore: currentFeed?.hasMore,
-            isLoading: currentFeed?.isLoading,
-            hasCursor: !!currentFeed?.nextCursor,
-            itemCount: currentFeed?.items?.length || 0
-          });
-        }
+        // Silently skip - this is expected behavior for guard checks
         return;
       }
       if (!currentFeed.nextCursor && currentFeed.items.length > 0) {
         // No cursor but we have items - something is wrong, don't load more
+        // Log only in development for debugging
         if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
           console.warn(`[loadMoreFeed:${type}] Skipped - no cursor but has ${currentFeed.items.length} items`);
         }
         return;
-      }
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[loadMoreFeed:${type}] Starting load more:`, {
-          currentItems: currentFeed.items.length,
-          cursor: currentFeed.nextCursor ? 'present' : 'none',
-          hasMore: currentFeed.hasMore
-        });
       }
 
       // Set loading state immediately to prevent race conditions
@@ -875,29 +861,24 @@ export const usePostsStore = create<FeedState>()(
           const trulyNewItems = Array.from(newItemsMap.values());
           const finalItems = [...cleanedExistingItems, ...trulyNewItems];
           
-          // DEBUG: Log processing details (only in development)
+          // Track duplicate rate for monitoring (only log if significant)
           if (process.env.NODE_ENV === 'development') {
             const duplicateRate = mapped.length > 0 ? (duplicatesAgainstExisting / mapped.length) * 100 : 0;
             
+            // Only log if duplicate rate is high (>30%) to reduce noise
+            if (duplicateRate > 30) {
+              // eslint-disable-next-line no-console
+              console.warn(`[loadMoreFeed:${type}] High duplicate rate detected: ${duplicateRate.toFixed(1)}% (${duplicatesAgainstExisting}/${mapped.length})`, {
+                cursor: cursorAtRequestTime ? 'present' : 'none',
+                existingItems: cleanedExistingItems.length
+              });
+            }
+            
+            // Log backend duplicates as error
             if (duplicatesInResponse > 0) {
+              // eslint-disable-next-line no-console
               console.error(`[loadMoreFeed:${type}] Backend returned ${duplicatesInResponse} duplicate IDs in response`);
             }
-            
-            // Only warn if duplicate rate is high (>50%), otherwise debug log
-            if (duplicatesAgainstExisting > 0) {
-              const logMethod = duplicateRate > 50 ? console.warn : console.debug;
-              logMethod(`[loadMoreFeed:${type}] ${duplicatesAgainstExisting} posts already exist in feed (${duplicateRate.toFixed(1)}% duplicate rate)`);
-            }
-            
-            console.debug(`[loadMoreFeed:${type}] Processing:`, {
-              existingItems: cleanedExistingItems.length,
-              responseItems: mapped.length,
-              uniqueNewItems: trulyNewItems.length,
-              duplicatesInResponse,
-              duplicatesAgainstExisting,
-              duplicateRate: `${duplicateRate.toFixed(1)}%`,
-              cursor: cursorAtRequestTime ? 'present' : 'none'
-            });
           }
           
           // Update cache with new items only (use Map for efficiency)

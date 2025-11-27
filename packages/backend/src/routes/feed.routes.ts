@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { feedController } from '../controllers/feed.controller';
+import { feedRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
+
+// Apply rate limiting to all feed routes
+router.use(feedRateLimiter);
 
 // Public routes (accessible without authentication)
 router.get('/feed', feedController.getFeed.bind(feedController));

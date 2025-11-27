@@ -46,10 +46,11 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         autoCreate: true,
         serverSelectionTimeoutMS: 20000,
         socketTimeoutMS: 45000,
-        // Connection pool configuration for high-scale applications
-        maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE || '50'), // Maximum number of connections in pool
-        minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE || '5'), // Minimum number of connections to maintain
-        maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
+        // Connection pool configuration optimized for millions of users
+        // Increased pool size to handle high concurrent load
+        maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE || '100'), // Maximum number of connections in pool (increased from 50)
+        minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE || '10'), // Minimum number of connections to maintain (increased from 5)
+        maxIdleTimeMS: 60000, // Close connections after 60 seconds of inactivity (increased from 30s for better connection reuse)
         // Read preference for read replicas (if configured)
         readPreference: process.env.MONGODB_READ_PREFERENCE as any || 'primary',
         // Write concern for data durability

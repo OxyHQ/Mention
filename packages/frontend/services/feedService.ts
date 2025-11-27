@@ -203,7 +203,7 @@ class FeedService {
       const response = await authenticatedClient.get(`/feed/user/${userId}`, { params });
       return response.data;
     } catch (error) {
-      console.error('Error fetching user feed:', error);
+      // Error will be handled by caller
       throw new Error('Failed to fetch user feed');
     }
   }
@@ -249,7 +249,7 @@ class FeedService {
 
       return { success: true, post: data };
     } catch (error) {
-      console.error('Error creating post:', error);
+      // Error will be handled by caller
       throw new Error('Failed to create post');
     }
   }
@@ -262,7 +262,7 @@ class FeedService {
       const response = await authenticatedClient.post('/posts/thread', request);
       return { success: true, posts: response.data };
     } catch (error) {
-      console.error('Error creating thread:', error);
+      // Error will be handled by caller
       throw new Error('Failed to create thread');
     }
   }
@@ -282,7 +282,7 @@ class FeedService {
       const response = await authenticatedClient.post('/feed/reply', backendRequest);
       return { success: true, reply: response.data };
     } catch (error) {
-      console.error('Error creating reply:', error);
+      // Error will be handled by caller
       throw new Error('Failed to create reply');
     }
   }
@@ -302,7 +302,7 @@ class FeedService {
       const response = await authenticatedClient.post('/feed/repost', backendRequest);
       return { success: true, repost: response.data };
     } catch (error) {
-      console.error('Error creating repost:', error);
+      // Error will be handled by caller
       throw new Error('Failed to create repost');
     }
   }
@@ -315,7 +315,7 @@ class FeedService {
       const response = await authenticatedClient.post(`/posts/${request.postId}/like`);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('Error liking post:', error);
+      // Error will be handled by caller
       throw new Error('Failed to like post');
     }
   }
@@ -328,7 +328,7 @@ class FeedService {
       const response = await authenticatedClient.delete(`/posts/${request.postId}/like`);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('Error unliking post:', error);
+      // Error will be handled by caller
       throw new Error('Failed to unlike post');
     }
   }
@@ -342,7 +342,7 @@ class FeedService {
       const response = await authenticatedClient.post(`/posts/${request.postId}/save`);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('❌ Error saving post:', error);
+      // Error will be handled by caller
       throw new Error('Failed to save post');
     }
   }
@@ -356,7 +356,7 @@ class FeedService {
       const response = await authenticatedClient.delete(`/posts/${request.postId}/save`);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('❌ Error removing save:', error);
+      // Error will be handled by caller
       throw new Error('Failed to remove save');
     }
   }
@@ -369,7 +369,7 @@ class FeedService {
       const response = await authenticatedClient.delete(`/feed/${request.postId}/repost`);
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('❌ Error unreposting:', error);
+      // Error will be handled by caller
       throw new Error('Failed to unrepost');
     }
   }
@@ -394,7 +394,7 @@ class FeedService {
       });
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('Error fetching saved posts:', error);
+      // Error will be handled by caller
       throw new Error('Failed to fetch saved posts');
     }
   }
@@ -419,7 +419,7 @@ class FeedService {
         // Don't log 404s - post may have been deleted
         throw error; // Re-throw original Axios error to preserve status
       }
-      console.error('Error fetching post:', error);
+      // Error will be handled by caller
       throw error; // Re-throw original error instead of creating new one
     }
   }
@@ -432,7 +432,7 @@ class FeedService {
       await authenticatedClient.delete(`/posts/${postId}`);
       return { success: true };
     } catch (error) {
-      console.error('Error deleting post:', error);
+      // Error will be handled by caller
       throw new Error('Failed to delete post');
     }
   }
@@ -450,7 +450,7 @@ class FeedService {
       const response = await authenticatedClient.get(`/posts/hashtag/${hashtag}`, { params });
       return response.data;
     } catch (error) {
-      console.error('Error fetching posts by hashtag:', error);
+      // Error will be handled by caller
       throw new Error('Failed to fetch posts by hashtag');
     }
   }
@@ -468,7 +468,7 @@ class FeedService {
       const response = await authenticatedClient.get(`/posts/mentions/${userId}`, { params });
       return response.data;
     } catch (error) {
-      console.error('Error fetching posts by mentions:', error);
+      // Error will be handled by caller
       throw new Error('Failed to fetch posts by mentions');
     }
   }
@@ -495,7 +495,7 @@ class FeedService {
       const response = await authenticatedClient.get(`/posts/${postId}/likes`, { params });
       return response.data;
     } catch (error) {
-      console.error('Error fetching post likes:', error);
+      // Error will be handled by caller
       throw new Error('Failed to fetch post likes');
     }
   }
@@ -522,7 +522,7 @@ class FeedService {
       const response = await authenticatedClient.get(`/posts/${postId}/reposts`, { params });
       return response.data;
     } catch (error) {
-      console.error('Error fetching post reposts:', error);
+      // Error will be handled by caller
       throw new Error('Failed to fetch post reposts');
     }
   }

@@ -66,6 +66,27 @@ export class FeedCacheService {
         throw connectError;
       }
 
+      // Verify both clients are actually ready before proceeding
+      const publisherReady = await ensureRedisConnected(publisher);
+      const subscriberReady = await ensureRedisConnected(subscriber);
+      
+      if (!publisherReady || !subscriberReady) {
+        // Clients connected but not ready, skip pub/sub setup
+        logger.debug('Redis pub/sub clients connected but not ready, skipping setup');
+        return;
+      }
+
+      // Verify with ping to ensure connection is actually working
+      try {
+        await Promise.all([
+          publisher.ping(),
+          subscriber.ping()
+        ]);
+      } catch (pingError: any) {
+        logger.debug('Redis pub/sub ping failed, skipping setup:', pingError.message);
+        return;
+      }
+
       this.pubSub = { publisher, subscriber };
 
       // Subscribe to invalidation channel using pattern subscribe

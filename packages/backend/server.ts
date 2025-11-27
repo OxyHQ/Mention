@@ -1,3 +1,9 @@
+// --- Config ---
+// CRITICAL: Load environment variables FIRST, before any other imports
+// Use require() so it executes immediately, before ES6 imports are processed
+// This ensures REDIS_URL and other env vars are available when modules are imported
+require('dotenv').config();
+
 // --- Imports ---
 import express from "express";
 import http from "http";
@@ -5,7 +11,6 @@ import mongoose from "mongoose";
 import compression from "compression";
 import { connectToDatabase, isDatabaseConnected } from "./src/utils/database";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
-import dotenv from "dotenv";
 import { logger } from "./src/utils/logger";
 
 // Models
@@ -34,9 +39,7 @@ import linksRoutes from './src/routes/links';
 
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
-
-// --- Config ---
-dotenv.config();
+import { feedRateLimiter } from "./src/middleware/rateLimiter";
 
 const app = express();
 
@@ -175,6 +178,7 @@ const io = new SocketIOServer(server, {
   try {
     const { createRedisPubSub } = require('./src/utils/redis');
     const { createAdapter } = require('@socket.io/redis-adapter');
+    const { ensureRedisConnected } = require('./src/utils/redisHelpers');
     const { publisher, subscriber } = createRedisPubSub();
     
     // Connect both clients with timeout to avoid hanging
@@ -188,12 +192,26 @@ const io = new SocketIOServer(server, {
       )
     ]);
     
+    // Verify both clients are actually ready before proceeding
+    const publisherReady = await ensureRedisConnected(publisher);
+    const subscriberReady = await ensureRedisConnected(subscriber);
+    
+    if (!publisherReady || !subscriberReady) {
+      throw new Error('Redis clients connected but not ready');
+    }
+    
+    // Verify with ping to ensure connection is actually working
+    await Promise.all([
+      publisher.ping(),
+      subscriber.ping()
+    ]);
+    
     io.adapter(createAdapter(publisher, subscriber));
     logger.info('Socket.IO Redis adapter configured for horizontal scaling');
   } catch (error: any) {
     // If Redis is unavailable, continue without adapter (single-instance mode)
     const { isRedisConnectionError } = require('./src/utils/redisHelpers');
-    if (isRedisConnectionError(error) || error.message?.includes('timeout')) {
+    if (isRedisConnectionError(error) || error.message?.includes('timeout') || error.message?.includes('not ready')) {
       logger.info('Redis unavailable - Socket.IO running in single-instance mode (no horizontal scaling)');
     } else {
       logger.warn('Failed to setup Socket.IO Redis adapter, running in single-instance mode:', error);

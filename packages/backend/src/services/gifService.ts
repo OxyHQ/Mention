@@ -7,7 +7,7 @@ const KLIPY_BASE_URL = 'https://api.klipy.com';
 function getKlipyAppKey(): string {
   const key = process.env.KLIPY_APP_KEY;
   if (!key) {
-    console.warn('KLIPY_APP_KEY is not configured in environment variables');
+    // KLIPY_APP_KEY not configured - will use empty key
   }
   return key || '';
 }

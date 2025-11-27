@@ -81,7 +81,7 @@ class SearchService {
       });
       return res.data.hashtags || [];
     } catch (error) {
-      console.warn("Failed searching hashtags", error);
+      // Silently return empty array on error
       return [];
     }
   }
