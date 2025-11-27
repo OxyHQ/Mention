@@ -3,63 +3,37 @@ import { API_CONFIG, getApiOrigin } from '../utils/api';
 import { normalizeUrl } from '../utils/composeUtils';
 
 /**
- * Construct absolute image URL from relative path
- */
-function constructImageUrl(imageUrl: string, apiOrigin: string): string {
-  if (!imageUrl) return imageUrl;
-  
-  // Already absolute
-  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-    return imageUrl;
-  }
-  
-  // Relative path - prepend API origin
-  return `${apiOrigin}${imageUrl}`;
-}
-
-/**
  * Service to fetch link metadata (Open Graph, Twitter Cards, etc.)
  * Thin client wrapper around backend API endpoint
  */
 class LinkMetadataService {
   private readonly apiOrigin = getApiOrigin();
+  private readonly baseURL = API_CONFIG.baseURL.replace(/\/$/, ''); // Remove trailing slash
 
   /**
    * Fetch metadata for a URL from backend API
    */
   async fetchMetadata(url: string): Promise<LinkMetadata | null> {
-    try {
-      const normalizedUrl = normalizeUrl(url);
-      if (!normalizedUrl) {
-        throw new Error('Invalid URL');
-      }
+    const normalizedUrl = normalizeUrl(url);
+    if (!normalizedUrl) {
+      return this.createFallback(url);
+    }
 
-      // Fetch from backend API
-      const baseURL = API_CONFIG.baseURL.endsWith('/') 
-        ? API_CONFIG.baseURL.slice(0, -1) 
-        : API_CONFIG.baseURL;
-      
+    try {
       const response = await fetch(
-        `${baseURL}/links/metadata?url=${encodeURIComponent(normalizedUrl)}`,
-        {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        }
+        `${this.baseURL}/links/metadata?url=${encodeURIComponent(normalizedUrl)}`,
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } }
       );
 
-      if (!response.ok) {
-        throw new Error(`API returned ${response.status}`);
-      }
+      if (!response.ok) return this.createFallback(normalizedUrl);
 
       const data = await response.json();
-      if (!data?.success || !data.url) {
-        return this.createFallbackMetadata(normalizedUrl);
-      }
+      if (!data?.success || !data.url) return this.createFallback(normalizedUrl);
 
-      // Construct absolute image URL if present
-      const imageUrl = data.image 
-        ? constructImageUrl(data.image, this.apiOrigin)
-        : undefined;
+      // Construct absolute image URL if present (handles relative paths)
+      const imageUrl = data.image && !data.image.startsWith('http')
+        ? `${this.apiOrigin}${data.image}`
+        : data.image;
 
       return {
         url: normalizedUrl,
@@ -71,15 +45,15 @@ class LinkMetadataService {
         fetchedAt: Date.now(),
       };
     } catch (error) {
-      console.debug('[LinkMetadataService] Backend fetch failed:', error);
-      return this.createFallbackMetadata(url);
+      console.debug('[LinkMetadataService] Fetch failed:', error);
+      return this.createFallback(normalizedUrl);
     }
   }
 
   /**
    * Create basic fallback metadata when API is unavailable
    */
-  private createFallbackMetadata(url: string): LinkMetadata | null {
+  private createFallback(url: string): LinkMetadata {
     try {
       const urlObj = new URL(url);
       return {
