@@ -421,20 +421,23 @@ class FeedController {
       
       // If filters is not an object, try to parse from query params with filters[] prefix
       if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
-        filters = {};
+        filters = {} as Record<string, unknown>;
         // Extract all query params that start with 'filters['
         Object.keys(req.query).forEach(key => {
           if (key.startsWith('filters[') && key.endsWith(']')) {
             const filterKey = key.slice(8, -1); // Remove 'filters[' and ']'
-            filters[filterKey] = (req.query as any)[key];
+            (filters as Record<string, unknown>)[filterKey] = (req.query as any)[key];
           }
         });
       }
       
+      // Ensure filters is defined for type safety
+      const feedFilters: Record<string, unknown> = filters || {};
+      
       // Debug logging for saved posts
       if (type === 'saved') {
         logger.debug('[Saved Feed] Raw query params', JSON.stringify(req.query, null, 2));
-        logger.debug('[Saved Feed] Parsed filters', JSON.stringify(filters, null, 2));
+        logger.debug('[Saved Feed] Parsed filters', JSON.stringify(feedFilters, null, 2));
       }
 
       // Handle customFeedId filter - expand to custom feed configuration
@@ -561,7 +564,7 @@ class FeedController {
         
         // Apply search query filter if provided
         if (filters?.searchQuery) {
-          const searchQuery = String(filters.searchQuery).trim();
+          const searchQuery = String(feedFilters.searchQuery).trim();
           logger.debug(`[Saved Feed] Applying search filter: "${searchQuery}"`);
           if (searchQuery) {
             // Use MongoDB $regex for partial text matching (case-insensitive)
@@ -576,7 +579,7 @@ class FeedController {
         
         logger.debug(`[Saved Feed] Final query`, JSON.stringify(query, null, 2));
       } else {
-        query = this.buildFeedQuery(type, filters, currentUserId);
+        query = this.buildFeedQuery(type, feedFilters, currentUserId);
       }
 
       // Add cursor-based pagination (handle conflict with saved posts _id filter)
@@ -938,10 +941,10 @@ class FeedController {
           .map(id => new mongoose.Types.ObjectId(id));
         
         if (seenObjectIds.length > 0) {
-          if (!match.$and) {
+          if (!Array.isArray(match.$and)) {
             match.$and = [];
           }
-          match.$and.push({ _id: { $nin: seenObjectIds } });
+          (match.$and as any[]).push({ _id: { $nin: seenObjectIds } });
         }
       }
 
@@ -956,10 +959,10 @@ class FeedController {
             const existingIdFilter = match._id as Record<string, unknown> | undefined;
             if (existingIdFilter && typeof existingIdFilter === 'object' && '$nin' in existingIdFilter) {
               // If we have $nin, we need to use $and to combine with $lt
-              if (!match.$and) {
+              if (!Array.isArray(match.$and)) {
                 match.$and = [];
               }
-              match.$and.push({ _id: { $lt: cursorId } });
+              (match.$and as any[]).push({ _id: { $lt: cursorId } });
             } else {
               match._id = { $lt: cursorId };
             }
