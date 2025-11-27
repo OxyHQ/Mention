@@ -199,8 +199,8 @@ class FeedController {
   /**
    * Build query based on feed type and filters
    */
-  private buildFeedQuery(type: FeedType, filters?: Record<string, unknown>, currentUserId?: string): Record<string, unknown> {
-    const query: Record<string, unknown> = {
+  private buildFeedQuery(type: FeedType, filters?: Record<string, unknown>, currentUserId?: string): any {
+    const query: any = {
       visibility: PostVisibility.PUBLIC // Only show public posts by default
     };
     query.status = 'published';
@@ -269,11 +269,12 @@ class FeedController {
       // This ensures custom feeds don't include the creator's posts unless they're in the member list
       if (filters.excludeOwner && currentUserId) {
         // Add condition to exclude owner's posts
-        if (query.oxyUserId && query.oxyUserId.$in) {
+        const oxyUserIdFilter = query.oxyUserId as any;
+        if (oxyUserIdFilter && typeof oxyUserIdFilter === 'object' && '$in' in oxyUserIdFilter && Array.isArray(oxyUserIdFilter.$in)) {
           // If authors filter exists, owner should already be excluded if not in list
           // But add explicit exclusion as safety measure
           query.oxyUserId = {
-            $in: query.oxyUserId.$in.filter((id: string) => id !== currentUserId)
+            $in: oxyUserIdFilter.$in.filter((id: string) => id !== currentUserId)
           };
         } else {
           // No authors filter, so exclude owner explicitly
@@ -296,10 +297,19 @@ class FeedController {
         query.language = filters.language;
       }
       if (filters.dateFrom) {
-        query.createdAt = { $gte: new Date(filters.dateFrom) };
+        const dateFrom = typeof filters.dateFrom === 'string' || filters.dateFrom instanceof Date 
+          ? new Date(filters.dateFrom as string | Date)
+          : new Date(String(filters.dateFrom));
+        query.createdAt = { $gte: dateFrom };
       }
       if (filters.dateTo) {
-        query.createdAt = { ...query.createdAt, $lte: new Date(filters.dateTo) };
+        const dateTo = typeof filters.dateTo === 'string' || filters.dateTo instanceof Date
+          ? new Date(filters.dateTo as string | Date)
+          : new Date(String(filters.dateTo));
+        const existingCreatedAt = query.createdAt as any;
+        query.createdAt = existingCreatedAt && typeof existingCreatedAt === 'object'
+          ? { ...existingCreatedAt, $lte: dateTo }
+          : { $lte: dateTo };
       }
       // Keywords: OR match against text or hashtags
       if (filters.keywords) {
@@ -317,8 +327,11 @@ class FeedController {
           // Otherwise, use $or for keywords
           if (query.$or) {
             // Combine existing $or with keyword conditions using $and
-            query.$and = query.$and || [];
-            query.$and.push({ $or: [...query.$or, ...keywordConditions] });
+            const existingOr = Array.isArray(query.$or) ? query.$or : [query.$or];
+            if (!Array.isArray(query.$and)) {
+              query.$and = [];
+            }
+            query.$and.push({ $or: [...existingOr, ...keywordConditions] });
             delete query.$or;
           } else {
             query.$or = keywordConditions;
@@ -399,10 +412,10 @@ class FeedController {
       // But handle cases where it might be a string or need manual parsing
       if (typeof filters === 'string') {
         try {
-          filters = JSON.parse(filters);
+          filters = JSON.parse(filters) as Record<string, unknown>;
         } catch (e) {
           logger.warn('Failed to parse filters JSON', e);
-          filters = {};
+          filters = {} as Record<string, unknown>;
         }
       }
       
