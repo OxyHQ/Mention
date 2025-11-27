@@ -174,7 +174,7 @@ export default function RootLayout() {
 
   // Load eager settings that don't block app initialization
   useEffect(() => {
-    AppInitializer.loadEagerSettings();
+    AppInitializer.loadEagerSettings(oxyServices);
   }, []);
 
   // React Query managers - setup once on mount

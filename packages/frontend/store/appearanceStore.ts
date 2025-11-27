@@ -53,7 +53,7 @@ interface AppearanceStore {
   byUserId: Record<string, UserAppearance>;
   loading: boolean;
   error: string | null;
-  loadMySettings: () => Promise<void>;
+  loadMySettings: (isAuthenticated?: boolean) => Promise<void>;
   loadForUser: (userId: string, forceRefresh?: boolean) => Promise<UserAppearance | null>;
   updateMySettings: (partial: Partial<UserAppearance>) => Promise<UserAppearance | null>;
 }
@@ -68,7 +68,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
   loading: false,
   error: null,
 
-  async loadMySettings() {
+  async loadMySettings(isAuthenticated?: boolean) {
     try {
       set({ loading: true, error: null });
       
@@ -77,6 +77,13 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
       const cached = unwrapApiData<UserAppearance>(cachedRaw);
       if (cached) {
         set({ mySettings: cached });
+      }
+
+      // Only fetch from API if user is authenticated
+      // If isAuthenticated is undefined, we'll try the API call and handle 401 gracefully
+      if (isAuthenticated === false) {
+        set({ loading: false });
+        return;
       }
 
       // Fetch fresh data from API

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useOxy } from '@oxyhq/services';
 
 const PRIVACY_SETTINGS_CACHE_KEY = '@mention_privacy_settings';
 
@@ -73,6 +74,7 @@ let cachedPrivacySettings: PrivacySettings | null = null;
 let cacheLoadPromise: Promise<void> | null = null;
 
 export function useCurrentUserPrivacySettings(): PrivacySettings | null {
+    const { isAuthenticated } = useOxy();
     const [settings, setSettings] = useState<PrivacySettings | null>(() => {
         // Try to load from cache synchronously on first render
         if (cachedPrivacySettings) {
@@ -95,6 +97,19 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
     });
 
     useEffect(() => {
+        // Only make API call if user is authenticated
+        if (!isAuthenticated) {
+            // Use cached settings or defaults if not authenticated
+            if (cacheLoadPromise) {
+                cacheLoadPromise.then(() => {
+                    setSettings(cachedPrivacySettings || DEFAULT_PRIVACY_SETTINGS);
+                });
+            } else {
+                setSettings(cachedPrivacySettings || DEFAULT_PRIVACY_SETTINGS);
+            }
+            return;
+        }
+
         const loadSettings = async () => {
             // Wait for initial cache load if it's still loading
             if (cacheLoadPromise) {
@@ -150,7 +165,7 @@ export function useCurrentUserPrivacySettings(): PrivacySettings | null {
         };
 
         loadSettings();
-    }, []);
+    }, [isAuthenticated]);
 
     // Return settings (will be cached value immediately if available)
     return settings;

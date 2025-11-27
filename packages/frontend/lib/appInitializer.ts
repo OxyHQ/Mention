@@ -65,9 +65,19 @@ async function setupNotificationsIfNeeded(): Promise<void> {
 /**
  * Loads user appearance settings
  */
-async function loadAppearanceSettings(): Promise<void> {
+async function loadAppearanceSettings(services?: OxyServices, isAuthenticated?: boolean): Promise<void> {
   try {
-    await useAppearanceStore.getState().loadMySettings();
+    // Check auth state if services provided
+    let authState = isAuthenticated;
+    if (services && authState === undefined) {
+      try {
+        // Quick check if auth is ready (with short timeout)
+        authState = await services.waitForAuth(100);
+      } catch {
+        authState = false;
+      }
+    }
+    await useAppearanceStore.getState().loadMySettings(authState);
   } catch (error) {
     console.warn('Failed to load appearance settings:', error);
   }
@@ -144,7 +154,7 @@ export class AppInitializer {
       await fetchCurrentUser(services, authReady);
 
       // Load appearance settings (uses cache for instant theme)
-      await loadAppearanceSettings();
+      await loadAppearanceSettings(services, authReady);
 
       // Hide splash screen
       try {
@@ -164,11 +174,24 @@ export class AppInitializer {
 
   /**
    * Loads eager settings that don't block app initialization
+   * Should be called after auth is ready to avoid 401 errors
    */
-  static async loadEagerSettings(): Promise<void> {
+  static async loadEagerSettings(services?: OxyServices): Promise<void> {
+    // Check auth state before loading settings
+    let isAuthenticated = false;
+    if (services) {
+      try {
+        // Quick check if auth is ready (with short timeout)
+        isAuthenticated = await services.waitForAuth(100);
+      } catch {
+        // Auth not ready, will skip authenticated API calls
+        isAuthenticated = false;
+      }
+    }
+
     // Load these in parallel as they don't block app startup
     await Promise.allSettled([
-      loadAppearanceSettings(),
+      loadAppearanceSettings(services, isAuthenticated),
       loadVideoMuteState(),
     ]);
   }
