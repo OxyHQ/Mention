@@ -251,8 +251,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
       </Pressable>
 
       <Animated.View
-        style={contentContainerStyle}
-        pointerEvents="box-none"
+        style={[contentContainerStyle, { pointerEvents: 'box-none' }]}
       >
         <Pressable
           onPress={handleContentPress}
@@ -262,7 +261,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
             <HeaderIconButton onPress={stableOnClose} style={styles.closeButton}>
               <CloseIcon size={20} color={theme.colors.text} />
             </HeaderIconButton>
-            <Text style={headerTitleStyle} pointerEvents="none">
+            <Text style={[headerTitleStyle, { pointerEvents: 'none' }]}>
               {titleText}
             </Text>
             <View style={styles.headerRight} />

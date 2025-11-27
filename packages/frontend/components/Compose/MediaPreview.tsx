@@ -56,7 +56,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                             )}
 
                             {onMove && mediaItems.length > 1 && (
-                                <View style={styles.reorderControls} pointerEvents="box-none">
+                                <View style={[styles.reorderControls, { pointerEvents: 'box-none' }]}>
                                     <TouchableOpacity
                                         onPress={() => onMove(mediaItem.id, "left")}
                                         disabled={!canMoveLeft}

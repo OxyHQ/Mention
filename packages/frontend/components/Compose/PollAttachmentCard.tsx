@@ -37,7 +37,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
     return (
         <View style={styles.wrapper}>
             {showReorderControls && (
-                <View style={styles.reorderControls} pointerEvents="box-none">
+                <View style={[styles.reorderControls, { pointerEvents: 'box-none' }]}>
                     <TouchableOpacity
                         onPress={onMoveLeft}
                         disabled={!canMoveLeft}

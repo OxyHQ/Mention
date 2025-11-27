@@ -64,7 +64,7 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
         <HeaderIconButton onPress={onClose} style={styles.closeButton}>
           <CloseIcon size={20} color={theme.colors.text} />
         </HeaderIconButton>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]} pointerEvents="none">
+        <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
           {t('post.articleSheet.title', { defaultValue: 'Article' })}
         </Text>
         <View style={styles.headerRight} />

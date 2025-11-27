@@ -402,8 +402,8 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                       StyleSheet.absoluteFillObject,
                       styles.zoomContainer,
                       { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+                      { pointerEvents: 'box-none' },
                     ]}
-                    pointerEvents="box-none"
                   >
                     <AnimatedImage
                       source={imageSource}
@@ -471,8 +471,8 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                       StyleSheet.absoluteFillObject,
                       styles.zoomContainer,
                       { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+                      { pointerEvents: 'auto' },
                     ]}
-                    pointerEvents="auto"
                   >
                     <AnimatedImage
                       source={imageSource}

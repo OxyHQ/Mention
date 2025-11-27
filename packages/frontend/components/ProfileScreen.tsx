@@ -322,11 +322,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                         style={[styles.banner, styles.bannerHeight]}
                                     />
                                     <Animated.View
-                                        pointerEvents="none"
                                         style={[
                                             styles.banner,
                                             styles.bannerHeight,
                                             styles.bannerOverlay,
+                                            { pointerEvents: 'none' },
                                             {
                                                 backgroundColor: theme.colors.background,
                                                 opacity: headerBackgroundOpacity,

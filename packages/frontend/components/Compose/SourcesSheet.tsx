@@ -57,7 +57,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
         <HeaderIconButton onPress={onClose} style={styles.closeButton}>
           <CloseIcon size={20} color={theme.colors.text} />
         </HeaderIconButton>
-        <Text style={[styles.title, { color: theme.colors.text }]} pointerEvents="none">
+        <Text style={[styles.title, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
           {t('compose.sources.heading', { defaultValue: 'Sources' })}
         </Text>
         <View style={styles.headerRight} />

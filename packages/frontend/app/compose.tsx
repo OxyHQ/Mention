@@ -675,7 +675,7 @@ const ComposeScreen = () => {
               >
                 <BackArrowIcon size={20} color={theme.colors.text} />
               </HeaderIconButton>
-              <Text style={[styles.headerTitle, { color: theme.colors.text }]} pointerEvents="none">{t('New post')}</Text>
+              <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>{t('New post')}</Text>
               <View style={styles.headerIcons}>
                 <HeaderIconButton
                   style={styles.iconBtn}
@@ -823,7 +823,7 @@ const ComposeScreen = () => {
                             return (
                               <View key={key} style={styles.pollAttachmentWrapper}>
                                 {total > 1 ? (
-                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
                                     <TouchableOpacity
                                       onPress={() => moveAttachment(POLL_ATTACHMENT_KEY, 'left')}
                                       disabled={!canMoveLeft}
@@ -908,7 +908,7 @@ const ComposeScreen = () => {
                                 style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
                                 {total > 1 ? (
-                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
                                     <TouchableOpacity
                                       onPress={() => moveAttachment(ARTICLE_ATTACHMENT_KEY, 'left')}
                                       disabled={!canMoveLeft}
@@ -953,7 +953,7 @@ const ComposeScreen = () => {
                                 style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
                                 {total > 1 ? (
-                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
                                     <TouchableOpacity
                                       onPress={() => moveAttachment(EVENT_ATTACHMENT_KEY, 'left')}
                                       disabled={!canMoveLeft}
@@ -1000,7 +1000,7 @@ const ComposeScreen = () => {
                                 style={[styles.linkAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
                                 {total > 1 ? (
-                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
                                     <TouchableOpacity
                                       onPress={() => moveAttachment(LINK_ATTACHMENT_KEY, 'left')}
                                       disabled={!canMoveLeft}
@@ -1056,7 +1056,7 @@ const ComposeScreen = () => {
                                   />
                                 )}
                                 {total > 1 ? (
-                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
                                     <TouchableOpacity
                                       onPress={() => moveAttachment(key, 'left')}
                                       disabled={!canMoveLeft}
@@ -1351,7 +1351,7 @@ const ComposeScreen = () => {
                                   />
                                 )}
                                 {mediaCount > 1 ? (
-                                  <View style={styles.mediaReorderControls} pointerEvents="box-none">
+                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
                                     <TouchableOpacity
                                       onPress={() => moveThreadMedia(item.id, mediaItem.id, 'left')}
                                       disabled={mediaIndex === 0}

@@ -52,7 +52,7 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
                     <HeaderIconButton onPress={onClose} style={styles.closeButton}>
                         <CloseIcon size={20} color={theme.colors.text} />
                     </HeaderIconButton>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]} pointerEvents="none">
+                    <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
                         {t("compose.article.editorTitle", { defaultValue: "Write article" })}
                     </Text>
                     <TouchableOpacity

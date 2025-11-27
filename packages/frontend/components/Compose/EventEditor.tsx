@@ -129,7 +129,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                     <HeaderIconButton onPress={onClose} style={styles.closeButton}>
                         <CloseIcon size={20} color={theme.colors.text} />
                     </HeaderIconButton>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]} pointerEvents="none">
+                    <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
                         {t("compose.event.editorTitle", { defaultValue: "Create event" })}
                     </Text>
                     <TouchableOpacity

@@ -44,7 +44,7 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
                 >
                     <CloseIcon size={20} color={theme.colors.text} />
                 </HeaderIconButton>
-                <Text style={[styles.title, { color: theme.colors.text }]} pointerEvents="none">
+                <Text style={[styles.title, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
                     {title}
                 </Text>
                 <View style={styles.headerRight} />

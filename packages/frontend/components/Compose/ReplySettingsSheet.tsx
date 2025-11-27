@@ -44,7 +44,7 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
         >
           <CloseIcon size={20} color={theme.colors.text} />
         </HeaderIconButton>
-        <Text style={[styles.title, { color: theme.colors.text }]} pointerEvents="none">
+        <Text style={[styles.title, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
           {t('Who can reply and quote') || 'Who can reply and quote'}
         </Text>
         <View style={styles.headerRight} />

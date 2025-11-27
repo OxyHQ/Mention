@@ -76,12 +76,14 @@ const PostAttachmentVideo: React.FC<{
       ]}>
         <VideoView
           player={player}
-          style={hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia}
+          style={[
+            hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia,
+            { pointerEvents: 'none' },
+          ]}
           contentFit="contain"
           nativeControls={false}
           allowsFullscreen={false}
           allowsPictureInPicture={false}
-          pointerEvents="none"
         />
       </View>
     </Pressable>
