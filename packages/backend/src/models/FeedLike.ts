@@ -19,3 +19,4 @@ FeedLikeSchema.index({ userId: 1, feedId: 1 }, { unique: true });
 export const FeedLike = mongoose.model<IFeedLike>("FeedLike", FeedLikeSchema);
 export default FeedLike;
 
+
