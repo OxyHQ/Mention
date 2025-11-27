@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import PostSources from './PostSources';
 import { PostSourceLink } from '@mention/shared-types';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 
 interface PostSourcesSheetProps {
@@ -22,9 +22,9 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}> 
-        <HeaderIconButton onPress={onClose} style={styles.closeButton}>
+        <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
           <CloseIcon size={20} color={theme.colors.text} />
-        </HeaderIconButton>
+        </IconButton>
         <Text style={[styles.title, { color: theme.colors.text }]}>
           {t('post.sourcesSheet.title', { defaultValue: 'Sources' })}
         </Text>

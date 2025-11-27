@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { feedService } from '@/services/feedService';
 import { useRouter } from 'expo-router';
@@ -111,12 +111,12 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
           options={{
             title: type === 'likes' ? 'Likes' : 'Reposts',
             rightComponents: [
-              <HeaderIconButton
+              <IconButton variant="icon"
                 key="close"
                 onPress={onClose}
               >
                 <CloseIcon size={20} color={theme.colors.text} />
-              </HeaderIconButton>,
+              </IconButton>,
             ],
           }}
           hideBottomBorder={true}
@@ -135,12 +135,12 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
         options={{
           title: type === 'likes' ? 'Likes' : 'Reposts',
           rightComponents: [
-            <HeaderIconButton
+            <IconButton variant="icon"
               key="close"
               onPress={onClose}
             >
               <CloseIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>,
+            </IconButton>,
           ],
         }}
         hideBottomBorder={true}

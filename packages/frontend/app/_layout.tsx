@@ -121,23 +121,27 @@ export default function RootLayout() {
   const queryClient = useMemo(() => new QueryClient(QUERY_CLIENT_CONFIG), []);
 
   // Font Loading
-  // Using variable fonts to reduce bundle size - all weights from a single file
-  const [fontsLoaded] = useFonts({
-    'Inter-Thin': require('@/assets/fonts/inter/InterVariable.ttf'),
-    'Inter-ExtraLight': require('@/assets/fonts/inter/InterVariable.ttf'),
-    'Inter-Light': require('@/assets/fonts/inter/InterVariable.ttf'),
-    'Inter-Regular': require('@/assets/fonts/inter/InterVariable.ttf'),
-    'Inter-Medium': require('@/assets/fonts/inter/InterVariable.ttf'),
-    'Inter-SemiBold': require('@/assets/fonts/inter/InterVariable.ttf'),
-    'Inter-Bold': require('@/assets/fonts/inter/InterVariable.ttf'),
-    'Inter-ExtraBold': require('@/assets/fonts/inter/InterVariable.ttf'),
-    'Inter-Black': require('@/assets/fonts/inter/InterVariable.ttf'),
-    'Phudu-Thin': require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),
-    'Phudu-Regular': require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),
-    'Phudu-Medium': require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),
-    'Phudu-SemiBold': require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),
-    'Phudu-Bold': require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),
-  });
+  // Optimized: Using variable fonts - single file per family contains all weights
+  // This reduces loading overhead significantly compared to registering each weight separately
+  const [fontsLoaded] = useFonts(
+    useMemo(() => {
+      const fontMap: Record<string, any> = {};
+      const InterVariable = require('@/assets/fonts/inter/InterVariable.ttf');
+      const PhuduVariable = require('@/assets/fonts/Phudu-VariableFont_wght.ttf');
+      
+      // Inter: Single variable font with weight aliases
+      ['Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'].forEach(weight => {
+        fontMap[`Inter-${weight}`] = InterVariable;
+      });
+      
+      // Phudu: Single variable font with weight aliases
+      ['Thin', 'Regular', 'Medium', 'SemiBold', 'Bold'].forEach(weight => {
+        fontMap[`Phudu-${weight}`] = PhuduVariable;
+      });
+      
+      return fontMap;
+    }, [])
+  );
 
   // Callbacks
   const handleSplashFadeComplete = useCallback(() => {

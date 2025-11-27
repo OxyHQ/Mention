@@ -9,7 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { statisticsService, PostInsights } from '@/services/statisticsService';
 import SectionHeader from '@/components/insights/SectionHeader';
@@ -59,12 +59,12 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                     options={{
                         title: t('insights.post.title'),
                         rightComponents: [
-                            <HeaderIconButton
+                            <IconButton variant="icon"
                                 key="close"
                                 onPress={onClose}
                             >
                                 <CloseIcon size={20} color={theme.colors.text} />
-                            </HeaderIconButton>,
+                            </IconButton>,
                         ],
                     }}
                     hideBottomBorder={true}
@@ -84,12 +84,12 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                     options={{
                         title: t('insights.post.title'),
                         rightComponents: [
-                            <HeaderIconButton
+                            <IconButton variant="icon"
                                 key="close"
                                 onPress={onClose}
                             >
                                 <CloseIcon size={20} color={theme.colors.text} />
-                            </HeaderIconButton>,
+                            </IconButton>,
                         ],
                     }}
                     hideBottomBorder={true}
@@ -112,12 +112,12 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                 options={{
                     title: t('insights.post.title'),
                     rightComponents: [
-                        <HeaderIconButton
+                        <IconButton variant="icon"
                             key="close"
                             onPress={onClose}
                         >
                             <CloseIcon size={20} color={theme.colors.text} />
-                        </HeaderIconButton>,
+                        </IconButton>,
                     ],
                 }}
                 hideBottomBorder={true}

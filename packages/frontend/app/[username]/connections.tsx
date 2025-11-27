@@ -1,5 +1,5 @@
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import Avatar from '@/components/Avatar';
@@ -332,12 +332,12 @@ export default function ConnectionsScreen() {
         options={{
           title: getTitle(),
           leftComponents: [
-            <HeaderIconButton
+            <IconButton variant="icon"
               key="back"
               onPress={() => router.back()}
             >
               <BackArrowIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>,
+            </IconButton>,
           ],
         }}
         hideBottomBorder={true}

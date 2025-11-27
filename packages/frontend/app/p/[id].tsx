@@ -26,7 +26,7 @@ import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useOxy } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@/hooks/useTheme';
 import ComposeToolbar from '@/components/ComposeToolbar';
@@ -403,12 +403,12 @@ const PostDetailScreen: React.FC = () => {
                     options={{
                         title: 'Post',
                         leftComponents: [
-                            <HeaderIconButton
+                            <IconButton variant="icon"
                                 key="back"
                                 onPress={handleBack}
                             >
                                 <BackArrowIcon size={20} color={theme.colors.text} />
-                            </HeaderIconButton>,
+                            </IconButton>,
                         ],
                     }}
                     hideBottomBorder={true}
@@ -434,12 +434,12 @@ const PostDetailScreen: React.FC = () => {
                         options={{
                             title: 'Post',
                             leftComponents: [
-                                <HeaderIconButton
+                                <IconButton variant="icon"
                                     key="back"
                                     onPress={handleBack}
                                 >
                                     <BackArrowIcon size={20} color={theme.colors.text} />
-                                </HeaderIconButton>,
+                                </IconButton>,
                             ],
                         }}
                         hideBottomBorder={true}
@@ -480,12 +480,12 @@ const PostDetailScreen: React.FC = () => {
                     options={{
                         title: post?.isThread ? 'Thread' : 'Post',
                         leftComponents: [
-                            <HeaderIconButton
+                            <IconButton variant="icon"
                                 key="back"
                                 onPress={handleBack}
                             >
                                 <BackArrowIcon size={20} color={theme.colors.text} />
-                            </HeaderIconButton>,
+                            </IconButton>,
                         ],
                     }}
                     hideBottomBorder={true}

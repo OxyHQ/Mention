@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Activi
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { colors as baseColors } from '@/styles/colors';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -82,12 +82,12 @@ export default function AppearanceSettingsScreen() {
         options={{ 
           title: 'Appearance', 
           leftComponents: [
-            <HeaderIconButton
+            <IconButton variant="icon"
               key="back"
               onPress={() => router.back()}
             >
               <BackArrowIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>,
+            </IconButton>,
           ],
         }} 
         hideBottomBorder={true}

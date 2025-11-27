@@ -3,7 +3,7 @@ import { View, StyleSheet, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
-import { Button } from './common/Button';
+import { Button } from '@/components/ui/Button';
 import { Ionicons } from '@expo/vector-icons';
 
 /**

@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import Avatar from '@/components/Avatar';
 import { useTheme } from '@/hooks/useTheme';
@@ -87,12 +87,12 @@ const CreateFeedScreen: React.FC = () => {
         options={{ 
           title: 'Create Feed', 
           leftComponents: [
-            <HeaderIconButton
+            <IconButton variant="icon"
               key="back"
               onPress={() => router.back()}
             >
               <BackArrowIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>,
+            </IconButton>,
           ],
         }} 
         hideBottomBorder={true}

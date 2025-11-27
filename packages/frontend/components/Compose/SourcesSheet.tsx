@@ -4,7 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { Plus } from '@/assets/icons/plus-icon';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 
 type SourceField = 'title' | 'url';
@@ -54,9 +54,9 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
     >
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}
       >
-        <HeaderIconButton onPress={onClose} style={styles.closeButton}>
+        <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
           <CloseIcon size={20} color={theme.colors.text} />
-        </HeaderIconButton>
+        </IconButton>
         <Text style={[styles.title, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
           {t('compose.sources.heading', { defaultValue: 'Sources' })}
         </Text>

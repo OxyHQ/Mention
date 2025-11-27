@@ -27,8 +27,8 @@ import { ShareIcon } from '@/assets/icons/share-icon';
 // Components
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
-import { FloatingActionButton } from '@/components/FloatingActionButton';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { FloatingActionButton as FAB } from '@/components/ui/Button';
+import { IconButton } from '@/components/ui/Button';
 import SEO from '@/components/SEO';
 
 // Profile components
@@ -275,20 +275,20 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         {/* Header actions */}
                         <View style={[styles.headerActions, themedStyles.headerActions]}>
                             {!isOwnProfile && (
-                                <HeaderIconButton onPress={toggleSubscription} disabled={subLoading}>
+                                <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
                                     {subscribed ? (
                                         <BellActive size={20} color={theme.colors.primary} />
                                     ) : (
                                         <Bell size={20} color={theme.colors.text} />
                                     )}
-                                </HeaderIconButton>
+                                </IconButton>
                             )}
-                            <HeaderIconButton>
+                            <IconButton variant="icon">
                                 <Search size={20} color={theme.colors.text} />
-                            </HeaderIconButton>
-                            <HeaderIconButton onPress={handleShare}>
+                            </IconButton>
+                            <IconButton variant="icon" onPress={handleShare}>
                                 <ShareIcon size={20} color={theme.colors.text} />
-                            </HeaderIconButton>
+                            </IconButton>
                         </View>
 
                         {/* Header name overlay (hidden by default) */}
@@ -405,7 +405,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         </Animated.ScrollView>
 
                         {/* FAB */}
-                        <FloatingActionButton
+                        <FAB
                             onPress={() => router.push('/compose')}
                             style={themedStyles.fabStyle}
                         />

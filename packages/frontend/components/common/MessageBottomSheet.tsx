@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 
 interface MessageBottomSheetProps {
     title: string;
@@ -38,12 +38,12 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
             {/* Header */}
             <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-                <HeaderIconButton 
+                <IconButton variant="icon" 
                     onPress={onClose}
                     style={styles.closeButton}
                 >
                     <CloseIcon size={20} color={theme.colors.text} />
-                </HeaderIconButton>
+                </IconButton>
                 <Text style={[styles.title, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
                     {title}
                 </Text>

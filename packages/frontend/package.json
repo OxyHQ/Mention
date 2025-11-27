@@ -17,7 +17,8 @@
     "build-web:prod": "expo export --platform web --output-dir dist",
     "test": "jest --watchAll",
     "lint": "expo lint",
-    "clean": "rm -rf dist .expo"
+    "clean": "rm -rf dist .expo",
+    "analyze-bundle": "node ./scripts/analyze-bundle.js"
   },
   "jest": {
     "preset": "jest-expo"

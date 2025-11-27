@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@/hooks/useTheme';
 import { customFeedsService } from '@/services/customFeedsService';
@@ -137,18 +137,18 @@ export default function CustomFeedTimelineScreen() {
           ) : undefined,
           headerTitleStyle: { justifyContent: 'flex-start', flex: 1 },
           leftComponents: [
-            <HeaderIconButton key="back" onPress={() => router.back()}>
+            <IconButton variant="icon" key="back" onPress={() => router.back()}>
               <BackArrowIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>,
+            </IconButton>,
             <Avatar key="avatar" source={feed?.avatar} size={32} style={{ borderRadius: 4, marginLeft: -4 }} />,
           ],
           rightComponents: [
-            <HeaderIconButton key="more" onPress={() => setShowDetails(true)}>
+            <IconButton variant="icon" key="more" onPress={() => setShowDetails(true)}>
               <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text} />
-            </HeaderIconButton>,
-            <HeaderIconButton key="pin" onPress={onTogglePin}>
+            </IconButton>,
+            <IconButton variant="icon" key="pin" onPress={onTogglePin}>
               <Ionicons name={isPinned ? "pin" : "pin-outline"} size={24} color={theme.colors.text} />
-            </HeaderIconButton>,
+            </IconButton>,
           ],
         }}
         hideBottomBorder={false}

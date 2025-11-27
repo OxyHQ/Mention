@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, ScrollView, Animated } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
-import { HeaderIconButton } from "@/components/HeaderIconButton";
+import { IconButton } from '@/components/ui/Button';
 import { Toggle } from "@/components/Toggle";
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useOxy } from "@oxyhq/services";
@@ -288,12 +288,12 @@ export default function SettingsScreen() {
                 options={{
                     title: t("settings.title"),
                     leftComponents: [
-                        <HeaderIconButton
+                        <IconButton variant="icon"
                             key="back"
                             onPress={() => router.back()}
                         >
                             <BackArrowIcon size={20} color={theme.colors.text} />
-                        </HeaderIconButton>,
+                        </IconButton>,
                     ],
                 }}
                 hideBottomBorder={true}

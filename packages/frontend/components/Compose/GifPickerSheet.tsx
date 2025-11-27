@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -239,9 +239,9 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         options={{
           title: t('Select a GIF'),
           rightComponents: [
-            <HeaderIconButton key="close" onPress={onClose}>
+            <IconButton variant="icon" key="close" onPress={onClose}>
               <CloseIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>,
+            </IconButton>,
           ],
         }}
         hideBottomBorder={true}

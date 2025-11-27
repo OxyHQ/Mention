@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
@@ -192,9 +192,9 @@ export default function FeedSettingsScreen() {
           options={{
             title: t('settings.feed.title'),
             leftComponents: [
-              <HeaderIconButton key="back" onPress={() => router.back()}>
+              <IconButton variant="icon" key="back" onPress={() => router.back()}>
                 <BackArrowIcon size={20} color={theme.colors.text} />
-              </HeaderIconButton>,
+              </IconButton>,
             ],
           }}
           hideBottomBorder={true}
@@ -213,9 +213,9 @@ export default function FeedSettingsScreen() {
         options={{
           title: t('settings.feed.title'),
           leftComponents: [
-            <HeaderIconButton key="back" onPress={() => router.back()}>
+            <IconButton variant="icon" key="back" onPress={() => router.back()}>
               <BackArrowIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>,
+            </IconButton>,
           ],
           rightComponents: [
             saving ? (

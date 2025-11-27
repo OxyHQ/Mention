@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
-import { HeaderIconButton } from "@/components/HeaderIconButton";
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTheme } from "@/hooks/useTheme";
 import { searchService } from "@/services/searchService";
@@ -386,22 +386,22 @@ export default function SearchIndex() {
                         options={{
                             title: t("search.title", "Search"),
                             leftComponents: [
-                                <HeaderIconButton
+                                <IconButton variant="icon"
                                     key="back"
                                     onPress={() => router.back()}
                                 >
                                     <BackArrowIcon size={20} color={theme.colors.text} />
-                                </HeaderIconButton>,
+                                </IconButton>,
                             ],
                             rightComponents: [
-                                <HeaderIconButton
+                                <IconButton variant="icon"
                                     key="filter"
                                     onPress={() => {
                                         // TODO: Add filter functionality
                                     }}
                                 >
                                     <Ionicons name="options-outline" size={20} color={theme.colors.text} />
-                                </HeaderIconButton>,
+                                </IconButton>,
                             ],
                         }}
                         hideBottomBorder={true}

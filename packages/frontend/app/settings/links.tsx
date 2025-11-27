@@ -2,7 +2,7 @@ import { useCallback, useState, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Platform, Animated } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
-import { HeaderIconButton } from "@/components/HeaderIconButton";
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTranslation } from "react-i18next";
 import { useLayoutScroll } from "@/context/LayoutScrollContext";
@@ -145,12 +145,12 @@ export default function LinkSettingsScreen() {
                 options={{
                     title: t("settings.links.title"),
                     leftComponents: [
-                        <HeaderIconButton
+                        <IconButton variant="icon"
                             key="back"
                             onPress={() => router.back()}
                         >
                             <BackArrowIcon size={20} color={theme.colors.text} />
-                        </HeaderIconButton>,
+                        </IconButton>,
                     ],
                 }}
                 hideBottomBorder={true}

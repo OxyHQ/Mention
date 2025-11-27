@@ -61,41 +61,15 @@ export function convertShadowToBoxShadow(
 }
 
 /**
- * Flatten an array of styles into a single style object
+ * Theme Utilities
+ * 
+ * Core theme utility functions that work with theme objects.
+ * For style constants (spacing, typography, etc.), use @/styles/index.ts
  */
-export function flattenStyleArray<T extends ViewStyle | TextStyle | ImageStyle>(
-  styles: (StyleProp<T> | undefined | null | false)[]
-): StyleProp<T> {
-  return StyleSheet.flatten(styles) as StyleProp<T>;
-}
 
 /**
- * Common theme-aware shadows
+ * Re-exports from @/styles/shared for backward compatibility
+ * These functions work with Theme objects but are defined in styles/shared
+ * to avoid circular dependencies.
  */
-export function getThemedShadow(theme: Theme, elevation: "small" | "medium" | "large" = "medium") {
-  const shadows = {
-    small: {
-      boxShadow: convertShadowToBoxShadow(theme.colors.shadow, { width: 0, height: 1 }, 0.1, 2),
-      elevation: 2,
-    },
-    medium: {
-      boxShadow: convertShadowToBoxShadow(theme.colors.shadow, { width: 0, height: 2 }, 0.15, 4),
-      elevation: 4,
-    },
-    large: {
-      boxShadow: convertShadowToBoxShadow(theme.colors.shadow, { width: 0, height: 4 }, 0.2, 8),
-      elevation: 8,
-    },
-  };
-  return shadows[elevation];
-}
-
-/**
- * Get themed border style
- */
-export function getThemedBorder(theme: Theme, width: number = 1) {
-  return {
-    borderWidth: width,
-    borderColor: theme.colors.border,
-  };
-}
+export { flattenStyleArray, getThemedShadow, getThemedBorder } from '@/styles/shared';

@@ -3,7 +3,7 @@ import { View, Animated, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import { LogoIcon } from '@/assets/logo';
-import LoadingSpinner from './LoadingSpinner';
+import { LoadingSpinner } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 
 // Configure LinearGradient for NativeWind
@@ -69,8 +69,11 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
 
     // Gradient colors: background to primary for visual depth
     const gradientColors = useMemo(
-        () => [theme.colors.background, theme.colors.primary] as const,
-        [theme.colors.background, theme.colors.primary]
+        () => [
+            theme?.colors?.background || '#ffffff',
+            theme?.colors?.primary || '#000000',
+        ] as const,
+        [theme?.colors?.background, theme?.colors?.primary]
     );
 
     return (
@@ -82,7 +85,7 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
                 <View style={styles.logoContainer}>
                     <LogoIcon size={LOGO_SIZE} color="white" />
                     <View style={styles.spinnerContainer}>
-                        <LoadingSpinner size={SPINNER_SIZE} color="white" showText={false} />
+                        <LoadingSpinner iconSize={SPINNER_SIZE} color="white" showText={false} />
                     </View>
                 </View>
             </LinearGradient>

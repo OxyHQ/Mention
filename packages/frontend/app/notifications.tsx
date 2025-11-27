@@ -13,7 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import { ThemedText } from '../components/ThemedText';
 import { ThemedView } from '../components/ThemedView';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { LoadingSpinner } from '@/components/ui/Loading';
 import { NotificationItem } from '../components/NotificationItem';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { notificationService } from '../services/notificationService';
@@ -28,7 +28,7 @@ import { StatusBar } from 'expo-status-bar';
 import { toast } from 'sonner';
 import { confirmDialog } from '../utils/alerts';
 import SEO from '@/components/SEO';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 
@@ -352,7 +352,7 @@ const NotificationsScreen: React.FC = () => {
                             showBackButton: false,
                             rightComponents: [
                                 unreadCount > 0 ? (
-                                    <HeaderIconButton
+                                    <IconButton variant="icon"
                                         key="mark-all"
                                         onPress={handleMarkAllAsRead}
                                         disabled={markAllAsReadMutation.isPending}
@@ -360,7 +360,7 @@ const NotificationsScreen: React.FC = () => {
                                         <ThemedText style={[styles.markAllText, { color: theme.colors.primary }]}>
                                             {t('notification.mark_all_read')}
                                         </ThemedText>
-                                    </HeaderIconButton>
+                                    </IconButton>
                                 ) : null,
                             ].filter(Boolean),
                         }}

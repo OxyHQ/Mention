@@ -27,7 +27,7 @@ import SectionHeader from '@/components/insights/SectionHeader';
 import HeroCard from '@/components/insights/HeroCard';
 import SummaryCard from '@/components/insights/SummaryCard';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { StatusBar } from 'expo-status-bar';
@@ -638,12 +638,12 @@ const InsightsScreen: React.FC = () => {
                     options={{
                         title: t('Insights'),
                         leftComponents: [
-                            <HeaderIconButton
+                            <IconButton variant="icon"
                                 key="back"
                                 onPress={() => router.back()}
                             >
                                 <BackArrowIcon size={20} color={theme.colors.text} />
-                            </HeaderIconButton>,
+                            </IconButton>,
                         ],
                     }}
                     hideBottomBorder={true}

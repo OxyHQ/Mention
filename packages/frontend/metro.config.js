@@ -39,6 +39,11 @@ config.resolver = {
     /__tests__\/.*/,
     /\.test\.(js|ts|tsx|jsx)$/,
     /\.spec\.(js|ts|tsx|jsx)$/,
+    // Block documentation files
+    /\.md$/,
+    /README/,
+    // Block source maps in production (they can be large)
+    /\.map$/,
   ],
   extraNodeModules: {
     '@mention/shared-types': path.join(monorepoRoot, 'packages/shared-types'),
@@ -50,6 +55,50 @@ config.resolver = {
   ],
   // Disable symlink following to prevent circular dependencies
   unstable_enableSymlinks: false,
+  // Enable tree shaking by using source extensions
+  sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
+  assetExts: config.resolver.assetExts.filter((ext) => ext !== 'svg'),
+};
+
+// Optimize transformer for better tree shaking
+config.transformer = {
+  ...config.transformer,
+  // Enable minification in production
+  minifierConfig: {
+    ...config.transformer?.minifierConfig,
+    keep_classnames: false,
+    keep_fnames: false,
+    mangle: {
+      keep_classnames: false,
+      keep_fnames: false,
+    },
+    output: {
+      ascii_only: true,
+      quote_style: 3,
+      wrap_iife: true,
+    },
+    sourceMap: {
+      includeSources: false,
+    },
+    toplevel: false,
+    compress: {
+      // Optimize compression
+      arguments: true,
+      dead_code: true,
+      drop_console: false, // Keep console in development
+      drop_debugger: true,
+      ecma: 2020,
+      evaluate: true,
+      inline: 1,
+      passes: 3, // Multiple passes for better optimization
+      reduce_funcs: true,
+      reduce_vars: true,
+      unsafe: false,
+      unsafe_comps: false,
+      unsafe_math: false,
+      unsafe_methods: false,
+    },
+  },
 };
 
 module.exports = config;

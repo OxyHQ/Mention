@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import { useTranslation } from "react-i18next";
-import { HeaderIconButton } from "@/components/HeaderIconButton";
+import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from "@/assets/icons/close-icon";
 
 interface ArticleEditorProps {
@@ -49,9 +49,9 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
                 style={[styles.container, { backgroundColor: theme.colors.background }]}
             >
                 <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-                    <HeaderIconButton onPress={onClose} style={styles.closeButton}>
+                    <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
                         <CloseIcon size={20} color={theme.colors.text} />
-                    </HeaderIconButton>
+                    </IconButton>
                     <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
                         {t("compose.article.editorTitle", { defaultValue: "Write article" })}
                     </Text>

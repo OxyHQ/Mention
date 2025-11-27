@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { FeedCard, type FeedCardData } from '@/components/FeedCard';
@@ -238,9 +238,9 @@ const FeedsScreen: React.FC = () => {
           options={{
             title: t('Feeds'),
             rightComponents: [
-              <HeaderIconButton key="settings" onPress={() => router.push('/settings/feeds')}>
+              <IconButton variant="icon" key="settings" onPress={() => router.push('/settings/feeds')}>
                 <Ionicons name="settings-outline" size={24} color={theme.colors.text} />
-              </HeaderIconButton>,
+              </IconButton>,
             ],
           }}
         />

@@ -32,7 +32,7 @@ import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
 import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -667,17 +667,17 @@ const ComposeScreen = () => {
 
             {/* Header */}
             <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-              <HeaderIconButton
+              <IconButton variant="icon"
                 onPress={() => {
                   router.back();
                 }}
                 style={styles.backBtn}
               >
                 <BackArrowIcon size={20} color={theme.colors.text} />
-              </HeaderIconButton>
+              </IconButton>
               <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>{t('New post')}</Text>
               <View style={styles.headerIcons}>
-                <HeaderIconButton
+                <IconButton variant="icon"
                   style={styles.iconBtn}
                   onPress={() => setShowModeToggle(!showModeToggle)}
                 >
@@ -686,8 +686,8 @@ const ComposeScreen = () => {
                   ) : (
                     <ChevronRightIcon size={20} color={theme.colors.text} style={{ transform: [{ rotate: '90deg' }] }} />
                   )}
-                </HeaderIconButton>
-                <HeaderIconButton
+                </IconButton>
+                <IconButton variant="icon"
                   style={styles.iconBtn}
                   onPress={() => {
                     bottomSheet.setBottomSheetContent(
@@ -701,8 +701,8 @@ const ComposeScreen = () => {
                   }}
                 >
                   <DraftsIcon size={20} color={theme.colors.text} />
-                </HeaderIconButton>
-                <HeaderIconButton
+                </IconButton>
+                <IconButton variant="icon"
                   style={styles.iconBtn}
                   onPress={() => {
                     // Menu icon - show compose options
@@ -740,7 +740,7 @@ const ComposeScreen = () => {
                   }}
                 >
                   <DotIcon size={20} color={theme.colors.text} />
-                </HeaderIconButton>
+                </IconButton>
               </View>
             </View>
 

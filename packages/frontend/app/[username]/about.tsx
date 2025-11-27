@@ -1,5 +1,5 @@
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -73,12 +73,13 @@ export default function AccountInfoScreen() {
         options={{
           title: t('About', { defaultValue: 'About' }),
           leftComponents: [
-            <HeaderIconButton
+            <IconButton
               key="back"
+              variant="icon"
               onPress={() => router.back()}
             >
               <BackArrowIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>,
+            </IconButton>,
           ],
         }}
         hideBottomBorder={true}

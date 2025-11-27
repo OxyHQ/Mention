@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, View, Pressable, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTheme } from '@/hooks/useTheme';
-import { LazyImage } from '@/components/LazyImage';
+import { LazyImage } from '@/components/ui/LazyImage';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)

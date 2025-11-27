@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -76,12 +76,12 @@ export default function LanguageSettingsScreen() {
                 options={{
                     title: t('Language'),
                     leftComponents: [
-                        <HeaderIconButton
+                        <IconButton variant="icon"
                             key="back"
                             onPress={() => router.back()}
                         >
                             <BackArrowIcon size={20} color={theme.colors.text} />
-                        </HeaderIconButton>,
+                        </IconButton>,
                     ],
                 }}
                 hideBottomBorder={true}

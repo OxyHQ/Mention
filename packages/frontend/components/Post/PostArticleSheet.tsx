@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-nat
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { articleService } from '@/services/articleService';
 
 interface PostArticleSheetProps {
@@ -61,9 +61,9 @@ const PostArticleSheet: React.FC<PostArticleSheetProps> = ({ articleId, title, b
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <HeaderIconButton onPress={onClose} style={styles.closeButton}>
+        <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
           <CloseIcon size={20} color={theme.colors.text} />
-        </HeaderIconButton>
+        </IconButton>
         <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>
           {t('post.articleSheet.title', { defaultValue: 'Article' })}
         </Text>

@@ -12,11 +12,11 @@ import AnimatedTabBar from '../components/common/AnimatedTabBar';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { FloatingActionButton } from '@/components/FloatingActionButton';
+import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import { WhoToFollowTab } from '@/components/WhoToFollowTab';
 import SEO from '@/components/SEO';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people';
 
@@ -37,24 +37,24 @@ const ExploreScreen: React.FC = () => {
     switch (activeTab) {
       case 'media':
         return (
-          <Feed type="media" recycleItems={true} maintainVisibleContentPosition={true} />
+          <Feed type="media" />
         );
 
       case 'trending':
         return (
-          <Feed type="explore" recycleItems={true} maintainVisibleContentPosition={true} />
+          <Feed type="explore" />
         );
 
       case 'custom':
         return (
-          <Feed type="posts" recycleItems={true} maintainVisibleContentPosition={true} />
+          <Feed type="posts" />
         );
 
       case 'people':
         return <WhoToFollowTab />;
 
       default:
-        return <Feed type="explore" recycleItems={true} maintainVisibleContentPosition={true} />;
+        return <Feed type="explore" />;
     }
   };
 
@@ -62,16 +62,16 @@ const ExploreScreen: React.FC = () => {
   useEffect(() => {
     let isScrollingDown = false;
     let lastKnownScrollY = 0;
-    
+
     const listenerId = scrollY.addListener(({ value }) => {
       const currentScrollY = typeof value === 'number' ? value : 0;
       const scrollDelta = currentScrollY - lastKnownScrollY;
-      
+
       // Determine scroll direction (only update if movement is significant)
       if (Math.abs(scrollDelta) > 1) {
         isScrollingDown = scrollDelta > 0;
       }
-      
+
       if (currentScrollY > 50) { // Only hide after scrolling past threshold
         if (isScrollingDown) {
           // Scrolling down - hide header and FAB with opacity
@@ -93,10 +93,10 @@ const ExploreScreen: React.FC = () => {
         fabTranslateY.value = withTiming(0, { duration: 200 });
         fabOpacity.value = withTiming(1, { duration: 200 });
       }
-      
+
       lastKnownScrollY = currentScrollY;
     });
-    
+
     return () => {
       scrollY.removeListener(listenerId);
     };
@@ -129,59 +129,59 @@ const ExploreScreen: React.FC = () => {
         <ThemedView style={{ flex: 1 }}>
           <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-        {/* Header - animated */}
-        <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
-          <Header
-            options={{
-              title: t('Explore'),
-              rightComponents: [
-                <HeaderIconButton
-                  key="search"
-                  onPress={() => router.push('/search')}
-                >
-                  <Search color={theme.colors.text} size={20} />
-                </HeaderIconButton>,
-              ],
-            }}
-            hideBottomBorder={true}
-            disableSticky={true}
+          {/* Header - animated */}
+          <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
+            <Header
+              options={{
+                title: t('Explore'),
+                rightComponents: [
+                  <IconButton variant="icon"
+                    key="search"
+                    onPress={() => router.push('/search')}
+                  >
+                    <Search color={theme.colors.text} size={20} />
+                  </IconButton>,
+                ],
+              }}
+              hideBottomBorder={true}
+              disableSticky={true}
+            />
+          </Animated.View>
+
+          {/* Spacer for header - maintains layout space */}
+          <Animated.View style={[styles.tabBarSpacer, tabBarSpacerStyle]} />
+
+          {/* Tab Navigation - sticky */}
+          <View style={styles.stickyTabBar}>
+            <AnimatedTabBar
+              tabs={[
+                { id: 'all', label: t('All') },
+                { id: 'media', label: t('Media') },
+                { id: 'trending', label: t('Trending') },
+                { id: 'custom', label: t('Custom') },
+                { id: 'people', label: t('Who to follow') },
+              ]}
+              activeTabId={activeTab}
+              onTabPress={(id) => setActiveTab(id as ExploreTab)}
+              scrollEnabled={true}
+            />
+          </View>
+
+          {/* Content */}
+          {renderContent()}
+
+          {/* Floating Action Button - Search */}
+          <FAB
+            onPress={() => router.push('/search')}
+            customIcon={<Search color={theme.colors.card} size={24} />}
+            animatedTranslateY={fabTranslateY}
+            animatedOpacity={fabOpacity}
           />
-        </Animated.View>
-
-        {/* Spacer for header - maintains layout space */}
-        <Animated.View style={[styles.tabBarSpacer, tabBarSpacerStyle]} />
-        
-        {/* Tab Navigation - sticky */}
-        <View style={styles.stickyTabBar}>
-          <AnimatedTabBar
-            tabs={[
-              { id: 'all', label: t('All') },
-              { id: 'media', label: t('Media') },
-              { id: 'trending', label: t('Trending') },
-              { id: 'custom', label: t('Custom') },
-              { id: 'people', label: t('Who to follow') },
-            ]}
-            activeTabId={activeTab}
-            onTabPress={(id) => setActiveTab(id as ExploreTab)}
-            scrollEnabled={true}
-          />
-        </View>
-
-        {/* Content */}
-        {renderContent()}
-
-        {/* Floating Action Button - Search */}
-        <FloatingActionButton
-          onPress={() => router.push('/search')}
-          customIcon={<Search color={theme.colors.card} size={24} />}
-          animatedTranslateY={fabTranslateY}
-          animatedOpacity={fabOpacity}
-        />
-      </ThemedView>
+        </ThemedView>
       </SafeAreaView>
-      </>
-    );
-  };
+    </>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {

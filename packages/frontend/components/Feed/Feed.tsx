@@ -12,7 +12,7 @@ import PostItem from './PostItem';
 // Type alias for feed items (what PostItem expects)
 type FeedItem = UIPost | Reply | Repost;
 import ErrorBoundary from '../ErrorBoundary';
-import LoadingTopSpinner from '../LoadingTopSpinner';
+import { LoadingTopSpinner } from '@/components/ui/Loading';
 import { useOxy } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';

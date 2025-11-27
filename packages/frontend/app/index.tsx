@@ -16,10 +16,10 @@ import { useTheme } from '@/hooks/useTheme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, interpolate } from 'react-native-reanimated';
-import { FloatingActionButton } from '@/components/FloatingActionButton';
+import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import SEO from '@/components/SEO';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 
 type HomeTab = 'for_you' | 'following' | 'trending' | string;
 
@@ -306,18 +306,18 @@ const HomeScreen: React.FC = () => {
                         options={{
                             title: 'Mention',
                             rightComponents: [
-                                <HeaderIconButton
+                                <IconButton variant="icon"
                                     key="search"
                                     onPress={() => router.push('/search')}
                                 >
                                     <Search color={theme.colors.text} size={20} />
-                                </HeaderIconButton>,
-                                <HeaderIconButton
+                                </IconButton>,
+                                <IconButton variant="icon"
                                     key="notifications"
                                     onPress={() => router.push('/notifications')}
                                 >
                                     <Ionicons name="notifications-outline" size={20} color={theme.colors.text} />
-                                </HeaderIconButton>
+                                </IconButton>
                             ]
                         }}
                         hideBottomBorder={true}
@@ -348,7 +348,7 @@ const HomeScreen: React.FC = () => {
 
                 {/* Floating Action Button */}
                 {isAuthenticated && (
-                    <FloatingActionButton
+                    <FAB
                         onPress={() => router.push('/compose')}
                         animatedTranslateY={fabTranslateY}
                         animatedOpacity={fabOpacity}

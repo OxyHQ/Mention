@@ -13,7 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
-import LoadingTopSpinner from '@/components/LoadingTopSpinner';
+import { LoadingTopSpinner } from '@/components/ui/Loading';
 import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';

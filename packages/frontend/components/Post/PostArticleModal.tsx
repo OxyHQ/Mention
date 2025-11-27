@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
-import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { IconButton } from '@/components/ui/Button';
 import { articleService } from '@/services/articleService';
 import LinkifiedText from '@/components/common/LinkifiedText';
 import { Portal } from '@/components/Portal';
@@ -258,9 +258,9 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
           style={styles.pressableContent}
         >
           <View style={headerStyle}>
-            <HeaderIconButton onPress={stableOnClose} style={styles.closeButton}>
+            <IconButton variant="icon" onPress={stableOnClose} style={styles.closeButton}>
               <CloseIcon size={20} color={theme.colors.text} />
-            </HeaderIconButton>
+            </IconButton>
             <Text style={[headerTitleStyle, { pointerEvents: 'none' }]}>
               {titleText}
             </Text>

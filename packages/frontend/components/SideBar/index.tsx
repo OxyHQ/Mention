@@ -12,7 +12,7 @@ import { usePathname, useRouter } from "expo-router";
 import { useMediaQuery } from "react-responsive";
 import { useTranslation } from "react-i18next";
 import { SideBarItem } from "./SideBarItem";
-import { Button } from "@/components/SideBar/Button";
+import { Button } from "@/components/ui/Button";
 import { Logo } from "@/components/Logo";
 import Avatar from "@/components/Avatar";
 import { Home, HomeActive } from "@/assets/icons/home-icon";
