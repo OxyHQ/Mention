@@ -586,13 +586,14 @@ export class PostHydrationService {
       status: post.status,
     };
 
-    // Only replace mentions if we have them and they're needed
-    // For feed, we can skip this expensive operation if mentions aren't being used
+    // Always replace mentions in text if they exist, regardless of includeFullMetadata
+    // This ensures mentions are always displayed correctly
     let finalText = content?.text ?? '';
-    if (metadata.mentions && metadata.mentions.length > 0 && finalText.includes('[mention:')) {
+    const postMentions = Array.isArray(post.mentions) && post.mentions.length > 0 ? post.mentions : [];
+    if (postMentions.length > 0 && finalText.includes('[mention:')) {
       finalText = await this.replaceMentionPlaceholders(
         finalText,
-        metadata.mentions,
+        postMentions,
         mentionCache,
       );
     }
@@ -876,7 +877,19 @@ export class PostHydrationService {
         try {
           const userData = await oxyClient.getUserById(mentionId);
           const username = userData.username || mentionId;
-          const displayName = userData.name?.full || username || mentionId;
+          
+          // Use proper full name fallback chain: name.full → name.first + name.last → displayName → username
+          let fullName: string;
+          if (userData.name?.full) {
+            fullName = userData.name.full;
+          } else if (userData.name?.first) {
+            fullName = `${userData.name.first} ${userData.name.last || ''}`.trim();
+          } else if (userData.displayName) {
+            fullName = userData.displayName;
+          } else {
+            fullName = username;
+          }
+          
           const avatarValue = typeof userData.avatar === 'string'
             ? userData.avatar
             : (userData.avatar as any)?.url || userData.profileImage || undefined;
@@ -884,8 +897,8 @@ export class PostHydrationService {
           mentionUser = {
             id: userData.id || mentionId,
             handle: username,
-            displayName: displayName,
-            name: displayName,
+            displayName: fullName,
+            name: fullName,
             avatarUrl: avatarValue,
             avatar: avatarValue,
             badges: Array.isArray(userData.badges)
