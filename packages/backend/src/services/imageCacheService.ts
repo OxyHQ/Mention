@@ -23,11 +23,16 @@ const MAX_FILE_SIZE = Number(process.env.LINK_PREVIEW_MAX_FILE_SIZE ?? 500 * 102
 
 let bucket: GridFSBucket | null = null;
 
-const initGridFS = () => {
+const initGridFS = (): GridFSBucket | null => {
   if (!bucket && mongoose.connection.db) {
-    bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-      bucketName: 'link_images'
-    });
+    try {
+      bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+        bucketName: 'link_images'
+      });
+    } catch (error) {
+      logger.error('[ImageCacheService] Failed to initialize GridFS bucket:', error);
+      return null;
+    }
   }
   return bucket;
 };
@@ -37,10 +42,39 @@ class ImageCacheService {
   private readonly USER_AGENT = 'MentionBot/1.0 (+https://mention.earth)';
 
   /**
-   * Generate cache key from URL
+   * Normalize and resolve image URL to absolute URL
+   */
+  private normalizeImageUrl(url: string): string {
+    if (!url || typeof url !== 'string') return url;
+    const trimmed = url.trim();
+    if (!trimmed) return url;
+    
+    // Already absolute
+    if (/^https?:\/\//i.test(trimmed)) {
+      try {
+        const parsed = new URL(trimmed);
+        // Remove common query params that don't affect image content
+        parsed.searchParams.delete('w');
+        parsed.searchParams.delete('h');
+        parsed.searchParams.delete('width');
+        parsed.searchParams.delete('height');
+        parsed.searchParams.delete('q');
+        parsed.searchParams.delete('quality');
+        return parsed.toString();
+      } catch {
+        return trimmed;
+      }
+    }
+    
+    return trimmed;
+  }
+
+  /**
+   * Generate cache key from normalized URL
    */
   generateCacheKey(url: string): string {
-    return crypto.createHash('sha256').update(url).digest('hex');
+    const normalized = this.normalizeImageUrl(url);
+    return crypto.createHash('sha256').update(normalized).digest('hex');
   }
 
   /**
@@ -49,20 +83,23 @@ class ImageCacheService {
   async getCachedImage(url: string): Promise<string | null> {
     try {
       const bucket = initGridFS();
-      if (!bucket) return null;
+      if (!bucket) {
+        logger.debug('[ImageCacheService] GridFS not initialized, cannot check cache');
+        return null;
+      }
 
-      const cacheKey = this.generateCacheKey(url);
+      const normalizedUrl = this.normalizeImageUrl(url);
+      const cacheKey = this.generateCacheKey(normalizedUrl);
       
-      // Check if file exists in GridFS
-      const files = await bucket.find({ filename: cacheKey }).toArray();
-      if (files.length > 0) {
-        // Return URL to serve the cached image
+      // Use more efficient query - only check existence, don't fetch all data
+      const file = await bucket.find({ filename: cacheKey }, { limit: 1, projection: { _id: 1 } }).next();
+      if (file) {
         return `/api/links/images/${cacheKey}`;
       }
       
       return null;
     } catch (error) {
-      logger.error('[ImageCacheService] Error checking cache:', error);
+      logger.error('[ImageCacheService] Error checking cache:', { url, error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }
@@ -243,7 +280,10 @@ class ImageCacheService {
       
       readableStream
         .pipe(uploadStream)
-        .on('error', reject)
+        .on('error', (error: Error) => {
+          logger.error('[ImageCacheService] Failed to store image in GridFS:', { cacheKey, error: error.message });
+          reject(error);
+        })
         .on('finish', resolve);
     });
   }
@@ -254,34 +294,43 @@ class ImageCacheService {
    */
   async cacheImage(imageUrl: string): Promise<string | null> {
     try {
+      const normalizedUrl = this.normalizeImageUrl(imageUrl);
+      
       // Check if already cached
-      const cached = await this.getCachedImage(imageUrl);
+      const cached = await this.getCachedImage(normalizedUrl);
       if (cached) {
         return cached;
       }
 
       // Download image
-      const imageBuffer = await this.downloadImage(imageUrl);
+      const imageBuffer = await this.downloadImage(normalizedUrl);
 
       // Process image (resize/compress)
       let processedResult: { buffer: Buffer; contentType: string } | null = null;
       try {
         processedResult = await this.processImage(imageBuffer);
       } catch (error) {
-        logger.warn('[ImageCacheService] Image processing failed, using original:', error);
+        logger.warn('[ImageCacheService] Image processing failed, using original:', {
+          url: normalizedUrl,
+          error: error instanceof Error ? error.message : String(error)
+        });
       }
 
       const finalBuffer = processedResult?.buffer ?? imageBuffer;
       const contentType = processedResult?.contentType ?? this.detectContentType(imageBuffer);
 
       // Store in GridFS
-      const cacheKey = this.generateCacheKey(imageUrl);
+      const cacheKey = this.generateCacheKey(normalizedUrl);
       await this.storeImage(finalBuffer, cacheKey, contentType);
 
-      // Return URL to serve cached image
+      logger.debug('[ImageCacheService] Image cached successfully:', { url: normalizedUrl, cacheKey });
       return `/api/links/images/${cacheKey}`;
     } catch (error) {
-      logger.error('[ImageCacheService] Error caching image:', error);
+      logger.error('[ImageCacheService] Error caching image:', {
+        url: imageUrl,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return null;
     }
   }
@@ -312,12 +361,17 @@ class ImageCacheService {
   async getImageStream(cacheKey: string): Promise<{ stream: NodeJS.ReadableStream; contentType: string } | null> {
     try {
       const bucket = initGridFS();
-      if (!bucket) return null;
+      if (!bucket) {
+        logger.debug('[ImageCacheService] GridFS not initialized, cannot get image stream');
+        return null;
+      }
 
-      const files = await bucket.find({ filename: cacheKey }).toArray();
-      if (files.length === 0) return null;
+      // Use more efficient query - only fetch what we need
+      const file = await bucket.find({ filename: cacheKey }, { limit: 1, projection: { contentType: 1 } }).next();
+      if (!file) {
+        return null;
+      }
 
-      const file = files[0];
       const downloadStream = bucket.openDownloadStreamByName(cacheKey);
 
       return {
@@ -325,7 +379,10 @@ class ImageCacheService {
         contentType: file.contentType || 'image/jpeg',
       };
     } catch (error) {
-      logger.error('[ImageCacheService] Error getting image stream:', error);
+      logger.error('[ImageCacheService] Error getting image stream:', {
+        cacheKey,
+        error: error instanceof Error ? error.message : String(error)
+      });
       return null;
     }
   }

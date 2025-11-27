@@ -4,6 +4,34 @@ import { LinkMetadata } from '../../stores/linksStore';
 import { useTheme } from '@/hooks/useTheme';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
+import { getApiOrigin } from '@/utils/api';
+
+/**
+ * Fix image URL to use correct API port (3000 for localhost)
+ */
+function fixImageUrl(imageUrl: string | undefined): string | undefined {
+  if (!imageUrl) return imageUrl;
+  
+  // Already absolute and not a cached image - use as-is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    // If it's a cached image URL with wrong port, fix it
+    if (imageUrl.includes('/api/links/images/')) {
+      const apiOrigin = getApiOrigin();
+      const pathMatch = imageUrl.match(/\/api\/links\/images\/.+$/);
+      if (pathMatch) {
+        return `${apiOrigin}${pathMatch[0]}`;
+      }
+    }
+    return imageUrl;
+  }
+  
+  // Relative URL - construct absolute URL with correct port
+  if (imageUrl.startsWith('/api/links/images/') || imageUrl.startsWith('/')) {
+    return `${getApiOrigin()}${imageUrl}`;
+  }
+  
+  return imageUrl;
+}
 
 interface LinkPreviewProps {
   link: LinkMetadata;
@@ -66,7 +94,7 @@ export const LinkPreview: React.FC<LinkPreviewProps> = React.memo(({ link, onRem
     >
       {link.image ? (
         <Image
-          source={{ uri: link.image }}
+          source={{ uri: fixImageUrl(link.image) }}
           style={styles.image}
           resizeMode="cover"
           onError={() => {

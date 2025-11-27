@@ -73,27 +73,29 @@ class LinkMetadataService {
       if (result.description) result.description = sanitizeText(result.description);
       if (result.siteName) result.siteName = sanitizeText(result.siteName);
 
-      // Cache and optimize image if URL is valid
+      // Resolve and cache image if URL is valid
       if (result.image && result.image.trim().length > 0) {
         try {
-          // Check if already cached
-          const cachedUrl = await imageCacheService.getCachedImage(result.image);
+          // Resolve relative image URLs to absolute URLs
+          const absoluteImageUrl = this.resolveImageUrl(result.image, normalizedUrl);
+          
+          // Check if already cached (non-blocking check)
+          const cachedUrl = await imageCacheService.getCachedImage(absoluteImageUrl);
           if (cachedUrl) {
             logger.debug('[LinkMetadataService] Using cached image:', cachedUrl);
             result.image = cachedUrl;
           } else {
-            // Cache it now
-            logger.debug('[LinkMetadataService] Caching image:', result.image);
-            const cachedImageUrl = await imageCacheService.cacheImage(result.image);
-            if (cachedImageUrl) {
-              logger.debug('[LinkMetadataService] Image cached successfully:', cachedImageUrl);
-              result.image = cachedImageUrl;
-            } else {
-              logger.warn('[LinkMetadataService] Image caching returned null, using original URL');
-            }
+            // Return metadata immediately with original URL, cache image in background
+            result.image = absoluteImageUrl;
+            
+            // Cache image asynchronously (non-blocking)
+            imageCacheService.cacheImage(absoluteImageUrl).catch((error) => {
+              logger.warn('[LinkMetadataService] Background image caching failed:', error);
+            });
           }
         } catch (error) {
-          logger.warn('[LinkMetadataService] Image caching failed, using original URL:', error);
+          logger.warn('[LinkMetadataService] Image URL processing failed, using original URL:', error);
+          // Keep original image URL on error
         }
       }
 
@@ -155,6 +157,42 @@ class LinkMetadataService {
       return parsed.toString();
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Resolve relative image URLs to absolute URLs
+   */
+  private resolveImageUrl(imageUrl: string, baseUrl: string): string {
+    if (!imageUrl || typeof imageUrl !== 'string') return imageUrl;
+    
+    const trimmed = imageUrl.trim();
+    if (!trimmed) return imageUrl;
+
+    // Already absolute URL
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    try {
+      // Resolve relative URL against base URL
+      const base = new URL(baseUrl);
+      
+      // Protocol-relative URL (//example.com/image.jpg)
+      if (trimmed.startsWith('//')) {
+        return `${base.protocol}${trimmed}`;
+      }
+      
+      // Absolute path (/image.jpg)
+      if (trimmed.startsWith('/')) {
+        return `${base.protocol}//${base.host}${trimmed}`;
+      }
+      
+      // Relative path (image.jpg or ../image.jpg)
+      return new URL(trimmed, baseUrl).toString();
+    } catch (error) {
+      logger.warn('[LinkMetadataService] Failed to resolve image URL, using original:', { imageUrl, baseUrl, error });
+      return imageUrl;
     }
   }
 }

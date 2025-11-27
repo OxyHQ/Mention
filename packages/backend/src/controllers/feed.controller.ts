@@ -886,10 +886,12 @@ class FeedController {
       // Apply compound cursor filtering if using advanced cursor
       let posts = rankedPosts;
       if (minFinalScore !== undefined && cursorId) {
-        // Filter by score and _id for compound cursor
+        // OPTIMIZED: Calculate scores in parallel batch, then filter and sort
+        // This avoids recalculating scores that were already computed during ranking
         const postsWithScores = await Promise.all(
           rankedPosts.map(async (post) => {
-            const score = await feedRankingService.calculatePostScore(
+            // Reuse score if available from ranking, otherwise calculate
+            const score = (post as any).finalScore ?? await feedRankingService.calculatePostScore(
               post,
               currentUserId,
               { followingIds, userBehavior, feedSettings }
@@ -898,46 +900,42 @@ class FeedController {
           })
         );
 
-        // Filter out posts that appeared on previous page
-        posts = postsWithScores
+        // Filter out posts that appeared on previous page (score < minScore OR same score with lower _id)
+        const filtered = postsWithScores
           .filter(({ post, score }) => {
             const postId = post._id.toString();
-            // Include posts with lower score, or same score but lower _id
-            return score < minFinalScore! || 
-              (score === minFinalScore && postId < cursorId);
+            return score < minFinalScore! || (score === minFinalScore && postId < cursorId);
           })
           .map(item => item.post);
 
-        // Re-sort after filtering
-        posts = await feedRankingService.rankPosts(
-          posts,
-          currentUserId,
-          { followingIds, userBehavior, feedSettings }
-        );
+        // Re-sort after filtering (only if we filtered out items)
+        posts = filtered.length < rankedPosts.length
+          ? await feedRankingService.rankPosts(filtered, currentUserId, { followingIds, userBehavior, feedSettings })
+          : filtered;
       }
 
       const hasMore = posts.length > Number(limit);
       const postsToReturn = hasMore ? posts.slice(0, Number(limit)) : posts;
 
-      // CRITICAL: Multi-stage deduplication to ensure no duplicates
-      // Stage 1: Deduplicate raw posts by _id (MongoDB ObjectId) before transformation
-      // This MUST happen before cursor calculation to ensure cursor points to actual last post
+      // OPTIMIZED: Single-pass deduplication using Map for O(1) lookups
+      // Deduplicate raw posts by _id before transformation to ensure cursor accuracy
       const rawIdsSeen = new Map<string, any>();
-      const deduplicatedRawPosts = postsToReturn.filter((post: any) => {
+      const deduplicatedRawPosts: any[] = [];
+      
+      for (const post of postsToReturn) {
         const rawId = post._id;
-        if (!rawId) return false;
+        if (!rawId) continue;
         
         // Convert to string for consistent comparison
         const rawIdStr = typeof rawId === 'object' && rawId.toString 
           ? rawId.toString() 
           : String(rawId);
         
-        if (rawIdsSeen.has(rawIdStr)) {
-          return false; // Duplicate _id
+        if (!rawIdsSeen.has(rawIdStr)) {
+          rawIdsSeen.set(rawIdStr, post);
+          deduplicatedRawPosts.push(post);
         }
-        rawIdsSeen.set(rawIdStr, post);
-        return true;
-      });
+      }
       
       // CRITICAL: Calculate cursor AFTER deduplication using the actual last post that will be returned
       // This ensures cursor points to the correct post and prevents skipping/duplicates
@@ -977,9 +975,11 @@ class FeedController {
       // Additional privacy filtering for profile visibility (private/followers_only)
       const filteredPosts = await this.filterPostsByProfilePrivacy(transformedPosts, currentUserId);
 
-      // Stage 3: Deduplicate transformed posts by id (defensive check)
+      // OPTIMIZED: Single-pass deduplication of transformed posts
       const transformedIdsSeen = new Map<string, any>();
-      const deduplicatedPosts = filteredPosts.filter(post => {
+      const deduplicatedPosts: any[] = [];
+      
+      for (const post of filteredPosts) {
         // Check both id and _id fields for robustness
         const id1 = post.id ? String(post.id) : null;
         const id2 = (post as any)._id 
@@ -989,14 +989,13 @@ class FeedController {
           : null;
         
         const primaryId = id1 || id2;
-        if (!primaryId) return false;
+        if (!primaryId) continue;
         
-        if (transformedIdsSeen.has(primaryId)) {
-          return false; // Duplicate id
+        if (!transformedIdsSeen.has(primaryId)) {
+          transformedIdsSeen.set(primaryId, post);
+          deduplicatedPosts.push(post);
         }
-        transformedIdsSeen.set(primaryId, post);
-        return true;
-      });
+      }
 
       // Debug: Comprehensive duplicate detection and logging (temporary for diagnosis)
       const postIdsInResponse = deduplicatedPosts.map(p => {
@@ -1030,9 +1029,11 @@ class FeedController {
         });
       }
 
-      // FINAL SAFETY CHECK: Ensure no duplicates in response
+      // OPTIMIZED: Final safety check using Map for O(1) lookups
       const finalUniqueIds = new Map<string, any>();
-      const finalDeduplicated = deduplicatedPosts.filter(post => {
+      const finalDeduplicated: any[] = [];
+      
+      for (const post of deduplicatedPosts) {
         // Normalize ID consistently
         let normalizedId = '';
         if (post.id) {
@@ -1045,7 +1046,7 @@ class FeedController {
         }
         
         if (!normalizedId || normalizedId === 'undefined' || normalizedId === 'null' || normalizedId === '') {
-          return false;
+          continue;
         }
         
         if (finalUniqueIds.has(normalizedId)) {
@@ -1055,11 +1056,11 @@ class FeedController {
             existing: { id: existing?.id || existing?._id, content: existing?.content?.text?.substring(0, 50) },
             duplicate: { id: post?.id || post?._id, content: post?.content?.text?.substring(0, 50) }
           });
-          return false;
+          continue;
         }
         finalUniqueIds.set(normalizedId, post);
-        return true;
-      });
+        finalDeduplicated.push(post);
+      }
 
       // Log if final deduplication removed any posts
       if (finalDeduplicated.length !== deduplicatedPosts.length) {
