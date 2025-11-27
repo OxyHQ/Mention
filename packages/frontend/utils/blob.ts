@@ -23,45 +23,18 @@
  *   const slicedText = await slice.text();
  */
 
-import { Platform } from 'react-native';
+import { Blob as ExpoBlob } from 'expo-blob';
 
 /**
- * Platform-aware Blob implementation
+ * Blob implementation using expo-blob
  * 
- * - Web: Uses native Blob API (built-in)
- * - Native: Uses React Native's global Blob by default
- * 
- * To use expo-blob for better performance and slice() support on native:
- * 1. Rebuild your app: npx expo prebuild
- * 2. Run: npx expo run:ios (or run:android)
- * 
- * The app will automatically use expo-blob if available after rebuild.
+ * expo-blob works on both web and native platforms, providing:
+ * - Web standards-compliant implementation
+ * - Superior performance compared to React Native's Blob
+ * - Consistent behavior across all platforms
+ * - Proper slice() method support (unlike React Native's Blob)
  */
-
-// Use global Blob - works on all platforms immediately
-// On web, this is the native Blob API
-// On native, this is React Native's Blob (may have slice() limitations)
-// 
-// To enable expo-blob after rebuilding:
-// 1. Rebuild: npx expo prebuild && npx expo run:ios (or run:android)
-// 2. Then uncomment the expo-blob code below and comment out the global.Blob line
-
-// Default: Use global Blob (works immediately, no rebuild needed)
-export const Blob = global.Blob as typeof global.Blob;
-
-// Uncomment after rebuilding to use expo-blob:
-// let BlobExport: typeof global.Blob;
-// if (Platform.OS === 'web') {
-//   BlobExport = global.Blob as typeof global.Blob;
-// } else {
-//   try {
-//     const expoBlob = require('expo-blob');
-//     BlobExport = expoBlob?.Blob || global.Blob;
-//   } catch (e) {
-//     BlobExport = global.Blob as typeof global.Blob;
-//   }
-// }
-// export { BlobExport as Blob };
+export { ExpoBlob as Blob };
 
 /**
  * BlobPart represents acceptable values for Blob constructor
