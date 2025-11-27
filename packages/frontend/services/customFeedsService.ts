@@ -41,6 +41,16 @@ class CustomFeedsService {
     const res = await authenticatedClient.get(`/feeds/${id}/timeline`, { params });
     return res.data;
   }
+
+  async likeFeed(id: string): Promise<{ success: boolean; liked: boolean; likeCount: number }> {
+    const res = await authenticatedClient.post(`/feeds/${id}/like`);
+    return res.data;
+  }
+
+  async unlikeFeed(id: string): Promise<{ success: boolean; liked: boolean; likeCount: number }> {
+    const res = await authenticatedClient.delete(`/feeds/${id}/like`);
+    return res.data;
+  }
 }
 
 export const customFeedsService = new CustomFeedsService();

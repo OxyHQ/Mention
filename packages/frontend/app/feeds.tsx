@@ -1,27 +1,50 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
-  Platform,
   ScrollView,
+  RefreshControl,
+  ActivityIndicator,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { router } from 'expo-router';
+
 import { Header } from '@/components/Header';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
 import { ThemedView } from '@/components/ThemedView';
-import { router } from 'expo-router';
+import { ThemedText } from '@/components/ThemedText';
+import { FeedCard, type FeedCardData } from '@/components/FeedCard';
+import SEO from '@/components/SEO';
+
 import { getData, storeData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useTheme } from '@/hooks/useTheme';
 import { Search } from '@/assets/icons/search-icon';
-import SEO from '@/components/SEO';
-import { FeedCard, type FeedCardData } from '@/components/FeedCard';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
+
+interface FeedItem {
+  _id?: string;
+  id?: string;
+  uri?: string;
+  title?: string;
+  description?: string;
+  avatar?: string;
+  owner?: {
+    username?: string;
+    handle?: string;
+    displayName?: string;
+    avatar?: string;
+  };
+  memberOxyUserIds?: string[];
+  likeCount?: number;
+  isLiked?: boolean;
+}
 
 const MyFeedsRow = ({
   icon,
@@ -36,9 +59,17 @@ const MyFeedsRow = ({
 }) => {
   const theme = useTheme();
   return (
-    <TouchableOpacity style={[styles.myFeedRow, { borderBottomColor: theme.colors.border }]} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.myFeedIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>{icon}</View>
-      <Text style={[styles.myFeedLabel, { color: theme.colors.text }]}>{label}</Text>
+    <TouchableOpacity
+      style={[styles.myFeedRow, { borderBottomColor: theme.colors.border }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.myFeedIcon, { backgroundColor: theme.colors.primary }]}>
+        {icon}
+      </View>
+      <ThemedText type="defaultSemiBold" style={styles.myFeedLabel}>
+        {label}
+      </ThemedText>
       {chevron && (
         <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
       )}
@@ -51,7 +82,7 @@ const FeedCardWithPin = ({
   pinned,
   onTogglePin,
 }: {
-  item: any;
+  item: FeedItem;
   pinned: boolean;
   onTogglePin: (id: string) => void;
 }) => {
@@ -62,44 +93,77 @@ const FeedCardWithPin = ({
     displayName: item.title || 'Untitled Feed',
     description: item.description,
     avatar: item.avatar,
-    creator: item.owner ? {
-      username: item.owner.username || item.owner.handle || '',
-      displayName: item.owner.displayName,
-      avatar: item.owner.avatar,
-    } : undefined,
+    creator: item.owner
+      ? {
+          username: item.owner.username || item.owner.handle || '',
+          displayName: item.owner.displayName,
+          avatar: item.owner.avatar,
+        }
+      : undefined,
     subscriberCount: (item.memberOxyUserIds || []).length,
+    likeCount: item.likeCount || 0,
   };
 
+  const feedId = `custom:${item._id || item.id}`;
+
   return (
-    <View style={styles.feedCardWrapper}>
+    <View style={[styles.feedCardWrapper]}>
       <FeedCard
         feed={feedData}
         onPress={() => router.push(`/feeds/${item._id || item.id}`)}
-        showSaveButton={false}
+        headerRight={
+          <TouchableOpacity
+            onPress={() => onTogglePin(feedId)}
+            style={[
+              styles.pinBtn,
+              {
+                backgroundColor: theme.colors.primary,
+              },
+            ]}
+          >
+             <Ionicons
+               name={pinned ? 'checkmark' : 'pin'}
+               size={14}
+               color={theme.colors.card}
+             />
+            <ThemedText
+              style={[
+                styles.pinBtnText,
+                { color: theme.colors.card },
+              ]}
+            >
+              {pinned ? 'Pinned' : 'Pin Feed'}
+            </ThemedText>
+          </TouchableOpacity>
+        }
       />
-      <TouchableOpacity
-        onPress={() => onTogglePin(`custom:${item._id || item.id}`)}
-        style={[
-          styles.pinBtn,
-          {
-            backgroundColor: pinned ? theme.colors.primary : theme.colors.backgroundSecondary,
-            borderColor: theme.colors.primary,
-            marginTop: 12,
-          },
-        ]}>
-        <Ionicons
-          name={pinned ? 'pin' : 'pin-outline'}
-          size={16}
-          color={pinned ? theme.colors.card : theme.colors.primary}
-        />
-        <Text
-          style={[
-            styles.pinBtnText,
-            { color: pinned ? theme.colors.card : theme.colors.primary },
-          ]}>
-          {pinned ? 'Pinned' : 'Pin'}
-        </Text>
-      </TouchableOpacity>
+    </View>
+  );
+};
+
+const SectionHeader = ({
+  icon,
+  title,
+  subtitle,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+}) => {
+  const theme = useTheme();
+  return (
+    <View style={styles.sectionHeaderRow}>
+      <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
+        {icon}
+      </View>
+      <View style={{ flex: 1 }}>
+        <ThemedText type="subtitle">{title}</ThemedText>
+        {subtitle && (
+          <ThemedText style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>
+            {subtitle}
+          </ThemedText>
+        )}
+      </View>
     </View>
   );
 };
@@ -108,105 +172,131 @@ const FeedsScreen: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const [pinned, setPinned] = useState<string[]>([]);
-  const [myFeeds, setMyFeeds] = useState<any[]>([]);
-  const [publicFeeds, setPublicFeeds] = useState<any[]>([]);
+  const [myFeeds, setMyFeeds] = useState<FeedItem[]>([]);
+  const [publicFeeds, setPublicFeeds] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    (async () => {
-      const stored = (await getData<string[]>(PINNED_KEY)) || [];
-      setPinned(stored);
-    })();
+  const loadFeeds = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [mine, pub, storedPinned] = await Promise.all([
+        customFeedsService.list({ mine: true }),
+        customFeedsService.list({ publicOnly: true }),
+        getData<string[]>(PINNED_KEY),
+      ]);
+
+      setPinned(storedPinned || []);
+      setMyFeeds(mine.items || []);
+
+      const mineIds = new Set((mine.items || []).map((f: any) => String(f._id || f.id)));
+      setPublicFeeds(
+        (pub.items || []).filter((f: any) => !mineIds.has(String(f._id || f.id)))
+      );
+    } catch (e) {
+      console.warn('Failed loading feeds', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
-    const loadFeeds = async () => {
-      try {
-        setLoading(true);
-        const mine = await customFeedsService.list({ mine: true });
-        setMyFeeds(mine.items || []);
-        const pub = await customFeedsService.list({ publicOnly: true });
-        // filter out ones already mine
-        const mineIds = new Set((mine.items || []).map((f: any) => String(f._id || f.id)));
-        setPublicFeeds((pub.items || []).filter((f: any) => !mineIds.has(String(f._id || f.id))));
-      } catch (e) {
-        console.warn('Failed loading feeds', e);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadFeeds();
-  }, []);
+  }, [loadFeeds]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadFeeds();
+  }, [loadFeeds]);
 
   const onTogglePin = useCallback(async (id: string) => {
     setPinned((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      // Persist async but do not block UI
-      storeData(PINNED_KEY, next).catch(() => { });
+      storeData(PINNED_KEY, next).catch(() => {});
       return next;
     });
   }, []);
 
   const pinnedObjects = useMemo(() => {
-    const customPinned = myFeeds.filter((f: any) => pinned.includes(`custom:${f._id || f.id}`));
-    return customPinned.map((f: any) => ({ id: `custom:${f._id || f.id}`, title: f.title, emoji: '🧩' }));
+    const customPinned = myFeeds.filter((f) =>
+      pinned.includes(`custom:${f._id || f.id}`)
+    );
+    return customPinned.map((f) => ({
+      id: `custom:${f._id || f.id}`,
+      title: f.title,
+      emoji: '🧩',
+    }));
   }, [pinned, myFeeds]);
 
   return (
     <>
-      <SEO
-        title={t('seo.feeds.title')}
-        description={t('seo.feeds.description')}
-      />
-      <SafeAreaView style={{ flex: 1 }}>
-        <ThemedView style={styles.container}>
-          <Header options={{
-          title: t('Feeds'), rightComponents: [
-            <HeaderIconButton 
-              key="search" 
-              onPress={() => router.push('/search')}
-            >
-              <Search size={20} color={theme.colors.text} />
-            </HeaderIconButton>,
-            <HeaderIconButton 
-              key="create" 
-              onPress={() => router.push('/feeds/create')}
-            >
-              <Ionicons name="add-circle-outline" size={20} color={theme.colors.text} />
-            </HeaderIconButton>
-          ]
-        }} />
+      <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <Header
+          options={{
+            title: t('Feeds'),
+            rightComponents: [
+              <HeaderIconButton key="settings" onPress={() => router.push('/settings/feeds')}>
+                <Ionicons name="settings-outline" size={24} color={theme.colors.text} />
+              </HeaderIconButton>,
+            ],
+          }}
+        />
 
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {/* My Feeds */}
-          <View style={styles.sectionHeaderRow}>
-            <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
-              <Ionicons name="filter" size={18} color={theme.colors.card} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>My Feeds</Text>
-              <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>All the feeds you've saved, right in one place.</Text>
-            </View>
-          </View>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+          }
+          contentContainerStyle={{ paddingBottom: 80 }}
+        >
+          {/* My Feeds Section */}
+          <SectionHeader
+            icon={<Ionicons name="sparkles" size={18} color={theme.colors.card} />}
+            title="My Feeds"
+            subtitle="All the feeds you've saved, right in one place."
+          />
 
-          <View style={[styles.myFeedsBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <View
+            style={[
+              styles.myFeedsBox,
+              { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+            ]}
+          >
             <MyFeedsRow
-              icon={<Ionicons name="people-outline" size={18} color={theme.colors.primary} />}
+              icon={<Ionicons name="swap-vertical" size={18} color={theme.colors.card} />}
               label="Following"
               onPress={() => router.push('/')}
             />
             <MyFeedsRow
-              icon={<Ionicons name="sparkles-outline" size={18} color={theme.colors.primary} />}
-              label="For You"
+              icon={<Ionicons name="people" size={18} color={theme.colors.card} />}
+              label="Mutuals"
               onPress={() => router.push('/')}
+              chevron
+            />
+            <MyFeedsRow
+              icon={<Ionicons name="compass" size={18} color={theme.colors.card} />}
+              label="Discover"
+              onPress={() => router.push('/')}
+              chevron
+            />
+            <MyFeedsRow
+              icon={<Ionicons name="heart" size={18} color={theme.colors.card} />}
+              label="Popular With Friends"
+              onPress={() => router.push('/')}
+              chevron
             />
             {pinnedObjects.map((f) => (
               <MyFeedsRow
                 key={f.id}
-                icon={<Text style={{ fontSize: 14 }}>{(f as any).emoji || '🧩'}</Text>}
-                label={(f as any).title}
+                icon={<ThemedText style={{fontSize: 14}}>{f.emoji}</ThemedText>}
+                label={f.title || 'Untitled'}
                 onPress={() => {
-                  const id = String(f.id).startsWith('custom:') ? String(f.id).split(':')[1] : undefined;
+                  const id = f.id.startsWith('custom:')
+                    ? f.id.split(':')[1]
+                    : undefined;
                   if (id) router.push(`/feeds/${id}`);
                 }}
                 chevron
@@ -214,69 +304,83 @@ const FeedsScreen: React.FC = () => {
             ))}
           </View>
 
-          {/* Discover New Feeds (public) */}
-          <View style={[styles.sectionHeaderRow, { marginTop: 16 }]}>
-            <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
-              <Ionicons name="options" size={18} color={theme.colors.card} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Discover New Feeds</Text>
-              <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>
-                Choose your own timeline! Feeds built by the community help you find
-                content you love.
-              </Text>
-            </View>
+          {/* Discover New Feeds */}
+          <View style={styles.spacer} />
+          <SectionHeader
+            icon={<Ionicons name="search" size={18} color={theme.colors.card} />}
+            title="Discover New Feeds"
+            subtitle="Choose your own timeline! Feeds built by the community."
+          />
+
+          <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <Search size={20} color={theme.colors.textSecondary} />
+            <TextInput
+              style={[styles.searchInput, { color: theme.colors.text }]}
+              placeholder="Search feeds"
+              placeholderTextColor={theme.colors.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
           </View>
 
-          {publicFeeds.map((item: any) => (
-            <FeedCardWithPin
-              key={String(item._id || item.id)}
-              item={item}
-              pinned={pinned.includes(`custom:${item._id || item.id}`)}
-              onTogglePin={onTogglePin}
-            />
-          ))}
-
-          {/* Your Feeds */}
-          {myFeeds.length > 0 && (
-            <>
-              <View style={[styles.sectionHeaderRow, { marginTop: 16 }]}>
-                <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
-                  <Ionicons name="person-circle" size={18} color={theme.colors.card} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Your Feeds</Text>
-                  <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Custom timelines you created.</Text>
-                </View>
-              </View>
-              {myFeeds.map((f: any) => (
+          <View style={styles.listContainer}>
+            {loading && !refreshing && publicFeeds.length === 0 ? (
+              <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
+            ) : (
+              publicFeeds.map((item) => (
                 <FeedCardWithPin
-                  key={String(f._id || f.id)}
-                  item={f}
-                  pinned={pinned.includes(`custom:${f._id || f.id}`)}
+                  key={String(item._id || item.id)}
+                  item={item}
+                  pinned={pinned.includes(`custom:${item._id || item.id}`)}
                   onTogglePin={onTogglePin}
                 />
-              ))}
+              ))
+            )}
+          </View>
+
+          {/* Your Created Feeds */}
+          {myFeeds.length > 0 && (
+            <>
+              <View style={styles.spacer} />
+              <SectionHeader
+                icon={<Ionicons name="person-circle" size={18} color={theme.colors.card} />}
+                title="Your Feeds"
+                subtitle="Custom timelines you created."
+              />
+              <View style={styles.listContainer}>
+                {myFeeds.map((f) => (
+                  <FeedCardWithPin
+                    key={String(f._id || f.id)}
+                    item={f}
+                    pinned={pinned.includes(`custom:${f._id || f.id}`)}
+                    onTogglePin={onTogglePin}
+                  />
+                ))}
+              </View>
             </>
           )}
-
-          <View style={{ height: 20 }} />
         </ScrollView>
-      </ThemedView>
+
+        {/* FAB */}
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+          onPress={() => router.push('/feeds/create')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="pencil" size={24} color={theme.colors.card} />
+        </TouchableOpacity>
       </SafeAreaView>
-      </>
-    );
-  };
+    </>
+  );
+};
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 24,
+    paddingBottom: 12,
   },
   sectionHeaderIcon: {
     width: 36,
@@ -286,18 +390,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-  },
   sectionSub: {
     fontSize: 13,
-    marginTop: 3,
+    marginTop: 2,
   },
   myFeedsBox: {
-    marginTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   myFeedRow: {
     flexDirection: 'row',
@@ -307,40 +408,63 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   myFeedIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   myFeedLabel: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 8,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 16,
+  },
+  listContainer: {
+    paddingHorizontal: 16,
+    marginTop: 8,
   },
   feedCardWrapper: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 16,
   },
   pinBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 10,
-  },
-  pinBtnActive: {
-    // Active state handled inline with theme
+    borderRadius: 20,
   },
   pinBtnText: {
     marginLeft: 6,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
-  separator: {
-    height: 1,
+  spacer: {
+    height: 8,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.25)',
   },
 });
 

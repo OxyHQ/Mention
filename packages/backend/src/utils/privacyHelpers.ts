@@ -1,4 +1,5 @@
 import { oxy } from '../../server';
+import { logger } from './logger';
 
 /**
  * Privacy visibility constants
@@ -10,94 +11,6 @@ export const ProfileVisibility = {
 } as const;
 
 export type ProfileVisibilityType = typeof ProfileVisibility[keyof typeof ProfileVisibility];
-
-/**
- * Extract user IDs from Oxy blocked users response
- */
-export function extractBlockedUserIds(blockedRes: any): string[] {
-  if (!blockedRes) return [];
-  
-  // Handle different response formats
-  if (Array.isArray(blockedRes)) {
-    return blockedRes
-      .map((u: any) => typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.blockedId))
-      .filter(Boolean);
-  }
-  
-  if (blockedRes?.blockedUsers && Array.isArray(blockedRes.blockedUsers)) {
-    return blockedRes.blockedUsers
-      .map((u: any) => typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.blockedId))
-      .filter(Boolean);
-  }
-  
-  if (blockedRes?.blocked && Array.isArray(blockedRes.blocked)) {
-    return blockedRes.blocked
-      .map((u: any) => typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.blockedId))
-      .filter(Boolean);
-  }
-  
-  return [];
-}
-
-/**
- * Extract user IDs from Oxy restricted users response
- */
-export function extractRestrictedUserIds(restrictedRes: any): string[] {
-  if (!restrictedRes) return [];
-  
-  // Handle different response formats
-  if (Array.isArray(restrictedRes)) {
-    return restrictedRes
-      .map((u: any) => typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.restrictedId))
-      .filter(Boolean);
-  }
-  
-  if (restrictedRes?.restrictedUsers && Array.isArray(restrictedRes.restrictedUsers)) {
-    return restrictedRes.restrictedUsers
-      .map((u: any) => typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.restrictedId))
-      .filter(Boolean);
-  }
-  
-  if (restrictedRes?.restricted && Array.isArray(restrictedRes.restricted)) {
-    return restrictedRes.restricted
-      .map((u: any) => typeof u === 'string' ? u : (u?.id || u?._id || u?.userId || u?.restrictedId))
-      .filter(Boolean);
-  }
-  
-  return [];
-}
-
-/**
- * Get blocked user IDs for the authenticated user from Oxy
- * Note: Oxy service uses authenticated context, so no userId parameter needed
- */
-export async function getBlockedUserIds(): Promise<string[]> {
-  try {
-    const blockedUsers = await oxy.getBlockedUsers();
-    return blockedUsers
-      .map(extractUserIdFromBlockedRestricted)
-      .filter((id): id is string => Boolean(id));
-  } catch (error) {
-    console.error('Error getting blocked users:', error);
-    return []; // On error, return empty array
-  }
-}
-
-/**
- * Get restricted user IDs for the authenticated user from Oxy
- * Note: Oxy service uses authenticated context, so no userId parameter needed
- */
-export async function getRestrictedUserIds(): Promise<string[]> {
-  try {
-    const restrictedUsers = await oxy.getRestrictedUsers();
-    return restrictedUsers
-      .map(extractUserIdFromBlockedRestricted)
-      .filter((id): id is string => Boolean(id));
-  } catch (error) {
-    console.error('Error getting restricted users:', error);
-    return []; // On error, return empty array
-  }
-}
 
 /**
  * Extract user ID from blocked/restricted user entry
@@ -113,6 +26,43 @@ export function extractUserIdFromBlockedRestricted(entry: any): string | undefin
     return typeof entry.restrictedId === 'string' ? entry.restrictedId : entry.restrictedId._id;
   }
   return entry?.id || entry?._id || entry?.userId || entry?.targetId;
+}
+
+/**
+ * Get user IDs from Oxy privacy API (blocked or restricted users)
+ * @param getUserList - Function to fetch the user list from Oxy API
+ * @param listType - Type of list for error logging ('blocked' or 'restricted')
+ * @returns Array of user IDs
+ */
+async function getUserIdsFromPrivacyList(
+  getUserList: () => Promise<any[]>,
+  listType: 'blocked' | 'restricted'
+): Promise<string[]> {
+  try {
+    const users = await getUserList();
+    return users
+      .map(extractUserIdFromBlockedRestricted)
+      .filter((id): id is string => Boolean(id));
+  } catch (error) {
+    logger.error(`Error getting ${listType} users:`, error);
+    return []; // On error, return empty array
+  }
+}
+
+/**
+ * Get blocked user IDs for the authenticated user from Oxy
+ * Note: Oxy service uses authenticated context, so no userId parameter needed
+ */
+export async function getBlockedUserIds(): Promise<string[]> {
+  return getUserIdsFromPrivacyList(() => oxy.getBlockedUsers(), 'blocked');
+}
+
+/**
+ * Get restricted user IDs for the authenticated user from Oxy
+ * Note: Oxy service uses authenticated context, so no userId parameter needed
+ */
+export async function getRestrictedUserIds(): Promise<string[]> {
+  return getUserIdsFromPrivacyList(() => oxy.getRestrictedUsers(), 'restricted');
 }
 
 /**
@@ -134,6 +84,25 @@ export function extractFollowingIds(followingRes: any): string[] {
 }
 
 /**
+ * Extract user IDs from Oxy followers response
+ * Handles various response formats from Oxy API
+ */
+export function extractFollowersIds(followersRes: any): string[] {
+  const followersList = Array.isArray((followersRes as any)?.followers)
+    ? (followersRes as any).followers
+    : (Array.isArray(followersRes) ? followersRes : []);
+  
+  return followersList
+    .map((entry: any) => {
+      if (typeof entry === 'string') {
+        return entry;
+      }
+      return entry?.id || entry?._id || entry?.userId || entry?.oxyUserId || entry?.user?.id || entry?.profile?.id || entry?.targetId;
+    })
+    .filter(Boolean);
+}
+
+/**
  * Check if a user is following another user
  * @param viewerId - The user checking access
  * @param targetUserId - The user being checked
@@ -145,7 +114,7 @@ export async function checkFollowAccess(viewerId: string, targetUserId: string):
     const followingIds = extractFollowingIds(followingRes);
     return followingIds.includes(targetUserId);
   } catch (error) {
-    console.error('Error checking follow access:', error);
+    logger.error('Error checking follow access:', error);
     return false; // On error, deny access for privacy
   }
 }

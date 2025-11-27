@@ -17,6 +17,7 @@ import LoadingTopSpinner from '@/components/LoadingTopSpinner';
 import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
+import { formatCompactNumber } from '@/utils/formatNumber';
 
 // Constants
 const FLATLIST_CONFIG = {
@@ -68,7 +69,7 @@ interface VideoItemProps {
     onComment: (postId: string) => void;
     onRepost: (postId: string, isReposted: boolean) => void;
     onShare: (post: VideoPost) => void;
-    formatCount: (count: number) => string;
+    formatCompactNumber: (count: number) => string;
     globalMuted: boolean;
     onMuteChange: (muted: boolean) => void;
     bottomBarHeight: number;
@@ -86,7 +87,7 @@ const VideoItem = memo<VideoItemProps>(({
     onComment,
     onRepost,
     onShare,
-    formatCount,
+    formatCompactNumber,
     globalMuted,
     onMuteChange,
     bottomBarHeight,
@@ -283,13 +284,13 @@ const VideoItem = memo<VideoItemProps>(({
                         isActive={item.isLiked}
                         activeColor="#FF3040"
                         onPress={() => onLike(item.id, item.isLiked || false)}
-                        formatCount={formatCount}
+                        formatCompactNumber={formatCompactNumber}
                     />
                     <ActionButton
                         icon="chatbubble-outline"
                         count={item.stats?.commentsCount || 0}
                         onPress={() => onComment(item.id)}
-                        formatCount={formatCount}
+                        formatCompactNumber={formatCompactNumber}
                     />
                     <ActionButton
                         icon={item.isReposted ? "repeat" : "repeat-outline"}
@@ -297,13 +298,13 @@ const VideoItem = memo<VideoItemProps>(({
                         isActive={item.isReposted}
                         activeColor="#10B981"
                         onPress={() => onRepost(item.id, item.isReposted || false)}
-                        formatCount={formatCount}
+                        formatCompactNumber={formatCompactNumber}
                     />
                     <ActionButton
                         icon="share-outline"
                         count={0}
                         onPress={() => onShare(item)}
-                        formatCount={formatCount}
+                        formatCompactNumber={formatCompactNumber}
                         hideCount={true}
                     />
                 </View>
@@ -321,11 +322,11 @@ interface ActionButtonProps {
     isActive?: boolean;
     activeColor?: string;
     onPress: () => void;
-    formatCount: (count: number) => string;
+    formatCompactNumber: (count: number) => string;
     hideCount?: boolean;
 }
 
-const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeColor, onPress, formatCount, hideCount = false }) => (
+const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeColor, onPress, formatCompactNumber, hideCount = false }) => (
     <Pressable style={styles.actionButton} onPress={onPress} hitSlop={HIT_SLOP}>
         <Ionicons
             name={icon as any}
@@ -335,7 +336,7 @@ const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeCol
         />
         {!hideCount && (
             <Text style={[styles.actionCount, isActive && activeColor && { color: activeColor }]}>
-                {formatCount(count)}
+                {formatCompactNumber(count)}
             </Text>
         )}
     </Pressable>
@@ -652,13 +653,6 @@ export default function VideosScreen() {
         }
     }, [t]);
 
-    const formatCount = useCallback((count: number): string => {
-        if (count == null || isNaN(count)) return '0';
-        const numCount = Number(count);
-        if (numCount >= 1000000) return `${(numCount / 1000000).toFixed(1)}M`;
-        if (numCount >= 1000) return `${(numCount / 1000).toFixed(1)}K`;
-        return numCount.toString();
-    }, []);
 
     const handleMuteChange = useCallback((muted: boolean) => {
         useVideoMuteStore.getState().setMuted(muted);
@@ -680,14 +674,14 @@ export default function VideosScreen() {
             onComment={handleComment}
             onRepost={handleRepost}
             onShare={handleShare}
-            formatCount={formatCount}
+            formatCompactNumber={formatCompactNumber}
             globalMuted={globalMuted}
             onMuteChange={handleMuteChange}
             bottomBarHeight={bottomBarHeight}
             t={t}
             windowHeight={WINDOW_HEIGHT}
         />
-    ), [currentVisibleIndex, theme, handleLike, handleComment, handleRepost, handleShare, formatCount, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
+    ), [currentVisibleIndex, theme, handleLike, handleComment, handleRepost, handleShare, formatCompactNumber, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
@@ -834,10 +828,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.2)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
+        boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.3)',
         elevation: 4,
     },
     overlay: {
@@ -962,10 +953,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.1)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
+        boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.3)',
         elevation: 4,
     },
     loadingText: {

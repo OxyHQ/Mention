@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Platform } from 'react-native';
 import MiniChart from '@/components/MiniChart';
+import { formatCompactNumber } from '@/utils/formatNumber';
 
 interface SummaryItem {
     value: number;
@@ -23,11 +24,6 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 }) => {
     const theme = useTheme();
 
-    const formatNumber = (num: number): string => {
-        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return num.toString();
-    };
 
     return (
         <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -36,7 +32,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
                     <React.Fragment key={index}>
                         <View style={styles.item}>
                             <Text style={[styles.value, { color: theme.colors.text }]}>
-                                {(item.formatNumber || formatNumber)(item.value)}
+                                {(item.formatNumber || formatCompactNumber)(item.value)}
                             </Text>
                             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
                                 {item.label}

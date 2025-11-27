@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { statisticsService, PostInsights } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
+import { formatCompactNumber } from '@/utils/formatCompactNumber';
 
 interface PostInsightsModalProps {
     visible: boolean;
@@ -51,11 +52,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
         }
     };
 
-    const formatNumber = (num: number): string => {
-        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return num.toString();
-    };
+import { formatCompactNumber } from '@/utils/formatCompactNumber';
 
     return (
         <Modal
@@ -86,7 +83,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                             <View style={[styles.statCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
                                 <Ionicons name="eye-outline" size={24} color={theme.colors.primary} />
                                 <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.stats.views)}
+                                    {formatCompactNumber(insights.stats.views)}
                                 </Text>
                                 <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Views</Text>
                             </View>
@@ -94,7 +91,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                             <View style={[styles.statCard, styles.statCardLast, { backgroundColor: theme.colors.backgroundSecondary }]}>
                                 <Ionicons name="heart-outline" size={24} color="#FF3040" />
                                 <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.stats.likes)}
+                                    {formatCompactNumber(insights.stats.likes)}
                                 </Text>
                                 <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Likes</Text>
                             </View>
@@ -102,7 +99,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                             <View style={[styles.statCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
                                 <Ionicons name="chatbubble-outline" size={24} color={theme.colors.primary} />
                                 <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.stats.replies)}
+                                    {formatCompactNumber(insights.stats.replies)}
                                 </Text>
                                 <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Replies</Text>
                             </View>
@@ -110,7 +107,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                             <View style={[styles.statCard, styles.statCardLast, { backgroundColor: theme.colors.backgroundSecondary }]}>
                                 <Ionicons name="repeat-outline" size={24} color="#10B981" />
                                 <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.stats.reposts)}
+                                    {formatCompactNumber(insights.stats.reposts)}
                                 </Text>
                                 <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Reposts</Text>
                             </View>
@@ -132,13 +129,13 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                                     Total Interactions
                                 </Text>
                                 <Text style={[styles.metricValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.engagement.totalInteractions)}
+                                    {formatCompactNumber(insights.engagement.totalInteractions)}
                                 </Text>
                             </View>
                             <View style={styles.metricRow}>
                                 <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>Reach</Text>
                                 <Text style={[styles.metricValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.engagement.reach)}
+                                    {formatCompactNumber(insights.engagement.reach)}
                                 </Text>
                             </View>
                         </View>
@@ -148,7 +145,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                             <View style={[styles.section, { backgroundColor: theme.colors.backgroundSecondary }]}>
                                 <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Quotes</Text>
                                 <Text style={[styles.sectionValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.stats.quotes)}
+                                    {formatCompactNumber(insights.stats.quotes)}
                                 </Text>
                             </View>
                         )}
@@ -157,7 +154,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                             <View style={[styles.section, { backgroundColor: theme.colors.backgroundSecondary }]}>
                                 <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Shares</Text>
                                 <Text style={[styles.sectionValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.stats.shares)}
+                                    {formatCompactNumber(insights.stats.shares)}
                                 </Text>
                             </View>
                         )}

@@ -91,7 +91,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
 
     // Create style without shadows when animating opacity to prevent artifacts
     const fabStyle = animatedOpacity 
-        ? [baseFabStyle, { backgroundColor: theme.colors.primary }, nonPositionStyles, { elevation: 0, shadowOpacity: 0 }]
+        ? [baseFabStyle, { backgroundColor: theme.colors.primary }, nonPositionStyles, { elevation: 0, boxShadow: 'none' }]
         : [baseFabStyle, { backgroundColor: theme.colors.primary }, nonPositionStyles];
 
     const fabContent = (
@@ -142,17 +142,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         overflow: 'hidden', // Prevent any visual artifacts from showing through
         backgroundColor: 'transparent', // Ensure no background bleed
+        boxShadow: '0px 4px 8px 0px rgba(0, 0, 0, 0.3)',
         elevation: 8,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-            },
-            android: {
-                shadowColor: '#000',
-            },
-        }),
     },
 });

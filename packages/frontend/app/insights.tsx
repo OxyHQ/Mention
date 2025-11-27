@@ -28,6 +28,7 @@ import HeroCard from '@/components/insights/HeroCard';
 import SummaryCard from '@/components/insights/SummaryCard';
 import { Header } from '@/components/Header';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { formatCompactNumber } from '@/utils/formatCompactNumber';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { StatusBar } from 'expo-status-bar';
 import SEO from '@/components/SEO';
@@ -172,11 +173,6 @@ const InsightsScreen: React.FC = () => {
         }
     }, []);
 
-    const formatNumber = (num: number): string => {
-        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return num.toString();
-    };
 
     const renderOverviewTab = () => {
         if (!stats) return null;
@@ -244,7 +240,7 @@ const InsightsScreen: React.FC = () => {
                             <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
                             {stats.overview.totalViews > 0 && (
                                 <Text style={[styles.engagementRateStat, { color: theme.colors.textSecondary }]}>
-                                    {formatNumber(stats.overview.totalViews)} {t('insights.post.views').toLowerCase()}
+                                    {formatCompactNumber(stats.overview.totalViews)} {t('insights.post.views').toLowerCase()}
                                 </Text>
                             )}
                         </View>
@@ -255,7 +251,7 @@ const InsightsScreen: React.FC = () => {
                         <View style={[styles.engagementRateStats, { borderTopColor: theme.colors.border }]}>
                             <View style={styles.engagementRateStatItem}>
                                 <Text style={[styles.engagementRateStatValue, { color: theme.colors.text }]}>
-                                    {formatNumber(stats.overview.totalInteractions)}
+                                    {formatCompactNumber(stats.overview.totalInteractions)}
                                 </Text>
                                 <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.totalInteractions')}</Text>
                             </View>
@@ -285,7 +281,7 @@ const InsightsScreen: React.FC = () => {
                                 )}
                             </View>
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                {formatNumber(stats.interactions.likes)}
+                                {formatCompactNumber(stats.interactions.likes)}
                             </Text>
                             <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.likes')}</Text>
                             {stats.overview.totalPosts > 0 && (
@@ -305,7 +301,7 @@ const InsightsScreen: React.FC = () => {
                                 )}
                             </View>
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                {formatNumber(stats.interactions.replies)}
+                                {formatCompactNumber(stats.interactions.replies)}
                             </Text>
                             <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.replies')}</Text>
                             {stats.overview.totalPosts > 0 && (
@@ -325,7 +321,7 @@ const InsightsScreen: React.FC = () => {
                                 )}
                             </View>
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                {formatNumber(stats.interactions.reposts)}
+                                {formatCompactNumber(stats.interactions.reposts)}
                             </Text>
                             <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.reposts')}</Text>
                             {stats.overview.totalPosts > 0 && (
@@ -345,7 +341,7 @@ const InsightsScreen: React.FC = () => {
                                 )}
                             </View>
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                {formatNumber(stats.interactions.shares)}
+                                {formatCompactNumber(stats.interactions.shares)}
                             </Text>
                             <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.shares')}</Text>
                             {stats.overview.totalPosts > 0 && (
@@ -484,7 +480,7 @@ const InsightsScreen: React.FC = () => {
                             <Ionicons name="stats-chart" size={20} color={theme.colors.primary} />
                             {engagementRatios.totals.views > 0 && (
                                 <Text style={[styles.engagementRateStat, { color: theme.colors.textSecondary }]}>
-                                    {formatNumber(engagementRatios.totals.views)} {t('insights.post.views').toLowerCase()}
+                                    {formatCompactNumber(engagementRatios.totals.views)} {t('insights.post.views').toLowerCase()}
                                 </Text>
                             )}
                         </View>
@@ -495,7 +491,7 @@ const InsightsScreen: React.FC = () => {
                         <View style={[styles.engagementRateStats, { borderTopColor: theme.colors.border }]}>
                             <View style={styles.engagementRateStatItem}>
                                 <Text style={[styles.engagementRateStatValue, { color: theme.colors.text }]}>
-                                    {formatNumber(engagementRatios.totals.interactions)}
+                                    {formatCompactNumber(engagementRatios.totals.interactions)}
                                 </Text>
                                 <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.totalInteractions')}</Text>
                             </View>
@@ -591,7 +587,7 @@ const InsightsScreen: React.FC = () => {
                                 )}
                             </View>
                             <Text style={[styles.averageValue, { color: theme.colors.text }]}>
-                                {formatNumber(Math.round(engagementRatios.averages.viewsPerPost))}
+                                {formatCompactNumber(Math.round(engagementRatios.averages.viewsPerPost))}
                             </Text>
                             <Text style={[styles.averageLabel, { color: theme.colors.textSecondary }]}>{t('insights.viewsPerPost')}</Text>
                         </View>
@@ -781,17 +777,8 @@ const styles = StyleSheet.create({
     summaryCard: {
         borderRadius: 12,
         padding: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     summaryRow: {
         flexDirection: 'row',
@@ -961,17 +948,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginHorizontal: 6,
         marginBottom: 12,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     statIconContainer: {
         width: 48,
@@ -1175,17 +1153,8 @@ const styles = StyleSheet.create({
     totalsCard: {
         borderRadius: 12,
         padding: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     totalsRow: {
         flexDirection: 'row',

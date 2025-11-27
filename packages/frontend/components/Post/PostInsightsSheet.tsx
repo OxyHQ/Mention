@@ -16,6 +16,7 @@ import SectionHeader from '@/components/insights/SectionHeader';
 import SummaryCard from '@/components/insights/SummaryCard';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
+import { formatCompactNumber } from '@/utils/formatNumber';
 
 interface PostInsightsSheetProps {
     postId: string | null;
@@ -49,12 +50,6 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
         } finally {
             setLoading(false);
         }
-    };
-
-    const formatNumber = (num: number): string => {
-        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return num.toString();
     };
 
     if (loading) {
@@ -153,7 +148,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                             <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
                             {insights.stats.views > 0 && (
                                 <Text style={[styles.engagementRateStat, { color: theme.colors.textSecondary }]}>
-                                    {formatNumber(insights.stats.views)} {t('insights.post.views').toLowerCase()}
+                                    {formatCompactNumber(insights.stats.views)} {t('insights.post.views').toLowerCase()}
                                 </Text>
                             )}
                         </View>
@@ -164,14 +159,14 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                         <View style={[styles.engagementRateStats, { borderTopColor: theme.colors.border }]}>
                             <View style={styles.engagementRateStatItem}>
                                 <Text style={[styles.engagementRateStatValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.engagement.totalInteractions)}
+                                    {formatCompactNumber(insights.engagement.totalInteractions)}
                                 </Text>
                                 <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.totalInteractions')}</Text>
                             </View>
                             {insights.engagement.reach > 0 && (
                                 <View style={styles.engagementRateStatItem}>
                                     <Text style={[styles.engagementRateStatValue, { color: theme.colors.text }]}>
-                                        {formatNumber(insights.engagement.reach)}
+                                        {formatCompactNumber(insights.engagement.reach)}
                                     </Text>
                                     <Text style={[styles.engagementRateStatLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.reach')}</Text>
                                 </View>
@@ -194,7 +189,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                                 )}
                             </View>
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                {formatNumber(insights.stats.likes)}
+                                {formatCompactNumber(insights.stats.likes)}
                             </Text>
                             <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.likes')}</Text>
                         </View>
@@ -209,7 +204,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                                 )}
                             </View>
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                {formatNumber(insights.stats.replies)}
+                                {formatCompactNumber(insights.stats.replies)}
                             </Text>
                             <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.replies')}</Text>
                         </View>
@@ -224,7 +219,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                                 )}
                             </View>
                             <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                {formatNumber(insights.stats.reposts)}
+                                {formatCompactNumber(insights.stats.reposts)}
                             </Text>
                             <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.reposts')}</Text>
                         </View>
@@ -240,7 +235,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                                     )}
                                 </View>
                                 <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                    {formatNumber(insights.stats.shares)}
+                                    {formatCompactNumber(insights.stats.shares)}
                                 </Text>
                                 <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.shares')}</Text>
                             </View>
@@ -254,7 +249,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                         <SectionHeader title={t('insights.post.quotes')} />
                         <View style={[styles.additionalCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                             <Text style={[styles.additionalValue, { color: theme.colors.text }]}>
-                                {formatNumber(insights.stats.quotes)}
+                                {formatCompactNumber(insights.stats.quotes)}
                             </Text>
                             <Text style={[styles.additionalLabel, { color: theme.colors.textSecondary }]}>{t('insights.post.totalQuotes')}</Text>
                         </View>

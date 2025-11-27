@@ -82,13 +82,7 @@ const styles = StyleSheet.create({
         width: '100%',
         maxWidth: 400,
         alignItems: 'center',
-        shadowColor: colors.shadow,
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
+        boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.1)',
         elevation: 8,
     },
     logoContainer: {
@@ -133,13 +127,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flexDirection: 'row',
         justifyContent: 'center',
-        shadowColor: colors.primaryColor,
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        boxShadow: '0px 4px 8px 0px rgba(0, 92, 103, 0.3)',
         elevation: 6,
     },
     signInButtonText: {

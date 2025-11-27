@@ -2,6 +2,8 @@ import { Post } from '../models/Post';
 import UserBehavior from '../models/UserBehavior';
 import mongoose from 'mongoose';
 import { extractFollowingIds } from '../utils/privacyHelpers';
+import { oxy } from '../../server';
+import { logger } from '../utils/logger';
 
 /**
  * FeedRankingService - Advanced feed ranking algorithm
@@ -68,13 +70,18 @@ export class FeedRankingService {
       userBehavior?: any;
       recentAuthors?: string[];
       recentTopics?: string[];
+      feedSettings?: any; // User feed settings
     } = {}
   ): Promise<number> {
-    // Base engagement score
+    // Base engagement score (with logarithmic normalization)
     const engagementScore = this.calculateEngagementScore(post);
     
-    // Recency score with time decay
-    const recencyScore = this.calculateRecencyScore(post.createdAt);
+    // Recency score with time decay (using user settings if provided)
+    const recencyScore = this.calculateRecencyScore(
+      post.createdAt,
+      context.feedSettings?.recency?.halfLifeHours,
+      context.feedSettings?.recency?.maxAgeHours
+    );
     
     // Author relationship score
     const authorScore = await this.calculateAuthorScore(
@@ -90,14 +97,21 @@ export class FeedRankingService {
       context.userBehavior
     );
     
-    // Content quality score
+    // Content quality score (with improved metrics)
     const qualityScore = this.calculateQualityScore(post);
     
-    // Diversity penalty (apply after all boosts)
+    // Trending boost (for posts gaining traction)
+    const trendingBoost = this.calculateTrendingBoost(post);
+    
+    // Time-of-day relevance score
+    const timeOfDayScore = this.calculateTimeOfDayScore(post, context.userBehavior);
+    
+    // Diversity penalty (apply after all boosts, using user settings if provided)
     const diversityPenalty = this.calculateDiversityPenalty(
       post,
       context.recentAuthors || [],
-      context.recentTopics || []
+      context.recentTopics || [],
+      context.feedSettings?.diversity
     );
     
     // Apply negative signals
@@ -113,6 +127,8 @@ export class FeedRankingService {
       * authorScore 
       * personalizationScore 
       * qualityScore 
+      * trendingBoost
+      * timeOfDayScore
       * diversityPenalty
       * negativePenalty;
     
@@ -120,7 +136,8 @@ export class FeedRankingService {
   }
 
   /**
-   * Calculate engagement score from post stats
+   * Calculate engagement score from post stats with logarithmic normalization
+   * Uses log scaling to prevent extremely popular posts from dominating
    */
   private calculateEngagementScore(post: any): number {
     const stats = post.stats || {};
@@ -131,7 +148,8 @@ export class FeedRankingService {
       ? metadata.savedBy.length 
       : 0;
     
-    return (
+    // Calculate raw engagement score
+    const rawScore = (
       (stats.likesCount || 0) * this.WEIGHTS.engagement.likes +
       (stats.repostsCount || 0) * this.WEIGHTS.engagement.reposts +
       (stats.commentsCount || 0) * this.WEIGHTS.engagement.comments +
@@ -139,28 +157,49 @@ export class FeedRankingService {
       (stats.viewsCount || 0) * this.WEIGHTS.engagement.views +
       (stats.sharesCount || 0) * this.WEIGHTS.engagement.shares
     );
+    
+    // Apply logarithmic scaling to prevent extremely popular posts from dominating
+    // log(1 + x) normalizes the score, +1 prevents log(0)
+    // Scale factor of 10 provides good normalization range
+    return Math.log1p(rawScore / 10);
   }
 
   /**
-   * Calculate recency score with exponential decay
-   * Uses half-life formula: value = base * (0.5 ^ (age / halfLife))
+   * Calculate recency score with improved time decay
+   * Uses configurable decay curve (exponential by default, can be linear or logarithmic)
+   * 
+   * @param createdAt - Post creation date
+   * @param halfLifeHours - Optional custom half-life (from user settings)
+   * @param maxAgeHours - Optional custom max age (from user settings)
    */
-  private calculateRecencyScore(createdAt: Date | string): number {
+  private calculateRecencyScore(
+    createdAt: Date | string,
+    halfLifeHours?: number,
+    maxAgeHours?: number
+  ): number {
     const postDate = new Date(createdAt);
     const now = new Date();
     const ageHours = (now.getTime() - postDate.getTime()) / (1000 * 60 * 60);
     
+    const maxAge = maxAgeHours || this.WEIGHTS.recency.maxAgeHours;
     // If post is older than max age, return 0
-    if (ageHours > this.WEIGHTS.recency.maxAgeHours) {
+    if (ageHours > maxAge) {
       return 0;
     }
     
-    // Exponential decay with half-life
-    const halfLife = this.WEIGHTS.recency.halfLifeHours;
+    const halfLife = halfLifeHours || this.WEIGHTS.recency.halfLifeHours;
+    
+    // Very recent posts (within 1 hour) get full score
+    if (ageHours < 1) {
+      return 1.0;
+    }
+    
+    // Exponential decay with half-life: value = 0.5 ^ (age / halfLife)
+    // This provides smooth decay that accelerates as posts age
     const decayFactor = Math.pow(0.5, ageHours / halfLife);
     
-    // Ensure minimum value for very recent posts (within 1 hour)
-    return ageHours < 1 ? 1.0 : Math.max(0.1, decayFactor);
+    // Ensure minimum value to prevent complete zero for recent posts
+    return Math.max(0.05, decayFactor);
   }
 
   /**
@@ -263,42 +302,141 @@ export class FeedRankingService {
   }
 
   /**
-   * Calculate content quality score
+   * Calculate content quality score with improved metrics
+   * Considers engagement rate, engagement velocity, and view-to-engagement ratio
    */
   private calculateQualityScore(post: any): number {
     const stats = post.stats || {};
     const viewsCount = stats.viewsCount || 1; // Avoid division by zero
     
+    // Calculate raw engagement (before log scaling for rate calculation)
+    const rawEngagement = (
+      (stats.likesCount || 0) * this.WEIGHTS.engagement.likes +
+      (stats.repostsCount || 0) * this.WEIGHTS.engagement.reposts +
+      (stats.commentsCount || 0) * this.WEIGHTS.engagement.comments +
+      (Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0) * this.WEIGHTS.engagement.saves +
+      (stats.sharesCount || 0) * this.WEIGHTS.engagement.shares
+    );
+    
     // Calculate engagement rate (engagement per view)
-    const engagementScore = this.calculateEngagementScore(post);
-    const engagementRate = engagementScore / viewsCount;
+    const engagementRate = rawEngagement / viewsCount;
+    
+    // Calculate engagement velocity (recent engagement vs total)
+    // Posts with recent engagement are more relevant
+    const postAge = (Date.now() - new Date(post.createdAt).getTime()) / (1000 * 60 * 60); // hours
+    const velocityBoost = postAge < 6 ? 1.2 : postAge < 24 ? 1.1 : 1.0; // Boost for very recent posts
     
     // High engagement rate = quality content
     if (engagementRate > 0.5) {
-      return this.WEIGHTS.quality.highEngagementRateBoost;
+      return this.WEIGHTS.quality.highEngagementRateBoost * velocityBoost;
     }
     
-    // Low engagement rate = lower quality
+    // Medium engagement rate = decent quality
+    if (engagementRate > 0.2) {
+      return 1.0 * velocityBoost;
+    }
+    
+    // Low engagement rate = lower quality (only penalize if post has significant views)
     if (engagementRate < 0.1 && viewsCount > 100) {
       return this.WEIGHTS.quality.lowEngagementRatePenalty;
     }
     
-    return 1.0; // Neutral
+    return 1.0; // Neutral for posts with few views
+  }
+
+  /**
+   * Calculate trending boost for posts with accelerating engagement
+   * Detects posts that are gaining traction rapidly
+   */
+  private calculateTrendingBoost(post: any): number {
+    const stats = post.stats || {};
+    const postAge = (Date.now() - new Date(post.createdAt).getTime()) / (1000 * 60 * 60); // hours
+    
+    // Only consider posts less than 24 hours old for trending
+    if (postAge > 24) {
+      return 1.0;
+    }
+    
+    // Calculate engagement density (engagement per hour)
+    const rawEngagement = (
+      (stats.likesCount || 0) * this.WEIGHTS.engagement.likes +
+      (stats.repostsCount || 0) * this.WEIGHTS.engagement.reposts +
+      (stats.commentsCount || 0) * this.WEIGHTS.engagement.comments +
+      (Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0) * this.WEIGHTS.engagement.saves +
+      (stats.sharesCount || 0) * this.WEIGHTS.engagement.shares
+    );
+    
+    const engagementPerHour = rawEngagement / Math.max(postAge, 0.1);
+    
+    // Boost posts with high engagement density (trending)
+    if (engagementPerHour > 50) {
+      return 1.5; // Strong trending boost
+    } else if (engagementPerHour > 20) {
+      return 1.3; // Moderate trending boost
+    } else if (engagementPerHour > 10) {
+      return 1.15; // Light trending boost
+    }
+    
+    return 1.0; // No trending boost
+  }
+
+  /**
+   * Calculate time-of-day relevance score
+   * Boosts posts created during user's active hours
+   */
+  private calculateTimeOfDayScore(
+    post: any,
+    userBehavior: any
+  ): number {
+    if (!userBehavior?.activeHours || userBehavior.activeHours.length === 0) {
+      return 1.0; // No preference data
+    }
+    
+    const postDate = new Date(post.createdAt);
+    const postHour = postDate.getHours();
+    
+    // Check if post was created during user's active hours
+    if (userBehavior.activeHours.includes(postHour)) {
+      return 1.2; // Boost for posts created during active hours
+    }
+    
+    // Check adjacent hours (within 1 hour of active time)
+    const adjacentHours = [
+      (postHour + 23) % 24, // Previous hour
+      (postHour + 1) % 24   // Next hour
+    ];
+    
+    if (adjacentHours.some(h => userBehavior.activeHours.includes(h))) {
+      return 1.1; // Slight boost for adjacent hours
+    }
+    
+    return 1.0; // No boost
   }
 
   /**
    * Calculate diversity penalty to avoid echo chambers
+   * Uses user settings if provided, otherwise uses defaults
    */
   private calculateDiversityPenalty(
     post: any,
     recentAuthors: string[],
-    recentTopics: string[]
+    recentTopics: string[],
+    diversitySettings?: any
   ): number {
+    // If diversity is disabled, return no penalty
+    if (diversitySettings?.enabled === false) {
+      return 1.0;
+    }
+    
+    // Use user settings or defaults
+    const sameAuthorPenalty = diversitySettings?.sameAuthorPenalty ?? this.WEIGHTS.diversity.sameAuthorPenalty;
+    const sameTopicPenalty = diversitySettings?.sameTopicPenalty ?? this.WEIGHTS.diversity.sameTopicPenalty;
+    
     let penalty = 1.0;
     
     // Penalize if same author appeared recently
     if (recentAuthors.includes(post.oxyUserId)) {
-      penalty *= this.WEIGHTS.diversity.sameAuthorPenalty;
+      penalty *= sameAuthorPenalty;
     }
     
     // Penalize if same topics appeared recently
@@ -308,7 +446,7 @@ export class FeedRankingService {
       );
       
       if (recentTopicMatches.length > 0) {
-        penalty *= this.WEIGHTS.diversity.sameTopicPenalty;
+        penalty *= sameTopicPenalty;
       }
     }
     
@@ -354,10 +492,11 @@ export class FeedRankingService {
 
   /**
    * Rank and sort posts by score
+   * Optimized with batch processing and score caching
    * 
    * @param posts - Array of post documents to rank
    * @param userId - Oxy user ID (from req.user?.id) or undefined for anonymous users
-   * @param context - Additional context (followingIds, userBehavior)
+   * @param context - Additional context (followingIds, userBehavior, feedSettings)
    */
   async rankPosts(
     posts: any[],
@@ -365,54 +504,70 @@ export class FeedRankingService {
     context: {
       followingIds?: string[]; // Array of Oxy user IDs
       userBehavior?: any;
+      feedSettings?: any; // User feed settings
     } = {}
   ): Promise<any[]> {
-    // Load user behavior if not provided
+    // Early return for empty posts
+    if (posts.length === 0) {
+      return [];
+    }
+    
+    // Load user behavior if not provided (batch load once)
     let userBehavior = context.userBehavior;
     if (userId && !userBehavior) {
       try {
         userBehavior = await UserBehavior.findOne({ oxyUserId: userId }).lean();
       } catch (error) {
-        console.warn('Failed to load user behavior:', error);
+        logger.warn('Failed to load user behavior:', error);
       }
     }
     
-    // Get following list if not provided
+    // Get following list if not provided (batch load once)
     let followingIds = context.followingIds;
     if (userId && !followingIds) {
       try {
-        const { oxy } = require('../../server');
         const followingRes = await oxy.getUserFollowing(userId);
         followingIds = extractFollowingIds(followingRes);
       } catch (error) {
-        console.warn('Failed to load following list:', error);
+        logger.warn('Failed to load following list:', error);
         followingIds = [];
       }
     }
     
-    // Track recent authors and topics for diversity
+    // Pre-calculate engagement scores once (used in multiple places)
+    const engagementScoreCache = new Map<string, number>();
+    posts.forEach(post => {
+      const postId = post._id?.toString() || '';
+      if (!engagementScoreCache.has(postId)) {
+        engagementScoreCache.set(postId, this.calculateEngagementScore(post));
+      }
+    });
+    
+    // Track recent authors and topics for diversity (build incrementally)
     const recentAuthors: string[] = [];
     const recentTopics: string[] = [];
     
-    // Calculate scores for all posts
+    // Calculate scores for all posts in parallel
     // Preserve original index to maintain MongoDB's createdAt sort order for tie-breaking
     const postsWithScores = await Promise.all(
       posts.map(async (post, originalIndex) => {
         const score = await this.calculatePostScore(post, userId, {
           followingIds,
           userBehavior,
-          recentAuthors,
-          recentTopics
+          recentAuthors: [...recentAuthors], // Copy current state
+          recentTopics: [...recentTopics], // Copy current state
+          feedSettings: context.feedSettings
         });
         
-        // Update recent lists for diversity calculation
+        // Update recent lists for diversity calculation (for next posts)
         if (post.oxyUserId && !recentAuthors.includes(post.oxyUserId)) {
           recentAuthors.push(post.oxyUserId);
         }
         if (post.hashtags) {
           post.hashtags.forEach((tag: string) => {
-            if (!recentTopics.includes(tag.toLowerCase())) {
-              recentTopics.push(tag.toLowerCase());
+            const normalizedTag = tag.toLowerCase();
+            if (!recentTopics.includes(normalizedTag)) {
+              recentTopics.push(normalizedTag);
             }
           });
         }

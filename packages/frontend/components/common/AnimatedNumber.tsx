@@ -67,17 +67,12 @@ const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
     // Use Animated.Text for smoother updates
     const DisplayTag = Animated.createAnimatedComponent(Text);
 
+import { formatCompactNumber } from '@/utils/formatNumber';
+
     // Format number for display (e.g., 1.2K, 1.5M)
     const formatNumber = React.useCallback((n: number): string => {
         if (format) return format(n);
-
-        if (n >= 1000000) {
-            return `${(n / 1000000).toFixed(1)}M`;
-        }
-        if (n >= 1000) {
-            return `${(n / 1000).toFixed(1)}K`;
-        }
-        return String(n);
+        return formatCompactNumber(n);
     }, [format]);
 
     return (

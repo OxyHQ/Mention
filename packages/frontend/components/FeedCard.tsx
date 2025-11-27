@@ -30,7 +30,7 @@ export interface FeedCardData {
 interface FeedCardProps {
     feed: FeedCardData;
     onPress?: () => void;
-    showSaveButton?: boolean;
+    headerRight?: React.ReactNode;
     style?: ViewStyle;
 }
 
@@ -40,7 +40,7 @@ interface FeedCardProps {
 export function FeedCard({
     feed,
     onPress,
-    showSaveButton = false,
+    headerRight,
     style,
 }: FeedCardProps) {
     const router = useRouter();
@@ -86,9 +86,9 @@ export function FeedCard({
                         </ThemedText>
                     )}
                 </View>
-                {showSaveButton && (
-                    <View style={styles.saveButtonContainer}>
-                        {/* Save/Pin button can be added here if needed */}
+                {headerRight && (
+                    <View style={styles.headerRight}>
+                        {headerRight}
                     </View>
                 )}
             </View>
@@ -189,8 +189,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
-    saveButtonContainer: {
-        minWidth: 80,
+    headerRight: {
         alignItems: 'flex-end',
     },
 });

@@ -1,9 +1,11 @@
 import { Router, Response } from 'express';
 import UserSettings from '../models/UserSettings';
+import Post from '../models/Post';
 import { extractPublicProfileData } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 import { AuthRequest } from '../types/auth';
+import { PostVisibility } from '@mention/shared-types';
 
 const router = Router();
 
@@ -15,6 +17,7 @@ const router = Router();
 
 interface PublicProfileDesignResponse {
   oxyUserId: string;
+  postsCount?: number;
   appearance?: {
     primaryColor?: string;
   };
@@ -77,6 +80,18 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
 
     // User has access - return full profile design data with privacy info
     const response = extractPublicProfileData(doc, userId) as PublicProfileDesignResponse;
+    
+    // Calculate posts count
+    // Count only top-level posts (not replies) that are public
+    // Match the same query pattern used in getUserProfileFeed
+    const postsCount = await Post.countDocuments({
+      oxyUserId: userId,
+      visibility: PostVisibility.PUBLIC,
+      parentPostId: null // In MongoDB, this matches null OR field doesn't exist
+    });
+    
+    response.postsCount = postsCount;
+
     // Include privacy info in response
     if (doc?.privacy?.profileVisibility) {
       response.privacy = {

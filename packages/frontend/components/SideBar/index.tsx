@@ -175,10 +175,7 @@ export function SideBar() {
                             },
                         }) as ViewStyle),
                         ...(pathname === '/search' ? {
-                            shadowColor: theme.colors.shadow,
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.25,
-                            shadowRadius: 3.84,
+                            boxShadow: '0px 2px 3.84px 0px rgba(0, 0, 0, 0.25)',
                             elevation: 5,
                         } : {}),
                     },

@@ -343,13 +343,7 @@ const styles = StyleSheet.create({
   modalBox: {
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: '0px 4px 8px 0px rgba(0, 0, 0, 0.3)',
     elevation: 8,
     width: '100%',
     height: '100%',

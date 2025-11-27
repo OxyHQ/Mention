@@ -32,6 +32,23 @@ export interface InterestsSettings {
   tags?: string[]; // Array of interest tags
 }
 
+export interface FeedSettings {
+  diversity: {
+    enabled: boolean;
+    sameAuthorPenalty: number; // 0.5 - 1.0
+    sameTopicPenalty: number; // 0.5 - 1.0
+    maxConsecutiveSameAuthor?: number; // Max posts from same author in a row
+  };
+  recency: {
+    halfLifeHours: number; // 6 - 72 hours
+    maxAgeHours: number; // 24 - 336 hours (14 days)
+  };
+  quality: {
+    minEngagementRate?: number; // Minimum engagement rate threshold
+    boostHighQuality: boolean;
+  };
+}
+
 export interface IUserSettings extends Document {
   oxyUserId: string;
   appearance: AppearanceSettings;
@@ -39,6 +56,7 @@ export interface IUserSettings extends Document {
   privacy?: PrivacySettings;
   profileCustomization?: ProfileCustomization;
   interests?: InterestsSettings;
+  feedSettings?: FeedSettings;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,6 +91,23 @@ const InterestsSchema = new Schema<InterestsSettings>({
   tags: [{ type: String }],
 }, { _id: false });
 
+const FeedSettingsSchema = new Schema<FeedSettings>({
+  diversity: {
+    enabled: { type: Boolean, default: true },
+    sameAuthorPenalty: { type: Number, default: 0.95, min: 0.5, max: 1.0 },
+    sameTopicPenalty: { type: Number, default: 0.92, min: 0.5, max: 1.0 },
+    maxConsecutiveSameAuthor: { type: Number, min: 1, max: 10 },
+  },
+  recency: {
+    halfLifeHours: { type: Number, default: 24, min: 6, max: 72 },
+    maxAgeHours: { type: Number, default: 168, min: 24, max: 336 },
+  },
+  quality: {
+    minEngagementRate: { type: Number, min: 0, max: 1 },
+    boostHighQuality: { type: Boolean, default: true },
+  },
+}, { _id: false });
+
 const UserSettingsSchema = new Schema<IUserSettings>({
   oxyUserId: { type: String, required: true, index: true, unique: true },
   appearance: { type: AppearanceSchema, default: () => ({ themeMode: 'system' }) },
@@ -80,6 +115,7 @@ const UserSettingsSchema = new Schema<IUserSettings>({
   privacy: { type: PrivacySchema, default: () => ({ profileVisibility: 'public' }) },
   profileCustomization: { type: ProfileCustomizationSchema },
   interests: { type: InterestsSchema },
+  feedSettings: { type: FeedSettingsSchema },
 }, { timestamps: true, versionKey: false });
 
 export const UserSettings = mongoose.model<IUserSettings>('UserSettings', UserSettingsSchema);

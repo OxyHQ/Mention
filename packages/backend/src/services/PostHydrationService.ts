@@ -6,7 +6,7 @@ import Bookmark from '../models/Bookmark';
 import { UserSettings } from '../models/UserSettings';
 import { oxy as oxyClient } from '../../server';
 import { linkMetadataService } from './linkMetadataService';
-import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds } from '../utils/privacyHelpers';
+import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 
 interface HydrationOptions {
@@ -178,21 +178,7 @@ export class PostHydrationService {
       ]);
 
       extractFollowingIds(followingResponse).forEach((id) => context.follows.add(String(id)));
-
-      const followersList = Array.isArray((followersResponse as any)?.followers)
-        ? (followersResponse as any).followers
-        : Array.isArray(followersResponse)
-          ? followersResponse
-          : [];
-
-      followersList.forEach((entry: any) => {
-        const id = typeof entry === 'string'
-          ? entry
-          : entry?.id || entry?._id || entry?.userId || entry?.oxyUserId;
-        if (id) {
-          context.followedBy.add(String(id));
-        }
-      });
+      extractFollowersIds(followersResponse).forEach((id) => context.followedBy.add(String(id)));
     } catch (error) {
       logger.warn('[PostHydration] Failed to load follower/following context:', error);
     }

@@ -3,6 +3,8 @@ import CustomFeed from '../models/CustomFeed';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
+import FeedLike from '../models/FeedLike';
+import { oxy as oxyClient } from '../../server';
 
 interface AuthRequest extends Request {
   user?: { id: string };
@@ -85,11 +87,75 @@ router.get('/', async (req: any, res) => {
     }
 
     const items = await CustomFeed.find(q).sort({ updatedAt: -1 }).lean();
-    // Normalize _id to id for frontend consistency
-    const normalizedItems = items.map((item: any) => ({
-      ...item,
-      id: item._id ? String(item._id) : item.id,
-    }));
+    
+    // Get like counts and isLiked status for all feeds
+    const feedIds = items.map((item: any) => item._id || item.id);
+    const likeCountsMap = new Map<string, number>();
+    const likedFeedsSet = new Set<string>();
+    
+    if (feedIds.length > 0) {
+      // Get like counts for all feeds in one query (always fetch, even without userId)
+      const likeCounts = await FeedLike.aggregate([
+        { $match: { feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } } },
+        { $group: { _id: '$feedId', count: { $sum: 1 } } },
+      ]);
+      
+      likeCounts.forEach((item: any) => {
+        likeCountsMap.set(String(item._id), item.count);
+      });
+      
+      // Get feeds liked by current user (only if userId exists)
+      if (userId) {
+        const userLikes = await FeedLike.find({ userId, feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } }).lean();
+        userLikes.forEach((like: any) => {
+          likedFeedsSet.add(String(like.feedId));
+        });
+      }
+    }
+    
+    // Get unique owner IDs and fetch owner information
+    const ownerIds = [...new Set(items.map((item: any) => item.ownerOxyUserId).filter(Boolean))];
+    const ownersMap = new Map<string, any>();
+    
+    if (ownerIds.length > 0) {
+      await Promise.all(
+        ownerIds.map(async (ownerId) => {
+          try {
+            const ownerData = await oxyClient.getUserById(ownerId);
+            ownersMap.set(ownerId, {
+              id: ownerData?.id || ownerId,
+              username: ownerData?.username || ownerData?.handle || ownerId,
+              handle: ownerData?.username || ownerData?.handle || ownerId,
+              displayName: ownerData?.name?.full || ownerData?.displayName || ownerData?.username || ownerId,
+              avatar: typeof ownerData?.avatar === 'string' 
+                ? ownerData.avatar 
+                : (ownerData?.avatar as any)?.url || ownerData?.profileImage || undefined,
+            });
+          } catch (error) {
+            console.error(`Error fetching owner ${ownerId}:`, error);
+            ownersMap.set(ownerId, {
+              id: ownerId,
+              username: ownerId,
+              handle: ownerId,
+              displayName: ownerId,
+              avatar: undefined,
+            });
+          }
+        })
+      );
+    }
+    
+    // Normalize _id to id for frontend consistency and add like data and owner info
+    const normalizedItems = items.map((item: any) => {
+      const feedId = item._id ? String(item._id) : item.id;
+      return {
+        ...item,
+        id: feedId,
+        likeCount: likeCountsMap.get(feedId) || 0,
+        isLiked: userId ? likedFeedsSet.has(feedId) : false,
+        owner: item.ownerOxyUserId ? ownersMap.get(item.ownerOxyUserId) : undefined,
+      };
+    });
     res.json({ items: normalizedItems, total: normalizedItems.length });
   } catch (error) {
     console.error('List custom feeds error:', error);
@@ -106,13 +172,57 @@ router.get('/:id', async (req: any, res) => {
     if (!feed.isPublic && feed.ownerOxyUserId !== userId) {
       return res.status(403).json({ error: 'Not allowed' });
     }
+    
+    const feedId = (feed as any)._id ? String((feed as any)._id) : (feed as any).id;
+    
+    // Get like count
+    const likeCount = await FeedLike.countDocuments({ feedId: new mongoose.Types.ObjectId(feedId) });
+    
+    // Get isLiked status for current user
+    let isLiked = false;
+    if (userId) {
+      const userLike = await FeedLike.findOne({ userId, feedId: new mongoose.Types.ObjectId(feedId) });
+      isLiked = !!userLike;
+    }
+    
+    // Fetch owner information from Oxy
+    let owner = null;
+    if (feed.ownerOxyUserId) {
+      try {
+        const ownerData = await oxyClient.getUserById(feed.ownerOxyUserId);
+        owner = {
+          id: ownerData?.id || feed.ownerOxyUserId,
+          username: ownerData?.username || ownerData?.handle || feed.ownerOxyUserId,
+          handle: ownerData?.username || ownerData?.handle || feed.ownerOxyUserId,
+          displayName: ownerData?.name?.full || ownerData?.displayName || ownerData?.username || feed.ownerOxyUserId,
+          avatar: typeof ownerData?.avatar === 'string' 
+            ? ownerData.avatar 
+            : (ownerData?.avatar as any)?.url || ownerData?.profileImage || undefined,
+        };
+      } catch (error) {
+        console.error('Error fetching owner info:', error);
+        // Fallback to just the ID if fetch fails
+        owner = {
+          id: feed.ownerOxyUserId,
+          username: feed.ownerOxyUserId,
+          handle: feed.ownerOxyUserId,
+          displayName: feed.ownerOxyUserId,
+          avatar: undefined,
+        };
+      }
+    }
+    
     // Normalize _id to id for frontend consistency
     const normalizedFeed = {
       ...feed,
-      id: (feed as any)._id ? String((feed as any)._id) : (feed as any).id,
+      id: feedId,
+      likeCount,
+      isLiked,
+      owner,
     };
     res.json(normalizedFeed);
   } catch (error) {
+    console.error('Get feed error:', error);
     res.status(500).json({ error: 'Failed to get feed' });
   }
 });
@@ -362,6 +472,102 @@ router.get('/:id/timeline', async (req: any, res) => {
   } catch (error) {
     console.error('Custom feed timeline error:', error);
     res.status(500).json({ error: 'Failed to load timeline' });
+  }
+});
+
+// Like a feed
+router.post('/:id/like', async (req: any, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const feedId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(feedId)) {
+      return res.status(400).json({ error: 'Invalid feed ID format' });
+    }
+
+    const feed = await CustomFeed.findById(feedId);
+    if (!feed) return res.status(404).json({ error: 'Feed not found' });
+
+    // Check if already liked
+    const existingLike = await FeedLike.findOne({ userId, feedId });
+    if (existingLike) {
+      const likeCount = await FeedLike.countDocuments({ feedId });
+      return res.json({
+        success: true,
+        liked: true,
+        likeCount,
+        message: 'Feed already liked',
+      });
+    }
+
+    // Create like record
+    await FeedLike.create({ userId, feedId });
+
+    // Get updated like count
+    const likeCount = await FeedLike.countDocuments({ feedId });
+
+    res.json({
+      success: true,
+      liked: true,
+      likeCount,
+      message: 'Feed liked successfully',
+    });
+  } catch (error: any) {
+    console.error('Like feed error:', error);
+    if (error.code === 11000) {
+      // Duplicate key error - already liked
+      const feedId = req.params.id;
+      const likeCount = await FeedLike.countDocuments({ feedId });
+      return res.json({
+        success: true,
+        liked: true,
+        likeCount,
+        message: 'Feed already liked',
+      });
+    }
+    res.status(500).json({ error: 'Failed to like feed' });
+  }
+});
+
+// Unlike a feed
+router.delete('/:id/like', async (req: any, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const feedId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(feedId)) {
+      return res.status(400).json({ error: 'Invalid feed ID format' });
+    }
+
+    const feed = await CustomFeed.findById(feedId);
+    if (!feed) return res.status(404).json({ error: 'Feed not found' });
+
+    // Remove like record
+    const result = await FeedLike.deleteOne({ userId, feedId });
+    
+    // Get updated like count
+    const likeCount = await FeedLike.countDocuments({ feedId });
+
+    if (result.deletedCount === 0) {
+      return res.json({
+        success: true,
+        liked: false,
+        likeCount,
+        message: 'Feed not liked',
+      });
+    }
+
+    res.json({
+      success: true,
+      liked: false,
+      likeCount,
+      message: 'Feed unliked successfully',
+    });
+  } catch (error) {
+    console.error('Unlike feed error:', error);
+    res.status(500).json({ error: 'Failed to unlike feed' });
   }
 });
 

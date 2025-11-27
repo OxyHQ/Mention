@@ -93,10 +93,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         minWidth: 120,
         alignItems: 'center',
-        shadowColor: colors.shadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.1)',
         elevation: 3,
     },
     retryText: {

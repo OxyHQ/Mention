@@ -701,6 +701,29 @@ export default function SettingsScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
+                        {/* Feed Settings */}
+                        <TouchableOpacity
+                            style={styles.settingItem}
+                            onPress={() => router.push('/settings/feed')}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="newspaper-outline" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {t('settings.feed.title')}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t('settings.feed.description')}
+                                    </Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
                         <View style={styles.settingItem}>
                             <View style={styles.settingInfo}>
                                 <View style={styles.settingIcon}>

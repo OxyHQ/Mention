@@ -1633,9 +1633,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    boxShadow: '0px 0px 6px 0px rgba(0, 0, 0, 0.2)',
     elevation: 6,
   },
   floatingPostButtonDisabled: {

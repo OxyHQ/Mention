@@ -60,7 +60,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const { appearance, profileHeaderImage, privacy, profileCustomization, interests } = req.body || {};
+    const { appearance, profileHeaderImage, privacy, profileCustomization, interests, feedSettings } = req.body || {};
 
     const update: Record<string, any> = {};
     
@@ -137,6 +137,54 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         // Validate that all tags are strings
         const validTags = interests.tags.filter((tag: any) => typeof tag === 'string');
         update['interests.tags'] = validTags;
+      }
+    }
+
+    if (feedSettings) {
+      // Validate and set diversity settings
+      if (feedSettings.diversity) {
+        if (typeof feedSettings.diversity.enabled === 'boolean') {
+          update['feedSettings.diversity.enabled'] = feedSettings.diversity.enabled;
+        }
+        if (typeof feedSettings.diversity.sameAuthorPenalty === 'number') {
+          const penalty = Math.max(0.5, Math.min(1.0, feedSettings.diversity.sameAuthorPenalty));
+          update['feedSettings.diversity.sameAuthorPenalty'] = penalty;
+        }
+        if (typeof feedSettings.diversity.sameTopicPenalty === 'number') {
+          const penalty = Math.max(0.5, Math.min(1.0, feedSettings.diversity.sameTopicPenalty));
+          update['feedSettings.diversity.sameTopicPenalty'] = penalty;
+        }
+        if (typeof feedSettings.diversity.maxConsecutiveSameAuthor === 'number') {
+          const maxConsecutive = Math.max(1, Math.min(10, Math.round(feedSettings.diversity.maxConsecutiveSameAuthor)));
+          update['feedSettings.diversity.maxConsecutiveSameAuthor'] = maxConsecutive;
+        } else if (feedSettings.diversity.maxConsecutiveSameAuthor === null) {
+          update['feedSettings.diversity.maxConsecutiveSameAuthor'] = undefined;
+        }
+      }
+
+      // Validate and set recency settings
+      if (feedSettings.recency) {
+        if (typeof feedSettings.recency.halfLifeHours === 'number') {
+          const halfLife = Math.max(6, Math.min(72, feedSettings.recency.halfLifeHours));
+          update['feedSettings.recency.halfLifeHours'] = halfLife;
+        }
+        if (typeof feedSettings.recency.maxAgeHours === 'number') {
+          const maxAge = Math.max(24, Math.min(336, feedSettings.recency.maxAgeHours));
+          update['feedSettings.recency.maxAgeHours'] = maxAge;
+        }
+      }
+
+      // Validate and set quality settings
+      if (feedSettings.quality) {
+        if (typeof feedSettings.quality.boostHighQuality === 'boolean') {
+          update['feedSettings.quality.boostHighQuality'] = feedSettings.quality.boostHighQuality;
+        }
+        if (typeof feedSettings.quality.minEngagementRate === 'number') {
+          const minRate = Math.max(0, Math.min(1, feedSettings.quality.minEngagementRate));
+          update['feedSettings.quality.minEngagementRate'] = minRate;
+        } else if (feedSettings.quality.minEngagementRate === null) {
+          update['feedSettings.quality.minEngagementRate'] = undefined;
+        }
       }
     }
 

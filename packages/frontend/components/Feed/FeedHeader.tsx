@@ -31,7 +31,6 @@ export const FeedHeader = memo<FeedHeaderProps>(
                         {
                             backgroundColor: theme.colors.backgroundSecondary,
                             borderColor: theme.colors.border,
-                            shadowColor: theme.colors.shadow,
                         },
                     ])}
                     onPress={onComposePress}
@@ -64,9 +63,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 12,
         borderWidth: 1,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
+        boxShadow: '0px 1px 2px 0px rgba(0, 0, 0, 0.05)',
         elevation: 1,
     },
     composeButtonText: {

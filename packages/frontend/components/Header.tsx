@@ -17,10 +17,11 @@ interface Props {
     options?: {
         title?: string
         titlePosition?: 'left' | 'center'
-        subtitle?: string
+        subtitle?: string | ReactNode
         showBackButton?: boolean
         leftComponents?: ReactNode[]
         rightComponents?: ReactNode[]
+        headerTitleStyle?: ViewStyle
     }
     hideBottomBorder?: boolean
     disableSticky?: boolean
@@ -70,13 +71,21 @@ export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, dis
                     <React.Fragment key={index}>{component}</React.Fragment>
                 ))}
                 {titlePosition === "left" && (
-                    <View>
+                    <View style={[options?.headerTitleStyle, { flex: 1 }]}>
                         {options?.title && (
-                            <Text style={[styles.topRowText, options?.subtitle && { fontSize: 14 }, { color: theme.colors.text }]}>
+                            <Text style={[styles.topRowText, options?.subtitle && { fontSize: 16 }, { color: theme.colors.text }]}>
                                 {options.title}
                             </Text>
                         )}
-                        {options?.subtitle && <Text style={{ color: theme.colors.textSecondary }}>{options.subtitle}</Text>}
+                        {options?.subtitle && (typeof options.subtitle === 'string' ? (
+                            <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
+                                {options.subtitle}
+                            </Text>
+                        ) : (
+                            <View style={{ marginTop: 2 }}>
+                                {options.subtitle}
+                            </View>
+                        ))}
                     </View>
                 )}
 
@@ -88,7 +97,11 @@ export const Header: React.FC<Props> = ({ options, hideBottomBorder = false, dis
                             {options.title}
                         </Text>
                     )}
-                    {options?.subtitle && <Text style={{ color: theme.colors.textSecondary }}>{options.subtitle}</Text>}
+                    {options?.subtitle && (typeof options.subtitle === 'string' ? (
+                        <Text style={{ color: theme.colors.textSecondary }}>{options.subtitle}</Text>
+                    ) : (
+                        options.subtitle
+                    ))}
                 </View>
             )}
             <View style={styles.rightContainer}>

@@ -24,7 +24,7 @@ import { userPreferenceService } from '../services/UserPreferenceService';
 import { postHydrationService } from '../services/PostHydrationService';
 import UserBehavior from '../models/UserBehavior';
 import UserSettings from '../models/UserSettings';
-import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
+import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, getBlockedUserIds, getRestrictedUserIds } from '../utils/privacyHelpers';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
 
@@ -51,7 +51,6 @@ class FeedController {
       let restrictedUserIds: string[] = [];
       if (currentUserId) {
         try {
-          const { getBlockedUserIds, getRestrictedUserIds } = await import('../utils/privacyHelpers.js');
           // These functions use authenticated context, so they'll get the current user's blocked/restricted lists
           blockedUserIds = await getBlockedUserIds();
           restrictedUserIds = await getRestrictedUserIds();
@@ -783,9 +782,10 @@ class FeedController {
       }
 
       // Use advanced feed ranking service for authenticated users
-      // Get following list and user behavior for personalization
+      // Get following list, user behavior, and feed settings for personalization
       let followingIds: string[] = [];
       let userBehavior: any = null;
+      let feedSettings: any = null;
       
       try {
         if (currentUserId) {
@@ -799,6 +799,14 @@ class FeedController {
           
           // Get user behavior for personalization
           userBehavior = await UserBehavior.findOne({ oxyUserId: currentUserId }).lean();
+          
+          // Get user feed settings
+          try {
+            const userSettings = await UserSettings.findOne({ oxyUserId: currentUserId }).lean();
+            feedSettings = userSettings?.feedSettings || null;
+          } catch (error) {
+            logger.warn('Failed to load feed settings', error);
+          }
         }
       } catch (e) {
         logger.error('ForYou: Failed to load user data; continuing with basic ranking', e);
@@ -868,7 +876,8 @@ class FeedController {
         currentUserId,
         {
           followingIds,
-          userBehavior
+          userBehavior,
+          feedSettings
         }
       );
 
@@ -881,7 +890,7 @@ class FeedController {
             const score = await feedRankingService.calculatePostScore(
               post,
               currentUserId,
-              { followingIds, userBehavior }
+              { followingIds, userBehavior, feedSettings }
             );
             return { post, score };
           })
@@ -901,7 +910,7 @@ class FeedController {
         posts = await feedRankingService.rankPosts(
           posts,
           currentUserId,
-          { followingIds, userBehavior }
+          { followingIds, userBehavior, feedSettings }
         );
       }
 

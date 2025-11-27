@@ -359,13 +359,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    boxShadow: '0px -2px 8px 0px rgba(0, 0, 0, 0.25)',
     elevation: 10,
   },
   header: {

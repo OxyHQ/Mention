@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { useOxy } from '@oxyhq/services';
 import Avatar from '@/components/Avatar';
 import StatCard from '@/components/insights/StatCard';
+import { formatCompactNumber } from '@/utils/formatNumber';
 
 const { width } = Dimensions.get('window');
 
@@ -211,11 +212,6 @@ const WeeklyRecapScreen: React.FC = () => {
         loadWeeklyRecap();
     }, [loadWeeklyRecap]);
 
-    const formatNumber = (num: number): string => {
-        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return num.toString();
-    };
 
     if (loading) {
         return (
@@ -356,7 +352,7 @@ const WeeklyRecapScreen: React.FC = () => {
                         chartData={card.chartData}
                         chartLabels={getDayLabels()}
                         showChart={true}
-                        formatNumber={formatNumber}
+                        formatNumber={formatCompactNumber}
                     />
                 ))}
 

@@ -20,6 +20,7 @@ import { useOxy } from '@oxyhq/services';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
 import { UIPost } from '@mention/shared-types';
+import { formatCompactNumber } from '@/utils/formatCompactNumber';
 
 const { width } = Dimensions.get('window');
 
@@ -90,11 +91,6 @@ const InsightsScreen: React.FC = () => {
         loadStatistics();
     }, [loadStatistics]);
 
-    const formatNumber = (num: number): string => {
-        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return num.toString();
-    };
 
     const renderOverviewTab = () => {
         if (!stats) return null;
@@ -107,21 +103,21 @@ const InsightsScreen: React.FC = () => {
                         <View style={styles.summaryRow}>
                             <View style={styles.summaryItem}>
                                 <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
-                                    {formatNumber(stats.overview.totalPosts)}
+                                    {formatCompactNumber(stats.overview.totalPosts)}
                                 </Text>
                                 <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
                             </View>
                             <View style={styles.summaryDivider} />
                             <View style={styles.summaryItem}>
                                 <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
-                                    {formatNumber(stats.overview.totalViews)}
+                                    {formatCompactNumber(stats.overview.totalViews)}
                                 </Text>
                                 <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Views</Text>
                             </View>
                             <View style={styles.summaryDivider} />
                             <View style={styles.summaryItem}>
                                 <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
-                                    {formatNumber(stats.overview.totalInteractions)}
+                                    {formatCompactNumber(stats.overview.totalInteractions)}
                                 </Text>
                                 <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Interactions</Text>
                             </View>
@@ -140,7 +136,7 @@ const InsightsScreen: React.FC = () => {
                             {stats.overview.engagementRate.toFixed(2)}%
                         </Text>
                         <Text style={[styles.heroSubtext, { color: theme.colors.textSecondary }]}>
-                            {formatNumber(stats.overview.totalInteractions)} total interactions
+                            {formatCompactNumber(stats.overview.totalInteractions)} total interactions
                         </Text>
                     </View>
                 </View>
@@ -163,7 +159,7 @@ const InsightsScreen: React.FC = () => {
                                 </View>
                                 <View style={styles.interactionContent}>
                                     <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                        {formatNumber(stats.interactions.likes)}
+                                        {formatCompactNumber(stats.interactions.likes)}
                                     </Text>
                                     <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Likes</Text>
                                     {stats.interactions.likes > 0 && stats.overview.totalInteractions > 0 && (
@@ -182,7 +178,7 @@ const InsightsScreen: React.FC = () => {
                                 </View>
                                 <View style={styles.interactionContent}>
                                     <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                        {formatNumber(stats.interactions.replies)}
+                                        {formatCompactNumber(stats.interactions.replies)}
                                     </Text>
                                     <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Replies</Text>
                                     {stats.interactions.replies > 0 && stats.overview.totalInteractions > 0 && (
@@ -205,7 +201,7 @@ const InsightsScreen: React.FC = () => {
                                 </View>
                                 <View style={styles.interactionContent}>
                                     <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                        {formatNumber(stats.interactions.reposts)}
+                                        {formatCompactNumber(stats.interactions.reposts)}
                                     </Text>
                                     <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Reposts</Text>
                                     {stats.interactions.reposts > 0 && stats.overview.totalInteractions > 0 && (
@@ -224,7 +220,7 @@ const InsightsScreen: React.FC = () => {
                                 </View>
                                 <View style={styles.interactionContent}>
                                     <Text style={[styles.interactionValue, { color: theme.colors.text }]}>
-                                        {formatNumber(stats.interactions.shares)}
+                                        {formatCompactNumber(stats.interactions.shares)}
                                     </Text>
                                     <Text style={[styles.interactionLabel, { color: theme.colors.textSecondary }]}>Shares</Text>
                                     {stats.interactions.shares > 0 && stats.overview.totalInteractions > 0 && (
@@ -343,7 +339,7 @@ const InsightsScreen: React.FC = () => {
                             {engagementRatios.ratios.engagementRate.toFixed(2)}%
                         </Text>
                         <Text style={[styles.heroSubtext, { color: theme.colors.textSecondary }]}>
-                            {formatNumber(engagementRatios.totals.interactions)} total interactions
+                            {formatCompactNumber(engagementRatios.totals.interactions)} total interactions
                         </Text>
                     </View>
                 </View>
@@ -430,21 +426,21 @@ const InsightsScreen: React.FC = () => {
                         <View style={styles.totalsRow}>
                             <View style={styles.totalItem}>
                                 <Text style={[styles.totalValue, { color: theme.colors.text }]}>
-                                    {formatNumber(engagementRatios.totals.posts)}
+                                    {formatCompactNumber(engagementRatios.totals.posts)}
                                 </Text>
                                 <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Posts</Text>
                             </View>
                             <View style={styles.totalDivider} />
                             <View style={styles.totalItem}>
                                 <Text style={[styles.totalValue, { color: theme.colors.text }]}>
-                                    {formatNumber(engagementRatios.totals.views)}
+                                    {formatCompactNumber(engagementRatios.totals.views)}
                                 </Text>
                                 <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Views</Text>
                             </View>
                             <View style={styles.totalDivider} />
                             <View style={styles.totalItem}>
                                 <Text style={[styles.totalValue, { color: theme.colors.text }]}>
-                                    {formatNumber(engagementRatios.totals.interactions)}
+                                    {formatCompactNumber(engagementRatios.totals.interactions)}
                                 </Text>
                                 <Text style={[styles.totalLabel, { color: theme.colors.textSecondary }]}>Interactions</Text>
                             </View>
@@ -605,10 +601,7 @@ const styles = StyleSheet.create({
         marginRight: 6,
     },
     periodButtonActive: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.1)',
         elevation: 3,
     },
     periodButtonText: {
@@ -652,17 +645,8 @@ const styles = StyleSheet.create({
     summaryCard: {
         borderRadius: 12,
         padding: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     summaryRow: {
         flexDirection: 'row',
@@ -692,17 +676,8 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 16,
         marginBottom: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     heroHeader: {
         flexDirection: 'row',
@@ -734,17 +709,8 @@ const styles = StyleSheet.create({
     interactionsCard: {
         borderRadius: 12,
         padding: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     interactionsRow: {
         flexDirection: 'row',
@@ -813,17 +779,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginHorizontal: 6,
         marginBottom: 12,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     statIconContainer: {
         width: 48,
@@ -900,17 +857,8 @@ const styles = StyleSheet.create({
     typeCard: {
         borderRadius: 12,
         padding: 12,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     typeRow: {
         flexDirection: 'row',
@@ -950,17 +898,8 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         marginHorizontal: 4,
         marginBottom: 8,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     ratioHeader: {
         flexDirection: 'row',
@@ -987,17 +926,8 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 12,
         marginRight: 8,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     averageCardLast: {
         marginRight: 0,
@@ -1022,17 +952,8 @@ const styles = StyleSheet.create({
     totalsCard: {
         borderRadius: 12,
         padding: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
+        boxShadow: '0px 1px 4px 0px rgba(0, 0, 0, 0.08)',
+        elevation: 2,
     },
     totalsRow: {
         flexDirection: 'row',
