@@ -38,18 +38,12 @@ async function waitForAuth(
   services: OxyServices,
   timeoutMs: number = INITIALIZATION_TIMEOUT.AUTH
 ): Promise<boolean> {
-  const maybe = services as unknown as {
-    waitForAuth?: (ms?: number) => Promise<boolean>;
-  };
-  if (typeof maybe.waitForAuth === 'function') {
-    try {
-      return await maybe.waitForAuth(timeoutMs);
-    } catch (e) {
-      console.warn('waitForAuth failed:', e);
-      return false;
-    }
+  try {
+    return await services.waitForAuth(timeoutMs);
+  } catch (e) {
+    console.warn('waitForAuth failed:', e);
+    return false;
   }
-  return false;
 }
 
 /**

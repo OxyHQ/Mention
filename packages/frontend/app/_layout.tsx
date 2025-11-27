@@ -40,6 +40,7 @@ import '../styles/global.css';
 interface SplashState {
   initializationComplete: boolean;
   startFade: boolean;
+  fadeComplete: boolean;
 }
 
 interface MainLayoutProps {
@@ -111,6 +112,7 @@ export default function RootLayout() {
   const [splashState, setSplashState] = useState<SplashState>({
     initializationComplete: false,
     startFade: false,
+    fadeComplete: false,
   });
 
   // Hooks
@@ -145,7 +147,7 @@ export default function RootLayout() {
 
   // Callbacks
   const handleSplashFadeComplete = useCallback(() => {
-    setAppIsReady(true);
+    setSplashState((prev) => ({ ...prev, fadeComplete: true }));
   }, []);
 
   const initializeApp = useCallback(async () => {
@@ -204,6 +206,13 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, splashState.initializationComplete, splashState.startFade]);
 
+  // Set appIsReady only after both initialization (including auth) and splash fade complete
+  useEffect(() => {
+    if (splashState.initializationComplete && splashState.fadeComplete && !appIsReady) {
+      setAppIsReady(true);
+    }
+  }, [splashState.initializationComplete, splashState.fadeComplete, appIsReady]);
+
   const theme = useTheme();
   const colorScheme = useColorScheme();
 
@@ -247,6 +256,7 @@ export default function RootLayout() {
     appIsReady,
     splashState.startFade,
     splashState.initializationComplete,
+    splashState.fadeComplete,
     colorScheme,
     isScreenNotMobile,
     keyboardVisible,
