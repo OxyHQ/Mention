@@ -8,11 +8,11 @@ import { QueryClient } from '@tanstack/react-query';
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Data considered fresh for 5 minutes
-      staleTime: 1000 * 60 * 5,
+      // Data considered fresh for 10 minutes (increased for better performance)
+      staleTime: 1000 * 60 * 10,
       
-      // Keep unused data in cache for 10 minutes before garbage collection
-      gcTime: 1000 * 60 * 10,
+      // Keep unused data in cache for 30 minutes before garbage collection (increased)
+      gcTime: 1000 * 60 * 30,
       
       // Only retry failed requests once
       retry: 1,
@@ -21,7 +21,14 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       
       // Disable refetching on reconnect (handled by socket connections when needed)
-      refetchOnReconnect: false
+      refetchOnReconnect: false,
+      
+      // Enable structural sharing for better memory efficiency
+      structuralSharing: true,
+    },
+    mutations: {
+      // Enable optimistic updates for better UX
+      retry: 1,
     },
   },
 });

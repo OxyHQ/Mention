@@ -3,32 +3,99 @@ import UserBehavior from '../models/UserBehavior';
 import { feedRankingService } from './FeedRankingService';
 import mongoose from 'mongoose';
 import { extractFollowingIds } from '../utils/privacyHelpers';
+import { getRedisClient, createRedisPubSub } from '../utils/redis';
+import { logger } from '../utils/logger';
+import { isRedisConnectionError, ensureRedisConnected, withRedisFallback } from '../utils/redisHelpers';
 
 /**
- * FeedCacheService - Caches precomputed feeds for performance
+ * FeedCacheService - Caches precomputed feeds for performance using Redis
  * Similar to how Twitter precomputes timelines
  * 
  * Strategy:
- * - Cache personalized feeds for active users
+ * - Cache personalized feeds for active users in Redis
  * - Refresh cache periodically via background jobs
- * - Invalidate on new interactions
- * - Use MongoDB for cache storage (can be replaced with Redis)
+ * - Invalidate on new interactions (with pub/sub for multi-instance)
+ * - Distributed cache for horizontal scaling
  */
 
 interface CachedFeed {
   userId: string;
   feedType: string;
   posts: any[];
-  scores: Map<string, number>;
   nextCursor?: string;
-  cachedAt: Date;
-  expiresAt: Date;
+  cachedAt: string; // ISO string for JSON serialization
+  expiresAt: string; // ISO string for JSON serialization
 }
 
 export class FeedCacheService {
-  private cache: Map<string, CachedFeed> = new Map();
-  private readonly CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
-  private readonly MAX_CACHE_SIZE = 1000; // Max cached feeds
+  private readonly CACHE_TTL_SECONDS = 15 * 60; // 15 minutes in seconds
+  private readonly CACHE_KEY_PREFIX = 'feed:cache:';
+  private readonly INVALIDATION_CHANNEL = 'feed:invalidate';
+  private redis: ReturnType<typeof getRedisClient>;
+  private pubSub: { publisher: ReturnType<typeof createRedisPubSub>['publisher']; subscriber: ReturnType<typeof createRedisPubSub>['subscriber'] } | null = null;
+
+  constructor() {
+    this.redis = getRedisClient();
+    this.setupPubSub();
+  }
+
+  /**
+   * Setup Redis pub/sub for cache invalidation across instances
+   */
+  private async setupPubSub(): Promise<void> {
+    try {
+      const { publisher, subscriber } = createRedisPubSub();
+      
+      // Connect both clients with timeout
+      try {
+        await Promise.race([
+          Promise.all([
+            publisher.connect(),
+            subscriber.connect()
+          ]),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Redis pub/sub connection timeout')), 5000)
+          )
+        ]);
+      } catch (connectError: any) {
+        // If Redis unavailable, skip pub/sub setup silently
+        // Main client already logged the unavailability
+        if (isRedisConnectionError(connectError) || connectError.message?.includes('timeout')) {
+          return;
+        }
+        throw connectError;
+      }
+
+      this.pubSub = { publisher, subscriber };
+
+      // Subscribe to invalidation channel using pattern subscribe
+      // In node-redis v5, pSubscribe uses callback pattern
+      await subscriber.pSubscribe(this.INVALIDATION_CHANNEL, (message: string, channel: string) => {
+        try {
+          const { userId, feedType } = JSON.parse(message);
+          this.handleRemoteInvalidation(userId, feedType);
+        } catch (error) {
+          logger.error('Error handling cache invalidation message:', error);
+        }
+      });
+
+      logger.info('Subscribed to cache invalidation channel');
+    } catch (error: any) {
+      // Silently handle Redis unavailability (main client already logged it)
+      if (isRedisConnectionError(error)) {
+        return;
+      }
+      logger.warn('Failed to setup Redis pub/sub, cache invalidation will be local only:', error);
+    }
+  }
+
+  /**
+   * Handle cache invalidation from another instance
+   */
+  private async handleRemoteInvalidation(userId: string, feedType?: string): Promise<void> {
+    // This is handled by Redis TTL, but we can log it for monitoring
+    logger.debug(`Cache invalidation received for user ${userId}, feedType: ${feedType || 'all'}`);
+  }
 
   /**
    * Get cached feed or compute and cache
@@ -44,14 +111,30 @@ export class FeedCacheService {
     }
 
     const cacheKey = this.getCacheKey(userId, feedType);
-    const cached = this.cache.get(cacheKey);
+    
+    // Try to get from cache with graceful fallback
+    const cachedData = await withRedisFallback(
+      this.redis,
+      async () => {
+        const data = await this.redis.get(cacheKey);
+        if (!data) return null;
+        
+        const cached: CachedFeed = JSON.parse(data);
+        const expiresAt = new Date(cached.expiresAt);
+        // Check if still valid (Redis TTL should handle this, but double-check)
+        return expiresAt > new Date() ? cached.posts : null;
+      },
+      null,
+      'feed cache get'
+    );
 
-    // Check if cache is valid
-    if (cached && cached.expiresAt > new Date()) {
-      return cached.posts;
+    if (cachedData) {
+      logger.debug(`Cache hit for ${cacheKey}`);
+      return cachedData;
     }
 
     // Compute and cache
+    logger.debug(`Cache miss for ${cacheKey}, computing feed...`);
     const posts = await computeFn();
     await this.setCache(cacheKey, userId, feedType, posts);
 
@@ -62,18 +145,42 @@ export class FeedCacheService {
    * Invalidate cache for user (when user interacts with content)
    */
   async invalidateUserCache(userId: string, feedType?: string): Promise<void> {
-    if (feedType) {
-      const cacheKey = this.getCacheKey(userId, feedType);
-      this.cache.delete(cacheKey);
-    } else {
-      // Invalidate all feeds for user
-      const keysToDelete: string[] = [];
-      this.cache.forEach((feed, key) => {
-        if (feed.userId === userId) {
-          keysToDelete.push(key);
+    // Invalidate cache with graceful fallback
+    await withRedisFallback(
+      this.redis,
+      async () => {
+        if (feedType) {
+          const cacheKey = this.getCacheKey(userId, feedType);
+          await this.redis.del([cacheKey]);
+          logger.debug(`Invalidated cache for ${cacheKey}`);
+        } else {
+          // Invalidate all feeds for user (use pattern matching)
+          const pattern = `${this.CACHE_KEY_PREFIX}${userId}:*`;
+          const keys = await this.redis.keys(pattern);
+          if (keys.length > 0) {
+            await this.redis.del(keys);
+            logger.debug(`Invalidated ${keys.length} cache entries for user ${userId}`);
+          }
         }
-      });
-      keysToDelete.forEach(key => this.cache.delete(key));
+      },
+      undefined,
+      'cache invalidation'
+    );
+
+    // Publish invalidation message to other instances (non-blocking)
+    if (this.pubSub?.publisher) {
+      ensureRedisConnected(this.pubSub.publisher)
+        .then(async (connected) => {
+          if (connected) {
+            await this.pubSub!.publisher.publish(
+              this.INVALIDATION_CHANNEL,
+              JSON.stringify({ userId, feedType })
+            );
+          }
+        })
+        .catch(() => {
+          // Silently fail - pub/sub is optional
+        });
     }
   }
 
@@ -107,7 +214,7 @@ export class FeedCacheService {
       const cacheKey = this.getCacheKey(userId, feedType);
       await this.setCache(cacheKey, userId, feedType, posts);
     } catch (error) {
-      console.error(`Error precomputing feed for user ${userId}:`, error);
+      logger.error(`Error precomputing feed for user ${userId}:`, error);
     }
   }
 
@@ -125,7 +232,7 @@ export class FeedCacheService {
       const followingRes = await oxy.getUserFollowing(userId);
       followingIds = extractFollowingIds(followingRes);
     } catch (error) {
-      console.warn('Failed to load following list:', error);
+      logger.warn('Failed to load following list:', error);
     }
 
     // Get candidate posts (public posts, not replies/reposts initially)
@@ -167,7 +274,7 @@ export class FeedCacheService {
       // Include user's own posts
       followingIds.push(userId);
     } catch (error) {
-      console.warn('Failed to load following list:', error);
+      logger.warn('Failed to load following list:', error);
       followingIds = [userId]; // At least include own posts
     }
 
@@ -216,7 +323,7 @@ export class FeedCacheService {
   }
 
   /**
-   * Set cache entry
+   * Set cache entry in Redis
    */
   private async setCache(
     cacheKey: string,
@@ -224,73 +331,83 @@ export class FeedCacheService {
     feedType: string,
     posts: any[]
   ): Promise<void> {
-    // Clean old cache entries if at capacity
-    if (this.cache.size >= this.MAX_CACHE_SIZE) {
-      this.cleanExpiredCache();
-    }
-
     const cachedFeed: CachedFeed = {
       userId,
       feedType,
       posts,
-      scores: new Map(),
-      cachedAt: new Date(),
-      expiresAt: new Date(Date.now() + this.CACHE_TTL_MS)
+      cachedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + this.CACHE_TTL_SECONDS * 1000).toISOString()
     };
 
-    this.cache.set(cacheKey, cachedFeed);
-  }
-
-  /**
-   * Clean expired cache entries
-   */
-  private cleanExpiredCache(): void {
-    const now = new Date();
-    const keysToDelete: string[] = [];
-
-    this.cache.forEach((feed, key) => {
-      if (feed.expiresAt <= now) {
-        keysToDelete.push(key);
-      }
-    });
-
-    keysToDelete.forEach(key => this.cache.delete(key));
-
-    // If still at capacity, remove oldest entries
-    if (this.cache.size >= this.MAX_CACHE_SIZE) {
-      const sortedEntries = Array.from(this.cache.entries())
-        .sort((a, b) => a[1].cachedAt.getTime() - b[1].cachedAt.getTime());
-      
-      const toRemove = sortedEntries.slice(0, this.MAX_CACHE_SIZE / 10); // Remove 10%
-      toRemove.forEach(([key]) => this.cache.delete(key));
-    }
+    await withRedisFallback(
+      this.redis,
+      async () => {
+        await this.redis.setEx(
+          cacheKey,
+          this.CACHE_TTL_SECONDS,
+          JSON.stringify(cachedFeed)
+        );
+        logger.debug(`Cached feed for ${cacheKey} with TTL ${this.CACHE_TTL_SECONDS}s`);
+      },
+      undefined,
+      'feed cache set'
+    );
   }
 
   /**
    * Get cache key
    */
   private getCacheKey(userId: string, feedType: string): string {
-    return `${userId}:${feedType}`;
+    return `${this.CACHE_KEY_PREFIX}${userId}:${feedType}`;
   }
 
   /**
    * Get cache statistics
    */
-  getCacheStats(): {
+  async getCacheStats(): Promise<{
     size: number;
-    entries: Array<{ userId: string; feedType: string; cachedAt: Date; expiresAt: Date }>;
-  } {
-    const entries = Array.from(this.cache.values()).map(feed => ({
-      userId: feed.userId,
-      feedType: feed.feedType,
-      cachedAt: feed.cachedAt,
-      expiresAt: feed.expiresAt
-    }));
+    hitRate?: number;
+    entries: Array<{ userId: string; feedType: string; cachedAt: string; expiresAt: string }>;
+  }> {
+    return await withRedisFallback(
+      this.redis,
+      async () => {
+        const pattern = `${this.CACHE_KEY_PREFIX}*`;
+        const keys = await this.redis.keys(pattern);
+        const entries: Array<{ userId: string; feedType: string; cachedAt: string; expiresAt: string }> = [];
 
-    return {
-      size: this.cache.size,
-      entries
-    };
+        // Get a sample of entries (limit to 100 for performance)
+        const sampleKeys = keys.slice(0, 100);
+        const results = await Promise.allSettled(
+          sampleKeys.map(async (key) => {
+            const data = await this.redis.get(key);
+            if (data) {
+              const cached: CachedFeed = JSON.parse(data);
+              return {
+                userId: cached.userId,
+                feedType: cached.feedType,
+                cachedAt: cached.cachedAt,
+                expiresAt: cached.expiresAt
+              };
+            }
+            return null;
+          })
+        );
+
+        results.forEach(result => {
+          if (result.status === 'fulfilled' && result.value) {
+            entries.push(result.value);
+          }
+        });
+
+        return {
+          size: keys.length,
+          entries
+        };
+      },
+      { size: 0, entries: [] },
+      'cache stats'
+    );
   }
 }
 

@@ -322,6 +322,8 @@ PostSchema.index({ 'location': '2dsphere' }); // Post creation location
 
 // Compound indexes for common query patterns
 PostSchema.index({ oxyUserId: 1, visibility: 1, createdAt: -1 });
+// Additional compound index for following feeds (visibility first, then user, then time)
+PostSchema.index({ visibility: 1, oxyUserId: 1, createdAt: -1 });
 PostSchema.index({ type: 1, visibility: 1, createdAt: -1 });
 PostSchema.index({ hashtags: 1, visibility: 1, createdAt: -1 });
 // Geospatial compound indexes for location + time queries

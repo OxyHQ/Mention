@@ -31,6 +31,8 @@ const NotificationSchema = new Schema({
 
 // Index for quick lookups by recipient
 NotificationSchema.index({ recipientId: 1, createdAt: -1 });
+// Compound index for unread notifications query (most common use case)
+NotificationSchema.index({ recipientId: 1, read: 1, createdAt: -1 });
 // Index for checking duplicates
 NotificationSchema.index({ recipientId: 1, actorId: 1, type: 1, entityId: 1 }, { unique: true });
 

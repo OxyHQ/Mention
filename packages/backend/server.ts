@@ -2,7 +2,8 @@
 import express from "express";
 import http from "http";
 import mongoose from "mongoose";
-import { connectToDatabase } from "./src/utils/database";
+import compression from "compression";
+import { connectToDatabase, isDatabaseConnected } from "./src/utils/database";
 import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
 import dotenv from "dotenv";
 import { logger } from "./src/utils/logger";
@@ -39,10 +40,28 @@ dotenv.config();
 
 const app = express();
 
+// Enable trust proxy for proper IP handling (required for rate limiting with IPv6)
+// This ensures req.ip is properly set when behind a proxy/load balancer
+app.set('trust proxy', true);
+
 export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
 
 
 // --- Middleware ---
+// Response compression - compress responses > 1KB
+app.use(compression({
+  filter: (req, res) => {
+    // Don't compress if client doesn't support it
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    // Use compression filter function
+    return compression.filter(req, res);
+  },
+  level: 6, // Compression level (0-9, 6 is a good balance)
+  threshold: 1024, // Only compress responses > 1KB
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -67,16 +86,15 @@ app.use((req, res, next) => {
 });
 
 app.use(async (req, res, next) => {
+  // Try to ensure database connection, but don't block requests if it fails
   try {
     await connectToDatabase();
-    next();
   } catch (error) {
-    logger.error("MongoDB connection unavailable", error);
-    if (res.headersSent) {
-      return;
-    }
-    res.status(503).json({ message: "Database temporarily unavailable" });
+    // Database unavailable - log once but allow request to continue
+    // Individual operations will handle database errors gracefully
+    logger.debug("MongoDB connection unavailable for request");
   }
+  next();
 });
 
 // CORS and security headers
@@ -120,7 +138,7 @@ interface SocketError extends Error { description?: string; context?: any; }
 
 const SOCKET_CONFIG = {
   PING_TIMEOUT: 60000,
-  PING_INTERVAL: 25000,
+  PING_INTERVAL: 20000, // Reduced from 25s to 20s for better connection management
   UPGRADE_TIMEOUT: 30000,
   CONNECT_TIMEOUT: 45000,
   MAX_BUFFER_SIZE: 1e8,
@@ -150,6 +168,38 @@ const io = new SocketIOServer(server, {
     zlibDeflateOptions: { chunkSize: SOCKET_CONFIG.CHUNK_SIZE, windowBits: SOCKET_CONFIG.WINDOW_BITS, level: SOCKET_CONFIG.COMPRESSION_LEVEL },
   },
 });
+
+// Setup Redis adapter for Socket.IO horizontal scaling
+// Note: @socket.io/redis-adapter v8+ supports node-redis
+(async () => {
+  try {
+    const { createRedisPubSub } = require('./src/utils/redis');
+    const { createAdapter } = require('@socket.io/redis-adapter');
+    const { publisher, subscriber } = createRedisPubSub();
+    
+    // Connect both clients with timeout to avoid hanging
+    await Promise.race([
+      Promise.all([
+        publisher.connect(),
+        subscriber.connect()
+      ]),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Redis connection timeout')), 5000)
+      )
+    ]);
+    
+    io.adapter(createAdapter(publisher, subscriber));
+    logger.info('Socket.IO Redis adapter configured for horizontal scaling');
+  } catch (error: any) {
+    // If Redis is unavailable, continue without adapter (single-instance mode)
+    const { isRedisConnectionError } = require('./src/utils/redisHelpers');
+    if (isRedisConnectionError(error) || error.message?.includes('timeout')) {
+      logger.info('Redis unavailable - Socket.IO running in single-instance mode (no horizontal scaling)');
+    } else {
+      logger.warn('Failed to setup Socket.IO Redis adapter, running in single-instance mode:', error);
+    }
+  }
+})();
 
 const configureNamespaceErrorHandling = (namespace: Namespace) => {
   namespace.on("connection_error", (error: Error) => {
@@ -431,6 +481,10 @@ authenticatedApiRouter.use("/gifs", gifsRoutes);
 app.use("/api", publicApiRouter);
 app.use("/api", oxy.auth(), authenticatedApiRouter);
 
+// Performance monitoring middleware
+import { performanceMiddleware } from "./src/middleware/performance";
+app.use(performanceMiddleware);
+
 // --- Root API Welcome Route ---
 app.get("", async (req, res) => {
   try {
@@ -442,10 +496,76 @@ app.get("", async (req, res) => {
   }
 });
 
+// --- Health Check Endpoint ---
+app.get("/health", async (req, res) => {
+  try {
+    const { isDatabaseConnected, getDatabaseStats } = require("./src/utils/database");
+    const { isRedisConnected, getRedisStats } = require("./src/utils/redis");
+    const { getPerformanceStats } = require("./src/middleware/performance");
+
+    const [dbConnected, redisConnected] = await Promise.all([
+      isDatabaseConnected(),
+      isRedisConnected(),
+    ]);
+
+    const dbStats = getDatabaseStats();
+    const redisStats = getRedisStats();
+    const perfStats = getPerformanceStats();
+
+    const health = {
+      status: dbConnected && redisConnected ? "healthy" : "degraded",
+      timestamp: new Date().toISOString(),
+      services: {
+        database: {
+          connected: dbConnected,
+          ...dbStats,
+        },
+        redis: {
+          connected: redisConnected,
+          ...redisStats,
+        },
+      },
+      performance: perfStats,
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+        rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      },
+      uptime: Math.round(process.uptime()),
+    };
+
+    const statusCode = health.status === "healthy" ? 200 : 503;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    logger.error("Health check failed:", error);
+    res.status(503).json({
+      status: "unhealthy",
+      error: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // --- MongoDB Connection ---
 const db = mongoose.connection;
-db.on("error", (error) => {
-  logger.error("MongoDB connection error", error);
+let hasLoggedMongoError = false;
+db.on("error", (error: any) => {
+  // Only log connection errors once to reduce spam
+  if (error.code === 'ECONNREFUSED' || error.syscall === 'querySrv') {
+    // Connection errors are already logged by connectToDatabase retry logic
+    // Don't log them again here to avoid duplicate messages
+    if (!hasLoggedMongoError) {
+      hasLoggedMongoError = true;
+      logger.debug("MongoDB connection error:", error.message);
+    }
+  } else {
+    logger.error("MongoDB connection error", error);
+  }
+});
+
+// Reset error flag on successful connection
+db.once("open", () => {
+  hasLoggedMongoError = false;
 });
 db.once("open", () => {
   logger.info("Connected to MongoDB successfully");
@@ -467,15 +587,22 @@ db.once("open", () => {
 // --- Server Listen ---
 const PORT = process.env.PORT || 3000;
 const bootServer = async () => {
+  // Try to connect to database, but don't crash if it fails
   try {
     await connectToDatabase();
-    server.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`);
-    });
-  } catch (error) {
-    logger.error("Failed to start server: unable to connect to MongoDB", error);
-    process.exit(1);
+  } catch (error: any) {
+    // Database connection failed, but allow server to start anyway
+    // Operations will fail gracefully when database is unavailable
+    logger.warn("MongoDB connection unavailable - server will start but database operations will fail");
   }
+  
+  // Start server regardless of database connection status
+  server.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT}`);
+    if (!isDatabaseConnected()) {
+      logger.warn("⚠️  Server started without database connection - some features may be unavailable");
+    }
+  });
 };
 
 if (require.main === module) {

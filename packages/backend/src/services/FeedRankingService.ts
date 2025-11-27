@@ -2,7 +2,6 @@ import { Post } from '../models/Post';
 import UserBehavior from '../models/UserBehavior';
 import mongoose from 'mongoose';
 import { extractFollowingIds } from '../utils/privacyHelpers';
-import { oxy } from '../../server';
 import { logger } from '../utils/logger';
 
 /**
@@ -526,6 +525,8 @@ export class FeedRankingService {
     let followingIds = context.followingIds;
     if (userId && !followingIds) {
       try {
+        // Lazy import to avoid circular dependency with server.ts
+        const { oxy } = await import('../../server');
         const followingRes = await oxy.getUserFollowing(userId);
         followingIds = extractFollowingIds(followingRes);
       } catch (error) {

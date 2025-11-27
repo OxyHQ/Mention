@@ -99,28 +99,28 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    // Use cursor-based pagination for better performance at scale
+    const cursor = req.query.cursor as string | undefined;
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20), 10), 1), 50); // Clamp between 1-50
 
-    if (page < 1) {
-      return res.status(400).json({ 
-        message: "Invalid page number", 
-        error: "INVALID_PAGE" 
-      });
+    // Build query with cursor support
+    const query: any = { recipientId: userId };
+    if (cursor) {
+      // Validate cursor is a valid ObjectId
+      if (!mongoose.Types.ObjectId.isValid(cursor)) {
+        return res.status(400).json({ 
+          message: "Invalid cursor format", 
+          error: "INVALID_CURSOR" 
+        });
+      }
+      query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
 
-    if (limit < 1 || limit > 100) {
-      return res.status(400).json({ 
-        message: "Invalid limit. Must be between 1 and 100", 
-        error: "INVALID_LIMIT" 
-      });
-    }
-
-  const [notificationsRaw, unreadCount] = await Promise.all([
-      Notification.find({ recipientId: userId })
+    // Fetch limit + 1 to determine if there are more results
+    const [notificationsRaw, unreadCount] = await Promise.all([
+      Notification.find(query)
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
+        .limit(limit + 1)
         .populate('entityId')
         .lean(),
       Notification.countDocuments({
@@ -233,7 +233,11 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const notifications = notificationsRaw.map((n: any) => {
+    // Check if there are more results
+    const hasMore = notificationsRaw.length > limit;
+    const notificationsToReturn = hasMore ? notificationsRaw.slice(0, limit) : notificationsRaw;
+
+    const notifications = notificationsToReturn.map((n: any) => {
       const actor = profilesMap.get(n.actorId);
       const entIdStr = String((n as any).entityId?._id || (n as any).entityId || '');
       const preview = (n.type === 'post' && n.entityType === 'post') ? postPreviewMap.get(entIdStr) : undefined;
@@ -251,11 +255,16 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       };
     });
 
+    // Calculate next cursor from the last notification
+    const nextCursor = hasMore && notificationsToReturn.length > 0
+      ? String(notificationsToReturn[notificationsToReturn.length - 1]._id)
+      : undefined;
+
     res.json({
       notifications,
       unreadCount,
-      hasMore: notifications.length === limit,
-      page,
+      hasMore,
+      nextCursor,
       limit
     });
   } catch (error) {

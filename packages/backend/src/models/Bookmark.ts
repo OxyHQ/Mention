@@ -13,4 +13,9 @@ const BookmarkSchema: Schema = new Schema(
   { timestamps: true }
 );
 
+// Create a compound index to ensure a user can only bookmark a post once
+BookmarkSchema.index({ userId: 1, postId: 1 }, { unique: true });
+// Index for querying user's bookmarks
+BookmarkSchema.index({ userId: 1, createdAt: -1 });
+
 export default mongoose.model<IBookmark>("Bookmark", BookmarkSchema);
