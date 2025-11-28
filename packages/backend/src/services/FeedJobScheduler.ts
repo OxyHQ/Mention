@@ -58,7 +58,7 @@ export class FeedJobScheduler {
         });
         
         // Process feed precomputation jobs
-        this.feedQueue.process('precompute-feed', async (job) => {
+        this.feedQueue.process('precompute-feed', async (job: any) => {
           const { userId, feedType, limit } = job.data;
           logger.debug(`Processing feed precomputation job for user ${userId}, feed type ${feedType}`);
           await feedCacheService.precomputeFeed(userId, feedType, limit || 50);

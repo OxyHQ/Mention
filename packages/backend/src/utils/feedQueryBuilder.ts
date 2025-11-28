@@ -30,7 +30,7 @@ export class FeedQueryBuilder {
     }
     
     // Build base query
-    const query = this.buildBaseQuery(type, filters);
+    const query = this.buildBaseQuery(type, filters, currentUserId);
     
     // Add cursor for pagination using utility
     const cursorId = parseFeedCursor(cursor);
@@ -44,7 +44,7 @@ export class FeedQueryBuilder {
   /**
    * Build base query for feed type
    */
-  private static buildBaseQuery(type: FeedType, filters?: Record<string, unknown>): Record<string, unknown> {
+  private static buildBaseQuery(type: FeedType, filters?: Record<string, unknown>, currentUserId?: string): Record<string, unknown> {
     const query: Record<string, unknown> = {
       visibility: PostVisibility.PUBLIC,
       status: 'published'

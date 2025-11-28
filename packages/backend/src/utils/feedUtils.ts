@@ -37,9 +37,9 @@ export function validateAndNormalizeLimit(
     limitValue = undefined;
   }
   
-  const parsedLimit = Number.isNaN(limitValue) ? defaultLimit : limitValue;
+  const parsedLimit = Number.isNaN(limitValue) ? defaultLimit : (limitValue ?? defaultLimit);
   
-  if (Number.isNaN(parsedLimit)) {
+  if (Number.isNaN(parsedLimit) || parsedLimit === undefined) {
     return defaultLimit;
   }
   
@@ -73,7 +73,9 @@ export function parseFeedFilters(reqQuery: any): Record<string, unknown> {
     Object.keys(reqQuery).forEach(key => {
       if (key.startsWith('filters[') && key.endsWith(']')) {
         const filterKey = key.slice(8, -1); // Remove 'filters[' and ']'
-        filters[filterKey] = reqQuery[key];
+        if (filters) {
+          filters[filterKey] = reqQuery[key];
+        }
       }
     });
   }

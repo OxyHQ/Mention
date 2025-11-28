@@ -1,5 +1,6 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import slowDown from "express-slow-down";
+import type { RequestHandler } from "express";
 import { Request, Response } from "express";
 import { AuthRequest } from "../types/auth";
 import { RedisStore } from "./rateLimitStore";
@@ -153,7 +154,7 @@ const feedThrottleStore = new RedisStore({
   prefix: 'rate-limit:feed-throttle:',
   windowMs: 60 * 1000 // 1 minute
 });
-export const feedThrottle = slowDown({
+export const feedThrottle: RequestHandler = slowDown({
   store: feedThrottleStore,
   windowMs: 60 * 1000, // 1 minute
   delayAfter: (req: Request) => {
