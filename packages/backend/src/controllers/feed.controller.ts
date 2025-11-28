@@ -823,7 +823,7 @@ class FeedController {
       );
 
       // Sort by score (descending), with _id as tiebreaker for consistent ordering
-      const posts = rankedPosts.sort((a, b) => {
+      const sortedPosts = rankedPosts.sort((a, b) => {
         const scoreA = (a as any).finalScore ?? 0;
         const scoreB = (b as any).finalScore ?? 0;
         const scoreDiff = scoreB - scoreA;
@@ -834,6 +834,9 @@ class FeedController {
         }
         return scoreDiff;
       });
+
+      // Slice to limit + 1 before validation (ranked posts can be up to candidateLimit)
+      const posts = sortedPosts.slice(0, limit + 1);
 
       // Use FeedResponseBuilder for consistent response building
       // Note: We need to handle privacy filtering separately as it's applied after transformation

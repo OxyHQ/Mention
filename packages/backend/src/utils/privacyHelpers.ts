@@ -29,6 +29,19 @@ export function extractUserIdFromBlockedRestricted(entry: any): string | undefin
 }
 
 /**
+ * Check if an error is a network error (transient, can be retried)
+ */
+function isNetworkError(error: any): boolean {
+  if (!error) return false;
+  // Check for network error indicators
+  return (
+    error.code === 'NETWORK_ERROR' ||
+    error.status === 0 ||
+    (error.message && typeof error.message === 'string' && error.message.toLowerCase().includes('network'))
+  );
+}
+
+/**
  * Get user IDs from Oxy privacy API (blocked or restricted users)
  * @param getUserList - Function to fetch the user list from Oxy API
  * @param listType - Type of list for error logging ('blocked' or 'restricted')
@@ -44,7 +57,13 @@ async function getUserIdsFromPrivacyList(
       .map(extractUserIdFromBlockedRestricted)
       .filter((id): id is string => Boolean(id));
   } catch (error) {
-    logger.error(`Error getting ${listType} users:`, error);
+    // Network errors are transient and handled gracefully (returning empty array)
+    // Log them at WARN level to reduce noise, other errors at ERROR level
+    if (isNetworkError(error)) {
+      logger.warn(`Network error getting ${listType} users (handled gracefully):`, error);
+    } else {
+      logger.error(`Error getting ${listType} users:`, error);
+    }
     return []; // On error, return empty array
   }
 }
