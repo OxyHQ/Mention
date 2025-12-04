@@ -64,7 +64,7 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
       backgroundColor: theme.colors.background,
     },
     mainContent: {
-      maxWidth: 1100,
+      maxWidth: 950,
       marginHorizontal: isScreenNotMobile ? 'auto' : 0,
       justifyContent: 'space-between',
       flexDirection: isScreenNotMobile ? 'row' : 'column',
@@ -130,17 +130,17 @@ export default function RootLayout() {
       const fontMap: Record<string, any> = {};
       const InterVariable = require('@/assets/fonts/inter/InterVariable.ttf');
       const PhuduVariable = require('@/assets/fonts/Phudu-VariableFont_wght.ttf');
-      
+
       // Inter: Single variable font with weight aliases
       ['Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'].forEach(weight => {
         fontMap[`Inter-${weight}`] = InterVariable;
       });
-      
+
       // Phudu: Single variable font with weight aliases
       ['Thin', 'Regular', 'Medium', 'SemiBold', 'Bold'].forEach(weight => {
         fontMap[`Phudu-${weight}`] = PhuduVariable;
       });
-      
+
       return fontMap;
     }, [])
   );

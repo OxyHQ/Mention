@@ -38,3 +38,8 @@ export interface IFeedStrategy {
   getName(): string;
 }
 
+
+
+
+
+
