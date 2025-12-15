@@ -615,7 +615,7 @@ const bootServer = async () => {
   }
   
   // Start server regardless of database connection status
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     logger.info(`Server running on port ${PORT}`);
     if (!isDatabaseConnected()) {
       logger.warn("⚠️  Server started without database connection - some features may be unavailable");
