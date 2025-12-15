@@ -12,6 +12,7 @@ import { MenuProvider } from 'react-native-popup-menu';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider, OxyServices } from '@oxyhq/services';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
@@ -51,23 +52,25 @@ export const AppProviders = memo(function AppProviders({
             theme={colorScheme ?? undefined}
           >
             <I18nextProvider i18n={i18n}>
-              <BottomSheetProvider>
-                <MenuProvider>
-                  <ErrorBoundary>
-                    <LayoutScrollProvider>
-                      <HomeRefreshProvider>
-                        {children}
-                        <StatusBar style="auto" />
-                        <Toaster
-                          position="bottom-center"
-                          swipeToDismissDirection="left"
-                          offset={15}
-                        />
-                      </HomeRefreshProvider>
-                    </LayoutScrollProvider>
-                  </ErrorBoundary>
-                </MenuProvider>
-              </BottomSheetProvider>
+              <BottomSheetModalProvider>
+                <BottomSheetProvider>
+                  <MenuProvider>
+                    <ErrorBoundary>
+                      <LayoutScrollProvider>
+                        <HomeRefreshProvider>
+                          {children}
+                          <StatusBar style="auto" />
+                          <Toaster
+                            position="bottom-center"
+                            swipeToDismissDirection="left"
+                            offset={15}
+                          />
+                        </HomeRefreshProvider>
+                      </LayoutScrollProvider>
+                    </ErrorBoundary>
+                  </MenuProvider>
+                </BottomSheetProvider>
+              </BottomSheetModalProvider>
             </I18nextProvider>
           </OxyProvider>
         </QueryClientProvider>
