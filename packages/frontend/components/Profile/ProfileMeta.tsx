@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,16 +23,16 @@ export const ProfileMeta = memo(function ProfileMeta({
   const hasLinks = links && links.length > 0;
   const hasJoinDate = Boolean(createdAt);
 
-  if (!hasLocation && !hasLinks && !hasJoinDate) {
-    return null;
-  }
-
-  const formatJoinDate = (date: string) => {
+  const formatJoinDate = useCallback((date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
       month: 'long',
       year: 'numeric',
     });
-  };
+  }, []);
+
+  if (!hasLocation && !hasLinks && !hasJoinDate) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   linkText: {
-    // Additional link styling if needed
+    textDecorationLine: 'underline',
   },
   linkIconWrapper: {
     transform: [{ rotate: '-45deg' }],

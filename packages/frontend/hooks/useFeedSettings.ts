@@ -71,7 +71,6 @@ export function useFeedSettings() {
       if (isUnauthorizedError(err) || isNotFoundError(err)) {
         setSettings(DEFAULT_FEED_SETTINGS);
       } else {
-        console.error('Error loading feed settings:', err);
         setError(err);
       }
     } finally {
@@ -104,7 +103,6 @@ export function useFeedSettings() {
         });
       }
     } catch (err: any) {
-      console.error('Error updating feed settings:', err);
       throw err;
     }
   }, []);

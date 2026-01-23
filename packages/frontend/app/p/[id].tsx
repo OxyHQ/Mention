@@ -225,7 +225,6 @@ const PostDetailScreen: React.FC = () => {
             setLocation(locationData);
             toast.success(t('Location added'));
         } catch (error) {
-            console.error('Error getting location:', error);
             toast.error(t('Failed to get location'));
         } finally {
             setIsGettingLocation(false);
@@ -269,7 +268,7 @@ const PostDetailScreen: React.FC = () => {
                                 const parentResponse = await getPostById((cachedPost as any).parentPostId);
                                 setParentPost(parentResponse);
                             } catch (parentErr) {
-                                console.error('Error fetching parent post:', parentErr);
+                                // Silently ignore parent fetch errors
                             }
                         }
                     }
@@ -292,21 +291,18 @@ const PostDetailScreen: React.FC = () => {
                             const parentResponse = await getPostById((response as any).parentPostId);
                             setParentPost(parentResponse);
                         } catch (parentErr) {
-                            console.error('Error fetching parent post:', parentErr);
+                            // Silently ignore parent fetch errors
                         }
                     }
                     
                     // Track post view
                     if (user) {
-                        try {
-                            await statisticsService.trackPostView(String(id));
-                        } catch (viewErr) {
-                            console.debug('Failed to track post view:', viewErr);
-                        }
+                        statisticsService.trackPostView(String(id)).catch(() => {
+                            // Silently fail - view tracking is not critical
+                        });
                     }
                 }
             } catch (err) {
-                console.error('Error loading post:', err);
                 setError('Failed to load post');
             } finally {
                 setLoading(false);
@@ -385,7 +381,6 @@ const PostDetailScreen: React.FC = () => {
             // Trigger filtered replies list reload
             setRepliesReloadKey(k => k + 1);
         } catch (error) {
-            console.error('Failed to post reply:', error);
             toast.error(t('Failed to post reply. Please try again.'));
         } finally {
             setIsSubmitting(false);

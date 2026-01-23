@@ -1,5 +1,6 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCommunitiesProps, Community } from './types';
@@ -33,6 +34,12 @@ export const ProfileCommunities = memo(function ProfileCommunities({
 const CommunityCard = memo(function CommunityCard({ community }: { community: Community }) {
   const theme = useTheme();
   const { t } = useTranslation();
+
+  const handleViewPress = useCallback(() => {
+    if (community.id) {
+      router.push(`/community/${community.id}` as any);
+    }
+  }, [community.id]);
 
   return (
     <View
@@ -75,7 +82,7 @@ const CommunityCard = memo(function CommunityCard({ community }: { community: Co
           )}
         </View>
       </View>
-      <TouchableOpacity style={styles.viewButton}>
+      <TouchableOpacity style={styles.viewButton} onPress={handleViewPress}>
         <Text style={[styles.viewButtonText, { color: theme.colors.primary }]}>
           {t('profile.view')}
         </Text>

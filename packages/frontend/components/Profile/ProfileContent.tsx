@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import UserName from '@/components/UserName';
@@ -38,6 +38,12 @@ export const ProfileContent = memo(function ProfileContent({
   const handleLayout = (event: any) => {
     onLayout?.(event.nativeEvent.layout.height);
   };
+
+  const userNameStyle = useMemo(() => ({
+    name: [styles.profileName, { color: theme.colors.text }],
+    handle: [styles.profileHandle, { color: theme.colors.textSecondary }],
+    container: undefined,
+  }), [theme.colors.text, theme.colors.textSecondary]);
 
   return (
     <View
@@ -97,11 +103,7 @@ export const ProfileContent = memo(function ProfileContent({
             handle={profileData.username}
             verified={profileData.verified}
             variant="default"
-            style={{
-              name: [styles.profileName, { color: theme.colors.text }],
-              handle: [styles.profileHandle, { color: theme.colors.textSecondary }],
-              container: undefined,
-            }}
+            style={userNameStyle}
           />
           {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}
         </View>

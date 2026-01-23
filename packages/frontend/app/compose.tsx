@@ -383,8 +383,6 @@ const ComposeScreen = () => {
 
     setIsPosting(true);
     try {
-      console.log('Attempting to create posts...');
-
       // Prepare all posts (main + thread items)
       const allPosts = [];
       const formattedSources = sanitizeSourcesForSubmit(sources);
@@ -416,8 +414,6 @@ const ComposeScreen = () => {
           allPosts.push(threadPost);
         }
       });
-
-      console.log(`📝 Creating ${allPosts.length} posts in ${postingMode} mode`);
 
       // Send to backend based on whether we have multiple posts or just one
       if (allPosts.length === 1) {
@@ -454,7 +450,6 @@ const ComposeScreen = () => {
       // Navigate back after posting
       router.back();
     } catch (error: any) {
-      console.error('Error creating post:', error);
       toast.error(t('Failed to publish post'));
     } finally {
       setIsPosting(false);
@@ -579,7 +574,6 @@ const ComposeScreen = () => {
       setThreadLocation(threadId, locationData);
       toast.success(t('Location added'));
     } catch (error) {
-      console.error('Error getting location:', error);
       toast.error(t('Failed to get location'));
     }
   };

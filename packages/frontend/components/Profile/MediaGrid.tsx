@@ -191,15 +191,32 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     // Video grid item component
     const VideoGridItem: React.FC<{ uri: string; itemSize: number; backgroundColor: string }> = ({ uri, itemSize, backgroundColor }) => {
         const [hasError, setHasError] = useState(false);
-        
+
         const player = useVideoPlayer(uri || '', (player) => {
             if (player && uri) {
                 player.loop = true;
                 player.muted = true;
-                // Don't auto-play immediately - let it load first
-                // player.play();
             }
         });
+
+        const handleError = useCallback(() => setHasError(true), []);
+
+        const containerStyle = useMemo(() => ({
+            width: itemSize,
+            height: itemSize,
+            backgroundColor,
+        }), [itemSize, backgroundColor]);
+
+        const errorContainerStyle = useMemo(() => ({
+            ...containerStyle,
+            justifyContent: 'center' as const,
+            alignItems: 'center' as const,
+        }), [containerStyle]);
+
+        const videoContainerStyle = useMemo(() => ({
+            ...containerStyle,
+            overflow: 'hidden' as const,
+        }), [containerStyle]);
 
         // Auto-play when component mounts (if video is ready)
         useEffect(() => {
@@ -217,7 +234,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
 
         if (hasError || !uri) {
             return (
-                <View style={{ width: itemSize, height: itemSize, backgroundColor, justifyContent: 'center', alignItems: 'center' }}>
+                <View style={errorContainerStyle}>
                     <Ionicons name="videocam-outline" size={32} color={theme.colors.textSecondary} />
                     <View style={styles.videoOverlay}>
                         <Ionicons name="play-circle" size={24} color="rgba(255, 255, 255, 0.9)" />
@@ -227,14 +244,14 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         }
 
         return (
-            <View style={{ width: itemSize, height: itemSize, backgroundColor, overflow: 'hidden' }}>
+            <View style={videoContainerStyle}>
                 <VideoView
                     player={player}
-                    style={{ width: '100%', height: '100%' }}
+                    style={styles.fullSize}
                     contentFit="cover"
                     nativeControls={false}
                     allowsFullscreen={false}
-                    onError={() => setHasError(true)}
+                    onError={handleError}
                 />
                 <View style={styles.videoOverlay}>
                     <Ionicons name="play-circle" size={24} color="rgba(255, 255, 255, 0.9)" />
@@ -243,13 +260,22 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         );
     };
 
+    const gridItemStyle = useMemo(() => ({
+        width: itemSize,
+        height: itemSize,
+    }), [itemSize]);
+
+    const imageStyle = useMemo(() => ({
+        width: '100%' as const,
+        height: '100%' as const,
+        backgroundColor: theme.colors.backgroundSecondary,
+    }), [theme.colors.backgroundSecondary]);
+
     const renderItem = useCallback(({ item }: { item: { postId: string; uri: string; isVideo: boolean; isCarousel: boolean; mediaIndex: number } }) => {
         const handlePress = () => {
             if (item.isVideo) {
-                // Navigate to videos screen for videos
                 router.push(`/videos?postId=${item.postId}`);
             } else {
-                // Navigate to post for images
                 router.push(`/p/${item.postId}`);
             }
         };
@@ -257,19 +283,19 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         return (
             <TouchableOpacity
                 activeOpacity={0.8}
-                style={{ width: itemSize, height: itemSize }}
+                style={gridItemStyle}
                 onPress={handlePress}
             >
                 {item.isVideo ? (
-                    <VideoGridItem 
-                        uri={item.uri} 
-                        itemSize={itemSize} 
+                    <VideoGridItem
+                        uri={item.uri}
+                        itemSize={itemSize}
                         backgroundColor={theme.colors.backgroundSecondary}
                     />
                 ) : (
                     <Image
                         source={{ uri: item.uri }}
-                        style={{ width: '100%', height: '100%', backgroundColor: theme.colors.backgroundSecondary }}
+                        style={imageStyle}
                         resizeMode="cover"
                     />
                 )}
@@ -280,7 +306,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                 )}
             </TouchableOpacity>
         );
-    }, [itemSize, router, theme.colors.backgroundSecondary]);
+    }, [itemSize, router, theme.colors.backgroundSecondary, gridItemStyle, imageStyle]);
 
     const keyExtractor = useCallback((it: { postId: string; uri: string; mediaIndex?: number }, index: number) => `${it.postId}:${it.mediaIndex ?? index}`, []);
 
@@ -365,5 +391,9 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         borderRadius: 4,
         padding: 2,
+    },
+    fullSize: {
+        width: '100%',
+        height: '100%',
     },
 });

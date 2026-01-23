@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
@@ -22,11 +22,19 @@ export const ProfileStats = memo(function ProfileStats({
   const { t } = useTranslation();
   const displayUsername = profileUsername || username;
 
+  const handleFollowingPress = useCallback(() => {
+    router.push(`/@${displayUsername}/following` as any);
+  }, [displayUsername]);
+
+  const handleFollowersPress = useCallback(() => {
+    router.push(`/@${displayUsername}/followers` as any);
+  }, [displayUsername]);
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
         style={styles.statItem}
-        onPress={() => router.push(`/@${displayUsername}/following` as any)}
+        onPress={handleFollowingPress}
       >
         <Text style={[styles.statNumber, { color: theme.colors.text }]}>
           {formatCompactNumber(followingCount ?? 0)}
@@ -38,7 +46,7 @@ export const ProfileStats = memo(function ProfileStats({
 
       <TouchableOpacity
         style={styles.statItem}
-        onPress={() => router.push(`/@${displayUsername}/followers` as any)}
+        onPress={handleFollowersPress}
       >
         <Text style={[styles.statNumber, { color: theme.colors.text }]}>
           {formatCompactNumber(followerCount ?? 0)}

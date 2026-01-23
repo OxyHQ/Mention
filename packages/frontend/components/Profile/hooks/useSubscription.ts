@@ -28,10 +28,7 @@ export function useSubscription(
         const { subscribed: isSubscribed } = await subscriptionService.getStatus(profileId);
         if (!cancelled) setSubscribed(!!isSubscribed);
       } catch (error: any) {
-        // Silently ignore 401 errors (user not authenticated)
-        if (error?.response?.status !== 401) {
-          console.error('Error loading subscription status:', error);
-        }
+        // Silently ignore errors (including 401 for unauthenticated users)
       }
     };
 
@@ -63,7 +60,6 @@ export function useSubscription(
       setSubscribed(previousState);
       const errorMessage = error?.response?.data?.message || error?.message || t('subscription.error');
       toast.error(errorMessage);
-      console.error('Error toggling subscription:', error);
     } finally {
       setLoading(false);
     }

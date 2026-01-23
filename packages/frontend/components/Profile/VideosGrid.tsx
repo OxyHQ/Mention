@@ -152,6 +152,13 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
             }
         });
 
+        const containerStyle = useMemo(() => ({
+            width: itemSize,
+            height: itemSize,
+            backgroundColor,
+            overflow: 'hidden' as const,
+        }), [itemSize, backgroundColor]);
+
         useEffect(() => {
             if (player) {
                 player.play();
@@ -164,11 +171,11 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         }, [player]);
 
         return (
-            <View style={{ width: itemSize, height: itemSize, backgroundColor, overflow: 'hidden' }}>
+            <View style={containerStyle}>
                 {player ? (
                     <VideoView
                         player={player}
-                        style={{ width: '100%', height: '100%' }}
+                        style={styles.fullSize}
                         contentFit="cover"
                         nativeControls={false}
                         allowsFullscreen={false}
@@ -274,6 +281,10 @@ const styles = StyleSheet.create({
     },
     emptyContainer: {
         flex: 1,
+    },
+    fullSize: {
+        width: '100%',
+        height: '100%',
     },
 });
 

@@ -66,14 +66,13 @@ const InsightsScreen: React.FC = () => {
                         try {
                             return await getPostById(postInfo.postId);
                         } catch (error) {
-                            console.error(`Error loading post ${postInfo.postId}:`, error);
                             return null;
                         }
                     });
                     const posts = await Promise.all(postsPromises);
                     setTopPostsData(posts.filter((p): p is UIPost => p !== null));
                 } catch (error) {
-                    console.error('Error loading top posts:', error);
+                    // Silently ignore top posts loading errors
                 } finally {
                     setLoadingTopPosts(false);
                 }
@@ -81,7 +80,7 @@ const InsightsScreen: React.FC = () => {
                 setTopPostsData([]);
             }
         } catch (error) {
-            console.error('Error loading statistics:', error);
+            // Silently ignore statistics loading errors
         } finally {
             setLoading(false);
         }

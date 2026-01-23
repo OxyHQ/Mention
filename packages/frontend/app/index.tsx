@@ -89,23 +89,13 @@ const HomeScreen: React.FC = () => {
                             feedId
                         };
                     }
-                    console.warn(`[HomeScreen] Pinned feed not found: ${feedId}`, {
-                        pinnedIds: pinned,
-                        availableFeedIds: allFeeds.map((f: any) => String(f._id || f.id))
-                    });
                     return null;
                 })
                 .filter(Boolean) as PinnedFeed[];
 
-            console.log('[HomeScreen] Loaded pinned feeds:', {
-                pinnedCount: pinnedFeedData.length,
-                pinnedFeeds: pinnedFeedData.map(f => ({ id: f.id, title: f.title }))
-            });
-
             setPinnedFeeds(pinnedFeedData);
         } catch (error: any) {
-            if (error?.response?.status === 401 || error?.status === 401) return;
-            console.error('Failed to load pinned feeds:', error?.message || error);
+            // Silently ignore errors (including 401 for unauthenticated users)
         }
     }, [isAuthenticated]);
 
