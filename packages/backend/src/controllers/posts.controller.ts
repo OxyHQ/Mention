@@ -685,6 +685,29 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       logger.error('Failed to create mention notifications', e);
     }
     
+    // Emit real-time feed update for new post (only for published posts)
+    if (!isScheduled) {
+      try {
+        const io = (global as any).io;
+        if (io) {
+          io.emit('feed:updated', {
+            type: 'for-you',
+            post: transformedPost,
+            timestamp: new Date().toISOString()
+          });
+          // Also emit to following feed if user has followers
+          io.emit('feed:updated', {
+            type: 'following',
+            post: transformedPost,
+            authorId: userId,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch (socketError) {
+        logger.warn('Failed to emit socket event for new post', socketError);
+      }
+    }
+
     res.status(201).json({ success: true, post: transformedPost });
   } catch (error) {
     logger.error('Error creating post', error);
@@ -921,6 +944,29 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     }
 
     logger.info(`Created ${createdPosts.length} posts in ${mode} mode`);
+
+    // Emit real-time feed update for new thread posts
+    try {
+      const io = (global as any).io;
+      if (io && createdPosts.length > 0) {
+        // Emit the first post (main post) to feeds
+        const mainPost = createdPosts[0];
+        io.emit('feed:updated', {
+          type: 'for-you',
+          post: mainPost,
+          timestamp: new Date().toISOString()
+        });
+        io.emit('feed:updated', {
+          type: 'following',
+          post: mainPost,
+          authorId: userId,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (socketError) {
+      logger.warn('Failed to emit socket event for new thread', socketError);
+    }
+
     res.status(201).json({ success: true, posts: createdPosts });
   } catch (error) {
     logger.error('Error creating thread', error);

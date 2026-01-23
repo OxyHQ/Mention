@@ -231,6 +231,24 @@ class SocketService {
       console.log('Post unsaved:', data);
       this.handlePostUnsaved(data);
     });
+
+    // Presence events
+    this.socket.on('user:presence', (data) => {
+      this.handlePresenceUpdate(data);
+    });
+
+    this.socket.on('user:presenceBulk', (data) => {
+      this.handlePresenceBulkUpdate(data);
+    });
+
+    // Follow events
+    this.socket.on('user:followed', (data) => {
+      this.handleUserFollowed(data);
+    });
+
+    this.socket.on('user:unfollowed', (data) => {
+      this.handleUserUnfollowed(data);
+    });
   }
 
   /**
@@ -719,6 +737,157 @@ class SocketService {
       postId, 
       userId: actorId || altActor 
     });
+  }
+
+  // Presence event listeners
+  private presenceListeners: Map<string, Set<(online: boolean) => void>> = new Map();
+
+  /**
+   * Handle presence update from socket
+   */
+  private handlePresenceUpdate(data: { userId: string; online: boolean }) {
+    const { userId, online } = data || {};
+    if (!userId) return;
+
+    const listeners = this.presenceListeners.get(userId);
+    if (listeners) {
+      listeners.forEach(callback => callback(online));
+    }
+  }
+
+  /**
+   * Handle bulk presence update from socket
+   */
+  private handlePresenceBulkUpdate(data: Record<string, boolean>) {
+    if (!data) return;
+
+    Object.entries(data).forEach(([userId, online]) => {
+      const listeners = this.presenceListeners.get(userId);
+      if (listeners) {
+        listeners.forEach(callback => callback(online));
+      }
+    });
+  }
+
+  // Follow event listeners
+  private followListeners: Map<string, Set<(data: { followerId: string; followingId: string; followerCount: number; followingCount: number }) => void>> = new Map();
+
+  /**
+   * Handle user followed event
+   */
+  private handleUserFollowed(data: { followerId: string; followingId: string; followerCount?: number; followingCount?: number }) {
+    if (!data) return;
+
+    // Notify listeners for the user who was followed (their follower count changed)
+    const followedListeners = this.followListeners.get(data.followingId);
+    if (followedListeners) {
+      followedListeners.forEach(callback => callback(data as any));
+    }
+
+    // Notify listeners for the user who followed (their following count changed)
+    const followerListeners = this.followListeners.get(data.followerId);
+    if (followerListeners) {
+      followerListeners.forEach(callback => callback(data as any));
+    }
+  }
+
+  /**
+   * Handle user unfollowed event
+   */
+  private handleUserUnfollowed(data: { followerId: string; followingId: string; followerCount?: number; followingCount?: number }) {
+    if (!data) return;
+
+    // Same as followed - notify both parties
+    const unfollowedListeners = this.followListeners.get(data.followingId);
+    if (unfollowedListeners) {
+      unfollowedListeners.forEach(callback => callback(data as any));
+    }
+
+    const unfollowerListeners = this.followListeners.get(data.followerId);
+    if (unfollowerListeners) {
+      unfollowerListeners.forEach(callback => callback(data as any));
+    }
+  }
+
+  /**
+   * Subscribe to a user's online presence
+   */
+  subscribeToPresence(userId: string, callback: (online: boolean) => void): () => void {
+    if (!this.presenceListeners.has(userId)) {
+      this.presenceListeners.set(userId, new Set());
+    }
+    this.presenceListeners.get(userId)!.add(callback);
+
+    // Tell server to subscribe to this user's presence
+    if (this.socket?.connected) {
+      this.socket.emit('subscribePresence', userId);
+    }
+
+    // Return unsubscribe function
+    return () => {
+      const listeners = this.presenceListeners.get(userId);
+      if (listeners) {
+        listeners.delete(callback);
+        if (listeners.size === 0) {
+          this.presenceListeners.delete(userId);
+          // Tell server to unsubscribe
+          if (this.socket?.connected) {
+            this.socket.emit('unsubscribePresence', userId);
+          }
+        }
+      }
+    };
+  }
+
+  /**
+   * Get online status of a user (async with callback)
+   */
+  getPresence(userId: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (this.socket?.connected) {
+        this.socket.emit('getPresence', userId, (data: { online: boolean }) => {
+          resolve(data?.online ?? false);
+        });
+      } else {
+        resolve(false);
+      }
+    });
+  }
+
+  /**
+   * Get online status of multiple users
+   */
+  getPresenceBulk(userIds: string[]): Promise<Record<string, boolean>> {
+    return new Promise((resolve) => {
+      if (this.socket?.connected) {
+        this.socket.emit('getPresenceBulk', userIds, (data: Record<string, boolean>) => {
+          resolve(data || {});
+        });
+      } else {
+        resolve({});
+      }
+    });
+  }
+
+  /**
+   * Subscribe to follow count updates for a user
+   */
+  subscribeToFollowUpdates(userId: string, callback: (data: { followerId: string; followingId: string; followerCount: number; followingCount: number }) => void): () => void {
+    if (!this.followListeners.has(userId)) {
+      this.followListeners.set(userId, new Set());
+    }
+    this.followListeners.get(userId)!.add(callback);
+
+    // Return unsubscribe function
+    return () => {
+      const listeners = this.followListeners.get(userId);
+      if (listeners) {
+        listeners.delete(callback);
+        if (listeners.size === 0) {
+          this.followListeners.delete(userId);
+        }
+      }
+    };
   }
 
   /**

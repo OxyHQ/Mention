@@ -36,6 +36,7 @@ import subscriptionsRoutes from './src/routes/subscriptions';
 import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
 import linksRoutes from './src/routes/links';
+import followsRoutes from './src/routes/follows';
 
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
@@ -133,6 +134,24 @@ const server = http.createServer(app);
 interface AuthenticatedSocket extends Socket {
   user?: { id: string; [key: string]: any };
 }
+
+// Presence tracking - Map of userId to Set of socket IDs (user can have multiple connections)
+const onlineUsers = new Map<string, Set<string>>();
+
+// Helper to check if user is online
+const isUserOnline = (userId: string): boolean => {
+  const sockets = onlineUsers.get(userId);
+  return sockets !== undefined && sockets.size > 0;
+};
+
+// Helper to broadcast user online status
+const broadcastPresence = (io: SocketIOServer, userId: string, online: boolean) => {
+  const presenceData = { userId, online, timestamp: new Date().toISOString() };
+  // Emit to users subscribed to this user's presence
+  io.to(`presence:${userId}`).emit('user:presence', presenceData);
+  // Also emit globally for profile pages etc.
+  io.emit('user:presence', presenceData);
+};
 
 type DisconnectReason =
   | "server disconnect" | "client disconnect" | "transport close" | "transport error" | "ping timeout" | "parse error" | "forced close" | "forced server close" | "server shutting down" | "client namespace disconnect" | "server namespace disconnect" | "unknown transport";
@@ -350,6 +369,25 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
 io.on("connection", (socket: AuthenticatedSocket) => {
   logger.info(`Client connected from ip: ${socket.handshake.address}`);
 
+  // Track user presence
+  const userId = socket.user?.id;
+  if (userId) {
+    const wasOnline = isUserOnline(userId);
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set());
+    }
+    onlineUsers.get(userId)!.add(socket.id);
+
+    // Join user-specific room for targeted events
+    socket.join(`user:${userId}`);
+
+    // Broadcast online status if user just came online (first connection)
+    if (!wasOnline) {
+      broadcastPresence(io, userId, true);
+      logger.debug(`User ${userId} is now online`);
+    }
+  }
+
   // Enhanced error handling
   socket.on("error", (error: Error) => {
     logger.error("Socket error", error);
@@ -361,6 +399,21 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 
   socket.on("disconnect", (reason: DisconnectReason, description?: any) => {
     logger.debug(`Client disconnected: ${reason}${description ? ` - ${description}` : ""}`);
+
+    // Track user presence on disconnect
+    if (userId) {
+      const userSockets = onlineUsers.get(userId);
+      if (userSockets) {
+        userSockets.delete(socket.id);
+        // If user has no more connections, they're offline
+        if (userSockets.size === 0) {
+          onlineUsers.delete(userId);
+          broadcastPresence(io, userId, false);
+          logger.debug(`User ${userId} is now offline`);
+        }
+      }
+    }
+
     // Handle specific disconnect reasons
     if (reason === "server disconnect") {
       // Reconnect if server initiated the disconnect
@@ -397,6 +450,43 @@ io.on("connection", (socket: AuthenticatedSocket) => {
     const room = `post:${postId}`;
     socket.leave(room);
     logger.debug(`Client ${socket.id} left room: ${room}`);
+  });
+
+  // Get online status of a single user
+  socket.on("getPresence", (targetUserId: string, callback?: (data: { online: boolean }) => void) => {
+    const online = isUserOnline(targetUserId);
+    if (typeof callback === 'function') {
+      callback({ online });
+    } else {
+      socket.emit('user:presence', { userId: targetUserId, online });
+    }
+  });
+
+  // Get online status of multiple users
+  socket.on("getPresenceBulk", (userIds: string[], callback?: (data: Record<string, boolean>) => void) => {
+    const result: Record<string, boolean> = {};
+    if (Array.isArray(userIds)) {
+      userIds.forEach(id => {
+        result[id] = isUserOnline(id);
+      });
+    }
+    if (typeof callback === 'function') {
+      callback(result);
+    } else {
+      socket.emit('user:presenceBulk', result);
+    }
+  });
+
+  // Subscribe to a user's presence changes
+  socket.on("subscribePresence", (targetUserId: string) => {
+    socket.join(`presence:${targetUserId}`);
+    // Send current status immediately
+    socket.emit('user:presence', { userId: targetUserId, online: isUserOnline(targetUserId) });
+  });
+
+  // Unsubscribe from a user's presence changes
+  socket.on("unsubscribePresence", (targetUserId: string) => {
+    socket.leave(`presence:${targetUserId}`);
   });
 });
 
@@ -493,6 +583,7 @@ authenticatedApiRouter.use("/test", testRoutes);
 authenticatedApiRouter.use("/profile", profileSettingsRoutes);
 authenticatedApiRouter.use("/subscriptions", subscriptionsRoutes);
 authenticatedApiRouter.use("/gifs", gifsRoutes);
+authenticatedApiRouter.use("/follows", followsRoutes);
 // You can add more protected routers here as needed
 
 // Mount public and authenticated API routers
