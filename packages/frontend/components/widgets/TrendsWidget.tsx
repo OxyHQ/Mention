@@ -52,7 +52,7 @@ export function TrendsWidget() {
   const handleTrendPress = (trend: Trend) => {
     const tag = trend.hashtag || trend.text;
     const href = `/search/%23${encodeURIComponent(tag?.replace(/^#/, ''))}`;
-    router.push(href);
+    router.push(href as any);
   };
 
   const handleMorePress = () => {
