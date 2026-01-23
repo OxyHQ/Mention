@@ -52,11 +52,11 @@ class SocketService {
         autoConnect: true,
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: this.reconnectDelay,
+        reconnectionDelay: this.baseReconnectDelay,
       });
 
       this.setupSocketEventListeners();
-    } catch (error) {
+    } catch {
       // Socket connection error - will retry with reconnection logic
     }
   }
@@ -151,7 +151,7 @@ class SocketService {
       this.startHealthMonitoring();
 
       // Join feed rooms for real-time updates
-      if (this.currentUserId) {
+      if (this.currentUserId && this.socket) {
         this.socket.emit('joinFeed', { userId: this.currentUserId });
       }
     });
@@ -507,15 +507,16 @@ class SocketService {
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
               const isOurAction = actorId === this.currentUserId;
-              
+              const currentLikes = prev.engagement?.likes ?? 0;
+
               // Use server count if available, otherwise increment
-              const newCount = data.likesCount ?? (prev.engagement.likes + 1);
-              
+              const newCount = data.likesCount ?? (currentLikes + 1);
+
               // If it's our action, echo guard should have suppressed it
               // But if it got through, don't override optimistic update
               if (isOurAction) {
                 // Only update count if different (socket might have server-accurate count)
-                if (prev.engagement.likes !== newCount) {
+                if (currentLikes !== newCount) {
                   return {
                     ...prev,
                     // Keep our optimistic isLiked state
@@ -524,11 +525,11 @@ class SocketService {
                 }
                 return null as any; // No change needed
               }
-              
+
               // Other user's action - only update count, NOT isLiked state
               // Don't update if count is already correct or higher
-              if (prev.engagement.likes >= newCount) return null as any;
-              
+              if (currentLikes >= newCount) return null as any;
+
               return {
                 ...prev,
                 // Keep current isLiked state (it's about OUR state, not theirs)
@@ -541,13 +542,14 @@ class SocketService {
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
               const isOurAction = actorId === this.currentUserId;
-              
-              const newCount = data.likesCount ?? Math.max(0, prev.engagement.likes - 1);
-              
+              const currentLikes = prev.engagement?.likes ?? 0;
+
+              const newCount = data.likesCount ?? Math.max(0, currentLikes - 1);
+
               // If it's our action, echo guard should have suppressed it
               if (isOurAction) {
                 // Only update count if different
-                if (prev.engagement.likes !== newCount) {
+                if (currentLikes !== newCount) {
                   return {
                     ...prev,
                     // Keep our optimistic isLiked state
@@ -556,11 +558,11 @@ class SocketService {
                 }
                 return null as any; // No change needed
               }
-              
+
               // Other user's action - only update count, NOT isLiked state
               // Don't update if count is already correct or lower
-              if (prev.engagement.likes <= newCount) return null as any;
-              
+              if (currentLikes <= newCount) return null as any;
+
               return {
                 ...prev,
                 // Keep current isLiked state (it's about OUR state, not theirs)
@@ -571,21 +573,65 @@ class SocketService {
             
           case 'repost':
             store.updatePostEverywhere(postId, (prev) => {
+              const actorId = data.actorId || data.userId;
+              const isOurAction = actorId === this.currentUserId;
+
+              // Use server count if available, otherwise increment
               const newCount = data.repostsCount ?? (prev.engagement.reposts + 1);
+
+              // If it's our action, echo guard should have suppressed it
+              // But if it got through, don't override optimistic update
+              if (isOurAction) {
+                // Only update count if different (socket might have server-accurate count)
+                if (prev.engagement.reposts !== newCount) {
+                  return {
+                    ...prev,
+                    // Keep our optimistic isReposted state
+                    engagement: { ...prev.engagement, reposts: newCount },
+                  };
+                }
+                return null as any; // No change needed
+              }
+
+              // Other user's action - only update count, NOT isReposted state
+              // Don't update if count is already correct or higher
+              if (prev.engagement.reposts >= newCount) return null as any;
+
               return {
                 ...prev,
-                isReposted: prev.isReposted || (data.userId === this.currentUserId),
+                // Keep current isReposted state (it's about OUR state, not theirs)
                 engagement: { ...prev.engagement, reposts: newCount },
               };
             });
             break;
-            
+
           case 'unrepost':
             store.updatePostEverywhere(postId, (prev) => {
+              const actorId = data.actorId || data.userId;
+              const isOurAction = actorId === this.currentUserId;
+
               const newCount = data.repostsCount ?? Math.max(0, prev.engagement.reposts - 1);
+
+              // If it's our action, echo guard should have suppressed it
+              if (isOurAction) {
+                // Only update count if different
+                if (prev.engagement.reposts !== newCount) {
+                  return {
+                    ...prev,
+                    // Keep our optimistic isReposted state
+                    engagement: { ...prev.engagement, reposts: newCount },
+                  };
+                }
+                return null as any; // No change needed
+              }
+
+              // Other user's action - only update count, NOT isReposted state
+              // Don't update if count is already correct or lower
+              if (prev.engagement.reposts <= newCount) return null as any;
+
               return {
                 ...prev,
-                isReposted: prev.isReposted && (data.userId !== this.currentUserId),
+                // Keep current isReposted state (it's about OUR state, not theirs)
                 engagement: { ...prev.engagement, reposts: newCount },
               };
             });

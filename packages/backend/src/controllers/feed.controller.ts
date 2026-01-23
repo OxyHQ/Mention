@@ -1445,10 +1445,12 @@ class FeedController {
 
       await repost.save();
 
-      // Update original post repost count
-      await Post.findByIdAndUpdate(originalPostId, {
-        $inc: { 'stats.repostsCount': 1 }
-      }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
+      // Update original post repost count and get the updated count
+      const updatedPost = await Post.findByIdAndUpdate(
+        originalPostId,
+        { $inc: { 'stats.repostsCount': 1 } },
+        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
+      );
 
       // Record interaction for user preference learning
       try {
@@ -1459,10 +1461,14 @@ class FeedController {
         logger.warn('Failed to record interaction for preferences', error);
       }
 
-      // Emit real-time update
+      // Emit real-time update with all necessary data for socket handlers
       io.emit('post:reposted', {
         originalPostId,
+        postId: originalPostId,
         repost: repost.toObject(),
+        repostsCount: updatedPost?.stats?.repostsCount,
+        userId: currentUserId,
+        actorId: currentUserId,
         timestamp: new Date().toISOString()
       });
 
@@ -1685,16 +1691,21 @@ class FeedController {
         return res.status(404).json({ error: 'Repost not found' });
       }
 
-      // Update original post repost count
-      await Post.findByIdAndUpdate(repost.repostOf, {
-        $inc: { 'stats.repostsCount': -1 }
-      }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
+      // Update original post repost count and get the updated count
+      const updatedPost = await Post.findByIdAndUpdate(
+        repost.repostOf,
+        { $inc: { 'stats.repostsCount': -1 } },
+        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
+      );
 
-      // Emit real-time update
+      // Emit real-time update with all necessary data for socket handlers
       io.emit('post:unreposted', {
         originalPostId: repost.repostOf,
+        postId: repost.repostOf,
         repostId: repost._id,
+        repostsCount: updatedPost?.stats?.repostsCount,
         userId: currentUserId,
+        actorId: currentUserId,
         timestamp: new Date().toISOString()
       });
 
