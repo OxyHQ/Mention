@@ -11,6 +11,58 @@ import { useDeepCompareEffect } from './useDeepCompare';
 
 const logger = createScopedLogger('useFeedState');
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const BASE_RETRY_DELAY = 1000; // 1 second
+
+// Exponential backoff helper
+async function withRetry<T>(
+    fn: () => Promise<T>,
+    options: {
+        maxRetries?: number;
+        baseDelay?: number;
+        signal?: AbortSignal;
+        onRetry?: (attempt: number, error: unknown) => void;
+    } = {}
+): Promise<T> {
+    const { maxRetries = MAX_RETRIES, baseDelay = BASE_RETRY_DELAY, signal, onRetry } = options;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            if (signal?.aborted) {
+                throw new Error('Request aborted');
+            }
+            return await fn();
+        } catch (error) {
+            lastError = error;
+
+            // Don't retry if aborted
+            if (signal?.aborted) {
+                throw error;
+            }
+
+            // Don't retry on last attempt
+            if (attempt === maxRetries) {
+                throw error;
+            }
+
+            // Don't retry on 4xx errors (client errors)
+            if (error instanceof Error && error.message.includes('4')) {
+                throw error;
+            }
+
+            onRetry?.(attempt + 1, error);
+
+            // Exponential backoff with jitter
+            const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    throw lastError;
+}
+
 export interface UseFeedStateOptions {
     type: FeedType;
     userId?: string;
@@ -143,9 +195,14 @@ export function useFeedState({
                     setLocalLoading(true);
                     setLocalError(null);
 
-                    const resp = await feedService.getFeed(
-                        { type, limit: 20, filters } as any,
-                        { signal }
+                    const resp = await withRetry(
+                        () => feedService.getFeed({ type, limit: 20, filters } as any, { signal }),
+                        {
+                            signal,
+                            onRetry: (attempt) => {
+                                logger.debug(`[useFeedState] Retrying feed request (attempt ${attempt})`);
+                            },
+                        }
                     );
 
                     if (signal.aborted) return;
@@ -221,9 +278,14 @@ export function useFeedState({
                 setLocalLoading(true);
                 setLocalError(null);
 
-                const resp = await feedService.getFeed(
-                    { type, limit: 20, filters } as any,
-                    { signal }
+                const resp = await withRetry(
+                    () => feedService.getFeed({ type, limit: 20, filters } as any, { signal }),
+                    {
+                        signal,
+                        onRetry: (attempt) => {
+                            logger.debug(`[useFeedState] Retrying refresh (attempt ${attempt})`);
+                        },
+                    }
                 );
 
                 if (signal.aborted) return;
@@ -248,7 +310,7 @@ export function useFeedState({
         } catch (err: unknown) {
             if (signal.aborted) return;
 
-            logger.error('[useFeedState] Error refreshing feed', err);
+            logger.error('[useFeedState] Error refreshing feed after retries', err);
             if (useScoped) {
                 setLocalError('Failed to refresh');
             }
@@ -287,9 +349,18 @@ export function useFeedState({
                 setLocalLoading(true);
                 setLocalError(null);
 
-                const resp = await feedService.getFeed(
-                    { type, limit: 20, cursor: localNextCursor, filters } as any,
-                    { signal }
+                const resp = await withRetry(
+                    () => feedService.getFeed(
+                        { type, limit: 20, cursor: localNextCursor, filters } as any,
+                        { signal }
+                    ),
+                    {
+                        signal,
+                        maxRetries: 2, // Fewer retries for load more
+                        onRetry: (attempt) => {
+                            logger.debug(`[useFeedState] Retrying load more (attempt ${attempt})`);
+                        },
+                    }
                 );
 
                 if (signal.aborted) return;

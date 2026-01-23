@@ -361,6 +361,12 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
 // Request tracking for debouncing and race condition prevention
 const pendingRequests = new Map<string, { timestamp: number; abortController?: AbortController }>();
 
+// In-flight engagement operations to prevent race conditions
+const inFlightEngagements = new Map<string, 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave'>();
+
+// Helper to get engagement lock key
+const getEngagementKey = (postId: string, action: string) => `${postId}:${action.replace('un', '')}`;
+
 export const usePostsStore = create<FeedState>()(
   subscribeWithSelector((set, get) => ({
     feeds: createDefaultFeedsState(),
@@ -1359,19 +1365,29 @@ export const usePostsStore = create<FeedState>()(
       }
     },
 
-    // Like post - with optimistic update
+    // Like post - with optimistic update and race condition prevention
     likePost: async (request: LikeRequest) => {
       const postId = request.postId;
+      const engagementKey = getEngagementKey(postId, 'like');
       let previousState: FeedItem | null = null;
-      
+
+      // Prevent concurrent like/unlike operations on the same post
+      const currentOp = inFlightEngagements.get(engagementKey);
+      if (currentOp) {
+        // If unlike is in flight, let it complete first
+        return;
+      }
+
+      inFlightEngagements.set(engagementKey, 'like');
+
       try {
         markLocalAction(postId, 'like');
-        
+
         // Optimistic update - update UI immediately
         const currentPost = get().postsById[postId];
         if (currentPost) {
           previousState = { ...currentPost };
-          
+
           // Only update if not already liked (prevent double-like)
           if (!currentPost.isLiked) {
             get().updatePostEverywhere(postId, (prev) => ({
@@ -1392,21 +1408,21 @@ export const usePostsStore = create<FeedState>()(
           }
           throw new Error('Failed to like post');
         }
-        
+
         // Server response has accurate count - use it to sync
         // Also ensure isLiked is set correctly based on server response
         const serverLikesCount = response.data?.likesCount;
         const serverLiked = response.data?.liked !== false; // Default to true if not specified
-        
+
         if (serverLikesCount !== undefined) {
           get().updatePostEverywhere(postId, (prev) => {
             // Update count if different
             const countChanged = prev.engagement.likes !== serverLikesCount;
             // Update isLiked if server says different (handles race conditions)
             const stateChanged = prev.isLiked !== serverLiked;
-            
+
             if (!countChanged && !stateChanged) return null as any;
-            
+
             return {
               ...prev,
               isLiked: serverLiked,
@@ -1423,22 +1439,34 @@ export const usePostsStore = create<FeedState>()(
         const errorMessage = error instanceof Error ? error.message : 'Failed to like post';
         set({ error: errorMessage });
         throw error;
+      } finally {
+        inFlightEngagements.delete(engagementKey);
       }
     },
 
-    // Unlike post - with optimistic update
+    // Unlike post - with optimistic update and race condition prevention
     unlikePost: async (request: UnlikeRequest) => {
       const postId = request.postId;
+      const engagementKey = getEngagementKey(postId, 'unlike');
       let previousState: FeedItem | null = null;
-      
+
+      // Prevent concurrent like/unlike operations on the same post
+      const currentOp = inFlightEngagements.get(engagementKey);
+      if (currentOp) {
+        // If like is in flight, let it complete first
+        return;
+      }
+
+      inFlightEngagements.set(engagementKey, 'unlike');
+
       try {
         markLocalAction(postId, 'unlike');
-        
+
         // Optimistic update - update UI immediately
         const currentPost = get().postsById[postId];
         if (currentPost) {
           previousState = { ...currentPost };
-          
+
           // Only update if currently liked (prevent double-unlike)
           if (currentPost.isLiked) {
             get().updatePostEverywhere(postId, (prev) => ({
@@ -1459,21 +1487,21 @@ export const usePostsStore = create<FeedState>()(
           }
           throw new Error('Failed to unlike post');
         }
-        
+
         // Server response has accurate count - use it to sync
         // Also ensure isLiked is set correctly based on server response
         const serverLikesCount = response.data?.likesCount;
         const serverLiked = response.data?.liked === true; // Default to false if not specified
-        
+
         if (serverLikesCount !== undefined) {
           get().updatePostEverywhere(postId, (prev) => {
             // Update count if different
             const countChanged = prev.engagement.likes !== serverLikesCount;
             // Update isLiked if server says different (handles race conditions)
             const stateChanged = prev.isLiked !== serverLiked;
-            
+
             if (!countChanged && !stateChanged) return null as any;
-            
+
             return {
               ...prev,
               isLiked: serverLiked,
@@ -1490,6 +1518,8 @@ export const usePostsStore = create<FeedState>()(
         const errorMessage = error instanceof Error ? error.message : 'Failed to unlike post';
         set({ error: errorMessage });
         throw error;
+      } finally {
+        inFlightEngagements.delete(engagementKey);
       }
     },
 

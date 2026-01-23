@@ -24,6 +24,14 @@ function createSets(blockedIds: string[], restrictedIds: string[]): { blockedSet
     };
 }
 
+// Helper to compare arrays for equality
+function arraysEqual(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) return false;
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((val, idx) => val === sortedB[idx]);
+}
+
 export const usePrivacyStore = create<PrivacyStoreState>()(
     subscribeWithSelector((set) => ({
         blockedIds: [],
@@ -34,17 +42,26 @@ export const usePrivacyStore = create<PrivacyStoreState>()(
         error: undefined,
         lastFetchedAt: undefined,
         hasFetched: false,
-        setLists: ({ blockedIds, restrictedIds, lastFetchedAt }) => {
-            const { blockedSet, restrictedSet } = createSets(blockedIds, restrictedIds);
-            set({
-                blockedIds,
-                restrictedIds,
-                blockedSet,
-                restrictedSet,
-                lastFetchedAt,
-                hasFetched: true,
-            });
-        },
+        setLists: ({ blockedIds, restrictedIds, lastFetchedAt }) =>
+            set((state) => {
+                // Only create new Sets if the arrays have actually changed
+                const blockedChanged = !arraysEqual(state.blockedIds, blockedIds);
+                const restrictedChanged = !arraysEqual(state.restrictedIds, restrictedIds);
+
+                if (!blockedChanged && !restrictedChanged) {
+                    // Only update timestamp if nothing else changed
+                    return { lastFetchedAt, hasFetched: true };
+                }
+
+                return {
+                    blockedIds: blockedChanged ? blockedIds : state.blockedIds,
+                    restrictedIds: restrictedChanged ? restrictedIds : state.restrictedIds,
+                    blockedSet: blockedChanged ? new Set(blockedIds) : state.blockedSet,
+                    restrictedSet: restrictedChanged ? new Set(restrictedIds) : state.restrictedSet,
+                    lastFetchedAt,
+                    hasFetched: true,
+                };
+            }),
         setLoading: (loading) => set({ loading }),
         setError: (error) => set({ error }),
         reset: () => {

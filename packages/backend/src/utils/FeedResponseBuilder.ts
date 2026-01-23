@@ -65,9 +65,13 @@ export class FeedResponseBuilder {
       try {
         transformedPosts = await transformPosts(postsToReturn, currentUserId);
       } catch (error) {
-        logger.error('[FeedResponseBuilder] Error transforming posts', error);
-        // Return empty array instead of throwing to prevent feed from breaking
-        transformedPosts = [];
+        logger.error('[FeedResponseBuilder] Error transforming posts, returning raw posts', error);
+        // Return raw posts instead of empty array to preserve data
+        transformedPosts = postsToReturn.map(post => ({
+          ...post,
+          id: post._id?.toString() || post.id,
+          _transformError: true, // Flag to indicate transformation failed
+        })) as HydratedPost[];
       }
     } else {
       transformedPosts = postsToReturn as HydratedPost[];
