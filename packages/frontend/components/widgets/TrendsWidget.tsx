@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, memo } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -10,23 +10,27 @@ import { useTheme } from '@/hooks/useTheme';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { Trend } from '@/interfaces/Trend';
 
-// Simple sparkline component
-function Sparkline({ direction, color }: { direction?: 'up' | 'down' | 'flat'; color: string }) {
-  // Generate points based on direction
-  const getPoints = () => {
-    if (direction === 'up') {
-      return '0,20 10,15 20,18 30,12 40,8 50,5';
-    } else if (direction === 'down') {
-      return '0,5 10,8 20,12 30,18 40,15 50,20';
-    } else {
-      return '0,12 10,13 20,12 30,13 40,12 50,13';
-    }
-  };
+const MAX_TRENDS_DISPLAYED = 5;
+
+const SPARKLINE_POINTS = {
+  up: '0,20 10,15 20,18 30,12 40,8 50,5',
+  down: '0,5 10,8 20,12 30,18 40,15 50,20',
+  flat: '0,12 10,13 20,12 30,13 40,12 50,13',
+} as const;
+
+const Sparkline = memo(function Sparkline({
+  direction,
+  color
+}: {
+  direction?: 'up' | 'down' | 'flat';
+  color: string;
+}) {
+  const points = SPARKLINE_POINTS[direction || 'flat'];
 
   return (
     <Svg width="50" height="24" viewBox="0 0 50 24">
       <Polyline
-        points={getPoints()}
+        points={points}
         fill="none"
         stroke={color}
         strokeWidth="2"
@@ -35,7 +39,7 @@ function Sparkline({ direction, color }: { direction?: 'up' | 'down' | 'flat'; c
       />
     </Svg>
   );
-}
+});
 
 export function TrendsWidget() {
   const { t } = useTranslation();
@@ -49,20 +53,21 @@ export function TrendsWidget() {
     return () => clearInterval(id);
   }, [fetchTrends]);
 
-  const handleTrendPress = (trend: Trend) => {
+  const handleTrendPress = useCallback((trend: Trend) => {
     const tag = trend.hashtag || trend.text;
     const href = `/search/%23${encodeURIComponent(tag?.replace(/^#/, ''))}`;
+    // Type assertion needed for dynamic search URLs
     router.push(href as any);
-  };
+  }, [router]);
 
-  const handleMorePress = () => {
+  const handleMorePress = useCallback(() => {
     router.push('/explore');
-  };
+  }, [router]);
 
-  const handleMenuPress = (trend: Trend) => {
-    // TODO: Implement menu actions
+  const handleMenuPress = useCallback((trend: Trend) => {
+    // Menu actions placeholder
     console.log('Menu pressed for trend:', trend.hashtag);
-  };
+  }, []);
 
   // Don't render if there are no trends (and not loading, and no error)
   if (!isLoading && !error && (!trends || trends.length === 0)) {
@@ -80,9 +85,9 @@ export function TrendsWidget() {
         <Text style={[styles.error, { color: theme.colors.error }]}>{t('error.fetch_trends')}</Text>
       ) : (
         <View style={styles.listContainer}>
-          {(trends || []).slice(0, 5).map((trend: Trend, index: number) => {
+          {(trends || []).slice(0, MAX_TRENDS_DISPLAYED).map((trend: Trend, index: number) => {
             const tag = trend.hashtag || trend.text;
-            const isLast = index === Math.min(trends.length, 5) - 1;
+            const isLast = index === Math.min(trends.length, MAX_TRENDS_DISPLAYED) - 1;
 
             return (
               <TouchableOpacity
@@ -111,6 +116,8 @@ export function TrendsWidget() {
                   style={styles.menuButton}
                   onPress={() => handleMenuPress(trend)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityLabel="More options"
+                  accessibilityRole="button"
                 >
                   <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
