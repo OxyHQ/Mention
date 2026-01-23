@@ -577,13 +577,14 @@ class SocketService {
               const isOurAction = actorId === this.currentUserId;
 
               // Use server count if available, otherwise increment
-              const newCount = data.repostsCount ?? (prev.engagement.reposts + 1);
+              const currentReposts = prev.engagement?.reposts ?? 0;
+              const newCount = data.repostsCount ?? (currentReposts + 1);
 
               // If it's our action, echo guard should have suppressed it
               // But if it got through, don't override optimistic update
               if (isOurAction) {
                 // Only update count if different (socket might have server-accurate count)
-                if (prev.engagement.reposts !== newCount) {
+                if (currentReposts !== newCount) {
                   return {
                     ...prev,
                     // Keep our optimistic isReposted state
@@ -595,7 +596,7 @@ class SocketService {
 
               // Other user's action - only update count, NOT isReposted state
               // Don't update if count is already correct or higher
-              if (prev.engagement.reposts >= newCount) return null as any;
+              if (currentReposts >= newCount) return null as any;
 
               return {
                 ...prev,
@@ -610,12 +611,13 @@ class SocketService {
               const actorId = data.actorId || data.userId;
               const isOurAction = actorId === this.currentUserId;
 
-              const newCount = data.repostsCount ?? Math.max(0, prev.engagement.reposts - 1);
+              const currentReposts = prev.engagement?.reposts ?? 0;
+              const newCount = data.repostsCount ?? Math.max(0, currentReposts - 1);
 
               // If it's our action, echo guard should have suppressed it
               if (isOurAction) {
                 // Only update count if different
-                if (prev.engagement.reposts !== newCount) {
+                if (currentReposts !== newCount) {
                   return {
                     ...prev,
                     // Keep our optimistic isReposted state
@@ -627,7 +629,7 @@ class SocketService {
 
               // Other user's action - only update count, NOT isReposted state
               // Don't update if count is already correct or lower
-              if (prev.engagement.reposts <= newCount) return null as any;
+              if (currentReposts <= newCount) return null as any;
 
               return {
                 ...prev,
