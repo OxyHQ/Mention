@@ -8,6 +8,7 @@ import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PrivateBadge } from './PrivateBadge';
+import { PresenceIndicator } from '@/components/PresenceIndicator';
 import type {
   ProfileHeaderDefaultProps,
   ProfileHeaderMinimalistProps,
@@ -34,18 +35,27 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
 
   return (
     <View style={styles.avatarRow}>
-      <ZoomableAvatar
-        source={avatarUri}
-        size={90}
-        style={[
-          styles.avatar,
-          {
-            borderColor: theme.colors.background,
-            backgroundColor: theme.colors.backgroundSecondary,
-          },
-        ]}
-        imageStyle={{}}
-      />
+      <View style={styles.avatarContainer}>
+        <ZoomableAvatar
+          source={avatarUri}
+          size={90}
+          style={[
+            styles.avatar,
+            {
+              borderColor: theme.colors.background,
+              backgroundColor: theme.colors.backgroundSecondary,
+            },
+          ]}
+          imageStyle={{}}
+        />
+        {!isOwnProfile && profileId && (
+          <PresenceIndicator
+            userId={profileId}
+            size="medium"
+            style={styles.presenceIndicator}
+          />
+        )}
+      </View>
       <View style={styles.profileActions}>
         {isOwnProfile && currentUsername === username ? (
           <View style={styles.actionButtons}>
@@ -92,9 +102,11 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
   verified,
   isPrivate,
   privacySettings,
+  profileId,
+  isOwnProfile,
   theme,
   UserNameComponent,
-}: ProfileHeaderMinimalistProps) {
+}: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean }) {
   return (
     <View style={styles.minimalistHeader}>
       <View style={styles.minimalistInfo}>
@@ -128,6 +140,13 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
           <View style={[styles.verifiedBadge, { backgroundColor: theme.colors.background }]}>
             <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
           </View>
+        )}
+        {!isOwnProfile && profileId && (
+          <PresenceIndicator
+            userId={profileId}
+            size="small"
+            style={styles.presenceIndicatorMinimalist}
+          />
         )}
       </View>
     </View>
@@ -197,11 +216,24 @@ const styles = StyleSheet.create({
     marginTop: -45,
     marginBottom: 10,
   },
+  avatarContainer: {
+    position: 'relative',
+  },
   avatar: {
     width: 90,
     height: 90,
     borderRadius: 45,
     borderWidth: 4,
+  },
+  presenceIndicator: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+  },
+  presenceIndicatorMinimalist: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
   },
   profileActions: {
     flexDirection: 'row',

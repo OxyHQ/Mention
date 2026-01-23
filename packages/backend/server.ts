@@ -352,6 +352,28 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
     logger.debug(`Client ${socket.id} left post room: ${room}`);
   });
 
+  // Join feed room for real-time updates (posts namespace)
+  socket.on("joinFeed", (data: { feedType?: string; userId?: string }) => {
+    const { feedType, userId } = data || {};
+    if (feedType) {
+      socket.join(`feed:${feedType}`);
+    }
+    if (userId) {
+      socket.join(`feed:user:${userId}`);
+    }
+  });
+
+  // Leave feed room (posts namespace)
+  socket.on("leaveFeed", (data: { feedType?: string; userId?: string }) => {
+    const { feedType, userId } = data || {};
+    if (feedType) {
+      socket.leave(`feed:${feedType}`);
+    }
+    if (userId) {
+      socket.leave(`feed:user:${userId}`);
+    }
+  });
+
   socket.on("disconnect", (reason: DisconnectReason) => {
     logger.debug(`Client ${socket.id} disconnected from posts namespace: ${reason}`);
   });
@@ -450,6 +472,37 @@ io.on("connection", (socket: AuthenticatedSocket) => {
     const room = `post:${postId}`;
     socket.leave(room);
     logger.debug(`Client ${socket.id} left room: ${room}`);
+  });
+
+  // Join feed room for real-time updates
+  socket.on("joinFeed", (data: { feedType?: string; userId?: string }) => {
+    const { feedType, userId } = data || {};
+    if (feedType) {
+      const room = `feed:${feedType}`;
+      socket.join(room);
+      logger.debug(`Client ${socket.id} joined feed room: ${room}`);
+    }
+    if (userId) {
+      // Also join user-specific feed room for following feed
+      const userRoom = `feed:user:${userId}`;
+      socket.join(userRoom);
+      logger.debug(`Client ${socket.id} joined user feed room: ${userRoom}`);
+    }
+  });
+
+  // Leave feed room
+  socket.on("leaveFeed", (data: { feedType?: string; userId?: string }) => {
+    const { feedType, userId } = data || {};
+    if (feedType) {
+      const room = `feed:${feedType}`;
+      socket.leave(room);
+      logger.debug(`Client ${socket.id} left feed room: ${room}`);
+    }
+    if (userId) {
+      const userRoom = `feed:user:${userId}`;
+      socket.leave(userRoom);
+      logger.debug(`Client ${socket.id} left user feed room: ${userRoom}`);
+    }
   });
 
   // Get online status of a single user

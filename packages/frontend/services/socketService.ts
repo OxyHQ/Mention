@@ -40,7 +40,6 @@ class SocketService {
    */
   connect(userId?: string, token?: string) {
     if (this.socket?.connected) {
-      console.log('Socket already connected');
       return;
     }
 
@@ -58,7 +57,7 @@ class SocketService {
 
       this.setupSocketEventListeners();
     } catch (error) {
-      console.error('Error connecting to socket:', error);
+      // Socket connection error - will retry with reconnection logic
     }
   }
 
@@ -146,20 +145,18 @@ class SocketService {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
-      console.log('Socket connected');
       this.isConnected = true;
       this.reconnectAttempts = 0;
       this.lastPongTime = Date.now();
       this.startHealthMonitoring();
-      
+
       // Join feed rooms for real-time updates
       if (this.currentUserId) {
         this.socket.emit('joinFeed', { userId: this.currentUserId });
       }
     });
 
-    this.socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
+    this.socket.on('disconnect', () => {
       this.isConnected = false;
       this.stopHealthMonitoring();
     });
@@ -169,66 +166,54 @@ class SocketService {
       this.lastPongTime = Date.now();
     });
 
-    this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
+    this.socket.on('connect_error', () => {
       this.handleReconnect();
     });
 
-    this.socket.on('reconnect', (attemptNumber) => {
-      console.log('Socket reconnected after', attemptNumber, 'attempts');
+    this.socket.on('reconnect', () => {
       this.isConnected = true;
       this.reconnectAttempts = 0;
     });
 
-    this.socket.on('reconnect_error', (error) => {
-      console.error('Socket reconnection error:', error);
+    this.socket.on('reconnect_error', () => {
       this.handleReconnect();
     });
 
     this.socket.on('reconnect_failed', () => {
-      console.error('Socket reconnection failed');
       this.isConnected = false;
     });
 
     // Feed update events
     this.socket.on('feed:updated', (data) => {
-      console.log('Feed updated:', data);
       this.handleFeedUpdate(data);
     });
 
     // Post interaction events
     this.socket.on('post:liked', (data) => {
-      console.log('Post liked:', data);
       this.handlePostLiked(data);
     });
 
     this.socket.on('post:unliked', (data) => {
-      console.log('Post unliked:', data);
       this.handlePostUnliked(data);
     });
 
     this.socket.on('post:replied', (data) => {
-      console.log('Post replied:', data);
       this.handlePostReplied(data);
     });
 
     this.socket.on('post:reposted', (data) => {
-      console.log('Post reposted:', data);
       this.handlePostReposted(data);
     });
 
     this.socket.on('post:unreposted', (data) => {
-      console.log('Post unreposted:', data);
       this.handlePostUnreposted(data);
     });
 
     this.socket.on('post:saved', (data) => {
-      console.log('Post saved:', data);
       this.handlePostSaved(data);
     });
 
     this.socket.on('post:unsaved', (data) => {
-      console.log('Post unsaved:', data);
       this.handlePostUnsaved(data);
     });
 
@@ -288,14 +273,12 @@ class SocketService {
    */
   private handleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.warn('Max reconnection attempts reached');
       return;
     }
 
     this.reconnectAttempts++;
     const delay = this.calculateReconnectDelay(this.reconnectAttempts);
-    console.log(`Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-    
+
     setTimeout(() => {
       if (this.socket && !this.socket.connected) {
         this.socket.connect();
@@ -316,12 +299,11 @@ class SocketService {
         const timeSinceLastPong = Date.now() - this.lastPongTime;
         // If no pong received in 60 seconds, consider connection unhealthy
         if (timeSinceLastPong > 60000 && this.lastPongTime > 0) {
-          console.warn('Socket connection health check failed, reconnecting...');
           this.socket.disconnect();
           this.handleReconnect();
         }
       }
-    }, 30000) as unknown as ReturnType<typeof setInterval>; // Check every 30 seconds
+    }, 30000) as unknown as ReturnType<typeof setInterval>;
   }
   
   /**
@@ -346,9 +328,6 @@ class SocketService {
     
     // Type-safe feed type check
     if (!type || postsArray.length === 0) {
-      if (postsArray.length === 0 && (posts || post)) {
-        console.warn('Invalid feed update data received - empty posts array');
-      }
       return;
     }
     
@@ -395,11 +374,9 @@ class SocketService {
       // When a feed is loading, the fetch response will include the posts, so we don't need
       // socket updates to add them again (which would cause duplicates)
       if (currentFeed.isLoading) {
-        console.log(`[Socket] Suppressing feed update for type="${feedType}" - feed is currently loading`);
         // Keep posts in queue - they'll be processed after loading completes
         // But limit queue size to prevent memory issues
         if (this.feedUpdateQueue.get(feedType)!.length > 100) {
-          console.warn(`[Socket] Feed update queue too large for type="${feedType}", clearing old items`);
           this.feedUpdateQueue.set(feedType, posts.slice(-50)); // Keep last 50 items
         }
         return;
@@ -441,18 +418,13 @@ class SocketService {
           if (!seen.has(id) && !existingIds.has(id)) {
             seen.set(id, p);
             uniquePosts.push(p);
-          } else if (existingIds.has(id)) {
-            console.log(`[Socket] Filtered duplicate post from socket update: ${id} (already in feed)`);
           }
         }
       }
-      
+
       if (uniquePosts.length > 0) {
-        console.log(`[Socket] Adding ${uniquePosts.length} new posts to feed type="${feedType}" (filtered ${posts.length - uniquePosts.length} duplicates)`);
         // Batch add all posts at once
         store.addPostsToFeed(uniquePosts, feedType as FeedType);
-      } else {
-        console.log(`[Socket] No new posts to add for feed type="${feedType}" (all ${posts.length} were duplicates)`);
       }
       
       // Clear queue for this feed type
@@ -907,8 +879,6 @@ class SocketService {
   emit(event: string, data: any) {
     if (this.socket?.connected) {
       this.socket.emit(event, data);
-    } else {
-      console.warn('Socket not connected, cannot emit event:', event);
     }
   }
 
