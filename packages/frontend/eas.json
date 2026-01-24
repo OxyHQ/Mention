@@ -30,6 +30,17 @@
     "staging": {
       "extends": "production",
       "distribution": "internal"
+    },
+    "apk": {
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://api.mention.earth"
+      }
     }
-  },
+  }
 }
