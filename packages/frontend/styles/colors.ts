@@ -63,4 +63,10 @@ export const colors = {
     offline: '#718096',
     busy: '#FF3B30',
     away: '#FFCC00',
+
+    // Text colors
+    text: {
+        primary: '#1A202C',
+        secondary: '#718096',
+    },
 } as const;

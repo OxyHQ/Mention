@@ -19,6 +19,37 @@ export class ForYouFeedStrategy implements IFeedStrategy {
   private readonly RANKED_FEED_CANDIDATE_MULTIPLIER = 2;
   private readonly SCORE_EPSILON = 0.001;
 
+  /**
+   * Parse score-based cursor format: "score:id"
+   * Returns score and id, or undefined if invalid
+   */
+  private parseCursor(cursor?: string): { score: number; id: string } | undefined {
+    if (!cursor) return undefined;
+
+    // Check for score:id format first
+    if (cursor.includes(':')) {
+      const [scoreStr, id] = cursor.split(':');
+      const score = parseFloat(scoreStr);
+      if (!isNaN(score) && id && mongoose.Types.ObjectId.isValid(id)) {
+        return { score, id };
+      }
+    }
+
+    // Fallback: treat as plain ObjectId for backwards compatibility
+    if (mongoose.Types.ObjectId.isValid(cursor)) {
+      return { score: Infinity, id: cursor }; // Infinity means "include all scores"
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Build cursor from score and id
+   */
+  private buildCursor(score: number, id: string): string {
+    return `${score.toFixed(6)}:${id}`;
+  }
+
   getName(): string {
     return 'for_you';
   }
@@ -36,22 +67,23 @@ export class ForYouFeedStrategy implements IFeedStrategy {
       return this.generatePopularFeed(cursor, limit);
     }
 
+    // Parse cursor (supports both score:id and plain id formats)
+    const parsedCursor = this.parseCursor(cursor);
+
     // Get seen post IDs
     const seenPostIds = await feedSeenPostsService.getSeenPostIds(currentUserId);
 
-    // Add cursor to seen posts
-    if (cursor && mongoose.Types.ObjectId.isValid(cursor)) {
-      if (!seenPostIds.includes(cursor)) {
-        seenPostIds.push(cursor);
-        feedSeenPostsService.markPostsAsSeen(currentUserId, [cursor])
-          .catch(error => {
-            logger.warn('Failed to mark cursor post as seen (non-critical)', error);
-          });
-      }
+    // Add cursor post id to seen posts
+    if (parsedCursor?.id && !seenPostIds.includes(parsedCursor.id)) {
+      seenPostIds.push(parsedCursor.id);
+      feedSeenPostsService.markPostsAsSeen(currentUserId, [parsedCursor.id])
+        .catch(error => {
+          logger.warn('Failed to mark cursor post as seen (non-critical)', error);
+        });
     }
 
-    // Build query
-    const match = FeedQueryBuilder.buildForYouQuery(seenPostIds, cursor);
+    // Build query - pass just the id part for initial DB query
+    const match = FeedQueryBuilder.buildForYouQuery(seenPostIds, parsedCursor?.id);
 
     // Get candidate posts (fetch more than needed for ranking)
     const candidateLimit = limit * this.RANKED_FEED_CANDIDATE_MULTIPLIER;
@@ -73,17 +105,37 @@ export class ForYouFeedStrategy implements IFeedStrategy {
       }
     );
 
-    // Sort by score
-    const posts = rankedPosts.sort((a, b) => {
+    // Sort by score (descending)
+    const sortedPosts = rankedPosts.sort((a, b) => {
       const scoreA = (a as any).finalScore ?? 0;
       const scoreB = (b as any).finalScore ?? 0;
       const scoreDiff = scoreB - scoreA;
-      
+
       if (Math.abs(scoreDiff) < this.SCORE_EPSILON) {
         return a._id.toString().localeCompare(b._id.toString()) * -1;
       }
       return scoreDiff;
     });
+
+    // Apply score-based cursor filtering for stable pagination
+    // Only include posts with scores <= cursor score (or same score but id < cursor id)
+    let posts = sortedPosts;
+    if (parsedCursor && parsedCursor.score !== Infinity) {
+      posts = sortedPosts.filter(post => {
+        const postScore = (post as any).finalScore ?? 0;
+        const postId = post._id.toString();
+
+        // Include if score is lower than cursor score
+        if (postScore < parsedCursor.score - this.SCORE_EPSILON) {
+          return true;
+        }
+        // Include if score is same but id is "less than" cursor id (for tiebreaker)
+        if (Math.abs(postScore - parsedCursor.score) < this.SCORE_EPSILON) {
+          return postId < parsedCursor.id;
+        }
+        return false;
+      });
+    }
 
     // Deduplicate
     const uniquePostsMap = new Map<string, any>();
@@ -97,13 +149,14 @@ export class ForYouFeedStrategy implements IFeedStrategy {
 
     const hasMore = deduplicatedPosts.length > limit;
     const postsToReturn = hasMore ? deduplicatedPosts.slice(0, limit) : deduplicatedPosts;
-    
-    // Calculate cursor
+
+    // Calculate cursor using score:id format for stable pagination
     let nextCursor: string | undefined;
     if (postsToReturn.length > 0 && hasMore) {
       const lastPost = postsToReturn[postsToReturn.length - 1];
-      nextCursor = lastPost._id.toString();
-      
+      const lastScore = (lastPost as any).finalScore ?? 0;
+      nextCursor = this.buildCursor(lastScore, lastPost._id.toString());
+
       if (cursor && nextCursor === cursor) {
         logger.warn('⚠️ Cursor did not advance, stopping pagination', { cursor, nextCursor });
         nextCursor = undefined;

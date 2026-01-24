@@ -6,16 +6,17 @@
 import { FeedType } from '@mention/shared-types';
 import { IFeedStrategy } from './FeedStrategy';
 import { ForYouFeedStrategy } from './ForYouFeedStrategy';
+import { FollowingFeedStrategy } from './FollowingFeedStrategy';
+import { ExploreFeedStrategy } from './ExploreFeedStrategy';
 
 export class FeedStrategyFactory {
   private static strategies: Map<FeedType, IFeedStrategy> = new Map();
-  
+
   static {
     // Register strategies
     this.strategies.set('for_you', new ForYouFeedStrategy());
-    // Add more strategies as needed
-    // this.strategies.set('following', new FollowingFeedStrategy());
-    // this.strategies.set('explore', new ExploreFeedStrategy());
+    this.strategies.set('following', new FollowingFeedStrategy());
+    this.strategies.set('explore', new ExploreFeedStrategy());
   }
   
   /**
