@@ -162,3 +162,48 @@ echo "========================================="
 
 # Display build info
 cat /app/outputs/build-info.json
+
+# ======================================
+# Optional: Upload to Google Play Store
+# ======================================
+if [ "$AUTO_PUBLISH_TO_PLAYSTORE" = "true" ]; then
+    echo ""
+    echo "========================================="
+    echo "Auto-Publishing to Google Play Store"
+    echo "========================================="
+
+    # Check if we have the required credentials
+    if [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON_BASE64" ]; then
+        echo "⚠ Warning: AUTO_PUBLISH_TO_PLAYSTORE is enabled but GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 is not set"
+        echo "⚠ Skipping Play Store upload"
+        echo "========================================="
+    else
+        # Navigate to apk-builder directory
+        cd /app/packages/apk-builder
+
+        # Set default track if not specified
+        export TRACK=${TRACK:-internal}
+        export PACKAGE_NAME=${PACKAGE_NAME:-com.mention.earth}
+        export AAB_PATH=${AAB_PATH:-/app/outputs/mention-latest.aab}
+
+        echo "Publishing to track: $TRACK"
+        echo "Package: $PACKAGE_NAME"
+
+        # Run the upload script
+        node upload-to-playstore.js
+
+        if [ $? -eq 0 ]; then
+            echo "✓ Successfully published to Play Store ($TRACK track)"
+        else
+            echo "✗ Failed to publish to Play Store"
+            echo "⚠ Build artifacts are still available for manual upload"
+        fi
+
+        echo "========================================="
+    fi
+else
+    echo ""
+    echo "ℹ Auto-publish to Play Store: DISABLED"
+    echo "  To enable, set AUTO_PUBLISH_TO_PLAYSTORE=true"
+    echo "  Manual publish: npm run publish:internal --workspace=@mention/apk-builder"
+fi
