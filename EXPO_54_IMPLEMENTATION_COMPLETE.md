@@ -158,7 +158,7 @@ npx expo run:android
 ```
 
 Verify:
-- ✅ `android:sharedUserId="com.oxy.shared"` in manifest
+- ✅ `android:sharedUserId="so.oxy.shared"` in manifest
 - ✅ Can create identity with `useNativeAuth()`
 - ✅ Identity persists across restarts
 
@@ -207,7 +207,7 @@ Verify:
 
 - ✅ **Expo 54** - SDK 54.0.25
 - ✅ **iOS Keychain Sharing** - `group.so.oxy.shared`
-- ✅ **Android sharedUserId** - `com.oxy.shared`
+- ✅ **Android sharedUserId** - `so.oxy.shared`
 - ✅ **KeyManager Integration** - Native platforms
 - ✅ **Platform Detection** - Conditional imports
 - ✅ **OxyProvider** - Main auth for all platforms

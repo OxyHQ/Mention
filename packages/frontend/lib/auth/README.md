@@ -84,7 +84,7 @@ Configured in [plugins/withSharedUserId.js](../../../plugins/withSharedUserId.js
 ```javascript
 androidManifest.$ = {
   ...androidManifest.$,
-  'android:sharedUserId': 'com.oxy.shared'
+  'android:sharedUserId': 'so.oxy.shared'
 };
 ```
 

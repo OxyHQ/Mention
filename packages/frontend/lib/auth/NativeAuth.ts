@@ -12,7 +12,7 @@
  *
  * Storage:
  * - iOS: Keychain with access group "group.so.oxy.shared"
- * - Android: Keystore + Account Manager with sharedUserId "com.oxy.shared"
+ * - Android: Keystore + Account Manager with sharedUserId "so.oxy.shared"
  */
 
 import { Platform } from 'react-native';

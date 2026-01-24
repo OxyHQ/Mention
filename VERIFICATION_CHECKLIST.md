@@ -43,7 +43,7 @@ $ grep "withSharedUserId" app.config.js
 './plugins/withSharedUserId',
 
 $ cat plugins/withSharedUserId.js
-android:sharedUserId="com.oxy.shared"
+android:sharedUserId="so.oxy.shared"
 ```
 ✅ SharedUserId plugin configured
 

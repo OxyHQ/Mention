@@ -40,7 +40,7 @@ ios: {
 
 ```javascript
 // Config plugin adds to AndroidManifest.xml:
-android:sharedUserId="com.oxy.shared"
+android:sharedUserId="so.oxy.shared"
 ```
 
 **Impact:**
@@ -277,7 +277,7 @@ npx expo run:android
 ```
 
 Verify:
-- ✅ AndroidManifest.xml contains `android:sharedUserId="com.oxy.shared"`
+- ✅ AndroidManifest.xml contains `android:sharedUserId="so.oxy.shared"`
 - ✅ App builds and runs
 - ✅ Can create cryptographic identity
 - ✅ Identity persists across app restarts
@@ -327,7 +327,7 @@ console.log(status);
 
 ### Android
 - [ ] Prebuild completes without errors
-- [ ] AndroidManifest.xml contains `android:sharedUserId="com.oxy.shared"`
+- [ ] AndroidManifest.xml contains `android:sharedUserId="so.oxy.shared"`
 - [ ] App builds and runs on emulator
 - [ ] Can create identity via `useNativeAuth()`
 - [ ] Identity persists across app restarts

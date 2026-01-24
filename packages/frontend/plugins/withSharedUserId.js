@@ -10,7 +10,7 @@
  * - Shared session tokens
  *
  * IMPORTANT:
- * - All Oxy apps MUST use the same sharedUserId: "com.oxy.shared"
+ * - All Oxy apps MUST use the same sharedUserId: "so.oxy.shared"
  * - Apps MUST be signed with the same certificate
  * - Cannot change sharedUserId after publishing (requires reinstall)
  *
@@ -26,7 +26,7 @@ module.exports = function withSharedUserId(config) {
     // Add sharedUserId to the manifest root element
     androidManifest.$ = {
       ...androidManifest.$,
-      'android:sharedUserId': 'com.oxy.shared'
+      'android:sharedUserId': 'so.oxy.shared'
     };
 
     return config;

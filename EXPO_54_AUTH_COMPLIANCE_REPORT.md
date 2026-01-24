@@ -153,7 +153,7 @@ web: {
 <!-- android/app/src/main/AndroidManifest.xml -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.mention.earth"
-    android:sharedUserId="com.oxy.shared">
+    android:sharedUserId="so.oxy.shared">
 ```
 
 **Current state:**
@@ -172,7 +172,7 @@ web: {
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.mention.earth"
-    android:sharedUserId="com.oxy.shared">
+    android:sharedUserId="so.oxy.shared">
 ```
 
 **OR** create config plugin:
@@ -185,7 +185,7 @@ module.exports = function withSharedUserId(config) {
     const androidManifest = config.modResults.manifest;
     androidManifest.$ = {
       ...androidManifest.$,
-      'android:sharedUserId': 'com.oxy.shared'
+      'android:sharedUserId': 'so.oxy.shared'
     };
     return config;
   });
@@ -385,7 +385,7 @@ export function UniversalAuthProvider({ children }) {
 2. **Configure Android sharedUserId**
    - **Effort:** Medium (30 minutes)
    - **Impact:** Enables cross-app auth on Android
-   - **Action:** Create config plugin to add `android:sharedUserId="com.oxy.shared"`
+   - **Action:** Create config plugin to add `android:sharedUserId="so.oxy.shared"`
    - **File:** Create `plugins/withSharedUserId.js`
 
 ### 🟡 Medium Priority (Enhanced Security & Features)
@@ -508,7 +508,7 @@ module.exports = function withSharedUserId(config) {
     const androidManifest = config.modResults.manifest;
     androidManifest.$ = {
       ...androidManifest.$,
-      'android:sharedUserId': 'com.oxy.shared'
+      'android:sharedUserId': 'so.oxy.shared'
     };
     return config;
   });
