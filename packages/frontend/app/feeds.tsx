@@ -132,7 +132,7 @@ const FeedCardWithPin = ({
                 { color: theme.colors.card },
               ]}
             >
-              {pinned ? 'Pinned' : 'Pin Feed'}
+              {pinned ? t('feeds.pinned') : t('feeds.pinFeed')}
             </ThemedText>
           </TouchableOpacity>
         }
@@ -255,8 +255,8 @@ const FeedsScreen: React.FC = () => {
           {/* My Feeds Section */}
           <SectionHeader
             icon={<Ionicons name="sparkles" size={18} color={theme.colors.card} />}
-            title="My Feeds"
-            subtitle="All the feeds you've saved, right in one place."
+            title={t('feeds.myFeeds.title')}
+            subtitle={t('feeds.myFeeds.subtitle')}
           />
 
           <View
@@ -267,24 +267,24 @@ const FeedsScreen: React.FC = () => {
           >
             <MyFeedsRow
               icon={<Ionicons name="swap-vertical" size={18} color={theme.colors.card} />}
-              label="Following"
+              label={t('feeds.following')}
               onPress={() => router.push('/')}
             />
             <MyFeedsRow
               icon={<Ionicons name="people" size={18} color={theme.colors.card} />}
-              label="Mutuals"
+              label={t('feeds.mutuals')}
               onPress={() => router.push('/')}
               chevron
             />
             <MyFeedsRow
               icon={<Ionicons name="compass" size={18} color={theme.colors.card} />}
-              label="Discover"
+              label={t('feeds.discover')}
               onPress={() => router.push('/')}
               chevron
             />
             <MyFeedsRow
               icon={<Ionicons name="heart" size={18} color={theme.colors.card} />}
-              label="Popular With Friends"
+              label={t('feeds.popularWithFriends')}
               onPress={() => router.push('/')}
               chevron
             />
@@ -308,15 +308,15 @@ const FeedsScreen: React.FC = () => {
           <View style={styles.spacer} />
           <SectionHeader
             icon={<Ionicons name="search" size={18} color={theme.colors.card} />}
-            title="Discover New Feeds"
-            subtitle="Choose your own timeline! Feeds built by the community."
+            title={t('feeds.discoverNew.title')}
+            subtitle={t('feeds.discoverNew.subtitle')}
           />
 
           <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
             <Search size={20} color={theme.colors.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: theme.colors.text }]}
-              placeholder="Search feeds"
+              placeholder={t('feeds.searchPlaceholder')}
               placeholderTextColor={theme.colors.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -344,8 +344,8 @@ const FeedsScreen: React.FC = () => {
               <View style={styles.spacer} />
               <SectionHeader
                 icon={<Ionicons name="person-circle" size={18} color={theme.colors.card} />}
-                title="Your Feeds"
-                subtitle="Custom timelines you created."
+                title={t('feeds.yourFeeds.title')}
+                subtitle={t('feeds.yourFeeds.subtitle')}
               />
               <View style={styles.listContainer}>
                 {myFeeds.map((f) => (

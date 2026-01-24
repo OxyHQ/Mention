@@ -11,12 +11,14 @@ import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { toast } from '@/lib/sonner';
+import { useTranslation } from 'react-i18next';
 
 type MinimalUser = { id: string; username: string; name?: { full?: string }; avatar?: any };
 
 const CreateFeedScreen: React.FC = () => {
   const theme = useTheme();
   const { oxyServices } = useOxy();
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -83,9 +85,9 @@ const CreateFeedScreen: React.FC = () => {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <Header 
-        options={{ 
-          title: 'Create Feed', 
+      <Header
+        options={{
+          title: t('feeds.create.title'),
           leftComponents: [
             <IconButton variant="icon"
               key="back"
@@ -94,16 +96,16 @@ const CreateFeedScreen: React.FC = () => {
               <BackArrowIcon size={20} color={theme.colors.text} />
             </IconButton>,
           ],
-        }} 
+        }}
         hideBottomBorder={true}
         disableSticky={true}
       />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Title</Text>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{t('feeds.create.titleLabel')}</Text>
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder="My awesome feed"
+          placeholder={t('feeds.create.titlePlaceholder')}
           placeholderTextColor={theme.colors.textSecondary}
           style={[styles.input, {
             color: theme.colors.text,
@@ -112,11 +114,11 @@ const CreateFeedScreen: React.FC = () => {
           }]}
         />
 
-        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Description</Text>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{t('feeds.create.descriptionLabel')}</Text>
         <TextInput
           value={description}
           onChangeText={setDescription}
-          placeholder="What is this feed about?"
+          placeholder={t('feeds.create.descriptionPlaceholder')}
           placeholderTextColor={theme.colors.textSecondary}
           style={[styles.input, {
             height: 80,
@@ -127,11 +129,11 @@ const CreateFeedScreen: React.FC = () => {
           multiline
         />
 
-        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Keywords (comma separated)</Text>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{t('feeds.create.keywordsLabel')}</Text>
         <TextInput
           value={keywords}
           onChangeText={setKeywords}
-          placeholder="cats, memes"
+          placeholder={t('feeds.create.keywordsPlaceholder')}
           placeholderTextColor={theme.colors.textSecondary}
           style={[styles.input, {
             color: theme.colors.text,
@@ -141,24 +143,24 @@ const CreateFeedScreen: React.FC = () => {
         />
 
         <View style={styles.row}>
-          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Public</Text>
+          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{t('feeds.create.publicLabel')}</Text>
           <Switch value={isPublic} onValueChange={setIsPublic} />
         </View>
 
         <View style={styles.row}>
-          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Include replies</Text>
+          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{t('feeds.create.includeReplies')}</Text>
           <Switch value={includeReplies} onValueChange={setIncludeReplies} />
         </View>
         <View style={styles.row}>
-          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Include reposts</Text>
+          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{t('feeds.create.includeReposts')}</Text>
           <Switch value={includeReposts} onValueChange={setIncludeReposts} />
         </View>
         <View style={styles.row}>
-          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Include media</Text>
+          <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{t('feeds.create.includeMedia')}</Text>
           <Switch value={includeMedia} onValueChange={setIncludeMedia} />
         </View>
 
-        <Text style={[styles.label, { marginTop: 12, color: theme.colors.textSecondary }]}>Add Lists (optional)</Text>
+        <Text style={[styles.label, { marginTop: 12, color: theme.colors.textSecondary }]}>{t('feeds.create.addLists')}</Text>
         <TouchableOpacity onPress={async () => {
           if (listsLoaded) { setMyLists([]); setListsLoaded(false); return; }
           try {
@@ -168,7 +170,7 @@ const CreateFeedScreen: React.FC = () => {
           } catch (e) { console.warn('load my lists failed', e); toast.error('Failed to load lists'); }
         }} style={[styles.createBtn, { backgroundColor: theme.colors.backgroundSecondary, alignItems: 'center' }]}>
           <Text style={{ color: theme.colors.text, fontWeight: '600' }}>
-            {listsLoaded ? 'Hide Lists' : 'Load My Lists'}
+            {listsLoaded ? t('feeds.create.hideLists') : t('feeds.create.loadMyLists')}
           </Text>
         </TouchableOpacity>
         {myLists.map((l) => {
@@ -190,17 +192,17 @@ const CreateFeedScreen: React.FC = () => {
                 {l.title} • {(l.memberOxyUserIds || []).length} members
               </Text>
               <Text style={{ color: selected ? theme.colors.primary : theme.colors.textSecondary }}>
-                {selected ? 'Selected' : 'Select'}
+                {selected ? t('feeds.create.selected') : t('feeds.create.select')}
               </Text>
             </TouchableOpacity>
           );
         })}
 
-        <Text style={[styles.label, { marginTop: 12, color: theme.colors.textSecondary }]}>Add Members</Text>
+        <Text style={[styles.label, { marginTop: 12, color: theme.colors.textSecondary }]}>{t('feeds.create.addMembers')}</Text>
         <TextInput
           value={search}
           onChangeText={doSearch}
-          placeholder="Search users"
+          placeholder={t('feeds.create.searchUsersPlaceholder')}
           placeholderTextColor={theme.colors.textSecondary}
           style={[styles.input, {
             color: theme.colors.text,
@@ -219,7 +221,7 @@ const CreateFeedScreen: React.FC = () => {
                     @{u.username} {(u.name?.full ? `• ${u.name.full}` : '')}
                   </Text>
                 </View>
-                <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Add</Text>
+                <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>{t('feeds.create.add')}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -227,7 +229,7 @@ const CreateFeedScreen: React.FC = () => {
 
         {members.length > 0 && (
           <View style={{ marginTop: 10 }}>
-            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Members</Text>
+            <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{t('feeds.create.members')}</Text>
             {members.map((m) => (
               <View key={m.id} style={styles.memberChipRow}>
                 <View style={styles.memberChipInner}>
@@ -236,7 +238,7 @@ const CreateFeedScreen: React.FC = () => {
                 </View>
                 <TouchableOpacity onPress={() => removeMember(m.id)}>
                   <Text style={{ color: theme.colors.error || '#ff4444', marginLeft: 10, fontWeight: '600' }}>
-                    Remove
+                    {t('feeds.create.remove')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -256,7 +258,7 @@ const CreateFeedScreen: React.FC = () => {
           {saving ? (
             <ActivityIndicator color={theme.colors.card} />
           ) : (
-            <Text style={[styles.createBtnText, { color: theme.colors.card }]}>Create Feed</Text>
+            <Text style={[styles.createBtnText, { color: theme.colors.card }]}>{t('feeds.create.createButton')}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

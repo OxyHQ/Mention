@@ -9,12 +9,14 @@ import { useOxy } from '@oxyhq/services';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from 'react-i18next';
 
 type MinimalUser = { id: string; username: string; name?: { full?: string } };
 
 export default function CreateListScreen() {
   const { oxyServices } = useOxy();
   const theme = useTheme();
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -60,9 +62,9 @@ export default function CreateListScreen() {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <Header 
-        options={{ 
-          title: 'Create List', 
+      <Header
+        options={{
+          title: t('lists.create.title'),
           leftComponents: [
             <IconButton variant="icon"
               key="back"
@@ -71,31 +73,31 @@ export default function CreateListScreen() {
               <BackArrowIcon size={20} color={theme.colors.text} />
             </IconButton>,
           ],
-        }} 
+        }}
         hideBottomBorder={true}
         disableSticky={true}
       />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text style={styles.label}>Title</Text>
-        <TextInput value={title} onChangeText={setTitle} placeholder="Local Journalists" style={styles.input} />
+        <Text style={styles.label}>{t('lists.create.titleLabel')}</Text>
+        <TextInput value={title} onChangeText={setTitle} placeholder={t('lists.create.titlePlaceholder')} style={styles.input} />
 
-        <Text style={styles.label}>Description</Text>
-        <TextInput value={description} onChangeText={setDescription} placeholder="What is this list about?" style={[styles.input, { height: 80 }]} multiline />
+        <Text style={styles.label}>{t('lists.create.descriptionLabel')}</Text>
+        <TextInput value={description} onChangeText={setDescription} placeholder={t('lists.create.descriptionPlaceholder')} style={[styles.input, { height: 80 }]} multiline />
 
         <View style={styles.row}>
-          <Text style={styles.label}>Public</Text>
+          <Text style={styles.label}>{t('lists.create.publicLabel')}</Text>
           <Switch value={isPublic} onValueChange={setIsPublic} />
         </View>
 
-        <Text style={[styles.label, { marginTop: 12 }]}>Add Members</Text>
-        <TextInput value={search} onChangeText={doSearch} placeholder="Search users" style={styles.input} />
+        <Text style={[styles.label, { marginTop: 12 }]}>{t('lists.create.addMembers')}</Text>
+        <TextInput value={search} onChangeText={doSearch} placeholder={t('lists.create.searchUsersPlaceholder')} style={styles.input} />
 
         {results.length > 0 && (
           <View style={styles.resultsBox}>
             {results.map((u) => (
               <TouchableOpacity key={u.id} style={styles.resultRow} onPress={() => addMember(u)}>
                 <Text style={styles.resultText}>@{u.username} {(u.name?.full ? `• ${u.name.full}` : '')}</Text>
-                <Text style={{ color: colors.linkColor, fontWeight: '600' }}>Add</Text>
+                <Text style={{ color: colors.linkColor, fontWeight: '600' }}>{t('lists.create.add')}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -103,12 +105,12 @@ export default function CreateListScreen() {
 
         {members.length > 0 && (
           <View style={{ marginTop: 10 }}>
-            <Text style={styles.label}>Members</Text>
+            <Text style={styles.label}>{t('lists.create.members')}</Text>
             {members.map((m) => (
               <View key={m.id} style={styles.memberChip}>
                 <Text style={{ color: colors.COLOR_BLACK_LIGHT_1 }}>@{m.username}</Text>
                 <TouchableOpacity onPress={() => removeMember(m.id)}>
-                  <Text style={{ color: colors.busy, marginLeft: 10 }}>Remove</Text>
+                  <Text style={{ color: colors.busy, marginLeft: 10 }}>{t('lists.create.remove')}</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -116,7 +118,7 @@ export default function CreateListScreen() {
         )}
 
         <TouchableOpacity disabled={saving || !title.trim()} onPress={onCreate} style={[styles.createBtn, (!title.trim()) && { opacity: 0.6 }]}>
-          <Text style={styles.createBtnText}>{saving ? 'Saving…' : 'Create List'}</Text>
+          <Text style={styles.createBtnText}>{saving ? t('lists.create.saving') : t('lists.create.createButton')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </ThemedView>

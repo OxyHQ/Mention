@@ -44,7 +44,7 @@ export default function ListsScreen() {
       />
       <ThemedView style={{ flex: 1 }}>
         <Header options={{
-        title: 'Lists', 
+        title: t('lists.title'),
         leftComponents: [
           <IconButton variant="icon"
             key="back"
@@ -55,7 +55,7 @@ export default function ListsScreen() {
         ],
         rightComponents: [
           <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} style={[styles.newPill, { backgroundColor: theme.colors.primary }]}>
-            <Text style={[styles.newPillText, { color: theme.colors.card }]}>+ New</Text>
+            <Text style={[styles.newPillText, { color: theme.colors.card }]}>{t('lists.new')}</Text>
           </TouchableOpacity>
         ]
       }} 
@@ -66,14 +66,14 @@ export default function ListsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
         {myLists.length === 0 ? (
           <EmptyState
-            title="No lists yet"
-            subtitle="Create a list to group accounts you follow and keep organized."
+            title={t('lists.empty.title')}
+            subtitle={t('lists.empty.subtitle')}
             icon={{
               name: 'list',
               size: 48,
             }}
             action={{
-              label: 'Create list',
+              label: t('lists.createList'),
               onPress: () => router.push('/lists/create'),
             }}
             containerStyle={styles.emptyState}

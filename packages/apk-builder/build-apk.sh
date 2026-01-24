@@ -80,30 +80,40 @@ else
 fi
 echo ""
 
-echo "[6/8] Building APK ($BUILD_TYPE)..."
+echo "[6/8] Building APK and AAB ($BUILD_TYPE)..."
 cd android
 chmod +x gradlew
 
 # Build based on whether signing is configured
 if [ -n "$KEYSTORE_BASE64" ]; then
-    ./gradlew assembleRelease --no-daemon --stacktrace
+    echo "Building signed release APK and AAB..."
+    ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace
     APK_SOURCE="app/build/outputs/apk/release/app-release.apk"
+    AAB_SOURCE="app/build/outputs/bundle/release/app-release.aab"
 else
-    ./gradlew assembleDebug --no-daemon --stacktrace
+    echo "Building unsigned debug APK and AAB..."
+    ./gradlew assembleDebug bundleDebug --no-daemon --stacktrace
     APK_SOURCE="app/build/outputs/apk/debug/app-debug.apk"
+    AAB_SOURCE="app/build/outputs/bundle/debug/app-debug.aab"
 fi
 
-echo "✓ APK built successfully"
+echo "✓ APK and AAB built successfully"
 echo ""
 
-echo "[7/8] Copying APK to outputs directory..."
+echo "[7/8] Copying APK and AAB to outputs directory..."
 mkdir -p /app/outputs
-cp "$APK_SOURCE" /app/outputs/mention-latest.apk
 
-# Get APK size
-APK_SIZE=$(stat -c%s "/app/outputs/mention-latest.apk" 2>/dev/null || echo "unknown")
+# Copy APK
+cp "$APK_SOURCE" /app/outputs/mention-latest.apk
+APK_SIZE=$(stat -c%s "/app/outputs/mention-latest.apk" 2>/dev/null || echo "0")
 APK_SIZE_MB=$((APK_SIZE / 1024 / 1024))
 echo "✓ APK copied to /app/outputs/mention-latest.apk (${APK_SIZE_MB}MB)"
+
+# Copy AAB
+cp "$AAB_SOURCE" /app/outputs/mention-latest.aab
+AAB_SIZE=$(stat -c%s "/app/outputs/mention-latest.aab" 2>/dev/null || echo "0")
+AAB_SIZE_MB=$((AAB_SIZE / 1024 / 1024))
+echo "✓ AAB copied to /app/outputs/mention-latest.aab (${AAB_SIZE_MB}MB)"
 echo ""
 
 echo "[8/8] Generating build metadata..."
@@ -119,8 +129,16 @@ cat > /app/outputs/build-info.json << EOF
   "version": "$VERSION",
   "buildDate": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "gitHash": "$GIT_HASH",
-  "size": $APK_SIZE,
-  "sizeMB": $APK_SIZE_MB,
+  "apk": {
+    "size": $APK_SIZE,
+    "sizeMB": $APK_SIZE_MB,
+    "path": "/app/outputs/mention-latest.apk"
+  },
+  "aab": {
+    "size": $AAB_SIZE,
+    "sizeMB": $AAB_SIZE_MB,
+    "path": "/app/outputs/mention-latest.aab"
+  },
   "buildType": "$BUILD_TYPE",
   "platform": "android",
   "package": "com.mention.earth"
@@ -134,7 +152,9 @@ echo "========================================="
 echo "Build Complete!"
 echo "========================================="
 echo "APK Location: /app/outputs/mention-latest.apk"
-echo "Size: ${APK_SIZE_MB}MB"
+echo "APK Size: ${APK_SIZE_MB}MB"
+echo "AAB Location: /app/outputs/mention-latest.aab"
+echo "AAB Size: ${AAB_SIZE_MB}MB"
 echo "Version: $VERSION"
 echo "Git Hash: $GIT_HASH"
 echo "Build Type: $BUILD_TYPE"

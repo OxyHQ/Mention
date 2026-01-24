@@ -580,5 +580,75 @@
       "title": "Página No Encontrada - Mention",
       "description": "La página que buscas no existe."
     }
+  },
+  "lists": {
+    "title": "Listas",
+    "new": "+ Nuevo",
+    "createList": "Crear lista",
+    "empty": {
+      "title": "Aún no hay listas",
+      "subtitle": "Crea una lista para agrupar las cuentas que sigues y mantenerte organizado."
+    },
+    "create": {
+      "title": "Crear Lista",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Periodistas Locales",
+      "descriptionLabel": "Descripción",
+      "descriptionPlaceholder": "¿De qué trata esta lista?",
+      "publicLabel": "Pública",
+      "addMembers": "Añadir Miembros",
+      "searchUsersPlaceholder": "Buscar usuarios",
+      "add": "Añadir",
+      "members": "Miembros",
+      "remove": "Eliminar",
+      "saving": "Guardando…",
+      "createButton": "Crear Lista"
+    }
+  },
+  "feeds": {
+    "title": "Feed",
+    "pinned": "Fijado",
+    "pinFeed": "Fijar Feed",
+    "myFeeds": {
+      "title": "Mis Feeds",
+      "subtitle": "Todos los feeds que has guardado, en un solo lugar."
+    },
+    "following": "Siguiendo",
+    "mutuals": "Mutuos",
+    "discover": "Descubrir",
+    "popularWithFriends": "Popular con Amigos",
+    "discoverNew": {
+      "title": "Descubre Nuevos Feeds",
+      "subtitle": "¡Elige tu propia línea de tiempo! Feeds creados por la comunidad."
+    },
+    "searchPlaceholder": "Buscar feeds",
+    "yourFeeds": {
+      "title": "Tus Feeds",
+      "subtitle": "Líneas de tiempo personalizadas que creaste."
+    },
+    "create": {
+      "title": "Crear Feed",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Mi feed increíble",
+      "descriptionLabel": "Descripción",
+      "descriptionPlaceholder": "¿De qué trata este feed?",
+      "keywordsLabel": "Palabras clave (separadas por comas)",
+      "keywordsPlaceholder": "gatos, memes",
+      "publicLabel": "Público",
+      "includeReplies": "Incluir respuestas",
+      "includeReposts": "Incluir republicaciones",
+      "includeMedia": "Incluir multimedia",
+      "addLists": "Añadir Listas (opcional)",
+      "hideLists": "Ocultar Listas",
+      "loadMyLists": "Cargar Mis Listas",
+      "selected": "Seleccionado",
+      "select": "Seleccionar",
+      "addMembers": "Añadir Miembros",
+      "searchUsersPlaceholder": "Buscar usuarios",
+      "add": "Añadir",
+      "members": "Miembros",
+      "remove": "Eliminar",
+      "createButton": "Crear Feed"
+    }
   }
 }

@@ -5,15 +5,21 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "echo 'APK build skipped - only runs in Docker container'",
+    "build": "echo 'APK/AAB build skipped - only runs in Docker container'",
     "build:apk": "./build-apk.sh",
+    "publish:playstore": "node upload-to-playstore.js",
+    "publish:internal": "TRACK=internal node upload-to-playstore.js",
+    "publish:alpha": "TRACK=alpha node upload-to-playstore.js",
+    "publish:beta": "TRACK=beta node upload-to-playstore.js",
+    "publish:production": "TRACK=production node upload-to-playstore.js",
     "dev": "node server.js"
   },
   "keywords": ["android", "apk", "expo", "react-native"],
   "author": "Mention",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "googleapis": "^144.0.0"
   },
   "engines": {
     "node": ">=20.0.0"

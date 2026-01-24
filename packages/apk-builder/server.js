@@ -5,6 +5,7 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 8080;
 const APK_PATH = path.join(__dirname, 'outputs', 'mention-latest.apk');
+const AAB_PATH = path.join(__dirname, 'outputs', 'mention-latest.aab');
 const BUILD_INFO_PATH = path.join(__dirname, 'outputs', 'build-info.json');
 
 // Enable CORS for all routes
@@ -28,7 +29,8 @@ app.get('/', (req, res) => {
     service: 'Mention APK Builder',
     version: '1.0.0',
     endpoints: {
-      '/android-latest-apk': 'Download latest Android APK',
+      '/android-latest-apk': 'Download latest Android APK (for sideloading)',
+      '/android-latest-aab': 'Download latest Android App Bundle (for Play Store)',
       '/build-info': 'Get build metadata',
       '/health': 'Health check'
     },
@@ -81,6 +83,51 @@ app.get('/android-latest-apk', (req, res) => {
   fileStream.pipe(res);
 });
 
+// Serve latest AAB
+app.get('/android-latest-aab', (req, res) => {
+  console.log('AAB download requested');
+
+  // Check if AAB exists
+  if (!fs.existsSync(AAB_PATH)) {
+    console.error('AAB not found at:', AAB_PATH);
+    return res.status(404).json({
+      error: 'AAB not available',
+      message: 'The AAB has not been built yet. Please check build logs.',
+      path: AAB_PATH
+    });
+  }
+
+  // Get AAB file stats
+  const stats = fs.statSync(AAB_PATH);
+  const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+
+  console.log(`Serving AAB: ${fileSizeMB}MB`);
+
+  // Set appropriate headers for AAB download
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', 'attachment; filename="mention-latest.aab"');
+  res.setHeader('Content-Length', stats.size);
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  // Stream the file
+  const fileStream = fs.createReadStream(AAB_PATH);
+
+  fileStream.on('error', (error) => {
+    console.error('Error streaming AAB:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error streaming AAB file' });
+    }
+  });
+
+  fileStream.on('end', () => {
+    console.log('AAB download completed');
+  });
+
+  fileStream.pipe(res);
+});
+
 // Build information endpoint
 app.get('/build-info', (req, res) => {
   console.log('Build info requested');
@@ -97,9 +144,13 @@ app.get('/build-info', (req, res) => {
     // Read and parse build info
     const buildInfo = JSON.parse(fs.readFileSync(BUILD_INFO_PATH, 'utf8'));
 
-    // Add APK availability status
+    // Add file availability status
     buildInfo.apkAvailable = fs.existsSync(APK_PATH);
-    buildInfo.downloadUrl = '/android-latest-apk';
+    buildInfo.aabAvailable = fs.existsSync(AAB_PATH);
+    buildInfo.downloadUrls = {
+      apk: '/android-latest-apk',
+      aab: '/android-latest-aab'
+    };
 
     res.json(buildInfo);
   } catch (error) {
@@ -114,6 +165,7 @@ app.get('/build-info', (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   const apkExists = fs.existsSync(APK_PATH);
+  const aabExists = fs.existsSync(AAB_PATH);
   const buildInfoExists = fs.existsSync(BUILD_INFO_PATH);
 
   const health = {
@@ -122,6 +174,10 @@ app.get('/health', (req, res) => {
     apk: {
       exists: apkExists,
       path: APK_PATH
+    },
+    aab: {
+      exists: aabExists,
+      path: AAB_PATH
     },
     buildInfo: {
       exists: buildInfoExists,
@@ -149,8 +205,8 @@ app.get('/health', (req, res) => {
     }
   }
 
-  // Respond with 200 OK if healthy
-  const statusCode = apkExists ? 200 : 503;
+  // Respond with 200 OK if both APK and AAB exist
+  const statusCode = (apkExists && aabExists) ? 200 : 503;
   res.status(statusCode).json(health);
 });
 
@@ -161,6 +217,7 @@ app.use((req, res) => {
     path: req.path,
     availableEndpoints: [
       '/android-latest-apk',
+      '/android-latest-aab',
       '/build-info',
       '/health'
     ]
@@ -186,11 +243,13 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log('Endpoints:');
   console.log(`  - http://localhost:${PORT}/android-latest-apk`);
+  console.log(`  - http://localhost:${PORT}/android-latest-aab`);
   console.log(`  - http://localhost:${PORT}/build-info`);
   console.log(`  - http://localhost:${PORT}/health`);
   console.log('');
-  console.log('APK Status:');
+  console.log('Build Status:');
   console.log(`  - APK exists: ${fs.existsSync(APK_PATH)}`);
+  console.log(`  - AAB exists: ${fs.existsSync(AAB_PATH)}`);
   console.log(`  - Build info exists: ${fs.existsSync(BUILD_INFO_PATH)}`);
   console.log('========================================');
 });

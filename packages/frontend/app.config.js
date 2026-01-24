@@ -164,6 +164,11 @@ return {
                     {
                       ios: {
                         deploymentTarget: '15.1',
+                        entitlements: {
+                          'keychain-access-groups': [
+                            '$(AppIdentifierPrefix)group.com.oxy.shared'
+                          ]
+                        }
                       },
                       android: {
                         compileSdkVersion: 35,
@@ -176,6 +181,8 @@ return {
                     },
                 ],
                 "expo-web-browser",
+                // Android sharedUserId for cross-app authentication
+                './plugins/withSharedUserId',
             ];
 
             // Only include expo-notifications for native builds (android/ios)

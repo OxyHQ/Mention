@@ -647,5 +647,75 @@
             "title": "Page Not Found - Mention",
             "description": "The page you're looking for doesn't exist."
         }
+    },
+    "lists": {
+        "title": "Lists",
+        "new": "+ New",
+        "createList": "Create list",
+        "empty": {
+            "title": "No lists yet",
+            "subtitle": "Create a list to group accounts you follow and keep organized."
+        },
+        "create": {
+            "title": "Create List",
+            "titleLabel": "Title",
+            "titlePlaceholder": "Local Journalists",
+            "descriptionLabel": "Description",
+            "descriptionPlaceholder": "What is this list about?",
+            "publicLabel": "Public",
+            "addMembers": "Add Members",
+            "searchUsersPlaceholder": "Search users",
+            "add": "Add",
+            "members": "Members",
+            "remove": "Remove",
+            "saving": "Saving…",
+            "createButton": "Create List"
+        }
+    },
+    "feeds": {
+        "title": "Feeds",
+        "pinned": "Pinned",
+        "pinFeed": "Pin Feed",
+        "myFeeds": {
+            "title": "My Feeds",
+            "subtitle": "All the feeds you've saved, right in one place."
+        },
+        "following": "Following",
+        "mutuals": "Mutuals",
+        "discover": "Discover",
+        "popularWithFriends": "Popular With Friends",
+        "discoverNew": {
+            "title": "Discover New Feeds",
+            "subtitle": "Choose your own timeline! Feeds built by the community."
+        },
+        "searchPlaceholder": "Search feeds",
+        "yourFeeds": {
+            "title": "Your Feeds",
+            "subtitle": "Custom timelines you created."
+        },
+        "create": {
+            "title": "Create Feed",
+            "titleLabel": "Title",
+            "titlePlaceholder": "My awesome feed",
+            "descriptionLabel": "Description",
+            "descriptionPlaceholder": "What is this feed about?",
+            "keywordsLabel": "Keywords (comma separated)",
+            "keywordsPlaceholder": "cats, memes",
+            "publicLabel": "Public",
+            "includeReplies": "Include replies",
+            "includeReposts": "Include reposts",
+            "includeMedia": "Include media",
+            "addLists": "Add Lists (optional)",
+            "hideLists": "Hide Lists",
+            "loadMyLists": "Load My Lists",
+            "selected": "Selected",
+            "select": "Select",
+            "addMembers": "Add Members",
+            "searchUsersPlaceholder": "Search users",
+            "add": "Add",
+            "members": "Members",
+            "remove": "Remove",
+            "createButton": "Create Feed"
+        }
     }
 }
