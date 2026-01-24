@@ -5,6 +5,43 @@ import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
 import { wasRecent } from './echoGuard';
 
+// Valid feed types for validation
+const VALID_FEED_TYPES: string[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following', 'saved', 'explore', 'custom'];
+
+// TypeScript interfaces for socket events
+interface EngagementEventData {
+  postId?: string;
+  originalPostId?: string;
+  userId?: string;
+  actorId?: string;
+  likesCount?: number;
+  repostsCount?: number;
+}
+
+interface FeedUpdateData {
+  type?: string;
+  posts?: any[];
+  post?: any;
+}
+
+interface PresenceUpdateData {
+  userId: string;
+  online: boolean;
+}
+
+interface FollowEventData {
+  followerId: string;
+  followingId: string;
+  followerCount?: number;
+  followingCount?: number;
+}
+
+interface EngagementUpdate {
+  type: 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave' | 'reply';
+  data: EngagementEventData;
+  timestamp: number;
+}
+
 class SocketService {
   private socket: Socket | null = null;
   private isConnected = false;
@@ -23,22 +60,46 @@ class SocketService {
   private lastPongTime: number = 0;
   
   // Queue for engagement updates to batch rapid changes
-  private engagementUpdateQueue: Map<string, {
-    type: 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave' | 'reply';
-    data: any;
-    timestamp: number;
-  }[]> = new Map();
+  private engagementUpdateQueue: Map<string, EngagementUpdate[]> = new Map();
   private engagementUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly ENGAGEMENT_UPDATE_DEBOUNCE_MS = 200; // Batch engagement updates every 200ms
+  private readonly MAX_ENGAGEMENT_BATCH_SIZE = 100; // Maximum engagement updates per post
 
   constructor() {
     this.setupEventListeners();
   }
 
   /**
+   * Normalize post ID from various formats
+   */
+  private normalizePostId(item: any): string {
+    if (!item) return '';
+
+    if (item?.id) {
+      return String(item.id);
+    }
+
+    if (item?._id) {
+      const _id = item._id;
+      return typeof _id === 'object' && _id.toString
+        ? _id.toString()
+        : String(_id);
+    }
+
+    return '';
+  }
+
+  /**
+   * Extract actor ID from event data (handles both userId and actorId fields)
+   */
+  private getActorId(data: EngagementEventData): string | undefined {
+    return data.userId || data.actorId;
+  }
+
+  /**
    * Connect to the backend socket server
    */
-  connect(userId?: string, token?: string) {
+  connect(userId?: string, token?: string): void {
     if (this.socket?.connected) {
       return;
     }
@@ -56,8 +117,8 @@ class SocketService {
       });
 
       this.setupSocketEventListeners();
-    } catch {
-      // Socket connection error - will retry with reconnection logic
+    } catch (error) {
+      console.error('[SocketService] Connection error:', error);
     }
   }
 
@@ -73,6 +134,8 @@ class SocketService {
    */
   disconnect() {
     if (this.socket) {
+      // Remove all socket event listeners before disconnecting
+      this.removeSocketEventListeners();
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
@@ -97,7 +160,11 @@ class SocketService {
     // Clear queues
     this.feedUpdateQueue.clear();
     this.engagementUpdateQueue.clear();
-    
+
+    // Clear all listener maps
+    this.presenceListeners.clear();
+    this.followListeners.clear();
+
     // Stop health monitoring
     this.stopHealthMonitoring();
   }
@@ -106,36 +173,59 @@ class SocketService {
    * Join feed room for real-time updates (room-based subscription)
    */
   joinFeed(feedType: string): void {
-    if (this.socket?.connected) {
-      this.socket.emit('joinFeed', { feedType, userId: this.currentUserId });
-    }
+    if (!this.socket?.connected) return;
+    this.socket.emit('joinFeed', { feedType, userId: this.currentUserId });
   }
-  
+
   /**
    * Leave feed room
    */
   leaveFeed(feedType: string): void {
-    if (this.socket?.connected) {
-      this.socket.emit('leaveFeed', { feedType, userId: this.currentUserId });
-    }
+    if (!this.socket?.connected) return;
+    this.socket.emit('leaveFeed', { feedType, userId: this.currentUserId });
   }
 
   /**
    * Join a post room for real-time updates
    */
-  joinPost(postId: string) {
-    if (this.socket?.connected) {
-      this.socket.emit('joinPost', postId);
-    }
+  joinPost(postId: string): void {
+    if (!this.socket?.connected) return;
+    this.socket.emit('joinPost', postId);
   }
 
   /**
    * Leave a post room
    */
-  leavePost(postId: string) {
-    if (this.socket?.connected) {
-      this.socket.emit('leavePost', postId);
-    }
+  leavePost(postId: string): void {
+    if (!this.socket?.connected) return;
+    this.socket.emit('leavePost', postId);
+  }
+
+  /**
+   * Remove all socket event listeners
+   */
+  private removeSocketEventListeners() {
+    if (!this.socket) return;
+
+    this.socket.off('connect');
+    this.socket.off('disconnect');
+    this.socket.off('pong');
+    this.socket.off('connect_error');
+    this.socket.off('reconnect');
+    this.socket.off('reconnect_error');
+    this.socket.off('reconnect_failed');
+    this.socket.off('feed:updated');
+    this.socket.off('post:liked');
+    this.socket.off('post:unliked');
+    this.socket.off('post:replied');
+    this.socket.off('post:reposted');
+    this.socket.off('post:unreposted');
+    this.socket.off('post:saved');
+    this.socket.off('post:unsaved');
+    this.socket.off('user:presence');
+    this.socket.off('user:presenceBulk');
+    this.socket.off('user:followed');
+    this.socket.off('user:unfollowed');
   }
 
   /**
@@ -239,12 +329,13 @@ class SocketService {
   /**
    * Setup global event listeners
    */
-  private setupEventListeners() {
+  private setupEventListeners(): void {
     // Handle app state changes (React Native)
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
         // App came to foreground - reconnect if needed
-        if (!this.isConnected && this.socket) {
+        if (!this.isConnected && this.socket && !this.socket.connected) {
+          console.log('[SocketService] App resumed, reconnecting...');
           this.socket.connect();
         }
       } else if (nextAppState === 'background' || nextAppState === 'inactive') {
@@ -271,8 +362,9 @@ class SocketService {
   /**
    * Handle reconnection logic with exponential backoff
    */
-  private handleReconnect() {
+  private handleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.warn('[SocketService] Max reconnect attempts reached');
       return;
     }
 
@@ -280,9 +372,9 @@ class SocketService {
     const delay = this.calculateReconnectDelay(this.reconnectAttempts);
 
     setTimeout(() => {
-      if (this.socket && !this.socket.connected) {
-        this.socket.connect();
-      }
+      if (!this.socket || this.socket.connected) return;
+      console.log(`[SocketService] Reconnecting (attempt ${this.reconnectAttempts})...`);
+      this.socket.connect();
     }, delay);
   }
   
@@ -293,12 +385,16 @@ class SocketService {
     if (this.connectionHealthCheckInterval) {
       clearInterval(this.connectionHealthCheckInterval);
     }
-    
+
     this.connectionHealthCheckInterval = setInterval(() => {
-      if (this.socket && this.socket.connected) {
+      if (this.socket?.connected) {
+        // Send ping to server
+        this.socket.emit('ping');
+
         const timeSinceLastPong = Date.now() - this.lastPongTime;
         // If no pong received in 60 seconds, consider connection unhealthy
         if (timeSinceLastPong > 60000 && this.lastPongTime > 0) {
+          console.warn('[SocketService] Connection unhealthy, reconnecting...');
           this.socket.disconnect();
           this.handleReconnect();
         }
@@ -320,17 +416,23 @@ class SocketService {
    * Handle feed updates from socket
    * Optimized to handle multiple posts efficiently with debouncing
    */
-  private handleFeedUpdate(data: any) {
+  private handleFeedUpdate(data: FeedUpdateData) {
     const { type, posts, post } = data || {};
-    
+
     // Handle both single post and array of posts
     const postsArray = Array.isArray(posts) ? posts : (post ? [post] : []);
-    
+
     // Type-safe feed type check
     if (!type || postsArray.length === 0) {
       return;
     }
-    
+
+    // Validate that type is a valid FeedType before casting
+    if (!VALID_FEED_TYPES.includes(type)) {
+      console.warn('[SocketService] Invalid feed type:', type);
+      return;
+    }
+
     // Queue updates for batching
     const feedType = type as FeedType;
     if (!this.feedUpdateQueue.has(feedType)) {
@@ -376,8 +478,8 @@ class SocketService {
       if (currentFeed.isLoading) {
         // Keep posts in queue - they'll be processed after loading completes
         // But limit queue size to prevent memory issues
-        if (this.feedUpdateQueue.get(feedType)!.length > 100) {
-          this.feedUpdateQueue.set(feedType, posts.slice(-50)); // Keep last 50 items
+        if (this.feedUpdateQueue.get(feedType)!.length > this.MAX_BATCH_SIZE * 2) {
+          this.feedUpdateQueue.set(feedType, posts.slice(-this.MAX_BATCH_SIZE)); // Keep last MAX_BATCH_SIZE items
         }
         return;
       }
@@ -385,34 +487,18 @@ class SocketService {
       // Build set of existing post IDs in the feed for duplicate detection
       const existingIds = new Set<string>();
       currentFeed.items.forEach((item: any) => {
-        let id = '';
-        if (item?.id) {
-          id = String(item.id);
-        } else if (item?._id) {
-          const _id = item._id;
-          id = typeof _id === 'object' && _id.toString 
-            ? _id.toString() 
-            : String(_id);
-        }
+        const id = this.normalizePostId(item);
         if (id && id !== 'undefined' && id !== 'null' && id !== '') {
           existingIds.add(id);
         }
       });
-      
+
       // Deduplicate posts in queue before adding - use proper normalization
       const seen = new Map<string, any>();
       const uniquePosts: any[] = [];
       for (const p of posts) {
-        let id = '';
-        if (p?.id) {
-          id = String(p.id);
-        } else if (p?._id) {
-          const _id = p._id;
-          id = typeof _id === 'object' && _id.toString 
-            ? _id.toString() 
-            : String(_id);
-        }
-        
+        const id = this.normalizePostId(p);
+
         if (id && id !== 'undefined' && id !== 'null' && id !== '') {
           // Check both queue duplicates and existing feed duplicates
           if (!seen.has(id) && !existingIds.has(id)) {
@@ -438,39 +524,46 @@ class SocketService {
   /**
    * Handle post liked event - with batching and smart conflict resolution
    */
-  private handlePostLiked(data: any) {
-    const { postId, likesCount, userId, actorId } = data || {};
+  private handlePostLiked(data: EngagementEventData) {
+    const { postId, likesCount } = data || {};
     if (!postId) return;
-    const actualActorId = userId || actorId;
-    
+    const actualActorId = this.getActorId(data);
+
     // Skip echo - our own actions are handled by optimistic updates
     if (this.shouldIgnoreEcho(postId, 'like', actualActorId)) return;
-    
+
     // Queue for batching
-    this.queueEngagementUpdate(postId, 'like', { 
-      postId, 
-      likesCount, 
+    this.queueEngagementUpdate(postId, 'like', {
+      postId,
+      likesCount,
       userId: actualActorId,
-      actorId: actualActorId 
+      actorId: actualActorId
     });
   }
   
   /**
    * Queue engagement update for batching
    */
-  private queueEngagementUpdate(postId: string, type: 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave' | 'reply', data: any) {
+  private queueEngagementUpdate(postId: string, type: 'like' | 'unlike' | 'repost' | 'unrepost' | 'save' | 'unsave' | 'reply', data: EngagementEventData) {
     if (!this.engagementUpdateQueue.has(postId)) {
       this.engagementUpdateQueue.set(postId, []);
     }
-    
+
     const queue = this.engagementUpdateQueue.get(postId)!;
+
+    // Limit queue size to prevent memory issues
+    if (queue.length >= this.MAX_ENGAGEMENT_BATCH_SIZE) {
+      // Keep only the most recent updates
+      this.engagementUpdateQueue.set(postId, queue.slice(-50));
+    }
+
     queue.push({ type, data, timestamp: Date.now() });
-    
+
     // Clear existing timer
     if (this.engagementUpdateTimer) {
       clearTimeout(this.engagementUpdateTimer);
     }
-    
+
     // Process queue after short delay
     this.engagementUpdateTimer = setTimeout(() => {
       this.processEngagementQueue();
@@ -523,12 +616,12 @@ class SocketService {
                     engagement: { ...prev.engagement, likes: newCount },
                   };
                 }
-                return null as any; // No change needed
+                return prev; // No change needed
               }
 
               // Other user's action - only update count, NOT isLiked state
               // Don't update if count is already correct or higher
-              if (currentLikes >= newCount) return null as any;
+              if (currentLikes >= newCount) return prev;
 
               return {
                 ...prev,
@@ -556,12 +649,12 @@ class SocketService {
                     engagement: { ...prev.engagement, likes: newCount },
                   };
                 }
-                return null as any; // No change needed
+                return prev; // No change needed
               }
 
               // Other user's action - only update count, NOT isLiked state
               // Don't update if count is already correct or lower
-              if (currentLikes <= newCount) return null as any;
+              if (currentLikes <= newCount) return prev;
 
               return {
                 ...prev,
@@ -591,12 +684,12 @@ class SocketService {
                     engagement: { ...prev.engagement, reposts: newCount },
                   };
                 }
-                return null as any; // No change needed
+                return prev; // No change needed
               }
 
               // Other user's action - only update count, NOT isReposted state
               // Don't update if count is already correct or higher
-              if (currentReposts >= newCount) return null as any;
+              if (currentReposts >= newCount) return prev;
 
               return {
                 ...prev,
@@ -624,12 +717,12 @@ class SocketService {
                     engagement: { ...prev.engagement, reposts: newCount },
                   };
                 }
-                return null as any; // No change needed
+                return prev; // No change needed
               }
 
               // Other user's action - only update count, NOT isReposted state
               // Don't update if count is already correct or lower
-              if (currentReposts <= newCount) return null as any;
+              if (currentReposts <= newCount) return prev;
 
               return {
                 ...prev,
@@ -672,90 +765,95 @@ class SocketService {
   /**
    * Handle post unliked event - with batching
    */
-  private handlePostUnliked(data: any) {
-    const { postId, likesCount, userId, actorId } = data || {};
+  private handlePostUnliked(data: EngagementEventData) {
+    const { postId, likesCount } = data || {};
     if (!postId) return;
-    const actualActorId = userId || actorId;
-    
+    const actualActorId = this.getActorId(data);
+
     // Skip echo - our own actions are handled by optimistic updates
     if (this.shouldIgnoreEcho(postId, 'unlike', actualActorId)) return;
-    
-    this.queueEngagementUpdate(postId, 'unlike', { 
-      postId, 
-      likesCount, 
+
+    this.queueEngagementUpdate(postId, 'unlike', {
+      postId,
+      likesCount,
       userId: actualActorId,
-      actorId: actualActorId 
+      actorId: actualActorId
     });
   }
 
   /**
    * Handle post replied event - with batching
    */
-  private handlePostReplied(data: any) {
-    const { postId, userId: actorId, actorId: altActor } = data || {};
+  private handlePostReplied(data: EngagementEventData) {
+    const { postId } = data || {};
     if (!postId) return;
-    if (this.shouldIgnoreEcho(postId, 'reply', actorId || altActor)) return;
-    
-    this.queueEngagementUpdate(postId, 'reply', { postId, actorId: actorId || altActor });
+    const actualActorId = this.getActorId(data);
+    if (this.shouldIgnoreEcho(postId, 'reply', actualActorId)) return;
+
+    this.queueEngagementUpdate(postId, 'reply', { postId, actorId: actualActorId });
   }
 
   /**
    * Handle post reposted event - with batching
    */
-  private handlePostReposted(data: any) {
-    const { originalPostId, postId, repostsCount, userId: actorId, actorId: altActor } = data || {};
+  private handlePostReposted(data: EngagementEventData) {
+    const { originalPostId, postId, repostsCount } = data || {};
     const targetId = originalPostId || postId;
     if (!targetId) return;
-    if (this.shouldIgnoreEcho(targetId, 'repost', actorId || altActor)) return;
-    
-    this.queueEngagementUpdate(targetId, 'repost', { 
-      postId: targetId, 
+    const actualActorId = this.getActorId(data);
+    if (this.shouldIgnoreEcho(targetId, 'repost', actualActorId)) return;
+
+    this.queueEngagementUpdate(targetId, 'repost', {
+      postId: targetId,
       repostsCount,
-      userId: actorId || altActor 
+      userId: actualActorId
     });
   }
 
   /**
    * Handle post unreposted event - with batching
    */
-  private handlePostUnreposted(data: any) {
-    const { originalPostId, postId: pid, repostsCount, userId: actorId, actorId: altActor } = data || {};
-    const postId = originalPostId || pid;
-    if (!postId) return;
-    if (this.shouldIgnoreEcho(postId, 'unrepost', actorId || altActor)) return;
-    
-    this.queueEngagementUpdate(postId, 'unrepost', { 
-      postId, 
+  private handlePostUnreposted(data: EngagementEventData) {
+    const { originalPostId, postId, repostsCount } = data || {};
+    const targetId = originalPostId || postId;
+    if (!targetId) return;
+    const actualActorId = this.getActorId(data);
+    if (this.shouldIgnoreEcho(targetId, 'unrepost', actualActorId)) return;
+
+    this.queueEngagementUpdate(targetId, 'unrepost', {
+      postId: targetId,
       repostsCount,
-      userId: actorId || altActor 
+      userId: actualActorId
     });
   }
 
   /**
    * Handle post saved event - with batching
    */
-  private handlePostSaved(data: any) {
-    const { postId, userId: actorId, actorId: altActor } = data || {};
+  private handlePostSaved(data: EngagementEventData) {
+    const { postId } = data || {};
     if (!postId) return;
-    if (this.shouldIgnoreEcho(postId, 'save', actorId || altActor)) return;
-    
-    this.queueEngagementUpdate(postId, 'save', { 
-      postId, 
-      userId: actorId || altActor 
+    const actualActorId = this.getActorId(data);
+    if (this.shouldIgnoreEcho(postId, 'save', actualActorId)) return;
+
+    this.queueEngagementUpdate(postId, 'save', {
+      postId,
+      userId: actualActorId
     });
   }
 
   /**
    * Handle post unsaved event - with batching
    */
-  private handlePostUnsaved(data: any) {
-    const { postId, userId: actorId, actorId: altActor } = data || {};
+  private handlePostUnsaved(data: EngagementEventData) {
+    const { postId } = data || {};
     if (!postId) return;
-    if (this.shouldIgnoreEcho(postId, 'unsave', actorId || altActor)) return;
-    
-    this.queueEngagementUpdate(postId, 'unsave', { 
-      postId, 
-      userId: actorId || altActor 
+    const actualActorId = this.getActorId(data);
+    if (this.shouldIgnoreEcho(postId, 'unsave', actualActorId)) return;
+
+    this.queueEngagementUpdate(postId, 'unsave', {
+      postId,
+      userId: actualActorId
     });
   }
 
@@ -765,7 +863,7 @@ class SocketService {
   /**
    * Handle presence update from socket
    */
-  private handlePresenceUpdate(data: { userId: string; online: boolean }) {
+  private handlePresenceUpdate(data: PresenceUpdateData) {
     const { userId, online } = data || {};
     if (!userId) return;
 
@@ -790,42 +888,56 @@ class SocketService {
   }
 
   // Follow event listeners
-  private followListeners: Map<string, Set<(data: { followerId: string; followingId: string; followerCount: number; followingCount: number }) => void>> = new Map();
+  private followListeners: Map<string, Set<(data: FollowEventData) => void>> = new Map();
 
   /**
    * Handle user followed event
    */
-  private handleUserFollowed(data: { followerId: string; followingId: string; followerCount?: number; followingCount?: number }) {
+  private handleUserFollowed(data: FollowEventData) {
     if (!data) return;
+
+    const eventData: FollowEventData = {
+      followerId: data.followerId,
+      followingId: data.followingId,
+      followerCount: data.followerCount ?? 0,
+      followingCount: data.followingCount ?? 0
+    };
 
     // Notify listeners for the user who was followed (their follower count changed)
     const followedListeners = this.followListeners.get(data.followingId);
     if (followedListeners) {
-      followedListeners.forEach(callback => callback(data as any));
+      followedListeners.forEach(callback => callback(eventData));
     }
 
     // Notify listeners for the user who followed (their following count changed)
     const followerListeners = this.followListeners.get(data.followerId);
     if (followerListeners) {
-      followerListeners.forEach(callback => callback(data as any));
+      followerListeners.forEach(callback => callback(eventData));
     }
   }
 
   /**
    * Handle user unfollowed event
    */
-  private handleUserUnfollowed(data: { followerId: string; followingId: string; followerCount?: number; followingCount?: number }) {
+  private handleUserUnfollowed(data: FollowEventData) {
     if (!data) return;
+
+    const eventData: FollowEventData = {
+      followerId: data.followerId,
+      followingId: data.followingId,
+      followerCount: data.followerCount ?? 0,
+      followingCount: data.followingCount ?? 0
+    };
 
     // Same as followed - notify both parties
     const unfollowedListeners = this.followListeners.get(data.followingId);
     if (unfollowedListeners) {
-      unfollowedListeners.forEach(callback => callback(data as any));
+      unfollowedListeners.forEach(callback => callback(eventData));
     }
 
     const unfollowerListeners = this.followListeners.get(data.followerId);
     if (unfollowerListeners) {
-      unfollowerListeners.forEach(callback => callback(data as any));
+      unfollowerListeners.forEach(callback => callback(eventData));
     }
   }
 
@@ -864,13 +976,14 @@ class SocketService {
    */
   getPresence(userId: string): Promise<boolean> {
     return new Promise((resolve) => {
-      if (this.socket?.connected) {
-        this.socket.emit('getPresence', userId, (data: { online: boolean }) => {
-          resolve(data?.online ?? false);
-        });
-      } else {
+      if (!this.socket?.connected) {
         resolve(false);
+        return;
       }
+
+      this.socket.emit('getPresence', userId, (data: { online: boolean }) => {
+        resolve(data?.online ?? false);
+      });
     });
   }
 
@@ -879,20 +992,21 @@ class SocketService {
    */
   getPresenceBulk(userIds: string[]): Promise<Record<string, boolean>> {
     return new Promise((resolve) => {
-      if (this.socket?.connected) {
-        this.socket.emit('getPresenceBulk', userIds, (data: Record<string, boolean>) => {
-          resolve(data || {});
-        });
-      } else {
+      if (!this.socket?.connected) {
         resolve({});
+        return;
       }
+
+      this.socket.emit('getPresenceBulk', userIds, (data: Record<string, boolean>) => {
+        resolve(data || {});
+      });
     });
   }
 
   /**
    * Subscribe to follow count updates for a user
    */
-  subscribeToFollowUpdates(userId: string, callback: (data: { followerId: string; followingId: string; followerCount: number; followingCount: number }) => void): () => void {
+  subscribeToFollowUpdates(userId: string, callback: (data: FollowEventData) => void): () => void {
     if (!this.followListeners.has(userId)) {
       this.followListeners.set(userId, new Set());
     }
@@ -924,31 +1038,29 @@ class SocketService {
   /**
    * Emit custom event
    */
-  emit(event: string, data: any) {
-    if (this.socket?.connected) {
-      this.socket.emit(event, data);
-    }
+  emit(event: string, data?: any): void {
+    if (!this.socket?.connected) return;
+    this.socket.emit(event, data);
   }
 
   /**
    * Listen to custom event
    */
-  on(event: string, callback: (data: any) => void) {
-    if (this.socket) {
-      this.socket.on(event, callback);
-    }
+  on(event: string, callback: (data: any) => void): void {
+    if (!this.socket) return;
+    this.socket.on(event, callback);
   }
 
   /**
    * Remove custom event listener
    */
-  off(event: string, callback?: (data: any) => void) {
-    if (this.socket) {
-      if (callback) {
-        this.socket.off(event, callback);
-      } else {
-        this.socket.off(event);
-      }
+  off(event: string, callback?: (data: any) => void): void {
+    if (!this.socket) return;
+
+    if (callback) {
+      this.socket.off(event, callback);
+    } else {
+      this.socket.off(event);
     }
   }
 }

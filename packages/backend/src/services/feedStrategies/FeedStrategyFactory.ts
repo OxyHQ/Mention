@@ -8,6 +8,7 @@ import { IFeedStrategy } from './FeedStrategy';
 import { ForYouFeedStrategy } from './ForYouFeedStrategy';
 import { FollowingFeedStrategy } from './FollowingFeedStrategy';
 import { ExploreFeedStrategy } from './ExploreFeedStrategy';
+import { CustomFeedStrategy } from './CustomFeedStrategy';
 
 export class FeedStrategyFactory {
   private static strategies: Map<FeedType, IFeedStrategy> = new Map();
@@ -17,6 +18,7 @@ export class FeedStrategyFactory {
     this.strategies.set('for_you', new ForYouFeedStrategy());
     this.strategies.set('following', new FollowingFeedStrategy());
     this.strategies.set('explore', new ExploreFeedStrategy());
+    this.strategies.set('custom', new CustomFeedStrategy());
   }
   
   /**
