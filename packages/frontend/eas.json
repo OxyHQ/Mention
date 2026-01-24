@@ -23,7 +23,7 @@
         "API_URL": "https://api.mention.earth"
       },
       "android": {
-        "buildType": "apk" //apk or app-bundle
+        "buildType": "apk"
       },
       "autoIncrement": true
     },
