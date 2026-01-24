@@ -11,7 +11,7 @@
  * - Shared session storage
  *
  * Storage:
- * - iOS: Keychain with access group "group.com.oxy.shared"
+ * - iOS: Keychain with access group "group.so.oxy.shared"
  * - Android: Keystore + Account Manager with sharedUserId "com.oxy.shared"
  */
 

@@ -18,7 +18,7 @@ Mention now fully complies with the Expo 54 Universal Authentication Guide. All 
 ios: {
   entitlements: {
     'keychain-access-groups': [
-      '$(AppIdentifierPrefix)group.com.oxy.shared'
+      '$(AppIdentifierPrefix)group.so.oxy.shared'
     ]
   }
 }
@@ -147,7 +147,7 @@ npx expo run:ios
 ```
 
 Verify:
-- ✅ Keychain group `group.com.oxy.shared` in entitlements
+- ✅ Keychain group `group.so.oxy.shared` in entitlements
 - ✅ Can create identity with `useNativeAuth()`
 - ✅ Identity persists across restarts
 
@@ -206,7 +206,7 @@ Verify:
 ## Compliance Checklist
 
 - ✅ **Expo 54** - SDK 54.0.25
-- ✅ **iOS Keychain Sharing** - `group.com.oxy.shared`
+- ✅ **iOS Keychain Sharing** - `group.so.oxy.shared`
 - ✅ **Android sharedUserId** - `com.oxy.shared`
 - ✅ **KeyManager Integration** - Native platforms
 - ✅ **Platform Detection** - Conditional imports

@@ -166,7 +166,7 @@ return {
                         deploymentTarget: '15.1',
                         entitlements: {
                           'keychain-access-groups': [
-                            '$(AppIdentifierPrefix)group.com.oxy.shared'
+                            '$(AppIdentifierPrefix)group.so.oxy.shared'
                           ]
                         }
                       },

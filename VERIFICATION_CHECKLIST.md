@@ -32,7 +32,7 @@
 ```bash
 $ grep -A 2 "keychain-access-groups" app.config.js
 'keychain-access-groups': [
-  '$(AppIdentifierPrefix)group.com.oxy.shared'
+  '$(AppIdentifierPrefix)group.so.oxy.shared'
 ]
 ```
 ✅ Keychain group configured

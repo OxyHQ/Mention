@@ -69,7 +69,7 @@ Configured in [app.config.js:165-170](../../../app.config.js#L165-L170):
 ios: {
   entitlements: {
     'keychain-access-groups': [
-      '$(AppIdentifierPrefix)group.com.oxy.shared'
+      '$(AppIdentifierPrefix)group.so.oxy.shared'
     ]
   }
 }

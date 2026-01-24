@@ -19,7 +19,7 @@ ios: {
   deploymentTarget: '15.1',
   entitlements: {
     'keychain-access-groups': [
-      '$(AppIdentifierPrefix)group.com.oxy.shared'
+      '$(AppIdentifierPrefix)group.so.oxy.shared'
     ]
   }
 }
@@ -265,7 +265,7 @@ npx expo run:ios
 ```
 
 Verify:
-- ✅ Keychain group `group.com.oxy.shared` appears in entitlements
+- ✅ Keychain group `group.so.oxy.shared` appears in entitlements
 - ✅ App builds and runs
 - ✅ Can create cryptographic identity
 - ✅ Identity persists across app restarts
@@ -319,7 +319,7 @@ console.log(status);
 
 ### iOS
 - [ ] Prebuild completes without errors
-- [ ] Entitlements file generated with `group.com.oxy.shared`
+- [ ] Entitlements file generated with `group.so.oxy.shared`
 - [ ] App builds and runs on simulator
 - [ ] Can create identity via `useNativeAuth()`
 - [ ] Identity persists across app restarts

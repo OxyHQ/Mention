@@ -35,6 +35,10 @@ GitHub Push → DigitalOcean → Docker Build → Expo Prebuild → Gradle → S
 - Google Play Developer account (optional, for automated publishing)
 - Google Cloud service account (optional, for automated publishing)
 
+## Quick Start
+
+**For detailed DigitalOcean deployment with automated Play Store publishing**, see [DIGITALOCEAN_SETUP.md](DIGITALOCEAN_SETUP.md).
+
 ## Setup Instructions
 
 ### 1. Generate Android Keystore (First Time Only)
@@ -116,11 +120,14 @@ In DigitalOcean dashboard, add these environment variables:
 - `KEY_ALIAS`: Your key alias (e.g., "mention")
 - `KEY_PASSWORD`: Your key password
 
-**For Play Store Publishing (Optional):**
+**For Play Store Auto-Publishing (Optional):**
+- `AUTO_PUBLISH_TO_PLAYSTORE`: `true` (enables automatic upload after build)
 - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`: Contents of service-account.base64.txt
 - `PACKAGE_NAME`: `com.mention.earth` (your app's package name)
 - `TRACK`: `internal` (or `alpha`, `beta`, `production`)
 - `RELEASE_NOTES`: Optional custom release notes
+
+**See [DIGITALOCEAN_SETUP.md](DIGITALOCEAN_SETUP.md) for detailed configuration guide.**
 
 ### 6. Update GitHub Repository Reference
 
@@ -290,10 +297,14 @@ curl https://mention.earth/build-info | jq
 To automatically publish to Play Store on every build:
 
 1. Set environment variables in DigitalOcean:
-   - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`
-   - `TRACK=internal` (or desired track)
-2. Update build script or add post-build hook to run upload
-3. Monitor DigitalOcean logs for upload status
+   - `AUTO_PUBLISH_TO_PLAYSTORE=true`
+   - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=<your-encoded-json>`
+   - `TRACK=internal` (or desired track: alpha, beta, production)
+2. Push to master branch
+3. DigitalOcean builds and automatically uploads to Play Store
+4. Monitor logs to verify upload success
+
+**See [DIGITALOCEAN_SETUP.md](DIGITALOCEAN_SETUP.md) for complete step-by-step setup.**
 
 ### Manual Publishing
 

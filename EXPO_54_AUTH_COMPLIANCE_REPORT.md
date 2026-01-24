@@ -19,7 +19,7 @@ Mention is an Expo 54 project with multi-platform support (iOS, Android, Web). T
 | **Web Configuration** | ✅ Complete | Metro bundler, static output |
 | **Platform Detection** | ✅ Complete | Platform.OS used throughout |
 | **Conditional Imports** | ✅ Complete | Native-only modules properly gated |
-| **iOS Keychain Sharing** | ❌ **Missing** | No `group.com.oxy.shared` keychain group |
+| **iOS Keychain Sharing** | ❌ **Missing** | No `group.so.oxy.shared` keychain group |
 | **Android sharedUserId** | ❌ **Missing** | No shared user ID configured |
 | **KeyManager Integration** | ❌ **Missing** | Not using cryptographic identity |
 | **CrossDomainAuth (Web)** | ❌ **Missing** | Web uses same flow as native |
@@ -105,14 +105,14 @@ web: {
 <!-- ios/YourApp/YourApp.entitlements -->
 <key>keychain-access-groups</key>
 <array>
-    <string>$(AppIdentifierPrefix)group.com.oxy.shared</string>
+    <string>$(AppIdentifierPrefix)group.so.oxy.shared</string>
 </array>
 ```
 
 **Current state:**
 - ❌ No entitlements file exists
 - ❌ No keychain access groups configured
-- ❌ No shared keychain group: `group.com.oxy.shared`
+- ❌ No shared keychain group: `group.so.oxy.shared`
 
 **Impact:**
 - ❌ Cross-app authentication between Oxy apps (Homiio → Mention) **will NOT work** on iOS
@@ -123,7 +123,7 @@ web: {
 1. Run `npx expo prebuild` to generate native iOS project
 2. Open `packages/frontend/ios/Mention.xcworkspace` in Xcode
 3. Select target → Signing & Capabilities → Add "Keychain Sharing"
-4. Add keychain group: `group.com.oxy.shared`
+4. Add keychain group: `group.so.oxy.shared`
 5. Commit the generated entitlements file
 
 **OR** configure via config plugin:
@@ -135,7 +135,7 @@ web: {
         ios: {
             entitlements: {
                 'keychain-access-groups': [
-                    '$(AppIdentifierPrefix)group.com.oxy.shared'
+                    '$(AppIdentifierPrefix)group.so.oxy.shared'
                 ]
             }
         }
@@ -379,7 +379,7 @@ export function UniversalAuthProvider({ children }) {
 1. **Configure iOS Keychain Sharing**
    - **Effort:** Medium (30 minutes)
    - **Impact:** Enables cross-app auth on iOS
-   - **Action:** Add entitlements with `group.com.oxy.shared`
+   - **Action:** Add entitlements with `group.so.oxy.shared`
    - **File:** Add to [app.config.js](packages/frontend/app.config.js#L163-L177) via expo-build-properties
 
 2. **Configure Android sharedUserId**
@@ -421,7 +421,7 @@ Once updates are implemented, verify cross-platform authentication:
 - [ ] Install Homiio on same device
 - [ ] Sign in to Homiio
 - [ ] Open Mention → Should auto-sign in ✅
-- [ ] Check keychain item exists in `group.com.oxy.shared`
+- [ ] Check keychain item exists in `group.so.oxy.shared`
 
 ### Android Testing
 - [ ] Install Mention on Android device
@@ -486,7 +486,7 @@ Once updates are implemented, verify cross-platform authentication:
         deploymentTarget: '15.1',
         entitlements: {
           'keychain-access-groups': [
-            '$(AppIdentifierPrefix)group.com.oxy.shared'
+            '$(AppIdentifierPrefix)group.so.oxy.shared'
           ]
         }
       },
