@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, createElement } from 'react';
-import { ScheduleOption } from '@/components/Compose/ScheduleSheet';
+import { useState, useCallback, useRef, createElement, Suspense } from 'react';
+import type { ScheduleOption } from '@/components/Compose/ScheduleSheet';
 import { addMinutes } from '@/utils/dateUtils';
 
 interface UseScheduleManagerProps {
@@ -83,14 +83,16 @@ export const useScheduleManager = ({
     const options = getScheduleOptions();
 
     bottomSheet.setBottomSheetContent(
-      createElement(ScheduleSheetComponent, {
-        scheduledAt: scheduledAt,
-        options: options,
-        onSelect: handleScheduleSelect,
-        onClear: handleScheduleClear,
-        onClose: handleScheduleClose,
-        formatLabel: formatScheduledLabel,
-      })
+      createElement(Suspense, { fallback: null },
+        createElement(ScheduleSheetComponent, {
+          scheduledAt: scheduledAt,
+          options: options,
+          onSelect: handleScheduleSelect,
+          onClear: handleScheduleClear,
+          onClose: handleScheduleClose,
+          formatLabel: formatScheduledLabel,
+        })
+      )
     );
     bottomSheet.openBottomSheet(true);
   }, [

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useContext, useState } from 'react';
+import React, { useCallback, useMemo, useContext, useState, lazy, Suspense } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import {
@@ -15,8 +15,9 @@ import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
-import PostSourcesSheet from '@/components/Post/PostSourcesSheet';
-import PostArticleModal from '@/components/Post/PostArticleModal';
+// Lazy load modals/sheets - only loaded when user opens them
+const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
+const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 import { useOxy } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -188,7 +189,11 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [bottomSheet]);
 
     const sourcesSheetElement = useMemo(
-        () => <PostSourcesSheet sources={sourcesList} onClose={closeSourcesSheet} />,
+        () => (
+            <Suspense fallback={null}>
+                <PostSourcesSheet sources={sourcesList} onClose={closeSourcesSheet} />
+            </Suspense>
+        ),
         [sourcesList, closeSourcesSheet],
     );
 
@@ -458,13 +463,15 @@ const PostItem: React.FC<PostItemProps> = ({
             </Container>
 
             {articleContent ? (
-                <PostArticleModal
-                    visible={isArticleModalVisible}
-                    onClose={closeArticleSheet}
-                    articleId={articleContent.articleId}
-                    title={articleContent.title}
-                    body={articleContent.body}
-                />
+                <Suspense fallback={null}>
+                    <PostArticleModal
+                        visible={isArticleModalVisible}
+                        onClose={closeArticleSheet}
+                        articleId={articleContent.articleId}
+                        title={articleContent.title}
+                        body={articleContent.body}
+                    />
+                </Suspense>
             ) : null}
         </>
     );

@@ -1,8 +1,10 @@
-import React, { useEffect, useState, memo } from 'react';
+import React, { useEffect, useState, memo, Suspense, lazy } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOxy } from '@oxyhq/services';
-import WelcomeModal from './WelcomeModal';
+
+// Lazy load WelcomeModal - only loads when needed (web + unauthenticated + first time)
+const WelcomeModal = lazy(() => import('./WelcomeModal'));
 
 const WELCOME_MODAL_SEEN_KEY = 'welcome_modal_seen';
 
@@ -56,7 +58,16 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
     }
   };
 
-  return <WelcomeModal visible={showModal} onClose={handleClose} />;
+  // Only render when modal should show to avoid loading the component unnecessarily
+  if (!showModal) {
+    return null;
+  }
+
+  return (
+    <Suspense fallback={null}>
+      <WelcomeModal visible={showModal} onClose={handleClose} />
+    </Suspense>
+  );
 });
 
 WelcomeModalGate.displayName = 'WelcomeModalGate';

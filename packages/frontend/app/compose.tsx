@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import {
   View,
   Text,
@@ -44,13 +44,17 @@ import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import DraftsSheet from '@/components/Compose/DraftsSheet';
-import ReplySettingsSheet, { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
-import GifPickerSheet from '@/components/Compose/GifPickerSheet';
-import SourcesSheet from '@/components/Compose/SourcesSheet';
+// Lazy load sheets - only loaded when user opens them
+const DraftsSheet = lazy(() => import('@/components/Compose/DraftsSheet'));
+const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
+const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
+const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
+// Import types separately (not lazy loaded)
+import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
+import type { ScheduleOption } from '@/components/Compose/ScheduleSheet';
+const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
 import { Toggle } from '@/components/Toggle';
 import { useDrafts } from '@/hooks/useDrafts';
-import ScheduleSheet, { ScheduleOption } from '@/components/Compose/ScheduleSheet';
 
 // New imports for refactored components and hooks
 import { useLocationManager } from '@/hooks/useLocationManager';
@@ -606,6 +610,26 @@ const ComposeScreen = () => {
   useEffect(() => {
     if (isReplySettingsOpen) {
       bottomSheet.setBottomSheetContent(
+        <Suspense fallback={null}>
+          <ReplySettingsSheet
+            onClose={() => {
+              bottomSheet.openBottomSheet(false);
+              setIsReplySettingsOpen(false);
+            }}
+            replyPermission={replyPermission}
+            onReplyPermissionChange={setReplyPermission}
+            reviewReplies={reviewReplies}
+            onReviewRepliesChange={setReviewReplies}
+          />
+        </Suspense>
+      );
+    }
+  }, [replyPermission, reviewReplies, isReplySettingsOpen]);
+
+  const openReplySettings = () => {
+    setIsReplySettingsOpen(true);
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
         <ReplySettingsSheet
           onClose={() => {
             bottomSheet.openBottomSheet(false);
@@ -616,23 +640,7 @@ const ComposeScreen = () => {
           reviewReplies={reviewReplies}
           onReviewRepliesChange={setReviewReplies}
         />
-      );
-    }
-  }, [replyPermission, reviewReplies, isReplySettingsOpen]);
-
-  const openReplySettings = () => {
-    setIsReplySettingsOpen(true);
-    bottomSheet.setBottomSheetContent(
-      <ReplySettingsSheet
-        onClose={() => {
-          bottomSheet.openBottomSheet(false);
-          setIsReplySettingsOpen(false);
-        }}
-        replyPermission={replyPermission}
-        onReplyPermissionChange={setReplyPermission}
-        reviewReplies={reviewReplies}
-        onReviewRepliesChange={setReviewReplies}
-      />
+      </Suspense>
     );
     bottomSheet.openBottomSheet(true);
   };
@@ -685,11 +693,13 @@ const ComposeScreen = () => {
                   style={styles.iconBtn}
                   onPress={() => {
                     bottomSheet.setBottomSheetContent(
-                      <DraftsSheet
-                        onClose={() => bottomSheet.openBottomSheet(false)}
-                        onLoadDraft={loadDraft}
-                        currentDraftId={currentDraftId}
-                      />
+                      <Suspense fallback={null}>
+                        <DraftsSheet
+                          onClose={() => bottomSheet.openBottomSheet(false)}
+                          onLoadDraft={loadDraft}
+                          currentDraftId={currentDraftId}
+                        />
+                      </Suspense>
                     );
                     bottomSheet.openBottomSheet(true);
                   }}
@@ -1091,9 +1101,10 @@ const ComposeScreen = () => {
                       onLocationPress={requestLocation}
                       onGifPress={() => {
                         bottomSheet.setBottomSheetContent(
-                          <GifPickerSheet
-                            onClose={() => bottomSheet.openBottomSheet(false)}
-                            onSelectGif={async (gifUrl: string, gifId: string) => {
+                          <Suspense fallback={null}>
+                            <GifPickerSheet
+                              onClose={() => bottomSheet.openBottomSheet(false)}
+                              onSelectGif={async (gifUrl: string, gifId: string) => {
                               try {
                                 const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
                                 setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
@@ -1102,7 +1113,8 @@ const ComposeScreen = () => {
                                 toast.error(error?.message || t('Failed to attach GIF'));
                               }
                             }}
-                          />
+                            />
+                          </Suspense>
                         );
                         bottomSheet.openBottomSheet(true);
                       }}
@@ -1213,18 +1225,20 @@ const ComposeScreen = () => {
                               onGifPress={() => {
                                 const currentThreadId = item.id;
                                 bottomSheet.setBottomSheetContent(
-                                  <GifPickerSheet
-                                    onClose={() => bottomSheet.openBottomSheet(false)}
-                                    onSelectGif={async (gifUrl: string, gifId: string) => {
-                                      try {
-                                        const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
-                                        addThreadMedia(currentThreadId, mediaItem);
-                                        toast.success(t('GIF attached'));
-                                      } catch (error: any) {
-                                        toast.error(error?.message || t('Failed to attach GIF'));
-                                      }
-                                    }}
-                                  />
+                                  <Suspense fallback={null}>
+                                    <GifPickerSheet
+                                      onClose={() => bottomSheet.openBottomSheet(false)}
+                                      onSelectGif={async (gifUrl: string, gifId: string) => {
+                                        try {
+                                          const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
+                                          addThreadMedia(currentThreadId, mediaItem);
+                                          toast.success(t('GIF attached'));
+                                        } catch (error: any) {
+                                          toast.error(error?.message || t('Failed to attach GIF'));
+                                        }
+                                      }}
+                                    />
+                                  </Suspense>
                                 );
                                 bottomSheet.openBottomSheet(true);
                               }}

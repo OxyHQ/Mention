@@ -1,6 +1,7 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
 import React from 'react';
-import SourcesSheet from '@/components/Compose/SourcesSheet';
+// Lazy load SourcesSheet - only loaded when user opens it
+const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 
 interface Source {
   id: string;
@@ -41,14 +42,16 @@ export const useSourcesSheet = ({
   }, [bottomSheet]);
 
   const sourcesSheetElement = useMemo(() => (
-    <SourcesSheet
-      sources={sources}
-      onAdd={addSource}
-      onUpdate={updateSourceField}
-      onRemove={removeSourceEntry}
-      onClose={closeSourcesSheet}
-      validateUrl={isValidSourceUrl}
-    />
+    <Suspense fallback={null}>
+      <SourcesSheet
+        sources={sources}
+        onAdd={addSource}
+        onUpdate={updateSourceField}
+        onRemove={removeSourceEntry}
+        onClose={closeSourcesSheet}
+        validateUrl={isValidSourceUrl}
+      />
+    </Suspense>
   ), [sources, addSource, updateSourceField, removeSourceEntry, closeSourcesSheet, isValidSourceUrl]);
 
   const openSourcesSheet = useCallback(() => {
