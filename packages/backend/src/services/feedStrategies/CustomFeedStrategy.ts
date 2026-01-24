@@ -64,12 +64,6 @@ export class CustomFeedStrategy implements IFeedStrategy {
       logger.warn('[CustomFeedStrategy] Failed to expand source lists', e);
     }
 
-    // Exclude owner unless explicitly added as member
-    const ownerId = feed.ownerOxyUserId;
-    if (ownerId && !authors.includes(ownerId)) {
-      authors = authors.filter(id => id !== ownerId);
-    }
-
     // Build query
     const query = this.buildQuery(feed, authors, cursor);
 
@@ -124,12 +118,9 @@ export class CustomFeedStrategy implements IFeedStrategy {
     // Base visibility
     const query: any = { visibility: 'public' };
 
-    // Author filter
+    // Author filter - only filter by authors if specified
     if (authors.length > 0) {
       conditions.push({ oxyUserId: { $in: authors } });
-    } else if (feed.ownerOxyUserId && !authors.includes(feed.ownerOxyUserId)) {
-      // Exclude owner if no authors specified
-      conditions.push({ oxyUserId: { $ne: feed.ownerOxyUserId } });
     }
 
     // Keyword filter
