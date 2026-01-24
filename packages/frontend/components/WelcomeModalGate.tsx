@@ -21,14 +21,12 @@ interface WelcomeModalGateProps {
 const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) => {
   const { isAuthenticated } = useOxy();
   const [showModal, setShowModal] = useState(false);
-  const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
 
   // Check if user has seen the modal before
   useEffect(() => {
     async function checkIfSeen() {
       try {
         const seen = await AsyncStorage.getItem(WELCOME_MODAL_SEEN_KEY);
-        setHasCheckedStorage(true);
 
         // Only show modal if: web + app ready + not authenticated + hasn't seen before
         if (Platform.OS === 'web' && appIsReady && !isAuthenticated && !seen) {
@@ -39,7 +37,6 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
         }
       } catch (error) {
         console.warn('Failed to check welcome modal status:', error);
-        setHasCheckedStorage(true);
       }
     }
 

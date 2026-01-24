@@ -173,28 +173,5 @@ export class AppInitializer {
     }
   }
 
-  /**
-   * Loads eager settings that don't block app initialization
-   * Should be called after auth is ready to avoid 401 errors
-   */
-  static async loadEagerSettings(services?: OxyServices): Promise<void> {
-    // Check auth state before loading settings
-    let isAuthenticated = false;
-    if (services) {
-      try {
-        // Quick check if auth is ready (with short timeout)
-        isAuthenticated = await services.waitForAuth(100);
-      } catch {
-        // Auth not ready, will skip authenticated API calls
-        isAuthenticated = false;
-      }
-    }
-
-    // Load these in parallel as they don't block app startup
-    await Promise.allSettled([
-      loadAppearanceSettings(services, isAuthenticated),
-      loadVideoMuteState(),
-    ]);
-  }
 }
 
