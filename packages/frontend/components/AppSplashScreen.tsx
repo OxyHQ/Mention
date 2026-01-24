@@ -67,11 +67,12 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
         [fadeAnim]
     );
 
-    // Gradient colors: background to primary for visual depth
+    // Gradient colors: Use consistent dark gradient that works before theme loads
+    // This prevents the logo/spinner from being invisible on white background
     const gradientColors = useMemo(
         () => [
-            theme?.colors?.background || '#ffffff',
-            theme?.colors?.primary || '#000000',
+            theme?.colors?.background || '#1A1A1A',
+            theme?.colors?.primary || '#005c67',
         ] as const,
         [theme?.colors?.background, theme?.colors?.primary]
     );

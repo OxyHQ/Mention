@@ -172,10 +172,8 @@ export default function RootLayout() {
     });
   }, []);
 
-  // Load eager settings that don't block app initialization
-  useEffect(() => {
-    AppInitializer.loadEagerSettings(oxyServices);
-  }, []);
+  // Note: Eager settings (appearance, video mute) are now loaded within initializeApp
+  // to avoid duplicate loading and ensure proper auth state checking
 
   // React Query managers - setup once on mount
   useEffect(() => {
