@@ -51,7 +51,7 @@ export class CustomFeedStrategy implements IFeedStrategy {
 
     try {
       if (feed.sourceListIds && feed.sourceListIds.length > 0) {
-        const { AccountList } = await import('../../models/AccountList');
+        const { AccountList } = await import('../../models/AccountList.js');
         const lists = await AccountList.find({ _id: { $in: feed.sourceListIds } }).lean();
         for (const list of lists) {
           if (list.memberOxyUserIds) {
