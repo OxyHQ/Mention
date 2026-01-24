@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "./build-apk.sh",
+    "build": "echo 'APK build skipped - only runs in Docker container'",
+    "build:apk": "./build-apk.sh",
     "dev": "node server.js"
   },
   "keywords": ["android", "apk", "expo", "react-native"],
