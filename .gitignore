@@ -108,4 +108,12 @@ temp/
 .vercel
 
 # Local development
-.local/ 
+.local/
+
+# APK Builder
+packages/apk-builder/outputs/*.apk
+packages/apk-builder/outputs/*.json
+packages/apk-builder/outputs/*.aab
+*.keystore
+*.jks
+keystore.base64.txt 

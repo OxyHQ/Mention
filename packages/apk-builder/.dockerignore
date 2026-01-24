@@ -1,0 +1,61 @@
+# Node modules - will be installed during build
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Git
+.git
+.gitignore
+.github
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build outputs (will be generated)
+outputs/*.apk
+outputs/*.json
+dist
+build
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Documentation
+README.md
+*.md
+docs
+
+# CI/CD (not needed in container)
+.github/workflows
+
+# Testing
+coverage
+.nyc_output
+*.test.js
+*.spec.js
+__tests__
+
+# Misc
+.cache
+tmp
+temp
+*.tmp
+.eslintrc*
+.prettierrc*
+tsconfig.json
+jest.config.js
+
+# Platform specific
+Thumbs.db
+.DS_Store
+
+# DigitalOcean config (used for deployment, not build)
+.do/app.yaml

@@ -1,0 +1,108 @@
+name: mention-apk-builder
+region: nyc
+
+# Service configuration
+services:
+  - name: apk-builder
+    # GitHub repository configuration
+    github:
+      repo: YOUR_GITHUB_ORG/Mention  # Update with your GitHub org/username
+      branch: master
+      deploy_on_push: true
+
+    # Docker configuration
+    source_dir: /
+    dockerfile_path: packages/apk-builder/Dockerfile
+
+    # Instance size - Professional-M required for Gradle builds (4GB RAM)
+    instance_size_slug: professional-m
+    instance_count: 1
+
+    # HTTP configuration
+    http_port: 8080
+
+    # Health check configuration
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 300  # Build takes ~5-15 minutes
+      period_seconds: 60
+      timeout_seconds: 10
+      success_threshold: 1
+      failure_threshold: 3
+
+    # Route configuration
+    routes:
+      - path: /android-latest-apk
+      - path: /build-info
+      - path: /health
+
+    # Environment variables
+    envs:
+      # Node environment
+      - key: NODE_ENV
+        value: "production"
+
+      # Expo configuration
+      - key: EXPO_PUBLIC_ENV
+        value: "production"
+
+      - key: EAS_BUILD_PLATFORM
+        value: "android"
+
+      # API endpoint
+      - key: API_URL
+        value: "https://api.mention.earth"
+
+      # Android SDK configuration
+      - key: ANDROID_COMPILE_SDK
+        value: "35"
+
+      - key: ANDROID_BUILD_TOOLS
+        value: "35.0.0"
+
+      - key: ANDROID_MIN_SDK
+        value: "24"
+
+      - key: ANDROID_TARGET_SDK
+        value: "35"
+
+      # Java configuration
+      - key: JAVA_HOME
+        value: "/usr/lib/jvm/java-17-openjdk-amd64"
+
+      # Gradle configuration
+      - key: GRADLE_OPTS
+        value: "-Xmx2048m -Dorg.gradle.daemon=false"
+
+      - key: GRADLE_USER_HOME
+        value: "/root/.gradle"
+
+      # Node memory
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=4096"
+
+      # ====================================
+      # APK SIGNING SECRETS (Optional - Add via DigitalOcean Dashboard)
+      # For signed release APKs, add these as encrypted environment variables:
+      # ====================================
+
+      # - key: KEYSTORE_BASE64
+      #   value: "YOUR_BASE64_ENCODED_KEYSTORE"
+      #   type: SECRET
+
+      # - key: KEYSTORE_PASSWORD
+      #   value: "YOUR_KEYSTORE_PASSWORD"
+      #   type: SECRET
+
+      # - key: KEY_ALIAS
+      #   value: "YOUR_KEY_ALIAS"
+      #   type: SECRET
+
+      # - key: KEY_PASSWORD
+      #   value: "YOUR_KEY_PASSWORD"
+      #   type: SECRET
+
+# Optional: Custom domain configuration
+# domains:
+#   - domain: builds.mention.earth
+#     type: PRIMARY
