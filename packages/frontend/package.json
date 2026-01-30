@@ -39,7 +39,7 @@
     "@gorhom/bottom-sheet": "^5.2.6",
     "@legendapp/list": "^2.0.14",
     "@oxyhq/services": "6.0.1",
-    "@oxyhq/core": "6.0.1",
+    "@oxyhq/core": "1.0.1",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "^11.4.1",
     "@react-navigation/bottom-tabs": "^7.4.0",
