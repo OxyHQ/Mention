@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 
 const PRIVACY_SETTINGS_CACHE_KEY = '@mention_privacy_settings';
 
@@ -74,7 +74,7 @@ let cachedPrivacySettings: PrivacySettings | null = null;
 let cacheLoadPromise: Promise<void> | null = null;
 
 export function useCurrentUserPrivacySettings(): PrivacySettings | null {
-    const { isAuthenticated } = useOxy();
+    const { isAuthenticated } = useAuth();
     const [settings, setSettings] = useState<PrivacySettings | null>(() => {
         // Try to load from cache synchronously on first render
         if (cachedPrivacySettings) {

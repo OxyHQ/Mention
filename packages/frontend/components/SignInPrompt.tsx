@@ -6,7 +6,7 @@ import {
     Text,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { Logo } from './Logo';
 import { colors } from '../styles/colors';
 import { useTheme } from '@/hooks/useTheme';
@@ -16,7 +16,7 @@ interface SignInPromptProps {
 }
 
 const SignInPrompt: React.FC<SignInPromptProps> = ({ onSignInPress }) => {
-    const { showBottomSheet } = useOxy();
+    const { showBottomSheet } = useAuth();
     const theme = useTheme();
 
     const handleSignInPress = () => {

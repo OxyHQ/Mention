@@ -1,4 +1,4 @@
-import { useOxy } from '@oxyhq/services/full';
+import { useAuth } from '@oxyhq/services';
 import { usePathname } from "expo-router";
 import React from 'react';
 import { StyleSheet, View, Platform, Text, Linking } from "react-native";
@@ -8,7 +8,7 @@ import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 
 export function RightBar() {
-    const { user } = useOxy();
+    const { user } = useAuth();
     const isRightBarVisible = useMediaQuery({ minWidth: 990 });
     const pathname = usePathname();
     const isExplorePage = pathname === '/explore';

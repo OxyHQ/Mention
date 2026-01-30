@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,7 +94,7 @@ const VideoItem = memo<VideoItemProps>(({
     t,
     windowHeight,
 }) => {
-    const { oxyServices } = useOxy();
+    const { oxyServices } = useAuth();
     const router = useRouter();
     const [isMuted, setIsMuted] = useState(globalMuted);
     const [videoError, setVideoError] = useState(false);
@@ -361,7 +361,7 @@ export default function VideosScreen() {
     const { height: WINDOW_HEIGHT } = useWindowDimensions();
     const router = useRouter();
     const params = useLocalSearchParams<{ postId?: string }>();
-    const { oxyServices } = useOxy();
+    const { oxyServices } = useAuth();
     const { likePost, unlikePost, repostPost, unrepostPost, getPostById } = usePostsStore();
 
     const [posts, setPosts] = useState<VideoPost[]>([]);

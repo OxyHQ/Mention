@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useTheme } from './useTheme';
 import { useTranslation } from 'react-i18next';
 import { usePostsStore } from '@/stores/postsStore';
@@ -51,7 +51,7 @@ export function usePostActions({
     onOpenArticle,
     onOpenSources,
 }: UsePostActionsParams): PostActionsResult {
-    const { user } = useOxy();
+    const { user } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
     const router = useRouter();

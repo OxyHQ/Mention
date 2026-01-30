@@ -1,14 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { authenticatedClient } from '@/utils/api';
 import { getData } from '@/utils/storage';
 import { getDevicePushToken } from '@/utils/notifications';
 import i18next from 'i18next';
 
 export const RegisterPushToken: React.FC = () => {
-    const { isAuthenticated, user } = useOxy();
+    const { isAuthenticated, user } = useAuth();
     const lastTokenRef = useRef<string | null>(null);
 
     useEffect(() => {

@@ -19,7 +19,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { statisticsService, UserStatistics } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import Avatar from '@/components/Avatar';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -37,7 +37,7 @@ const WeeklyRecapScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
-    const { user, oxyServices } = useOxy();
+    const { user, oxyServices } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<WeeklyRecapData | null>(null);

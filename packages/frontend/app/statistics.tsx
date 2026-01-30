@@ -16,7 +16,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { ThemedView } from '@/components/ThemedView';
 import { statisticsService, UserStatistics, EngagementRatios } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
 import { UIPost } from '@mention/shared-types';
@@ -34,7 +34,7 @@ const InsightsScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
-    const { user } = useOxy();
+    const { user } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<UserStatistics | null>(null);

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { ActivityIndicator, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import * as OxyServicesNS from "@oxyhq/services";
 import Avatar from "@/components/Avatar";
 import { ThemedText } from "@/components/ThemedText";
@@ -25,7 +25,7 @@ interface ProfileData {
 const MAX_DISPLAY_USERS = 5;
 
 export function WhoToFollowWidget() {
-  const { oxyServices, isAuthenticated } = useOxy();
+  const { oxyServices, isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
   const theme = useTheme();
@@ -149,7 +149,7 @@ export function WhoToFollowWidget() {
 
 const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileData }) => {
   const router = useRouter();
-  const { oxyServices } = useOxy();
+  const { oxyServices } = useAuth();
   const theme = useTheme();
   const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
     userId: string;

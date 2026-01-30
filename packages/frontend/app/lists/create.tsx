@@ -5,7 +5,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { colors } from '@/styles/colors';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 type MinimalUser = { id: string; username: string; name?: { full?: string } };
 
 export default function CreateListScreen() {
-  const { oxyServices } = useOxy();
+  const { oxyServices } = useAuth();
   const theme = useTheme();
   const { t } = useTranslation();
   const [title, setTitle] = useState('');

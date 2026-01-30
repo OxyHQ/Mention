@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { io, Socket } from 'socket.io-client';
 import { API_URL_SOCKET } from '../config';
 import { ZRawNotification } from '../types/validation';
@@ -11,7 +11,7 @@ let socket: Socket | null = null;
  * Hook for real-time notification updates via WebSocket
  */
 export const useRealtimeNotifications = () => {
-  const { user, isAuthenticated } = useOxy();
+  const { user, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
   const connectSocket = useCallback(() => {

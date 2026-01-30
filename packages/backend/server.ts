@@ -28,7 +28,7 @@ import feedRoutes from './src/routes/feed.routes';
 import pollsRoutes from './src/routes/polls';
 import customFeedsRoutes from './src/routes/customFeeds.routes';
 import statisticsRoutes from './src/routes/statistics.routes';
-import { OxyServices } from '@oxyhq/services/core';
+import { OxyServices } from '@oxyhq/core';
 import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
 import profileDesignRoutes from './src/routes/profileDesign';

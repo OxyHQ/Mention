@@ -14,7 +14,7 @@ import LegendList from '@/components/LegendList';
 import { useUsersStore } from '@/stores/usersStore';
 import { useTheme } from '@/hooks/useTheme';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
 import { Divider } from '@/components/Divider';
@@ -28,7 +28,7 @@ export default function ConnectionsScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const pathname = usePathname();
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
-  const { oxyServices, user } = useOxy();
+  const { oxyServices, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [followers, setFollowers] = useState<any[]>([]);
   const [following, setFollowing] = useState<any[]>([]);

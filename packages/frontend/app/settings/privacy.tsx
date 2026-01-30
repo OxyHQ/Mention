@@ -6,7 +6,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
@@ -28,7 +28,7 @@ interface PrivacySettings {
 export default function PrivacySettingsScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
-    const { user } = useOxy();
+    const { user } = useAuth();
 
     const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({});
     const [loading, setLoading] = useState(true);

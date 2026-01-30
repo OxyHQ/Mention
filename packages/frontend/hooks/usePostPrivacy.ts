@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { usePrivacyControls } from './usePrivacyControls';
 import { useCurrentUserPrivacySettings } from './usePrivacySettings';
 import { extractAuthorId } from '@/utils/postUtils';

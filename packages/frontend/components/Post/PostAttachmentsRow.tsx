@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, ViewStyle, StyleProp } from 'react-native';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { GeoJSONPoint, PostAttachmentDescriptor, PostSourceLink } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
@@ -63,7 +63,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 }) => {
   const theme = useTheme();
   const router = useRouter();
-  const { oxyServices } = useOxy();
+  const { oxyServices } = useAuth();
 
   const mediaArray = useMemo(() => Array.isArray(media) ? media : [], [media]);
   const attachmentDescriptors = useMemo(() => Array.isArray(attachments) ? attachments : [], [attachments]);

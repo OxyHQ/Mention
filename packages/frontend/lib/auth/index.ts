@@ -6,10 +6,10 @@
  *
  * @example
  * ```tsx
- * import { useOxy } from '@oxyhq/services';
+ * import { useAuth } from '@oxyhq/services';
  *
  * function MyComponent() {
- *   const { user, isAuthenticated, loading } = useOxy();
+ *   const { user, isAuthenticated, loading } = useAuth();
  *
  *   if (loading) return <LoadingScreen />;
  *   if (!isAuthenticated) return <SignInScreen />;
@@ -23,6 +23,6 @@
 
 // This file exists for documentation purposes only.
 // All authentication is handled by @oxyhq/services.
-// Use `useOxy()` hook from '@oxyhq/services' for authentication.
+// Use `useAuth()` hook from '@oxyhq/services' for authentication.
 
 export {};

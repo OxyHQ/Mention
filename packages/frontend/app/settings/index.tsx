@@ -5,7 +5,7 @@ import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
 import { Toggle } from "@/components/Toggle";
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import { useTranslation } from "react-i18next";
 import { useLayoutScroll } from "@/context/LayoutScrollContext";
 
@@ -31,7 +31,7 @@ const IconComponent = Ionicons as any;
 export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
-    const { user, showBottomSheet } = useOxy();
+    const { user, showBottomSheet } = useAuth();
     const theme = useTheme();
     // Use useProfileData to get customized display name for current user
     const { data: currentUserProfile } = useProfileData(user?.username);

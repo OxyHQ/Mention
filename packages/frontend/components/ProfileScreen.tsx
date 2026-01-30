@@ -13,7 +13,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { usePostsStore } from '@/stores/postsStore';
@@ -71,7 +71,7 @@ const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'reposts']
  * Follows industry best practices with clean separation of concerns
  */
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
-    const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useOxy();
+    const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
