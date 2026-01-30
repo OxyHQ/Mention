@@ -34,7 +34,7 @@
   "dependencies": {
     "@lottiefiles/dotlottie-react": "^0.17.10",
     "@oxyhq/services": "6.0.1",
-    "@oxyhq/core": "6.0.1",
+    "@oxyhq/core": "1.0.2",
     "@react-native/js-polyfills": "^0.81.1",
     "react-native-css-interop": "^0.2.0",
     "react-native-worklets": "0.5.1",
