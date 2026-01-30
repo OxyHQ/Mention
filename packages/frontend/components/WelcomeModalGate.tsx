@@ -1,7 +1,7 @@
 import React, { useEffect, useState, memo, Suspense, lazy } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 
 // Lazy load WelcomeModal - only loads when needed (web + unauthenticated + first time)
 const WelcomeModal = lazy(() => import('./WelcomeModal'));
@@ -21,7 +21,7 @@ interface WelcomeModalGateProps {
  * - Only if user hasn't seen it before (first time only)
  */
 const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) => {
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated } = useAuth();
   const [showModal, setShowModal] = useState(false);
 
   // Check if user has seen the modal before

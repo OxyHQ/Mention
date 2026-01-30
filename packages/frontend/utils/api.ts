@@ -1,4 +1,4 @@
-import { OxyServices } from '@oxyhq/services';
+import { OxyServices } from '@oxyhq/core';
 import { Platform } from 'react-native';
 import axios from 'axios';
 import { API_URL } from '@/config';

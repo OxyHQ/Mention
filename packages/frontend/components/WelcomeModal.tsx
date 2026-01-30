@@ -19,7 +19,7 @@ import Animated, {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useRouter } from 'expo-router';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { LogoIcon } from '@/assets/logo';
@@ -109,7 +109,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, showBottomSheet } = useOxy();
+  const { isAuthenticated, showBottomSheet } = useAuth();
   const router = useRouter();
 
   // Animation values

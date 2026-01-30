@@ -11,7 +11,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { MenuProvider } from 'react-native-popup-menu';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { OxyProvider, OxyServices } from '@oxyhq/services';
+import { OxyProvider } from '@oxyhq/services';
+import { OxyServices } from '@oxyhq/core';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import ErrorBoundary from '@/components/ErrorBoundary';

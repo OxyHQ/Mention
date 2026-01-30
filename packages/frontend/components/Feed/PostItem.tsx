@@ -18,7 +18,7 @@ import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 // Lazy load modals/sheets - only loaded when user opens them
 const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -51,7 +51,7 @@ const PostItem: React.FC<PostItemProps> = ({
     onReply,
     nestingDepth = 0,
 }) => {
-    const { oxyServices } = useOxy();
+    const { oxyServices } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
     const router = useRouter();

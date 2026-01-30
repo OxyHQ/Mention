@@ -23,7 +23,7 @@ import PostAttachmentsRow from '../../components/Post/PostAttachmentsRow';
 import { usePostsStore } from '../../stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -44,7 +44,7 @@ const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
     const { getPostById, createReply } = usePostsStore();
-    const { user, showBottomSheet, oxyServices } = useOxy();
+    const { user, showBottomSheet, oxyServices } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
     const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();

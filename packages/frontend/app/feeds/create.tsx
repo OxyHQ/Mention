@@ -6,7 +6,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import Avatar from '@/components/Avatar';
 import { useTheme } from '@/hooks/useTheme';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
@@ -17,7 +17,7 @@ type MinimalUser = { id: string; username: string; name?: { full?: string }; ava
 
 const CreateFeedScreen: React.FC = () => {
   const theme = useTheme();
-  const { oxyServices } = useOxy();
+  const { oxyServices } = useAuth();
   const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');

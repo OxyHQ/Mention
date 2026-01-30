@@ -13,7 +13,7 @@ import {
   Image,
   Modal,
 } from 'react-native';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
@@ -115,7 +115,7 @@ const ComposeScreen = () => {
   const theme = useTheme();
   const bottomSheet = React.useContext(BottomSheetContext);
   const { saveDraft, deleteDraft, loadDrafts } = useDrafts();
-  const { user, showBottomSheet, oxyServices } = useOxy();
+  const { user, showBottomSheet, oxyServices } = useAuth();
   const { createPost, createThread } = usePostsStore();
   const { t } = useTranslation();
 

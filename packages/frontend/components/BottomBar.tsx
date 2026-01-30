@@ -3,7 +3,7 @@ import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, 
 import { useRouter, usePathname } from 'expo-router';
 import React, { useRef, useEffect, useMemo } from 'react';
 import Avatar from './Avatar';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
@@ -14,7 +14,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 export const BottomBar = () => {
     const router = useRouter();
     const pathname = usePathname();
-    const { showBottomSheet, user, isAuthenticated, oxyServices } = useOxy();
+    const { showBottomSheet, user, isAuthenticated, oxyServices } = useAuth();
     const insets = useSafeAreaInsets();
     const theme = useTheme();
     const { triggerHomeRefresh } = useHomeRefresh();

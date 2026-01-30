@@ -13,7 +13,7 @@ import PostItem from './PostItem';
 type FeedItem = UIPost | Reply | Repost;
 import ErrorBoundary from '../ErrorBoundary';
 import { LoadingTopSpinner } from '@/components/ui/Loading';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/utils/theme';
@@ -79,7 +79,7 @@ const Feed = memo((props: FeedProps) => {
     // Determine if we should use scoped (local) feed state
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
 
-    const { user: currentUser, isAuthenticated, showBottomSheet } = useOxy();
+    const { user: currentUser, isAuthenticated, showBottomSheet } = useAuth();
     const { blockedSet } = usePrivacyControls();
 
     // Use the feed state hook for all feed operations

@@ -15,7 +15,7 @@ import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { toast } from 'sonner';
 import { Platform } from 'react-native';
 import { api } from '@/utils/api';
@@ -39,7 +39,7 @@ interface GifItem {
 const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif }) => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { oxyServices, user } = useOxy();
+  const { oxyServices, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [gifs, setGifs] = useState<GifItem[]>([]);
   const [loading, setLoading] = useState(false);

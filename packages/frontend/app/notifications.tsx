@@ -10,7 +10,7 @@ import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { ThemedText } from '../components/ThemedText';
 import { ThemedView } from '../components/ThemedView';
 import { LoadingSpinner } from '@/components/ui/Loading';
@@ -35,7 +35,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts';
 
 const NotificationsScreen: React.FC = () => {
-    const { user, isAuthenticated } = useOxy();
+    const { user, isAuthenticated } = useAuth();
     const queryClient = useQueryClient();
     const [refreshing, setRefreshing] = useState(false);
     const { t } = useTranslation();

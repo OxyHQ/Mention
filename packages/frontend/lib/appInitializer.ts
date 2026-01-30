@@ -6,7 +6,7 @@
 import { Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 
-import { OxyServices } from '@oxyhq/services';
+import { OxyServices } from '@oxyhq/core';
 
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';

@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { usePrivacySettings } from './usePrivacySettings';
@@ -69,7 +69,7 @@ export function useProfileData(username?: string): {
   data: ProfileData | null;
   loading: boolean;
 } {
-  const { oxyServices } = useOxy();
+  const { oxyServices } = useAuth();
   
   // Use existing hooks for store access
   const ensureByUsername = useUsersStore((state) => state.ensureByUsername);

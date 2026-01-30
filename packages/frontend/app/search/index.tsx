@@ -26,7 +26,7 @@ import { ProfileCard, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard as ListCardComponent, type ListCardData } from "@/components/ListCard";
 import { Divider } from "@/components/Divider";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import { EmptyState } from "@/components/common/EmptyState";
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
@@ -45,7 +45,7 @@ export default function SearchIndex() {
     const theme = useTheme();
     const params = useLocalSearchParams();
     const urlQuery = (params.q as string) || "";
-    const { oxyServices } = useOxy();
+    const { oxyServices } = useAuth();
 
     const [query, setQuery] = useState(urlQuery);
     const [activeTab, setActiveTab] = useState<SearchTab>("all");

@@ -9,7 +9,7 @@ import {
     View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -27,7 +27,7 @@ const GAP = 1;
 const H_PADDING = 0;
 
 const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
-    const { oxyServices } = useOxy();
+    const { oxyServices } = useAuth();
     const router = useRouter();
     const theme = useTheme();
     const { fetchUserFeed } = usePostsStore();

@@ -11,7 +11,7 @@ import { searchService } from '@/services/searchService';
 import Avatar from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
@@ -36,7 +36,7 @@ interface RestrictedUser {
 export default function RestrictedUsersScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
-    const { user: currentUser, isAuthenticated, oxyServices } = useOxy();
+    const { user: currentUser, isAuthenticated, oxyServices } = useAuth();
     const bottomSheet = React.useContext(BottomSheetContext);
     const [restrictedUserIds, setRestrictedUserIds] = useState<string[]>([]);
     const [restrictedUsers, setRestrictedUsers] = useState<RestrictedUser[]>([]);

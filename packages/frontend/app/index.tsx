@@ -8,7 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import Feed from '../components/Feed/Feed';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
@@ -33,7 +33,7 @@ const PINNED_KEY = 'mention.pinnedFeeds';
 
 const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
-    const { isAuthenticated } = useOxy();
+    const { isAuthenticated } = useAuth();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();

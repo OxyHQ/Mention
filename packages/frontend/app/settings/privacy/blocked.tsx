@@ -11,7 +11,7 @@ import { searchService } from '@/services/searchService';
 import Avatar from '@/components/Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import MessageBottomSheet from '@/components/common/MessageBottomSheet';
@@ -30,7 +30,7 @@ interface BlockedUser {
 export default function BlockedUsersScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
-    const { user: currentUser, oxyServices } = useOxy();
+    const { user: currentUser, oxyServices } = useAuth();
     const bottomSheet = React.useContext(BottomSheetContext);
     const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
     const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);

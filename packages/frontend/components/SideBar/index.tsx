@@ -21,7 +21,7 @@ import { Gear, GearActive } from "@/assets/icons/gear-icon";
 import { Search, SearchActive } from "@/assets/icons/search-icon";
 import { ComposeIcon } from "@/assets/icons/compose-icon";
 import { Ionicons } from "@expo/vector-icons";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import { confirmDialog } from "@/utils/alerts";
 import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
@@ -38,7 +38,7 @@ const WindowHeight = Dimensions.get('window').height;
 export function SideBar() {
     const { t } = useTranslation();
     const router = useRouter();
-    const { isAuthenticated: _isAuthenticated, user, showBottomSheet, logout, oxyServices } = useOxy();
+    const { isAuthenticated: _isAuthenticated, user, showBottomSheet, logout, oxyServices } = useAuth();
     const theme = useTheme();
 
     const avatarUri = user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined;

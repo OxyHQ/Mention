@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { notificationCreationService } from '../services/notificationCreationService';
 
 /**
@@ -7,7 +7,7 @@ import { notificationCreationService } from '../services/notificationCreationSer
  * This should be used in components that perform actions that should notify other users
  */
 export const useNotificationActions = () => {
-  const { user } = useOxy();
+  const { user } = useAuth();
 
   const notifyLike = useCallback(async (postId: string, postAuthorId: string) => {
     if (!user?.id) return;

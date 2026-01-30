@@ -9,7 +9,7 @@ import useRealtimePosts from '@/hooks/useRealtimePosts';
 
 /**
  * Bridge component that enables realtime posts functionality
- * Must be rendered under OxyProvider to access useOxy
+ * Must be rendered under OxyProvider to access useAuth
  */
 export function RealtimePostsBridge() {
   useRealtimePosts();

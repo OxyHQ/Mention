@@ -10,7 +10,7 @@ import {
     Keyboard,
 } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import Avatar from "./Avatar";
 
 export interface MentionUser {
@@ -35,7 +35,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
     maxHeight = 300,
 }) => {
     const theme = useTheme();
-    const { oxyServices } = useOxy();
+    const { oxyServices } = useAuth();
     const [users, setUsers] = useState<MentionUser[]>([]);
     const [loading, setLoading] = useState(false);
 

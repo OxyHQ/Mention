@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { usePrivacyStore } from '@/stores/privacyStore';
 
 interface UsePrivacyControlsOptions {
@@ -11,7 +11,7 @@ const DEFAULT_INTERVAL = 2 * 60 * 1000; // 2 minutes
 
 export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
     const { autoRefresh = true, minIntervalMs = DEFAULT_INTERVAL } = options || {};
-    const { oxyServices, isAuthenticated } = useOxy();
+    const { oxyServices, isAuthenticated } = useAuth();
 
     // Use individual selectors for optimal performance (Zustand automatically shallow compares)
     const blockedSet = usePrivacyStore((state) => state.blockedSet);

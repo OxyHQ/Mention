@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { pollService } from '@/services/pollService';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 
 interface PollCardProps {
@@ -10,7 +10,7 @@ interface PollCardProps {
 }
 
 const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
-  const { user } = useOxy();
+  const { user } = useAuth();
   const theme = useTheme();
   const [poll, setPoll] = useState<any>(null);
   const [loading, setLoading] = useState(true);

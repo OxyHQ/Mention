@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileData } from '@/hooks/useProfileData';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 
 export default function AccountInfoScreen() {
   const insets = useSafeAreaInsets();
@@ -20,7 +20,7 @@ export default function AccountInfoScreen() {
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const { t } = useTranslation();
   const theme = useTheme();
-  const { oxyServices } = useOxy();
+  const { oxyServices } = useAuth();
   
   // Use unified profile data hook - automatically fetches profile and appearance settings
   const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);

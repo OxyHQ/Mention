@@ -7,7 +7,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -19,7 +19,7 @@ export default function AppearanceSettingsScreen() {
   const loading = useAppearanceStore((state) => state.loading);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
-  const { showBottomSheet, oxyServices } = useOxy();
+  const { showBottomSheet, oxyServices } = useAuth();
   const theme = useTheme();
 
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('system');

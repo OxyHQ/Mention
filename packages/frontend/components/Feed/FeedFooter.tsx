@@ -2,7 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 
 interface FeedFooterProps {
     showOnlySaved?: boolean;
@@ -19,7 +19,7 @@ interface FeedFooterProps {
 export const FeedFooter = memo<FeedFooterProps>(
     ({ showOnlySaved, hasMore, isLoadingMore, hasItems }) => {
         const theme = useTheme();
-        const { isAuthenticated, showBottomSheet } = useOxy();
+        const { isAuthenticated, showBottomSheet } = useAuth();
 
         const handleSignIn = useCallback(() => {
             showBottomSheet?.('SignIn');

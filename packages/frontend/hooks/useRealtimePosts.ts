@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { socketService } from '@/services/socketService';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 
 // Lightweight hook to ensure socket connection when authenticated
 export default function useRealtimePosts() {
-		const { isAuthenticated, user } = useOxy();
+		const { isAuthenticated, user } = useAuth();
 
 	useEffect(() => {
 		let didCancel = false;

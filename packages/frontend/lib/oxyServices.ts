@@ -1,4 +1,4 @@
-import { OxyServices } from '@oxyhq/services';
+import { OxyServices } from '@oxyhq/core';
 import { OXY_BASE_URL } from '@/config';
 
 /**

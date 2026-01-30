@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View, Share, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import Avatar from '@/components/Avatar';
 import { useUsersStore } from '@/stores/usersStore';
@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Error } from '@/components/Error';
 
 export function WhoToFollowTab() {
-  const { oxyServices, user } = useOxy();
+  const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
   const theme = useTheme();

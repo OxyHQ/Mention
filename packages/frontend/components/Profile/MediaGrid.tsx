@@ -10,7 +10,7 @@ import {
     View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -28,7 +28,7 @@ const GAP = 1; // instagram-like tight spacing
 const H_PADDING = 0;
 
 const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
-    const { oxyServices } = useOxy();
+    const { oxyServices } = useAuth();
     const router = useRouter();
     const theme = useTheme();
     const { fetchUserFeed, postsById } = usePostsStore();

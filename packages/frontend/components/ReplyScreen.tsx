@@ -12,7 +12,7 @@ import {
     Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import { usePostsStore } from '../stores/postsStore';
 import { colors } from '../styles/colors';
 import PostItem from './Feed/PostItem';
@@ -23,7 +23,7 @@ import UserName from './UserName';
 const MAX_CHARACTERS = 280;
 
 const ReplyScreen: React.FC = () => {
-    const { user } = useOxy();
+    const { user } = useAuth();
     const { createReply, feeds, getPostById } = usePostsStore();
     const insets = useSafeAreaInsets();
     const { id: postId } = useLocalSearchParams<{ id: string }>();

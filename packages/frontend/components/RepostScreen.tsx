@@ -15,7 +15,7 @@ import {
 import Avatar from "./Avatar";
 import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import { usePostsStore } from "../stores/postsStore";
 import { CreateRepostRequest } from "@mention/shared-types";
 import { useTheme } from "@/hooks/useTheme";
@@ -23,7 +23,7 @@ import { useTheme } from "@/hooks/useTheme";
 const MAX_CHARACTERS = 280;
 
 const RepostScreen: React.FC = () => {
-    const { user, oxyServices } = useOxy();
+    const { user, oxyServices } = useAuth();
     const { id: postId } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
     const theme = useTheme();

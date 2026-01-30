@@ -6,7 +6,7 @@ import { ThemedText } from './ThemedText';
 import { colors } from '../styles/colors';
 import { useTranslation } from 'react-i18next';
 import { useNotificationTransformer, RawNotification } from '../utils/notificationTransformer';
-import { useOxy } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
 import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
@@ -25,7 +25,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     const router = useRouter();
     const { t } = useTranslation();
     const { transformSingleNotification } = useNotificationTransformer();
-    const { oxyServices } = useOxy();
+    const { oxyServices } = useAuth();
     const theme = useTheme();
 
     // Transform the raw notification data

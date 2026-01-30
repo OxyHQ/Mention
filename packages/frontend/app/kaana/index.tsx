@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useOxy } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services";
 import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -17,7 +17,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 
 const KaanaClientPage = () => {
-  const { user } = useOxy();
+  const { user } = useAuth();
   const theme = useTheme();
   const [inputText, setInputText] = useState("");
   const [inputHeight, setInputHeight] = useState(40);
