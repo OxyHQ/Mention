@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { pollService } from '@/services/pollService';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
@@ -67,7 +68,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
 
   if (loading) return (
     <View style={[styles.card, { width, backgroundColor: theme.colors.background }]}>
-      <ActivityIndicator color={theme.colors.primary} />
+      <Loading size="small" style={{ flex: undefined }} />
     </View>
   );
 

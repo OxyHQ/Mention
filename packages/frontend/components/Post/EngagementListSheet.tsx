@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -123,7 +124,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
           disableSticky={true}
         />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Loading size="large" />
         </View>
       </View>
     );
@@ -166,7 +167,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
           ListFooterComponent={
             loadingMore ? (
               <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Loading size="small" style={{ flex: undefined }} />
               </View>
             ) : null
           }

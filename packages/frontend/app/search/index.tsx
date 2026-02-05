@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
     View,
     Text,
@@ -6,7 +6,6 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +17,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTheme } from "@/hooks/useTheme";
 import { searchService } from "@/services/searchService";
+import { Loading } from "@/components/ui/Loading";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@/assets/icons/search-icon";
@@ -28,6 +28,8 @@ import { ListCard as ListCardComponent, type ListCardData } from "@/components/L
 import { Divider } from "@/components/Divider";
 import { useAuth } from "@oxyhq/services";
 import { EmptyState } from "@/components/common/EmptyState";
+import { SPACING } from "@/styles/spacing";
+import { FONT_SIZES } from "@/styles/typography";
 
 type SearchTab = "all" | "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 
@@ -40,6 +42,15 @@ type LocalSearchResults = {
     saved: any[];
 };
 
+const EMPTY_RESULTS: LocalSearchResults = {
+    posts: [],
+    users: [],
+    feeds: [],
+    hashtags: [],
+    lists: [],
+    saved: [],
+};
+
 export default function SearchIndex() {
     const { t } = useTranslation();
     const theme = useTheme();
@@ -50,111 +61,67 @@ export default function SearchIndex() {
     const [query, setQuery] = useState(urlQuery);
     const [activeTab, setActiveTab] = useState<SearchTab>("all");
     const [loading, setLoading] = useState(false);
-    const [results, setResults] = useState<LocalSearchResults>({
-        posts: [],
-        users: [],
-        feeds: [],
-        hashtags: [],
-        lists: [],
-        saved: [],
-    });
-    // Cache results per tab per query to avoid refetching when switching tabs
-    // Also limits cache size to prevent memory issues
+    const [results, setResults] = useState<LocalSearchResults>(EMPTY_RESULTS);
     const [resultsCache, setResultsCache] = useState<Record<string, LocalSearchResults>>({});
     const resultsCacheRef = useRef<Record<string, LocalSearchResults>>({});
-    const MAX_CACHE_SIZE = 50; // Limit cache entries
+    const MAX_CACHE_SIZE = 50;
+    const searchInputRef = useRef<TextInput>(null);
 
-    // Sync ref with state
     useEffect(() => {
         resultsCacheRef.current = resultsCache;
     }, [resultsCache]);
 
-    // Helper to clean up old cache entries when cache gets too large
-    // Uses LRU-style eviction (keeps most recently used entries)
     const cleanupCache = useCallback((newCache: Record<string, LocalSearchResults>) => {
         const entries = Object.entries(newCache);
         if (entries.length > MAX_CACHE_SIZE) {
-            // Keep the most recent MAX_CACHE_SIZE entries
-            // In a production app, you might want to track access times for true LRU
             const toKeep = entries.slice(-MAX_CACHE_SIZE);
             return Object.fromEntries(toKeep);
         }
         return newCache;
     }, []);
 
-    // Initialize query from URL parameter
     useEffect(() => {
         if (urlQuery) {
             setQuery(urlQuery);
         }
     }, [urlQuery]);
 
-    // Clear results when query is empty
     useEffect(() => {
         if (!query.trim()) {
-            setResults({
-                posts: [],
-                users: [],
-                feeds: [],
-                hashtags: [],
-                lists: [],
-                saved: [],
-            });
+            setResults(EMPTY_RESULTS);
             setResultsCache({});
         }
     }, [query]);
 
-    // Debounced search - checks cache first, reuses "all" results when possible
+    // Debounced search with cache
     useEffect(() => {
         const performSearch = async () => {
             const searchQuery = query.trim();
             if (!searchQuery) {
-                setResults({
-                    posts: [],
-                    users: [],
-                    feeds: [],
-                    hashtags: [],
-                    lists: [],
-                    saved: [],
-                });
+                setResults(EMPTY_RESULTS);
                 return;
             }
 
             const cacheKey = `${activeTab}-${searchQuery}`;
-            // Load from cache if exists - no need to fetch again
             if (resultsCacheRef.current[cacheKey]) {
                 setResults(resultsCacheRef.current[cacheKey]);
                 return;
             }
 
-            // For individual tabs, check if "all" tab has cached results for this query
-            // If so, reuse those results instead of fetching again
+            // Reuse "all" tab results for individual tabs
             if (activeTab !== "all") {
                 const allCacheKey = `all-${searchQuery}`;
                 const allCached = resultsCacheRef.current[allCacheKey];
                 if (allCached) {
-                    // Use results from "all" tab for this specific tab type
-                    let tabResults: LocalSearchResults = { ...results };
-                    if (activeTab === "posts") {
-                        tabResults = { ...results, posts: allCached.posts || [] };
-                    } else if (activeTab === "users") {
-                        tabResults = { ...results, users: allCached.users || [] };
-                    } else if (activeTab === "feeds") {
-                        tabResults = { ...results, feeds: allCached.feeds || [] };
-                    } else if (activeTab === "hashtags") {
-                        tabResults = { ...results, hashtags: allCached.hashtags || [] };
-                    } else if (activeTab === "lists") {
-                        tabResults = { ...results, lists: allCached.lists || [] };
-                    } else if (activeTab === "saved") {
-                        tabResults = { ...results, saved: allCached.saved || [] };
-                    }
-
-                    // Cache this tab's results (derived from "all")
+                    const tabResults: LocalSearchResults = {
+                        ...EMPTY_RESULTS,
+                        [activeTab]: allCached[activeTab] || [],
+                    };
                     const updatedCache = {
                         ...resultsCacheRef.current,
-                        [cacheKey]: tabResults
+                        [cacheKey]: tabResults,
                     };
-                    setResultsCache(prev => cleanupCache(updatedCache));
+                    setResultsCache(cleanupCache(updatedCache));
                     setResults(tabResults);
                     return;
                 }
@@ -162,10 +129,9 @@ export default function SearchIndex() {
 
             setLoading(true);
             try {
-                let newResults: LocalSearchResults = { ...results };
-                
+                let newResults: LocalSearchResults;
+
                 if (activeTab === "all") {
-                    // "all" tab fetches everything - most comprehensive
                     const allResults = await searchService.searchAll(searchQuery);
                     newResults = {
                         posts: allResults.posts || [],
@@ -176,60 +142,39 @@ export default function SearchIndex() {
                         saved: allResults.saved || [],
                     };
 
-                    // Pre-populate cache for individual tabs using "all" results
-                    // This allows instant switching to other tabs without fetching
+                    // Pre-populate individual tab caches
                     const updatedCache: Record<string, LocalSearchResults> = {
                         ...resultsCacheRef.current,
                         [cacheKey]: newResults,
                     };
+                    const tabKeys: SearchTab[] = ["posts", "users", "feeds", "hashtags", "lists", "saved"];
+                    for (const tab of tabKeys) {
+                        const tabCacheKey = `${tab}-${searchQuery}`;
+                        if (!updatedCache[tabCacheKey]) {
+                            updatedCache[tabCacheKey] = { ...EMPTY_RESULTS, [tab]: newResults[tab] };
+                        }
+                    }
+                    setResultsCache(cleanupCache(updatedCache));
+                } else {
+                    const fetchMap: Record<string, () => Promise<any>> = {
+                        posts: () => searchService.searchPosts(searchQuery),
+                        users: () => searchService.searchUsers(searchQuery),
+                        feeds: () => searchService.searchFeeds(searchQuery),
+                        hashtags: () => searchService.searchHashtags(searchQuery),
+                        lists: () => searchService.searchLists(searchQuery),
+                        saved: () => searchService.searchSaved(searchQuery),
+                    };
 
-                    // Pre-populate individual tab caches from "all" results
-                    if (!updatedCache[`posts-${searchQuery}`]) {
-                        updatedCache[`posts-${searchQuery}`] = { ...results, posts: newResults.posts };
-                    }
-                    if (!updatedCache[`users-${searchQuery}`]) {
-                        updatedCache[`users-${searchQuery}`] = { ...results, users: newResults.users };
-                    }
-                    if (!updatedCache[`feeds-${searchQuery}`]) {
-                        updatedCache[`feeds-${searchQuery}`] = { ...results, feeds: newResults.feeds };
-                    }
-                    if (!updatedCache[`hashtags-${searchQuery}`]) {
-                        updatedCache[`hashtags-${searchQuery}`] = { ...results, hashtags: newResults.hashtags };
-                    }
-                    if (!updatedCache[`lists-${searchQuery}`]) {
-                        updatedCache[`lists-${searchQuery}`] = { ...results, lists: newResults.lists };
-                    }
-                    if (!updatedCache[`saved-${searchQuery}`]) {
-                        updatedCache[`saved-${searchQuery}`] = { ...results, saved: newResults.saved };
-                    }
+                    const data = await fetchMap[activeTab]();
+                    newResults = { ...EMPTY_RESULTS, [activeTab]: data || [] };
 
-                    setResultsCache(prev => cleanupCache(updatedCache));
-                } else if (activeTab === "posts") {
-                    const posts = await searchService.searchPosts(searchQuery);
-                    newResults = { ...results, posts: posts || [] };
-                } else if (activeTab === "users") {
-                    const users = await searchService.searchUsers(searchQuery);
-                    newResults = { ...results, users: users || [] };
-                } else if (activeTab === "feeds") {
-                    const feeds = await searchService.searchFeeds(searchQuery);
-                    newResults = { ...results, feeds: feeds || [] };
-                } else if (activeTab === "hashtags") {
-                    const hashtags = await searchService.searchHashtags(searchQuery);
-                    newResults = { ...results, hashtags: hashtags || [] };
-                } else if (activeTab === "lists") {
-                    const lists = await searchService.searchLists(searchQuery);
-                    newResults = { ...results, lists: lists || [] };
-                } else if (activeTab === "saved") {
-                    const saved = await searchService.searchSaved(searchQuery);
-                    newResults = { ...results, saved: saved || [] };
+                    const updatedCache = {
+                        ...resultsCacheRef.current,
+                        [cacheKey]: newResults,
+                    };
+                    setResultsCache(cleanupCache(updatedCache));
                 }
 
-                // Cache the results for this tab+query combination
-                const updatedCache = {
-                    ...resultsCacheRef.current,
-                    [cacheKey]: newResults
-                };
-                setResultsCache(prev => cleanupCache(updatedCache));
                 setResults(newResults);
             } catch (error) {
                 console.warn("Search error:", error);
@@ -242,8 +187,12 @@ export default function SearchIndex() {
         return () => clearTimeout(timeoutId);
     }, [query, activeTab, cleanupCache]);
 
-    const renderUserItem = (user: any) => {
-        // Extract display name similar to MentionPicker
+    const clearSearch = useCallback(() => {
+        setQuery("");
+        searchInputRef.current?.focus();
+    }, []);
+
+    const renderUserItem = useCallback((user: any) => {
         let displayName = user.username || user.handle;
         if (typeof user.name === 'string') {
             displayName = user.name;
@@ -256,8 +205,6 @@ export default function SearchIndex() {
         }
 
         const username = user.username || user.handle || '';
-        
-        // Get avatar URL using oxyServices
         const avatarUri = user?.avatar && oxyServices?.getFileDownloadUrl
             ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb')
             : undefined;
@@ -272,17 +219,17 @@ export default function SearchIndex() {
         };
 
         return (
-            <View key={user.id || user.username} style={styles.userItemWrapper}>
+            <View key={user.id || user.username} style={styles.itemWrapper}>
                 <ProfileCard
                     profile={profileData}
-                onPress={() => router.push(`/@${username}`)}
+                    onPress={() => router.push(`/@${username}`)}
                     style={styles.profileCardStyle}
                 />
-                </View>
+            </View>
         );
-    };
+    }, [oxyServices]);
 
-    const renderFeedItem = (feed: any) => {
+    const renderFeedItem = useCallback((feed: any) => {
         const feedData: FeedCardData = {
             id: String(feed.id || feed._id || ''),
             uri: feed.uri || `feed:${feed.id || feed._id}`,
@@ -303,33 +250,41 @@ export default function SearchIndex() {
         };
 
         return (
-            <View key={feed.id} style={styles.feedItemWrapper}>
+            <View key={feed.id} style={styles.itemWrapper}>
                 <FeedCard
                     feed={feedData}
-            onPress={() => router.push(`/feeds/${feed.id}`)}
+                    onPress={() => router.push(`/feeds/${feed.id}`)}
                 />
             </View>
-    );
-    };
+        );
+    }, []);
 
-    const renderHashtagItem = (hashtag: any) => (
+    const renderHashtagItem = useCallback((hashtag: any) => (
         <View key={hashtag.tag}>
-        <TouchableOpacity
+            <TouchableOpacity
                 style={styles.hashtagItem}
-            onPress={() => router.push(`/hashtag/${hashtag.tag}`)}
-        >
-            <Text style={[styles.hashtagText, { color: theme.colors.primary }]}>
-                #{hashtag.tag}
-            </Text>
-            <Text style={[styles.hashtagCount, { color: theme.colors.textSecondary }]}>
-                {hashtag.count || 0} posts
-            </Text>
-        </TouchableOpacity>
+                onPress={() => router.push(`/hashtag/${hashtag.tag}`)}
+            >
+                <View style={styles.hashtagLeft}>
+                    <View style={[styles.hashtagIconContainer, { backgroundColor: theme.colors.primaryLight }]}>
+                        <Text style={[styles.hashtagSymbol, { color: theme.colors.primary }]}>#</Text>
+                    </View>
+                    <View>
+                        <Text style={[styles.hashtagText, { color: theme.colors.text }]}>
+                            {hashtag.tag}
+                        </Text>
+                        <Text style={[styles.hashtagCount, { color: theme.colors.textSecondary }]}>
+                            {hashtag.count || 0} {t("search.posts", "posts")}
+                        </Text>
+                    </View>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
             <Divider />
         </View>
-    );
+    ), [theme, t]);
 
-    const renderListItem = (list: any) => {
+    const renderListItem = useCallback((list: any) => {
         const owner = list.owner || list.createdBy || list.creator;
         const listData: ListCardData = {
             id: String(list.id || list._id || ''),
@@ -347,24 +302,24 @@ export default function SearchIndex() {
         };
 
         return (
-            <View key={list.id} style={styles.listItemWrapper}>
+            <View key={list.id} style={styles.itemWrapper}>
                 <ListCardComponent
                     list={listData}
-            onPress={() => router.push(`/lists/${list.id}`)}
+                    onPress={() => router.push(`/lists/${list.id}`)}
                 />
             </View>
-    );
-    };
+        );
+    }, []);
 
-    const tabs = [
+    const tabs = useMemo(() => [
         { id: "all", label: t("search.tabs.all", "All") },
         { id: "posts", label: t("search.tabs.posts", "Posts") },
         { id: "users", label: t("search.tabs.users", "Users") },
-        { id: "saved", label: t("search.tabs.saved", "Saved") },
         { id: "feeds", label: t("search.tabs.feeds", "Feeds") },
         { id: "hashtags", label: t("search.tabs.hashtags", "Hashtags") },
         { id: "lists", label: t("search.tabs.lists", "Lists") },
-    ];
+        { id: "saved", label: t("search.tabs.saved", "Saved") },
+    ], [t]);
 
     const hasResults =
         results.posts.length > 0 ||
@@ -373,6 +328,26 @@ export default function SearchIndex() {
         results.hashtags.length > 0 ||
         results.lists.length > 0 ||
         results.saved.length > 0;
+
+    // Get items for current tab
+    const currentTabHasResults = useMemo(() => {
+        if (activeTab === "all") return hasResults;
+        return (results[activeTab]?.length || 0) > 0;
+    }, [activeTab, results, hasResults]);
+
+    const renderSection = (title: string, items: any[], renderItem: (item: any) => React.ReactNode, showTitle: boolean) => {
+        if (items.length === 0) return null;
+        return (
+            <View style={styles.section}>
+                {showTitle && (
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                        {title}
+                    </Text>
+                )}
+                {items.map(renderItem)}
+            </View>
+        );
+    };
 
     return (
         <>
@@ -393,148 +368,139 @@ export default function SearchIndex() {
                                     <BackArrowIcon size={20} color={theme.colors.text} />
                                 </IconButton>,
                             ],
-                            rightComponents: [
-                                <IconButton variant="icon"
-                                    key="filter"
-                                    onPress={() => {
-                                        // TODO: Add filter functionality
-                                    }}
-                                >
-                                    <Ionicons name="options-outline" size={20} color={theme.colors.text} />
-                                </IconButton>,
-                            ],
                         }}
                         hideBottomBorder={true}
                     />
 
-                <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                    <View style={styles.searchIcon}>
-                        <Search
-                            size={20}
-                            color={theme.colors.textSecondary}
-                        />
-                    </View>
-                    <TextInput
-                        style={[styles.searchInput, { color: theme.colors.text }]}
-                        placeholder={t("search.placeholder", "Search...")}
-                        placeholderTextColor={theme.colors.textSecondary}
-                        value={query}
-                        onChangeText={setQuery}
-                        autoFocus
-                    />
-                    {query.length > 0 && (
-                        <TouchableOpacity onPress={() => setQuery("")}>
-                            <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                <AnimatedTabBar
-                    tabs={tabs}
-                    activeTabId={activeTab}
-                    onTabPress={(id: string) => setActiveTab(id as SearchTab)}
-                    scrollEnabled={true}
-                />
-
-                <ScrollView style={styles.resultsContainer}>
-                    {loading && (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                        <View style={styles.searchIcon}>
+                            <Search
+                                size={18}
+                                color={query.trim() ? theme.colors.primary : theme.colors.textSecondary}
+                            />
                         </View>
-                    )}
-
-                    {!loading && query.trim() && !hasResults && (
-                        <EmptyState
-                            title={t("search.noResults", "No results found")}
-                            icon={{
-                                name: 'search-outline',
-                                size: 48,
-                            }}
+                        <TextInput
+                            ref={searchInputRef}
+                            style={[styles.searchInput, { color: theme.colors.text }]}
+                            placeholder={t("search.placeholder", "Search...")}
+                            placeholderTextColor={theme.colors.textSecondary}
+                            value={query}
+                            onChangeText={setQuery}
+                            autoFocus
+                            returnKeyType="search"
                         />
-                    )}
+                        {query.length > 0 && (
+                            <TouchableOpacity
+                                onPress={clearSearch}
+                                style={styles.clearButton}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
 
-                    {!loading && !query.trim() && (
-                        <EmptyState
-                            title={t("search.startSearching", "Start searching")}
-                            icon={{
-                                name: 'search-outline',
-                                size: 48,
-                            }}
-                        />
-                    )}
+                    <AnimatedTabBar
+                        tabs={tabs}
+                        activeTabId={activeTab}
+                        onTabPress={(id: string) => setActiveTab(id as SearchTab)}
+                        scrollEnabled={true}
+                    />
 
-                    {!loading && hasResults && (
-                        <>
-                            {(activeTab === "all" || activeTab === "posts") && results.posts.length > 0 && (
-                                <View style={styles.section}>
-                                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                                        {t("search.sections.posts", "Posts")}
-                                    </Text>
-                                    {results.posts.map((post: any) => (
-                                        <PostItem key={post.id} post={post} />
-                                    ))}
-                                </View>
-                            )}
+                    <ScrollView
+                        style={styles.resultsContainer}
+                        contentContainerStyle={!loading && !currentTabHasResults ? styles.resultsContentEmpty : undefined}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                    >
+                        {loading && (
+                            <View style={styles.loadingContainer}>
+                                <Loading size="large" />
+                            </View>
+                        )}
 
-                            {(activeTab === "all" || activeTab === "users") && results.users.length > 0 && (
-                                <View style={styles.section}>
-                                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                                        {t("search.sections.users", "Users")}
-                                    </Text>
-                                    {results.users.map(renderUserItem)}
-                                </View>
-                            )}
+                        {!loading && query.trim() && !currentTabHasResults && (
+                            <EmptyState
+                                title={t("search.noResults", "No results found")}
+                                subtitle={t("search.tryDifferent", "Try searching for something else")}
+                                icon={{
+                                    name: 'search-outline',
+                                    size: 48,
+                                }}
+                            />
+                        )}
 
-                            {(activeTab === "all" || activeTab === "saved") && results.saved.length > 0 && (
-                                <View style={styles.section}>
-                                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                                        {t("search.sections.saved", "Saved")}
-                                    </Text>
-                                    {results.saved.map((post: any) => (
-                                        <PostItem key={post.id || post._id} post={post} />
-                                    ))}
-                                </View>
-                            )}
+                        {!loading && !query.trim() && (
+                            <EmptyState
+                                title={t("search.startSearching", "Search Mention")}
+                                subtitle={t("search.startDescription", "Find people, posts, hashtags, and more")}
+                                icon={{
+                                    name: 'search-outline',
+                                    size: 48,
+                                }}
+                            />
+                        )}
 
-                            {(activeTab === "all" || activeTab === "feeds") && results.feeds.length > 0 && (
-                                <View style={styles.section}>
-                                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                                        {t("search.sections.feeds", "Feeds")}
-                                    </Text>
-                                    {results.feeds.map(renderFeedItem)}
-                                </View>
-                            )}
+                        {!loading && currentTabHasResults && (
+                            <>
+                                {(activeTab === "all" || activeTab === "posts") &&
+                                    renderSection(
+                                        t("search.sections.posts", "Posts"),
+                                        results.posts,
+                                        (post: any) => <PostItem key={post.id} post={post} />,
+                                        activeTab === "all",
+                                    )
+                                }
 
-                            {(activeTab === "all" || activeTab === "hashtags") && results.hashtags.length > 0 && (
-                                <View style={styles.section}>
-                                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                                        {t("search.sections.hashtags", "Hashtags")}
-                                    </Text>
-                                    {results.hashtags.map(renderHashtagItem)}
-                                </View>
-                            )}
+                                {(activeTab === "all" || activeTab === "users") &&
+                                    renderSection(
+                                        t("search.sections.users", "People"),
+                                        results.users,
+                                        renderUserItem,
+                                        activeTab === "all",
+                                    )
+                                }
 
-                            {(activeTab === "all" || activeTab === "lists") && results.lists.length > 0 && (
-                                <View style={styles.section}>
-                                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                                        {t("search.sections.lists", "Lists")}
-                                    </Text>
-                                    {results.lists.map(renderListItem)}
-                                </View>
-                            )}
+                                {(activeTab === "all" || activeTab === "feeds") &&
+                                    renderSection(
+                                        t("search.sections.feeds", "Feeds"),
+                                        results.feeds,
+                                        renderFeedItem,
+                                        activeTab === "all",
+                                    )
+                                }
 
-                            {activeTab === "saved" && results.saved.length > 0 && (
-                                <View style={styles.section}>
-                                    {results.saved.map((post: any) => (
-                                        <PostItem key={post.id || post._id} post={post} />
-                                    ))}
-                                </View>
-                            )}
-                        </>
-                    )}
-                </ScrollView>
-            </SafeAreaView>
-        </ThemedView>
+                                {(activeTab === "all" || activeTab === "hashtags") &&
+                                    renderSection(
+                                        t("search.sections.hashtags", "Hashtags"),
+                                        results.hashtags,
+                                        renderHashtagItem,
+                                        activeTab === "all",
+                                    )
+                                }
+
+                                {(activeTab === "all" || activeTab === "lists") &&
+                                    renderSection(
+                                        t("search.sections.lists", "Lists"),
+                                        results.lists,
+                                        renderListItem,
+                                        activeTab === "all",
+                                    )
+                                }
+
+                                {(activeTab === "all" || activeTab === "saved") &&
+                                    renderSection(
+                                        t("search.sections.saved", "Saved"),
+                                        results.saved,
+                                        (post: any) => <PostItem key={post.id || post._id} post={post} />,
+                                        activeTab === "all",
+                                    )
+                                }
+                            </>
+                        )}
+                    </ScrollView>
+                </SafeAreaView>
+            </ThemedView>
         </>
     );
 }
@@ -549,65 +515,83 @@ const styles = StyleSheet.create({
     searchContainer: {
         flexDirection: "row",
         alignItems: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        marginHorizontal: 16,
-        marginVertical: 8,
+        paddingHorizontal: SPACING.base,
+        paddingVertical: SPACING.sm,
+        marginHorizontal: SPACING.base,
+        marginVertical: SPACING.sm,
         borderRadius: 24,
     },
     searchIcon: {
-        marginRight: 8,
+        marginRight: SPACING.sm,
     },
     searchInput: {
         flex: 1,
-        fontSize: 16,
-        paddingVertical: 8,
+        fontSize: FONT_SIZES.lg,
+        paddingVertical: SPACING.sm,
+    },
+    clearButton: {
+        padding: 4,
     },
     resultsContainer: {
         flex: 1,
     },
-    loadingContainer: {
+    resultsContentEmpty: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
+    },
+    loadingContainer: {
         paddingTop: 60,
+        paddingBottom: 20,
+        alignItems: "center",
+        justifyContent: "center",
     },
     section: {
-        marginBottom: 24,
+        marginBottom: SPACING.base,
     },
     sectionTitle: {
-        fontSize: 18,
-        fontWeight: "600",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        fontSize: FONT_SIZES.xl,
+        fontWeight: "700",
+        paddingHorizontal: SPACING.base,
+        paddingVertical: SPACING.md,
     },
-    userItemWrapper: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+    itemWrapper: {
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
     },
     profileCardStyle: {
         borderWidth: 0,
         padding: 0,
     },
-    feedItemWrapper: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-    },
-    listItemWrapper: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-    },
     hashtagItem: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        padding: 16,
+        paddingHorizontal: SPACING.base,
+        paddingVertical: SPACING.md,
+    },
+    hashtagLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: SPACING.md,
+    },
+    hashtagIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    hashtagSymbol: {
+        fontSize: FONT_SIZES["2xl"],
+        fontWeight: "700",
     },
     hashtagText: {
-        fontSize: 16,
+        fontSize: FONT_SIZES.lg,
         fontWeight: "600",
     },
     hashtagCount: {
-        fontSize: 14,
+        fontSize: FONT_SIZES.sm,
+        marginTop: 2,
     },
 });

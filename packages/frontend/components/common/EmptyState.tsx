@@ -1,5 +1,6 @@
 import React, { memo, useState, ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { flattenStyleArray } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -126,10 +127,7 @@ export const EmptyState = memo<EmptyStateProps>(
                                 activeOpacity={0.8}
                             >
                                 {isRetrying ? (
-                                    <ActivityIndicator
-                                        size="small"
-                                        color={theme.colors.card}
-                                    />
+                                    <Loading variant="inline" size="small" style={{ flex: undefined }} />
                                 ) : (
                                     <>
                                         <Ionicons

@@ -4,11 +4,11 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
@@ -269,7 +269,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Loading size="small" style={{ flex: undefined }} />
             </View>
           ) : (
             <ScrollView

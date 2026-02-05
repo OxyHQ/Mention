@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { LinkMetadata } from '../../stores/linksStore';
 import { useTheme } from '@/hooks/useTheme';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -177,7 +178,7 @@ export const LinkPreviewLoading: React.FC<LinkPreviewLoadingProps> = ({ style })
       ]}
     >
       <View style={styles.loadingContent}>
-        <ActivityIndicator size="small" color={theme.colors.primary} />
+        <Loading size="small" style={{ flex: undefined }} />
         <Text style={[styles.loadingText, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
           Loading preview...
         </Text>

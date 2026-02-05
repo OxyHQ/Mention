@@ -5,10 +5,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   TextInput,
   Image,
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -226,7 +226,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         />
         {isUploading && (
           <View style={styles.uploadingOverlay}>
-            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <Loading size="small" style={{ flex: undefined }} />
           </View>
         )}
       </TouchableOpacity>
@@ -268,7 +268,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
       {loading && gifs.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Loading size="large" />
           <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
             {t('Loading GIFs...')}
           </Text>

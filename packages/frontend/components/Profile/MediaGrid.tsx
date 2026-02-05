@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
     Dimensions,
     FlatList,
     Image,
@@ -9,6 +8,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
@@ -323,7 +323,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     if (isLoading && mediaItems.length === 0) {
         return (
             <View style={styles.loading}>
-                <ActivityIndicator color={theme.colors.primary} />
+                <Loading size="small" style={{ flex: undefined }} />
             </View>
         );
     }

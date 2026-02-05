@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View, Share, Linking } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View, Share, Linking } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
@@ -164,7 +165,7 @@ export function WhoToFollowTab() {
   if (loading && recommendations.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Loading size="large" />
         <ThemedText style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
           {t('Loading...')}
         </ThemedText>

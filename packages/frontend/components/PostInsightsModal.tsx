@@ -4,11 +4,11 @@ import {
     Text,
     StyleSheet,
     ScrollView,
-    ActivityIndicator,
     TouchableOpacity,
     Modal,
     Platform
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -72,7 +72,7 @@ const PostInsightsModal: React.FC<PostInsightsModalProps> = ({ visible, postId, 
                 {/* Content */}
                 {loading ? (
                     <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
+                        <Loading size="large" />
                     </View>
                 ) : insights ? (
                     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>

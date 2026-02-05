@@ -4,11 +4,11 @@ import {
     Text,
     StyleSheet,
     ScrollView,
-    ActivityIndicator,
     TouchableOpacity,
     Dimensions,
     Platform
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import Animated, { useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -359,7 +359,7 @@ const InsightsScreen: React.FC = () => {
                         <SectionHeader icon="trophy" title={t('insights.topPerformingPosts')} />
                         {loadingTopPosts ? (
                             <View style={styles.loadingPosts}>
-                                <ActivityIndicator size="small" color={theme.colors.primary} />
+                                <Loading size="small" style={{ flex: undefined }} />
                             </View>
                         ) : topPostsData.length > 0 ? (
                             topPostsData.map((post, index) => (
@@ -665,7 +665,7 @@ const InsightsScreen: React.FC = () => {
                 {/* Content */}
                 {loading ? (
                     <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
+                        <Loading size="large" />
                     </View>
                 ) : (
                     activeTab === 'overview' ? renderOverviewTab() : renderEngagementTab()

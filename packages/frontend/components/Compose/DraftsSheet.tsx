@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -186,7 +187,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
           activeOpacity={0.7}
         >
           {isDeleting ? (
-            <ActivityIndicator size="small" color={theme.colors.error} />
+            <Loading variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
             <Ionicons name="trash-outline" size={18} color={theme.colors.textSecondary} />
           )}
@@ -214,7 +215,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
           disableSticky={true}
         />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Loading size="large" />
         </View>
       </View>
     );

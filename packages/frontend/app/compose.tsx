@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Alert,
   ScrollView,
   Image,
   Modal,
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useAuth } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
@@ -1460,7 +1460,7 @@ const ComposeScreen = () => {
           ]}
         >
           {isPosting ? (
-            <ActivityIndicator size="small" color={theme.colors.card} />
+            <Loading variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
             <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{t('Post')}</Text>
           )}

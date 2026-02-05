@@ -4,11 +4,11 @@ import {
     Text,
     StyleSheet,
     ScrollView,
-    ActivityIndicator,
     TouchableOpacity,
     Dimensions,
     Platform
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -234,7 +234,7 @@ const WeeklyRecapScreen: React.FC = () => {
                     />
                 </View>
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Loading size="large" />
                 </View>
             </ThemedView>
         );

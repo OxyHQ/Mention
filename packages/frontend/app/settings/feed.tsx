@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -201,7 +202,7 @@ export default function FeedSettingsScreen() {
           disableSticky={true}
         />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Loading size="large" />
         </View>
       </ThemedView>
     );
@@ -220,7 +221,7 @@ export default function FeedSettingsScreen() {
           rightComponents: [
             saving ? (
               <View key="saving" style={styles.headerIconContainer}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Loading variant="inline" size="small" style={{ flex: undefined }} />
               </View>
             ) : justSaved ? (
               <View key="saved" style={styles.headerIconContainer}>

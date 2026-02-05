@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -116,7 +117,7 @@ export default function ProfileVisibilityScreen() {
                     disableSticky={true}
                 />
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Loading size="large" />
                 </View>
             </ThemedView>
         );
@@ -214,7 +215,7 @@ export default function ProfileVisibilityScreen() {
 
                 {saving && (
                     <View style={styles.savingContainer}>
-                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                        <Loading variant="inline" size="small" style={{ flex: undefined }} />
                         <Text style={[styles.savingText, { color: theme.colors.textSecondary }]}>
                             {t('common.saving')}
                         </Text>

@@ -74,6 +74,8 @@ interface InlineLoadingProps extends BaseLoadingProps {
   variant: 'inline';
   /** Text to show next to spinner */
   text?: string;
+  /** Custom style for the text */
+  textStyle?: TextStyle;
 }
 
 export type LoadingProps = 
@@ -373,6 +375,7 @@ export default Loading;
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

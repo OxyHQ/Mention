@@ -4,8 +4,8 @@ import {
     Text,
     StyleSheet,
     ScrollView,
-    ActivityIndicator,
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
@@ -71,7 +71,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                     disableSticky={true}
                 />
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Loading size="large" />
                 </View>
             </View>
         );

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -113,7 +114,7 @@ export default function InterestsSettingsScreen() {
           disableSticky={true}
         />
         <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Loading size="large" />
         </View>
       </ThemedView>
     );
@@ -134,7 +135,7 @@ export default function InterestsSettingsScreen() {
           ],
           rightComponents: isSaving ? [
             <View key="loading" style={styles.savingIndicator}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Loading variant="inline" size="small" style={{ flex: undefined }} />
             </View>,
           ] : [],
         }}
