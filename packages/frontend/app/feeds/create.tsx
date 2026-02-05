@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -256,7 +257,7 @@ const CreateFeedScreen: React.FC = () => {
           ]}
         >
           {saving ? (
-            <ActivityIndicator color={theme.colors.card} />
+            <Loading variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
             <Text style={[styles.createBtnText, { color: theme.colors.card }]}>{t('feeds.create.createButton')}</Text>
           )}

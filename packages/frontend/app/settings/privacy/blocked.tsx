@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -400,7 +401,7 @@ export default function BlockedUsersScreen() {
                             autoCorrect={false}
                         />
                         {searching && (
-                            <ActivityIndicator size="small" color={theme.colors.primary} style={styles.searchLoader} />
+                            <Loading size="small" style={{ flex: undefined, marginLeft: 8 }} />
                         )}
                     </View>
 
@@ -435,7 +436,7 @@ export default function BlockedUsersScreen() {
                                             </Text>
                                         </View>
                                         {isBlocking ? (
-                                            <ActivityIndicator size="small" color={theme.colors.primary} />
+                                            <Loading variant="inline" size="small" style={{ flex: undefined }} />
                                         ) : (
                                             <IconComponent name="add-circle" size={24} color={theme.colors.primary} />
                                         )}
@@ -462,7 +463,7 @@ export default function BlockedUsersScreen() {
 
                     {loading ? (
                         <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color={theme.colors.primary} />
+                            <Loading size="large" style={{ flex: undefined }} />
                         </View>
                     ) : blockedUsers.length === 0 ? (
                         <EmptyState

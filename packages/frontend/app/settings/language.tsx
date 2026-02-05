@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -95,7 +96,7 @@ export default function LanguageSettingsScreen() {
             >
                 {saving && (
                     <View style={styles.savingIndicator}>
-                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                        <Loading variant="inline" size="small" style={{ flex: undefined }} />
                         <Text style={[styles.savingText, { color: theme.colors.textSecondary }]}>
                             {t('common.saving')}
                         </Text>
@@ -131,7 +132,7 @@ export default function LanguageSettingsScreen() {
                                             {isSelected && (
                                                 <View style={styles.selectedIndicator}>
                                                     {isChanging ? (
-                                                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                                                        <Loading variant="inline" size="small" style={{ flex: undefined }} />
                                                     ) : (
                                                         <IconComponent name="checkmark-circle" size={24} color={theme.colors.primary} />
                                                     )}

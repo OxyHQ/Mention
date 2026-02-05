@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Loading } from '@/components/ui/Loading';
 import { LocationIcon } from "@/assets/icons/location-icon";
 import { CloseIcon } from "@/assets/icons/close-icon";
 import { colors } from "@/styles/colors";
@@ -29,7 +30,7 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
                 <LocationIcon size={16} color={colors.primaryColor} />
                 {isGettingLocation ? (
                     <>
-                        <ActivityIndicator size="small" color={colors.primaryColor} />
+                        <Loading size="small" style={{ flex: undefined }} />
                         <Text style={styles.text}>Getting location...</Text>
                     </>
                 ) : (

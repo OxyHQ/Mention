@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
@@ -185,7 +186,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     style={styles.button}
                 >
                     {isGettingLocation ? (
-                        <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                        <Loading variant="inline" size="small" style={{ flex: undefined }} />
                     ) : (
                         <LocationIcon
                             size={20}

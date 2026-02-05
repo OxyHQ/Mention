@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
     Dimensions,
     FlatList,
     StyleSheet,
@@ -8,6 +7,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
@@ -208,7 +208,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
     if (isLoading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Loading size="large" />
             </View>
         );
     }

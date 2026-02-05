@@ -5,10 +5,10 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   TextInput,
   Platform,
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -325,7 +325,7 @@ const FeedsScreen: React.FC = () => {
 
           <View style={styles.listContainer}>
             {loading && !refreshing && publicFeeds.length === 0 ? (
-              <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
+              <Loading size="large" style={{ flex: undefined, marginTop: 20 }} />
             ) : (
               publicFeeds.map((item) => (
                 <FeedCardWithPin

@@ -3,7 +3,6 @@ import {
     View,
     Text,
     StyleSheet,
-    ActivityIndicator,
     Alert,
     TouchableOpacity,
     KeyboardAvoidingView,
@@ -12,6 +11,7 @@ import {
     Image,
     ScrollView
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -410,7 +410,7 @@ const PostDetailScreen: React.FC = () => {
                     disableSticky={true}
                 />
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Loading size="large" />
                     <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading post...</Text>
                 </View>
             </ThemedView>

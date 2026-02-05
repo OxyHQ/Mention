@@ -6,9 +6,9 @@ import {
     TouchableOpacity,
     StyleSheet,
     FlatList,
-    ActivityIndicator,
     Keyboard,
 } from "react-native";
+import { Loading } from '@/components/ui/Loading';
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@oxyhq/services";
 import Avatar from "./Avatar";
@@ -103,7 +103,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
         >
             {loading ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator color={theme.colors.primary} />
+                    <Loading size="small" style={{ flex: undefined }} />
                 </View>
             ) : users.length === 0 ? (
                 <View style={styles.emptyContainer}>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, memo } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -78,7 +79,7 @@ export function TrendsWidget() {
     <BaseWidget title={t('Trending')}>
       {isLoading ? (
         <View style={styles.centerRow}>
-          <ActivityIndicator size="small" color={theme.colors.primary} />
+          <Loading size="small" style={{ flex: undefined }} />
           <Text style={[styles.muted, { color: theme.colors.textSecondary }]}>Loading trends…</Text>
         </View>
       ) : error ? (

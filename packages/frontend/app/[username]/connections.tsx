@@ -7,7 +7,8 @@ import * as OxyServicesNS from '@oxyhq/services';
 import { Link, useLocalSearchParams, router, usePathname } from 'expo-router';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, View, TouchableOpacity, Share, Platform, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, Share, Platform, StyleSheet } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import LegendList from '@/components/LegendList';
@@ -354,7 +355,7 @@ export default function ConnectionsScreen() {
 
       {loading ? (
         <View style={styles.loadingState}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Loading size="large" />
           <ThemedText style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
             {t('Loading...', { defaultValue: 'Loading...' })}
           </ThemedText>

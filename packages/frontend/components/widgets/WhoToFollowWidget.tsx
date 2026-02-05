@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { ActivityIndicator, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Loading } from '@/components/ui/Loading';
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { useAuth } from "@oxyhq/services";
@@ -98,7 +99,7 @@ export function WhoToFollowWidget() {
     return (
       <BaseWidget title={t("Who to follow")}>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="small" color={theme.colors.primary} />
+          <Loading size="small" style={{ flex: undefined }} />
           <ThemedText style={[styles.statusText, { color: theme.colors.textSecondary }]}>
             {t("Loading...")}
           </ThemedText>

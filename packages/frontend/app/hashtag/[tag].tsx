@@ -4,8 +4,8 @@ import {
     Text,
     StyleSheet,
     RefreshControl,
-    ActivityIndicator,
 } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
@@ -144,7 +144,7 @@ const HashtagScreen: React.FC = () => {
         if (!loadingMore) return null;
         return (
             <View style={styles.footer}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Loading size="small" style={{ flex: undefined }} />
             </View>
         );
     };
@@ -220,7 +220,7 @@ const HashtagScreen: React.FC = () => {
             />
             {loading && posts.length === 0 ? (
                 <ThemedView style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                    <Loading size="large" />
                 </ThemedView>
             ) : (
                 <FlashList

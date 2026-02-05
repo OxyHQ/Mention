@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TextInput, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { StyleSheet, TextInput, View, TouchableOpacity, ScrollView } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -82,7 +83,7 @@ const SavedPostsScreen: React.FC = () => {
             <ScrollView style={styles.resultsContainer}>
                 {loading && (
                     <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
+                        <Loading size="large" />
                     </View>
                 )}
 

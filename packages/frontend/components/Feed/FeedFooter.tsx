@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Loading } from '@/components/ui/Loading';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@oxyhq/services';
@@ -52,7 +53,7 @@ export const FeedFooter = memo<FeedFooterProps>(
                 accessibilityRole="progressbar"
                 accessibilityLabel="Loading more posts"
             >
-                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Loading size="small" style={{ flex: undefined }} />
             </View>
         );
     }
