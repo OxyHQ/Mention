@@ -3,19 +3,22 @@ import { deepEqual } from '@/utils/feedUtils';
 
 /**
  * Deep comparison hook for useEffect dependencies
- * Prevents unnecessary effect runs when objects/arrays change by reference but not by value
+ * Uses a counter ref to trigger effects only when deep equality changes
  */
 export function useDeepCompareEffect(
     callback: React.EffectCallback,
     dependencies: React.DependencyList
 ) {
-    const currentDependenciesRef = useRef<React.DependencyList | undefined>(undefined);
+    const ref = useRef(0);
+    const prevDeps = useRef<React.DependencyList>(dependencies);
 
-    if (!currentDependenciesRef.current || !deepEqual(currentDependenciesRef.current, dependencies)) {
-        currentDependenciesRef.current = dependencies;
+    if (!deepEqual(prevDeps.current, dependencies)) {
+        ref.current += 1;
+        prevDeps.current = dependencies;
     }
 
-    useEffect(callback, currentDependenciesRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(callback, [ref.current]);
 }
 
 /**
@@ -26,12 +29,14 @@ export function useDeepCompareMemo<T>(
     factory: () => T,
     dependencies: React.DependencyList
 ): T {
-    const currentDependenciesRef = useRef<React.DependencyList | undefined>(undefined);
+    const ref = useRef(0);
+    const prevDeps = useRef<React.DependencyList>(dependencies);
 
-    if (!currentDependenciesRef.current || !deepEqual(currentDependenciesRef.current, dependencies)) {
-        currentDependenciesRef.current = dependencies;
+    if (!deepEqual(prevDeps.current, dependencies)) {
+        ref.current += 1;
+        prevDeps.current = dependencies;
     }
 
-    return useMemo(factory, currentDependenciesRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return useMemo(factory, [ref.current]);
 }
-

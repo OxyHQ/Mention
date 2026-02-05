@@ -738,6 +738,14 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     const createdPosts = [];
     let mainPostId: string | null = null;
 
+    // Pre-fetch user data once (avoids N+1 in loop)
+    let threadUserData: any = null;
+    try {
+      threadUserData = await oxyClient.getUserById(userId);
+    } catch (error) {
+      logger.error('Failed to fetch user data from Oxy for thread', error);
+    }
+
     for (let i = 0; i < posts.length; i++) {
       const postData = posts[i];
       const { content, hashtags, mentions, visibility, replyPermission, reviewReplies } = postData;
@@ -919,13 +927,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         mainPostId = String(post._id);
       }
 
-      // Fetch user data from Oxy
-      let userData: any = null;
-      try {
-        userData = await oxyClient.getUserById(userId);
-      } catch (error) {
-        logger.error('Failed to fetch user data from Oxy for thread post', error);
-      }
+      const userData = threadUserData;
 
       // Transform response
       const transformedPost = post.toObject() as any;

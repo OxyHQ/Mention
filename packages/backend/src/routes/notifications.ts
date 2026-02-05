@@ -122,7 +122,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       Notification.find(query)
         .sort({ createdAt: -1 })
         .limit(limit + 1)
-        .populate('entityId')
+        .populate('entityId', '_id oxyUserId content.text stats metadata.isPinned createdAt')
         .lean(),
       Notification.countDocuments({
         recipientId: userId,

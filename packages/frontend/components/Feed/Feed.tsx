@@ -12,6 +12,7 @@ import PostItem from './PostItem';
 // Type alias for feed items (what PostItem expects)
 type FeedItem = UIPost | Reply | Repost;
 import ErrorBoundary from '../ErrorBoundary';
+import { PostErrorBoundary } from './PostErrorBoundary';
 import { LoadingTopSpinner } from '@/components/ui/Loading';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
@@ -178,9 +179,12 @@ const Feed = memo((props: FeedProps) => {
             return null;
         }
 
-        // CRITICAL: Don't add key prop here - FlashList handles keys via keyExtractor
-        // PostItem is already memoized with arePropsEqual, so it will only rerender when needed
-        return <PostItem post={item} />;
+        // Wrap each post in an error boundary to prevent single malformed posts from crashing the feed
+        return (
+            <PostErrorBoundary postId={item.id}>
+                <PostItem post={item} />
+            </PostErrorBoundary>
+        );
     }, []);
 
     const keyExtractor = useCallback((item: FeedItem) => getItemKey(item), []);

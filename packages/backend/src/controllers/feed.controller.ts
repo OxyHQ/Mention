@@ -172,28 +172,39 @@ class FeedController {
       return text;
     }
 
-    let result = text;
-    
-    // Fetch user data for all mentioned users
-    for (const userId of mentions) {
-      try {
+    // Batch-fetch all mentioned users in parallel (fixes N+1 query)
+    const uniqueUserIds = [...new Set(mentions)];
+    const userDataMap = new Map<string, { username: string; displayName: string }>();
+
+    const results = await Promise.allSettled(
+      uniqueUserIds.map(async (userId) => {
         const userData = await oxyClient.getUserById(userId);
         const username = userData.username || 'user';
         const displayName = userData.name?.full || username;
-        
-        // Replace [mention:userId] with [@displayName](username) format
-        // This allows LinkifiedText to detect and render mentions properly
-        const placeholder = `[mention:${userId}]`;
-        result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `[@${displayName}](${username})`);
-      } catch (error) {
-        logger.error(`Error fetching user data for mention ${userId}`, error);
-        // If user fetch fails, replace with generic mention
-        const placeholder = `[mention:${userId}]`;
-        result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[@User](user)');
+        return { userId, username, displayName };
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        userDataMap.set(result.value.userId, {
+          username: result.value.username,
+          displayName: result.value.displayName,
+        });
       }
     }
 
-    return result;
+    let resultText = text;
+    for (const userId of mentions) {
+      const userData = userDataMap.get(userId) || { username: 'user', displayName: 'User' };
+      const placeholder = `[mention:${userId}]`;
+      resultText = resultText.replace(
+        new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+        `[@${userData.displayName}](${userData.username})`
+      );
+    }
+
+    return resultText;
   }
 
   /**
@@ -1374,8 +1385,8 @@ class FeedController {
         $inc: { 'stats.commentsCount': 1 }
       }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
-      // Emit real-time update
-      io.emit('post:replied', {
+      // Emit real-time update to post room only (not all clients)
+      io.to(`post:${postId}`).emit('post:replied', {
         postId,
         reply: reply.toObject(),
         timestamp: new Date().toISOString()
@@ -1461,8 +1472,8 @@ class FeedController {
         logger.warn('Failed to record interaction for preferences', error);
       }
 
-      // Emit real-time update with all necessary data for socket handlers
-      io.emit('post:reposted', {
+      // Emit real-time update to post room only (not all clients)
+      io.to(`post:${originalPostId}`).emit('post:reposted', {
         originalPostId,
         postId: originalPostId,
         repost: repost.toObject(),
@@ -1560,8 +1571,8 @@ class FeedController {
         // Don't fail the request if preference tracking fails, but log the error
       }
 
-      // Emit real-time update
-      io.emit('post:liked', {
+      // Emit real-time update to post room only (not all clients)
+      io.to(`post:${postId}`).emit('post:liked', {
         postId,
         userId: currentUserId,
         likesCount: updateResult.stats.likesCount,
@@ -1640,8 +1651,8 @@ class FeedController {
         logger.warn('Failed to invalidate cache', error);
       }
 
-      // Emit real-time update
-      io.emit('post:unliked', {
+      // Emit real-time update to post room only (not all clients)
+      io.to(`post:${postId}`).emit('post:unliked', {
         postId,
         userId: currentUserId,
         likesCount: updateResult.stats.likesCount,
@@ -1698,8 +1709,9 @@ class FeedController {
         { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
-      // Emit real-time update with all necessary data for socket handlers
-      io.emit('post:unreposted', {
+      // Emit real-time update to post room only (not all clients)
+      const repostOriginalId = repost.repostOf ? String(repost.repostOf) : '';
+      io.to(`post:${repostOriginalId}`).emit('post:unreposted', {
         originalPostId: repost.repostOf,
         postId: repost.repostOf,
         repostId: repost._id,
@@ -1785,8 +1797,8 @@ class FeedController {
         logger.error(`[Save] Failed to record interaction for preferences`, error);
       }
 
-      // Emit real-time update
-      io.emit('post:saved', {
+      // Emit real-time update to user room only
+      io.to(`user:${currentUserId}`).emit('post:saved', {
         postId,
         userId: currentUserId,
         timestamp: new Date().toISOString()
@@ -1849,8 +1861,8 @@ class FeedController {
         { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
-      // Emit real-time update
-      io.emit('post:unsaved', {
+      // Emit real-time update to user room only
+      io.to(`user:${currentUserId}`).emit('post:unsaved', {
         postId,
         userId: currentUserId,
         timestamp: new Date().toISOString()

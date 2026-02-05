@@ -113,9 +113,10 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && ALLOWED_ORIGINS.includes(origin as typeof ALLOWED_ORIGINS[number])) {
     res.setHeader("Access-Control-Allow-Origin", origin);
-  } else {
-    res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL || "*");
+  } else if (process.env.FRONTEND_URL) {
+    res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
   }
+  // In production, don't set Access-Control-Allow-Origin for unknown origins (no wildcard fallback)
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version");
   res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -152,6 +153,22 @@ const broadcastPresence = (io: SocketIOServer, userId: string, online: boolean) 
   // Also emit globally for profile pages etc.
   io.emit('user:presence', presenceData);
 };
+
+// Periodic cleanup of stale online user entries (every 5 minutes)
+setInterval(() => {
+  const staleThreshold = Date.now() - 5 * 60 * 1000;
+  let cleanedCount = 0;
+  for (const [userId, sockets] of onlineUsers.entries()) {
+    // Remove entries with empty socket sets
+    if (sockets.size === 0) {
+      onlineUsers.delete(userId);
+      cleanedCount++;
+    }
+  }
+  if (cleanedCount > 0) {
+    logger.debug(`Cleaned ${cleanedCount} stale entries from onlineUsers map`);
+  }
+}, 5 * 60 * 1000);
 
 type DisconnectReason =
   | "server disconnect" | "client disconnect" | "transport close" | "transport error" | "ping timeout" | "parse error" | "forced close" | "forced server close" | "server shutting down" | "client namespace disconnect" | "server namespace disconnect" | "unknown transport";
@@ -254,13 +271,30 @@ const notificationsNamespace = io.of("/notifications");
 const postsNamespace = io.of("/posts");
 
 // --- Socket Auth Middleware ---
-// Lightweight auth: accept userId from client handshake and attach to socket
+// Authenticate socket connections using JWT token or userId from handshake
 [notificationsNamespace, postsNamespace, io].forEach((namespaceOrServer: any) => {
-  // For namespaces we have .use; for main io server we also have .use
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
-    namespaceOrServer.use((socket: AuthenticatedSocket, next: (err?: any) => void) => {
+    namespaceOrServer.use(async (socket: AuthenticatedSocket, next: (err?: any) => void) => {
       try {
         const auth = socket.handshake?.auth as any;
+        const token = auth?.token;
+
+        // Try JWT verification first if token is provided
+        if (token && typeof token === 'string') {
+          try {
+            const jwt = require('jsonwebtoken');
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.OXY_JWT_SECRET || 'fallback-secret');
+            const userId = decoded?.userId || decoded?.id || decoded?.sub;
+            if (userId && typeof userId === 'string') {
+              socket.user = { id: userId };
+              return next();
+            }
+          } catch (jwtError) {
+            logger.debug('Socket JWT verification failed, falling back to userId auth');
+          }
+        }
+
+        // Fallback: accept userId from client handshake (for backward compatibility)
         const userId = auth?.userId || auth?.id || auth?.user?.id;
         if (userId && typeof userId === "string") {
           socket.user = { id: userId };
