@@ -13,6 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
+import { logger } from '@/utils/logger';
 import { useAuth } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
@@ -456,7 +457,9 @@ const ComposeScreen = () => {
 
       // Navigate back after posting
       router.back();
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('[Compose] Failed to publish post', message);
       toast.error(t('Failed to publish post'));
     } finally {
       setIsPosting(false);

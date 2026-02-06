@@ -247,217 +247,156 @@ class FeedService {
    * Get user profile feed
    */
   async getUserFeed(userId: string, request: FeedRequest): Promise<FeedResponse> {
-    try {
-      const params: any = {};
-      
-      if (request.cursor) params.cursor = request.cursor;
-      if (request.limit) params.limit = request.limit;
-      if (request.type) params.type = request.type;
-      if (request.filters) {
-        Object.entries(request.filters).forEach(([key, value]) => {
-          if (value !== undefined) {
-            params[`filters[${key}]`] = value;
-          }
-        });
-      }
+    const params: Record<string, unknown> = {};
 
-      const response = await authenticatedClient.get(`/feed/user/${userId}`, { params });
-      return response.data;
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to fetch user feed');
+    if (request.cursor) params.cursor = request.cursor;
+    if (request.limit) params.limit = request.limit;
+    if (request.type) params.type = request.type;
+    if (request.filters) {
+      Object.entries(request.filters).forEach(([key, value]) => {
+        if (value !== undefined) {
+          params[`filters[${key}]`] = value;
+        }
+      });
     }
+
+    const response = await authenticatedClient.get(`/feed/user/${userId}`, { params });
+    return response.data;
   }
 
   /**
    * Create a new post
    */
-  async createPost(request: CreatePostRequest): Promise<{ success: boolean; post: any }> {
-    try {
-      // Map the request to match backend expectations
-      const backendRequest: any = {
-        content: {
-          text: request.content.text || '',
-          media: request.content.media || [],
-          // Include poll if provided  
-          ...(request.content.poll && { poll: request.content.poll }),
-          // Include location if provided
-          ...(request.content.location && { location: request.content.location }),
-          ...(request.content.sources && request.content.sources.length > 0 && { sources: request.content.sources }),
-          ...(request.content.article && Object.keys(request.content.article).length > 0 && { article: request.content.article }),
-          ...(request.content.attachments && request.content.attachments.length > 0 && { attachments: request.content.attachments })
-        },
-        hashtags: request.hashtags || [],
-        mentions: request.mentions || [],
-        visibility: request.visibility || 'public',
-        parentPostId: request.parentPostId,
-        threadId: request.threadId,
-        ...(request.status && { status: request.status }),
-        ...(request.scheduledFor && { scheduledFor: request.scheduledFor })
+  async createPost(request: CreatePostRequest): Promise<{ success: boolean; post: unknown }> {
+    // Map the request to match backend expectations
+    const backendRequest = {
+      content: {
+        text: request.content.text || '',
+        media: request.content.media || [],
+        ...(request.content.poll && { poll: request.content.poll }),
+        ...(request.content.location && { location: request.content.location }),
+        ...(request.content.sources && request.content.sources.length > 0 && { sources: request.content.sources }),
+        ...(request.content.article && Object.keys(request.content.article).length > 0 && { article: request.content.article }),
+        ...(request.content.attachments && request.content.attachments.length > 0 && { attachments: request.content.attachments })
+      },
+      hashtags: request.hashtags || [],
+      mentions: request.mentions || [],
+      visibility: request.visibility || 'public',
+      parentPostId: request.parentPostId,
+      threadId: request.threadId,
+      ...(request.status && { status: request.status }),
+      ...(request.scheduledFor && { scheduledFor: request.scheduledFor })
+    };
+
+    const response = await authenticatedClient.post('/posts', backendRequest);
+    const data = response?.data;
+
+    if (data && typeof data === 'object' && data !== null && 'post' in data) {
+      return {
+        success: typeof (data as Record<string, unknown>).success === 'boolean'
+          ? (data as Record<string, boolean>).success
+          : true,
+        post: (data as Record<string, unknown>).post
       };
-      
-      const response = await authenticatedClient.post('/posts', backendRequest);
-      const data = response?.data;
-
-      if (data && typeof data === 'object' && data !== null) {
-        if ('post' in data) {
-          return {
-            success: typeof data.success === 'boolean' ? data.success : true,
-            post: (data as any).post
-          };
-        }
-      }
-
-      return { success: true, post: data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to create post');
     }
+
+    return { success: true, post: data };
   }
 
   /**
    * Create a thread of posts
    */
-  async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: any[] }> {
-    try {
-      const response = await authenticatedClient.post('/posts/thread', request);
-      return { success: true, posts: response.data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to create thread');
-    }
+  async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: unknown[] }> {
+    const response = await authenticatedClient.post('/posts/thread', request);
+    return { success: true, posts: response.data };
   }
 
   /**
    * Create a reply
    */
-  async createReply(request: CreateReplyRequest): Promise<{ success: boolean; reply: any }> {
-    try {
-      const backendRequest = {
-        postId: request.postId,
-        content: request.content, // Send complete content structure
-        mentions: request.mentions || [],
-        hashtags: request.hashtags || []
-      };
+  async createReply(request: CreateReplyRequest): Promise<{ success: boolean; reply: unknown }> {
+    const backendRequest = {
+      postId: request.postId,
+      content: request.content,
+      mentions: request.mentions || [],
+      hashtags: request.hashtags || []
+    };
 
-      const response = await authenticatedClient.post('/feed/reply', backendRequest);
-      return { success: true, reply: response.data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to create reply');
-    }
+    const response = await authenticatedClient.post('/feed/reply', backendRequest);
+    return { success: true, reply: response.data };
   }
 
   /**
    * Create a repost
    */
-  async createRepost(request: CreateRepostRequest): Promise<{ success: boolean; repost: any }> {
-    try {
-      const backendRequest = {
-        originalPostId: request.originalPostId,
-        content: request.content?.text || '',
-        mentions: request.mentions || [],
-        hashtags: request.hashtags || []
-      };
+  async createRepost(request: CreateRepostRequest): Promise<{ success: boolean; repost: unknown }> {
+    const backendRequest = {
+      originalPostId: request.originalPostId,
+      content: request.content?.text || '',
+      mentions: request.mentions || [],
+      hashtags: request.hashtags || []
+    };
 
-      const response = await authenticatedClient.post('/feed/repost', backendRequest);
-      return { success: true, repost: response.data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to create repost');
-    }
+    const response = await authenticatedClient.post('/feed/repost', backendRequest);
+    return { success: true, repost: response.data };
   }
 
   /**
    * Like a post
    */
-  async likeItem(request: LikeRequest): Promise<{ success: boolean; data: any }> {
-    try {
-      const response = await authenticatedClient.post(`/posts/${request.postId}/like`);
-      return { success: true, data: response.data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to like post');
-    }
+  async likeItem(request: LikeRequest): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.post(`/posts/${request.postId}/like`);
+    return { success: true, data: response.data };
   }
 
   /**
    * Unlike a post
    */
-  async unlikeItem(request: UnlikeRequest): Promise<{ success: boolean; data: any }> {
-    try {
-      const response = await authenticatedClient.delete(`/posts/${request.postId}/like`);
-      return { success: true, data: response.data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to unlike post');
-    }
+  async unlikeItem(request: UnlikeRequest): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.delete(`/posts/${request.postId}/like`);
+    return { success: true, data: response.data };
   }
 
   /**
    * Save a post
    */
-  async saveItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
-    try {
-      // Use posts controller which persists bookmarks used by /posts/saved
-      const response = await authenticatedClient.post(`/posts/${request.postId}/save`);
-      return { success: true, data: response.data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to save post');
-    }
+  async saveItem(request: { postId: string }): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.post(`/posts/${request.postId}/save`);
+    return { success: true, data: response.data };
   }
 
   /**
    * Remove save from a post
    */
-  async unsaveItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
-    try {
-      // Use posts controller which persists bookmarks used by /posts/saved
-      const response = await authenticatedClient.delete(`/posts/${request.postId}/save`);
-      return { success: true, data: response.data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to remove save');
-    }
+  async unsaveItem(request: { postId: string }): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.delete(`/posts/${request.postId}/save`);
+    return { success: true, data: response.data };
   }
 
   /**
    * Unrepost a post
    */
-  async unrepostItem(request: { postId: string }): Promise<{ success: boolean; data: any }> {
-    try {
-      const response = await authenticatedClient.delete(`/feed/${request.postId}/repost`);
-      return { success: true, data: response.data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to unrepost');
-    }
+  async unrepostItem(request: { postId: string }): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.delete(`/feed/${request.postId}/repost`);
+    return { success: true, data: response.data };
   }
 
 
   /**
    * Get saved posts for current user
    */
-  async getSavedPosts(request: { page?: number; limit?: number; search?: string } = {}): Promise<{ success: boolean; data: any }> {
-    try {
-      const params: any = {
-        page: request.page || 1,
-        limit: request.limit || 20
-      };
-      
-      if (request.search) {
-        params.search = request.search;
-      }
-      
-      const response = await authenticatedClient.get('/posts/saved', {
-        params
-      });
-      return { success: true, data: response.data };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to fetch saved posts');
+  async getSavedPosts(request: { page?: number; limit?: number; search?: string } = {}): Promise<{ success: boolean; data: unknown }> {
+    const params: Record<string, unknown> = {
+      page: request.page || 1,
+      limit: request.limit || 20
+    };
+
+    if (request.search) {
+      params.search = request.search;
     }
+
+    const response = await authenticatedClient.get('/posts/saved', { params });
+    return { success: true, data: response.data };
   }
 
   /**
@@ -493,62 +432,43 @@ class FeedService {
     hideEngagementCounts?: boolean;
     replyPermission?: 'anyone' | 'followers' | 'following' | 'mentioned';
     reviewReplies?: boolean;
-  }): Promise<{ success: boolean; data: any }> {
-    try {
-      const response = await authenticatedClient.patch(`/posts/${postId}/settings`, settings);
-      return { success: true, data: response.data };
-    } catch (error) {
-      throw new Error('Failed to update post settings');
-    }
+  }): Promise<{ success: boolean; data: unknown }> {
+    const response = await authenticatedClient.patch(`/posts/${postId}/settings`, settings);
+    return { success: true, data: response.data };
   }
 
   /**
    * Delete a post
    */
   async deletePost(postId: string): Promise<{ success: boolean }> {
-    try {
-      await authenticatedClient.delete(`/posts/${postId}`);
-      return { success: true };
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to delete post');
-    }
+    await authenticatedClient.delete(`/posts/${postId}`);
+    return { success: true };
   }
 
   /**
    * Get posts by hashtag
    */
   async getPostsByHashtag(hashtag: string, request: FeedRequest): Promise<FeedResponse> {
-    try {
-      const params: any = {};
-      
-      if (request.cursor) params.cursor = request.cursor;
-      if (request.limit) params.limit = request.limit;
-      
-      const response = await authenticatedClient.get(`/posts/hashtag/${hashtag}`, { params });
-      return response.data;
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to fetch posts by hashtag');
-    }
+    const params: Record<string, unknown> = {};
+
+    if (request.cursor) params.cursor = request.cursor;
+    if (request.limit) params.limit = request.limit;
+
+    const response = await authenticatedClient.get(`/posts/hashtag/${hashtag}`, { params });
+    return response.data;
   }
 
   /**
    * Get posts by user mentions
    */
   async getPostsByMentions(userId: string, request: FeedRequest): Promise<FeedResponse> {
-    try {
-      const params: any = {};
-      
-      if (request.cursor) params.cursor = request.cursor;
-      if (request.limit) params.limit = request.limit;
-      
-      const response = await authenticatedClient.get(`/posts/mentions/${userId}`, { params });
-      return response.data;
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to fetch posts by mentions');
-    }
+    const params: Record<string, unknown> = {};
+
+    if (request.cursor) params.cursor = request.cursor;
+    if (request.limit) params.limit = request.limit;
+
+    const response = await authenticatedClient.get(`/posts/mentions/${userId}`, { params });
+    return response.data;
   }
 
   /**
@@ -566,16 +486,11 @@ class FeedService {
     nextCursor?: string;
     totalCount: number;
   }> {
-    try {
-      const params: any = { limit };
-      if (cursor) params.cursor = cursor;
-      
-      const response = await authenticatedClient.get(`/posts/${postId}/likes`, { params });
-      return response.data;
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to fetch post likes');
-    }
+    const params: Record<string, unknown> = { limit };
+    if (cursor) params.cursor = cursor;
+
+    const response = await authenticatedClient.get(`/posts/${postId}/likes`, { params });
+    return response.data;
   }
 
   /**
@@ -593,16 +508,11 @@ class FeedService {
     nextCursor?: string;
     totalCount: number;
   }> {
-    try {
-      const params: any = { limit };
-      if (cursor) params.cursor = cursor;
-      
-      const response = await authenticatedClient.get(`/posts/${postId}/reposts`, { params });
-      return response.data;
-    } catch (error) {
-      // Error will be handled by caller
-      throw new Error('Failed to fetch post reposts');
-    }
+    const params: Record<string, unknown> = { limit };
+    if (cursor) params.cursor = cursor;
+
+    const response = await authenticatedClient.get(`/posts/${postId}/reposts`, { params });
+    return response.data;
   }
 }
 
