@@ -65,6 +65,17 @@ export function validateEnvironment(): void {
     logger.warn(`Missing environment variables: ${missing.join(', ')}. Some features may not work.`);
   }
 
+  // JWT_SECRET is critical for authentication security
+  const hasJwtSecret = process.env.JWT_SECRET || process.env.OXY_JWT_SECRET;
+  if (!hasJwtSecret) {
+    if (process.env.NODE_ENV === 'production') {
+      logger.error('FATAL: JWT_SECRET or OXY_JWT_SECRET must be set in production. Exiting.');
+      process.exit(1);
+    } else {
+      logger.warn('JWT_SECRET not set - socket token authentication will be unavailable');
+    }
+  }
+
   if (process.env.NODE_ENV === 'production') {
     if (!process.env.FRONTEND_URL) {
       logger.warn('FRONTEND_URL not set in production - CORS may be restrictive');

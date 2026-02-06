@@ -301,7 +301,12 @@ const spacesNamespace = initializeSpaceSocket(io);
         if (token && typeof token === 'string') {
           try {
             const jwt = require('jsonwebtoken');
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.OXY_JWT_SECRET || 'fallback-secret');
+            const jwtSecret = process.env.JWT_SECRET || process.env.OXY_JWT_SECRET;
+            if (!jwtSecret) {
+              logger.warn('JWT_SECRET not configured - rejecting token authentication');
+              return next();
+            }
+            const decoded = jwt.verify(token, jwtSecret);
             const userId = decoded?.userId || decoded?.id || decoded?.sub;
             if (userId && typeof userId === 'string') {
               socket.user = { id: userId };
