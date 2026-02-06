@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
+import { View, Animated, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import { LogoIcon } from '@/assets/logo';
@@ -48,7 +48,7 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
             animationRef.current = Animated.timing(fadeAnim, {
                 toValue: 0,
                 duration: FADE_DURATION,
-                useNativeDriver: true,
+                useNativeDriver: Platform.OS !== 'web',
             });
 
             animationRef.current.start(({ finished }) => {

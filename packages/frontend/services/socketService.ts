@@ -58,6 +58,9 @@ class SocketService {
   private readonly MAX_BATCH_SIZE = 50; // Maximum items per batch
   private connectionHealthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private lastPongTime: number = 0;
+  private consecutiveHealthFailures: number = 0;
+  private readonly MAX_HEALTH_FAILURES = 3; // Require 3 consecutive failures before disconnecting
+  private healthCheckDisconnect: boolean = false; // Track if disconnect was triggered by health check
   
   // Queue for engagement updates to batch rapid changes
   private engagementUpdateQueue: Map<string, EngagementUpdate[]> = new Map();
@@ -236,8 +239,13 @@ class SocketService {
 
     this.socket.on('connect', () => {
       this.isConnected = true;
-      this.reconnectAttempts = 0;
+      // Only reset reconnect attempts if this wasn't a health-check-triggered reconnect
+      if (!this.healthCheckDisconnect) {
+        this.reconnectAttempts = 0;
+      }
+      this.healthCheckDisconnect = false;
       this.lastPongTime = Date.now();
+      this.consecutiveHealthFailures = 0;
       this.startHealthMonitoring();
 
       // Join feed rooms for real-time updates
@@ -251,10 +259,18 @@ class SocketService {
       this.stopHealthMonitoring();
     });
     
-    // Handle pong for health monitoring
+    // Handle pong for health monitoring (custom event from server if available)
     this.socket.on('pong', () => {
       this.lastPongTime = Date.now();
     });
+
+    // Also listen to Socket.IO's transport-level pong for health monitoring
+    // This fires automatically as part of Socket.IO's built-in heartbeat
+    if (this.socket.io?.engine) {
+      this.socket.io.engine.on('pong', () => {
+        this.lastPongTime = Date.now();
+      });
+    }
 
     this.socket.on('connect_error', () => {
       this.handleReconnect();
@@ -380,24 +396,38 @@ class SocketService {
   
   /**
    * Start connection health monitoring
+   * Uses Socket.IO's built-in transport-level ping/pong via the socket's
+   * `active` state rather than custom events (which servers may not handle).
+   * Requires multiple consecutive failures before triggering a reconnect
+   * to avoid false positives causing reconnection loops.
    */
   private startHealthMonitoring(): void {
     if (this.connectionHealthCheckInterval) {
       clearInterval(this.connectionHealthCheckInterval);
     }
 
-    this.connectionHealthCheckInterval = setInterval(() => {
-      if (this.socket?.connected) {
-        // Send ping to server
-        this.socket.emit('ping');
+    this.consecutiveHealthFailures = 0;
 
-        const timeSinceLastPong = Date.now() - this.lastPongTime;
-        // If no pong received in 60 seconds, consider connection unhealthy
-        if (timeSinceLastPong > 60000 && this.lastPongTime > 0) {
-          console.warn('[SocketService] Connection unhealthy, reconnecting...');
+    this.connectionHealthCheckInterval = setInterval(() => {
+      if (!this.socket?.connected) {
+        return;
+      }
+
+      const timeSinceLastPong = Date.now() - this.lastPongTime;
+      // If no pong received in 60 seconds, count as a failure
+      if (timeSinceLastPong > 60000 && this.lastPongTime > 0) {
+        this.consecutiveHealthFailures++;
+
+        if (this.consecutiveHealthFailures >= this.MAX_HEALTH_FAILURES) {
+          console.warn(`[SocketService] Connection unhealthy after ${this.MAX_HEALTH_FAILURES} consecutive failures, reconnecting...`);
+          this.healthCheckDisconnect = true;
+          this.stopHealthMonitoring();
           this.socket.disconnect();
           this.handleReconnect();
         }
+      } else {
+        // Connection is healthy, reset failure counter
+        this.consecutiveHealthFailures = 0;
       }
     }, 30000) as unknown as ReturnType<typeof setInterval>;
   }

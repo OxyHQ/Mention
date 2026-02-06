@@ -132,10 +132,8 @@ export const BottomBar = () => {
         },
     });
 
-    const AnimatedView = Animated.createAnimatedComponent(View);
-
     return (
-        <AnimatedView style={[styles.bottomBar, bottomBarAnimatedStyle]}>
+        <Animated.View style={[styles.bottomBar, bottomBarAnimatedStyle]}>
             <Pressable onPress={handleHomePress} style={[styles.tab, pathname === '/' && styles.active]}>
                 {pathname === '/' ? (
                     <HomeActive size={28} color={effectiveTheme.colors.primary} />
@@ -180,6 +178,6 @@ export const BottomBar = () => {
             >
                 <Avatar size={35} source={{ uri: user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined }} />
             </Pressable>
-        </AnimatedView>
+        </Animated.View>
     );
 };
