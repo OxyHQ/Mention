@@ -3,11 +3,12 @@ import { Post } from '../models/Post';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import mongoose from 'mongoose';
+import { logger } from '../utils/logger';
 
 /**
  * UserPreferenceService - Learns user preferences from behavior
  * Similar to how Twitter/Facebook infers user interests
- * 
+ *
  * Updates user behavior model based on:
  * - Likes, reposts, comments, saves
  * - Time spent viewing posts
@@ -32,7 +33,7 @@ export class UserPreferenceService {
 
   /**
    * Update user behavior based on interaction
-   * 
+   *
    * @param userId - Oxy user ID (from req.user?.id)
    * @param postId - Post ID
    * @param interactionType - Type of interaction
@@ -43,19 +44,19 @@ export class UserPreferenceService {
     interactionType: 'like' | 'repost' | 'comment' | 'save' | 'share' | 'view' | 'skip' | 'hide' | 'mute' | 'block'
   ): Promise<void> {
     try {
-      console.log(`[UserPreference] Recording ${interactionType} interaction for user ${userId}, post ${postId}`);
-      
+      logger.debug(`[UserPreference] Recording ${interactionType} interaction for user ${userId}, post ${postId}`);
+
       const post = await Post.findById(postId).lean();
       if (!post) {
-        console.warn(`[UserPreference] Post ${postId} not found, skipping interaction recording`);
+        logger.warn(`[UserPreference] Post ${postId} not found, skipping interaction recording`);
         return;
       }
 
       // userId is an Oxy user ID, query UserBehavior using oxyUserId field
       let userBehavior = await UserBehavior.findOne({ oxyUserId: userId });
-      
+
       if (!userBehavior) {
-        console.log(`[UserPreference] Creating new UserBehavior record for user ${userId}`);
+        logger.debug(`[UserPreference] Creating new UserBehavior record for user ${userId}`);
         userBehavior = new UserBehavior({
           oxyUserId: userId,
           preferredAuthors: [],
@@ -69,22 +70,17 @@ export class UserPreferenceService {
           activeHours: [],
           preferredLanguages: []
         });
-      } else {
-        console.log(`[UserPreference] Found existing UserBehavior for user ${userId}`);
       }
 
       const weight = this.LEARNING_WEIGHTS[interactionType] || 0;
-      console.log(`[UserPreference] Weight for ${interactionType}: ${weight}`);
 
       // Update author preference
-      console.log(`[UserPreference] Updating author preference for author ${post.oxyUserId}, interactionType: ${interactionType}, weight: ${weight}`);
       this.updateAuthorPreference(
         userBehavior,
         post.oxyUserId,
         interactionType,
         weight
       );
-      console.log(`[UserPreference] After update - authorPref.interactionCount: ${userBehavior.preferredAuthors.find((a: any) => a.authorId === post.oxyUserId)?.interactionCount || 'not found'}`);
 
       // Update topic preferences
       if (post.hashtags && post.hashtags.length > 0) {
@@ -100,7 +96,7 @@ export class UserPreferenceService {
       // Update post type preference
       const postType = (post.type || 'text').toLowerCase() as keyof typeof userBehavior.preferredPostTypes;
       if (postType in userBehavior.preferredPostTypes) {
-        userBehavior.preferredPostTypes[postType] = 
+        userBehavior.preferredPostTypes[postType] =
           (userBehavior.preferredPostTypes[postType] || 0) + Math.abs(weight);
       }
       // Mark nested object as modified
@@ -114,7 +110,6 @@ export class UserPreferenceService {
         userBehavior.activeHours = userBehavior.activeHours.slice(-168);
         // Mark array as modified
         userBehavior.markModified('activeHours');
-        console.log(`[UserPreference] Added active hour: ${hour}, total hours: ${userBehavior.activeHours.length}`);
       }
 
       // Update language preference
@@ -122,7 +117,6 @@ export class UserPreferenceService {
         userBehavior.preferredLanguages.push(post.language);
         // Mark array as modified
         userBehavior.markModified('preferredLanguages');
-        console.log(`[UserPreference] Added preferred language: ${post.language}, total languages: ${userBehavior.preferredLanguages.length}`);
       }
 
       // Handle negative signals
@@ -131,24 +125,11 @@ export class UserPreferenceService {
       }
 
       userBehavior.lastUpdated = new Date();
-      
-      // Log before save to see what we're saving
-      const authorPref = userBehavior.preferredAuthors.find((a: any) => a.authorId === post.oxyUserId);
-      if (authorPref) {
-        console.log(`[UserPreference] Before save - authorPref.interactionCount: ${authorPref.interactionCount}, likes: ${authorPref.interactionTypes.likes}, saves: ${authorPref.interactionTypes.saves}, reposts: ${authorPref.interactionTypes.reposts}`);
-      }
-      
+
       await userBehavior.save();
-      console.log(`[UserPreference] Successfully saved UserBehavior for user ${userId}`);
-      
-      // Verify after save
-      const saved = await UserBehavior.findOne({ oxyUserId: userId }).lean();
-      const savedAuthorPref = saved?.preferredAuthors?.find((a: any) => a.authorId === post.oxyUserId);
-      if (savedAuthorPref) {
-        console.log(`[UserPreference] After save verification - authorPref.interactionCount: ${savedAuthorPref.interactionCount}, likes: ${savedAuthorPref.interactionTypes?.likes}, saves: ${savedAuthorPref.interactionTypes?.saves}, reposts: ${savedAuthorPref.interactionTypes?.reposts}`);
-      }
+      logger.debug(`[UserPreference] Successfully saved UserBehavior for user ${userId}`);
     } catch (error) {
-      console.error(`[UserPreference] Error recording interaction for user ${userId}, post ${postId}:`, error);
+      logger.error(`[UserPreference] Error recording interaction for user ${userId}, post ${postId}:`, error);
       // Re-throw to see full error stack
       throw error;
     }
@@ -186,46 +167,38 @@ export class UserPreferenceService {
     }
 
     // Update interaction count
-    const previousCount = authorPref.interactionCount;
     authorPref.interactionCount += Math.abs(weight);
     authorPref.lastInteractionAt = new Date();
-
-    console.log(`[UserPreference] updateAuthorPreference: authorId=${authorId}, interactionType=${interactionType}, weight=${weight}, previousCount=${previousCount}, newCount=${authorPref.interactionCount}`);
 
     // Update specific interaction type
     if (interactionType === 'like') {
       authorPref.interactionTypes.likes += 1;
-      console.log(`[UserPreference] Incremented likes: ${authorPref.interactionTypes.likes}`);
     }
     if (interactionType === 'repost') {
       authorPref.interactionTypes.reposts += 1;
-      console.log(`[UserPreference] Incremented reposts: ${authorPref.interactionTypes.reposts}`);
     }
     if (interactionType === 'comment') {
       authorPref.interactionTypes.comments += 1;
-      console.log(`[UserPreference] Incremented comments: ${authorPref.interactionTypes.comments}`);
     }
     if (interactionType === 'save') {
       authorPref.interactionTypes.saves += 1;
-      console.log(`[UserPreference] Incremented saves: ${authorPref.interactionTypes.saves}`);
     }
     if (interactionType === 'share') {
       authorPref.interactionTypes.shares += 1;
-      console.log(`[UserPreference] Incremented shares: ${authorPref.interactionTypes.shares}`);
     }
 
     // Calculate relationship weight (0-1 scale)
     // Based on interaction count and recency
-    const totalInteractions = 
+    const totalInteractions =
       authorPref.interactionTypes.likes +
       authorPref.interactionTypes.reposts * 2 +
       authorPref.interactionTypes.comments * 2 +
       authorPref.interactionTypes.saves * 1.5 +
       authorPref.interactionTypes.shares * 2;
 
-    const daysSinceLastInteraction = 
+    const daysSinceLastInteraction =
       (Date.now() - authorPref.lastInteractionAt.getTime()) / (1000 * 60 * 60 * 24);
-    
+
     // Weight decays over time, but is normalized to 0-1
     const recencyFactor = Math.max(0, 1 - daysSinceLastInteraction / 30); // Decay over 30 days
     authorPref.weight = Math.min(1, (totalInteractions / 100) * recencyFactor);
@@ -267,7 +240,7 @@ export class UserPreferenceService {
     topicPref.lastInteractionAt = new Date();
 
     // Calculate topic weight
-    const daysSinceLastInteraction = 
+    const daysSinceLastInteraction =
       (Date.now() - topicPref.lastInteractionAt.getTime()) / (1000 * 60 * 60 * 24);
     const recencyFactor = Math.max(0, 1 - daysSinceLastInteraction / 30);
     topicPref.weight = Math.min(1, (topicPref.interactionCount / 50) * recencyFactor);
@@ -370,7 +343,7 @@ export class UserPreferenceService {
         }
       }
     } catch (error) {
-      console.error(`Error batch updating preferences for user ${userId}:`, error);
+      logger.error(`[UserPreference] Error batch updating preferences for user ${userId}:`, error);
     }
   }
 
@@ -397,7 +370,7 @@ export class UserPreferenceService {
 
       // Update average engagement time (exponential moving average)
       const alpha = 0.1; // Learning rate
-      userBehavior.averageEngagementTime = 
+      userBehavior.averageEngagementTime =
         userBehavior.averageEngagementTime * (1 - alpha) + viewTimeSeconds * alpha;
 
       // If view time is very short, it's likely a skip
@@ -407,10 +380,9 @@ export class UserPreferenceService {
 
       await userBehavior.save();
     } catch (error) {
-      console.error(`Error recording view time for user ${userId}:`, error);
+      logger.error(`[UserPreference] Error recording view time for user ${userId}:`, error);
     }
   }
 }
 
 export const userPreferenceService = new UserPreferenceService();
-

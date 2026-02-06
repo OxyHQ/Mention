@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
 import FeedLike from '../models/FeedLike';
 import { oxy as oxyClient } from '../../server';
+import { logger } from '../utils/logger';
 
 interface AuthRequest extends Request {
   user?: { id: string };
@@ -43,7 +44,7 @@ router.post('/', async (req: any, res) => {
     };
     res.status(201).json(normalizedFeed);
   } catch (error) {
-    console.error('Create custom feed error:', error);
+    logger.error('[CustomFeeds] Create custom feed error:', error);
     res.status(500).json({ error: 'Failed to create feed' });
   }
 });
@@ -132,7 +133,7 @@ router.get('/', async (req: any, res) => {
                 : (ownerData?.avatar as any)?.url || ownerData?.profileImage || undefined,
             });
           } catch (error) {
-            console.error(`Error fetching owner ${ownerId}:`, error);
+            logger.warn(`[CustomFeeds] Failed to fetch owner ${ownerId}:`, error);
             ownersMap.set(ownerId, {
               id: ownerId,
               username: ownerId,
@@ -158,7 +159,7 @@ router.get('/', async (req: any, res) => {
     });
     res.json({ items: normalizedItems, total: normalizedItems.length });
   } catch (error) {
-    console.error('List custom feeds error:', error);
+    logger.error('[CustomFeeds] List custom feeds error:', error);
     res.status(500).json({ error: 'Failed to list feeds' });
   }
 });
@@ -200,7 +201,7 @@ router.get('/:id', async (req: any, res) => {
             : (ownerData?.avatar as any)?.url || ownerData?.profileImage || undefined,
         };
       } catch (error) {
-        console.error('Error fetching owner info:', error);
+        logger.warn('[CustomFeeds] Failed to fetch owner info:', error);
         // Fallback to just the ID if fetch fails
         owner = {
           id: feed.ownerOxyUserId,
@@ -222,7 +223,7 @@ router.get('/:id', async (req: any, res) => {
     };
     res.json(normalizedFeed);
   } catch (error) {
-    console.error('Get feed error:', error);
+    logger.error('[CustomFeeds] Get feed error:', error);
     res.status(500).json({ error: 'Failed to get feed' });
   }
 });
@@ -253,7 +254,7 @@ router.put('/:id', async (req: any, res) => {
     };
     res.json(normalizedFeed);
   } catch (error) {
-    console.error('Update custom feed error:', error);
+    logger.error('[CustomFeeds] Update custom feed error:', error);
     res.status(500).json({ error: 'Failed to update feed' });
   }
 });
@@ -470,7 +471,7 @@ router.get('/:id/timeline', async (req: any, res) => {
       totalCount: transformed.length,
     });
   } catch (error) {
-    console.error('Custom feed timeline error:', error);
+    logger.error('[CustomFeeds] Custom feed timeline error:', error);
     res.status(500).json({ error: 'Failed to load timeline' });
   }
 });
@@ -514,7 +515,7 @@ router.post('/:id/like', async (req: any, res) => {
       message: 'Feed liked successfully',
     });
   } catch (error: any) {
-    console.error('Like feed error:', error);
+    logger.error('[CustomFeeds] Like feed error:', error);
     if (error.code === 11000) {
       // Duplicate key error - already liked
       const feedId = req.params.id;
@@ -566,7 +567,7 @@ router.delete('/:id/like', async (req: any, res) => {
       message: 'Feed unliked successfully',
     });
   } catch (error) {
-    console.error('Unlike feed error:', error);
+    logger.error('[CustomFeeds] Unlike feed error:', error);
     res.status(500).json({ error: 'Failed to unlike feed' });
   }
 });

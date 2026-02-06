@@ -226,6 +226,11 @@ export function getRedisClient(): RedisClientType {
           logger.error(`Redis authentication error (${connectionInfo}): Check username/password in connection string`, errorDetails);
           hasLoggedRedisUnavailable = true;
         }
+      } else if (err.message.includes('Socket closed unexpectedly') || err.message.includes('Connection closed')) {
+        // Transient disconnects - client will auto-reconnect, log as warning not error
+        if (isMainClient) {
+          logger.warn(`Redis connection dropped (${connectionInfo}) - will auto-reconnect`, { message: err.message });
+        }
       } else {
         // Log other errors with full details for debugging
         if (isMainClient) {

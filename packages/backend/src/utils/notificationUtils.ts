@@ -1,6 +1,7 @@
 import Notification from '../models/Notification';
 import { oxy } from '../../server';
 import { formatPushForNotification, sendPushToUser } from './push';
+import { logger } from './logger';
 
 export interface CreateNotificationData {
   recipientId: string;
@@ -76,9 +77,9 @@ export const createNotification = async (
       // ignore push failures
     }
 
-    console.log(`Notification created: ${data.type} from ${data.actorId} to ${data.recipientId}`);
+    logger.debug(`[Notifications] Notification created: ${data.type} from ${data.actorId} to ${data.recipientId}`);
   } catch (error) {
-    console.error('Error creating notification:', error);
+    logger.error('[Notifications] Error creating notification:', error);
     // Don't throw error to avoid breaking the main flow
   }
 };
@@ -119,11 +120,11 @@ export const createMentionNotifications = async (
         }, emitEvent);
       } catch (e) {
         // If notification creation fails, log and continue
-        console.error('Failed to create mention notification for user', recipientId, e);
+        logger.error(`[Notifications] Failed to create mention notification for user ${recipientId}:`, e);
       }
     }
   } catch (error) {
-    console.error('Error creating mention notifications:', error);
+    logger.error('[Notifications] Error creating mention notifications:', error);
   }
 };
 
@@ -143,7 +144,7 @@ export const createWelcomeNotification = async (
       entityType: 'profile',
     }, emitEvent);
   } catch (error) {
-    console.error('Error creating welcome notification:', error);
+    logger.error('[Notifications] Error creating welcome notification:', error);
   }
 };
 
@@ -160,6 +161,6 @@ export const createBatchNotifications = async (
     );
     await Promise.all(promises);
   } catch (error) {
-    console.error('Error creating batch notifications:', error);
+    logger.error('[Notifications] Error creating batch notifications:', error);
   }
 };

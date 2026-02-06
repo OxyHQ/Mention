@@ -1,6 +1,7 @@
 import express, { Response } from "express";
 import { AuthRequest } from '../types/auth';
 import { searchGifs, getTrendingGifs } from '../services/gifService';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ router.get("/search", async (req: AuthRequest, res: Response) => {
 
     res.json(result);
   } catch (error: any) {
-    console.error('GIF search error:', error);
+    logger.error('[GIFs] GIF search error:', error);
     res.status(500).json({ 
       success: false,
       message: "Error searching GIFs", 
@@ -49,7 +50,7 @@ router.get("/trending", async (req: AuthRequest, res: Response) => {
 
     res.json(result);
   } catch (error: any) {
-    console.error('GIF trending error:', error);
+    logger.error('[GIFs] GIF trending error:', error);
     res.status(500).json({ 
       success: false,
       message: "Error fetching trending GIFs", 

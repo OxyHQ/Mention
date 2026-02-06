@@ -6,6 +6,7 @@ import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../uti
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 import { AuthRequest } from '../types/auth';
 import { PostVisibility } from '@mention/shared-types';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -100,7 +101,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     }
     return sendSuccessResponse(res, 200, response);
   } catch (error) {
-    console.error('[ProfileDesign] Error fetching profile design:', error);
+    logger.error('[ProfileDesign] Error fetching profile design:', error);
     return sendErrorResponse(
       res,
       500,

@@ -6,6 +6,7 @@ import { Server } from 'socket.io';
 import { oxy } from '../../server';
 import PushToken from '../models/PushToken';
 import { sendPushToUser } from '../utils/push';
+import { logger } from '../utils/logger';
 
 // Extend Request type to include user property
 interface AuthRequest extends Request {
@@ -269,7 +270,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       limit
     });
   } catch (error) {
-    console.error("Error fetching notifications:", error);
+    logger.error("[Notifications] Error fetching notifications:", error);
     res.status(500).json({ 
       message: "Error fetching notifications", 
       error: error instanceof Error ? error.message : "UNKNOWN_ERROR",
@@ -441,7 +442,7 @@ router.post('/push-token', async (req: AuthRequest, res: Response) => {
     );
     res.json({ ok: true, id: doc._id });
   } catch (e) {
-    console.error('Failed to register push token', e);
+    logger.error('[Notifications] Failed to register push token:', e);
     res.status(500).json({ message: 'Failed to register token' });
   }
 });
@@ -456,7 +457,7 @@ router.delete('/push-token', async (req: AuthRequest, res: Response) => {
     await PushToken.deleteOne({ userId, token });
     res.json({ ok: true });
   } catch (e) {
-    console.error('Failed to unregister push token', e);
+    logger.error('[Notifications] Failed to unregister push token:', e);
     res.status(500).json({ message: 'Failed to unregister token' });
   }
 });
@@ -473,7 +474,7 @@ router.post('/push-test', async (req: AuthRequest, res: Response) => {
     });
     res.json({ ok: true });
   } catch (e) {
-    console.error('Failed to send test push', e);
+    logger.error('[Notifications] Failed to send test push:', e);
     res.status(500).json({ message: 'Failed to send test push' });
   }
 });

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import Hashtag from '../models/Hashtag';
 import { createError } from '../utils/error';
+import { logger } from '../utils/logger';
 
 export class HashtagsController {
     async searchHashtags(req: Request, res: Response, next: NextFunction) {
@@ -26,7 +27,7 @@ export class HashtagsController {
                 data: hashtags.map(hashtag => hashtag.name)
             });
         } catch (error: any) {
-            console.error('Error in searchHashtags:', {
+            logger.error('[HashtagsController] Error in searchHashtags:', {
                 error: error.message,
                 stack: error.stack
             });

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import ArticleModel from '../models/Article';
+import { logger } from '../utils/logger';
 
 export const getArticle = async (req: Request, res: Response) => {
   try {
@@ -19,7 +20,7 @@ export const getArticle = async (req: Request, res: Response) => {
       updatedAt: article.updatedAt,
     });
   } catch (error) {
-    console.error('Error fetching article:', error);
+    logger.error('[Articles] Error fetching article:', error);
     return res.status(500).json({ message: 'Error fetching article', error });
   }
 };

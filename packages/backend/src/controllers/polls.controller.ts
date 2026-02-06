@@ -3,6 +3,7 @@ import Poll, { IPoll } from '../models/Poll';
 import Post from '../models/Post';
 import { AuthRequest } from '../types/auth';
 import { createError } from '../utils/error';
+import { logger } from '../utils/logger';
 import mongoose from 'mongoose';
 
 class PollsController {
@@ -12,7 +13,7 @@ class PollsController {
       const userId = req.user?.id;
 
       // Debug logging for authentication
-      console.log('Polls createPoll auth debug:', {
+      logger.debug('[Polls] createPoll auth debug:', {
         hasUser: !!req.user,
         userKeys: req.user ? Object.keys(req.user) : [],
         userId: userId,
@@ -39,7 +40,7 @@ class PollsController {
       let finalPostId = postId;
       
       // Log the incoming postId for debugging
-      console.log(`Creating poll with postId: ${postId}, type: ${typeof postId}, isTemp: ${postId?.toString().startsWith('temp_')}`);
+      logger.debug(`[Polls] Creating poll with postId: ${postId}, type: ${typeof postId}, isTemp: ${postId?.toString().startsWith('temp_')}`);
       
       if (postId && !postId.toString().startsWith('temp_')) {
         try {
@@ -60,7 +61,7 @@ class PollsController {
             });
           }
         } catch (error) {
-          console.error('Error validating post:', error);
+          logger.error('[Polls] Error validating post:', error);
           return res.status(400).json({
             error: 'Invalid request',
             message: 'Invalid post ID format'
@@ -98,7 +99,7 @@ class PollsController {
           data: poll
         });
       } catch (error: any) {
-        console.error('Error creating poll:', error);
+        logger.error('[Polls] Error creating poll:', error);
         // Provide more detailed error information
         if (error.name === 'ValidationError') {
           return res.status(400).json({
@@ -110,7 +111,7 @@ class PollsController {
         next(createError(500, 'Error creating poll'));
       }
     } catch (error) {
-      console.error('Error in createPoll:', error);
+      logger.error('[Polls] Error in createPoll:', error);
       next(createError(500, 'Error creating poll'));
     }
   }
@@ -139,7 +140,7 @@ class PollsController {
         data: poll
       });
     } catch (error) {
-      console.error('Error fetching poll:', error);
+      logger.error('[Polls] Error fetching poll:', error);
       next(createError(500, 'Error fetching poll'));
     }
   }
@@ -210,7 +211,7 @@ class PollsController {
         data: poll
       });
     } catch (error) {
-      console.error('Error voting in poll:', error);
+      logger.error('[Polls] Error voting in poll:', error);
       next(createError(500, 'Error voting in poll'));
     }
   }
@@ -256,7 +257,7 @@ class PollsController {
         }
       });
     } catch (error) {
-      console.error('Error fetching poll results:', error);
+      logger.error('[Polls] Error fetching poll results:', error);
       next(createError(500, 'Error fetching poll results'));
     }
   }
@@ -309,7 +310,7 @@ class PollsController {
         message: 'Poll deleted successfully'
       });
     } catch (error) {
-      console.error('Error deleting poll:', error);
+      logger.error('[Polls] Error deleting poll:', error);
       next(createError(500, 'Error deleting poll'));
     }
   }
@@ -382,7 +383,7 @@ class PollsController {
         data: poll
       });
     } catch (error) {
-      console.error('Error updating poll post ID:', error);
+      logger.error('[Polls] Error updating poll post ID:', error);
       next(createError(500, 'Error updating poll post ID'));
     }
   }

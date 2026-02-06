@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import PushToken from '../models/PushToken';
 import Post from '../models/Post';
 import { oxy } from '../../server';
+import { logger } from './logger';
 
 let firebaseInitialized = false;
 
@@ -10,7 +11,7 @@ function initFirebase() {
   const credsB64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
   const projectId = process.env.FIREBASE_PROJECT_ID;
   if (!credsB64 || !projectId) {
-    console.warn('Push disabled: missing FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_PROJECT_ID');
+    logger.warn('[Push] Push disabled: missing FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_PROJECT_ID');
     return;
   }
   try {
@@ -21,9 +22,9 @@ function initFirebase() {
       projectId,
     } as any);
     firebaseInitialized = true;
-    console.log('Firebase Admin initialized for FCM');
+    logger.info('[Push] Firebase Admin initialized for FCM');
   } catch (e) {
-    console.error('Failed to initialize Firebase Admin:', e);
+    logger.error('[Push] Failed to initialize Firebase Admin:', e);
   }
 }
 
@@ -89,10 +90,10 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
     }
     if (toDisable.length) {
       await PushToken.updateMany({ token: { $in: toDisable } }, { enabled: false });
-      console.log('Disabled invalid push tokens:', toDisable.length);
+      logger.info(`[Push] Disabled invalid push tokens: ${toDisable.length}`);
     }
   } catch (e) {
-    console.error('Failed to send push:', e);
+    logger.error('[Push] Failed to send push:', e);
   }
 }
 

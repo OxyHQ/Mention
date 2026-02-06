@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest } from '../types/auth';
 import PostSubscription from '../models/PostSubscription';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.get('/:authorId/status', async (req: AuthRequest, res: Response) => {
     const exists = await PostSubscription.exists({ subscriberId: userId, authorId });
     return res.json({ subscribed: !!exists });
   } catch (error) {
-    console.error('Error checking subscription status:', error);
+    logger.error('[Subscriptions] Error checking subscription status:', error);
     return res.status(500).json({ message: 'Error checking subscription status' });
   }
 });
@@ -39,7 +40,7 @@ router.post('/:authorId', async (req: AuthRequest, res: Response) => {
     if (error?.code === 11000) {
       return res.json({ subscribed: true });
     }
-    console.error('Error subscribing to author:', error);
+    logger.error('[Subscriptions] Error subscribing to author:', error);
     return res.status(500).json({ message: 'Error subscribing to author' });
   }
 });
@@ -55,7 +56,7 @@ router.delete('/:authorId', async (req: AuthRequest, res: Response) => {
     await PostSubscription.deleteOne({ subscriberId: userId, authorId });
     return res.json({ subscribed: false });
   } catch (error) {
-    console.error('Error unsubscribing from author:', error);
+    logger.error('[Subscriptions] Error unsubscribing from author:', error);
     return res.status(500).json({ message: 'Error unsubscribing from author' });
   }
 });
@@ -69,7 +70,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const subs = await PostSubscription.find({ subscriberId: userId }).lean();
     return res.json({ subscriptions: subs });
   } catch (error) {
-    console.error('Error listing subscriptions:', error);
+    logger.error('[Subscriptions] Error listing subscriptions:', error);
     return res.status(500).json({ message: 'Error listing subscriptions' });
   }
 });

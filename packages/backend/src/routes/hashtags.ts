@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import Post from "../models/Post";
+import { logger } from "../utils/logger";
 
 const router = express.Router();
 
@@ -102,7 +103,7 @@ router.get("/", async (req: Request, res: Response) => {
 
     res.json({ hashtags: agg });
   } catch (error) {
-    console.error('Error fetching hashtags:', error);
+    logger.error('[Hashtags] Error fetching hashtags:', error);
     res.status(500).json({ message: "Error fetching hashtags from posts", error });
   }
 });
@@ -141,7 +142,7 @@ router.post('/search', async (req: Request, res: Response) => {
 
     return res.json({ data: agg.map((x: any) => x.tag) });
   } catch (error: any) {
-    console.error('Error in searchHashtags:', error);
+    logger.error('[Hashtags] Error in searchHashtags:', error);
     return res.status(500).json({
       error: 'Server error',
       message: `Error searching hashtags: ${error.message}`
