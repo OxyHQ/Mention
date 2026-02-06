@@ -1,4 +1,7 @@
 import { authenticatedClient } from '../utils/api';
+import { createScopedLogger } from '../utils/logger';
+
+const logger = createScopedLogger('NotificationCreationService');
 
 export interface CreateNotificationRequest {
   recipientId: string;
@@ -20,7 +23,7 @@ class NotificationCreationService {
     try {
       await authenticatedClient.post('/notifications', data);
     } catch (error) {
-      console.error('Error creating notification:', error);
+      logger.error('Error creating notification:', error);
       // Don't throw to avoid breaking user flow
     }
   }
@@ -116,7 +119,7 @@ class NotificationCreationService {
 
       await Promise.all(mentionPromises);
     } catch (error) {
-      console.error('Error creating mention notifications:', error);
+      logger.error('Error creating mention notifications:', error);
     }
   }
 

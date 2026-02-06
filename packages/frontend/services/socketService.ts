@@ -3,7 +3,10 @@ import { FeedType } from '@mention/shared-types';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
+import { createScopedLogger } from '../utils/logger';
 import { wasRecent } from './echoGuard';
+
+const logger = createScopedLogger('SocketService');
 
 // Valid feed types for validation
 const VALID_FEED_TYPES: string[] = ['posts', 'media', 'replies', 'likes', 'reposts', 'mixed', 'for_you', 'following', 'saved', 'explore', 'custom'];
@@ -124,7 +127,7 @@ class SocketService {
       this.setupSocketEventListeners();
       this.setupFeedLoadingWatcher();
     } catch (error) {
-      console.error('[SocketService] Connection error:', error);
+      logger.error('Connection error:', error);
     }
   }
 
@@ -399,7 +402,7 @@ class SocketService {
       if (nextAppState === 'active') {
         // App came to foreground - reconnect if needed
         if (!this.isConnected && this.socket && !this.socket.connected) {
-          console.log('[SocketService] App resumed, reconnecting...');
+          logger.info('App resumed, reconnecting...');
           this.socket.connect();
         }
       } else if (nextAppState === 'background' || nextAppState === 'inactive') {
@@ -428,7 +431,7 @@ class SocketService {
    */
   private handleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.warn('[SocketService] Max reconnect attempts reached');
+      logger.warn('Max reconnect attempts reached');
       return;
     }
 
@@ -437,7 +440,7 @@ class SocketService {
 
     setTimeout(() => {
       if (!this.socket || this.socket.connected) return;
-      console.log(`[SocketService] Reconnecting (attempt ${this.reconnectAttempts})...`);
+      logger.info(`Reconnecting (attempt ${this.reconnectAttempts})...`);
       this.socket.connect();
     }, delay);
   }
@@ -467,7 +470,7 @@ class SocketService {
         this.consecutiveHealthFailures++;
 
         if (this.consecutiveHealthFailures >= this.MAX_HEALTH_FAILURES) {
-          console.warn(`[SocketService] Connection unhealthy after ${this.MAX_HEALTH_FAILURES} consecutive failures, reconnecting...`);
+          logger.warn(`Connection unhealthy after ${this.MAX_HEALTH_FAILURES} consecutive failures, reconnecting...`);
           this.healthCheckDisconnect = true;
           this.stopHealthMonitoring();
           this.socket.disconnect();
@@ -507,7 +510,7 @@ class SocketService {
 
     // Validate that type is a valid FeedType before casting
     if (!VALID_FEED_TYPES.includes(type)) {
-      console.warn('[SocketService] Invalid feed type:', type);
+      logger.warn('Invalid feed type:', type);
       return;
     }
 
