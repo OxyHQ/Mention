@@ -45,7 +45,7 @@ router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) =
     };
     res.status(201).json(normalizedFeed);
   } catch (error) {
-    logger.error('[CustomFeeds] Create custom feed error:', error);
+    logger.error('[CustomFeeds] Create custom feed error:', { userId: req.user?.id, error, body: req.body });
     res.status(500).json({ error: 'Failed to create feed' });
   }
 });
@@ -160,7 +160,7 @@ router.get('/', async (req: any, res) => {
     });
     res.json({ items: normalizedItems, total: normalizedItems.length });
   } catch (error) {
-    logger.error('[CustomFeeds] List custom feeds error:', error);
+    logger.error('[CustomFeeds] List custom feeds error:', { userId: req.user?.id, error, query: req.query });
     res.status(500).json({ error: 'Failed to list feeds' });
   }
 });
@@ -224,7 +224,7 @@ router.get('/:id', validateObjectId('id'), async (req: any, res) => {
     };
     res.json(normalizedFeed);
   } catch (error) {
-    logger.error('[CustomFeeds] Get feed error:', error);
+    logger.error('[CustomFeeds] Get feed error:', { userId: req.user?.id, feedId: req.params.id, error });
     res.status(500).json({ error: 'Failed to get feed' });
   }
 });
@@ -255,7 +255,7 @@ router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed
     };
     res.json(normalizedFeed);
   } catch (error) {
-    logger.error('[CustomFeeds] Update custom feed error:', error);
+    logger.error('[CustomFeeds] Update custom feed error:', { userId: req.user?.id, feedId: req.params.id, error, body: req.body });
     res.status(500).json({ error: 'Failed to update feed' });
   }
 });
@@ -467,7 +467,7 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: any, res) => {
       totalCount: transformed.length,
     });
   } catch (error) {
-    logger.error('[CustomFeeds] Custom feed timeline error:', error);
+    logger.error('[CustomFeeds] Custom feed timeline error:', { userId: req.user?.id, feedId: req.params.id, error });
     res.status(500).json({ error: 'Failed to load timeline' });
   }
 });
@@ -507,7 +507,7 @@ router.post('/:id/like', validateObjectId('id'), async (req: any, res) => {
       message: 'Feed liked successfully',
     });
   } catch (error: any) {
-    logger.error('[CustomFeeds] Like feed error:', error);
+    logger.error('[CustomFeeds] Like feed error:', { userId: req.user?.id, feedId: req.params.id, error });
     if (error.code === 11000) {
       // Duplicate key error - already liked
       const feedId = req.params.id;
@@ -555,7 +555,7 @@ router.delete('/:id/like', validateObjectId('id'), async (req: any, res) => {
       message: 'Feed unliked successfully',
     });
   } catch (error) {
-    logger.error('[CustomFeeds] Unlike feed error:', error);
+    logger.error('[CustomFeeds] Unlike feed error:', { userId: req.user?.id, feedId: req.params.id, error });
     res.status(500).json({ error: 'Failed to unlike feed' });
   }
 });
