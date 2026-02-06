@@ -1,11 +1,9 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from "react";
 import {
     View,
     TextInput,
     StyleSheet,
     TextInputProps,
-    Platform,
-    findNodeHandle,
 } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import MentionPicker, { MentionUser } from "./MentionPicker";
@@ -14,6 +12,13 @@ export interface MentionData {
     userId: string;
     username: string;
     displayName: string;
+}
+
+export interface MentionTextInputHandle {
+    /** Insert text at the current cursor position */
+    insertTextAtCursor: (text: string) => void;
+    /** Focus the underlying TextInput */
+    focus: () => void;
 }
 
 interface MentionTextInputProps extends Omit<TextInputProps, "onChangeText" | "value"> {
@@ -26,7 +31,7 @@ interface MentionTextInputProps extends Omit<TextInputProps, "onChangeText" | "v
     style?: any;
 }
 
-const MentionTextInput: React.FC<MentionTextInputProps> = ({
+const MentionTextInput = forwardRef<MentionTextInputHandle, MentionTextInputProps>(({
     value,
     onChangeText,
     onMentionsChange,
@@ -35,31 +40,13 @@ const MentionTextInput: React.FC<MentionTextInputProps> = ({
     multiline = true,
     style,
     ...textInputProps
-}) => {
+}, ref) => {
     const theme = useTheme();
     const [showMentionPicker, setShowMentionPicker] = useState(false);
     const [mentionQuery, setMentionQuery] = useState("");
     const [cursorPosition, setCursorPosition] = useState(0);
     const [mentions, setMentions] = useState<MentionData[]>([]);
     const textInputRef = useRef<TextInput>(null);
-
-    // Parse mentions from text with [mention:userId] format
-    const parseMentions = useCallback((text: string): MentionData[] => {
-        const mentionRegex = /\[mention:([^\]]+)\]/g;
-        const foundMentions: MentionData[] = [];
-        let match;
-
-        while ((match = mentionRegex.exec(text)) !== null) {
-            const userId = match[1];
-            // Find the mention in our local state to get username/displayName
-            const existingMention = mentions.find(m => m.userId === userId);
-            if (existingMention) {
-                foundMentions.push(existingMention);
-            }
-        }
-
-        return foundMentions;
-    }, [mentions]);
 
     // Convert display text with @username to storage format with [mention:userId]
     const convertToStorageFormat = useCallback((displayText: string, currentMentions: MentionData[]): string => {
@@ -141,8 +128,6 @@ const MentionTextInput: React.FC<MentionTextInputProps> = ({
 
             // Display format uses @username (handle)
             const displayMentionText = `@${user.username}`;
-            // Storage format uses [mention:userId]
-            const storageMentionText = `[mention:${user.id}]`;
 
             // Build display text (for cursor positioning)
             const newDisplayText =
@@ -190,6 +175,35 @@ const MentionTextInput: React.FC<MentionTextInputProps> = ({
         setMentionQuery("");
     }, []);
 
+    // Expose imperative methods via ref
+    useImperativeHandle(ref, () => ({
+        insertTextAtCursor: (text: string) => {
+            const displayValue = convertToDisplayFormat(value, mentions);
+            const pos = Math.min(cursorPosition, displayValue.length);
+            const before = displayValue.substring(0, pos);
+            const after = displayValue.substring(pos);
+            const newDisplayText = before + text + after;
+
+            // Convert back to storage format
+            const storageText = convertToStorageFormat(newDisplayText, mentions);
+            onChangeText(storageText);
+
+            // Update cursor position to after inserted text
+            const newCursorPos = pos + text.length;
+            setCursorPosition(newCursorPos);
+
+            // Set selection on the native input
+            setTimeout(() => {
+                textInputRef.current?.setNativeProps?.({
+                    selection: { start: newCursorPos, end: newCursorPos },
+                });
+            }, 10);
+        },
+        focus: () => {
+            textInputRef.current?.focus();
+        },
+    }), [value, cursorPosition, mentions, onChangeText, convertToDisplayFormat, convertToStorageFormat]);
+
     // Convert storage format to display format for rendering
     const displayValue = convertToDisplayFormat(value, mentions);
 
@@ -223,7 +237,9 @@ const MentionTextInput: React.FC<MentionTextInputProps> = ({
             )}
         </View>
     );
-};
+});
+
+MentionTextInput.displayName = 'MentionTextInput';
 
 const styles = StyleSheet.create({
     container: {

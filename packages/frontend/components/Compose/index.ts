@@ -15,6 +15,7 @@ export { LinkPreview, LinkPreviewLoading } from "./LinkPreview";
 
 // Re-export existing sheets
 export { default as DraftsSheet } from "./DraftsSheet";
+export { default as EmojiPickerSheet } from "./EmojiPickerSheet";
 export { default as GifPickerSheet } from "./GifPickerSheet";
 export { default as ReplySettingsSheet } from "./ReplySettingsSheet";
 export { default as ScheduleSheet } from "./ScheduleSheet";

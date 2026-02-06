@@ -30,7 +30,7 @@ import { toast } from 'sonner';
 import { usePostsStore } from '../stores/postsStore';
 import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
-import MentionTextInput, { MentionData } from '@/components/MentionTextInput';
+import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { DraftsIcon } from '@/assets/icons/drafts';
@@ -47,6 +47,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 // Lazy load sheets - only loaded when user opens them
 const DraftsSheet = lazy(() => import('@/components/Compose/DraftsSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
+const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
 // Import types separately (not lazy loaded)
@@ -355,6 +356,8 @@ const ComposeScreen = () => {
   const articleRef = refs.article;
   const attachmentOrderRef = refs.attachmentOrder;
   const threadPollTitleRefs = useRef<Record<string, TextInput | null>>({});
+  const mainTextInputRef = useRef<MentionTextInputHandle>(null);
+  const threadTextInputRefs = useRef<Record<string, MentionTextInputHandle | null>>({});
   // Note: scheduledAtRef comes from scheduleManager
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
@@ -798,6 +801,7 @@ const ComposeScreen = () => {
                     onPressAvatar={() => { }}
                   >
                     <MentionTextInput
+                      ref={mainTextInputRef}
                       style={[styles.mainTextInput, { color: theme.colors.text }]}
                       placeholder={t("What's new?")}
                       value={postContent}
@@ -1119,8 +1123,17 @@ const ComposeScreen = () => {
                         bottomSheet.openBottomSheet(true);
                       }}
                       onEmojiPress={() => {
-                        // TODO: Implement emoji picker
-                        toast.info(t('Emoji picker coming soon'));
+                        bottomSheet.setBottomSheetContent(
+                          <Suspense fallback={null}>
+                            <EmojiPickerSheet
+                              onClose={() => bottomSheet.openBottomSheet(false)}
+                              onSelectEmoji={(emoji: string) => {
+                                mainTextInputRef.current?.insertTextAtCursor(emoji);
+                              }}
+                            />
+                          </Suspense>
+                        );
+                        bottomSheet.openBottomSheet(true);
                       }}
                       onSchedulePress={handleSchedulePress}
                       onSourcesPress={openSourcesSheet}
@@ -1210,6 +1223,7 @@ const ComposeScreen = () => {
                       <View style={styles.headerMeta}>
                         <View style={styles.headerChildren}>
                           <MentionTextInput
+                            ref={(el) => { threadTextInputRefs.current[item.id] = el; }}
                             style={styles.threadTextInput}
                             placeholder={t('Say more...')}
                             value={item.text}
@@ -1243,8 +1257,18 @@ const ComposeScreen = () => {
                                 bottomSheet.openBottomSheet(true);
                               }}
                               onEmojiPress={() => {
-                                // TODO: Implement emoji picker for thread items
-                                toast.info(t('Emoji picker coming soon'));
+                                const currentThreadId = item.id;
+                                bottomSheet.setBottomSheetContent(
+                                  <Suspense fallback={null}>
+                                    <EmojiPickerSheet
+                                      onClose={() => bottomSheet.openBottomSheet(false)}
+                                      onSelectEmoji={(emoji: string) => {
+                                        threadTextInputRefs.current[currentThreadId]?.insertTextAtCursor(emoji);
+                                      }}
+                                    />
+                                  </Suspense>
+                                );
+                                bottomSheet.openBottomSheet(true);
                               }}
                               hasLocation={!!item.location}
                               hasPoll={item.showPollCreator}
