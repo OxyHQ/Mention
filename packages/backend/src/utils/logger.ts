@@ -21,7 +21,7 @@ const pinoLogger = pino({
     target: 'pino-pretty',
     options: {
       colorize: true,
-      translateTime: 'yyyy-mm-dd HH:MM:ss',
+      translateTime: 'yyyy-MM-dd HH:mm:ss',
       ignore: 'pid,hostname',
     }
   } : undefined,
