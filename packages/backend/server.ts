@@ -113,9 +113,10 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && ALLOWED_ORIGINS.includes(origin as typeof ALLOWED_ORIGINS[number])) {
     res.setHeader("Access-Control-Allow-Origin", origin);
-  } else {
-    res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL || "*");
+  } else if (process.env.FRONTEND_URL) {
+    res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
   }
+  // In production, don't set Access-Control-Allow-Origin for unknown origins (no wildcard fallback)
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version");
   res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -153,18 +154,43 @@ const broadcastPresence = (io: SocketIOServer, userId: string, online: boolean) 
   io.emit('user:presence', presenceData);
 };
 
+// Periodic cleanup of stale online user entries (every 5 minutes)
+setInterval(() => {
+  const staleThreshold = Date.now() - 5 * 60 * 1000;
+  let cleanedCount = 0;
+  for (const [userId, sockets] of onlineUsers.entries()) {
+    // Remove entries with empty socket sets
+    if (sockets.size === 0) {
+      onlineUsers.delete(userId);
+      cleanedCount++;
+    }
+  }
+  if (cleanedCount > 0) {
+    logger.debug(`Cleaned ${cleanedCount} stale entries from onlineUsers map`);
+  }
+}, 5 * 60 * 1000);
+
 type DisconnectReason =
   | "server disconnect" | "client disconnect" | "transport close" | "transport error" | "ping timeout" | "parse error" | "forced close" | "forced server close" | "server shutting down" | "client namespace disconnect" | "server namespace disconnect" | "unknown transport";
 
 interface SocketError extends Error { description?: string; context?: any; }
 
+import { config, validateEnvironment } from './src/config';
+import { createSocketRateLimiter } from './src/middleware/socketRateLimit';
+
+// Validate environment on startup
+validateEnvironment();
+
+// Shared socket rate limiter instance
+const socketRateLimiter = createSocketRateLimiter();
+
 const SOCKET_CONFIG = {
-  PING_TIMEOUT: 60000,
-  PING_INTERVAL: 20000, // Reduced from 25s to 20s for better connection management
-  UPGRADE_TIMEOUT: 30000,
-  CONNECT_TIMEOUT: 45000,
-  MAX_BUFFER_SIZE: 1e8,
-  COMPRESSION_THRESHOLD: 1024,
+  PING_TIMEOUT: config.socket.pingTimeout,
+  PING_INTERVAL: config.socket.pingInterval,
+  UPGRADE_TIMEOUT: config.socket.upgradeTimeout,
+  CONNECT_TIMEOUT: config.socket.connectTimeout,
+  MAX_BUFFER_SIZE: config.socket.maxBufferSize,
+  COMPRESSION_THRESHOLD: config.socket.compressionThreshold,
   CHUNK_SIZE: 10 * 1024,
   WINDOW_BITS: 14,
   COMPRESSION_LEVEL: 6,
@@ -254,13 +280,30 @@ const notificationsNamespace = io.of("/notifications");
 const postsNamespace = io.of("/posts");
 
 // --- Socket Auth Middleware ---
-// Lightweight auth: accept userId from client handshake and attach to socket
+// Authenticate socket connections using JWT token or userId from handshake
 [notificationsNamespace, postsNamespace, io].forEach((namespaceOrServer: any) => {
-  // For namespaces we have .use; for main io server we also have .use
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
-    namespaceOrServer.use((socket: AuthenticatedSocket, next: (err?: any) => void) => {
+    namespaceOrServer.use(async (socket: AuthenticatedSocket, next: (err?: any) => void) => {
       try {
         const auth = socket.handshake?.auth as any;
+        const token = auth?.token;
+
+        // Try JWT verification first if token is provided
+        if (token && typeof token === 'string') {
+          try {
+            const jwt = require('jsonwebtoken');
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.OXY_JWT_SECRET || 'fallback-secret');
+            const userId = decoded?.userId || decoded?.id || decoded?.sub;
+            if (userId && typeof userId === 'string') {
+              socket.user = { id: userId };
+              return next();
+            }
+          } catch (jwtError) {
+            logger.debug('Socket JWT verification failed, falling back to userId auth');
+          }
+        }
+
+        // Fallback: accept userId from client handshake (for backward compatibility)
         const userId = auth?.userId || auth?.id || auth?.user?.id;
         if (userId && typeof userId === "string") {
           socket.user = { id: userId };
@@ -296,7 +339,7 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
     logger.error("Notifications socket error", error);
   });
 
-  socket.on("markNotificationRead", async ({ notificationId }) => {
+  socket.on("markNotificationRead", socketRateLimiter.wrap(socket, 'markNotificationRead', async ({ notificationId }) => {
     try {
       if (!socket.user?.id) return;
       const notification = await Notification.findOneAndUpdate(
@@ -312,9 +355,9 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
     } catch (error) {
       logger.error("Error marking notification as read", error);
     }
-  });
+  }));
 
-  socket.on("markAllNotificationsRead", async () => {
+  socket.on("markAllNotificationsRead", socketRateLimiter.wrap(socket, 'markAllNotificationsRead', async () => {
     try {
       if (!socket.user?.id) return;
       await Notification.updateMany({ recipientId: userId }, { read: true });
@@ -322,9 +365,10 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
     } catch (error) {
       logger.error("Error marking all notifications as read", error);
     }
-  });
+  }));
 
   socket.on("disconnect", (reason: DisconnectReason, description?: any) => {
+    socketRateLimiter.cleanup(socket.id);
     logger.debug(
       `Client ${socket.id} disconnected from notifications namespace: ${reason}${description ? ` - ${description}` : ""}`
     );
@@ -340,41 +384,44 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
     logger.error("Posts socket error", error);
   });
 
-  socket.on("joinPost", (postId: string) => {
+  socket.on("joinPost", socketRateLimiter.wrap(socket, 'joinPost', (postId: string) => {
+    if (!postId || typeof postId !== 'string') return;
     const room = `post:${postId}`;
     socket.join(room);
     logger.debug(`Client ${socket.id} joined post room: ${room}`);
-  });
+  }));
 
-  socket.on("leavePost", (postId: string) => {
+  socket.on("leavePost", socketRateLimiter.wrap(socket, 'leavePost', (postId: string) => {
+    if (!postId || typeof postId !== 'string') return;
     const room = `post:${postId}`;
     socket.leave(room);
     logger.debug(`Client ${socket.id} left post room: ${room}`);
-  });
+  }));
 
   // Join feed room for real-time updates (posts namespace)
-  socket.on("joinFeed", (data: { feedType?: string; userId?: string }) => {
+  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string; userId?: string }) => {
     const { feedType, userId } = data || {};
-    if (feedType) {
+    if (feedType && typeof feedType === 'string') {
       socket.join(`feed:${feedType}`);
     }
-    if (userId) {
+    if (userId && typeof userId === 'string') {
       socket.join(`feed:user:${userId}`);
     }
-  });
+  }));
 
   // Leave feed room (posts namespace)
-  socket.on("leaveFeed", (data: { feedType?: string; userId?: string }) => {
+  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string; userId?: string }) => {
     const { feedType, userId } = data || {};
-    if (feedType) {
+    if (feedType && typeof feedType === 'string') {
       socket.leave(`feed:${feedType}`);
     }
-    if (userId) {
+    if (userId && typeof userId === 'string') {
       socket.leave(`feed:user:${userId}`);
     }
-  });
+  }));
 
   socket.on("disconnect", (reason: DisconnectReason) => {
+    socketRateLimiter.cleanup(socket.id);
     logger.debug(`Client ${socket.id} disconnected from posts namespace: ${reason}`);
   });
 });
@@ -420,6 +467,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   });
 
   socket.on("disconnect", (reason: DisconnectReason, description?: any) => {
+    socketRateLimiter.cleanup(socket.id);
     logger.debug(`Client disconnected: ${reason}${description ? ` - ${description}` : ""}`);
 
     // Track user presence on disconnect
@@ -462,65 +510,69 @@ io.on("connection", (socket: AuthenticatedSocket) => {
     logger.error("Failed to reconnect");
   });
 
-  socket.on("joinPost", (postId: string) => {
+  socket.on("joinPost", socketRateLimiter.wrap(socket, 'joinPost', (postId: string) => {
+    if (!postId || typeof postId !== 'string') return;
     const room = `post:${postId}`;
     socket.join(room);
     logger.debug(`Client ${socket.id} joined room: ${room}`);
-  });
+  }));
 
-  socket.on("leavePost", (postId: string) => {
+  socket.on("leavePost", socketRateLimiter.wrap(socket, 'leavePost', (postId: string) => {
+    if (!postId || typeof postId !== 'string') return;
     const room = `post:${postId}`;
     socket.leave(room);
     logger.debug(`Client ${socket.id} left room: ${room}`);
-  });
+  }));
 
   // Join feed room for real-time updates
-  socket.on("joinFeed", (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId } = data || {};
-    if (feedType) {
+  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string; userId?: string }) => {
+    const { feedType, userId: feedUserId } = data || {};
+    if (feedType && typeof feedType === 'string') {
       const room = `feed:${feedType}`;
       socket.join(room);
       logger.debug(`Client ${socket.id} joined feed room: ${room}`);
     }
-    if (userId) {
-      // Also join user-specific feed room for following feed
-      const userRoom = `feed:user:${userId}`;
+    if (feedUserId && typeof feedUserId === 'string') {
+      const userRoom = `feed:user:${feedUserId}`;
       socket.join(userRoom);
       logger.debug(`Client ${socket.id} joined user feed room: ${userRoom}`);
     }
-  });
+  }));
 
   // Leave feed room
-  socket.on("leaveFeed", (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId } = data || {};
-    if (feedType) {
+  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string; userId?: string }) => {
+    const { feedType, userId: feedUserId } = data || {};
+    if (feedType && typeof feedType === 'string') {
       const room = `feed:${feedType}`;
       socket.leave(room);
       logger.debug(`Client ${socket.id} left feed room: ${room}`);
     }
-    if (userId) {
-      const userRoom = `feed:user:${userId}`;
+    if (feedUserId && typeof feedUserId === 'string') {
+      const userRoom = `feed:user:${feedUserId}`;
       socket.leave(userRoom);
       logger.debug(`Client ${socket.id} left user feed room: ${userRoom}`);
     }
-  });
+  }));
 
   // Get online status of a single user
-  socket.on("getPresence", (targetUserId: string, callback?: (data: { online: boolean }) => void) => {
+  socket.on("getPresence", socketRateLimiter.wrap(socket, 'getPresence', (targetUserId: string, callback?: (data: { online: boolean }) => void) => {
+    if (!targetUserId || typeof targetUserId !== 'string') return;
     const online = isUserOnline(targetUserId);
     if (typeof callback === 'function') {
       callback({ online });
     } else {
       socket.emit('user:presence', { userId: targetUserId, online });
     }
-  });
+  }));
 
   // Get online status of multiple users
-  socket.on("getPresenceBulk", (userIds: string[], callback?: (data: Record<string, boolean>) => void) => {
+  socket.on("getPresenceBulk", socketRateLimiter.wrap(socket, 'getPresenceBulk', (userIds: string[], callback?: (data: Record<string, boolean>) => void) => {
     const result: Record<string, boolean> = {};
     if (Array.isArray(userIds)) {
-      userIds.forEach(id => {
-        result[id] = isUserOnline(id);
+      // Cap bulk queries to prevent abuse
+      const safeIds = userIds.slice(0, 100);
+      safeIds.forEach(id => {
+        if (typeof id === 'string') result[id] = isUserOnline(id);
       });
     }
     if (typeof callback === 'function') {
@@ -528,19 +580,20 @@ io.on("connection", (socket: AuthenticatedSocket) => {
     } else {
       socket.emit('user:presenceBulk', result);
     }
-  });
+  }));
 
   // Subscribe to a user's presence changes
-  socket.on("subscribePresence", (targetUserId: string) => {
+  socket.on("subscribePresence", socketRateLimiter.wrap(socket, 'subscribePresence', (targetUserId: string) => {
+    if (!targetUserId || typeof targetUserId !== 'string') return;
     socket.join(`presence:${targetUserId}`);
-    // Send current status immediately
     socket.emit('user:presence', { userId: targetUserId, online: isUserOnline(targetUserId) });
-  });
+  }));
 
   // Unsubscribe from a user's presence changes
-  socket.on("unsubscribePresence", (targetUserId: string) => {
+  socket.on("unsubscribePresence", socketRateLimiter.wrap(socket, 'unsubscribePresence', (targetUserId: string) => {
+    if (!targetUserId || typeof targetUserId !== 'string') return;
     socket.leave(`presence:${targetUserId}`);
-  });
+  }));
 });
 
 // Enhanced error handling for namespaces

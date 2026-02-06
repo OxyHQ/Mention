@@ -3,7 +3,7 @@
  * Optimized image loading with progressive loading, size variants, and better caching
  */
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Image, ImageProps, View, StyleSheet, ViewStyle, ImageStyle, StyleProp, Platform } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { SPACING } from '@/styles/spacing';
@@ -73,10 +73,20 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
   ...imageProps
 }) => {
   const theme = useTheme();
-  const [shouldLoad, setShouldLoad] = useState(priority === 'high');
-  const [shouldLoadHighRes, setShouldLoadHighRes] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [imgState, setImgState] = React.useReducer(
+    (state: { shouldLoad: boolean; shouldLoadHighRes: boolean; hasError: boolean; isLoading: boolean },
+     action: Partial<{ shouldLoad: boolean; shouldLoadHighRes: boolean; hasError: boolean; isLoading: boolean }>) => ({
+      ...state,
+      ...action,
+    }),
+    {
+      shouldLoad: priority === 'high',
+      shouldLoadHighRes: false,
+      hasError: false,
+      isLoading: true,
+    }
+  );
+  const { shouldLoad, shouldLoadHighRes, hasError, isLoading } = imgState;
   const viewRef = useRef<View>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -123,10 +133,10 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              setShouldLoad(true);
+              setImgState({ shouldLoad: true });
               if (progressive) {
                 // Load high-res after low-res is shown
-                setTimeout(() => setShouldLoadHighRes(true), 100);
+                setTimeout(() => setImgState({ shouldLoadHighRes: true }), 100);
               }
               observer.disconnect();
             }
@@ -148,15 +158,15 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
         observer.observe(element);
       } else {
         // Fallback: load after short delay
-        setTimeout(() => setShouldLoad(true), 50);
+        setTimeout(() => setImgState({ shouldLoad: true }), 50);
       }
     } else {
       // Native: Load immediately (native platforms handle this efficiently)
       // Or use a small delay for better performance
       const timer = setTimeout(() => {
-        setShouldLoad(true);
+        setImgState({ shouldLoad: true });
         if (progressive) {
-          setTimeout(() => setShouldLoadHighRes(true), 100);
+          setTimeout(() => setImgState({ shouldLoadHighRes: true }), 100);
         }
       }, 50);
 
@@ -175,7 +185,7 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
       // Low-res should already be loading
       // Switch to high-res after a delay
       const timer = setTimeout(() => {
-        setShouldLoadHighRes(true);
+        setImgState({ shouldLoadHighRes: true });
       }, 300); // Show low-res for at least 300ms
 
       return () => clearTimeout(timer);
@@ -184,7 +194,7 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
 
   // Handle image load success
   const handleLoad = useCallback(() => {
-    setIsLoading(false);
+    setImgState({ isLoading: false });
     if (imageProps.onLoad) {
       imageProps.onLoad({} as any);
     }
@@ -192,8 +202,7 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
 
   // Handle image load errors
   const handleError = useCallback(() => {
-    setHasError(true);
-    setIsLoading(false);
+    setImgState({ hasError: true, isLoading: false });
     if (imageProps.onError) {
       imageProps.onError({} as any);
     }

@@ -3,27 +3,24 @@ import { usePostsStore } from '@/stores/postsStore';
 
 export function usePostLike(postId: string | undefined, isLiked: boolean) {
     const { likePost, unlikePost } = usePostsStore();
-    const actionRef = useRef<Promise<void> | null>(null);
+    const pendingRef = useRef(false);
 
     const toggleLike = useCallback(async () => {
-        if (!postId || actionRef.current) return;
+        if (!postId || pendingRef.current) return;
 
+        pendingRef.current = true;
         try {
             const action = isLiked
                 ? unlikePost({ postId, type: 'post' })
                 : likePost({ postId, type: 'post' });
 
-            actionRef.current = action;
             await action;
         } catch (error) {
             console.error('Error toggling like:', error);
         } finally {
-            setTimeout(() => {
-                actionRef.current = null;
-            }, 300);
+            pendingRef.current = false;
         }
     }, [postId, isLiked, likePost, unlikePost]);
 
     return toggleLike;
 }
-

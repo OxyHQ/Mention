@@ -526,5 +526,25 @@ const styles = StyleSheet.create({
     },
 });
 
-export default React.memo(PostItem);
+export default React.memo(PostItem, (prevProps, nextProps) => {
+    // Fast path: same post reference
+    if (prevProps.post === nextProps.post) return true;
+
+    const prev = prevProps.post;
+    const next = nextProps.post;
+
+    // Compare identity and key engagement/viewer state
+    return (
+        prev?.id === next?.id &&
+        prev?.viewerState?.isLiked === next?.viewerState?.isLiked &&
+        prev?.viewerState?.isReposted === next?.viewerState?.isReposted &&
+        prev?.viewerState?.isSaved === next?.viewerState?.isSaved &&
+        prev?.engagement?.likes === next?.engagement?.likes &&
+        prev?.engagement?.reposts === next?.engagement?.reposts &&
+        prev?.engagement?.replies === next?.engagement?.replies &&
+        prev?.metadata?.updatedAt === next?.metadata?.updatedAt &&
+        prevProps.isNested === nextProps.isNested &&
+        prevProps.nestingDepth === nextProps.nestingDepth
+    );
+});
 

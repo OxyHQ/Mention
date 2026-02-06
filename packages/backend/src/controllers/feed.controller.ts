@@ -25,7 +25,7 @@ import { userPreferenceService } from '../services/UserPreferenceService';
 import { postHydrationService } from '../services/PostHydrationService';
 import UserBehavior from '../models/UserBehavior';
 import UserSettings from '../models/UserSettings';
-import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, getBlockedUserIds, getRestrictedUserIds } from '../utils/privacyHelpers';
+import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
 import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
@@ -42,6 +42,8 @@ import {
   FEED_CONSTANTS
 } from '../utils/feedUtils';
 import { metrics } from '../utils/metrics';
+import { config } from '../config';
+import { mergeHashtags } from '../utils/textProcessing';
 
 /**
  * Feed Controller
@@ -63,105 +65,15 @@ class FeedController {
   
   /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
   private readonly FEED_FIELDS = '_id oxyUserId createdAt visibility type parentPostId repostOf quoteOf threadId content stats metadata hashtags mentions language';
-  
+
   /** Slow query threshold in milliseconds (logs warnings for queries exceeding this) */
-  private readonly SLOW_QUERY_THRESHOLD_MS = 100;
-  
+  private readonly SLOW_QUERY_THRESHOLD_MS = config.feed.slowQueryThresholdMs;
+
   /** Candidate multiplier for ranked feeds (fetch 2x posts for ranking) */
-  private readonly RANKED_FEED_CANDIDATE_MULTIPLIER = 2;
-  
+  private readonly RANKED_FEED_CANDIDATE_MULTIPLIER = config.feed.rankedCandidateMultiplier;
+
   /** Score comparison epsilon for ranking (prevents floating point issues) */
-  private readonly SCORE_EPSILON = 0.001;
-
-  /**
-   * Filter out posts from private/followers_only profiles that the viewer doesn't have access to
-   * Also filters out posts from blocked and restricted users
-   */
-  private async filterPostsByProfilePrivacy(
-    posts: any[],
-    currentUserId?: string
-  ): Promise<any[]> {
-    if (!posts || posts.length === 0) return posts;
-    
-    // Get unique author IDs
-    const authorIds = [...new Set(posts.map(p => p.oxyUserId).filter(Boolean))];
-    if (authorIds.length === 0) return posts;
-    
-      // If current user exists, get blocked and restricted user lists from Oxy
-      // Note: Oxy services use authenticated context from the request
-      let blockedUserIds: string[] = [];
-      let restrictedUserIds: string[] = [];
-      if (currentUserId) {
-        try {
-          // These functions use authenticated context, so they'll get the current user's blocked/restricted lists
-          blockedUserIds = await getBlockedUserIds();
-          restrictedUserIds = await getRestrictedUserIds();
-        } catch (error) {
-          logger.error('Error getting blocked/restricted users', error);
-          // Continue without blocking/restricting if Oxy service fails
-        }
-      }
-    
-    const blockedSet = new Set(blockedUserIds);
-    const restrictedSet = new Set(restrictedUserIds);
-    
-    // Get privacy settings for all authors
-    const privacySettings = await UserSettings.find({
-      oxyUserId: { $in: authorIds },
-      'privacy.profileVisibility': { $in: [ProfileVisibility.PRIVATE, ProfileVisibility.FOLLOWERS_ONLY] }
-    }).lean();
-    
-    const privateProfileIds = new Set(
-      privacySettings.map(s => s.oxyUserId)
-    );
-    
-    // If no current user, filter out all posts from private profiles and blocked users
-    if (!currentUserId) {
-      return posts.filter(p => {
-        const authorId = p.oxyUserId;
-        // Filter out private profiles and blocked users
-        return !privateProfileIds.has(authorId) && !blockedSet.has(authorId);
-      });
-    }
-    
-    // Get following list for current user
-    let followingIds: string[] = [];
-    try {
-      const followingRes = await oxyClient.getUserFollowing(currentUserId);
-      followingIds = extractFollowingIds(followingRes);
-    } catch (error) {
-      logger.error('Error getting following list for privacy filter', error);
-      // On error, filter out private profiles for safety
-      return posts.filter(p => {
-        const authorId = p.oxyUserId;
-        return !privateProfileIds.has(authorId) && !blockedSet.has(authorId);
-      });
-}
-
-    // Filter posts: keep if:
-    // - Author is not blocked
-    // - Author is not restricted (or is current user)
-    // - Author profile is not private (or user has access)
-    // - Author is the current user (own posts always visible)
-    return posts.filter(p => {
-      const authorId = p.oxyUserId;
-      
-      // Always filter out blocked users
-      if (blockedSet.has(authorId)) return false;
-      
-      // Filter out restricted users (they can't see posts from the user who restricted them)
-      // Note: This is from the perspective of the restricted user - they can't see posts from the restrictor
-      // If current user restricted author, author's posts are hidden from current user
-      if (restrictedSet.has(authorId)) return false;
-      
-      // Own posts are always visible
-      if (authorId === currentUserId) return true;
-      
-      // Check privacy settings
-      if (!privateProfileIds.has(authorId)) return true; // Public profile
-      return followingIds.includes(authorId); // Following the author (for followers_only)
-    });
-  }
+  private readonly SCORE_EPSILON = config.feed.scoreEpsilon;
 
   /**
    * Replace [mention:userId] placeholders in text with [@displayName](username) format
@@ -172,28 +84,39 @@ class FeedController {
       return text;
     }
 
-    let result = text;
-    
-    // Fetch user data for all mentioned users
-    for (const userId of mentions) {
-      try {
+    // Batch-fetch all mentioned users in parallel (fixes N+1 query)
+    const uniqueUserIds = [...new Set(mentions)];
+    const userDataMap = new Map<string, { username: string; displayName: string }>();
+
+    const results = await Promise.allSettled(
+      uniqueUserIds.map(async (userId) => {
         const userData = await oxyClient.getUserById(userId);
         const username = userData.username || 'user';
         const displayName = userData.name?.full || username;
-        
-        // Replace [mention:userId] with [@displayName](username) format
-        // This allows LinkifiedText to detect and render mentions properly
-        const placeholder = `[mention:${userId}]`;
-        result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `[@${displayName}](${username})`);
-      } catch (error) {
-        logger.error(`Error fetching user data for mention ${userId}`, error);
-        // If user fetch fails, replace with generic mention
-        const placeholder = `[mention:${userId}]`;
-        result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '[@User](user)');
+        return { userId, username, displayName };
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        userDataMap.set(result.value.userId, {
+          username: result.value.username,
+          displayName: result.value.displayName,
+        });
       }
     }
 
-    return result;
+    let resultText = text;
+    for (const userId of mentions) {
+      const userData = userDataMap.get(userId) || { username: 'user', displayName: 'User' };
+      const placeholder = `[mention:${userId}]`;
+      resultText = resultText.replace(
+        new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+        `[@${userData.displayName}](${userData.username})`
+      );
+    }
+
+    return resultText;
   }
 
   /**
@@ -236,25 +159,6 @@ class FeedController {
       // Return empty array instead of throwing to prevent feed from breaking
       return [];
     }
-  }
-
-  /**
-   * Build MongoDB query based on feed type and filters
-   * 
-   * @deprecated Use FeedQueryBuilder.buildQuery instead
-   * @param type - Feed type (mixed, posts, media, replies, reposts)
-   * @param filters - Optional filters (authors, keywords, date range, etc.)
-   * @param currentUserId - Current user ID for privacy filtering
-   * @returns MongoDB query object
-   */
-  private buildFeedQuery(type: FeedType, filters?: Record<string, unknown>, currentUserId?: string): Record<string, unknown> {
-    // Delegate to FeedQueryBuilder for consistency
-    return FeedQueryBuilder.buildQuery({
-      type,
-      filters,
-      currentUserId,
-      limit: FEED_CONSTANTS.DEFAULT_LIMIT
-    });
   }
 
   /**
@@ -479,7 +383,7 @@ class FeedController {
         
         logger.debug(`[Saved Feed] Final query`, JSON.stringify(query, null, 2));
       } else {
-        query = this.buildFeedQuery(feedType, feedFilters, currentUserId);
+        query = FeedQueryBuilder.buildQuery({ type: feedType, filters: feedFilters, currentUserId, limit: FEED_CONSTANTS.DEFAULT_LIMIT });
       }
 
       // Add cursor-based pagination (handle conflict with saved posts _id filter)
@@ -844,12 +748,7 @@ class FeedController {
         posts,
         limit,
         previousCursor: cursor,
-        transformPosts: async (postsToTransform, userId) => {
-          // Transform posts using hydration service
-          const transformed = await this.transformPostsWithProfiles(postsToTransform, userId);
-          // Additional privacy filtering for profile visibility (private/followers_only)
-          return await this.filterPostsByProfilePrivacy(transformed, userId);
-        },
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
         currentUserId
       });
 
@@ -941,11 +840,7 @@ class FeedController {
         posts,
         limit,
         previousCursor: cursor,
-        transformPosts: async (postsToTransform, userId) => {
-          const transformed = await this.transformPostsWithProfiles(postsToTransform, userId);
-          // Filter out posts from private profiles
-          return await this.filterPostsByProfilePrivacy(transformed, userId);
-        },
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
         currentUserId
       });
 
@@ -1077,11 +972,7 @@ class FeedController {
         posts,
         limit,
         previousCursor: cursor,
-        transformPosts: async (postsToTransform, userId) => {
-          const transformed = await this.transformPostsWithProfiles(postsToTransform, userId);
-          // Filter out posts from private profiles
-          return await this.filterPostsByProfilePrivacy(transformed, userId);
-        },
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
         currentUserId
       });
 
@@ -1344,9 +1235,7 @@ class FeedController {
       }
 
   // Create reply post
-  // Extract hashtags from content
-  const extractedTags = Array.from((replyContent?.text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
-      const mergedTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
+      const mergedTags = mergeHashtags(replyContent?.text || '', hashtags);
 
       // If reviewReplies is enabled, set visibility to pending or use a flag
       // For now, we'll still create it but mark it for review
@@ -1374,8 +1263,8 @@ class FeedController {
         $inc: { 'stats.commentsCount': 1 }
       }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
-      // Emit real-time update
-      io.emit('post:replied', {
+      // Emit real-time update to post room only (not all clients)
+      io.to(`post:${postId}`).emit('post:replied', {
         postId,
         reply: reply.toObject(),
         timestamp: new Date().toISOString()
@@ -1422,9 +1311,7 @@ class FeedController {
       }
 
       // Create repost
-      // Extract hashtags from content
-      const extractedTags = Array.from((content?.text || '').matchAll(/#([A-Za-z0-9_]+)/g)).map(m => m[1].toLowerCase());
-      const mergedTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
+      const mergedTags = mergeHashtags(content?.text || '', hashtags);
 
       const repost = new Post({
         oxyUserId: currentUserId,
@@ -1461,8 +1348,8 @@ class FeedController {
         logger.warn('Failed to record interaction for preferences', error);
       }
 
-      // Emit real-time update with all necessary data for socket handlers
-      io.emit('post:reposted', {
+      // Emit real-time update to post room only (not all clients)
+      io.to(`post:${originalPostId}`).emit('post:reposted', {
         originalPostId,
         postId: originalPostId,
         repost: repost.toObject(),
@@ -1560,8 +1447,8 @@ class FeedController {
         // Don't fail the request if preference tracking fails, but log the error
       }
 
-      // Emit real-time update
-      io.emit('post:liked', {
+      // Emit real-time update to post room only (not all clients)
+      io.to(`post:${postId}`).emit('post:liked', {
         postId,
         userId: currentUserId,
         likesCount: updateResult.stats.likesCount,
@@ -1640,8 +1527,8 @@ class FeedController {
         logger.warn('Failed to invalidate cache', error);
       }
 
-      // Emit real-time update
-      io.emit('post:unliked', {
+      // Emit real-time update to post room only (not all clients)
+      io.to(`post:${postId}`).emit('post:unliked', {
         postId,
         userId: currentUserId,
         likesCount: updateResult.stats.likesCount,
@@ -1698,8 +1585,9 @@ class FeedController {
         { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
-      // Emit real-time update with all necessary data for socket handlers
-      io.emit('post:unreposted', {
+      // Emit real-time update to post room only (not all clients)
+      const repostOriginalId = repost.repostOf ? String(repost.repostOf) : '';
+      io.to(`post:${repostOriginalId}`).emit('post:unreposted', {
         originalPostId: repost.repostOf,
         postId: repost.repostOf,
         repostId: repost._id,
@@ -1785,8 +1673,8 @@ class FeedController {
         logger.error(`[Save] Failed to record interaction for preferences`, error);
       }
 
-      // Emit real-time update
-      io.emit('post:saved', {
+      // Emit real-time update to user room only
+      io.to(`user:${currentUserId}`).emit('post:saved', {
         postId,
         userId: currentUserId,
         timestamp: new Date().toISOString()
@@ -1849,8 +1737,8 @@ class FeedController {
         { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
-      // Emit real-time update
-      io.emit('post:unsaved', {
+      // Emit real-time update to user room only
+      io.to(`user:${currentUserId}`).emit('post:unsaved', {
         postId,
         userId: currentUserId,
         timestamp: new Date().toISOString()

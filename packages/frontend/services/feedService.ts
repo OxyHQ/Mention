@@ -77,15 +77,13 @@ const feedCache = new Map<string, CachedFeedResponse>();
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes for initial loads (increased from 30s)
 const CACHE_TTL_PAGINATION_MS = 30 * 1000; // 30 seconds for pagination requests
 
-// Generate cache key from request
+// Generate stable cache key from request (avoids JSON.stringify key-order instability)
 function getCacheKey(request: ExtendedFeedRequest): string {
-  const parts = [
-    request.type,
-    request.cursor || 'initial',
-    request.userId || '',
-    JSON.stringify(request.filters || {})
-  ];
-  return parts.join('|');
+  const filters = request.filters;
+  const filterKey = filters
+    ? Object.keys(filters).sort().map((k) => `${k}=${(filters as any)[k] ?? ''}`).join('&')
+    : '';
+  return `${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${filterKey}`;
 }
 
 // Clean up expired cache entries periodically

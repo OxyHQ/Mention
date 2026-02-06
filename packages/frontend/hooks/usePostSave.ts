@@ -3,24 +3,22 @@ import { usePostsStore } from '@/stores/postsStore';
 
 export function usePostSave(postId: string | undefined, isSaved: boolean) {
     const { savePost, unsavePost } = usePostsStore();
-    const actionRef = useRef<Promise<void> | null>(null);
+    const pendingRef = useRef(false);
 
     const toggleSave = useCallback(async () => {
-        if (!postId || actionRef.current) return;
+        if (!postId || pendingRef.current) return;
 
+        pendingRef.current = true;
         try {
             const action = isSaved
                 ? unsavePost({ postId })
                 : savePost({ postId });
 
-            actionRef.current = action;
             await action;
         } catch (error) {
             console.error('Error toggling save:', error);
         } finally {
-            setTimeout(() => {
-                actionRef.current = null;
-            }, 300);
+            pendingRef.current = false;
         }
     }, [postId, isSaved, savePost, unsavePost]);
 

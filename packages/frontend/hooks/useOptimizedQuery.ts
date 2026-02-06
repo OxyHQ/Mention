@@ -1,38 +1,37 @@
 /**
- * Optimized Query Hooks
- * Enhanced React Query hooks with request deduplication and better caching
+ * Query Hooks & Cache Key Utilities
+ *
+ * useOptimizedQuery / useOptimizedMutation are thin wrappers around React Query
+ * that set sensible defaults (5-min staleTime, 1 retry for mutations).
+ * The primary value of this module is the `queryKeys` factory and the
+ * `useQueryInvalidation` helper which enforce consistent cache keys.
  */
 
 import { useQuery, useMutation, useQueryClient, UseQueryOptions, UseMutationOptions } from '@tanstack/react-query';
 
+const DEFAULT_STALE_TIME = 1000 * 60 * 5; // 5 minutes
+
 /**
- * Optimized useQuery hook with automatic request deduplication
- * React Query already deduplicates by default, but this provides additional optimizations
+ * useQuery with sensible defaults (5-min staleTime, structural sharing on).
  */
 export function useOptimizedQuery<TData = unknown, TError = Error>(
   options: UseQueryOptions<TData, TError>
 ) {
-  // React Query automatically deduplicates queries with the same key
-  // We just need to ensure proper cache keys and stale times
-  
   return useQuery<TData, TError>({
     ...options,
-    // Ensure structural sharing is enabled (default, but explicit)
     structuralSharing: options.structuralSharing !== false,
-    // Default stale time if not specified
-    staleTime: options.staleTime ?? 1000 * 60 * 5, // 5 minutes
+    staleTime: options.staleTime ?? DEFAULT_STALE_TIME,
   });
 }
 
 /**
- * Optimized mutation hook with better error handling
+ * useMutation with 1 automatic retry on failure.
  */
 export function useOptimizedMutation<TData = unknown, TError = Error, TVariables = void, TContext = unknown>(
   options: UseMutationOptions<TData, TError, TVariables, TContext>
 ) {
   return useMutation<TData, TError, TVariables, TContext>({
     ...options,
-    // Automatic retry for mutations
     retry: options.retry ?? 1,
   });
 }

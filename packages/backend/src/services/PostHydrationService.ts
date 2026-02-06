@@ -37,6 +37,8 @@ interface ViewerContext {
   likedPosts: Set<string>;
   savedPosts: Set<string>;
   repostedPosts: Set<string>;
+  /** Author IDs with private or followers_only profile visibility */
+  privateProfileIds: Set<string>;
 }
 
 const DEFAULT_PRIVACY = {
@@ -125,9 +127,28 @@ export class PostHydrationService {
       likedPosts: new Set<string>(),
       savedPosts: new Set<string>(),
       repostedPosts: new Set<string>(),
+      privateProfileIds: new Set<string>(),
       includeFullArticleBody: options?.includeFullArticleBody ?? true,
       includeFullMetadata: options?.includeFullMetadata ?? true,
     };
+
+    // Collect unique author IDs for profile visibility check
+    const authorIds = Array.from(
+      new Set(posts.map((p) => p?.oxyUserId).filter(Boolean).map((id) => String(id))),
+    );
+
+    // Load profile visibility settings for all authors (works for both authenticated and unauthenticated)
+    if (authorIds.length > 0) {
+      try {
+        const privacySettings = await UserSettings.find({
+          oxyUserId: { $in: authorIds },
+          'privacy.profileVisibility': { $in: ['private', 'followers_only'] },
+        }).lean();
+        privacySettings.forEach((s) => context.privateProfileIds.add(String(s.oxyUserId)));
+      } catch (error) {
+        logger.warn('[PostHydration] Failed to load profile visibility settings:', error);
+      }
+    }
 
     if (!viewerId) {
       return context;
@@ -546,6 +567,15 @@ export class PostHydrationService {
 
     if (viewerContext.restrictedIds.has(authorId) && viewerContext.viewerId !== authorId) {
       return null;
+    }
+
+    // Filter posts from private/followers_only profiles
+    // Own posts are always visible; public profiles pass through
+    if (viewerContext.privateProfileIds.has(authorId) && viewerContext.viewerId !== authorId) {
+      // If not authenticated, hide private profiles
+      if (!viewerContext.viewerId) return null;
+      // If viewer doesn't follow the author, hide the post
+      if (!viewerContext.follows.has(authorId)) return null;
     }
 
     const user = userMap.get(authorId) ?? {
