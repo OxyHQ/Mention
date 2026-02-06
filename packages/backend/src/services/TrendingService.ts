@@ -188,7 +188,7 @@ class TrendingService {
       const trending = await Trending.find({ timeWindow })
         .sort({ score: -1, rank: 1 })
         .limit(limit)
-        .lean() as ITrending[];
+        .lean() as unknown as ITrending[];
 
       // Cache the result
       if (redis && trending.length > 0) {
