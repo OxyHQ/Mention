@@ -93,9 +93,9 @@ export class FeedJobScheduler {
       });
     }, 60 * 60 * 1000) as unknown as NodeJS.Timeout); // 1 hour
 
-    // Clean cache every 5 minutes
+    // Clean expired L1 cache entries every 5 minutes
     this.intervals.set('cleanCache', setInterval(() => {
-      feedCacheService.getCacheStats(); // This triggers internal cleanup
+      feedCacheService.evictExpiredEntries();
     }, 5 * 60 * 1000) as unknown as NodeJS.Timeout); // 5 minutes
 
     // Clean up old active user records every hour
