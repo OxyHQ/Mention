@@ -121,61 +121,65 @@ export class FeedRankingService {
       engagementScoreCache?: Map<string, number>; // Optional pre-calculated engagement scores
     } = {}
   ): Promise<number> {
+    // Helper to guard each sub-score against NaN/Infinity
+    const safe = (score: number, fallback: number = 1): number =>
+      Number.isFinite(score) ? score : fallback;
+
     // Base engagement score (use cache if available, otherwise calculate)
     const postId = post._id?.toString() || '';
     let engagementScore: number;
     if (context.engagementScoreCache?.has(postId)) {
-      engagementScore = context.engagementScoreCache.get(postId)!;
+      engagementScore = safe(context.engagementScoreCache.get(postId)!, 0);
     } else {
-      engagementScore = this.calculateEngagementScore(post);
+      engagementScore = safe(this.calculateEngagementScore(post), 0);
     }
-    
+
     // Recency score with time decay (using user settings if provided)
-    const recencyScore = this.calculateRecencyScore(
+    const recencyScore = safe(this.calculateRecencyScore(
       post.createdAt,
       context.feedSettings?.recency?.halfLifeHours,
       context.feedSettings?.recency?.maxAgeHours
-    );
-    
+    ));
+
     // Author relationship score
-    const authorScore = await this.calculateAuthorScore(
+    const authorScore = safe(await this.calculateAuthorScore(
       post.oxyUserId,
       userId,
       context.followingIds || [],
       context.userBehavior
-    );
-    
+    ));
+
     // Personalization score
-    const personalizationScore = await this.calculatePersonalizationScore(
+    const personalizationScore = safe(await this.calculatePersonalizationScore(
       post,
       context.userBehavior
-    );
-    
+    ));
+
     // Content quality score (with improved metrics)
-    const qualityScore = this.calculateQualityScore(post);
-    
+    const qualityScore = safe(this.calculateQualityScore(post));
+
     // Trending boost (for posts gaining traction)
-    const trendingBoost = this.calculateTrendingBoost(post);
-    
+    const trendingBoost = safe(this.calculateTrendingBoost(post));
+
     // Time-of-day relevance score
-    const timeOfDayScore = this.calculateTimeOfDayScore(post, context.userBehavior);
-    
+    const timeOfDayScore = safe(this.calculateTimeOfDayScore(post, context.userBehavior));
+
     // Diversity penalty (apply after all boosts, using user settings if provided)
-    const diversityPenalty = this.calculateDiversityPenalty(
+    const diversityPenalty = safe(this.calculateDiversityPenalty(
       post,
       context.recentAuthors || [],
       context.recentTopics || [],
       context.feedSettings?.diversity
-    );
-    
+    ));
+
     // Apply negative signals
-    const negativePenalty = await this.calculateNegativePenalty(
+    const negativePenalty = safe(await this.calculateNegativePenalty(
       post,
       userId,
       context.userBehavior
-    );
-    
-    // Combine all scores
+    ));
+
+    // Combine all scores (each sub-score is already guarded)
     const finalScore = engagementScore
       * recencyScore
       * authorScore
@@ -186,10 +190,6 @@ export class FeedRankingService {
       * diversityPenalty
       * negativePenalty;
 
-    // Guard against NaN/Infinity from any sub-score calculation
-    if (!Number.isFinite(finalScore)) {
-      return 0;
-    }
     return Math.max(0, finalScore); // Ensure non-negative
   }
 
