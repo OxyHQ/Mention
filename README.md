@@ -157,15 +157,15 @@ All project documentation is available in the [`docs/`](./docs/) folder:
 
 - [Mention System Overview](./docs/MENTION_SYSTEM_README.md) - Complete guide to the mention system
 - [Mention Format Specification](./docs/MENTION_FORMAT_FINAL.md) - Final format summary for mentions
-- [Mention Implementation](./docs/MENTION_IMPLEMENTATION_COMPLETE.md) - Implementation details
+- [Mention Implementation](./docs/MENTION_IMPLEMENTATION_FINAL.md) - Implementation details
 - [Notifications System](./docs/MENTION_NOTIFICATIONS.md) - Notification system documentation
 - [Visual Guide](./docs/MENTION_VISUAL_GUIDE.md) - Visual design guide
 - [Theming Guide](./docs/THEMING_REFACTOR_SUMMARY.md) - Complete theming system documentation
 - [Theme Quick Reference](./docs/THEME_QUICK_REFERENCE.md) - Quick reference for developers
 - [Theming Troubleshooting](./docs/THEMING_TROUBLESHOOTING.md) - Common theming issues and solutions
+- [Compose Refactoring](./docs/COMPOSE_REFACTORING.md) - Compose screen architecture
 - [Performance Optimizations](./docs/PERFORMANCE_OPTIMIZATIONS.md) - Performance best practices
 - [Vercel Deployment](./docs/VERCEL_DEPLOYMENT.md) - Deployment guide for Vercel
-- [Code Cleanup Summary](./docs/CODE_CLEANUP_SUMMARY.md) - Code cleanup documentation
 
 ### API Documentation
 
