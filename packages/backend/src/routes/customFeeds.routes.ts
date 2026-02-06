@@ -3,7 +3,7 @@ import CustomFeed from '../models/CustomFeed';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
-import { validateBody, schemas } from '../middleware/validate';
+import { validateBody, validateObjectId, schemas } from '../middleware/validate';
 import FeedLike from '../models/FeedLike';
 import { oxy as oxyClient } from '../../server';
 import { logger } from '../utils/logger';
@@ -166,7 +166,7 @@ router.get('/', async (req: any, res) => {
 });
 
 // Get a feed by id
-router.get('/:id', async (req: any, res) => {
+router.get('/:id', validateObjectId('id'), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     const feed = await CustomFeed.findById(req.params.id).lean();
@@ -230,7 +230,7 @@ router.get('/:id', async (req: any, res) => {
 });
 
 // Update a feed (owner only)
-router.put('/:id', validateBody(schemas.updateCustomFeed), async (req: any, res) => {
+router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     const feed = await CustomFeed.findById(req.params.id);
@@ -261,7 +261,7 @@ router.put('/:id', validateBody(schemas.updateCustomFeed), async (req: any, res)
 });
 
 // Delete a feed (owner only)
-router.delete('/:id', async (req: any, res) => {
+router.delete('/:id', validateObjectId('id'), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     const feed = await CustomFeed.findById(req.params.id);
@@ -275,7 +275,7 @@ router.delete('/:id', async (req: any, res) => {
 });
 
 // Add members (owner only)
-router.post('/:id/members', async (req: any, res) => {
+router.post('/:id/members', validateObjectId('id'), validateBody(schemas.manageFeedMembers), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     const { userIds } = req.body || {};
@@ -298,7 +298,7 @@ router.post('/:id/members', async (req: any, res) => {
 });
 
 // Remove members (owner only)
-router.delete('/:id/members', async (req: any, res) => {
+router.delete('/:id/members', validateObjectId('id'), validateBody(schemas.manageFeedMembers), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     const { userIds } = req.body || {};
@@ -320,18 +320,13 @@ router.delete('/:id/members', async (req: any, res) => {
 });
 
 // Timeline for a custom feed
-router.get('/:id/timeline', async (req: any, res) => {
+router.get('/:id/timeline', validateObjectId('id'), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     // Validate and sanitize inputs
     const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20)), 1), 100); // Clamp between 1-100
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : undefined;
-    
-    // Validate feed ID format to prevent injection
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid feed ID format' });
-    }
-    
+
     const feed = await CustomFeed.findById(req.params.id).lean();
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
     if (!feed.isPublic && feed.ownerOxyUserId !== userId) {
@@ -478,16 +473,12 @@ router.get('/:id/timeline', async (req: any, res) => {
 });
 
 // Like a feed
-router.post('/:id/like', async (req: any, res) => {
+router.post('/:id/like', validateObjectId('id'), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const feedId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(feedId)) {
-      return res.status(400).json({ error: 'Invalid feed ID format' });
-    }
-
     const feed = await CustomFeed.findById(feedId);
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
 
@@ -533,16 +524,12 @@ router.post('/:id/like', async (req: any, res) => {
 });
 
 // Unlike a feed
-router.delete('/:id/like', async (req: any, res) => {
+router.delete('/:id/like', validateObjectId('id'), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const feedId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(feedId)) {
-      return res.status(400).json({ error: 'Invalid feed ID format' });
-    }
-
     const feed = await CustomFeed.findById(feedId);
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
 

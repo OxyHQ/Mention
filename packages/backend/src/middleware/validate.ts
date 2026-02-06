@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import mongoose from 'mongoose';
 import { sendError, ErrorCodes } from '../utils/apiResponse';
 
 /**
@@ -35,6 +36,29 @@ export function validateQuery<T extends z.ZodType>(schema: T) {
       return;
     }
     req.query = result.data;
+    next();
+  };
+}
+
+/**
+ * Express middleware to validate MongoDB ObjectId in route params.
+ * Validates req.params[paramName] is a valid ObjectId format.
+ *
+ * @param paramName - The name of the param to validate (default: 'id')
+ */
+export function validateObjectId(paramName: string = 'id') {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const id = req.params[paramName];
+    if (!id) {
+      sendError(res, ErrorCodes.VALIDATION_ERROR, `${paramName} parameter is required`, 400);
+      return;
+    }
+    // Handle both string and string[] (Express params can be arrays with duplicate path segments)
+    const idString = Array.isArray(id) ? id[0] : id;
+    if (!idString || !mongoose.Types.ObjectId.isValid(idString)) {
+      sendError(res, ErrorCodes.VALIDATION_ERROR, `Invalid ${paramName} format`, 400);
+      return;
+    }
     next();
   };
 }
@@ -116,5 +140,10 @@ export const schemas = {
     includeReposts: z.boolean().optional(),
     includeMedia: z.boolean().optional(),
     language: z.string().min(2).max(10).regex(/^[a-zA-Z-]+$/).optional().nullable(),
+  }),
+
+  /** Custom feed members management request body */
+  manageFeedMembers: z.object({
+    userIds: z.array(z.string().min(1).max(100, 'User ID too long')).min(1, 'At least one user ID is required').max(100, 'Maximum 100 user IDs per request'),
   }),
 };
