@@ -14,22 +14,24 @@ import { feedCacheService } from '../services/FeedCacheService';
 import ArticleModel from '../models/Article';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
+import { config } from '../config';
+import { mergeHashtags } from '../utils/textProcessing';
 
-// Constants
-const MAX_SOURCES = 5;
-const MAX_SOURCE_TITLE_LENGTH = 200;
-const MAX_ARTICLE_TITLE_LENGTH = 280;
-const MAX_ARTICLE_EXCERPT_LENGTH = 280;
-const DEFAULT_POLL_DURATION_DAYS = 7;
-const MAX_EVENT_NAME_LENGTH = 200;
-const MAX_EVENT_LOCATION_LENGTH = 200;
-const MAX_EVENT_DESCRIPTION_LENGTH = 500;
-const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
-const DEFAULT_NEARBY_RADIUS_METERS = 10000; // 10km
-const MAX_NEARBY_POSTS = 50;
-const MAX_AREA_POSTS = 100;
-const DEFAULT_LIKES_LIMIT = 50;
+// Constants from centralized config
+const MAX_SOURCES = config.posts.maxSources;
+const MAX_SOURCE_TITLE_LENGTH = config.posts.maxSourceTitleLength;
+const MAX_ARTICLE_TITLE_LENGTH = config.posts.maxArticleTitleLength;
+const MAX_ARTICLE_EXCERPT_LENGTH = config.posts.maxArticleExcerptLength;
+const DEFAULT_POLL_DURATION_DAYS = config.posts.defaultPollDurationDays;
+const MAX_EVENT_NAME_LENGTH = config.posts.maxEventNameLength;
+const MAX_EVENT_LOCATION_LENGTH = config.posts.maxEventLocationLength;
+const MAX_EVENT_DESCRIPTION_LENGTH = config.posts.maxEventDescriptionLength;
+const DEFAULT_PAGE_SIZE = config.posts.defaultPageSize;
+const MAX_PAGE_SIZE = config.posts.maxPageSize;
+const DEFAULT_NEARBY_RADIUS_METERS = config.posts.defaultNearbyRadiusMeters;
+const MAX_NEARBY_POSTS = config.posts.maxNearbyPosts;
+const MAX_AREA_POSTS = config.posts.maxAreaPosts;
+const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 const DEFAULT_REPOSTS_LIMIT = 50;
 
 const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
@@ -302,9 +304,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const contentLocationData = content?.location || contentLocation;
 
 
-    // Extract hashtags from text if not provided
-    const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g) as Iterable<RegExpMatchArray>).map((m) => m[1].toLowerCase());
-    const uniqueTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
+    // Extract and merge hashtags from text with user-provided ones
+    const uniqueTags = mergeHashtags(text || '', hashtags);
 
     // Process content location data (user's shared location)
     let processedContentLocation = null;
@@ -846,10 +847,9 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.pollId = pollId;
       }
 
-      // Extract hashtags from text
+      // Extract and merge hashtags from text with user-provided ones
       const text = content?.text || '';
-      const extractedTags = Array.from(text.matchAll(/#([A-Za-z0-9_]+)/g) as Iterable<RegExpMatchArray>).map((m) => m[1].toLowerCase());
-      const uniqueTags = Array.from(new Set([...(hashtags || []), ...extractedTags]));
+      const uniqueTags = mergeHashtags(text, hashtags);
 
       // Create post
       const attachmentsInput = content?.attachments || content?.attachmentOrder || postData.attachments || postData.attachmentOrder;
@@ -1054,9 +1054,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     if (text !== undefined) {
       post.content.text = text;
       // Re-extract hashtags when text changes
-      const extractedTags = Array.from((text || '').matchAll(/#([A-Za-z0-9_]+)/g) as Iterable<RegExpMatchArray>).map((m) => m[1].toLowerCase());
-      const uniqueTags = Array.from(new Set([...(hashtags || post.hashtags || []), ...extractedTags]));
-      post.hashtags = uniqueTags;
+      post.hashtags = mergeHashtags(text || '', hashtags || post.hashtags);
     }
     if (media !== undefined) {
       const normalizedMedia = normalizeMediaItems(media);
