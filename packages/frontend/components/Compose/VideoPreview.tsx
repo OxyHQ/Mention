@@ -16,11 +16,22 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ src, style }) => {
 
     React.useEffect(() => {
         if (player) {
-            player.play();
+            const playVideo = async () => {
+                try {
+                    await player.play();
+                } catch {
+                    // Autoplay may be blocked on web
+                }
+            };
+            playVideo();
         }
         return () => {
             if (player) {
-                player.pause();
+                try {
+                    player.pause();
+                } catch {
+                    // Silently handle pause errors
+                }
             }
         };
     }, [player]);

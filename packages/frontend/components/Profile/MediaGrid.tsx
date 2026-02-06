@@ -43,18 +43,18 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
 
     useEffect(() => {
         if (!userId || (isPrivate && !isOwnProfile)) return;
-        
+
         fetchUserFeed(userId, { type: 'media', limit: 50 });
     }, [userId, fetchUserFeed, isPrivate, isOwnProfile]);
 
     // Fallback: if media feed finished and is empty, attempt to load posts feed for media extraction
     useEffect(() => {
         if (!userId || (isPrivate && !isOwnProfile)) return;
-        
+
             const isLoaded = !!mediaFeed && !mediaFeed.isLoading;
             const isEmpty = (mediaFeed?.items?.length || 0) === 0;
             const postsLoaded = !!postsFeed;
-        
+
             if (isLoaded && isEmpty && !postsLoaded) {
             fetchUserFeed(userId, { type: 'posts', limit: 60 });
             }
@@ -102,13 +102,13 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
             const collected = sources.filter(Boolean) as string[];
             const seen = new Set<string>();
             const isPostVideo = postType === 'video';
-            
+
             collected.forEach((raw, idx) => {
                 const mediaType = mediaTypes?.[idx];
                 const isMediaTypeVideo = mediaType === 'video';
                 const isFileExtensionVideo = /\.(mp4|mov|m4v|webm|mpg|mpeg|avi|mkv)$/i.test(String(raw));
                 const isVideo = isPostVideo || isMediaTypeVideo || isFileExtensionVideo;
-                
+
                 const uri = isVideo ? resolveVideoUri(raw) : resolveImageUri(raw);
                 // Allow duplicates across different posts; only avoid duplicates within the same post
                 if (!uri || seen.has(uri)) return;
@@ -124,14 +124,14 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
             const normalized = (post?.allMediaIds && post.allMediaIds.length)
                 ? post.allMediaIds
                 : (post?.mediaIds || []);
-            
+
             // Get media types if available from content.media array
             const mediaArray = post?.content?.media || [];
             const mediaTypes = mediaArray.map((m: any) => {
                 if (typeof m === 'object' && m.type) return m.type;
                 return undefined;
             });
-            
+
             if (normalized?.length) {
                 pushUris(targetId, normalized, postType, mediaTypes);
                 return;
@@ -199,8 +199,6 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
             }
         });
 
-        const handleError = useCallback(() => setHasError(true), []);
-
         const containerStyle = useMemo(() => ({
             width: itemSize,
             height: itemSize,
@@ -251,7 +249,6 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                     contentFit="cover"
                     nativeControls={false}
                     allowsFullscreen={false}
-                    onError={handleError}
                 />
                 <View style={styles.videoOverlay}>
                     <Ionicons name="play-circle" size={24} color="rgba(255, 255, 255, 0.9)" />
