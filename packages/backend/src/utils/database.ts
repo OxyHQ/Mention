@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import { logger } from "./logger";
 
+const APP_NAME = "mention";
+
 let connectPromise: Promise<typeof mongoose> | null = null;
 let retryCount = 0;
 const MAX_RETRIES = 5;
@@ -20,6 +22,15 @@ function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/**
+ * Build the database name from app name and environment.
+ * Format: {appName}-{environment} (e.g. mention-production, mention-development)
+ */
+function getDatabaseName(): string {
+  const env = process.env.NODE_ENV || "development";
+  return `${APP_NAME}-${env}`;
+}
+
 export async function connectToDatabase(): Promise<typeof mongoose> {
   if (mongoose.connection.readyState === 1) {
     return mongoose;
@@ -35,13 +46,17 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
     throw new Error("MONGODB_URI environment variable is not defined");
   }
 
+  const dbName = getDatabaseName();
+
   // Log connection string info (without credentials) for debugging
   const uriInfo = mongoUri.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'); // Mask credentials
   logger.debug(`Attempting to connect to MongoDB: ${uriInfo.substring(0, 100)}...`);
+  logger.debug(`Using database: ${dbName}`);
 
   const connectWithRetry = async (): Promise<typeof mongoose> => {
     try {
       await mongoose.connect(mongoUri, {
+        dbName,
         autoIndex: process.env.NODE_ENV !== 'production', // Disable in production for performance
         autoCreate: true,
         serverSelectionTimeoutMS: 20000,

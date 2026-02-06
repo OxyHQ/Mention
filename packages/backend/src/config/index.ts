@@ -58,7 +58,7 @@ export const config = {
 
 // Validate critical environment variables at startup
 export function validateEnvironment(): void {
-  const required = ['DATABASE_URL'];
+  const required = ['MONGODB_URI'];
   const missing = required.filter((key) => !process.env[key]);
 
   if (missing.length > 0) {
