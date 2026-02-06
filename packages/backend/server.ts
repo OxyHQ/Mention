@@ -756,6 +756,11 @@ app.use("/api", oxy.auth(), authenticatedApiRouter);
 import { performanceMiddleware } from "./src/middleware/performance";
 app.use(performanceMiddleware);
 
+// Global error handler — must be the LAST middleware registered.
+// Catches unhandled errors from route handlers and prevents raw error leakage.
+import { globalErrorHandler } from "./src/utils/error";
+app.use(globalErrorHandler);
+
 // --- Root API Welcome Route ---
 app.get("", async (req, res) => {
   try {

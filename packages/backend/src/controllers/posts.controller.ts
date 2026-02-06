@@ -411,7 +411,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         
       } catch (pollError) {
         logger.error('Failed to create poll', pollError);
-        return res.status(400).json({ message: 'Failed to create poll', error: pollError });
+        return res.status(400).json({ message: 'Failed to create poll' });
       }
     }
 
@@ -712,7 +712,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     res.status(201).json({ success: true, post: transformedPost });
   } catch (error) {
     logger.error('Error creating post', error);
-    res.status(500).json({ message: 'Error creating post', error });
+    res.status(500).json({ message: 'Error creating post' });
   }
 };
 
@@ -972,7 +972,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     res.status(201).json({ success: true, posts: createdPosts });
   } catch (error) {
     logger.error('Error creating thread', error);
-    res.status(500).json({ message: 'Error creating thread', error });
+    res.status(500).json({ message: 'Error creating thread' });
   }
 };
 
@@ -1003,7 +1003,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching posts', error);
-    res.status(500).json({ message: 'Error fetching posts', error });
+    res.status(500).json({ message: 'Error fetching posts' });
   }
 };
 
@@ -1032,7 +1032,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
     res.json(hydratedPost);
   } catch (error) {
     logger.error('Error fetching post', error);
-    res.status(500).json({ message: 'Error fetching post', error });
+    res.status(500).json({ message: 'Error fetching post' });
   }
 };
 
@@ -1177,7 +1177,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     res.json(transformedPost);
   } catch (error) {
     logger.error('Error updating post', error);
-    res.status(500).json({ message: 'Error updating post', error });
+    res.status(500).json({ message: 'Error updating post' });
   }
 };
 
@@ -1237,7 +1237,7 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error updating post settings', error);
-    res.status(500).json({ message: 'Error updating post settings', error });
+    res.status(500).json({ message: 'Error updating post settings' });
   }
 };
 
@@ -1266,7 +1266,7 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Post deleted successfully' });
   } catch (error) {
     logger.error('Error deleting post', error);
-    res.status(500).json({ message: 'Error deleting post', error });
+    res.status(500).json({ message: 'Error deleting post' });
   }
 };
 
@@ -1354,7 +1354,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error liking post', error);
-    res.status(500).json({ message: 'Error liking post', error });
+    res.status(500).json({ message: 'Error liking post' });
   }
 };
 
@@ -1408,7 +1408,7 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error unliking post', error);
-    res.status(500).json({ message: 'Error unliking post', error });
+    res.status(500).json({ message: 'Error unliking post' });
   }
 };
 
@@ -1468,7 +1468,7 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Post saved successfully' });
   } catch (error) {
     logger.error('Error saving post', error);
-    res.status(500).json({ message: 'Error saving post', error });
+    res.status(500).json({ message: 'Error saving post' });
   }
 };
 
@@ -1506,7 +1506,7 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Post unsaved successfully' });
   } catch (error) {
     logger.error('Error unsaving post', error);
-    res.status(500).json({ message: 'Error unsaving post', error });
+    res.status(500).json({ message: 'Error unsaving post' });
   }
 };
 
@@ -1562,7 +1562,7 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
     res.status(201).json(repost);
   } catch (error) {
     logger.error('Error creating repost', error);
-    res.status(500).json({ message: 'Error creating repost', error });
+    res.status(500).json({ message: 'Error creating repost' });
   }
 };
 
@@ -1608,7 +1608,7 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
     res.status(201).json(quotePost);
   } catch (error) {
     logger.error('Error creating quote post', error);
-    res.status(500).json({ message: 'Error creating quote post', error });
+    res.status(500).json({ message: 'Error creating quote post' });
   }
 };
 
@@ -1672,7 +1672,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching saved posts', error);
-    res.status(500).json({ message: 'Error fetching saved posts', error });
+    res.status(500).json({ message: 'Error fetching saved posts' });
   }
 };
 
@@ -1707,7 +1707,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching posts by hashtag', error);
-    res.status(500).json({ message: 'Error fetching posts by hashtag', error });
+    res.status(500).json({ message: 'Error fetching posts by hashtag' });
   }
 };
 
@@ -1730,7 +1730,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
     res.json(drafts);
   } catch (error) {
     logger.error('Error fetching drafts', error);
-    res.status(500).json({ message: 'Error fetching drafts', error });
+    res.status(500).json({ message: 'Error fetching drafts' });
   }
 };
 
@@ -1753,7 +1753,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
     res.json(scheduledPosts);
   } catch (error) {
     logger.error('Error fetching scheduled posts', error);
-    res.status(500).json({ message: 'Error fetching scheduled posts', error });
+    res.status(500).json({ message: 'Error fetching scheduled posts' });
   }
 }; 
 
@@ -1812,7 +1812,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching nearby posts', error);
-    res.status(500).json({ message: 'Error fetching nearby posts', error });
+    res.status(500).json({ message: 'Error fetching nearby posts' });
   }
 };
 
@@ -1872,7 +1872,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching posts in area', error);
-    res.status(500).json({ message: 'Error fetching posts in area', error });
+    res.status(500).json({ message: 'Error fetching posts in area' });
   }
 };
 
@@ -1937,7 +1937,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching post likes', error);
-    res.status(500).json({ message: 'Error fetching post likes', error });
+    res.status(500).json({ message: 'Error fetching post likes' });
   }
 };
 
@@ -2002,7 +2002,7 @@ export const getPostReposts = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching post reposts', error);
-    res.status(500).json({ message: 'Error fetching post reposts', error });
+    res.status(500).json({ message: 'Error fetching post reposts' });
   }
 };
 
@@ -2097,7 +2097,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
     });
   } catch (error) {
     logger.error('Error fetching nearby posts (both locations)', error);
-    res.status(500).json({ message: 'Error fetching nearby posts (both locations)', error });
+    res.status(500).json({ message: 'Error fetching nearby posts (both locations)' });
   }
 };
 
@@ -2150,6 +2150,6 @@ export const getLocationStats = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching location stats', error);
-    res.status(500).json({ message: 'Error fetching location stats', error });
+    res.status(500).json({ message: 'Error fetching location stats' });
   }
 };

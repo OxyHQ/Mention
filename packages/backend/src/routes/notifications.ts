@@ -319,7 +319,7 @@ router.post("/", async (req: Request, res: Response) => {
     };
     res.status(201).json(payload);
   } catch (error) {
-    res.status(500).json({ message: "Error creating notification", error });
+    res.status(500).json({ message: "Error creating notification" });
   }
 });
 
@@ -347,7 +347,7 @@ const markAsReadHandler = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: "Notification marked as read", notification });
   } catch (error) {
-    res.status(500).json({ message: "Error updating notification", error });
+    res.status(500).json({ message: "Error updating notification" });
   }
 };
 
@@ -373,7 +373,7 @@ const markAllAsReadHandler = async (req: AuthRequest, res: Response) => {
 
     res.json({ message: "All notifications marked as read" });
   } catch (error) {
-    res.status(500).json({ message: "Error updating notifications", error });
+    res.status(500).json({ message: "Error updating notifications" });
   }
 };
 
@@ -388,7 +388,7 @@ router.get('/unread-count', async (req: AuthRequest, res: Response) => {
     const count = await Notification.countDocuments({ recipientId: userId, read: false });
     res.json({ count });
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching unread count', error });
+    res.status(500).json({ message: 'Error fetching unread count' });
   }
 });
 
@@ -412,7 +412,7 @@ router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
 
     res.json({ message: 'Notification archived', notification });
   } catch (error) {
-    res.status(500).json({ message: 'Error archiving notification', error });
+    res.status(500).json({ message: 'Error archiving notification' });
   }
 });
 
@@ -437,8 +437,8 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
     io.to(`user:${userId}`).emit('notificationDeleted', notification._id);
 
     res.json({ message: "Notification deleted" });
-  } catch (error: any) {
-    res.status(500).json({ message: "Error deleting notification", error });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting notification" });
   }
 });
 // --- Device Push Token Management ---
