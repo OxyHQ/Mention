@@ -52,7 +52,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       mute
     });
   } catch (error) {
-    logger.error('Error muting user:', error);
+    logger.error('Error muting user:', { userId: req.user?.id, mutedId: req.body.mutedId, error });
     res.status(500).json({
       message: 'Error muting user',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -90,7 +90,7 @@ router.delete('/:mutedId', async (req: AuthRequest, res: Response) => {
       message: 'User unmuted successfully'
     });
   } catch (error) {
-    logger.error('Error unmuting user:', error);
+    logger.error('Error unmuting user:', { userId: req.user?.id, mutedId: req.params.mutedId, error });
     res.status(500).json({
       message: 'Error unmuting user',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -119,7 +119,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       count: mutes.length
     });
   } catch (error) {
-    logger.error('Error fetching muted users:', error);
+    logger.error('Error fetching muted users:', { userId: req.user?.id, error });
     res.status(500).json({
       message: 'Error fetching muted users',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -153,7 +153,7 @@ router.get('/check/:userId', async (req: AuthRequest, res: Response) => {
       isMuted: !!mute
     });
   } catch (error) {
-    logger.error('Error checking mute status:', error);
+    logger.error('Error checking mute status:', { userId: req.user?.id, targetUserId: req.params.userId, error });
     res.status(500).json({
       message: 'Error checking mute status',
       error: error instanceof Error ? error.message : 'Unknown error'

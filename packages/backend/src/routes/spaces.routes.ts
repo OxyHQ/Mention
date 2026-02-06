@@ -60,7 +60,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       space
     });
   } catch (error) {
-    logger.error('Error creating space:', error);
+    logger.error('Error creating space:', { userId: req.user?.id, error });
     res.status(500).json({
       message: 'Error creating space',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -119,7 +119,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       nextCursor
     });
   } catch (error) {
-    logger.error('Error fetching spaces:', error);
+    logger.error('Error fetching spaces:', { userId: req.user?.id, error, query: req.query });
     res.status(500).json({
       message: 'Error fetching spaces',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -143,7 +143,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 
     res.json({ space });
   } catch (error) {
-    logger.error('Error fetching space:', error);
+    logger.error('Error fetching space:', { userId: req.user?.id, spaceId: req.params.id, error });
     res.status(500).json({
       message: 'Error fetching space',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -204,7 +204,7 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
       space
     });
   } catch (error) {
-    logger.error('Error starting space:', error);
+    logger.error('Error starting space:', { userId: req.user?.id, spaceId: req.params.id, error });
     res.status(500).json({
       message: 'Error starting space',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -265,7 +265,7 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
       space
     });
   } catch (error) {
-    logger.error('Error ending space:', error);
+    logger.error('Error ending space:', { userId: req.user?.id, spaceId: req.params.id, error });
     res.status(500).json({
       message: 'Error ending space',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -343,7 +343,7 @@ router.post('/:id/join', async (req: AuthRequest, res: Response) => {
       space
     });
   } catch (error) {
-    logger.error('Error joining space:', error);
+    logger.error('Error joining space:', { userId: req.user?.id, spaceId: req.params.id, error });
     res.status(500).json({
       message: 'Error joining space',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -397,7 +397,7 @@ router.post('/:id/leave', async (req: AuthRequest, res: Response) => {
       message: 'Left space successfully'
     });
   } catch (error) {
-    logger.error('Error leaving space:', error);
+    logger.error('Error leaving space:', { userId: req.user?.id, spaceId: req.params.id, error });
     res.status(500).json({
       message: 'Error leaving space',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -463,7 +463,7 @@ router.post('/:id/speakers', async (req: AuthRequest, res: Response) => {
       space
     });
   } catch (error) {
-    logger.error('Error adding speaker:', error);
+    logger.error('Error adding speaker:', { userId: req.user?.id, spaceId: req.params.id, speakerId: req.body.userId, error });
     res.status(500).json({
       message: 'Error adding speaker',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -527,7 +527,7 @@ router.delete('/:id/speakers/:userId', async (req: AuthRequest, res: Response) =
       space
     });
   } catch (error) {
-    logger.error('Error removing speaker:', error);
+    logger.error('Error removing speaker:', { userId: req.user?.id, spaceId: req.params.id, speakerId: req.params.userId, error });
     res.status(500).json({
       message: 'Error removing speaker',
       error: error instanceof Error ? error.message : 'Unknown error'

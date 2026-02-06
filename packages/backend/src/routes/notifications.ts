@@ -282,7 +282,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       limit
     });
   } catch (error) {
-    logger.error("[Notifications] Error fetching notifications:", error);
+    logger.error("[Notifications] Error fetching notifications:", { userId: req.user?.id, error, cursor: req.query.cursor });
     res.status(500).json({ 
       message: "Error fetching notifications", 
       error: error instanceof Error ? error.message : "UNKNOWN_ERROR",
@@ -456,7 +456,7 @@ router.post('/push-token', async (req: AuthRequest, res: Response) => {
     );
     res.json({ ok: true, id: doc._id });
   } catch (e) {
-    logger.error('[Notifications] Failed to register push token:', e);
+    logger.error('[Notifications] Failed to register push token:', { userId: req.user?.id, error: e });
     res.status(500).json({ message: 'Failed to register token' });
   }
 });
@@ -471,7 +471,7 @@ router.delete('/push-token', async (req: AuthRequest, res: Response) => {
     await PushToken.deleteOne({ userId, token });
     res.json({ ok: true });
   } catch (e) {
-    logger.error('[Notifications] Failed to unregister push token:', e);
+    logger.error('[Notifications] Failed to unregister push token:', { userId: req.user?.id, error: e });
     res.status(500).json({ message: 'Failed to unregister token' });
   }
 });
@@ -488,7 +488,7 @@ router.post('/push-test', async (req: AuthRequest, res: Response) => {
     });
     res.json({ ok: true });
   } catch (e) {
-    logger.error('[Notifications] Failed to send test push:', e);
+    logger.error('[Notifications] Failed to send test push:', { userId: req.user?.id, error: e });
     res.status(500).json({ message: 'Failed to send test push' });
   }
 });
