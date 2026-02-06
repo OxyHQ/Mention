@@ -16,7 +16,7 @@ class TrendingService {
       const res = await authenticatedClient.get("/trending", {
         params: { timeWindow, limit }
       });
-      return res.data.data || res.data || [];
+      return res.data.trending || [];
     } catch (error) {
       console.warn("Failed fetching trending", error);
       return [];

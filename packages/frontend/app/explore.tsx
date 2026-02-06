@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, View, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Feed from '../components/Feed/Feed';
 import AnimatedTabBar from '../components/common/AnimatedTabBar';
@@ -17,6 +16,8 @@ import { Search } from '@/assets/icons/search-icon';
 import { WhoToFollowTab } from '@/components/WhoToFollowTab';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
+import { TrendingList } from '@/components/trending/TrendingList';
+import { trendingService, TrendingTopic } from '@/services/trendingService';
 
 type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people';
 
@@ -32,6 +33,25 @@ const ExploreScreen: React.FC = () => {
   const fabOpacity = useSharedValue(1);
   const headerHeight = 48; // Match header minHeight
   const fabHeight = 80; // FAB height + bottom margin
+  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
+  const [trendingRefreshing, setTrendingRefreshing] = useState(false);
+
+  const fetchTrending = useCallback(async () => {
+    const topics = await trendingService.getTrending('24h', 20);
+    setTrendingTopics(topics);
+  }, []);
+
+  const handleTrendingRefresh = useCallback(async () => {
+    setTrendingRefreshing(true);
+    await fetchTrending();
+    setTrendingRefreshing(false);
+  }, [fetchTrending]);
+
+  useEffect(() => {
+    if (activeTab === 'trending') {
+      fetchTrending();
+    }
+  }, [activeTab, fetchTrending]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -42,7 +62,11 @@ const ExploreScreen: React.FC = () => {
 
       case 'trending':
         return (
-          <Feed type="explore" />
+          <TrendingList
+            topics={trendingTopics}
+            onRefresh={handleTrendingRefresh}
+            refreshing={trendingRefreshing}
+          />
         );
 
       case 'custom':
