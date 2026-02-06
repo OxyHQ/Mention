@@ -1653,14 +1653,21 @@ class FeedController {
         });
       }
 
-      // Add user to savedBy array
-      const updateResult = await Post.findByIdAndUpdate(
-        postId,
-        {
-          $addToSet: { 'metadata.savedBy': currentUserId }
-        },
-        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
-      );
+      // Add user to savedBy array and create Bookmark record
+      const [updateResult] = await Promise.all([
+        Post.findByIdAndUpdate(
+          postId,
+          {
+            $addToSet: { 'metadata.savedBy': currentUserId }
+          },
+          { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
+        ),
+        Bookmark.findOneAndUpdate(
+          { userId: currentUserId, postId },
+          { userId: currentUserId, postId },
+          { upsert: true, new: true }
+        )
+      ]);
 
       // Record interaction for user preference learning
       logger.debug(`[Save] Recording interaction for user ${currentUserId}, post ${postId}`);
@@ -1728,14 +1735,17 @@ class FeedController {
         });
       }
 
-      // Remove user from savedBy array
-      const updateResult = await Post.findByIdAndUpdate(
-        postId,
-        {
-          $pull: { 'metadata.savedBy': currentUserId }
-        },
-        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
-      );
+      // Remove user from savedBy array and delete Bookmark record
+      const [updateResult] = await Promise.all([
+        Post.findByIdAndUpdate(
+          postId,
+          {
+            $pull: { 'metadata.savedBy': currentUserId }
+          },
+          { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
+        ),
+        Bookmark.deleteOne({ userId: currentUserId, postId })
+      ]);
 
       // Emit real-time update to user room only
       io.to(`user:${currentUserId}`).emit('post:unsaved', {
