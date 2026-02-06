@@ -107,15 +107,16 @@ export function parseFeedCursor(cursor: string | undefined): mongoose.Types.Obje
  * Build cursor from post ID
  * Returns string representation of ObjectId for cursor-based pagination
  */
-export function buildFeedCursor(post: { _id?: mongoose.Types.ObjectId | string }): string | undefined {
-  if (!post._id) return undefined;
-  
+export function buildFeedCursor(post: { _id?: mongoose.Types.ObjectId | string; id?: string }): string | undefined {
+  const rawId = post._id || post.id;
+  if (!rawId) return undefined;
+
   try {
-    return post._id instanceof mongoose.Types.ObjectId
-      ? post._id.toString()
-      : String(post._id);
+    return rawId instanceof mongoose.Types.ObjectId
+      ? rawId.toString()
+      : String(rawId);
   } catch (error) {
-    logger.warn('Error building cursor', { postId: post._id, error });
+    logger.warn('Error building cursor', { postId: rawId, error });
     return undefined;
   }
 }

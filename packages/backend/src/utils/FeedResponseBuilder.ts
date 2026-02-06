@@ -47,22 +47,6 @@ export class FeedResponseBuilder {
     const hasMore = hasMoreFromQuery || deduplicatedPosts.length > limit;
     const postsToReturn = deduplicatedPosts.length > limit ? deduplicatedPosts.slice(0, limit) : deduplicatedPosts;
 
-    // Calculate cursor BEFORE transformation using the actual last post that will be returned
-    let nextCursor: string | undefined;
-    if (postsToReturn.length > 0 && hasMore) {
-      const lastPost = postsToReturn[postsToReturn.length - 1];
-      nextCursor = buildFeedCursor(lastPost);
-
-      // Validate cursor advanced (prevent infinite loops)
-      if (previousCursor && nextCursor && !validateCursorAdvanced(nextCursor, previousCursor)) {
-        logger.warn('⚠️ Cursor did not advance, stopping pagination', {
-          previousCursor,
-          nextCursor
-        });
-        nextCursor = undefined;
-      }
-    }
-
     // Transform posts if transformer provided
     let transformedPosts: HydratedPost[];
     if (transformPosts) {
@@ -81,21 +65,26 @@ export class FeedResponseBuilder {
       transformedPosts = postsToReturn as HydratedPost[];
     }
 
-    // Final deduplication after transformation (transformation shouldn't create duplicates, but safety check)
+    // Final deduplication after transformation
     const finalUniquePosts = deduplicatePosts(transformedPosts);
 
-    // Recalculate hasMore based on final deduplicated count
-    const finalHasMore = finalUniquePosts.length >= limit && nextCursor !== undefined;
+    // Calculate cursor AFTER transformation using the final set's last post
+    let finalCursor: string | undefined;
+    if (finalUniquePosts.length > 0 && hasMore) {
+      const lastPost = finalUniquePosts[finalUniquePosts.length - 1];
+      finalCursor = buildFeedCursor(lastPost);
 
-    // Final cursor validation
-    let finalCursor = nextCursor;
-    if (finalCursor && previousCursor && !validateCursorAdvanced(finalCursor, previousCursor)) {
-      logger.warn('⚠️ Cursor did not advance after transformation, stopping pagination', {
-        previousCursor,
-        finalCursor
-      });
-      finalCursor = undefined;
+      // Validate cursor advanced (prevent infinite loops)
+      if (previousCursor && finalCursor && !validateCursorAdvanced(finalCursor, previousCursor)) {
+        logger.warn('⚠️ Cursor did not advance, stopping pagination', {
+          previousCursor,
+          finalCursor
+        });
+        finalCursor = undefined;
+      }
     }
+
+    const finalHasMore = finalUniquePosts.length >= limit && finalCursor !== undefined;
 
     return {
       items: finalUniquePosts,
