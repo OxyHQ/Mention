@@ -162,7 +162,13 @@ class SocketService {
       previouslyLoading = currentlyLoading;
 
       if (hasJustFinished) {
-        setTimeout(() => this.processFeedUpdateQueue(), 100);
+        // Clear any pending debounce timer to avoid race conditions
+        if (this.feedUpdateTimer) {
+          clearTimeout(this.feedUpdateTimer);
+          this.feedUpdateTimer = null;
+        }
+        // Process immediately when loading completes to avoid losing queued updates
+        this.processFeedUpdateQueue();
       }
     });
   }
@@ -530,27 +536,31 @@ class SocketService {
    */
   private processFeedUpdateQueue() {
     if (this.feedUpdateQueue.size === 0) return;
-    
+
     const store = usePostsStore.getState();
-    
+
     // Process each feed type's queued posts
     this.feedUpdateQueue.forEach((posts, feedType) => {
-      if (posts.length === 0) return;
-      
+      if (posts.length === 0) {
+        this.feedUpdateQueue.delete(feedType);
+        return;
+      }
+
       const currentFeed = store.feeds[feedType as FeedType];
       if (!currentFeed) {
         // Feed doesn't exist, remove queue entry entirely
         this.feedUpdateQueue.delete(feedType);
         return;
       }
-      
+
       // Suppress socket updates during loading to prevent race conditions with fetch requests
       // When a feed is loading, the fetch response will include the posts, so we don't need
       // socket updates to add them again (which would cause duplicates)
       if (currentFeed.isLoading) {
         // Keep posts in queue - they'll be processed after loading completes
         // But limit queue size to prevent memory issues
-        if (this.feedUpdateQueue.get(feedType)!.length > this.MAX_BATCH_SIZE * 2) {
+        const currentQueue = this.feedUpdateQueue.get(feedType)!;
+        if (currentQueue.length > this.MAX_BATCH_SIZE * 2) {
           this.feedUpdateQueue.set(feedType, posts.slice(-this.MAX_BATCH_SIZE)); // Keep last MAX_BATCH_SIZE items
         }
         return;
@@ -647,12 +657,15 @@ class SocketService {
    */
   private processEngagementQueue() {
     if (this.engagementUpdateQueue.size === 0) return;
-    
+
     const store = usePostsStore.getState();
-    
+
     // Process each post's queued updates
     this.engagementUpdateQueue.forEach((updates, postId) => {
-      if (updates.length === 0) return;
+      if (updates.length === 0) {
+        this.engagementUpdateQueue.delete(postId);
+        return;
+      }
       
       // Get the most recent update for each type (latest wins)
       const latestByType = new Map<string, typeof updates[0]>();
