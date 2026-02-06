@@ -37,6 +37,10 @@ import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
 import linksRoutes from './src/routes/links';
 import followsRoutes from './src/routes/follows';
+import muteRoutes from './src/routes/mute.routes';
+import reportsRoutes from './src/routes/reports.routes';
+import trendingRoutes from './src/routes/trending.routes';
+import spacesRoutes from './src/routes/spaces.routes';
 
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
@@ -279,9 +283,13 @@ const configureNamespaceErrorHandling = (namespace: Namespace) => {
 const notificationsNamespace = io.of("/notifications");
 const postsNamespace = io.of("/posts");
 
+// Import and initialize spaces socket namespace
+import { initializeSpaceSocket } from './src/sockets/spaceSocket';
+const spacesNamespace = initializeSpaceSocket(io);
+
 // --- Socket Auth Middleware ---
 // Authenticate socket connections using JWT token or userId from handshake
-[notificationsNamespace, postsNamespace, io].forEach((namespaceOrServer: any) => {
+[notificationsNamespace, postsNamespace, spacesNamespace, io].forEach((namespaceOrServer: any) => {
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
     namespaceOrServer.use(async (socket: AuthenticatedSocket, next: (err?: any) => void) => {
       try {
@@ -430,6 +438,7 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
 [
   notificationsNamespace,
   postsNamespace,
+  spacesNamespace
 ].forEach((namespace) => {
   configureNamespaceErrorHandling(namespace);
 });
@@ -597,7 +606,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 });
 
 // Enhanced error handling for namespaces
-[notificationsNamespace, postsNamespace].forEach(
+[notificationsNamespace, postsNamespace, spacesNamespace].forEach(
   (namespace: Namespace) => {
     namespace.on("connection_error", (error: Error) => {
       logger.error(`Namespace ${namespace.name} connection error`, error);
@@ -672,6 +681,7 @@ publicApiRouter.use("/feed", optionalAuth, feedRoutes);
 publicApiRouter.use("/profile/design", profileDesignRoutes);
 publicApiRouter.use("/articles", articlesRoutes);
 publicApiRouter.use("/links", optionalAuth, linksRoutes); // Link metadata (optional auth for tracking)
+publicApiRouter.use("/trending", trendingRoutes); // Trending topics (no auth required)
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
@@ -690,6 +700,9 @@ authenticatedApiRouter.use("/profile", profileSettingsRoutes);
 authenticatedApiRouter.use("/subscriptions", subscriptionsRoutes);
 authenticatedApiRouter.use("/gifs", gifsRoutes);
 authenticatedApiRouter.use("/follows", followsRoutes);
+authenticatedApiRouter.use("/mute", muteRoutes);
+authenticatedApiRouter.use("/reports", reportsRoutes);
+authenticatedApiRouter.use("/spaces", spacesRoutes);
 // You can add more protected routers here as needed
 
 // Mount public and authenticated API routers
@@ -796,6 +809,15 @@ db.once("open", () => {
     logger.info("Feed job scheduler started");
   } catch (error) {
     logger.warn("Failed to start feed job scheduler", error);
+  }
+
+  // Initialize Trending Service
+  try {
+    const { trendingService } = require("./src/services/TrendingService");
+    trendingService.initialize();
+    logger.info("Trending service initialized");
+  } catch (error) {
+    logger.warn("Failed to initialize trending service", error);
   }
 });
 

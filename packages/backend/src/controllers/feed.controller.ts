@@ -3,6 +3,8 @@ import { Post } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
+import Block from '../models/Block';
+import Mute from '../models/Mute';
 import {
   FeedRequest,
   CreateReplyRequest,
@@ -162,8 +164,50 @@ class FeedController {
   }
 
   /**
+   * Get list of blocked and muted user IDs for filtering
+   *
+   * @param userId - Current user ID
+   * @returns Array of user IDs to filter out
+   */
+  private async getBlockedAndMutedUserIds(userId?: string): Promise<string[]> {
+    if (!userId) return [];
+
+    try {
+      const [blockedUsers, mutedUsers] = await Promise.all([
+        Block.find({ userId }).select('blockedId').lean(),
+        Mute.find({ userId }).select('mutedId').lean()
+      ]);
+
+      const blockedIds = blockedUsers.map(b => b.blockedId);
+      const mutedIds = mutedUsers.map(m => m.mutedId);
+
+      // Combine and deduplicate
+      return [...new Set([...blockedIds, ...mutedIds])];
+    } catch (error) {
+      logger.warn('[Feed] Failed to fetch blocked/muted users', error);
+      return [];
+    }
+  }
+
+  /**
+   * Filter out posts from blocked and muted users
+   *
+   * @param posts - Array of posts to filter
+   * @param blockedAndMutedIds - Array of user IDs to filter out
+   * @returns Filtered posts array
+   */
+  private filterBlockedAndMutedPosts(posts: any[], blockedAndMutedIds: string[]): any[] {
+    if (blockedAndMutedIds.length === 0) return posts;
+
+    return posts.filter(post => {
+      const authorId = post.oxyUserId?.toString() || post.oxyUserId;
+      return !blockedAndMutedIds.includes(authorId);
+    });
+  }
+
+  /**
    * Populate poll data for posts that have polls
-   * 
+   *
    * @param posts - Array of posts that may contain poll references
    * @returns Posts with poll data populated
    */
@@ -493,17 +537,24 @@ class FeedController {
         validateResultSize(posts, limit + 1);
       }
 
+      // Filter out posts from blocked/muted users
+      let filteredPosts = posts;
+      if (currentUserId) {
+        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(currentUserId);
+        filteredPosts = this.filterBlockedAndMutedPosts(posts, blockedAndMutedIds);
+      }
+
       // Use FeedResponseBuilder for consistent response building
       const response = feedType === 'saved'
         ? await FeedResponseBuilder.buildSavedPostsResponse(
-            posts,
+            filteredPosts,
             limit,
             cursor,
             (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
             currentUserId
           )
         : await FeedResponseBuilder.buildResponse({
-            posts,
+            posts: filteredPosts,
             limit,
             previousCursor: cursor,
             transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
@@ -740,7 +791,13 @@ class FeedController {
       });
 
       // Slice to limit + 1 before validation (ranked posts can be up to candidateLimit)
-      const posts = sortedPosts.slice(0, limit + 1);
+      let posts = sortedPosts.slice(0, limit + 1);
+
+      // Filter out posts from blocked/muted users
+      if (currentUserId) {
+        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(currentUserId);
+        posts = this.filterBlockedAndMutedPosts(posts, blockedAndMutedIds);
+      }
 
       // Use FeedResponseBuilder for consistent response building
       // Note: We need to handle privacy filtering separately as it's applied after transformation
@@ -825,15 +882,21 @@ class FeedController {
       // Use FeedQueryBuilder for consistent query building
       const query = FeedQueryBuilder.buildFollowingQuery(followingIds, cursor);
 
-      const posts = await Post.find(query)
+      let posts = await Post.find(query)
         .select(this.FEED_FIELDS)
         .sort({ createdAt: -1 })
         .limit(limit + 1)
         .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
         .lean();
-      
+
       // Validate result size
       validateResultSize(posts, limit + 1);
+
+      // Filter out posts from blocked/muted users
+      if (currentUserId) {
+        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(currentUserId);
+        posts = this.filterBlockedAndMutedPosts(posts, blockedAndMutedIds);
+      }
 
       // Use FeedResponseBuilder for consistent response building
       const response = await FeedResponseBuilder.buildResponse({
@@ -967,9 +1030,16 @@ class FeedController {
       // Validate result size
       validateResultSize(posts, limit + 1);
 
+      // Filter out posts from blocked/muted users
+      let filteredPosts = posts;
+      if (currentUserId) {
+        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(currentUserId);
+        filteredPosts = this.filterBlockedAndMutedPosts(posts, blockedAndMutedIds);
+      }
+
       // Use FeedResponseBuilder for consistent response building
       const response = await FeedResponseBuilder.buildResponse({
-        posts,
+        posts: filteredPosts,
         limit,
         previousCursor: cursor,
         transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
@@ -1000,7 +1070,7 @@ class FeedController {
       // Use FeedQueryBuilder for consistent query building
       const query = FeedQueryBuilder.buildMediaQuery(cursor);
 
-      const posts = await Post.find(query)
+      let posts = await Post.find(query)
         .select(this.FEED_FIELDS)
         .sort({ createdAt: -1 })
         .limit(limit + 1)
@@ -1008,6 +1078,12 @@ class FeedController {
         .lean();
 
       validateResultSize(posts, limit + 1);
+
+      // Filter out posts from blocked/muted users
+      if (currentUserId) {
+        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(currentUserId);
+        posts = this.filterBlockedAndMutedPosts(posts, blockedAndMutedIds);
+      }
 
       // Use FeedResponseBuilder for consistent response building
       const response = await FeedResponseBuilder.buildResponse({
