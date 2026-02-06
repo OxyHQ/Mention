@@ -125,16 +125,17 @@ app.use(async (req, res, next) => {
 });
 
 // CORS and security headers
-const ALLOWED_ORIGINS = [
+const ALLOWED_ORIGINS: string[] = [
   process.env.FRONTEND_URL || "https://mention.earth",
-  "http://localhost:8081",
-  "http://localhost:8082",
-  "http://192.168.86.44:8081",
-] as const;
+  ...(process.env.NODE_ENV !== 'production' ? [
+    "http://localhost:8081",
+    "http://localhost:8082",
+  ] : []),
+];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin as typeof ALLOWED_ORIGINS[number])) {
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else if (process.env.FRONTEND_URL) {
     res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
@@ -228,7 +229,7 @@ const io = new SocketIOServer(server, {
   maxHttpBufferSize: SOCKET_CONFIG.MAX_BUFFER_SIZE,
   connectTimeout: SOCKET_CONFIG.CONNECT_TIMEOUT,
   cors: {
-    origin: [process.env.FRONTEND_URL || "https://mention.earth", "http://localhost:8081", "http://localhost:8082"],
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With", "Accept", "Accept-Version", "Content-Length", "Content-MD5", "Date", "X-Api-Version"]
