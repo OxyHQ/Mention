@@ -394,6 +394,12 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
 postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   logger.info(`Client connected to posts namespace from ip: ${socket.handshake.address}`);
 
+  if (!socket.user?.id) {
+    logger.warn("Unauthenticated client attempted to connect to posts namespace");
+    socket.disconnect(true);
+    return;
+  }
+
   socket.on("error", (error: Error) => {
     logger.error("Posts socket error", error);
   });
