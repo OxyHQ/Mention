@@ -930,6 +930,7 @@ class SocketService {
   }
 
   // Presence event listeners
+  private static readonly MAX_LISTENER_MAP_SIZE = 500;
   private presenceListeners: Map<string, Set<(online: boolean) => void>> = new Map();
 
   /**
@@ -1014,9 +1015,29 @@ class SocketService {
   }
 
   /**
+   * Prune empty entries from a listener map and evict oldest if over limit
+   */
+  private pruneListenerMap<T>(map: Map<string, Set<T>>): void {
+    // Remove entries with empty Sets
+    for (const [key, set] of map.entries()) {
+      if (set.size === 0) {
+        map.delete(key);
+      }
+    }
+    // If still over limit, remove oldest entries (first inserted)
+    if (map.size > SocketService.MAX_LISTENER_MAP_SIZE) {
+      const keysToRemove = Array.from(map.keys()).slice(0, map.size - SocketService.MAX_LISTENER_MAP_SIZE);
+      for (const key of keysToRemove) {
+        map.delete(key);
+      }
+    }
+  }
+
+  /**
    * Subscribe to a user's online presence
    */
   subscribeToPresence(userId: string, callback: (online: boolean) => void): () => void {
+    this.pruneListenerMap(this.presenceListeners);
     if (!this.presenceListeners.has(userId)) {
       this.presenceListeners.set(userId, new Set());
     }
@@ -1079,6 +1100,7 @@ class SocketService {
    * Subscribe to follow count updates for a user
    */
   subscribeToFollowUpdates(userId: string, callback: (data: FollowEventData) => void): () => void {
+    this.pruneListenerMap(this.followListeners);
     if (!this.followListeners.has(userId)) {
       this.followListeners.set(userId, new Set());
     }
