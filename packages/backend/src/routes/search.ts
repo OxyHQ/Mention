@@ -90,7 +90,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
 
       // Media filters
-      if (hasMedia === 'true' || hasMedia === true) {
+      if (hasMedia === 'true') {
         filter['content.media'] = { $exists: true, $ne: null };
       }
 

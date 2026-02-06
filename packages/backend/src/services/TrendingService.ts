@@ -188,12 +188,12 @@ class TrendingService {
       const trending = await Trending.find({ timeWindow })
         .sort({ score: -1, rank: 1 })
         .limit(limit)
-        .lean();
+        .lean() as ITrending[];
 
       // Cache the result
       if (redis && trending.length > 0) {
         try {
-          await redis.setex(cacheKey, this.REDIS_CACHE_TTL, JSON.stringify(trending));
+          await redis.setEx(cacheKey, this.REDIS_CACHE_TTL, JSON.stringify(trending));
           logger.debug(`[Trending] Cached ${trending.length} items for ${timeWindow}`);
         } catch (cacheError) {
           logger.warn('[Trending] Redis cache write failed:', cacheError);
@@ -220,7 +220,7 @@ class TrendingService {
       const keys = await redis.keys(pattern);
 
       if (keys.length > 0) {
-        await redis.del(...keys);
+        await redis.del(keys);
         logger.debug(`[Trending] Invalidated ${keys.length} cache keys`);
       }
     } catch (error) {
