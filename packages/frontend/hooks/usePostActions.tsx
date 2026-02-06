@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useContext } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from './useTheme';
@@ -8,7 +8,7 @@ import { feedService } from '@/services/feedService';
 import { confirmDialog } from '@/utils/alerts';
 import { Alert, Platform } from 'react-native';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { useContext } from 'react';
+import type { HydratedPost, FeedType } from '@mention/shared-types';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { TrashIcon } from '@/assets/icons/trash-icon';
@@ -26,8 +26,15 @@ import ReportModal from '@/components/report/ReportModal';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
 
+interface ActionItem {
+    icon: React.ReactNode;
+    text: string;
+    onPress: () => void;
+    color?: string;
+}
+
 interface UsePostActionsParams {
-    viewPost: any;
+    viewPost: HydratedPost;
     isOwner: boolean;
     isSaved: boolean;
     hasArticle: boolean;
@@ -38,13 +45,13 @@ interface UsePostActionsParams {
 }
 
 interface PostActionsResult {
-    insightsAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
-    saveActionGroup: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
-    deleteAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
-    articleAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
-    sourcesAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
-    muteReportAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
-    copyLinkAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
+    insightsAction: ActionItem[];
+    saveActionGroup: ActionItem[];
+    deleteAction: ActionItem[];
+    articleAction: ActionItem[];
+    sourcesAction: ActionItem[];
+    muteReportAction: ActionItem[];
+    copyLinkAction: ActionItem[];
 }
 
 export function usePostActions({
@@ -62,7 +69,7 @@ export function usePostActions({
     const { t } = useTranslation();
     const router = useRouter();
     const bottomSheet = useContext(BottomSheetContext);
-    const removePostEverywhere = usePostsStore((s: any) => (s as any).removePostEverywhere);
+    const removePostEverywhere = usePostsStore((s) => s.removePostEverywhere);
 
     return useMemo(() => {
         const postId = viewPost?.id;
@@ -92,10 +99,10 @@ export function usePostActions({
                 if (typeof removePostEverywhere === 'function') {
                     removePostEverywhere(postId);
                 } else {
-                    const store = usePostsStore.getState() as any;
-                    const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved', 'for_you', 'following'] as const;
-                    types.forEach((t) => {
-                        try { store.removePostLocally(postId, t as any); } catch (e) { console.warn(`[usePostActions] Failed to remove post from ${t} feed:`, e); }
+                    const store = usePostsStore.getState();
+                    const types: FeedType[] = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved', 'for_you', 'following'];
+                    types.forEach((feedType) => {
+                        try { store.removePostLocally(postId, feedType); } catch (e) { console.warn(`[usePostActions] Failed to remove post from ${feedType} feed:`, e); }
                     });
                 }
                 if (isPostDetail) router.back();
@@ -118,7 +125,7 @@ export function usePostActions({
             }
         }] : [];
 
-        const saveActionGroup: Array<{ icon: any; text: string; onPress: () => void; color?: string }> = [];
+        const saveActionGroup: ActionItem[] = [];
 
         if (!isSaved) {
             saveActionGroup.push({
@@ -262,7 +269,7 @@ export function usePostActions({
             bottomSheet.openBottomSheet(true);
         };
 
-        const muteReportAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }> = [];
+        const muteReportAction: ActionItem[] = [];
 
         if (!isOwner) {
             const username = viewPost?.user?.handle || viewPost?.user?.name || 'user';
