@@ -62,6 +62,8 @@ class SocketService {
   private readonly MAX_HEALTH_FAILURES = 3; // Require 3 consecutive failures before disconnecting
   private healthCheckDisconnect: boolean = false; // Track if disconnect was triggered by health check
   
+  // Subscription to flush queued feed updates when loading completes
+  private feedLoadingUnsubscribe: (() => void) | null = null;
   // Queue for engagement updates to batch rapid changes
   private engagementUpdateQueue: Map<string, EngagementUpdate[]> = new Map();
   private engagementUpdateTimer: ReturnType<typeof setTimeout> | null = null;
@@ -120,6 +122,7 @@ class SocketService {
       });
 
       this.setupSocketEventListeners();
+      this.setupFeedLoadingWatcher();
     } catch (error) {
       console.error('[SocketService] Connection error:', error);
     }
@@ -130,6 +133,38 @@ class SocketService {
     if (actorId && this.currentUserId && actorId === this.currentUserId) return true;
     // Otherwise, ignore if we performed the same action very recently
     return wasRecent(postId, action as any);
+  }
+
+  /**
+   * Watch for feed loading state transitions (loading -> loaded)
+   * and flush queued socket updates that were suppressed during loading
+   */
+  private setupFeedLoadingWatcher(): void {
+    if (this.feedLoadingUnsubscribe) {
+      this.feedLoadingUnsubscribe();
+    }
+
+    let previouslyLoading = new Set<string>();
+
+    this.feedLoadingUnsubscribe = usePostsStore.subscribe((state) => {
+      const currentlyLoading = new Set<string>();
+      let hasJustFinished = false;
+
+      for (const feedType of VALID_FEED_TYPES) {
+        const feed = state.feeds[feedType as FeedType];
+        if (feed?.isLoading) {
+          currentlyLoading.add(feedType);
+        } else if (previouslyLoading.has(feedType) && this.feedUpdateQueue.has(feedType)) {
+          hasJustFinished = true;
+        }
+      }
+
+      previouslyLoading = currentlyLoading;
+
+      if (hasJustFinished) {
+        setTimeout(() => this.processFeedUpdateQueue(), 100);
+      }
+    });
   }
 
   /**
@@ -160,6 +195,11 @@ class SocketService {
       this.processEngagementQueue();
       this.engagementUpdateTimer = null;
     }
+    // Clean up feed loading watcher
+    if (this.feedLoadingUnsubscribe) {
+      this.feedLoadingUnsubscribe();
+      this.feedLoadingUnsubscribe = null;
+    }
     // Clear queues
     this.feedUpdateQueue.clear();
     this.engagementUpdateQueue.clear();
@@ -186,6 +226,8 @@ class SocketService {
   leaveFeed(feedType: string): void {
     if (!this.socket?.connected) return;
     this.socket.emit('leaveFeed', { feedType, userId: this.currentUserId });
+    // Clean up queued updates for this feed
+    this.feedUpdateQueue.delete(feedType);
   }
 
   /**
@@ -497,8 +539,8 @@ class SocketService {
       
       const currentFeed = store.feeds[feedType as FeedType];
       if (!currentFeed) {
-        // Feed doesn't exist yet, clear queue
-        this.feedUpdateQueue.set(feedType, []);
+        // Feed doesn't exist, remove queue entry entirely
+        this.feedUpdateQueue.delete(feedType);
         return;
       }
       
@@ -544,7 +586,7 @@ class SocketService {
       }
       
       // Clear queue for this feed type
-      this.feedUpdateQueue.set(feedType, []);
+      this.feedUpdateQueue.delete(feedType);
     });
     
     // Clear timer
@@ -785,9 +827,9 @@ class SocketService {
       });
       
       // Clear queue for this post
-      this.engagementUpdateQueue.set(postId, []);
+      this.engagementUpdateQueue.delete(postId);
     });
-    
+
     // Clear timer
     this.engagementUpdateTimer = null;
   }

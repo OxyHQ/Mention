@@ -3,6 +3,7 @@ import CustomFeed from '../models/CustomFeed';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
+import { validateBody, schemas } from '../middleware/validate';
 import FeedLike from '../models/FeedLike';
 import { oxy as oxyClient } from '../../server';
 import { logger } from '../utils/logger';
@@ -14,7 +15,7 @@ interface AuthRequest extends Request {
 const router = Router();
 
 // Create a new custom feed
-router.post('/', async (req: any, res) => {
+router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
@@ -229,7 +230,7 @@ router.get('/:id', async (req: any, res) => {
 });
 
 // Update a feed (owner only)
-router.put('/:id', async (req: any, res) => {
+router.put('/:id', validateBody(schemas.updateCustomFeed), async (req: any, res) => {
   try {
     const userId = req.user?.id;
     const feed = await CustomFeed.findById(req.params.id);

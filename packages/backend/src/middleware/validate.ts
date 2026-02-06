@@ -91,4 +91,30 @@ export const schemas = {
     cursor: z.string().optional(),
     limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   }),
+
+  /** Custom feed creation request body */
+  createCustomFeed: z.object({
+    title: z.string().min(1, 'Title is required').max(100, 'Title must be 100 characters or less').transform(s => s.trim()),
+    description: z.string().max(500, 'Description must be 500 characters or less').optional().transform(s => s?.trim()),
+    isPublic: z.boolean().optional().default(false),
+    memberOxyUserIds: z.array(z.string().min(1).max(100)).max(200, 'Maximum 200 members allowed').optional().default([]),
+    keywords: z.array(z.string().min(1).max(100)).max(50, 'Maximum 50 keywords allowed').optional().default([]),
+    includeReplies: z.boolean().optional().default(true),
+    includeReposts: z.boolean().optional().default(true),
+    includeMedia: z.boolean().optional().default(true),
+    language: z.string().min(2).max(10).regex(/^[a-zA-Z-]+$/, 'Invalid language code').optional(),
+  }),
+
+  /** Custom feed update request body */
+  updateCustomFeed: z.object({
+    title: z.string().min(1).max(100).transform(s => s.trim()).optional(),
+    description: z.string().max(500).transform(s => s?.trim()).optional().nullable(),
+    isPublic: z.boolean().optional(),
+    memberOxyUserIds: z.array(z.string().min(1).max(100)).max(200).optional(),
+    keywords: z.array(z.string().min(1).max(100)).max(50).optional(),
+    includeReplies: z.boolean().optional(),
+    includeReposts: z.boolean().optional(),
+    includeMedia: z.boolean().optional(),
+    language: z.string().min(2).max(10).regex(/^[a-zA-Z-]+$/).optional().nullable(),
+  }),
 };

@@ -198,13 +198,19 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           })
         );
 
-        // Resolve unique author profiles for posts
+        // Resolve unique author profiles for posts, reusing profilesMap to avoid duplicate lookups
         const authorIds = Array.from(new Set(posts.map((p: any) => p.oxyUserId).filter(Boolean)));
         const authorMap = new Map<string, any>();
         await Promise.all(authorIds.map(async (id: string) => {
+          // Reuse profile already resolved from actor resolution
+          if (profilesMap.has(id)) {
+            authorMap.set(id, profilesMap.get(id));
+            return;
+          }
           try {
             const profile = await oxy.getUserById(id);
             authorMap.set(id, profile);
+            profilesMap.set(id, profile); // Cache for future reuse
           } catch (e) {
             logger.warn(`[Notifications] Failed to resolve post author ${id}:`, e);
           }
