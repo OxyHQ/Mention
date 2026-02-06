@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 
 interface ToggleProps {
@@ -24,7 +24,7 @@ export const Toggle: React.FC<ToggleProps> = ({
     Animated.timing(switchAnimation, {
       toValue: value ? 1 : 0,
       duration: 200,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start();
   }, [value]);
 

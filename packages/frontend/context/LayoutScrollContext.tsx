@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useRef } from 'react';
 import { Animated, Platform } from 'react-native';
 
 type ScrollEvent = {
@@ -82,7 +82,7 @@ export function LayoutScrollProvider({
     children,
     scrollEventThrottle = 16,
 }: LayoutScrollProviderProps) {
-    const scrollY = useMemo(() => new Animated.Value(0), []);
+    const scrollY = useRef(new Animated.Value(0)).current;
     const scrollableRef = useRef<ScrollableRef | null>(null);
     const scrollElementRef = useRef<HTMLElement | null>(null);
     const scrollPositionRef = useRef(0);

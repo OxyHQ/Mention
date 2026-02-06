@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Platform } from 'react-native';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -70,8 +70,8 @@ export default function ProfileCustomizationScreen() {
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0.5, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(pulseAnim, { toValue: 0.5, duration: 1000, useNativeDriver: Platform.OS !== 'web' }),
       ])
     );
     anim.start();
