@@ -101,7 +101,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     }
     return sendSuccessResponse(res, 200, response);
   } catch (error) {
-    logger.error('[ProfileDesign] Error fetching profile design:', error);
+    logger.error('[ProfileDesign] Error fetching profile design:', { userId: req.user?.id, targetUserId: req.params.userId, error });
     return sendErrorResponse(
       res,
       500,

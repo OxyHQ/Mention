@@ -32,7 +32,7 @@ router.get('/', async (req: Request, res: Response) => {
       count: trending.length
     });
   } catch (error) {
-    logger.error('Error fetching trending topics:', error);
+    logger.error('Error fetching trending topics:', { error, query: req.query });
     res.status(500).json({
       message: 'Error fetching trending topics',
       error: error instanceof Error ? error.message : 'Unknown error'

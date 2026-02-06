@@ -27,7 +27,7 @@ router.get("/search", async (req: AuthRequest, res: Response) => {
 
     res.json(result);
   } catch (error: any) {
-    logger.error('[GIFs] GIF search error:', error);
+    logger.error('[GIFs] GIF search error:', { userId: req.user?.id, query: req.query.q, error });
     res.status(500).json({ 
       success: false,
       message: "Error searching GIFs", 
@@ -50,7 +50,7 @@ router.get("/trending", async (req: AuthRequest, res: Response) => {
 
     res.json(result);
   } catch (error: any) {
-    logger.error('[GIFs] GIF trending error:', error);
+    logger.error('[GIFs] GIF trending error:', { userId: req.user?.id, error });
     res.status(500).json({ 
       success: false,
       message: "Error fetching trending GIFs", 

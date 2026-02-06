@@ -138,7 +138,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
     res.json(results);
   } catch (error) {
-    logger.error('Search error:', error);
+    logger.error('Search error:', { userId: req.user?.id, error, query: req.query });
     res.status(500).json({
       message: "Error performing search",
       error: error instanceof Error ? error.message : "Unknown error"

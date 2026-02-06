@@ -62,7 +62,7 @@ router.get('/metadata', async (req: AuthRequest, res: Response) => {
       });
     } catch (error: any) {
       // Even if fetch fails, return basic metadata
-      logger.error('[Links] Error in fetchMetadata, returning basic metadata:', error);
+      logger.error('[Links] Error in fetchMetadata, returning basic metadata:', { userId: req.user?.id, url: req.query.url, error });
       try {
         const urlObj = new URL(url);
         res.json({
@@ -81,7 +81,7 @@ router.get('/metadata', async (req: AuthRequest, res: Response) => {
       }
     }
   } catch (error: any) {
-    logger.error('[Links] Error fetching metadata:', error);
+    logger.error('[Links] Error fetching metadata:', { userId: req.user?.id, url: req.query.url, error });
     res.status(500).json({
       success: false,
       message: 'Failed to fetch link metadata',
@@ -135,7 +135,7 @@ router.post('/clear-cache', linkCacheClearRateLimiter, requireAuth, async (req: 
       clearedImages,
     });
   } catch (error: any) {
-    logger.error('[Links] Error clearing cache:', error);
+    logger.error('[Links] Error clearing cache:', { userId: req.user?.id, error });
     res.status(500).json({
       success: false,
       message: 'Failed to clear cache',
@@ -198,7 +198,7 @@ router.post('/refresh', linkRefreshRateLimiter, requireAuth, async (req: AuthReq
       ...metadata,
     });
   } catch (error: any) {
-    logger.error('[Links] Error refreshing link:', error);
+    logger.error('[Links] Error refreshing link:', { userId: req.user?.id, url: req.body.url, error });
     res.status(500).json({
       success: false,
       message: 'Failed to refresh link',
@@ -266,7 +266,7 @@ router.get('/images/:cacheKey', async (req: AuthRequest, res: Response) => {
     // Stream the image
     imageData.stream.pipe(res);
   } catch (error: any) {
-    logger.error('[Links] Error serving cached image:', error);
+    logger.error('[Links] Error serving cached image:', { cacheKey: req.params.cacheKey, error });
     res.status(500).json({
       success: false,
       message: 'Failed to serve image',
