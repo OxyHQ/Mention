@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { logger } from '../../utils/logger';
 
 interface Props {
   children: React.ReactNode;
@@ -22,7 +23,7 @@ export class PostErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    console.warn(`[PostErrorBoundary] Post ${this.props.postId || 'unknown'} crashed:`, error.message);
+    logger.warn(`Post ${this.props.postId || 'unknown'} crashed: ${error.message}`);
   }
 
   handleRetry = () => {

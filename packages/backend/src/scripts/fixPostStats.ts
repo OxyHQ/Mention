@@ -5,13 +5,14 @@
 
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
+import { logger } from '../utils/logger';
 
 async function fixPostStats() {
   try {
     // Connect to MongoDB (use your connection string)
     const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
     await mongoose.connect(mongoUri);
-    console.log('✅ Connected to MongoDB');
+    logger.info('✅ Connected to MongoDB');
 
     // Find posts with missing or incomplete stats
     const posts = await Post.find({
@@ -23,7 +24,7 @@ async function fixPostStats() {
       ]
     });
 
-    console.log(`📊 Found ${posts.length} posts with missing stats`);
+    logger.info(`📊 Found ${posts.length} posts with missing stats`);
 
     let fixed = 0;
     for (const post of posts) {
@@ -52,11 +53,11 @@ async function fixPostStats() {
       fixed++;
       
       if (fixed % 100 === 0) {
-        console.log(`✅ Fixed ${fixed}/${posts.length} posts...`);
+        logger.info(`✅ Fixed ${fixed}/${posts.length} posts...`);
       }
     }
 
-    console.log(`✅ Fixed stats for ${fixed} posts`);
+    logger.info(`✅ Fixed stats for ${fixed} posts`);
 
     // Also ensure all posts have visibility set
     const postsWithoutVisibility = await Post.find({
@@ -64,18 +65,18 @@ async function fixPostStats() {
     });
     
     if (postsWithoutVisibility.length > 0) {
-      console.log(`📊 Found ${postsWithoutVisibility.length} posts without visibility`);
+      logger.info(`📊 Found ${postsWithoutVisibility.length} posts without visibility`);
       await Post.updateMany(
         { visibility: { $exists: false } },
         { $set: { visibility: 'public' } }
       );
-      console.log(`✅ Set visibility for ${postsWithoutVisibility.length} posts`);
+      logger.info(`✅ Set visibility for ${postsWithoutVisibility.length} posts`);
     }
 
     await mongoose.disconnect();
-    console.log('✅ Migration complete');
+    logger.info('✅ Migration complete');
   } catch (error) {
-    console.error('❌ Migration failed:', error);
+    logger.error('❌ Migration failed:', error);
     await mongoose.disconnect();
     process.exit(1);
   }
