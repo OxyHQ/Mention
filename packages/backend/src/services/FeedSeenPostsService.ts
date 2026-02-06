@@ -92,7 +92,7 @@ export class FeedSeenPostsService {
         }
 
         const key = this.getKey(userId);
-        const members = await this.redis.sMembers(key);
+        const members = await this.redis.zRange(key, 0, -1);
         return members || [];
       },
       // Fallback to in-memory cache if Redis throws
@@ -115,8 +115,8 @@ export class FeedSeenPostsService {
         }
 
         const key = this.getKey(userId);
-        const isMember = await this.redis.sIsMember(key, postId);
-        return isMember === 1;
+        const score = await this.redis.zScore(key, postId);
+        return score !== null;
       },
       false, // Fallback: assume not seen if Redis unavailable
       'isPostSeen'
@@ -162,28 +162,26 @@ export class FeedSeenPostsService {
         }
 
         const key = this.getKey(userId);
-        
-        // Batch add all post IDs to SET
+
+        // Batch add all post IDs to Sorted Set with timestamp scores (LRU ordering)
         if (postIds.length > 0) {
-          await this.redis.sAdd(key, postIds);
+          const now = Date.now();
+          const members = postIds.map(postId => ({
+            score: now,
+            value: postId
+          }));
+          await this.redis.zAdd(key, members);
         }
 
         // Set/refresh TTL
         await this.redis.expire(key, this.TTL_SECONDS);
 
-        // Trim to MAX_SEEN_POSTS if needed (keep most recent)
-        // Note: Redis SET doesn't have built-in ordering, so we use a simple approach:
-        // If set size exceeds limit, we'll trim by removing random members
-        // In practice, with TTL and natural expiration, this rarely happens
-        const currentSize = await this.redis.sCard(key);
+        // Trim to MAX_SEEN_POSTS if needed (evict oldest by lowest score)
+        const currentSize = await this.redis.zCard(key);
         if (currentSize > this.MAX_SEEN_POSTS) {
-          // Remove oldest entries (we'll use a simple random removal strategy)
-          // For production, consider using Redis Sorted Set with timestamp scores
           const excess = currentSize - this.MAX_SEEN_POSTS;
-          const randomMembers = await this.redis.sRandMemberCount(key, excess);
-          if (randomMembers && randomMembers.length > 0) {
-            await this.redis.sRem(key, randomMembers);
-          }
+          // Remove the oldest entries (lowest scores = oldest timestamps)
+          await this.redis.zRemRangeByRank(key, 0, excess - 1);
         }
       },
       undefined, // Fallback: in-memory cache already updated
@@ -230,7 +228,7 @@ export class FeedSeenPostsService {
         }
 
         const key = this.getKey(userId);
-        const count = await this.redis.sCard(key);
+        const count = await this.redis.zCard(key);
         return count || 0;
       },
       this.getMemoryEntry(userId).size,
