@@ -144,7 +144,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
   const handleCreateAccount = useCallback(() => {
     stableOnClose();
-    showBottomSheet?.('SignIn');
+    showBottomSheet?.('OxyAuth');
   }, [stableOnClose, showBottomSheet]);
 
   const handleExploreApp = useCallback(() => {
@@ -154,7 +154,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
   const handleSignIn = useCallback(() => {
     stableOnClose();
-    showBottomSheet?.('SignIn');
+    showBottomSheet?.('OxyAuth');
   }, [stableOnClose, showBottomSheet]);
 
   // Animated styles

@@ -23,7 +23,7 @@ const SignInPrompt: React.FC<SignInPromptProps> = ({ onSignInPress }) => {
         if (onSignInPress) {
             onSignInPress();
         } else {
-            showBottomSheet?.('SignIn');
+            showBottomSheet?.('OxyAuth');
         }
     };
 
