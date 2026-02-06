@@ -47,7 +47,7 @@ router.post('/emit-follow', async (req: AuthRequest, res: Response) => {
 
     return res.json({ success: true });
   } catch (error) {
-    logger.error('Error emitting follow event:', error);
+    logger.error('Error emitting follow event:', { userId: req.user?.id, followingId: req.body.followingId, error });
     return res.status(500).json({ message: 'Error emitting follow event' });
   }
 });
@@ -94,7 +94,7 @@ router.post('/emit-unfollow', async (req: AuthRequest, res: Response) => {
 
     return res.json({ success: true });
   } catch (error) {
-    logger.error('Error emitting unfollow event:', error);
+    logger.error('Error emitting unfollow event:', { userId: req.user?.id, followingId: req.body.followingId, error });
     return res.status(500).json({ message: 'Error emitting unfollow event' });
   }
 });

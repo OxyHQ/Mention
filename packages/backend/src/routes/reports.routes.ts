@@ -91,7 +91,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       report
     });
   } catch (error) {
-    logger.error('Error creating report:', error);
+    logger.error('Error creating report:', { userId: req.user?.id, reportedType: req.body.reportedType, reportedId: req.body.reportedId, error });
     res.status(500).json({
       message: 'Error creating report',
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -156,7 +156,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       nextCursor
     });
   } catch (error) {
-    logger.error('Error fetching reports:', error);
+    logger.error('Error fetching reports:', { userId: req.user?.id, error, query: req.query });
     res.status(500).json({
       message: 'Error fetching reports',
       error: error instanceof Error ? error.message : 'Unknown error'

@@ -16,7 +16,7 @@ router.get('/:authorId/status', async (req: AuthRequest, res: Response) => {
     const exists = await PostSubscription.exists({ subscriberId: userId, authorId });
     return res.json({ subscribed: !!exists });
   } catch (error) {
-    logger.error('[Subscriptions] Error checking subscription status:', error);
+    logger.error('[Subscriptions] Error checking subscription status:', { userId: req.user?.id, authorId: req.params.authorId, error });
     return res.status(500).json({ message: 'Error checking subscription status' });
   }
 });
@@ -40,7 +40,7 @@ router.post('/:authorId', async (req: AuthRequest, res: Response) => {
     if (error?.code === 11000) {
       return res.json({ subscribed: true });
     }
-    logger.error('[Subscriptions] Error subscribing to author:', error);
+    logger.error('[Subscriptions] Error subscribing to author:', { userId: req.user?.id, authorId: req.params.authorId, error });
     return res.status(500).json({ message: 'Error subscribing to author' });
   }
 });
@@ -56,7 +56,7 @@ router.delete('/:authorId', async (req: AuthRequest, res: Response) => {
     await PostSubscription.deleteOne({ subscriberId: userId, authorId });
     return res.json({ subscribed: false });
   } catch (error) {
-    logger.error('[Subscriptions] Error unsubscribing from author:', error);
+    logger.error('[Subscriptions] Error unsubscribing from author:', { userId: req.user?.id, authorId: req.params.authorId, error });
     return res.status(500).json({ message: 'Error unsubscribing from author' });
   }
 });
@@ -70,7 +70,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const subs = await PostSubscription.find({ subscriberId: userId }).lean();
     return res.json({ subscriptions: subs });
   } catch (error) {
-    logger.error('[Subscriptions] Error listing subscriptions:', error);
+    logger.error('[Subscriptions] Error listing subscriptions:', { userId: req.user?.id, error });
     return res.status(500).json({ message: 'Error listing subscriptions' });
   }
 });
