@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@lottiefiles/dotlottie-react": "^0.17.10",
-    "@oxyhq/services": "6.1.5",
+    "@oxyhq/services": "6.1.6",
     "@oxyhq/core": "1.4.0",
     "@react-native/js-polyfills": "^0.81.1",
     "react-native-css-interop": "^0.2.0",
