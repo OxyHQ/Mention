@@ -4,6 +4,7 @@ import Post from "../models/Post";
 import { logger } from '../utils/logger';
 import { feedController } from '../controllers/feed.controller';
 import { AuthRequest } from '../types/auth';
+import { config } from '../config';
 
 const router = express.Router();
 
@@ -45,21 +46,40 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         ];
       }
 
-      // Date range filter
+      // Date range filter with validation
       if (dateFrom || dateTo) {
         filter.createdAt = {};
+        let fromDate: Date | undefined;
+        let toDate: Date | undefined;
+
         if (dateFrom && typeof dateFrom === 'string') {
-          const fromDate = new Date(dateFrom);
-          if (!isNaN(fromDate.getTime())) {
-            filter.createdAt.$gte = fromDate;
+          fromDate = new Date(dateFrom);
+          if (isNaN(fromDate.getTime())) {
+            return res.status(400).json({ message: 'Invalid dateFrom format' });
           }
+          filter.createdAt.$gte = fromDate;
         }
         if (dateTo && typeof dateTo === 'string') {
-          const toDate = new Date(dateTo);
-          if (!isNaN(toDate.getTime())) {
-            filter.createdAt.$lte = toDate;
+          toDate = new Date(dateTo);
+          if (isNaN(toDate.getTime())) {
+            return res.status(400).json({ message: 'Invalid dateTo format' });
+          }
+          filter.createdAt.$lte = toDate;
+        }
+
+        // Validate date range span
+        if (fromDate && toDate) {
+          const maxRangeMs = config.search.maxDateRangeDays * 24 * 60 * 60 * 1000;
+          if (toDate.getTime() - fromDate.getTime() > maxRangeMs) {
+            return res.status(400).json({
+              message: `Date range cannot exceed ${config.search.maxDateRangeDays} days`
+            });
+          }
+          if (toDate < fromDate) {
+            return res.status(400).json({ message: 'dateTo must be after dateFrom' });
           }
         }
+
         // Remove empty date filter if no valid dates
         if (Object.keys(filter.createdAt).length === 0) {
           delete filter.createdAt;

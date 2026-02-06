@@ -23,6 +23,9 @@ const MAX_SOURCE_TITLE_LENGTH = config.posts.maxSourceTitleLength;
 const MAX_ARTICLE_TITLE_LENGTH = config.posts.maxArticleTitleLength;
 const MAX_ARTICLE_EXCERPT_LENGTH = config.posts.maxArticleExcerptLength;
 const DEFAULT_POLL_DURATION_DAYS = config.posts.defaultPollDurationDays;
+const MAX_POLL_DURATION_DAYS = config.posts.maxPollDurationDays;
+const MAX_HASHTAG_LENGTH = config.posts.maxHashtagLength;
+const MAX_HASHTAGS_PER_POST = config.posts.maxHashtagsPerPost;
 const MAX_EVENT_NAME_LENGTH = config.posts.maxEventNameLength;
 const MAX_EVENT_LOCATION_LENGTH = config.posts.maxEventLocationLength;
 const MAX_EVENT_DESCRIPTION_LENGTH = config.posts.maxEventDescriptionLength;
@@ -34,13 +37,21 @@ const MAX_AREA_POSTS = config.posts.maxAreaPosts;
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 const DEFAULT_REPOSTS_LIMIT = 50;
 
-const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
-  if (!Array.isArray(arr)) return [];
+/**
+ * Sanitize and validate sources array.
+ * Returns { sources, error } — error is set if the array exceeds the max size.
+ */
+const sanitizeSources = (arr: unknown): { sources: Array<{ url: string; title?: string }>; error?: string } => {
+  if (!Array.isArray(arr)) return { sources: [] };
+
+  if (arr.length > MAX_SOURCES) {
+    return { sources: [], error: `Too many sources: maximum is ${MAX_SOURCES}, received ${arr.length}` };
+  }
 
   const normalized = arr
-    .map((item: any) => {
+    .map((item: unknown) => {
       if (!item) return null;
-      const rawUrl = typeof item === 'string' ? item : item.url;
+      const rawUrl = typeof item === 'string' ? item : (item as Record<string, unknown>).url;
       if (!rawUrl || typeof rawUrl !== 'string') return null;
 
       const urlTrimmed = rawUrl.trim();
@@ -49,7 +60,8 @@ const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
       try {
         const parsed = new URL(urlTrimmed);
         const normalizedUrl = parsed.toString();
-        const title = typeof item?.title === 'string' ? item.title.trim().slice(0, MAX_SOURCE_TITLE_LENGTH) : undefined;
+        const titleRaw = (item as Record<string, unknown>)?.title;
+        const title = typeof titleRaw === 'string' ? titleRaw.trim().slice(0, MAX_SOURCE_TITLE_LENGTH) : undefined;
         return title ? { url: normalizedUrl, title } : { url: normalizedUrl };
       } catch {
         return null;
@@ -57,7 +69,7 @@ const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
     })
     .filter(Boolean) as Array<{ url: string; title?: string }>;
 
-  return normalized.slice(0, MAX_SOURCES);
+  return { sources: normalized };
 };
 
 const sanitizeArticle = (input: any): { title?: string; body?: string } | undefined => {
@@ -304,6 +316,19 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const contentLocationData = content?.location || contentLocation;
 
 
+    // Validate hashtags
+    if (Array.isArray(hashtags)) {
+      if (hashtags.length > MAX_HASHTAGS_PER_POST) {
+        return res.status(400).json({ message: `Too many hashtags: maximum is ${MAX_HASHTAGS_PER_POST}` });
+      }
+      const invalidTag = hashtags.find((tag: unknown) =>
+        typeof tag !== 'string' || tag.length > MAX_HASHTAG_LENGTH
+      );
+      if (invalidTag !== undefined) {
+        return res.status(400).json({ message: `Invalid hashtag: each must be a string of at most ${MAX_HASHTAG_LENGTH} characters` });
+      }
+    }
+
     // Extract and merge hashtags from text with user-provided ones
     const uniqueTags = mergeHashtags(text || '', hashtags);
 
@@ -393,7 +418,21 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Create poll separately if provided and add pollId to content
     let pollId = null;
     if (poll) {
-      
+      // Validate poll endTime is in the future and within max duration
+      if (poll.endTime) {
+        const endTimeMs = new Date(poll.endTime).getTime();
+        if (isNaN(endTimeMs)) {
+          return res.status(400).json({ message: 'Invalid poll end time' });
+        }
+        if (endTimeMs <= Date.now()) {
+          return res.status(400).json({ message: 'Poll end time must be in the future' });
+        }
+        const maxEndTimeMs = Date.now() + MAX_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000;
+        if (endTimeMs > maxEndTimeMs) {
+          return res.status(400).json({ message: `Poll duration cannot exceed ${MAX_POLL_DURATION_DAYS} days` });
+        }
+      }
+
       try {
         const pollDoc = new Poll({
           question: poll.question,
@@ -420,7 +459,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.location = processedContentLocation;
     }
 
-    const sources = sanitizeSources(content?.sources || req.body.sources);
+    const { sources, error: sourcesError } = sanitizeSources(content?.sources || req.body.sources);
+    if (sourcesError) {
+      return res.status(400).json({ message: sourcesError });
+    }
     if (sources.length) {
       postContent.sources = sources;
     }
@@ -784,7 +826,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.location = processedContentLocation;
       }
 
-      const sources = sanitizeSources(content?.sources);
+      const { sources } = sanitizeSources(content?.sources);
       if (sources.length) {
         postContent.sources = sources;
       }
@@ -1093,7 +1135,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
 
     if (sources !== undefined) {
-      const sanitized = sanitizeSources(sources);
+      const { sources: sanitized, error: sourcesErr } = sanitizeSources(sources);
+      if (sourcesErr) {
+        return res.status(400).json({ message: sourcesErr });
+      }
       if (sanitized.length) {
         post.content.sources = sanitized;
       } else {

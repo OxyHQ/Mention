@@ -44,6 +44,7 @@ export const config = {
     maxArticleTitleLength: 280,
     maxArticleExcerptLength: 280,
     defaultPollDurationDays: 7,
+    maxPollDurationDays: 30,
     maxEventNameLength: 200,
     maxEventLocationLength: 200,
     maxEventDescriptionLength: 500,
@@ -53,6 +54,11 @@ export const config = {
     maxNearbyPosts: 50,
     maxAreaPosts: 100,
     defaultLikesLimit: 50,
+    maxHashtagLength: 100,
+    maxHashtagsPerPost: 30,
+  },
+  search: {
+    maxDateRangeDays: 365,
   },
 } as const;
 
