@@ -351,7 +351,7 @@ export class FeedCacheService {
           if (connected) {
             await this.pubSub!.publisher.publish(
               this.INVALIDATION_CHANNEL,
-              JSON.stringify({ userId, feedType, cacheVersion: this.l1CacheVersion })
+              JSON.stringify({ userId, feedType, invalidatedAt: this.lastInvalidationTime })
             );
           }
         })
@@ -614,6 +614,27 @@ export class FeedCacheService {
       { size: 0, entries: [] },
       'cache stats'
     );
+  }
+  /**
+   * Evict expired entries from L1 in-memory cache
+   * Redis TTL handles L2 expiration automatically
+   */
+  evictExpiredEntries(): number {
+    const now = Date.now();
+    let evicted = 0;
+
+    for (const [key, entry] of this.l1Cache.entries()) {
+      if (entry.expiresAt <= now || !this.isCacheVersionValid(entry.data.cachedAt)) {
+        this.l1Cache.delete(key);
+        evicted++;
+      }
+    }
+
+    if (evicted > 0) {
+      logger.debug(`Evicted ${evicted} expired L1 cache entries`);
+    }
+
+    return evicted;
   }
 }
 
