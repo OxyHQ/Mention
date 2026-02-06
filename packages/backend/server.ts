@@ -35,6 +35,7 @@ import profileDesignRoutes from './src/routes/profileDesign';
 import subscriptionsRoutes from './src/routes/subscriptions';
 import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
+import imagesRoutes from './src/routes/images';
 import linksRoutes from './src/routes/links';
 import followsRoutes from './src/routes/follows';
 import muteRoutes from './src/routes/mute.routes';
@@ -680,6 +681,7 @@ publicApiRouter.use("/feed", optionalAuth, feedRoutes);
 // GET /api/profile/design/:userId - public profile design data (no auth required)
 publicApiRouter.use("/profile/design", profileDesignRoutes);
 publicApiRouter.use("/articles", articlesRoutes);
+publicApiRouter.use("/images", imagesRoutes); // Image optimization (public, rate-limited)
 publicApiRouter.use("/links", optionalAuth, linksRoutes); // Link metadata (optional auth for tracking)
 publicApiRouter.use("/trending", trendingRoutes); // Trending topics (no auth required)
 

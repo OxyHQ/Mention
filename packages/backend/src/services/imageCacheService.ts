@@ -13,13 +13,19 @@ import sharp from 'sharp';
  * Downloads, resizes, compresses, and stores images
  */
 
-// Image processing configuration
+// Image processing configuration (defaults for link previews)
 const MAX_IMAGE_WIDTH = Number(process.env.LINK_PREVIEW_MAX_WIDTH ?? 200);
 const MAX_IMAGE_HEIGHT = Number(process.env.LINK_PREVIEW_MAX_HEIGHT ?? 150);
 const JPEG_QUALITY = Number(process.env.LINK_PREVIEW_JPEG_QUALITY ?? 80);
 const PNG_QUALITY = Number(process.env.LINK_PREVIEW_PNG_QUALITY ?? 80);
 const WEBP_QUALITY = Number(process.env.LINK_PREVIEW_WEBP_QUALITY ?? 80);
 const MAX_FILE_SIZE = Number(process.env.LINK_PREVIEW_MAX_FILE_SIZE ?? 500 * 1024);
+
+export interface ImageProcessingOptions {
+  maxWidth?: number;
+  maxHeight?: number;
+  quality?: number;
+}
 
 let bucket: GridFSBucket | null = null;
 
@@ -179,7 +185,11 @@ class ImageCacheService {
   /**
    * Process and optimize image using sharp
    */
-  private async processImage(imageBuffer: Buffer): Promise<{ buffer: Buffer; contentType: string }> {
+  private async processImage(imageBuffer: Buffer, options?: ImageProcessingOptions): Promise<{ buffer: Buffer; contentType: string }> {
+    const maxWidth = options?.maxWidth ?? MAX_IMAGE_WIDTH;
+    const maxHeight = options?.maxHeight ?? MAX_IMAGE_HEIGHT;
+    const quality = options?.quality ?? WEBP_QUALITY;
+
     const bufferStart = imageBuffer.toString('utf8', 0, Math.min(100, imageBuffer.length));
     const isSvg =
       bufferStart.trim().startsWith('<?xml') ||
@@ -198,8 +208,8 @@ class ImageCacheService {
     const isAnimated = (metadata.pages ?? 1) > 1;
 
     const resizeOptions = {
-      width: metadata.width && metadata.width > MAX_IMAGE_WIDTH ? MAX_IMAGE_WIDTH : undefined,
-      height: metadata.height && metadata.height > MAX_IMAGE_HEIGHT ? MAX_IMAGE_HEIGHT : undefined,
+      width: metadata.width && metadata.width > maxWidth ? maxWidth : undefined,
+      height: metadata.height && metadata.height > maxHeight ? maxHeight : undefined,
       fit: 'inside' as const,
       withoutEnlargement: true,
       fastShrinkOnLoad: true,
@@ -211,7 +221,7 @@ class ImageCacheService {
 
     if (!isAnimated) {
       pipeline = pipeline.webp({
-        quality: WEBP_QUALITY,
+        quality,
         effort: 4,
         smartSubsample: true,
       });
@@ -222,19 +232,19 @@ class ImageCacheService {
     const format = metadata.format ?? 'jpeg';
     switch (format) {
       case 'png':
-        pipeline = pipeline.png({ compressionLevel: 9, quality: PNG_QUALITY });
+        pipeline = pipeline.png({ compressionLevel: 9, quality });
         break;
       case 'gif':
         return { buffer: imageBuffer, contentType: 'image/gif' };
       case 'webp':
         pipeline = pipeline.webp({
-          quality: WEBP_QUALITY,
+          quality,
           effort: 4,
         });
         break;
       default:
         pipeline = pipeline.jpeg({
-          quality: JPEG_QUALITY,
+          quality,
           mozjpeg: true,
         });
     }
@@ -407,6 +417,57 @@ class ImageCacheService {
     } catch (error) {
       logger.error('[ImageCacheService] Error deleting image:', error);
       return false;
+    }
+  }
+
+  /**
+   * Cache an optimized variant of an image with custom dimensions
+   * Returns the cache key for the optimized image, or null on failure
+   */
+  async cacheOptimizedImage(imageUrl: string, options: ImageProcessingOptions): Promise<{ cacheKey: string; contentType: string } | null> {
+    try {
+      const normalizedUrl = this.normalizeImageUrl(imageUrl);
+      const { maxWidth, maxHeight, quality } = options;
+      const sizeKey = `${maxWidth ?? 0}x${maxHeight ?? 0}q${quality ?? 80}`;
+      const cacheKey = crypto.createHash('sha256').update(`${normalizedUrl}:${sizeKey}`).digest('hex');
+
+      // Check if already cached
+      const gridBucket = initGridFS();
+      if (gridBucket) {
+        const file = await gridBucket.find({ filename: cacheKey }, { limit: 1, projection: { _id: 1, contentType: 1 } }).next();
+        if (file) {
+          return { cacheKey, contentType: file.contentType || 'image/webp' };
+        }
+      }
+
+      // Download image
+      const imageBuffer = await this.downloadImage(normalizedUrl);
+
+      // Process with custom options
+      let processedResult: { buffer: Buffer; contentType: string } | null = null;
+      try {
+        processedResult = await this.processImage(imageBuffer, options);
+      } catch (error) {
+        logger.warn('[ImageCacheService] Image processing failed for optimized variant, using original:', {
+          url: normalizedUrl,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+
+      const finalBuffer = processedResult?.buffer ?? imageBuffer;
+      const contentType = processedResult?.contentType ?? this.detectContentType(imageBuffer);
+
+      // Store in GridFS
+      await this.storeImage(finalBuffer, cacheKey, contentType);
+
+      logger.debug('[ImageCacheService] Optimized image cached:', { url: normalizedUrl, cacheKey, sizeKey });
+      return { cacheKey, contentType };
+    } catch (error) {
+      logger.error('[ImageCacheService] Error caching optimized image:', {
+        url: imageUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
     }
   }
 

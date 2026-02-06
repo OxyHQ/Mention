@@ -6,10 +6,10 @@
 import React, { useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Image, ImageProps, View, StyleSheet, ViewStyle, ImageStyle, StyleProp, Platform } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { SPACING } from '@/styles/spacing';
 import { flattenStyleArray } from '@/utils/theme';
+import { getOptimizedImageUrl, type ImageSize } from '@/services/imageOptimizationService';
 
-export type ImageSize = 'thumb' | 'small' | 'medium' | 'large' | 'original';
+export type { ImageSize };
 
 export interface LazyImageProps extends Omit<ImageProps, 'source' | 'style'> {
   /** Image source URI or require() number */
@@ -36,22 +36,6 @@ export interface LazyImageProps extends Omit<ImageProps, 'source' | 'style'> {
   aspectRatio?: number;
   /** Priority: 'high' loads immediately, 'low' waits for viewport */
   priority?: 'high' | 'low' | 'auto';
-}
-
-/**
- * Get optimized image URL with size variant
- * This is a placeholder - should be replaced with actual image service logic
- */
-function getOptimizedImageUrl(uri: string, size: ImageSize): string {
-  // If already processed or not a valid URL, return as-is
-  if (typeof uri !== 'string' || (!uri.startsWith('http://') && !uri.startsWith('https://'))) {
-    return uri;
-  }
-  
-  // TODO: Implement actual image optimization service
-  // This would typically add size parameters to the URL or use a CDN
-  // For now, return the original URI
-  return uri;
 }
 
 /**
