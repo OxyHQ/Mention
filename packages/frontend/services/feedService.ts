@@ -486,6 +486,23 @@ class FeedService {
   }
 
   /**
+   * Update post settings (pin, hide counts, reply permissions, review replies)
+   */
+  async updatePostSettings(postId: string, settings: {
+    isPinned?: boolean;
+    hideEngagementCounts?: boolean;
+    replyPermission?: 'anyone' | 'followers' | 'following' | 'mentioned';
+    reviewReplies?: boolean;
+  }): Promise<{ success: boolean; data: any }> {
+    try {
+      const response = await authenticatedClient.patch(`/posts/${postId}/settings`, settings);
+      return { success: true, data: response.data };
+    } catch (error) {
+      throw new Error('Failed to update post settings');
+    }
+  }
+
+  /**
    * Delete a post
    */
   async deletePost(postId: string): Promise<{ success: boolean }> {

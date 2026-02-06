@@ -139,18 +139,27 @@ export function usePostActions({
                 icon: <UnpinIcon size={20} color={theme.colors.textSecondary} />,
                 text: "Unpin",
                 onPress: async () => {
-                    // TODO: Implement unpin functionality
+                    try {
+                        await feedService.updatePostSettings(postId, { isPinned: false });
+                    } catch (e) {
+                        Alert.alert('Error', 'Failed to unpin post');
+                    }
                     bottomSheet.openBottomSheet(false);
                 }
             });
         }
 
         if (isOwner) {
+            const isHidden = Boolean(viewPost?.metadata?.hideEngagementCounts);
             saveActionGroup.push({
                 icon: <HideIcon size={20} color={theme.colors.textSecondary} />,
-                text: "Hide like and share counts",
+                text: isHidden ? "Show like and share counts" : "Hide like and share counts",
                 onPress: async () => {
-                    // TODO: Implement hide counts functionality
+                    try {
+                        await feedService.updatePostSettings(postId, { hideEngagementCounts: !isHidden });
+                    } catch (e) {
+                        Alert.alert('Error', 'Failed to update engagement count visibility');
+                    }
                     bottomSheet.openBottomSheet(false);
                 }
             });
@@ -164,14 +173,20 @@ export function usePostActions({
                     bottomSheet.setBottomSheetContent(
                         <ReplySettingsSheet
                             replyPermission={viewPost?.replyPermission || 'anyone'}
-                            onReplyPermissionChange={(permission) => {
-                                // TODO: Implement update reply permission
-                                console.log('Update reply permission:', permission);
+                            onReplyPermissionChange={async (permission) => {
+                                try {
+                                    await feedService.updatePostSettings(postId, { replyPermission: permission });
+                                } catch (e) {
+                                    Alert.alert('Error', 'Failed to update reply permissions');
+                                }
                             }}
                             reviewReplies={viewPost?.reviewReplies || false}
-                            onReviewRepliesChange={(enabled) => {
-                                // TODO: Implement update review replies
-                                console.log('Update review replies:', enabled);
+                            onReviewRepliesChange={async (enabled) => {
+                                try {
+                                    await feedService.updatePostSettings(postId, { reviewReplies: enabled });
+                                } catch (e) {
+                                    Alert.alert('Error', 'Failed to update review replies setting');
+                                }
                             }}
                             onClose={() => bottomSheet.openBottomSheet(false)}
                         />
