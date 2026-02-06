@@ -179,18 +179,28 @@ const broadcastPresence = (io: SocketIOServer, userId: string, online: boolean) 
 };
 
 // Periodic cleanup of stale online user entries (every 5 minutes)
+// Validates that tracked socket IDs are still actually connected to the server
 setInterval(() => {
-  const staleThreshold = Date.now() - 5 * 60 * 1000;
-  let cleanedCount = 0;
+  let cleanedUsers = 0;
+  let cleanedSockets = 0;
   for (const [userId, sockets] of onlineUsers.entries()) {
-    // Remove entries with empty socket sets
+    // Remove socket IDs that are no longer connected
+    for (const socketId of sockets) {
+      const activeSocket = io.sockets.sockets.get(socketId);
+      if (!activeSocket || !activeSocket.connected) {
+        sockets.delete(socketId);
+        cleanedSockets++;
+      }
+    }
+    // Remove user entry if no valid sockets remain
     if (sockets.size === 0) {
       onlineUsers.delete(userId);
-      cleanedCount++;
+      broadcastPresence(io, userId, false);
+      cleanedUsers++;
     }
   }
-  if (cleanedCount > 0) {
-    logger.debug(`Cleaned ${cleanedCount} stale entries from onlineUsers map`);
+  if (cleanedUsers > 0 || cleanedSockets > 0) {
+    logger.debug(`Presence cleanup: removed ${cleanedSockets} stale sockets, ${cleanedUsers} users now offline`);
   }
 }, 5 * 60 * 1000);
 
@@ -753,7 +763,7 @@ app.get("", async (req, res) => {
     res.json({ message: "Welcome to the API", posts: postsCount });
   } catch (error) {
     logger.error("Error fetching stats for root route", error);
-    res.status(500).json({ message: "Error fetching stats", error });
+    res.status(500).json({ message: "Error fetching stats" });
   }
 });
 
