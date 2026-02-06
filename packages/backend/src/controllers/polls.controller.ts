@@ -117,7 +117,7 @@ class PollsController {
 
   async getPoll(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       if (!id || !mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({
@@ -146,7 +146,7 @@ class PollsController {
 
   async vote(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { optionId } = req.body;
       const userId = req.user?.id;
 
@@ -217,7 +217,7 @@ class PollsController {
 
   async getResults(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       if (!id || !mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({
@@ -263,7 +263,7 @@ class PollsController {
 
   async deletePoll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const userId = req.user?.id;
 
       if (!userId) {
@@ -316,7 +316,7 @@ class PollsController {
 
   async updatePollPostId(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { postId } = req.body;
       const userId = req.user?.id;
 

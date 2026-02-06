@@ -1033,10 +1033,10 @@ class FeedController {
    */
   async getUserProfileFeed(req: AuthRequest, res: Response) {
     try {
-      const { userId } = req.params;
-      const { cursor, type = 'posts' } = req.query as { 
-        cursor?: string; 
-        type?: FeedType 
+      const userId = req.params.userId as string;
+      const { cursor, type = 'posts' } = req.query as {
+        cursor?: string;
+        type?: FeedType
       };
       
       // Validate and sanitize limit parameter using utility
@@ -1554,7 +1554,7 @@ class FeedController {
    */
   async unrepostItem(req: AuthRequest, res: Response) {
     try {
-      const { postId } = req.params;
+      const postId = req.params.postId as string;
       const currentUserId = req.user?.id;
 
       logger.debug('🔄 Unrepost request', { postId, currentUserId });
@@ -1615,7 +1615,7 @@ class FeedController {
    */
   async saveItem(req: AuthRequest, res: Response) {
     try {
-      const { postId } = req.params;
+      const postId = req.params.postId as string;
       const currentUserId = req.user?.id;
 
       logger.debug(`[Save] Save request received: userId=${currentUserId}, postId=${postId}`);
@@ -1698,7 +1698,7 @@ class FeedController {
    */
   async unsaveItem(req: AuthRequest, res: Response) {
     try {
-      const { postId } = req.params;
+      const postId = req.params.postId as string;
       const currentUserId = req.user?.id;
 
       logger.debug('🗑️ Unsave endpoint called', { postId, currentUserId, user: req.user });

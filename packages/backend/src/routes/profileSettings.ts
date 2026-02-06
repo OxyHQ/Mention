@@ -38,8 +38,8 @@ router.get('/settings/me', async (req: AuthRequest, res: Response) => {
  */
 router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
   try {
-    const { userId } = req.params;
-    
+    const userId = req.params.userId as string;
+
     const validationError = validateRequired(userId, 'userId');
     if (validationError) {
       return sendErrorResponse(res, 400, 'Bad Request', validationError);

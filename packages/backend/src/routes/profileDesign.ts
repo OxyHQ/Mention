@@ -40,7 +40,7 @@ interface PublicProfileDesignResponse {
  */
 router.get('/:userId', async (req: AuthRequest, res: Response) => {
   try {
-    const { userId } = req.params;
+    const userId = req.params.userId as string;
     const currentUserId = req.user?.id;
     
     const validationError = validateRequired(userId, 'userId');

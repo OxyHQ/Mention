@@ -239,7 +239,7 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
 export const trackPostView = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { postId } = req.params;
+    const postId = req.params.postId as string;
 
     if (!postId) {
       return res.status(400).json({ message: 'Post ID is required' });

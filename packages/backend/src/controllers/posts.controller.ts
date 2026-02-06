@@ -1218,7 +1218,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const postId = req.params.id;
+    const postId = req.params.id as string;
 
     logger.debug(`Like request received: userId=${userId}, postId=${postId}`);
 
@@ -1306,7 +1306,7 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const postId = req.params.id;
+    const postId = req.params.id as string;
 
     // Remove like record
     const result = await Like.deleteOne({ userId, postId });
@@ -1360,7 +1360,7 @@ export const savePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const postId = req.params.id;
+    const postId = req.params.id as string;
 
     logger.debug(`Save request received: userId=${userId}, postId=${postId}`);
 
@@ -1420,7 +1420,7 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const postId = req.params.id;
+    const postId = req.params.id as string;
 
     // Remove save record
     const result = await Bookmark.deleteOne({ userId, postId });
@@ -1458,7 +1458,8 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-  const originalPost = await Post.findById(req.params.id);
+  const repostId = req.params.id as string;
+    const originalPost = await Post.findById(repostId);
     if (!originalPost) {
       return res.status(404).json({ message: 'Original post not found' });
     }
@@ -1466,7 +1467,7 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
     const repost = new Post({
       text: req.body.comment || '',
       userID: new mongoose.Types.ObjectId(userId),
-      repost_of: new mongoose.Types.ObjectId(req.params.id)
+      repost_of: new mongoose.Types.ObjectId(repostId)
     });
 
     await repost.save();
@@ -1474,7 +1475,7 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
 
     // Record interaction for user preference learning
     try {
-      await userPreferenceService.recordInteraction(userId, req.params.id, 'repost');
+      await userPreferenceService.recordInteraction(userId, repostId, 'repost');
       logger.debug('Successfully recorded repost interaction');
       // Invalidate cached feed for this user
       await feedCacheService.invalidateUserCache(userId);
@@ -1513,7 +1514,8 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-  const originalPost = await Post.findById(req.params.id);
+  const quoteId = req.params.id as string;
+    const originalPost = await Post.findById(quoteId);
     if (!originalPost) {
       return res.status(404).json({ message: 'Original post not found' });
     }
@@ -1521,7 +1523,7 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
     const quotePost = new Post({
       text: req.body.text,
       userID: new mongoose.Types.ObjectId(userId),
-      quoted_post_id: new mongoose.Types.ObjectId(req.params.id)
+      quoted_post_id: new mongoose.Types.ObjectId(quoteId)
     });
 
     await quotePost.save();
