@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from './useTheme';
@@ -18,8 +18,13 @@ import { UnpinIcon } from '@/assets/icons/pin-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
+import { MuteIcon } from '@/assets/icons/mute-icon';
+import { ReportIcon } from '@/assets/icons/report-icon';
 import PostInsightsSheet from '@/components/Post/PostInsightsSheet';
 import ReplySettingsSheet from '@/components/Compose/ReplySettingsSheet';
+import ReportModal from '@/components/report/ReportModal';
+import { muteService } from '@/services/muteService';
+import { reportService } from '@/services/reportService';
 
 interface UsePostActionsParams {
     viewPost: any;
@@ -38,6 +43,7 @@ interface PostActionsResult {
     deleteAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
     articleAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
     sourcesAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
+    muteReportAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
     copyLinkAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }>;
 }
 
@@ -195,6 +201,70 @@ export function usePostActions({
             }
         }] : [];
 
+        const handleMuteUser = async () => {
+            try { bottomSheet.openBottomSheet(false); } catch (e) { console.warn('[usePostActions] Failed to close bottom sheet:', e); }
+            const userId = viewPost?.user?.id;
+            const username = viewPost?.user?.handle || viewPost?.user?.name || 'this user';
+
+            if (!userId) {
+                Alert.alert('Error', 'Unable to mute user');
+                return;
+            }
+
+            const confirmed = await confirmDialog({
+                title: `Mute @${username}`,
+                message: `You won't see posts from @${username} in your timeline. You can unmute them later from settings.`,
+                okText: 'Mute',
+                cancelText: 'Cancel',
+                destructive: false,
+            });
+
+            if (!confirmed) return;
+
+            const success = await muteService.muteUser(userId);
+            if (success) {
+                Alert.alert('Success', `@${username} has been muted`);
+            } else {
+                Alert.alert('Error', 'Failed to mute user');
+            }
+        };
+
+        const handleReportPost = () => {
+            bottomSheet.setBottomSheetContent(
+                <ReportModal
+                    visible={true}
+                    onClose={() => bottomSheet.openBottomSheet(false)}
+                    onSubmit={async (categories, details) => {
+                        const success = await reportService.reportPost(postId, categories, details);
+                        if (success) {
+                            Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+                        } else {
+                            Alert.alert('Error', 'Failed to submit report. Please try again.');
+                        }
+                    }}
+                />
+            );
+            bottomSheet.openBottomSheet(true);
+        };
+
+        const muteReportAction: Array<{ icon: any; text: string; onPress: () => void; color?: string }> = [];
+
+        if (!isOwner) {
+            const username = viewPost?.user?.handle || viewPost?.user?.name || 'user';
+            muteReportAction.push({
+                icon: <MuteIcon size={20} color={theme.colors.textSecondary} />,
+                text: `Mute @${username}`,
+                onPress: handleMuteUser,
+            });
+
+            muteReportAction.push({
+                icon: <ReportIcon size={20} color={theme.colors.error} />,
+                text: "Report post",
+                onPress: handleReportPost,
+                color: theme.colors.error,
+            });
+        }
+
         const copyLinkAction = [{
             icon: <LinkIcon size={20} color={theme.colors.textSecondary} />,
             text: "Copy link",
@@ -217,6 +287,7 @@ export function usePostActions({
             deleteAction,
             articleAction,
             sourcesAction,
+            muteReportAction,
             copyLinkAction,
         };
     }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, removePostEverywhere]);
