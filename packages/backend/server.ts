@@ -4,6 +4,24 @@
 // This ensures REDIS_URL and other env vars are available when modules are imported
 require('dotenv').config();
 
+// --- Global Error Handlers ---
+// Must be registered early, before any async work begins
+process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
+  // Use console.error as a fallback since logger may not be initialized yet
+  const message = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  console.error(`Unhandled promise rejection: ${message}`);
+  // In production, exit to let the process manager restart cleanly
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
+process.on('uncaughtException', (error: Error) => {
+  console.error(`Uncaught exception: ${error.stack || error.message}`);
+  // Always exit on uncaught exceptions — the process state is unreliable
+  process.exit(1);
+});
+
 // --- Imports ---
 import express from "express";
 import http from "http";
@@ -224,50 +242,51 @@ const io = new SocketIOServer(server, {
 
 // Setup Redis adapter for Socket.IO horizontal scaling
 // Note: @socket.io/redis-adapter v8+ supports node-redis
-(async () => {
+async function setupRedisAdapter(): Promise<void> {
   try {
     const { createRedisPubSub } = require('./src/utils/redis');
     const { createAdapter } = require('@socket.io/redis-adapter');
     const { ensureRedisConnected } = require('./src/utils/redisHelpers');
     const { publisher, subscriber } = createRedisPubSub();
-    
+
     // Connect both clients with timeout to avoid hanging
     await Promise.race([
       Promise.all([
         publisher.connect(),
         subscriber.connect()
       ]),
-      new Promise((_, reject) => 
+      new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Redis connection timeout')), 5000)
       )
     ]);
-    
+
     // Verify both clients are actually ready before proceeding
     const publisherReady = await ensureRedisConnected(publisher);
     const subscriberReady = await ensureRedisConnected(subscriber);
-    
+
     if (!publisherReady || !subscriberReady) {
       throw new Error('Redis clients connected but not ready');
     }
-    
+
     // Verify with ping to ensure connection is actually working
     await Promise.all([
       publisher.ping(),
       subscriber.ping()
     ]);
-    
+
     io.adapter(createAdapter(publisher, subscriber));
     logger.info('Socket.IO Redis adapter configured for horizontal scaling');
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If Redis is unavailable, continue without adapter (single-instance mode)
     const { isRedisConnectionError } = require('./src/utils/redisHelpers');
-    if (isRedisConnectionError(error) || error.message?.includes('timeout') || error.message?.includes('not ready')) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (isRedisConnectionError(error) || errorMessage.includes('timeout') || errorMessage.includes('not ready')) {
       logger.info('Redis unavailable - Socket.IO running in single-instance mode (no horizontal scaling)');
     } else {
       logger.warn('Failed to setup Socket.IO Redis adapter, running in single-instance mode:', error);
     }
   }
-})();
+}
 
 const configureNamespaceErrorHandling = (namespace: Namespace) => {
   namespace.on("connection_error", (error: Error) => {
@@ -840,17 +859,21 @@ const bootServer = async () => {
   // Try to connect to database, but don't crash if it fails
   try {
     await connectToDatabase();
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Database connection failed, but allow server to start anyway
     // Operations will fail gracefully when database is unavailable
     logger.warn("MongoDB connection unavailable - server will start but database operations will fail");
   }
-  
-  // Start server regardless of database connection status
+
+  // Setup Redis adapter before accepting connections to ensure
+  // cross-instance broadcasts work from the first connection
+  await setupRedisAdapter();
+
+  // Start server after all async setup is complete
   server.listen(PORT, '0.0.0.0', () => {
     logger.info(`Server running on port ${PORT}`);
     if (!isDatabaseConnected()) {
-      logger.warn("⚠️  Server started without database connection - some features may be unavailable");
+      logger.warn("Server started without database connection - some features may be unavailable");
     }
   });
 };
