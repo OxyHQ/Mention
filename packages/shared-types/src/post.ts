@@ -120,6 +120,7 @@ export interface PostMetadata {
   isFollowingAuthor?: boolean;
   authorBlocked?: boolean;
   authorMuted?: boolean;
+  hideEngagementCounts?: boolean;
   // Track user interactions
   likedBy?: string[]; // Array of user IDs who liked this post
   savedBy?: string[]; // Array of user IDs who saved this post
@@ -246,6 +247,7 @@ export interface PostMetadataState {
   reviewReplies?: boolean;
   isPinned?: boolean;
   isSensitive?: boolean;
+  hideEngagementCounts?: boolean;
   isThread?: boolean;
   language?: string;
   tags?: string[];

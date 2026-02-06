@@ -1181,6 +1181,66 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Update post settings (pin, hide counts, reply permissions, review replies)
+export const updatePostSettings = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId });
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const { isPinned, hideEngagementCounts, replyPermission, reviewReplies } = req.body;
+
+    if (isPinned !== undefined) {
+      if (typeof isPinned !== 'boolean') {
+        return res.status(400).json({ message: 'isPinned must be a boolean' });
+      }
+      post.metadata.isPinned = isPinned;
+    }
+
+    if (hideEngagementCounts !== undefined) {
+      if (typeof hideEngagementCounts !== 'boolean') {
+        return res.status(400).json({ message: 'hideEngagementCounts must be a boolean' });
+      }
+      post.metadata.hideEngagementCounts = hideEngagementCounts;
+    }
+
+    if (replyPermission !== undefined) {
+      const validPermissions = ['anyone', 'followers', 'following', 'mentioned'];
+      if (!validPermissions.includes(replyPermission)) {
+        return res.status(400).json({ message: `replyPermission must be one of: ${validPermissions.join(', ')}` });
+      }
+      post.replyPermission = replyPermission;
+    }
+
+    if (reviewReplies !== undefined) {
+      if (typeof reviewReplies !== 'boolean') {
+        return res.status(400).json({ message: 'reviewReplies must be a boolean' });
+      }
+      post.reviewReplies = reviewReplies;
+    }
+
+    post.markModified('metadata');
+    await post.save();
+
+    res.json({
+      message: 'Post settings updated',
+      isPinned: post.metadata.isPinned,
+      hideEngagementCounts: post.metadata.hideEngagementCounts,
+      replyPermission: post.replyPermission,
+      reviewReplies: post.reviewReplies,
+    });
+  } catch (error) {
+    logger.error('Error updating post settings', error);
+    res.status(500).json({ message: 'Error updating post settings', error });
+  }
+};
+
 // Delete post
 export const deletePost = async (req: AuthRequest, res: Response) => {
   try {

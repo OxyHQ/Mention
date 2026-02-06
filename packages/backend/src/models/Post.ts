@@ -194,6 +194,7 @@ const PostMetadataSchema = new Schema({
   isFollowingAuthor: { type: Boolean, default: false },
   authorBlocked: { type: Boolean, default: false },
   authorMuted: { type: Boolean, default: false },
+  hideEngagementCounts: { type: Boolean, default: false },
   // Track user interactions
   likedBy: [{ type: String }], // Array of user IDs who liked this post
   savedBy: [{ type: String }],  // Array of user IDs who saved this post

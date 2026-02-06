@@ -5,6 +5,7 @@ import {
   getPosts,
   getPostById,
   updatePost,
+  updatePostSettings,
   deletePost,
   likePost,
   unlikePost,
@@ -50,6 +51,7 @@ router.get('/:id', getPostById);
 
 // Protected routes with parameters
 router.put('/:id', updatePost);
+router.patch('/:id/settings', updatePostSettings);
 router.delete('/:id', deletePost);
 router.post('/:id/like', likePost);
 router.delete('/:id/like', unlikePost);
