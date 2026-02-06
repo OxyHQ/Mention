@@ -65,7 +65,7 @@ export function usePostActions({
         const isPostDetail = (router.pathname || '').startsWith('/p/');
 
         const handleDelete = async () => {
-            try { bottomSheet.openBottomSheet(false); } catch { }
+            try { bottomSheet.openBottomSheet(false); } catch (e) { console.warn('[usePostActions] Failed to close bottom sheet:', e); }
             const confirmed = await confirmDialog({
                 title: 'Delete post',
                 message: 'Are you sure you want to delete this post? This action cannot be undone.',
@@ -89,7 +89,7 @@ export function usePostActions({
                     const store = usePostsStore.getState() as any;
                     const types = ['posts', 'mixed', 'media', 'replies', 'reposts', 'likes', 'saved', 'for_you', 'following'] as const;
                     types.forEach((t) => {
-                        try { store.removePostLocally(postId, t as any); } catch { }
+                        try { store.removePostLocally(postId, t as any); } catch (e) { console.warn(`[usePostActions] Failed to remove post from ${t} feed:`, e); }
                     });
                 }
                 if (isPostDetail) router.back();
@@ -206,7 +206,7 @@ export function usePostActions({
                         const { Clipboard } = require('react-native');
                         Clipboard.setString(postUrl);
                     }
-                } catch { }
+                } catch (e) { console.warn('[usePostActions] Failed to copy link:', e); }
                 bottomSheet.openBottomSheet(false);
             }
         }];

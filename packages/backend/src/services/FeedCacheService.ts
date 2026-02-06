@@ -40,7 +40,7 @@ export class FeedCacheService {
   // Structure: Map<userId:feedType, { data: CachedFeed, expiresAt: number }>
   private l1Cache: Map<string, { data: CachedFeed; expiresAt: number }> = new Map();
   private readonly L1_MAX_SIZE = 1000; // Maximum entries in L1 cache
-  private l1CacheVersion = 1; // Cache version for invalidation
+  private lastInvalidationTime: string = new Date(0).toISOString(); // Track last invalidation timestamp
 
   constructor() {
     this.redis = getRedisClient();
@@ -231,8 +231,15 @@ export class FeedCacheService {
       async () => {
         const data = await this.redis.get(cacheKey);
         if (!data) return null;
-        
-        const cached: CachedFeed = JSON.parse(data);
+
+        let cached: CachedFeed;
+        try {
+          cached = JSON.parse(data);
+        } catch (parseError) {
+          logger.warn(`Corrupted cache data for ${cacheKey}, ignoring`, parseError);
+          await this.redis.del(cacheKey);
+          return null;
+        }
         const expiresAt = new Date(cached.expiresAt);
         // Check if still valid (Redis TTL should handle this, but double-check)
         if (expiresAt > new Date() && this.isCacheVersionValid(cached.cachedAt)) {
@@ -289,9 +296,8 @@ export class FeedCacheService {
    * Check if cache entry is still valid based on cache version
    */
   private isCacheVersionValid(cachedAt: string): boolean {
-    // For now, always valid (cache versioning can be enhanced later)
-    // In future, compare cachedAt with l1CacheVersion
-    return true;
+    // Cache entry is valid if it was created after the last invalidation
+    return new Date(cachedAt).getTime() >= new Date(this.lastInvalidationTime).getTime();
   }
 
   /**
@@ -313,8 +319,8 @@ export class FeedCacheService {
       }
     }
     
-    // Increment cache version for global invalidation
-    this.l1CacheVersion++;
+    // Update invalidation timestamp for cache version checking
+    this.lastInvalidationTime = new Date().toISOString();
     
     // Invalidate L2 cache (Redis) with graceful fallback
     await withRedisFallback(
@@ -576,7 +582,13 @@ export class FeedCacheService {
           sampleKeys.map(async (key) => {
             const data = await this.redis.get(key);
             if (data) {
-              const cached: CachedFeed = JSON.parse(data);
+              let cached: CachedFeed;
+              try {
+                cached = JSON.parse(data);
+              } catch {
+                logger.warn(`Corrupted cache entry for key ${key}`);
+                return null;
+              }
               return {
                 userId: cached.userId,
                 feedType: cached.feedType,

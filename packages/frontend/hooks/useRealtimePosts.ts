@@ -13,7 +13,7 @@ export default function useRealtimePosts() {
 				socketService.connect(user?.id);
 		}
 		return () => {
-			if (didCancel) return;
+			didCancel = true;
 			// Keep connection for app lifecycle; we don't hard disconnect on unmount
 		};
 		}, [isAuthenticated, user?.id]);

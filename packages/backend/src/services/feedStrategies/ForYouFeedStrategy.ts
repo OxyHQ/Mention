@@ -112,7 +112,7 @@ export class ForYouFeedStrategy implements IFeedStrategy {
       const scoreDiff = scoreB - scoreA;
 
       if (Math.abs(scoreDiff) < this.SCORE_EPSILON) {
-        return a._id.toString().localeCompare(b._id.toString()) * -1;
+        return b._id.toString().localeCompare(a._id.toString());
       }
       return scoreDiff;
     });

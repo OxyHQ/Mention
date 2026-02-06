@@ -62,8 +62,13 @@ export class ExploreFeedStrategy implements IFeedStrategy {
     if (cursor) {
       // Cursor format: "score:id" for stable pagination on ranked content
       const [scoreStr, id] = cursor.split(':');
-      cursorScore = parseFloat(scoreStr);
-      cursorId = id;
+      const parsedScore = parseFloat(scoreStr);
+      if (Number.isFinite(parsedScore) && id && mongoose.Types.ObjectId.isValid(id)) {
+        cursorScore = parsedScore;
+        cursorId = id;
+      } else {
+        logger.warn('[ExploreFeed] Invalid cursor format, ignoring', { cursor });
+      }
     }
 
     // Use aggregation for ranking by engagement

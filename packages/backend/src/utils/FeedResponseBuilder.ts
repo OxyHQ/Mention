@@ -36,12 +36,16 @@ export class FeedResponseBuilder {
       validateResultSize(posts, limit + 1);
     }
 
+    // Check if there are more posts BEFORE deduplication (based on raw query result)
+    // This prevents premature pagination end when dedup removes posts
+    const hasMoreFromQuery = posts.length > limit;
+
     // Deduplicate posts before transformation
     const deduplicatedPosts = deduplicatePosts(posts);
 
-    // Check if there are more posts after deduplication
-    const hasMore = deduplicatedPosts.length > limit;
-    const postsToReturn = hasMore ? deduplicatedPosts.slice(0, limit) : deduplicatedPosts;
+    // Use query-based hasMore to avoid cursor stall when dedup removes posts
+    const hasMore = hasMoreFromQuery || deduplicatedPosts.length > limit;
+    const postsToReturn = deduplicatedPosts.length > limit ? deduplicatedPosts.slice(0, limit) : deduplicatedPosts;
 
     // Calculate cursor BEFORE transformation using the actual last post that will be returned
     let nextCursor: string | undefined;

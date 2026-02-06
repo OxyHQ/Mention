@@ -30,7 +30,7 @@ const emitNotification = async (req: Request, notification: any) => {
       actor = { id: 'system', username: 'system', name: { full: 'System' }, avatar: undefined };
     }
   } catch (e) {
-    // ignore resolution errors
+    logger.warn('[Notifications] Failed to resolve actor profile:', e);
   }
   // Attach preview and embedded post for post notifications if applicable
   let preview: string | undefined;
@@ -72,10 +72,14 @@ const emitNotification = async (req: Request, notification: any) => {
             isSaved: false,
             isThread: false,
           };
-        } catch {}
+        } catch (e) {
+          logger.warn('[Notifications] Failed to resolve post author for embedded post:', e);
+        }
       }
     }
-  } catch {}
+  } catch (e) {
+    logger.warn('[Notifications] Failed to build post preview for notification:', e);
+  }
   const payload = {
     ...notification.toObject?.() || notification,
     preview,
@@ -156,7 +160,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           profilesMap.set(id, profile);
         }
       } catch (e) {
-        // If lookup fails, leave it absent; client can fall back
+        logger.warn(`[Notifications] Failed to resolve actor profile ${id}:`, e);
       }
     }));
 
@@ -201,7 +205,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           try {
             const profile = await oxy.getUserById(id);
             authorMap.set(id, profile);
-          } catch {}
+          } catch (e) {
+            logger.warn(`[Notifications] Failed to resolve post author ${id}:`, e);
+          }
         }));
 
         // Transform to UI post objects
@@ -293,7 +299,9 @@ router.post("/", async (req: Request, res: Response) => {
       if (notification.actorId && notification.actorId !== 'system') {
         actor = await oxy.getUserById(notification.actorId);
       }
-    } catch {}
+    } catch (e) {
+      logger.warn('[Notifications] Failed to resolve actor for new notification:', e);
+    }
     const payload = {
       ...notification.toObject(),
       actorId_populated: actor ? {

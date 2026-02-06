@@ -176,16 +176,20 @@ export class FeedRankingService {
     );
     
     // Combine all scores
-    const finalScore = engagementScore 
-      * recencyScore 
-      * authorScore 
-      * personalizationScore 
-      * qualityScore 
+    const finalScore = engagementScore
+      * recencyScore
+      * authorScore
+      * personalizationScore
+      * qualityScore
       * trendingBoost
       * timeOfDayScore
       * diversityPenalty
       * negativePenalty;
-    
+
+    // Guard against NaN/Infinity from any sub-score calculation
+    if (!Number.isFinite(finalScore)) {
+      return 0;
+    }
     return Math.max(0, finalScore); // Ensure non-negative
   }
 
@@ -232,9 +236,12 @@ export class FeedRankingService {
     maxAgeHours?: number
   ): number {
     const postDate = new Date(createdAt);
+    if (isNaN(postDate.getTime())) {
+      return 0; // Invalid date, treat as very old post
+    }
     const now = new Date();
     const ageHours = (now.getTime() - postDate.getTime()) / (1000 * 60 * 60);
-    
+
     const maxAge = maxAgeHours || this.WEIGHTS.recency.maxAgeHours;
     // If post is older than max age, return 0
     if (ageHours > maxAge) {
@@ -377,7 +384,8 @@ export class FeedRankingService {
     
     // Calculate engagement velocity (recent engagement vs total)
     // Posts with recent engagement are more relevant
-    const postAge = (Date.now() - new Date(post.createdAt).getTime()) / (1000 * 60 * 60); // hours
+    const createdAtMs = new Date(post.createdAt).getTime();
+    const postAge = isNaN(createdAtMs) ? Infinity : (Date.now() - createdAtMs) / (1000 * 60 * 60); // hours
     const velocityBoost = postAge < 6 ? 1.2 : postAge < 24 ? 1.1 : 1.0; // Boost for very recent posts
     
     // High engagement rate = quality content
@@ -404,8 +412,9 @@ export class FeedRankingService {
    */
   private calculateTrendingBoost(post: any): number {
     const stats = post.stats || {};
-    const postAge = (Date.now() - new Date(post.createdAt).getTime()) / (1000 * 60 * 60); // hours
-    
+    const createdAtMs = new Date(post.createdAt).getTime();
+    const postAge = isNaN(createdAtMs) ? Infinity : (Date.now() - createdAtMs) / (1000 * 60 * 60); // hours
+
     // Only consider posts less than 24 hours old for trending
     if (postAge > 24) {
       return 1.0;
@@ -612,7 +621,8 @@ export class FeedRankingService {
         const postId = post._id?.toString() || '';
         const engagementScore = engagementScoreCache.get(postId) || 0;
         // Simple recency boost
-        const postAge = (Date.now() - new Date(post.createdAt).getTime()) / (1000 * 60 * 60);
+        const createdMs = new Date(post.createdAt).getTime();
+        const postAge = isNaN(createdMs) ? Infinity : (Date.now() - createdMs) / (1000 * 60 * 60);
         const recencyBoost = postAge < 24 ? Math.exp(-postAge / 24) : 0.1;
         return {
           post,

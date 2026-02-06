@@ -66,7 +66,7 @@ router.get('/', async (req: any, res) => {
 
     // Add search functionality
     if (search && typeof search === 'string' && search.trim()) {
-      const searchTerm = search.trim();
+      const searchTerm = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const searchRegex = new RegExp(searchTerm, 'i');
       const searchCondition = {
         $or: [

@@ -19,7 +19,7 @@ export function usePresence(userId: string | undefined): boolean {
     });
 
     // Get initial presence
-    socketService.getPresence(userId).then(setIsOnline);
+    socketService.getPresence(userId).then(setIsOnline).catch(() => setIsOnline(false));
 
     return unsubscribe;
   }, [userId]);
@@ -40,7 +40,7 @@ export function usePresenceBulk(userIds: string[]): Record<string, boolean> {
     }
 
     // Get initial presence for all users
-    socketService.getPresenceBulk(userIds).then(setPresenceMap);
+    socketService.getPresenceBulk(userIds).then(setPresenceMap).catch(() => setPresenceMap({}));
 
     // Subscribe to each user's presence
     const unsubscribes = userIds.map(userId =>
