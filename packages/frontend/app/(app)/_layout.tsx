@@ -2,11 +2,14 @@ import React, { useCallback, useMemo, memo } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { Slot } from "expo-router";
 
+import { useAuth } from '@oxyhq/services';
+
 import { BottomBar } from "@/components/BottomBar";
 import RegisterPush from '@/components/RegisterPushToken';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RightBar } from "@/components/RightBar";
 import { SideBar } from "@/components/SideBar";
+import { SignInBanner } from "@/components/SignInBanner";
 import { ThemedView } from "@/components/ThemedView";
 import WelcomeModalGate from '@/components/WelcomeModalGate';
 
@@ -77,13 +80,15 @@ MainLayout.displayName = 'MainLayout';
 export default function AppLayout() {
   const isScreenNotMobile = useIsScreenNotMobile();
   const keyboardVisible = useKeyboardVisibility();
+  const { isAuthenticated } = useAuth();
 
   return (
     <>
       <RealtimePostsBridge />
       <MainLayout isScreenNotMobile={isScreenNotMobile} />
       <RegisterPush />
-      {!isScreenNotMobile && !keyboardVisible && <BottomBar />}
+      {isAuthenticated && !isScreenNotMobile && !keyboardVisible && <BottomBar />}
+      {!isAuthenticated && <SignInBanner />}
       <WelcomeModalGate appIsReady={true} />
     </>
   );

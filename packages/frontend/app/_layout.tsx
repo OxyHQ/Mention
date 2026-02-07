@@ -169,8 +169,8 @@ function AuthRouter() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(app)" redirect={!isAuthenticated} />
       <Stack.Screen name="(auth)" redirect={isAuthenticated} />
+      <Stack.Screen name="(app)" />
     </Stack>
   );
 }
