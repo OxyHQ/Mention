@@ -8,7 +8,6 @@ const API_CONFIG = {
   baseURL: API_URL,
 };
 
-// Initialize OxyServices - if it automatically adds /api prefix, we don't need it in baseURL
 const oxyServices = new OxyServices({ baseURL: API_CONFIG.baseURL });
 const authenticatedClient = oxyServices.getClient();
 
