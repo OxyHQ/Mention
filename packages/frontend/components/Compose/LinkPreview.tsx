@@ -16,9 +16,9 @@ function fixImageUrl(imageUrl: string | undefined): string | undefined {
   // Already absolute and not a cached image - use as-is
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
     // If it's a cached image URL with wrong port, fix it
-    if (imageUrl.includes('/api/links/images/')) {
+    if (imageUrl.includes('/links/images/')) {
       const apiOrigin = getApiOrigin();
-      const pathMatch = imageUrl.match(/\/api\/links\/images\/.+$/);
+      const pathMatch = imageUrl.match(/\/links\/images\/.+$/);
       if (pathMatch) {
         return `${apiOrigin}${pathMatch[0]}`;
       }
@@ -27,7 +27,7 @@ function fixImageUrl(imageUrl: string | undefined): string | undefined {
   }
   
   // Relative URL - construct absolute URL with correct port
-  if (imageUrl.startsWith('/api/links/images/') || imageUrl.startsWith('/')) {
+  if (imageUrl.startsWith('/links/images/') || imageUrl.startsWith('/')) {
     return `${getApiOrigin()}${imageUrl}`;
   }
   

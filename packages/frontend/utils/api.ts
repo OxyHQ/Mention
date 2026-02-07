@@ -95,7 +95,7 @@ export function webAlert(
 
 export const healthApi = {
   async checkHealth() {
-    const response = await api.get('/api/health');
+    const response = await api.get('/health');
     return response.data;
   },
 };

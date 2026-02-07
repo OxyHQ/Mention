@@ -100,7 +100,7 @@ class ImageCacheService {
       // Use more efficient query - only check existence, don't fetch all data
       const file = await bucket.find({ filename: cacheKey }, { limit: 1, projection: { _id: 1 } }).next();
       if (file) {
-        return `/api/links/images/${cacheKey}`;
+        return `/links/images/${cacheKey}`;
       }
       
       return null;
@@ -334,7 +334,7 @@ class ImageCacheService {
       await this.storeImage(finalBuffer, cacheKey, contentType);
 
       logger.debug('[ImageCacheService] Image cached successfully:', { url: normalizedUrl, cacheKey });
-      return `/api/links/images/${cacheKey}`;
+      return `/links/images/${cacheKey}`;
     } catch (error) {
       logger.error('[ImageCacheService] Error caching image:', {
         url: imageUrl,

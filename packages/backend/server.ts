@@ -719,7 +719,7 @@ publicApiRouter.use("/hashtags", hashtagsRoutes);
 publicApiRouter.use("/feed", optionalAuth, feedRoutes);
 
 // Public profile endpoints
-// GET /api/profile/design/:userId - public profile design data (no auth required)
+// GET /profile/design/:userId - public profile design data (no auth required)
 publicApiRouter.use("/profile/design", profileDesignRoutes);
 publicApiRouter.use("/articles", articlesRoutes);
 publicApiRouter.use("/images", imagesRoutes); // Image optimization (public, rate-limited)
@@ -749,8 +749,8 @@ authenticatedApiRouter.use("/spaces", spacesRoutes);
 // You can add more protected routers here as needed
 
 // Mount public and authenticated API routers
-app.use("/api", publicApiRouter);
-app.use("/api", oxy.auth(), authenticatedApiRouter);
+app.use("/", publicApiRouter);
+app.use("/", oxy.auth(), authenticatedApiRouter);
 
 // Performance monitoring middleware
 import { performanceMiddleware } from "./src/middleware/performance";

@@ -20,18 +20,8 @@ interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
 
 // Helper function to make unauthenticated requests using fetch
 const makePublicRequest = async (endpoint: string, params?: Record<string, any>): Promise<any> => {
-  // Ensure endpoint starts with /api
-  const apiEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
-  
-  // Handle baseURL - API_URL might already include /api/ in production
-  let baseURL = API_CONFIG.baseURL;
-  if (baseURL.endsWith('/api/')) {
-    baseURL = baseURL.slice(0, -5); // Remove trailing /api/
-  } else if (baseURL.endsWith('/api')) {
-    baseURL = baseURL.slice(0, -4); // Remove trailing /api
-  }
-  
-  const url = new URL(apiEndpoint, baseURL.endsWith('/') ? baseURL : `${baseURL}/`);
+  const baseURL = API_CONFIG.baseURL.replace(/\/$/, ''); // Remove trailing slash if any
+  const url = new URL(endpoint, `${baseURL}/`);
   
   if (params) {
     Object.entries(params).forEach(([key, value]) => {

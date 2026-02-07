@@ -30,7 +30,7 @@ function shouldBypassOptimization(uri: string): boolean {
   }
 
   // Already served through our image cache
-  if (uri.includes('/api/links/images/') || uri.includes('/api/images/')) {
+  if (uri.includes('/links/images/') || uri.includes('/images/')) {
     return true;
   }
 
