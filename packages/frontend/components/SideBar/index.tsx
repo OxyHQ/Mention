@@ -97,6 +97,12 @@ export function SideBar() {
                 route: '/chat',
             },
             {
+                title: t("Spaces"),
+                icon: <IconComponent name="radio-outline" size={20} color={theme.colors.text} />,
+                iconActive: <IconComponent name="radio" size={20} color={theme.colors.primary} />,
+                route: '/spaces',
+            },
+            {
                 title: t("Insights"),
                 icon: <AnalyticsIcon color={theme.colors.text} />,
                 iconActive: <AnalyticsIconActive color={theme.colors.primary} />,
