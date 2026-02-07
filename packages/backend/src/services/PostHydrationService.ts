@@ -755,6 +755,16 @@ export class PostHydrationService {
       };
     }
 
+    if (content.space) {
+      (attachments as any).space = {
+        spaceId: content.space.spaceId,
+        title: content.space.title,
+        status: content.space.status,
+        topic: content.space.topic,
+        host: content.space.host,
+      };
+    }
+
     return attachments;
   }
 

@@ -199,6 +199,7 @@ interface AttachmentBuildOptions {
   includePoll?: boolean;
   includeArticle?: boolean;
   includeEvent?: boolean;
+  includeSpace?: boolean;
   includeLocation?: boolean;
   includeSources?: boolean;
 }
@@ -209,6 +210,7 @@ const buildOrderedAttachments = ({
   includePoll = false,
   includeArticle = false,
   includeEvent = false,
+  includeSpace = false,
   includeLocation = false,
   includeSources = false
 }: AttachmentBuildOptions): PostAttachmentDescriptor[] | undefined => {
@@ -261,6 +263,9 @@ const buildOrderedAttachments = ({
       case 'event':
         if (includeEvent) addNonMedia('event');
         break;
+      case 'space':
+        if (includeSpace) addNonMedia('space');
+        break;
       case 'location':
         if (includeLocation) addNonMedia('location');
         break;
@@ -285,6 +290,7 @@ const buildOrderedAttachments = ({
   if (includePoll) addNonMedia('poll');
   if (includeArticle) addNonMedia('article');
   if (includeEvent) addNonMedia('event');
+  if (includeSpace) addNonMedia('space');
   if (includeSources) addNonMedia('sources');
   if (includeLocation) addNonMedia('location');
 
@@ -517,6 +523,18 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       logger.debug('No event data found in request');
     }
 
+    // Handle space data
+    const spaceData = content?.space || req.body.space;
+    if (spaceData && typeof spaceData === 'object' && typeof spaceData.spaceId === 'string' && typeof spaceData.title === 'string') {
+      postContent.space = {
+        spaceId: spaceData.spaceId.trim(),
+        title: spaceData.title.trim().slice(0, 200),
+        ...(typeof spaceData.status === 'string' && ['scheduled', 'live', 'ended'].includes(spaceData.status) ? { status: spaceData.status } : {}),
+        ...(typeof spaceData.topic === 'string' ? { topic: spaceData.topic.trim().slice(0, 100) } : {}),
+        ...(typeof spaceData.host === 'string' ? { host: spaceData.host.trim() } : {}),
+      };
+    }
+
     const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
     const computedAttachments = buildOrderedAttachments({
       rawAttachments: attachmentsInput || postContent.attachments,
@@ -524,6 +542,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       includePoll: Boolean(postContent.pollId),
       includeArticle: Boolean(postContent.article),
       includeEvent: Boolean(postContent.event),
+      includeSpace: Boolean(postContent.space),
       includeLocation: Boolean(postContent.location),
       includeSources: Boolean(postContent.sources && postContent.sources.length)
     });
@@ -858,7 +877,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
           location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, 200) : undefined,
           description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, 500) : undefined,
         };
-        
+
         // Validate required fields
         if (sanitizedEvent.name && sanitizedEvent.date) {
           try {
@@ -870,6 +889,18 @@ export const createThread = async (req: AuthRequest, res: Response) => {
             logger.warn('Invalid event date format in thread:', sanitizedEvent.date);
           }
         }
+      }
+
+      // Handle space data
+      const threadSpaceData = content?.space;
+      if (threadSpaceData && typeof threadSpaceData === 'object' && typeof threadSpaceData.spaceId === 'string' && typeof threadSpaceData.title === 'string') {
+        postContent.space = {
+          spaceId: threadSpaceData.spaceId.trim(),
+          title: threadSpaceData.title.trim().slice(0, 200),
+          ...(typeof threadSpaceData.status === 'string' && ['scheduled', 'live', 'ended'].includes(threadSpaceData.status) ? { status: threadSpaceData.status } : {}),
+          ...(typeof threadSpaceData.topic === 'string' ? { topic: threadSpaceData.topic.trim().slice(0, 100) } : {}),
+          ...(typeof threadSpaceData.host === 'string' ? { host: threadSpaceData.host.trim() } : {}),
+        };
       }
 
       // Handle poll creation
@@ -901,6 +932,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         includePoll: Boolean(postContent.pollId),
         includeArticle: Boolean(postContent.article),
         includeEvent: Boolean(postContent.event),
+        includeSpace: Boolean(postContent.space),
         includeLocation: Boolean(postContent.location),
         includeSources: Boolean(postContent.sources && postContent.sources.length)
       });
@@ -1190,6 +1222,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       media: Array.isArray(post.content.media) ? post.content.media : [],
       includePoll: Boolean((post.content as any)?.pollId),
       includeArticle: Boolean(post.content.article),
+      includeEvent: Boolean((post.content as any)?.event),
+      includeSpace: Boolean((post.content as any)?.space),
       includeLocation: Boolean(post.content.location),
       includeSources: Boolean(post.content.sources && post.content.sources.length)
     });
