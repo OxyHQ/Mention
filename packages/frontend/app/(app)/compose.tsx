@@ -798,7 +798,7 @@ const ComposeScreen = () => {
                       handle: user?.username || '',
                       verified: Boolean(user?.verified)
                     }}
-                    avatarUri={user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined}
+                    avatarUri={user?.avatar}
                     avatarSize={AVATAR_SIZE}
                     onPressUser={() => { }}
                     onPressAvatar={() => { }}

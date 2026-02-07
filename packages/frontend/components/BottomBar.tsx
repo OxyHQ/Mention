@@ -14,7 +14,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 export const BottomBar = () => {
     const router = useRouter();
     const pathname = usePathname();
-    const { showBottomSheet, signIn, user, isAuthenticated, oxyServices } = useAuth();
+    const { showBottomSheet, signIn, user, isAuthenticated } = useAuth();
     const insets = useSafeAreaInsets();
     const theme = useTheme();
     const { triggerHomeRefresh } = useHomeRefresh();
@@ -177,7 +177,7 @@ export const BottomBar = () => {
                     showBottomSheet?.('AccountCenter');
                 }}
             >
-                <Avatar size={35} source={{ uri: user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined }} />
+                <Avatar size={35} source={user?.avatar} />
             </Pressable>
         </Animated.View>
     );

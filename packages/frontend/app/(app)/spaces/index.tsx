@@ -20,12 +20,23 @@ import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useSpaceUsers, getAvatarUrl } from '@/hooks/useSpaceUsers';
+import { useUserById } from '@/stores/usersStore';
 import { spacesService, type Space } from '@/services/spacesService';
+import { useAuth } from '@oxyhq/services';
 
-const SpaceCard = ({ space, onPress }: { space: Space; onPress: () => void }) => {
+const SpaceCard = ({ space, onPress, oxyServices }: { space: Space; onPress: () => void; oxyServices: any }) => {
   const theme = useTheme();
+  const hostProfile = useUserById(space.host);
   const isLive = space.status === 'live';
   const isScheduled = space.status === 'scheduled';
+
+  const hostName = hostProfile?.username
+    ? `@${hostProfile.username}`
+    : (typeof hostProfile?.name === 'object' ? hostProfile?.name?.full : typeof hostProfile?.name === 'string' ? hostProfile?.name : null)
+      || space.host?.slice(0, 10)
+      || 'Unknown';
+  const hostAvatarUri = getAvatarUrl(hostProfile, oxyServices);
 
   return (
     <TouchableOpacity
@@ -79,8 +90,11 @@ const SpaceCard = ({ space, onPress }: { space: Space; onPress: () => void }) =>
           <Text style={{ color: theme.colors.textSecondary }}>•</Text>
         </View>
 
+        {hostAvatarUri && (
+          <Avatar size={16} source={hostAvatarUri} style={{ marginRight: 4 }} />
+        )}
         <Text style={[styles.hostText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-          Hosted by {space.host || 'Unknown'}
+          {hostName}
         </Text>
       </View>
     </TouchableOpacity>
@@ -89,6 +103,7 @@ const SpaceCard = ({ space, onPress }: { space: Space; onPress: () => void }) =>
 
 const SpacesScreen = () => {
   const theme = useTheme();
+  const { oxyServices } = useAuth();
   const [liveSpaces, setLiveSpaces] = useState<Space[]>([]);
   const [scheduledSpaces, setScheduledSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(false);
@@ -119,6 +134,10 @@ const SpacesScreen = () => {
     setRefreshing(true);
     loadSpaces();
   }, [loadSpaces]);
+
+  // Resolve all host IDs to user profiles
+  const allHostIds = [...liveSpaces, ...scheduledSpaces].map((s) => s.host).filter(Boolean);
+  useSpaceUsers(allHostIds);
 
   const hasSpaces = liveSpaces.length > 0 || scheduledSpaces.length > 0;
 
@@ -188,6 +207,7 @@ const SpacesScreen = () => {
                     <SpaceCard
                       key={space._id}
                       space={space}
+                      oxyServices={oxyServices}
                       onPress={() => router.push(`/spaces/live/${space._id}`)}
                     />
                   ))}
@@ -211,6 +231,7 @@ const SpacesScreen = () => {
                     <SpaceCard
                       key={space._id}
                       space={space}
+                      oxyServices={oxyServices}
                       onPress={() => router.push(`/spaces/${space._id}`)}
                     />
                   ))}

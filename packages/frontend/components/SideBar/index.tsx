@@ -41,7 +41,7 @@ export function SideBar() {
     const { isAuthenticated: _isAuthenticated, user, signIn, logout, oxyServices } = useAuth();
     const theme = useTheme();
 
-    const avatarUri = user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined;
+    const avatarUri = user?.avatar;
 
     const handleSignOut = async () => {
         const confirmed = await confirmDialog({

@@ -116,9 +116,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     // Computed values
     const design = profileData?.design;
     const displayName = design?.displayName || '';
-    const avatarUri = design?.avatar
-        ? oxyServices.getFileDownloadUrl(design.avatar, 'thumb')
-        : undefined;
+    const avatarUri = design?.avatar;
     const bannerUri =
         design?.coverPhotoEnabled && design?.coverImage
             ? oxyServices.getFileDownloadUrl(design.coverImage, 'full')

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import Avatar from '@/components/Avatar';
 import { useTheme } from '@/hooks/useTheme';
 import { useSpaceConnection } from '@/hooks/useSpaceConnection';
 import { useSpaceAudio } from '@/hooks/useSpaceAudio';
+import { useSpaceUsers, getDisplayName, getAvatarUrl } from '@/hooks/useSpaceUsers';
+import { useUserById, type UserEntity } from '@/stores/usersStore';
 import { spacesService, type Space } from '@/services/spacesService';
 import type { SpaceParticipant } from '@/services/spaceSocketService';
 
@@ -50,60 +52,120 @@ const SpeakerTile = ({
   participant,
   isCurrentUser,
   theme,
+  userProfile,
+  oxyServices,
 }: {
   participant: SpaceParticipant;
   isCurrentUser: boolean;
   theme: any;
-}) => (
-  <View style={styles.speakerTile}>
-    <View
-      style={[
-        styles.avatarRing,
-        !participant.isMuted && {
-          borderColor: theme.colors.primary,
-          borderWidth: 3,
-        },
-      ]}
-    >
-      <Avatar
-        size={64}
-        label={participant.userId[0]?.toUpperCase()}
-      />
-      {participant.isMuted && (
-        <View style={[styles.muteIndicator, { backgroundColor: '#FF4458' }]}>
-          <Ionicons name="mic-off" size={12} color="#FFFFFF" />
-        </View>
-      )}
+  userProfile: UserEntity | undefined;
+  oxyServices: any;
+}) => {
+  const displayName = getDisplayName(userProfile, participant.userId, isCurrentUser);
+  const avatarUri = getAvatarUrl(userProfile, oxyServices);
+
+  return (
+    <View style={styles.speakerTile}>
+      <View
+        style={[
+          styles.avatarRing,
+          !participant.isMuted && {
+            borderColor: theme.colors.primary,
+            borderWidth: 3,
+          },
+        ]}
+      >
+        <Avatar
+          size={64}
+          source={avatarUri}
+          label={displayName[0]?.toUpperCase()}
+        />
+        {participant.isMuted && (
+          <View style={[styles.muteIndicator, { backgroundColor: '#FF4458' }]}>
+            <Ionicons name="mic-off" size={12} color="#FFFFFF" />
+          </View>
+        )}
+      </View>
+      <Text
+        style={[styles.speakerName, { color: theme.colors.text }]}
+        numberOfLines={1}
+      >
+        {displayName}
+      </Text>
+      <RoleBadge role={participant.role} theme={theme} />
     </View>
-    <Text
-      style={[styles.speakerName, { color: theme.colors.text }]}
-      numberOfLines={1}
-    >
-      {isCurrentUser ? 'You' : participant.userId.slice(0, 10)}
-    </Text>
-    <RoleBadge role={participant.role} theme={theme} />
-  </View>
-);
+  );
+};
 
 const ListenerAvatar = ({
   participant,
+  userProfile,
+  oxyServices,
 }: {
   participant: SpaceParticipant;
-}) => (
-  <View style={styles.listenerItem}>
-    <Avatar
-      size={40}
-      label={participant.userId[0]?.toUpperCase()}
-    />
-  </View>
-);
+  userProfile: UserEntity | undefined;
+  oxyServices: any;
+}) => {
+  const displayName = getDisplayName(userProfile, participant.userId, false);
+  const avatarUri = getAvatarUrl(userProfile, oxyServices);
+
+  return (
+    <View style={styles.listenerItem}>
+      <Avatar
+        size={40}
+        source={avatarUri}
+        label={displayName[0]?.toUpperCase()}
+      />
+    </View>
+  );
+};
+
+// --- Wrapper components that use hooks for per-participant profile resolution ---
+
+const ConnectedSpeakerTile = ({ participant, isCurrentUser, theme, oxyServices }: {
+  participant: SpaceParticipant; isCurrentUser: boolean; theme: any; oxyServices: any;
+}) => {
+  const userProfile = useUserById(participant.userId);
+  return <SpeakerTile participant={participant} isCurrentUser={isCurrentUser} theme={theme} userProfile={userProfile} oxyServices={oxyServices} />;
+};
+
+const ConnectedListenerAvatar = ({ participant, oxyServices }: {
+  participant: SpaceParticipant; oxyServices: any;
+}) => {
+  const userProfile = useUserById(participant.userId);
+  return <ListenerAvatar participant={participant} userProfile={userProfile} oxyServices={oxyServices} />;
+};
+
+const ConnectedRequestRow = ({ request, theme, oxyServices, onApprove, onDeny }: {
+  request: { userId: string; requestedAt: string }; theme: any; oxyServices: any;
+  onApprove: (userId: string) => void; onDeny: (userId: string) => void;
+}) => {
+  const userProfile = useUserById(request.userId);
+  const displayName = getDisplayName(userProfile, request.userId, false);
+  const avatarUri = getAvatarUrl(userProfile, oxyServices);
+
+  return (
+    <View style={[styles.requestRow, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+      <Avatar size={36} source={avatarUri} label={displayName[0]?.toUpperCase()} />
+      <Text style={[styles.requestName, { color: theme.colors.text }]} numberOfLines={1}>
+        {displayName}
+      </Text>
+      <TouchableOpacity onPress={() => onApprove(request.userId)} style={[styles.approveBtn, { backgroundColor: theme.colors.primary }]}>
+        <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => onDeny(request.userId)} style={[styles.denyBtn, { backgroundColor: theme.colors.backgroundSecondary }]}>
+        <Ionicons name="close" size={18} color={theme.colors.text} />
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 // --- Main Screen ---
 
 const LiveSpaceScreen = () => {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, oxyServices } = useAuth();
   const [space, setSpace] = useState<Space | null>(null);
 
   // Fetch space metadata
@@ -165,21 +227,16 @@ const LiveSpaceScreen = () => {
     router.back();
   };
 
-  const handleEndSpace = () => {
+  const handleEndSpace = async () => {
     if (!id) return;
-    Alert.alert('End Space', 'End this space for everyone?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'End',
-        style: 'destructive',
-        onPress: async () => {
-          await spacesService.endSpace(id);
-          leave();
-          router.back();
-        },
-      },
-    ]);
+    await spacesService.endSpace(id);
+    leave();
+    router.back();
   };
+
+  // Resolve participant user IDs to real profiles
+  const participantIds = useMemo(() => participants.map((p) => p.userId), [participants]);
+  useSpaceUsers(participantIds);
 
   // Separate speakers/host and listeners
   const speakers = participants.filter(
@@ -235,11 +292,12 @@ const LiveSpaceScreen = () => {
         {/* Speakers Grid */}
         <View style={styles.speakerGrid}>
           {speakers.map((p) => (
-            <SpeakerTile
+            <ConnectedSpeakerTile
               key={p.userId}
               participant={p}
               isCurrentUser={p.userId === user?.id}
               theme={theme}
+              oxyServices={oxyServices}
             />
           ))}
         </View>
@@ -257,7 +315,7 @@ const LiveSpaceScreen = () => {
             </Text>
             <View style={styles.listenerGrid}>
               {listeners.map((p) => (
-                <ListenerAvatar key={p.userId} participant={p} />
+                <ConnectedListenerAvatar key={p.userId} participant={p} oxyServices={oxyServices} />
               ))}
             </View>
           </View>
@@ -275,33 +333,14 @@ const LiveSpaceScreen = () => {
               Requests to speak
             </Text>
             {speakerRequests.map((r) => (
-              <View
+              <ConnectedRequestRow
                 key={r.userId}
-                style={[
-                  styles.requestRow,
-                  { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
-                ]}
-              >
-                <Avatar size={36} label={r.userId[0]?.toUpperCase()} />
-                <Text
-                  style={[styles.requestName, { color: theme.colors.text }]}
-                  numberOfLines={1}
-                >
-                  {r.userId.slice(0, 15)}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => approveSpeaker(r.userId)}
-                  style={[styles.approveBtn, { backgroundColor: theme.colors.primary }]}
-                >
-                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => denySpeaker(r.userId)}
-                  style={[styles.denyBtn, { backgroundColor: theme.colors.backgroundSecondary }]}
-                >
-                  <Ionicons name="close" size={18} color={theme.colors.text} />
-                </TouchableOpacity>
-              </View>
+                request={r}
+                theme={theme}
+                oxyServices={oxyServices}
+                onApprove={approveSpeaker}
+                onDeny={denySpeaker}
+              />
             ))}
           </View>
         )}

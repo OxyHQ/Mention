@@ -20,13 +20,44 @@ import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useSpaceUsers, getDisplayName, getAvatarUrl } from '@/hooks/useSpaceUsers';
+import { useUserById } from '@/stores/usersStore';
 import { spacesService, type Space } from '@/services/spacesService';
 import { useAuth } from '@oxyhq/services';
+
+// Wrapper to use useUserById hook for each participant
+const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: any }) => {
+  const profile = useUserById(userId);
+  const avatarUri = getAvatarUrl(profile, oxyServices);
+  const displayName = getDisplayName(profile, userId);
+  return <Avatar size={32} source={avatarUri} label={displayName[0]?.toUpperCase()} />;
+};
+
+// Host info with resolved profile
+const HostInfo = ({ hostId, oxyServices, theme }: { hostId: string; oxyServices: any; theme: any }) => {
+  const profile = useUserById(hostId);
+  const displayName = getDisplayName(profile, hostId);
+  const avatarUri = getAvatarUrl(profile, oxyServices);
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <Avatar size={48} source={avatarUri} label={displayName[0]?.toUpperCase() || 'H'} />
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <ThemedText type="defaultSemiBold">{displayName}</ThemedText>
+        {profile?.username && (
+          <Text style={{ fontSize: 14, marginTop: 2, color: theme.colors.textSecondary }}>
+            @{profile.username}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+};
 
 const SpaceDetailScreen = () => {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, oxyServices } = useAuth();
   const [space, setSpace] = useState<Space | null>(null);
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
@@ -66,27 +97,14 @@ const SpaceDetailScreen = () => {
 
   const handleEndSpace = async () => {
     if (!id || !space) return;
-    Alert.alert(
-      'End Space',
-      'Are you sure you want to end this space? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'End',
-          style: 'destructive',
-          onPress: async () => {
-            setActionLoading(true);
-            const success = await spacesService.endSpace(id);
-            if (success) {
-              router.back();
-            } else {
-              Alert.alert('Error', 'Failed to end space');
-            }
-            setActionLoading(false);
-          },
-        },
-      ]
-    );
+    setActionLoading(true);
+    const success = await spacesService.endSpace(id);
+    if (success) {
+      router.back();
+    } else {
+      Alert.alert('Error', 'Failed to end space');
+    }
+    setActionLoading(false);
   };
 
   const handleJoinSpace = async () => {
@@ -107,6 +125,15 @@ const SpaceDetailScreen = () => {
     setActionLoading(false);
   };
 
+  // Resolve user IDs to real profiles (must be before conditional return for hooks rules)
+  const allUserIds = [space?.host, ...(space?.participants || []), ...(space?.speakers || [])].filter(Boolean);
+  useSpaceUsers(allUserIds);
+
+  const isLive = space?.status === 'live';
+  const isScheduled = space?.status === 'scheduled';
+  const isEnded = space?.status === 'ended';
+  const isHost = space?.host === user?.id;
+
   if (loading || !space) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -126,11 +153,6 @@ const SpaceDetailScreen = () => {
       </SafeAreaView>
     );
   }
-
-  const isLive = space.status === 'live';
-  const isScheduled = space.status === 'scheduled';
-  const isEnded = space.status === 'ended';
-  const isHost = space.host === user?.id;
 
   return (
     <>
@@ -198,11 +220,7 @@ const SpaceDetailScreen = () => {
               Host
             </ThemedText>
             <View style={styles.hostCard}>
-              <Avatar size={48} label={space.host?.[0]?.toUpperCase() || 'H'} />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <ThemedText type="defaultSemiBold">{space.host || 'Unknown'}</ThemedText>
-                <Text style={[styles.hostMeta, { color: theme.colors.textSecondary }]}>Host</Text>
-              </View>
+              <HostInfo hostId={space.host} oxyServices={oxyServices} theme={theme} />
             </View>
           </View>
 
@@ -213,9 +231,9 @@ const SpaceDetailScreen = () => {
             </ThemedText>
             <View style={styles.participantsList}>
               {space.participants?.length > 0 ? (
-                space.participants.slice(0, 10).map((participant, index) => (
-                  <View key={index} style={styles.participantItem}>
-                    <Avatar size={32} label={participant[0]?.toUpperCase()} />
+                space.participants.slice(0, 10).map((participantId) => (
+                  <View key={participantId} style={styles.participantItem}>
+                    <ParticipantAvatar userId={participantId} oxyServices={oxyServices} />
                   </View>
                 ))
               ) : (
@@ -233,9 +251,9 @@ const SpaceDetailScreen = () => {
                 Speakers
               </ThemedText>
               <View style={styles.participantsList}>
-                {space.speakers.map((speaker, index) => (
-                  <View key={index} style={styles.participantItem}>
-                    <Avatar size={32} label={speaker[0]?.toUpperCase()} />
+                {space.speakers.map((speakerId) => (
+                  <View key={speakerId} style={styles.participantItem}>
+                    <ParticipantAvatar userId={speakerId} oxyServices={oxyServices} />
                   </View>
                 ))}
               </View>

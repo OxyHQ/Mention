@@ -15,6 +15,8 @@ import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { colors } from '../styles/colors';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@oxyhq/services';
+import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import Svg, { Path } from 'react-native-svg';
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
@@ -44,22 +46,40 @@ const Avatar: React.FC<AvatarProps> = ({
   useAnimated = false,
 }) => {
   const theme = useTheme();
+  const { oxyServices } = useAuth();
   const [errored, setErrored] = React.useState(false);
 
-  // Memoize imageSource to prevent unnecessary re-renders and image reloads
+  // Resolve source: handles file IDs, HTTP URLs, and ImageSourcePropType objects
+  const resolvedSource = React.useMemo(() => {
+    if (!source || errored) return undefined;
+    if (typeof source !== 'string') return source;
+    // Already an HTTP URL — use as-is
+    if (source.startsWith('http')) return source;
+    // File ID — resolve to download URL via cache
+    if (oxyServices) {
+      try {
+        return getCachedFileDownloadUrlSync(oxyServices, source, 'thumb');
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }, [source, errored, oxyServices]);
+
+  // Memoize imageSource for Image component
   const imageSource = React.useMemo(() => {
-    if (source && !errored) {
-      return typeof source === 'string' ? { uri: source } : source;
+    if (resolvedSource) {
+      return typeof resolvedSource === 'string' ? { uri: resolvedSource } : resolvedSource;
     }
     return DEFAULT_AVATAR_SOURCE;
-  }, [source, errored]);
+  }, [resolvedSource]);
 
   const Container: any = onPress ? TouchableOpacity : View;
 
   const content = (
     <Animated.View style={[styles.container, { width: size, height: size }, style]}>
       <View style={[styles.imageContainer, { width: size, height: size, borderRadius: size / 2 }]}>
-        {source && !errored ? (
+        {resolvedSource && !errored ? (
           useAnimated ? (
             <AnimatedImage
               source={imageSource}
