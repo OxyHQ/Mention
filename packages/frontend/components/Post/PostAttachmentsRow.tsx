@@ -179,7 +179,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       addMediaItem(id, m.type);
     });
 
-    // Always add space if present, even if not in attachment descriptors
+    // Always add event/space if present, even if not in attachment descriptors
+    if (hasEvent && !results.some(item => item.type === 'event')) {
+      results.push({ type: 'event' });
+    }
     if (hasSpace && !results.some(item => item.type === 'space')) {
       results.push({ type: 'space' });
     }

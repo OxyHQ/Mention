@@ -271,15 +271,9 @@ class FeedService {
     // Map the request to match backend expectations
     const backendRequest = {
       content: {
+        ...request.content,
         text: request.content.text || '',
         media: request.content.media || [],
-        ...(request.content.poll && { poll: request.content.poll }),
-        ...(request.content.location && { location: request.content.location }),
-        ...(request.content.sources && request.content.sources.length > 0 && { sources: request.content.sources }),
-        ...(request.content.article && Object.keys(request.content.article).length > 0 && { article: request.content.article }),
-        ...(request.content.event && { event: request.content.event }),
-        ...(request.content.space && { space: request.content.space }),
-        ...(request.content.attachments && request.content.attachments.length > 0 && { attachments: request.content.attachments })
       },
       hashtags: request.hashtags || [],
       mentions: request.mentions || [],

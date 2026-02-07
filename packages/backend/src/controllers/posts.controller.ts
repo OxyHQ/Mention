@@ -80,6 +80,44 @@ const sanitizeArticle = (input: any): { title?: string; body?: string } | undefi
   return { ...(title ? { title } : {}), ...(body ? { body } : {}) };
 };
 
+const sanitizeEventData = (eventData: any): { eventId?: string; name?: string; date?: string; location?: string; description?: string } | null => {
+  if (!eventData || typeof eventData !== 'object') return null;
+
+  const sanitized = {
+    eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
+    name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
+    date: typeof eventData.date === 'string'
+      ? eventData.date.trim()
+      : (eventData.date instanceof Date ? eventData.date.toISOString() : undefined),
+    location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
+    description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
+  };
+
+  if (!sanitized.name || !sanitized.date) return null;
+
+  try {
+    const dateObj = new Date(sanitized.date);
+    if (isNaN(dateObj.getTime())) return null;
+  } catch {
+    return null;
+  }
+
+  return sanitized;
+};
+
+const sanitizeSpaceData = (spaceData: any): { spaceId: string; title: string; status?: string; topic?: string; host?: string } | null => {
+  if (!spaceData || typeof spaceData !== 'object') return null;
+  if (typeof spaceData.spaceId !== 'string' || typeof spaceData.title !== 'string') return null;
+
+  return {
+    spaceId: spaceData.spaceId.trim(),
+    title: spaceData.title.trim().slice(0, 200),
+    ...(typeof spaceData.status === 'string' && ['scheduled', 'live', 'ended'].includes(spaceData.status) ? { status: spaceData.status } : {}),
+    ...(typeof spaceData.topic === 'string' ? { topic: spaceData.topic.trim().slice(0, 100) } : {}),
+    ...(typeof spaceData.host === 'string' ? { host: spaceData.host.trim() } : {}),
+  };
+};
+
 type RawAttachmentInput =
   | string
   | {
@@ -145,7 +183,7 @@ const normalizeMediaItems = (arr: any): NormalizedMediaItem[] => {
   return normalized;
 };
 
-const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'location', 'sources'];
+const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'space', 'location', 'sources'];
 
 const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
   if (!entry) return null;
@@ -490,49 +528,16 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     // Handle event data
     const eventData = content?.event || req.body.event;
-    logger.debug('Event data received:', JSON.stringify(eventData, null, 2));
-    if (eventData && typeof eventData === 'object') {
-      const sanitizedEvent = {
-        eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
-        name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
-        date: typeof eventData.date === 'string' ? eventData.date.trim() : (eventData.date instanceof Date ? eventData.date.toISOString() : undefined),
-        location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
-        description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
-      };
-      
-      logger.debug('Sanitized event:', JSON.stringify(sanitizedEvent, null, 2));
-      
-      // Validate required fields
-      if (sanitizedEvent.name && sanitizedEvent.date) {
-        // Validate date is a valid ISO string
-        try {
-          const dateObj = new Date(sanitizedEvent.date);
-          if (!isNaN(dateObj.getTime())) {
-            postContent.event = sanitizedEvent;
-            logger.debug('Event added to postContent:', JSON.stringify(postContent.event, null, 2));
-          } else {
-            logger.warn('Invalid event date (NaN):', sanitizedEvent.date);
-          }
-        } catch (e) {
-          logger.warn('Invalid event date format:', sanitizedEvent.date, e);
-        }
-      } else {
-        logger.warn('Event missing required fields - name:', sanitizedEvent.name, 'date:', sanitizedEvent.date);
-      }
-    } else {
-      logger.debug('No event data found in request');
+    const sanitizedEvent = sanitizeEventData(eventData);
+    if (sanitizedEvent) {
+      postContent.event = sanitizedEvent;
     }
 
     // Handle space data
     const spaceData = content?.space || req.body.space;
-    if (spaceData && typeof spaceData === 'object' && typeof spaceData.spaceId === 'string' && typeof spaceData.title === 'string') {
-      postContent.space = {
-        spaceId: spaceData.spaceId.trim(),
-        title: spaceData.title.trim().slice(0, 200),
-        ...(typeof spaceData.status === 'string' && ['scheduled', 'live', 'ended'].includes(spaceData.status) ? { status: spaceData.status } : {}),
-        ...(typeof spaceData.topic === 'string' ? { topic: spaceData.topic.trim().slice(0, 100) } : {}),
-        ...(typeof spaceData.host === 'string' ? { host: spaceData.host.trim() } : {}),
-      };
+    const sanitizedSpace = sanitizeSpaceData(spaceData);
+    if (sanitizedSpace) {
+      postContent.space = sanitizedSpace;
     }
 
     const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
@@ -868,39 +873,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       }
 
       // Handle event data
-      const eventData = content?.event;
-      if (eventData && typeof eventData === 'object') {
-        const sanitizedEvent = {
-          eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
-          name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, 200) : undefined,
-          date: typeof eventData.date === 'string' ? eventData.date.trim() : undefined,
-          location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, 200) : undefined,
-          description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, 500) : undefined,
-        };
-
-        // Validate required fields
-        if (sanitizedEvent.name && sanitizedEvent.date) {
-          try {
-            const dateObj = new Date(sanitizedEvent.date);
-            if (!isNaN(dateObj.getTime())) {
-              postContent.event = sanitizedEvent;
-            }
-          } catch (e) {
-            logger.warn('Invalid event date format in thread:', sanitizedEvent.date);
-          }
-        }
+      const threadSanitizedEvent = sanitizeEventData(content?.event);
+      if (threadSanitizedEvent) {
+        postContent.event = threadSanitizedEvent;
       }
 
       // Handle space data
-      const threadSpaceData = content?.space;
-      if (threadSpaceData && typeof threadSpaceData === 'object' && typeof threadSpaceData.spaceId === 'string' && typeof threadSpaceData.title === 'string') {
-        postContent.space = {
-          spaceId: threadSpaceData.spaceId.trim(),
-          title: threadSpaceData.title.trim().slice(0, 200),
-          ...(typeof threadSpaceData.status === 'string' && ['scheduled', 'live', 'ended'].includes(threadSpaceData.status) ? { status: threadSpaceData.status } : {}),
-          ...(typeof threadSpaceData.topic === 'string' ? { topic: threadSpaceData.topic.trim().slice(0, 100) } : {}),
-          ...(typeof threadSpaceData.host === 'string' ? { host: threadSpaceData.host.trim() } : {}),
-        };
+      const threadSanitizedSpace = sanitizeSpaceData(content?.space);
+      if (threadSanitizedSpace) {
+        postContent.space = threadSanitizedSpace;
       }
 
       // Handle poll creation

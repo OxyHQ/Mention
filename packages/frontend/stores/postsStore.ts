@@ -1121,19 +1121,9 @@ export const usePostsStore = create<FeedState>()(
         
         if (response.success && response.posts) {
           const newPosts: FeedItem[] = response.posts.map((post: any) => ({
-            id: post.id,
-            user: post.user,
-            content: post.content || { text: '' },
-            date: new Date().toISOString(),
-            engagement: { replies: 0, reposts: 0, likes: 0 },
-            media: post.content?.images || [],
-            type: post.type,
-            visibility: post.visibility,
-            hashtags: post.hashtags || [],
-            mentions: post.mentions || [],
-            parentPostId: post.parentPostId,
-            threadId: post.threadId,
-            isLocalNew: true
+            ...transformToUIItem(post),
+            engagement: { replies: 0, reposts: 0, likes: 0, saves: null, views: null, impressions: null },
+            isLocalNew: true,
           }));
 
           set(state => {

@@ -12,6 +12,7 @@ export { ArticleEditor } from "./ArticleEditor";
 export { EventEditor } from "./EventEditor";
 export { LocationDisplay } from "./LocationDisplay";
 export { LinkPreview, LinkPreviewLoading } from "./LinkPreview";
+export { default as AttachmentCarouselItem } from "./AttachmentCarouselItem";
 
 // Re-export existing sheets
 export { default as DraftsSheet } from "./DraftsSheet";

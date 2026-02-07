@@ -88,6 +88,7 @@ import {
   ArticleEditor,
   EventEditor,
   LocationDisplay,
+  AttachmentCarouselItem,
 } from '@/components/Compose';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import { formatScheduledLabel, addMinutes } from '@/utils/dateUtils';
@@ -462,15 +463,9 @@ const ComposeScreen = () => {
       toast.success(successMessage);
 
       clearSchedule({ silent: true });
-
-      setArticle(null);
-      setArticleDraftTitle('');
-      setArticleDraftBody('');
-      setEvent(null);
-      setEventDraftName('');
-      setEventDraftDate('');
-      setEventDraftLocation('');
-      setEventDraftDescription('');
+      clearArticle();
+      clearEvent();
+      clearSpace();
 
       // Navigate back after posting
       router.back();
@@ -748,11 +743,11 @@ const ComposeScreen = () => {
                             setShowPollCreator(false);
                             setLocation(null);
                             setSources([]);
-                            setArticle(null);
-                            setArticleDraftTitle('');
-                            setArticleDraftBody('');
-                            clearAllThreads();
+                            clearArticle();
+                            clearEvent();
                             clearSpace();
+                            clearAllThreads();
+                            clearAttachmentOrder();
                             setMentions([]);
                             clearSchedule({ silent: true });
                             toast.success(t('common.cleared'));
@@ -844,39 +839,26 @@ const ComposeScreen = () => {
                       >
                         {attachmentOrder.map((key, index) => {
                           const total = attachmentOrder.length;
-                          const canMoveLeft = index > 0;
-                          const canMoveRight = index < total - 1;
 
                           if (key === POLL_ATTACHMENT_KEY) {
                             if (!showPollCreator) return null;
                             return (
-                              <View key={key} style={styles.pollAttachmentWrapper}>
-                                {total > 1 ? (
-                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(POLL_ATTACHMENT_KEY, 'left')}
-                                      disabled={!canMoveLeft}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(POLL_ATTACHMENT_KEY, 'right')}
-                                      disabled={!canMoveRight}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                  </View>
-                                ) : null}
+                              <AttachmentCarouselItem
+                                key={key}
+                                attachmentKey={key}
+                                index={index}
+                                total={total}
+                                onMove={moveAttachment}
+                                onRemove={removePoll}
+                                wrapperStyle={styles.pollAttachmentWrapper}
+                              >
                                 <TouchableOpacity
                                   style={[styles.pollAttachmentCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                                   activeOpacity={0.85}
                                   onPress={focusPollCreator}
                                 >
                                   <View style={styles.pollAttachmentHeader}>
-                                    <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}
-                                    >
+                                    <View style={[styles.pollAttachmentBadge, { backgroundColor: theme.colors.background }]}>
                                       <PollIcon size={16} color={theme.colors.primary} />
                                       <Text style={[styles.pollAttachmentBadgeText, { color: theme.colors.primary }]}>
                                         {t('compose.poll.title', { defaultValue: 'Poll' })}
@@ -918,87 +900,44 @@ const ComposeScreen = () => {
                                     ) : null}
                                   </View>
                                 </TouchableOpacity>
-                                <TouchableOpacity
-                                  onPress={removePoll}
-                                  style={[styles.pollAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
-                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                >
-                                  <CloseIcon size={16} color={theme.colors.text} />
-                                </TouchableOpacity>
-                              </View>
+                              </AttachmentCarouselItem>
                             );
                           }
 
                           if (key === ARTICLE_ATTACHMENT_KEY) {
                             if (!(hasArticleContent && article)) return null;
                             return (
-                              <View
+                              <AttachmentCarouselItem
                                 key={key}
-                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                attachmentKey={key}
+                                index={index}
+                                total={total}
+                                onMove={moveAttachment}
+                                onRemove={removeArticle}
+                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
-                                {total > 1 ? (
-                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(ARTICLE_ATTACHMENT_KEY, 'left')}
-                                      disabled={!canMoveLeft}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(ARTICLE_ATTACHMENT_KEY, 'right')}
-                                      disabled={!canMoveRight}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                  </View>
-                                ) : null}
                                 <PostArticlePreview
                                   title={article.title}
                                   body={article.body}
                                   onPress={openArticleEditor}
                                   style={styles.articleAttachmentPreview}
                                 />
-                                <TouchableOpacity
-                                  onPress={(event) => {
-                                    event.stopPropagation();
-                                    removeArticle();
-                                  }}
-                                  style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
-                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                >
-                                  <CloseIcon size={16} color={theme.colors.text} />
-                                </TouchableOpacity>
-                              </View>
+                              </AttachmentCarouselItem>
                             );
                           }
 
                           if (key === EVENT_ATTACHMENT_KEY) {
                             if (!(hasEventContent && event)) return null;
                             return (
-                              <View
+                              <AttachmentCarouselItem
                                 key={key}
-                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                attachmentKey={key}
+                                index={index}
+                                total={total}
+                                onMove={moveAttachment}
+                                onRemove={removeEvent}
+                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
-                                {total > 1 ? (
-                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(EVENT_ATTACHMENT_KEY, 'left')}
-                                      disabled={!canMoveLeft}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(EVENT_ATTACHMENT_KEY, 'right')}
-                                      disabled={!canMoveRight}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                  </View>
-                                ) : null}
                                 <PostAttachmentEvent
                                   name={event.name}
                                   date={event.date}
@@ -1006,45 +945,22 @@ const ComposeScreen = () => {
                                   onPress={openEventEditor}
                                   style={styles.articleAttachmentPreview}
                                 />
-                                <TouchableOpacity
-                                  onPress={(event) => {
-                                    event.stopPropagation();
-                                    removeEvent();
-                                  }}
-                                  style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
-                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                >
-                                  <CloseIcon size={16} color={theme.colors.text} />
-                                </TouchableOpacity>
-                              </View>
+                              </AttachmentCarouselItem>
                             );
                           }
 
                           if (key === SPACE_ATTACHMENT_KEY) {
                             if (!(hasSpaceContent && space)) return null;
                             return (
-                              <View
+                              <AttachmentCarouselItem
                                 key={key}
-                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                attachmentKey={key}
+                                index={index}
+                                total={total}
+                                onMove={moveAttachment}
+                                onRemove={removeSpace}
+                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
-                                {total > 1 ? (
-                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(SPACE_ATTACHMENT_KEY, 'left')}
-                                      disabled={!canMoveLeft}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(SPACE_ATTACHMENT_KEY, 'right')}
-                                      disabled={!canMoveRight}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                  </View>
-                                ) : null}
                                 <SpaceCard
                                   space={{
                                     _id: space.spaceId,
@@ -1057,17 +973,7 @@ const ComposeScreen = () => {
                                   variant="compact"
                                   style={styles.articleAttachmentPreview}
                                 />
-                                <TouchableOpacity
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                    removeSpace();
-                                  }}
-                                  style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
-                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                >
-                                  <CloseIcon size={16} color={theme.colors.text} />
-                                </TouchableOpacity>
-                              </View>
+                              </AttachmentCarouselItem>
                             );
                           }
 
@@ -1075,44 +981,21 @@ const ComposeScreen = () => {
                             if (detectedLinks.length === 0) return null;
                             const link = detectedLinks[0];
                             return (
-                              <View
+                              <AttachmentCarouselItem
                                 key={key}
-                                style={[styles.linkAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                attachmentKey={key}
+                                index={index}
+                                total={total}
+                                onMove={moveAttachment}
+                                onRemove={() => {
+                                  const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+                                  const newContent = postContent.replace(urlPattern, '').trim();
+                                  setPostContent(newContent);
+                                }}
+                                wrapperStyle={[styles.linkAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
-                                {total > 1 ? (
-                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(LINK_ATTACHMENT_KEY, 'left')}
-                                      disabled={!canMoveLeft}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(LINK_ATTACHMENT_KEY, 'right')}
-                                      disabled={!canMoveRight}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                  </View>
-                                ) : null}
-                                <LinkPreview
-                                  link={link}
-                                />
-                                <TouchableOpacity
-                                  onPress={() => {
-                                    // Remove link by clearing the URL from text
-                                    const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-                                    const newContent = postContent.replace(urlPattern, '').trim();
-                                    setPostContent(newContent);
-                                  }}
-                                  style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
-                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                >
-                                  <CloseIcon size={16} color={theme.colors.text} />
-                                </TouchableOpacity>
-                              </View>
+                                <LinkPreview link={link} />
+                              </AttachmentCarouselItem>
                             );
                           }
 
@@ -1122,9 +1005,14 @@ const ComposeScreen = () => {
                             if (!mediaItem) return null;
                             const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
                             return (
-                              <View
+                              <AttachmentCarouselItem
                                 key={key}
-                                style={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                attachmentKey={key}
+                                index={index}
+                                total={total}
+                                onMove={moveAttachment}
+                                onRemove={() => removeMedia(mediaItem.id)}
+                                wrapperStyle={[styles.mediaPreviewItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
                                 {mediaItem.type === 'video' ? (
                                   <VideoPreview src={mediaUrl} />
@@ -1135,32 +1023,7 @@ const ComposeScreen = () => {
                                     resizeMode="cover"
                                   />
                                 )}
-                                {total > 1 ? (
-                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(key, 'left')}
-                                      disabled={!canMoveLeft}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                      onPress={() => moveAttachment(key, 'right')}
-                                      disabled={!canMoveRight}
-                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
-                                    >
-                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                  </View>
-                                ) : null}
-                                <TouchableOpacity
-                                  onPress={() => removeMedia(mediaItem.id)}
-                                  style={[styles.mediaRemoveButton, { backgroundColor: theme.colors.background }]}
-                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                >
-                                  <CloseIcon size={16} color={theme.colors.text} />
-                                </TouchableOpacity>
-                              </View>
+                              </AttachmentCarouselItem>
                             );
                           }
 
@@ -1969,13 +1832,6 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     borderWidth: 1,
     overflow: 'hidden',
-  },
-  articleAttachmentRemoveButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderRadius: 999,
-    padding: 6,
   },
   articleAttachmentPreview: {
     flex: 1,
