@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  Animated,
-  StyleSheet,
-  Platform,
-  Pressable,
-  useWindowDimensions,
-} from 'react-native';
+import { StyleSheet, Platform, Pressable, useWindowDimensions } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  interpolate,
+  Extrapolation,
+  runOnJS,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { LiveSpaceSheet } from '@/components/spaces/LiveSpaceSheet';
 import { MINI_BAR_HEIGHT } from '@/components/spaces/MiniSpaceBar';
 
@@ -29,37 +32,66 @@ export function useLiveSpace() {
   return useContext(LiveSpaceContext);
 }
 
+const SPRING_CONFIG = { damping: 28, stiffness: 220, overshootClamping: true };
+const BOTTOM_BAR_BASE = 60;
+
 export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+  const isDesktop = useIsScreenNotMobile();
 
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const sheetHeight = isExpanded
-    ? screenHeight
-    : activeSpaceId
-      ? MINI_BAR_HEIGHT + insets.bottom
-      : 0;
+  // On mobile the bottom bar is visible — offset the sheet above it
+  const bottomOffset = isDesktop ? 0 : BOTTOM_BAR_BASE + insets.bottom;
+  const collapsedHeight = MINI_BAR_HEIGHT;
+  const expandedMaxHeight = screenHeight * 0.85 - bottomOffset;
+
+  // Shared value: 0 = hidden, 1 = collapsed (mini bar), 2 = expanded
+  const progress = useSharedValue(0);
+
+  const sheetAnimStyle = useAnimatedStyle(() => ({
+    height: interpolate(
+      progress.value,
+      [0, 1, 2],
+      [0, collapsedHeight, expandedMaxHeight],
+      Extrapolation.CLAMP,
+    ),
+  }));
+
+  const backdropAnimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [1, 2], [0, 1], Extrapolation.CLAMP),
+  }));
 
   const joinLiveSpace = useCallback((spaceId: string) => {
     setActiveSpaceId(spaceId);
     setIsExpanded(true);
-  }, []);
+    progress.value = withSpring(2, SPRING_CONFIG);
+  }, [progress]);
 
-  const leaveLiveSpace = useCallback(() => {
+  const clearSpace = useCallback(() => {
     setActiveSpaceId(null);
     setIsExpanded(false);
   }, []);
 
+  const leaveLiveSpace = useCallback(() => {
+    setIsExpanded(false);
+    progress.value = withTiming(0, { duration: 250 }, (finished) => {
+      if (finished) runOnJS(clearSpace)();
+    });
+  }, [progress, clearSpace]);
+
   const handleCollapse = useCallback(() => {
     setIsExpanded(false);
-  }, []);
+    progress.value = withSpring(1, SPRING_CONFIG);
+  }, [progress]);
 
   const handleExpand = useCallback(() => {
     setIsExpanded(true);
-  }, []);
+    progress.value = withSpring(2, SPRING_CONFIG);
+  }, [progress]);
 
   const contextValue = useMemo(
     () => ({ activeSpaceId, joinLiveSpace, leaveLiveSpace }),
@@ -71,23 +103,25 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {/* Backdrop */}
-      {activeSpaceId && isExpanded && (
-        <Pressable
-          style={[StyleSheet.absoluteFill, styles.backdrop]}
-          onPress={handleCollapse}
-        />
+      {activeSpaceId && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.backdrop, backdropAnimStyle]}
+          pointerEvents={isExpanded ? 'auto' : 'none'}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleCollapse} />
+        </Animated.View>
       )}
 
       {/* Sheet */}
       {activeSpaceId && (
-        <View
+        <Animated.View
           style={[
             styles.sheet,
             {
-              height: sheetHeight,
+              bottom: bottomOffset,
               backgroundColor: theme.colors.background,
-              paddingBottom: isExpanded ? 0 : insets.bottom,
             },
+            sheetAnimStyle,
           ]}
         >
           <LiveSpaceSheet
@@ -97,7 +131,7 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
             onExpand={handleExpand}
             onLeave={leaveLiveSpace}
           />
-        </View>
+        </Animated.View>
       )}
     </LiveSpaceContext.Provider>
   );
@@ -110,7 +144,6 @@ const styles = StyleSheet.create({
   },
   sheet: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
     maxWidth: 500,
