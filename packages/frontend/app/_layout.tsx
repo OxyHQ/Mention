@@ -30,7 +30,6 @@ import '../styles/global.css';
 // Types
 interface SplashState {
   initializationComplete: boolean;
-  startFade: boolean;
   fadeComplete: boolean;
 }
 
@@ -39,7 +38,6 @@ export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [splashState, setSplashState] = useState<SplashState>({
     initializationComplete: false,
-    startFade: false,
     fadeComplete: false,
   });
 
@@ -107,12 +105,6 @@ export default function RootLayout() {
   }, [initializeApp]);
 
   useEffect(() => {
-    if (fontsLoaded && splashState.initializationComplete && !splashState.startFade) {
-      setSplashState((prev) => ({ ...prev, startFade: true }));
-    }
-  }, [fontsLoaded, splashState.initializationComplete, splashState.startFade]);
-
-  useEffect(() => {
     if (splashState.initializationComplete && splashState.fadeComplete && !appIsReady) {
       setAppIsReady(true);
     }
@@ -124,7 +116,7 @@ export default function RootLayout() {
     if (!appIsReady) {
       return (
         <AppSplashScreen
-          startFade={splashState.startFade}
+          startFade={fontsLoaded && splashState.initializationComplete}
           onFadeComplete={handleSplashFadeComplete}
         />
       );
@@ -150,7 +142,7 @@ export default function RootLayout() {
     );
   }, [
     appIsReady,
-    splashState.startFade,
+    fontsLoaded,
     splashState.initializationComplete,
     colorScheme,
     handleSplashFadeComplete,

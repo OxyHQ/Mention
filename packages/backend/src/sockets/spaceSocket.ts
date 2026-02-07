@@ -1,23 +1,65 @@
 import { Server, Socket, Namespace } from 'socket.io';
 import { logger } from '../utils/logger';
+import Space, { SpaceStatus } from '../models/Space';
 
 interface AuthenticatedSocket extends Socket {
   user?: { id: string; [key: string]: any };
 }
 
+// --- In-memory room state ---
+
+interface SpaceParticipant {
+  userId: string;
+  socketId: string;
+  role: 'host' | 'speaker' | 'listener';
+  isMuted: boolean;
+  joinedAt: string;
+}
+
+interface SpaceRoom {
+  spaceId: string;
+  hostId: string;
+  participants: Map<string, SpaceParticipant>; // keyed by userId
+  speakerRequests: Map<string, { userId: string; requestedAt: string }>;
+}
+
+const activeRooms = new Map<string, SpaceRoom>();
+
+function getParticipantList(room: SpaceRoom) {
+  return Array.from(room.participants.values()).map(p => ({
+    userId: p.userId,
+    role: p.role,
+    isMuted: p.isMuted,
+    joinedAt: p.joinedAt,
+  }));
+}
+
+function broadcastParticipants(namespace: Namespace, room: SpaceRoom) {
+  namespace.to(`space:${room.spaceId}`).emit('space:participants:update', {
+    spaceId: room.spaceId,
+    participants: getParticipantList(room),
+    count: room.participants.size,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+// Clean up a room if empty
+function cleanupRoomIfEmpty(spaceId: string) {
+  const room = activeRooms.get(spaceId);
+  if (room && room.participants.size === 0) {
+    activeRooms.delete(spaceId);
+    logger.debug(`Cleaned up empty space room: ${spaceId}`);
+  }
+}
+
 /**
  * Initialize Space Socket Namespace
- * Handles WebRTC signaling for audio rooms
- *
- * @param io - Socket.IO server instance
- * @returns Configured spaces namespace
+ * Handles real-time audio spaces with room management and audio relay
  */
 export function initializeSpaceSocket(io: Server): Namespace {
   const spacesNamespace = io.of('/spaces');
 
   spacesNamespace.on('connection', (socket: AuthenticatedSocket) => {
-    logger.info(`Client connected to spaces namespace from ip: ${socket.handshake.address}`);
-
     const userId = socket.user?.id;
 
     if (!userId) {
@@ -26,54 +68,143 @@ export function initializeSpaceSocket(io: Server): Namespace {
       return;
     }
 
+    logger.info(`User ${userId} connected to spaces namespace`);
+
+    // Join user-specific room for targeted messages
+    socket.join(`user:${userId}`);
+
     /**
      * Join a space room
      */
-    socket.on('space:join', (data: { spaceId: string }) => {
+    socket.on('space:join', async (data: { spaceId: string }, callback?: (res: any) => void) => {
       try {
         const { spaceId } = data || {};
 
         if (!spaceId || typeof spaceId !== 'string') {
-          logger.warn(`Invalid space:join data from ${userId}`);
+          callback?.({ success: false, error: 'Invalid spaceId' });
           return;
         }
 
-        const room = `space:${spaceId}`;
-        socket.join(room);
-        logger.debug(`User ${userId} joined space room: ${room}`);
+        // Verify space exists and is live
+        const space = await Space.findById(spaceId).lean();
+        if (!space) {
+          callback?.({ success: false, error: 'Space not found' });
+          return;
+        }
 
-        // Notify others in the room
-        socket.to(room).emit('space:user:joined', {
+        if (space.status !== SpaceStatus.LIVE) {
+          callback?.({ success: false, error: 'Space is not live' });
+          return;
+        }
+
+        // Determine role
+        let role: 'host' | 'speaker' | 'listener' = 'listener';
+        if (space.host === userId) {
+          role = 'host';
+        } else if (space.speakers.includes(userId)) {
+          role = 'speaker';
+        }
+
+        // Create or get room
+        let room = activeRooms.get(spaceId);
+        if (!room) {
+          room = {
+            spaceId,
+            hostId: space.host,
+            participants: new Map(),
+            speakerRequests: new Map(),
+          };
+          activeRooms.set(spaceId, room);
+        }
+
+        // Add participant
+        room.participants.set(userId, {
           userId,
-          spaceId,
-          timestamp: new Date().toISOString()
+          socketId: socket.id,
+          role,
+          isMuted: true, // Start muted
+          joinedAt: new Date().toISOString(),
         });
+
+        // Join Socket.IO room
+        socket.join(`space:${spaceId}`);
+
+        logger.debug(`User ${userId} joined space ${spaceId} as ${role}`);
+
+        // Notify others
+        socket.to(`space:${spaceId}`).emit('space:user:joined', {
+          userId,
+          role,
+          spaceId,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Broadcast updated participant list
+        broadcastParticipants(spacesNamespace, room);
+
+        // Return current state to the joining client
+        callback?.({
+          success: true,
+          participants: getParticipantList(room),
+          myRole: role,
+        });
+
+        // Update DB: add to participants if not already there
+        await Space.findByIdAndUpdate(spaceId, {
+          $addToSet: { participants: userId },
+          $inc: { 'stats.totalJoined': 1 },
+        });
+
+        // Update peak listeners
+        const currentCount = room.participants.size;
+        if (currentCount > (space.stats?.peakListeners || 0)) {
+          await Space.findByIdAndUpdate(spaceId, {
+            $max: { 'stats.peakListeners': currentCount },
+          });
+        }
       } catch (error) {
         logger.error('Error handling space:join:', error);
+        callback?.({ success: false, error: 'Internal error' });
       }
     });
 
     /**
      * Leave a space room
      */
-    socket.on('space:leave', (data: { spaceId: string }) => {
+    socket.on('space:leave', async (data: { spaceId: string }) => {
       try {
         const { spaceId } = data || {};
+        if (!spaceId || typeof spaceId !== 'string') return;
 
-        if (!spaceId || typeof spaceId !== 'string') {
-          logger.warn(`Invalid space:leave data from ${userId}`);
-          return;
-        }
+        const room = activeRooms.get(spaceId);
+        if (!room) return;
 
-        const room = `space:${spaceId}`;
-        socket.leave(room);
-        logger.debug(`User ${userId} left space room: ${room}`);
+        const participant = room.participants.get(userId);
+        if (!participant) return;
 
-        // Notify others in the room
-        socket.to(room).emit('space:user:left', {
+        // Remove from room
+        room.participants.delete(userId);
+        room.speakerRequests.delete(userId);
+        socket.leave(`space:${spaceId}`);
+
+        logger.debug(`User ${userId} left space ${spaceId}`);
+
+        // Notify others
+        socket.to(`space:${spaceId}`).emit('space:user:left', {
           userId,
           spaceId,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+        });
+
+        // Broadcast updated participant list
+        broadcastParticipants(spacesNamespace, room);
+
+        // Clean up room if empty
+        cleanupRoomIfEmpty(spaceId);
+
+        // Update DB: remove from participants
+        await Space.findByIdAndUpdate(spaceId, {
+          $pull: { participants: userId },
         });
       } catch (error) {
         logger.error('Error handling space:leave:', error);
@@ -81,95 +212,232 @@ export function initializeSpaceSocket(io: Server): Namespace {
     });
 
     /**
-     * WebRTC Offer
-     * Sent by a peer to initiate WebRTC connection
+     * Audio data relay
+     * Speaker sends audio chunk, server broadcasts to all others in room
      */
-    socket.on('audio:offer', (data: {
-      spaceId: string;
-      targetUserId: string;
-      offer: RTCSessionDescriptionInit;
-    }) => {
+    socket.on('audio:data', (data: { spaceId: string; chunk: string; sequence: number }) => {
       try {
-        const { spaceId, targetUserId, offer } = data || {};
+        const { spaceId, chunk, sequence } = data || {};
+        if (!spaceId || !chunk) return;
 
-        if (!spaceId || !targetUserId || !offer) {
-          logger.warn(`Invalid audio:offer data from ${userId}`);
-          return;
-        }
+        const room = activeRooms.get(spaceId);
+        if (!room) return;
 
-        logger.debug(`WebRTC offer from ${userId} to ${targetUserId} in space ${spaceId}`);
+        const participant = room.participants.get(userId);
+        if (!participant) return;
 
-        // Forward offer to target user
-        spacesNamespace.to(`user:${targetUserId}`).emit('audio:offer', {
-          fromUserId: userId,
-          spaceId,
-          offer,
-          timestamp: new Date().toISOString()
+        // Only speakers and hosts can send audio
+        if (participant.role === 'listener') return;
+
+        // Don't relay if muted
+        if (participant.isMuted) return;
+
+        // Broadcast to all others in the room (not back to sender)
+        socket.to(`space:${spaceId}`).emit('audio:data', {
+          userId,
+          chunk,
+          sequence,
+          timestamp: Date.now(),
         });
       } catch (error) {
-        logger.error('Error handling audio:offer:', error);
+        logger.error('Error handling audio:data:', error);
       }
     });
 
     /**
-     * WebRTC Answer
-     * Response to an offer
+     * Mute/unmute toggle
      */
-    socket.on('audio:answer', (data: {
-      spaceId: string;
-      targetUserId: string;
-      answer: RTCSessionDescriptionInit;
-    }) => {
+    socket.on('audio:mute', (data: { spaceId: string; isMuted: boolean }) => {
       try {
-        const { spaceId, targetUserId, answer } = data || {};
+        const { spaceId, isMuted } = data || {};
+        if (!spaceId || typeof isMuted !== 'boolean') return;
 
-        if (!spaceId || !targetUserId || !answer) {
-          logger.warn(`Invalid audio:answer data from ${userId}`);
-          return;
-        }
+        const room = activeRooms.get(spaceId);
+        if (!room) return;
 
-        logger.debug(`WebRTC answer from ${userId} to ${targetUserId} in space ${spaceId}`);
+        const participant = room.participants.get(userId);
+        if (!participant) return;
 
-        // Forward answer to target user
-        spacesNamespace.to(`user:${targetUserId}`).emit('audio:answer', {
-          fromUserId: userId,
-          spaceId,
-          answer,
-          timestamp: new Date().toISOString()
+        participant.isMuted = isMuted;
+
+        // Broadcast mute state change
+        spacesNamespace.to(`space:${spaceId}`).emit('space:participant:mute', {
+          userId,
+          isMuted,
+          timestamp: new Date().toISOString(),
         });
       } catch (error) {
-        logger.error('Error handling audio:answer:', error);
+        logger.error('Error handling audio:mute:', error);
       }
     });
 
     /**
-     * ICE Candidate
-     * WebRTC ICE candidate exchange
+     * Request to speak (listener → host)
      */
-    socket.on('ice:candidate', (data: {
-      spaceId: string;
-      targetUserId: string;
-      candidate: RTCIceCandidateInit;
-    }) => {
+    socket.on('speaker:request', (data: { spaceId: string }) => {
       try {
-        const { spaceId, targetUserId, candidate } = data || {};
+        const { spaceId } = data || {};
+        if (!spaceId) return;
 
-        if (!spaceId || !targetUserId || !candidate) {
-          logger.warn(`Invalid ice:candidate data from ${userId}`);
-          return;
-        }
+        const room = activeRooms.get(spaceId);
+        if (!room) return;
 
-        logger.debug(`ICE candidate from ${userId} to ${targetUserId} in space ${spaceId}`);
+        const participant = room.participants.get(userId);
+        if (!participant || participant.role !== 'listener') return;
 
-        // Forward ICE candidate to target user
-        spacesNamespace.to(`user:${targetUserId}`).emit('ice:candidate', {
-          fromUserId: userId,
+        // Already requested
+        if (room.speakerRequests.has(userId)) return;
+
+        room.speakerRequests.set(userId, {
+          userId,
+          requestedAt: new Date().toISOString(),
+        });
+
+        // Notify host
+        spacesNamespace.to(`user:${room.hostId}`).emit('speaker:request:received', {
           spaceId,
-          candidate,
-          timestamp: new Date().toISOString()
+          userId,
+          timestamp: new Date().toISOString(),
+        });
+
+        logger.debug(`User ${userId} requested to speak in space ${spaceId}`);
+      } catch (error) {
+        logger.error('Error handling speaker:request:', error);
+      }
+    });
+
+    /**
+     * Approve speaker request (host only)
+     */
+    socket.on('speaker:approve', async (data: { spaceId: string; targetUserId: string }) => {
+      try {
+        const { spaceId, targetUserId } = data || {};
+        if (!spaceId || !targetUserId) return;
+
+        const room = activeRooms.get(spaceId);
+        if (!room) return;
+
+        // Only host can approve
+        if (room.hostId !== userId) return;
+
+        const target = room.participants.get(targetUserId);
+        if (!target) return;
+
+        // Promote to speaker
+        target.role = 'speaker';
+        room.speakerRequests.delete(targetUserId);
+
+        // Notify the approved user
+        spacesNamespace.to(`user:${targetUserId}`).emit('speaker:approved', {
+          spaceId,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Broadcast updated participant list
+        broadcastParticipants(spacesNamespace, room);
+
+        // Update DB
+        await Space.findByIdAndUpdate(spaceId, {
+          $addToSet: { speakers: targetUserId },
+        });
+
+        logger.info(`User ${targetUserId} approved as speaker in space ${spaceId}`);
+      } catch (error) {
+        logger.error('Error handling speaker:approve:', error);
+      }
+    });
+
+    /**
+     * Deny speaker request (host only)
+     */
+    socket.on('speaker:deny', (data: { spaceId: string; targetUserId: string }) => {
+      try {
+        const { spaceId, targetUserId } = data || {};
+        if (!spaceId || !targetUserId) return;
+
+        const room = activeRooms.get(spaceId);
+        if (!room) return;
+
+        if (room.hostId !== userId) return;
+
+        room.speakerRequests.delete(targetUserId);
+
+        spacesNamespace.to(`user:${targetUserId}`).emit('speaker:denied', {
+          spaceId,
+          timestamp: new Date().toISOString(),
         });
       } catch (error) {
-        logger.error('Error handling ice:candidate:', error);
+        logger.error('Error handling speaker:deny:', error);
+      }
+    });
+
+    /**
+     * Remove speaker (host only, demote back to listener)
+     */
+    socket.on('speaker:remove', async (data: { spaceId: string; targetUserId: string }) => {
+      try {
+        const { spaceId, targetUserId } = data || {};
+        if (!spaceId || !targetUserId) return;
+
+        const room = activeRooms.get(spaceId);
+        if (!room) return;
+
+        if (room.hostId !== userId) return;
+
+        const target = room.participants.get(targetUserId);
+        if (!target || target.role === 'host') return;
+
+        target.role = 'listener';
+        target.isMuted = true;
+
+        spacesNamespace.to(`user:${targetUserId}`).emit('speaker:removed', {
+          spaceId,
+          timestamp: new Date().toISOString(),
+        });
+
+        broadcastParticipants(spacesNamespace, room);
+
+        await Space.findByIdAndUpdate(spaceId, {
+          $pull: { speakers: targetUserId },
+        });
+
+        logger.info(`User ${targetUserId} removed as speaker from space ${spaceId}`);
+      } catch (error) {
+        logger.error('Error handling speaker:remove:', error);
+      }
+    });
+
+    /**
+     * Handle disconnect - clean up all rooms this user is in
+     */
+    socket.on('disconnect', async (reason: string) => {
+      logger.debug(`User ${userId} disconnected from spaces namespace: ${reason}`);
+
+      for (const [spaceId, room] of activeRooms.entries()) {
+        const participant = room.participants.get(userId);
+        if (!participant || participant.socketId !== socket.id) continue;
+
+        room.participants.delete(userId);
+        room.speakerRequests.delete(userId);
+
+        // Notify others
+        spacesNamespace.to(`space:${spaceId}`).emit('space:user:left', {
+          userId,
+          spaceId,
+          timestamp: new Date().toISOString(),
+        });
+
+        broadcastParticipants(spacesNamespace, room);
+        cleanupRoomIfEmpty(spaceId);
+
+        // Update DB
+        try {
+          await Space.findByIdAndUpdate(spaceId, {
+            $pull: { participants: userId },
+          });
+        } catch (err) {
+          logger.error(`Failed to update DB on disconnect for space ${spaceId}:`, err);
+        }
       }
     });
 
@@ -179,16 +447,8 @@ export function initializeSpaceSocket(io: Server): Namespace {
     socket.on('error', (error: Error) => {
       logger.error('Spaces socket error:', error);
     });
-
-    /**
-     * Handle disconnect
-     */
-    socket.on('disconnect', (reason: string) => {
-      logger.debug(`User ${userId} disconnected from spaces namespace: ${reason}`);
-    });
   });
 
-  // Configure error handling for the namespace
   spacesNamespace.on('connection_error', (error: Error) => {
     logger.error('Spaces namespace connection error:', error);
   });
@@ -200,4 +460,11 @@ export function initializeSpaceSocket(io: Server): Namespace {
   logger.info('Spaces socket namespace initialized');
 
   return spacesNamespace;
+}
+
+/**
+ * Get the active rooms map (for use by REST routes to emit events)
+ */
+export function getActiveRooms(): Map<string, SpaceRoom> {
+  return activeRooms;
 }

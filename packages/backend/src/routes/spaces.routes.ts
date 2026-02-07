@@ -189,10 +189,10 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
 
     logger.info(`Space started: ${space._id}`);
 
-    // Emit socket event to notify participants
+    // Emit socket event on /spaces namespace
     const io = (global as any).io;
     if (io) {
-      io.to(`space:${id}`).emit('space:started', {
+      io.of('/spaces').to(`space:${id}`).emit('space:started', {
         spaceId: id,
         startedAt: space.startedAt,
         timestamp: new Date().toISOString()
@@ -250,10 +250,10 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
 
     logger.info(`Space ended: ${space._id}`);
 
-    // Emit socket event to notify all participants
+    // Emit socket event on /spaces namespace
     const io = (global as any).io;
     if (io) {
-      io.to(`space:${id}`).emit('space:ended', {
+      io.of('/spaces').to(`space:${id}`).emit('space:ended', {
         spaceId: id,
         endedAt: space.endedAt,
         timestamp: new Date().toISOString()
@@ -327,10 +327,10 @@ router.post('/:id/join', async (req: AuthRequest, res: Response) => {
 
     logger.debug(`User ${userId} joined space ${id}`);
 
-    // Emit socket event
+    // Emit socket event on /spaces namespace
     const io = (global as any).io;
     if (io) {
-      io.to(`space:${id}`).emit('space:participant:joined', {
+      io.of('/spaces').to(`space:${id}`).emit('space:participant:joined', {
         spaceId: id,
         userId,
         participantCount: space.participants.length,
@@ -385,7 +385,7 @@ router.post('/:id/leave', async (req: AuthRequest, res: Response) => {
     // Emit socket event
     const io = (global as any).io;
     if (io) {
-      io.to(`space:${id}`).emit('space:participant:left', {
+      io.of('/spaces').to(`space:${id}`).emit('space:participant:left', {
         spaceId: id,
         userId,
         participantCount: space.participants.length,
@@ -451,7 +451,7 @@ router.post('/:id/speakers', async (req: AuthRequest, res: Response) => {
     // Emit socket event
     const io = (global as any).io;
     if (io) {
-      io.to(`space:${id}`).emit('space:speaker:added', {
+      io.of('/spaces').to(`space:${id}`).emit('space:speaker:added', {
         spaceId: id,
         speakerId,
         timestamp: new Date().toISOString()
@@ -515,7 +515,7 @@ router.delete('/:id/speakers/:userId', async (req: AuthRequest, res: Response) =
     // Emit socket event
     const io = (global as any).io;
     if (io) {
-      io.to(`space:${id}`).emit('space:speaker:removed', {
+      io.of('/spaces').to(`space:${id}`).emit('space:speaker:removed', {
         spaceId: id,
         speakerId,
         timestamp: new Date().toISOString()

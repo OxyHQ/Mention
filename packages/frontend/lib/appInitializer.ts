@@ -144,17 +144,15 @@ export class AppInitializer {
     }
 
     try {
-      // Run notifications setup and auth wait in parallel (both can happen simultaneously)
-      const [, authReady] = await Promise.all([
-        setupNotificationsIfNeeded(),
-        waitForAuth(services, INITIALIZATION_TIMEOUT.AUTH),
-      ]);
+      // Run all init tasks in parallel to minimize startup time
+      const authPromise = waitForAuth(services, INITIALIZATION_TIMEOUT.AUTH);
 
-      // After auth is ready, run user fetch and settings loading in parallel
       await Promise.allSettled([
-        fetchCurrentUser(services, authReady),
-        loadAppearanceSettings(services, authReady),
+        setupNotificationsIfNeeded(),
+        loadAppearanceSettings(services),
         loadVideoMuteState(),
+        // Fetch current user once auth resolves
+        authPromise.then((authReady) => fetchCurrentUser(services, authReady)),
       ]);
 
       // Hide splash screen

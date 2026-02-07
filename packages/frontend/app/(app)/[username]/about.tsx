@@ -95,7 +95,7 @@ export default function AccountInfoScreen() {
           <View style={styles.avatarContainer}>
             <Avatar
               source={avatarSource}
-              size={80}
+              size={56}
               verified={profileData?.verified}
             />
           </View>
@@ -120,7 +120,7 @@ export default function AccountInfoScreen() {
           {profileData?.createdAt && (
             <View style={[styles.detailRow, styles.firstRow, { borderBottomColor: theme.colors.border }]}>
               <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <Ionicons name="calendar-outline" size={20} color={theme.colors.textSecondary} />
+                <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
               </View>
               <View style={styles.detailContent}>
                 <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
@@ -137,7 +137,7 @@ export default function AccountInfoScreen() {
           {profileData?.primaryLocation && (
             <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
               <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <Ionicons name="location-outline" size={20} color={theme.colors.textSecondary} />
+                <Ionicons name="location-outline" size={18} color={theme.colors.textSecondary} />
               </View>
               <View style={styles.detailContent}>
                 <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
@@ -157,7 +157,7 @@ export default function AccountInfoScreen() {
               activeOpacity={0.7}
             >
               <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.textSecondary} />
+                <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.textSecondary} />
               </View>
               <View style={styles.detailContent}>
                 <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
@@ -174,7 +174,7 @@ export default function AccountInfoScreen() {
           {/* Username Changes */}
           <View style={[styles.detailRow, { borderBottomColor: theme.colors.border }]}>
             <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
-              <Ionicons name="at-outline" size={20} color={theme.colors.textSecondary} />
+              <Ionicons name="at-outline" size={18} color={theme.colors.textSecondary} />
             </View>
             <View style={styles.detailContent}>
               <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
@@ -190,7 +190,7 @@ export default function AccountInfoScreen() {
           {profileData?.connectedVia && (
             <View style={[styles.detailRow, styles.lastRow]}>
               <View style={[styles.detailIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <Ionicons name="globe-outline" size={20} color={theme.colors.textSecondary} />
+                <Ionicons name="globe-outline" size={18} color={theme.colors.textSecondary} />
               </View>
               <View style={styles.detailContent}>
                 <ThemedText style={[styles.detailLabel, { color: theme.colors.text }]}>
@@ -214,13 +214,13 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 20,
   },
   profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
-    gap: 16,
+    marginBottom: 16,
+    gap: 12,
     overflow: 'visible',
   },
   avatarContainer: {
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   displayName: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
   },
   username: {
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -265,9 +265,9 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 16,
   },
   detailIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -276,11 +276,11 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   detailLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
   detailValue: {
-    fontSize: 15,
+    fontSize: 13,
   },
 });
 
