@@ -16,13 +16,6 @@ export interface ParticipantsUpdateData {
   timestamp: string;
 }
 
-export interface AudioDataPayload {
-  userId: string;
-  chunk: string; // base64
-  sequence: number;
-  timestamp: number;
-}
-
 export interface MuteUpdateData {
   userId: string;
   isMuted: boolean;
@@ -36,7 +29,6 @@ export interface SpeakerRequestData {
 }
 
 type ParticipantsUpdateCallback = (data: ParticipantsUpdateData) => void;
-type AudioDataCallback = (data: AudioDataPayload) => void;
 type MuteUpdateCallback = (data: MuteUpdateData) => void;
 type SpeakerRequestCallback = (data: SpeakerRequestData) => void;
 type SimpleSpaceCallback = (data: { spaceId: string; timestamp?: string }) => void;
@@ -103,10 +95,6 @@ class SpaceSocketService {
     this.socket?.emit('space:leave', { spaceId });
   }
 
-  sendAudioData(spaceId: string, chunk: string, sequence: number): void {
-    this.socket?.volatile.emit('audio:data', { spaceId, chunk, sequence });
-  }
-
   setMute(spaceId: string, isMuted: boolean): void {
     this.socket?.emit('audio:mute', { spaceId, isMuted });
   }
@@ -132,11 +120,6 @@ class SpaceSocketService {
   onParticipantsUpdate(cb: ParticipantsUpdateCallback): () => void {
     this.socket?.on('space:participants:update', cb);
     return () => { this.socket?.off('space:participants:update', cb); };
-  }
-
-  onAudioData(cb: AudioDataCallback): () => void {
-    this.socket?.on('audio:data', cb);
-    return () => { this.socket?.off('audio:data', cb); };
   }
 
   onParticipantMute(cb: MuteUpdateCallback): () => void {

@@ -185,14 +185,15 @@ export function useSpaceConnection({
     [spaceId]
   );
 
-  // Cleanup on unmount
+  // Cleanup on unmount — leave the space but keep the socket alive
+  // (the singleton socket is shared across hooks; disconnecting it here
+  // would tear down listeners registered by other components)
   useEffect(() => {
     return () => {
       if (hasJoined.current && spaceId) {
         spaceSocketService.leaveSpace(spaceId);
         hasJoined.current = false;
       }
-      spaceSocketService.disconnect();
     };
   }, [spaceId]);
 

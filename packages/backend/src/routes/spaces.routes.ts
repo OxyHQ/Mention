@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import Space, { SpaceStatus, SpeakerPermission } from '../models/Space';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
+import { generateSpaceToken, createLiveKitRoom, deleteLiveKitRoom } from '../utils/livekit';
 
 const router = Router();
 
@@ -185,6 +186,13 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Create LiveKit room before going live
+    try {
+      await createLiveKitRoom(String(id), space.maxParticipants);
+    } catch (lkErr) {
+      logger.error(`Failed to create LiveKit room for space ${id}, starting anyway:`, lkErr);
+    }
+
     // Update space status
     space.status = SpaceStatus.LIVE;
     space.startedAt = new Date();
@@ -250,6 +258,11 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
     space.status = SpaceStatus.ENDED;
     space.endedAt = new Date();
     await space.save();
+
+    // Clean up LiveKit room
+    deleteLiveKitRoom(String(id)).catch((err) => {
+      logger.error(`Failed to delete LiveKit room for space ${id}:`, err);
+    });
 
     logger.info(`Space ended: ${space._id}`);
 
@@ -534,6 +547,51 @@ router.delete('/:id/speakers/:userId', async (req: AuthRequest, res: Response) =
     res.status(500).json({
       message: 'Error removing speaker',
       error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Get a LiveKit token for joining a space's audio room
+ * POST /api/spaces/:id/token
+ */
+router.post('/:id/token', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const space = await Space.findById(id).lean();
+    if (!space) {
+      return res.status(404).json({ message: 'Space not found' });
+    }
+
+    if (space.status !== SpaceStatus.LIVE) {
+      return res.status(400).json({ message: 'Space is not live' });
+    }
+
+    // Determine role
+    let role: 'host' | 'speaker' | 'listener' = 'listener';
+    if (space.host === userId) {
+      role = 'host';
+    } else if (space.speakers.includes(userId)) {
+      role = 'speaker';
+    }
+
+    const token = await generateSpaceToken(String(id), userId, role);
+
+    res.json({
+      token,
+      url: process.env.LIVEKIT_URL || '',
+    });
+  } catch (error) {
+    logger.error('Error generating space token:', { userId: req.user?.id, spaceId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error generating token',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });

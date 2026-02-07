@@ -1,32 +1,26 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  useAudioRecorder,
-  AudioModule,
-  RecordingPresets,
-  setAudioModeAsync,
-  createAudioPlayer,
-} from 'expo-audio';
-import type { AudioPlayer } from 'expo-audio';
-import * as FileSystem from 'expo-file-system';
-import {
-  spaceSocketService,
-  type AudioDataPayload,
-} from '@/services/spaceSocketService';
+import { useState, useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
+import { Room, RoomEvent, Track, ConnectionState } from 'livekit-client';
+import { getSpaceToken } from '@/services/livekitService';
 
-const CHUNK_DURATION_MS = 500;
-const INTER_CHUNK_DELAY_MS = 50; // Brief pause between stop and next prepare
+// Conditionally import native-only modules
+let AudioSession: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    AudioSession = require('@livekit/react-native').AudioSession;
+  } catch {}
+}
 
 interface UseSpaceAudioOptions {
   spaceId: string;
   isSpeaker: boolean;
   isMuted: boolean;
-  isConnected: boolean;
+  isConnected: boolean; // Socket.IO connected (gate for joining LiveKit)
 }
 
 interface UseSpaceAudioReturn {
-  isRecording: boolean;
-  permissionGranted: boolean;
-  requestPermission: () => Promise<boolean>;
+  isLiveKitConnected: boolean;
+  localAudioEnabled: boolean;
 }
 
 export function useSpaceAudio({
@@ -35,239 +29,101 @@ export function useSpaceAudio({
   isMuted,
   isConnected,
 }: UseSpaceAudioOptions): UseSpaceAudioReturn {
-  const [permissionGranted, setPermissionGranted] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const sequenceRef = useRef(0);
-  const isActiveRef = useRef(false);
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [isLiveKitConnected, setIsLiveKitConnected] = useState(false);
+  const [localAudioEnabled, setLocalAudioEnabled] = useState(false);
+  const roomRef = useRef<Room | null>(null);
 
-  // Use refs to avoid stale closures in the recording loop
-  const spaceIdRef = useRef(spaceId);
-  spaceIdRef.current = spaceId;
-
-  // Store recorder in ref so the loop always uses the current instance
-  const recorderRef = useRef(recorder);
-  recorderRef.current = recorder;
-
-  // Request microphone permission
-  const requestPermission = useCallback(async (): Promise<boolean> => {
-    try {
-      const status = await AudioModule.requestRecordingPermissionsAsync();
-      setPermissionGranted(status.granted);
-      return status.granted;
-    } catch (err) {
-      console.warn('[SpaceAudio] Failed to request audio permission:', err);
-      return false;
-    }
-  }, []);
-
-  // Check permission on mount
+  // Audio session lifecycle (native only)
   useEffect(() => {
-    AudioModule.getRecordingPermissionsAsync()
-      .then((status) => {
-        setPermissionGranted(status.granted);
-      })
-      .catch(() => {});
-  }, []);
+    if (!isConnected || Platform.OS === 'web') return;
+    if (!AudioSession) return;
 
-  // Configure audio mode — role-aware
-  // Listeners: playback only (routes through main speaker)
-  // Speakers: playback + recording (allowsRecording enables microphone input)
-  useEffect(() => {
-    if (!isConnected) return;
-
-    const mode: Parameters<typeof setAudioModeAsync>[0] = {
-      playsInSilentMode: true,
-      interruptionMode: 'mixWithOthers' as const,
-      shouldRouteThroughEarpiece: false,
-    };
-
-    if (isSpeaker && permissionGranted) {
-      mode.allowsRecording = true;
-    }
-
-    console.log('[SpaceAudio] Setting audio mode:', { isSpeaker, permissionGranted, allowsRecording: !!mode.allowsRecording });
-    setAudioModeAsync(mode).catch((err) => {
-      console.warn('[SpaceAudio] Failed to set audio mode:', err);
-    });
-  }, [isConnected, isSpeaker, permissionGranted]);
-
-  // Recording loop for speakers
-  // NOTE: recorder is excluded from deps intentionally — we use recorderRef
-  // to avoid restarting the loop on every render
-  useEffect(() => {
-    if (!isSpeaker || isMuted || !isConnected || !permissionGranted) {
-      if (isActiveRef.current) {
-        isActiveRef.current = false;
-        setIsRecording(false);
-        try {
-          recorderRef.current.stop().catch(() => {});
-        } catch {}
-      }
-      return;
-    }
-
-    let cancelled = false;
-    isActiveRef.current = true;
-    setIsRecording(true);
-    console.log('[SpaceAudio] Starting recording loop for space:', spaceId);
-
-    const recordLoop = async () => {
-      // Small delay to ensure audio mode is configured
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      while (isActiveRef.current && !cancelled) {
-        const rec = recorderRef.current;
-        try {
-          // Prepare and start recording
-          await rec.prepareToRecordAsync();
-          rec.record();
-
-          // Wait for chunk duration
-          await new Promise((resolve) => setTimeout(resolve, CHUNK_DURATION_MS));
-
-          // Check if still active before processing
-          if (!isActiveRef.current || cancelled) {
-            try { await rec.stop(); } catch {}
-            break;
-          }
-
-          // Stop and get the URI
-          await rec.stop();
-          const uri = rec.uri;
-
-          if (uri && isActiveRef.current && !cancelled) {
-            try {
-              // Read file as base64
-              const base64 = await FileSystem.readAsStringAsync(uri, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
-
-              if (base64 && base64.length > 0) {
-                // Send via socket
-                sequenceRef.current += 1;
-                spaceSocketService.sendAudioData(
-                  spaceIdRef.current,
-                  base64,
-                  sequenceRef.current
-                );
-              }
-            } catch (readErr) {
-              console.warn('[SpaceAudio] Failed to read audio chunk:', readErr);
-            }
-
-            // Clean up temp file
-            FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
-          }
-
-          // Brief pause between cycles to let the recorder reset
-          await new Promise((resolve) => setTimeout(resolve, INTER_CHUNK_DELAY_MS));
-        } catch (err) {
-          console.warn('[SpaceAudio] Recording chunk error:', err);
-          // Longer pause before retry on error
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-      }
-
-      console.log('[SpaceAudio] Recording loop ended');
-    };
-
-    recordLoop();
-
+    AudioSession.startAudioSession();
     return () => {
-      console.log('[SpaceAudio] Cleanup: stopping recording loop');
-      cancelled = true;
-      isActiveRef.current = false;
-      setIsRecording(false);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSpeaker, isMuted, isConnected, permissionGranted, spaceId]);
-
-  // Playback for incoming audio chunks
-  useEffect(() => {
-    if (!isConnected) return;
-
-    console.log('[SpaceAudio] Playback listener registered');
-
-    // Track active players for cleanup
-    const activePlayers = new Set<AudioPlayer>();
-
-    const handleAudioData = async (data: AudioDataPayload) => {
-      let tempUri: string | null = null;
-      let player: AudioPlayer | null = null;
-
-      try {
-        console.log(`[SpaceAudio] Received chunk from ${data.userId}, seq=${data.sequence}, size=${data.chunk.length}`);
-
-        // Write base64 chunk to a temp file (Date.now prevents filename collisions)
-        tempUri = `${FileSystem.cacheDirectory}space_audio_${data.userId}_${data.sequence}_${Date.now()}.m4a`;
-        await FileSystem.writeAsStringAsync(tempUri, data.chunk, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        // Create player with string URI
-        player = createAudioPlayer(tempUri);
-        activePlayers.add(player);
-
-        // Wait for the player to load before playing
-        if (!player.isLoaded) {
-          await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              reject(new Error('Player load timeout'));
-            }, 3000);
-
-            const sub = player!.addListener('playbackStatusUpdate', (status: { isLoaded: boolean }) => {
-              if (status.isLoaded) {
-                clearTimeout(timeout);
-                sub.remove();
-                resolve();
-              }
-            });
-          });
-        }
-
-        player.play();
-        console.log(`[SpaceAudio] Playing chunk seq=${data.sequence}`);
-
-        // Clean up after playback (chunk is ~500ms, 2s timeout for safety)
-        const cleanupPlayer = player;
-        const cleanupUri = tempUri;
-        setTimeout(() => {
-          activePlayers.delete(cleanupPlayer);
-          try { cleanupPlayer.remove(); } catch {}
-          if (cleanupUri) {
-            FileSystem.deleteAsync(cleanupUri, { idempotent: true }).catch(() => {});
-          }
-        }, 2000);
-      } catch (err) {
-        console.warn('[SpaceAudio] Audio playback error:', err);
-        // Clean up on error
-        if (player) {
-          activePlayers.delete(player);
-          try { player.remove(); } catch {}
-        }
-        if (tempUri) {
-          FileSystem.deleteAsync(tempUri, { idempotent: true }).catch(() => {});
-        }
-      }
-    };
-
-    const unsubscribe = spaceSocketService.onAudioData(handleAudioData);
-
-    return () => {
-      console.log('[SpaceAudio] Playback listener unregistered');
-      unsubscribe();
-      // Clean up all active players
-      for (const p of activePlayers) {
-        try { p.remove(); } catch {}
-      }
-      activePlayers.clear();
+      AudioSession.stopAudioSession();
     };
   }, [isConnected]);
 
+  // Connect to LiveKit room when socket is connected
+  useEffect(() => {
+    if (!isConnected || !spaceId) return;
+
+    let cancelled = false;
+    const room = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+    });
+    roomRef.current = room;
+
+    room.on(RoomEvent.Connected, () => {
+      if (!cancelled) {
+        console.log('[SpaceAudio] LiveKit connected');
+        setIsLiveKitConnected(true);
+      }
+    });
+
+    room.on(RoomEvent.Disconnected, () => {
+      if (!cancelled) {
+        console.log('[SpaceAudio] LiveKit disconnected');
+        setIsLiveKitConnected(false);
+        setLocalAudioEnabled(false);
+      }
+    });
+
+    room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+      if (track.kind === Track.Kind.Audio) {
+        console.log(`[SpaceAudio] Subscribed to audio from ${participant.identity}`);
+        // LiveKit auto-plays subscribed audio tracks on native
+      }
+    });
+
+    room.on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => {
+      if (track.kind === Track.Kind.Audio) {
+        console.log(`[SpaceAudio] Unsubscribed from audio of ${participant.identity}`);
+      }
+    });
+
+    (async () => {
+      try {
+        const { token, url } = await getSpaceToken(spaceId);
+        if (cancelled) return;
+        console.log('[SpaceAudio] Connecting to LiveKit...');
+        await room.connect(url, token);
+      } catch (err) {
+        console.warn('[SpaceAudio] LiveKit connection error:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      console.log('[SpaceAudio] Disconnecting from LiveKit');
+      room.disconnect();
+      roomRef.current = null;
+      setIsLiveKitConnected(false);
+      setLocalAudioEnabled(false);
+    };
+  }, [isConnected, spaceId]);
+
+  // Mic publish/unpublish based on role + mute state
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || room.state !== ConnectionState.Connected) return;
+
+    const shouldPublish = isSpeaker && !isMuted;
+
+    room.localParticipant
+      .setMicrophoneEnabled(shouldPublish)
+      .then(() => {
+        setLocalAudioEnabled(shouldPublish);
+        console.log(`[SpaceAudio] Mic ${shouldPublish ? 'enabled' : 'disabled'}`);
+      })
+      .catch((err) => {
+        console.warn('[SpaceAudio] Failed to toggle mic:', err);
+      });
+  }, [isSpeaker, isMuted, isLiveKitConnected]);
+
   return {
-    isRecording,
-    permissionGranted,
-    requestPermission,
+    isLiveKitConnected,
+    localAudioEnabled,
   };
 }

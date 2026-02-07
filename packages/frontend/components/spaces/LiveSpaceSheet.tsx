@@ -190,8 +190,8 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
     isSpaceEnded,
   } = useSpaceConnection({ spaceId, enabled: !!spaceId });
 
-  // Audio
-  const { permissionGranted, requestPermission } = useSpaceAudio({
+  // Audio — LiveKit handles WebRTC audio transport
+  const { isLiveKitConnected } = useSpaceAudio({
     spaceId,
     isSpeaker: myRole === 'speaker' || myRole === 'host',
     isMuted,
@@ -204,13 +204,6 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
       join();
     }
   }, [isConnected, spaceId, join]);
-
-  // Request mic permission when becoming speaker
-  useEffect(() => {
-    if ((myRole === 'speaker' || myRole === 'host') && !permissionGranted) {
-      requestPermission();
-    }
-  }, [myRole, permissionGranted, requestPermission]);
 
   // Handle space ended
   useEffect(() => {

@@ -1,0 +1,3 @@
+livekit.mention.earth {
+  reverse_proxy localhost:7880
+}

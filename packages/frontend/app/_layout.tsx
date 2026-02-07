@@ -1,6 +1,15 @@
 // Import Reanimated early to ensure proper initialization before other modules
 import 'react-native-reanimated';
 
+// Register LiveKit WebRTC globals (must be called before any LiveKit usage)
+import { Platform } from 'react-native';
+if (Platform.OS !== 'web') {
+  try {
+    const { registerGlobals } = require('@livekit/react-native');
+    registerGlobals();
+  } catch {}
+}
+
 import NetInfo from '@react-native-community/netinfo';
 import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query';
 import { useFonts } from "expo-font";

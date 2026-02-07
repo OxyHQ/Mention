@@ -184,7 +184,7 @@ return {
                 './plugins/withSharedUserId',
             ];
 
-            // Only include expo-notifications for native builds (android/ios)
+            // Only include native-only plugins for native builds (android/ios)
             if (PLATFORM !== 'web') {
                 base.splice(2, 0, [
                     "expo-notifications",
@@ -199,6 +199,8 @@ return {
                         contactsPermission: "Allow $(PRODUCT_NAME) to access your contacts."
                     }
                 ]);
+                // LiveKit WebRTC plugin for audio spaces
+                base.push("@livekit/react-native-expo-plugin");
             }
 
             return base;

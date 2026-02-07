@@ -2,14 +2,20 @@ import { Server, Socket, Namespace } from 'socket.io';
 import { logger } from '../utils/logger';
 import Space, { SpaceStatus, SpeakerPermission } from '../models/Space';
 import { checkFollowAccess } from '../utils/privacyHelpers';
+import { getRedisClient } from '../utils/redis';
+import { updateParticipantPermissions } from '../utils/livekit';
 
 interface AuthenticatedSocket extends Socket {
   user?: { id: string; [key: string]: any };
 }
 
-// --- In-memory room state ---
+// --- Redis key helpers ---
 
-interface SpaceParticipant {
+const ROOM_KEY = (spaceId: string) => `space:room:${spaceId}`;
+const PARTICIPANTS_KEY = (spaceId: string) => `space:room:${spaceId}:participants`;
+const REQUESTS_KEY = (spaceId: string) => `space:room:${spaceId}:requests`;
+
+interface RedisParticipant {
   userId: string;
   socketId: string;
   role: 'host' | 'speaker' | 'listener';
@@ -17,17 +23,90 @@ interface SpaceParticipant {
   joinedAt: string;
 }
 
-interface SpaceRoom {
-  spaceId: string;
-  hostId: string;
-  participants: Map<string, SpaceParticipant>; // keyed by userId
-  speakerRequests: Map<string, { userId: string; requestedAt: string }>;
+// --- Redis helper functions ---
+
+async function redisSetRoom(spaceId: string, hostId: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis?.isReady) return;
+  await redis.set(ROOM_KEY(spaceId), JSON.stringify({ hostId, createdAt: new Date().toISOString() }));
 }
 
-const activeRooms = new Map<string, SpaceRoom>();
+async function redisGetRoom(spaceId: string): Promise<{ hostId: string } | null> {
+  const redis = getRedisClient();
+  if (!redis?.isReady) return null;
+  const data = await redis.get(ROOM_KEY(spaceId));
+  return typeof data === 'string' ? JSON.parse(data) : null;
+}
 
-function getParticipantList(room: SpaceRoom) {
-  return Array.from(room.participants.values()).map(p => ({
+async function redisAddParticipant(spaceId: string, participant: RedisParticipant): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis?.isReady) return;
+  await redis.hSet(PARTICIPANTS_KEY(spaceId), participant.userId, JSON.stringify(participant));
+}
+
+async function redisRemoveParticipant(spaceId: string, userId: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis?.isReady) return;
+  await redis.hDel(PARTICIPANTS_KEY(spaceId), userId);
+}
+
+async function redisGetParticipant(spaceId: string, userId: string): Promise<RedisParticipant | null> {
+  const redis = getRedisClient();
+  if (!redis?.isReady) return null;
+  const data = await redis.hGet(PARTICIPANTS_KEY(spaceId), userId);
+  return typeof data === 'string' ? JSON.parse(data) : null;
+}
+
+async function redisUpdateParticipant(spaceId: string, userId: string, updates: Partial<RedisParticipant>): Promise<void> {
+  const existing = await redisGetParticipant(spaceId, userId);
+  if (!existing) return;
+  const updated = { ...existing, ...updates };
+  const redis = getRedisClient();
+  if (!redis?.isReady) return;
+  await redis.hSet(PARTICIPANTS_KEY(spaceId), userId, JSON.stringify(updated));
+}
+
+async function redisGetAllParticipants(spaceId: string): Promise<Map<string, RedisParticipant>> {
+  const result = new Map<string, RedisParticipant>();
+  const redis = getRedisClient();
+  if (!redis?.isReady) return result;
+  const all = await redis.hGetAll(PARTICIPANTS_KEY(spaceId));
+  for (const [userId, data] of Object.entries(all)) {
+    result.set(userId, JSON.parse(data));
+  }
+  return result;
+}
+
+async function redisAddSpeakerRequest(spaceId: string, userId: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis?.isReady) return;
+  await redis.hSet(REQUESTS_KEY(spaceId), userId, JSON.stringify({ userId, requestedAt: new Date().toISOString() }));
+}
+
+async function redisRemoveSpeakerRequest(spaceId: string, userId: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis?.isReady) return;
+  await redis.hDel(REQUESTS_KEY(spaceId), userId);
+}
+
+async function redisHasSpeakerRequest(spaceId: string, userId: string): Promise<boolean> {
+  const redis = getRedisClient();
+  if (!redis?.isReady) return false;
+  const exists = await redis.hExists(REQUESTS_KEY(spaceId), userId);
+  return !!exists;
+}
+
+async function redisCleanupRoom(spaceId: string): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis?.isReady) return;
+  await redis.del([ROOM_KEY(spaceId), PARTICIPANTS_KEY(spaceId), REQUESTS_KEY(spaceId)]);
+  logger.debug(`Cleaned up Redis state for space: ${spaceId}`);
+}
+
+// --- Utility functions ---
+
+function getParticipantListFromMap(participants: Map<string, RedisParticipant>) {
+  return Array.from(participants.values()).map(p => ({
     userId: p.userId,
     role: p.role,
     isMuted: p.isMuted,
@@ -35,27 +114,27 @@ function getParticipantList(room: SpaceRoom) {
   }));
 }
 
-function broadcastParticipants(namespace: Namespace, room: SpaceRoom) {
-  namespace.to(`space:${room.spaceId}`).emit('space:participants:update', {
-    spaceId: room.spaceId,
-    participants: getParticipantList(room),
-    count: room.participants.size,
+async function broadcastParticipants(namespace: Namespace, spaceId: string) {
+  const participants = await redisGetAllParticipants(spaceId);
+  namespace.to(`space:${spaceId}`).emit('space:participants:update', {
+    spaceId,
+    participants: getParticipantListFromMap(participants),
+    count: participants.size,
     timestamp: new Date().toISOString(),
   });
 }
 
-// Clean up a room if empty
-function cleanupRoomIfEmpty(spaceId: string) {
-  const room = activeRooms.get(spaceId);
-  if (room && room.participants.size === 0) {
-    activeRooms.delete(spaceId);
-    logger.debug(`Cleaned up empty space room: ${spaceId}`);
+async function cleanupRoomIfEmpty(spaceId: string) {
+  const participants = await redisGetAllParticipants(spaceId);
+  if (participants.size === 0) {
+    await redisCleanupRoom(spaceId);
   }
 }
 
 /**
  * Initialize Space Socket Namespace
- * Handles real-time audio spaces with room management and audio relay
+ * Handles real-time space control plane (roles, speaker requests, mute state).
+ * Audio transport is handled by LiveKit WebRTC SFU.
  */
 export function initializeSpaceSocket(io: Server): Namespace {
   const spacesNamespace = io.of('/spaces');
@@ -106,7 +185,7 @@ export function initializeSpaceSocket(io: Server): Namespace {
           role = 'speaker';
         } else {
           // Apply speakerPermission rules for new joiners
-          const perm = (space as any).speakerPermission || SpeakerPermission.INVITED;
+          const perm = space.speakerPermission || SpeakerPermission.INVITED;
           if (perm === SpeakerPermission.EVERYONE) {
             role = 'speaker';
           } else if (perm === SpeakerPermission.FOLLOWERS) {
@@ -115,23 +194,16 @@ export function initializeSpaceSocket(io: Server): Namespace {
               role = 'speaker';
             }
           }
-          // INVITED: stays as 'listener' (default)
         }
 
-        // Create or get room
-        let room = activeRooms.get(spaceId);
-        if (!room) {
-          room = {
-            spaceId,
-            hostId: space.host,
-            participants: new Map(),
-            speakerRequests: new Map(),
-          };
-          activeRooms.set(spaceId, room);
+        // Ensure room exists in Redis
+        const existingRoom = await redisGetRoom(spaceId);
+        if (!existingRoom) {
+          await redisSetRoom(spaceId, space.host);
         }
 
-        // Add participant
-        room.participants.set(userId, {
+        // Add participant to Redis
+        await redisAddParticipant(spaceId, {
           userId,
           socketId: socket.id,
           role,
@@ -153,12 +225,13 @@ export function initializeSpaceSocket(io: Server): Namespace {
         });
 
         // Broadcast updated participant list
-        broadcastParticipants(spacesNamespace, room);
+        await broadcastParticipants(spacesNamespace, spaceId);
 
         // Return current state to the joining client
+        const participants = await redisGetAllParticipants(spaceId);
         callback?.({
           success: true,
-          participants: getParticipantList(room),
+          participants: getParticipantListFromMap(participants),
           myRole: role,
         });
 
@@ -169,7 +242,7 @@ export function initializeSpaceSocket(io: Server): Namespace {
         });
 
         // Update peak listeners
-        const currentCount = room.participants.size;
+        const currentCount = participants.size;
         if (currentCount > (space.stats?.peakListeners || 0)) {
           await Space.findByIdAndUpdate(spaceId, {
             $max: { 'stats.peakListeners': currentCount },
@@ -189,15 +262,12 @@ export function initializeSpaceSocket(io: Server): Namespace {
         const { spaceId } = data || {};
         if (!spaceId || typeof spaceId !== 'string') return;
 
-        const room = activeRooms.get(spaceId);
-        if (!room) return;
-
-        const participant = room.participants.get(userId);
+        const participant = await redisGetParticipant(spaceId, userId);
         if (!participant) return;
 
-        // Remove from room
-        room.participants.delete(userId);
-        room.speakerRequests.delete(userId);
+        // Remove from Redis
+        await redisRemoveParticipant(spaceId, userId);
+        await redisRemoveSpeakerRequest(spaceId, userId);
         socket.leave(`space:${spaceId}`);
 
         logger.debug(`User ${userId} left space ${spaceId}`);
@@ -210,10 +280,10 @@ export function initializeSpaceSocket(io: Server): Namespace {
         });
 
         // Broadcast updated participant list
-        broadcastParticipants(spacesNamespace, room);
+        await broadcastParticipants(spacesNamespace, spaceId);
 
         // Clean up room if empty
-        cleanupRoomIfEmpty(spaceId);
+        await cleanupRoomIfEmpty(spaceId);
 
         // Update DB: remove from participants
         await Space.findByIdAndUpdate(spaceId, {
@@ -225,69 +295,19 @@ export function initializeSpaceSocket(io: Server): Namespace {
     });
 
     /**
-     * Audio data relay
-     * Speaker sends audio chunk, server broadcasts to all others in room
-     */
-    socket.on('audio:data', (data: { spaceId: string; chunk: string; sequence: number }) => {
-      try {
-        const { spaceId, chunk, sequence } = data || {};
-        if (!spaceId || !chunk) {
-          logger.debug(`[audio:data] Rejected: missing spaceId or chunk from user ${userId}`);
-          return;
-        }
-
-        const room = activeRooms.get(spaceId);
-        if (!room) {
-          logger.debug(`[audio:data] Rejected: no active room for space ${spaceId}`);
-          return;
-        }
-
-        const participant = room.participants.get(userId);
-        if (!participant) {
-          logger.debug(`[audio:data] Rejected: user ${userId} not in room ${spaceId}`);
-          return;
-        }
-
-        // Only speakers and hosts can send audio
-        if (participant.role === 'listener') {
-          logger.debug(`[audio:data] Rejected: user ${userId} is a listener`);
-          return;
-        }
-
-        // Don't relay if muted
-        if (participant.isMuted) {
-          logger.debug(`[audio:data] Rejected: user ${userId} is muted`);
-          return;
-        }
-
-        // Broadcast to all others in the room (not back to sender)
-        logger.debug(`[audio:data] Relaying chunk from user ${userId} in space ${spaceId}, seq=${sequence}, size=${chunk.length}`);
-        socket.to(`space:${spaceId}`).emit('audio:data', {
-          userId,
-          chunk,
-          sequence,
-          timestamp: Date.now(),
-        });
-      } catch (error) {
-        logger.error('Error handling audio:data:', error);
-      }
-    });
-
-    /**
      * Mute/unmute toggle
+     * Syncs mute state to other participants for UI display.
+     * LiveKit mic publish/unpublish is handled client-side.
      */
-    socket.on('audio:mute', (data: { spaceId: string; isMuted: boolean }) => {
+    socket.on('audio:mute', async (data: { spaceId: string; isMuted: boolean }) => {
       try {
         const { spaceId, isMuted } = data || {};
         if (!spaceId || typeof isMuted !== 'boolean') return;
 
-        const room = activeRooms.get(spaceId);
-        if (!room) return;
-
-        const participant = room.participants.get(userId);
+        const participant = await redisGetParticipant(spaceId, userId);
         if (!participant) return;
 
-        participant.isMuted = isMuted;
+        await redisUpdateParticipant(spaceId, userId, { isMuted });
         logger.debug(`[audio:mute] User ${userId} ${isMuted ? 'muted' : 'unmuted'} in space ${spaceId} (role: ${participant.role})`);
 
         // Broadcast mute state change
@@ -302,42 +322,41 @@ export function initializeSpaceSocket(io: Server): Namespace {
     });
 
     /**
-     * Request to speak (listener → host)
+     * Request to speak (listener -> host)
      */
     socket.on('speaker:request', async (data: { spaceId: string }) => {
       try {
         const { spaceId } = data || {};
         if (!spaceId) return;
 
-        const room = activeRooms.get(spaceId);
-        if (!room) return;
-
-        const participant = room.participants.get(userId);
+        const participant = await redisGetParticipant(spaceId, userId);
         if (!participant || participant.role !== 'listener') return;
 
-        // If speakerPermission is 'everyone', auto-promote instead of requesting
+        // If speakerPermission is 'everyone', auto-promote
         const space = await Space.findById(spaceId).lean();
-        if (space && (space as any).speakerPermission === SpeakerPermission.EVERYONE) {
-          participant.role = 'speaker';
-          broadcastParticipants(spacesNamespace, room);
+        if (space && space.speakerPermission === SpeakerPermission.EVERYONE) {
+          await redisUpdateParticipant(spaceId, userId, { role: 'speaker' });
+          await broadcastParticipants(spacesNamespace, spaceId);
           await Space.findByIdAndUpdate(spaceId, { $addToSet: { speakers: userId } });
+          // Grant LiveKit publish permission
+          updateParticipantPermissions(spaceId, userId, true).catch(() => {});
           return;
         }
 
         // Already requested
-        if (room.speakerRequests.has(userId)) return;
+        if (await redisHasSpeakerRequest(spaceId, userId)) return;
 
-        room.speakerRequests.set(userId, {
-          userId,
-          requestedAt: new Date().toISOString(),
-        });
+        await redisAddSpeakerRequest(spaceId, userId);
 
         // Notify host
-        spacesNamespace.to(`user:${room.hostId}`).emit('speaker:request:received', {
-          spaceId,
-          userId,
-          timestamp: new Date().toISOString(),
-        });
+        const room = await redisGetRoom(spaceId);
+        if (room) {
+          spacesNamespace.to(`user:${room.hostId}`).emit('speaker:request:received', {
+            spaceId,
+            userId,
+            timestamp: new Date().toISOString(),
+          });
+        }
 
         logger.debug(`User ${userId} requested to speak in space ${spaceId}`);
       } catch (error) {
@@ -353,18 +372,18 @@ export function initializeSpaceSocket(io: Server): Namespace {
         const { spaceId, targetUserId } = data || {};
         if (!spaceId || !targetUserId) return;
 
-        const room = activeRooms.get(spaceId);
-        if (!room) return;
+        const room = await redisGetRoom(spaceId);
+        if (!room || room.hostId !== userId) return;
 
-        // Only host can approve
-        if (room.hostId !== userId) return;
-
-        const target = room.participants.get(targetUserId);
+        const target = await redisGetParticipant(spaceId, targetUserId);
         if (!target) return;
 
         // Promote to speaker
-        target.role = 'speaker';
-        room.speakerRequests.delete(targetUserId);
+        await redisUpdateParticipant(spaceId, targetUserId, { role: 'speaker' });
+        await redisRemoveSpeakerRequest(spaceId, targetUserId);
+
+        // Grant LiveKit publish permission
+        updateParticipantPermissions(spaceId, targetUserId, true).catch(() => {});
 
         // Notify the approved user
         spacesNamespace.to(`user:${targetUserId}`).emit('speaker:approved', {
@@ -373,7 +392,7 @@ export function initializeSpaceSocket(io: Server): Namespace {
         });
 
         // Broadcast updated participant list
-        broadcastParticipants(spacesNamespace, room);
+        await broadcastParticipants(spacesNamespace, spaceId);
 
         // Update DB
         await Space.findByIdAndUpdate(spaceId, {
@@ -389,17 +408,15 @@ export function initializeSpaceSocket(io: Server): Namespace {
     /**
      * Deny speaker request (host only)
      */
-    socket.on('speaker:deny', (data: { spaceId: string; targetUserId: string }) => {
+    socket.on('speaker:deny', async (data: { spaceId: string; targetUserId: string }) => {
       try {
         const { spaceId, targetUserId } = data || {};
         if (!spaceId || !targetUserId) return;
 
-        const room = activeRooms.get(spaceId);
-        if (!room) return;
+        const room = await redisGetRoom(spaceId);
+        if (!room || room.hostId !== userId) return;
 
-        if (room.hostId !== userId) return;
-
-        room.speakerRequests.delete(targetUserId);
+        await redisRemoveSpeakerRequest(spaceId, targetUserId);
 
         spacesNamespace.to(`user:${targetUserId}`).emit('speaker:denied', {
           spaceId,
@@ -418,23 +435,23 @@ export function initializeSpaceSocket(io: Server): Namespace {
         const { spaceId, targetUserId } = data || {};
         if (!spaceId || !targetUserId) return;
 
-        const room = activeRooms.get(spaceId);
-        if (!room) return;
+        const room = await redisGetRoom(spaceId);
+        if (!room || room.hostId !== userId) return;
 
-        if (room.hostId !== userId) return;
-
-        const target = room.participants.get(targetUserId);
+        const target = await redisGetParticipant(spaceId, targetUserId);
         if (!target || target.role === 'host') return;
 
-        target.role = 'listener';
-        target.isMuted = true;
+        await redisUpdateParticipant(spaceId, targetUserId, { role: 'listener', isMuted: true });
+
+        // Revoke LiveKit publish permission
+        updateParticipantPermissions(spaceId, targetUserId, false).catch(() => {});
 
         spacesNamespace.to(`user:${targetUserId}`).emit('speaker:removed', {
           spaceId,
           timestamp: new Date().toISOString(),
         });
 
-        broadcastParticipants(spacesNamespace, room);
+        await broadcastParticipants(spacesNamespace, spaceId);
 
         await Space.findByIdAndUpdate(spaceId, {
           $pull: { speakers: targetUserId },
@@ -452,12 +469,18 @@ export function initializeSpaceSocket(io: Server): Namespace {
     socket.on('disconnect', async (reason: string) => {
       logger.debug(`User ${userId} disconnected from spaces namespace: ${reason}`);
 
-      for (const [spaceId, room] of activeRooms.entries()) {
-        const participant = room.participants.get(userId);
+      // Check all rooms — scan Redis for this user's participation
+      // We use the socket rooms to find which spaces they were in
+      const rooms = Array.from(socket.rooms);
+      for (const room of rooms) {
+        if (!room.startsWith('space:')) continue;
+        const spaceId = room.replace('space:', '');
+
+        const participant = await redisGetParticipant(spaceId, userId);
         if (!participant || participant.socketId !== socket.id) continue;
 
-        room.participants.delete(userId);
-        room.speakerRequests.delete(userId);
+        await redisRemoveParticipant(spaceId, userId);
+        await redisRemoveSpeakerRequest(spaceId, userId);
 
         // Notify others
         spacesNamespace.to(`space:${spaceId}`).emit('space:user:left', {
@@ -466,8 +489,8 @@ export function initializeSpaceSocket(io: Server): Namespace {
           timestamp: new Date().toISOString(),
         });
 
-        broadcastParticipants(spacesNamespace, room);
-        cleanupRoomIfEmpty(spaceId);
+        await broadcastParticipants(spacesNamespace, spaceId);
+        await cleanupRoomIfEmpty(spaceId);
 
         // Update DB
         try {
@@ -499,11 +522,4 @@ export function initializeSpaceSocket(io: Server): Namespace {
   logger.info('Spaces socket namespace initialized');
 
   return spacesNamespace;
-}
-
-/**
- * Get the active rooms map (for use by REST routes to emit events)
- */
-export function getActiveRooms(): Map<string, SpaceRoom> {
-  return activeRooms;
 }
