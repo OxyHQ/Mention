@@ -32,6 +32,8 @@ export function useSpaceAudio({
   const [isLiveKitConnected, setIsLiveKitConnected] = useState(false);
   const [localAudioEnabled, setLocalAudioEnabled] = useState(false);
   const roomRef = useRef<Room | null>(null);
+  // Track attached <audio> elements on web for cleanup (no-op on native)
+  const audioElementsRef = useRef<Map<string, HTMLMediaElement>>(new Map());
 
   // Audio session lifecycle (native only)
   useEffect(() => {
@@ -73,13 +75,23 @@ export function useSpaceAudio({
     room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
       if (track.kind === Track.Kind.Audio) {
         console.log(`[SpaceAudio] Subscribed to audio from ${participant.identity}`);
-        // LiveKit auto-plays subscribed audio tracks on native
+        // On web, livekit-client does NOT auto-play remote audio — we must
+        // attach the track to an <audio> DOM element. On native,
+        // registerGlobals() handles auto-play through the native audio layer.
+        if (Platform.OS === 'web' && typeof track.attach === 'function') {
+          const el = track.attach();
+          audioElementsRef.current.set(track.sid, el);
+        }
       }
     });
 
     room.on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => {
       if (track.kind === Track.Kind.Audio) {
         console.log(`[SpaceAudio] Unsubscribed from audio of ${participant.identity}`);
+        if (Platform.OS === 'web' && typeof track.detach === 'function') {
+          track.detach();
+          audioElementsRef.current.delete(track.sid);
+        }
       }
     });
 
@@ -87,7 +99,11 @@ export function useSpaceAudio({
       try {
         const { token, url } = await getSpaceToken(spaceId);
         if (cancelled) return;
-        console.log('[SpaceAudio] Connecting to LiveKit...');
+        if (!url) {
+          console.error('[SpaceAudio] No LiveKit URL returned — check LIVEKIT_URL env var on backend');
+          return;
+        }
+        console.log('[SpaceAudio] Connecting to LiveKit...', url);
         await room.connect(url, token);
       } catch (err) {
         console.warn('[SpaceAudio] LiveKit connection error:', err);
@@ -97,6 +113,15 @@ export function useSpaceAudio({
     return () => {
       cancelled = true;
       console.log('[SpaceAudio] Disconnecting from LiveKit');
+      // Clean up attached <audio> elements on web before disconnecting
+      if (Platform.OS === 'web') {
+        audioElementsRef.current.forEach((el) => {
+          el.pause();
+          el.srcObject = null;
+          el.remove();
+        });
+        audioElementsRef.current.clear();
+      }
       room.disconnect();
       roomRef.current = null;
       setIsLiveKitConnected(false);
