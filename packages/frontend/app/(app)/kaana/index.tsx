@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { shadowStyle } from '@/utils/platformStyles';
+import { FONT_FAMILIES } from '@/styles/typography';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -133,20 +134,20 @@ const styles = StyleSheet.create({
   avatarContainer: { marginLeft: 20, width: 36, height: 36, borderRadius: 18, overflow: 'hidden' },
   avatar: { width: 36, height: 36 },
   mainContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
-  title: { fontSize: 32, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontSize: 24, fontWeight: '400', textAlign: 'center', marginBottom: 40 },
+  title: { fontSize: 32, fontWeight: '600', textAlign: 'center', marginBottom: 8, fontFamily: FONT_FAMILIES.primary },
+  subtitle: { fontSize: 24, fontWeight: '400', textAlign: 'center', marginBottom: 40, fontFamily: FONT_FAMILIES.primary },
   buttonGrid: { width: '100%', maxWidth: 500 },
   buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 30, padding: 16, marginHorizontal: 8, ...shadowStyle({ elevation: 3, web: '0px 2px 4px rgba(0,0,0,0.2)' }), position: 'relative' },
-  buttonText: { fontSize: 15, fontWeight: '500', marginLeft: 8, flex: 1 },
+  buttonText: { fontSize: 15, fontWeight: '500', marginLeft: 8, flex: 1, fontFamily: FONT_FAMILIES.primary },
   dropdownIndicator: { marginLeft: 4 },
   inputContainer: { width: '100%', padding: 16, backgroundColor: 'transparent', position: 'absolute', bottom: 0, left: 0, right: 0 },
   inputBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 30, paddingHorizontal: 12, paddingVertical: 8 },
   inputIcon: { marginHorizontal: 8 },
-  input: { flex: 1, fontSize: 16, paddingHorizontal: 12, minHeight: 40, marginRight: 8 },
+  input: { flex: 1, fontSize: 16, paddingHorizontal: 12, minHeight: 40, marginRight: 8, fontFamily: FONT_FAMILIES.primary },
   inputRightButtons: { flexDirection: 'row', alignItems: 'center' },
   modelSelector: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, marginRight: 8 },
-  modelText: { fontSize: 14, marginRight: 4 },
+  modelText: { fontSize: 14, marginRight: 4, fontFamily: FONT_FAMILIES.primary },
   sendButton: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
 });
 

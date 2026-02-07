@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { colors } from '@/styles/colors';
+import { FONT_FAMILIES } from '@/styles/typography';
 import { listsService } from '@/services/listsService';
 import Feed from '@/components/Feed/Feed';
 import { useTheme } from '@/hooks/useTheme';
@@ -72,7 +73,7 @@ export default function ListTimelineScreen() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   headerBox: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: colors.primaryLight },
-  desc: { color: colors.COLOR_BLACK_LIGHT_3 },
-  meta: { marginTop: 6, color: colors.COLOR_BLACK_LIGHT_5, fontSize: 12 },
+  desc: { color: colors.COLOR_BLACK_LIGHT_3, fontFamily: FONT_FAMILIES.primary },
+  meta: { marginTop: 6, color: colors.COLOR_BLACK_LIGHT_5, fontSize: 12, fontFamily: FONT_FAMILIES.primary },
 });
 

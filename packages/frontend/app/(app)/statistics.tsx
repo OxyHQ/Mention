@@ -21,6 +21,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
 import { UIPost } from '@mention/shared-types';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { FONT_FAMILIES } from '@/styles/typography';
 
 const { width } = Dimensions.get('window');
 
@@ -583,6 +584,7 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         letterSpacing: -0.3,
+        fontFamily: FONT_FAMILIES.primary,
     },
     headerRight: {
         width: 40,
@@ -606,6 +608,7 @@ const styles = StyleSheet.create({
     periodButtonText: {
         fontSize: 14,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     tabs: {
         flexDirection: 'row',
@@ -627,6 +630,7 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 14,
         fontWeight: '600',
+        fontFamily: FONT_FAMILIES.primary,
     },
     scrollContent: {
         flex: 1,
@@ -665,10 +669,12 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: '700',
         marginBottom: 2,
+        fontFamily: FONT_FAMILIES.primary,
     },
     summaryLabel: {
         fontSize: 12,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     // Hero Card
     heroCard: {
@@ -687,6 +693,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         marginLeft: 8,
+        fontFamily: FONT_FAMILIES.primary,
     },
     heroContent: {
         alignItems: 'center',
@@ -695,11 +702,13 @@ const styles = StyleSheet.create({
         fontSize: 36,
         fontWeight: '700',
         letterSpacing: -0.5,
+        fontFamily: FONT_FAMILIES.primary,
     },
     heroSubtext: {
         fontSize: 13,
         marginTop: 6,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     // Interactions Section
     interactionsSection: {
@@ -742,15 +751,18 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         marginBottom: 2,
+        fontFamily: FONT_FAMILIES.primary,
     },
     interactionLabel: {
         fontSize: 12,
         fontWeight: '500',
         marginBottom: 2,
+        fontFamily: FONT_FAMILIES.primary,
     },
     interactionPercent: {
         fontSize: 10,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     // Overview Section
     overviewSection: {
@@ -765,6 +777,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         letterSpacing: -0.2,
+        fontFamily: FONT_FAMILIES.primary,
     },
     overviewGrid: {
         flexDirection: 'row',
@@ -793,10 +806,12 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: '700',
         marginBottom: 4,
+        fontFamily: FONT_FAMILIES.primary,
     },
     statLabel: {
         fontSize: 13,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     // Top Posts Section
     topPostsSection: {
@@ -833,6 +848,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '700',
         color: '#FFFFFF',
+        fontFamily: FONT_FAMILIES.primary,
     },
     postContainer: {
         marginTop: 0,
@@ -848,6 +864,7 @@ const styles = StyleSheet.create({
     emptyPostsText: {
         fontSize: 14,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     // Type Section
     typeSection: {
@@ -873,10 +890,12 @@ const styles = StyleSheet.create({
     typeLabel: {
         fontSize: 14,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     typeValue: {
         fontSize: 16,
         fontWeight: '700',
+        fontFamily: FONT_FAMILIES.primary,
     },
     typeDivider: {
         height: 1,
@@ -908,10 +927,12 @@ const styles = StyleSheet.create({
     ratioLabel: {
         fontSize: 12,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     ratioValue: {
         fontSize: 24,
         fontWeight: '700',
+        fontFamily: FONT_FAMILIES.primary,
     },
     // Averages Section
     averagesSection: {
@@ -939,10 +960,12 @@ const styles = StyleSheet.create({
     averageLabel: {
         fontSize: 13,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     averageValue: {
         fontSize: 22,
         fontWeight: '700',
+        fontFamily: FONT_FAMILIES.primary,
     },
     // Totals Section
     totalsSection: {
@@ -972,10 +995,12 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         marginBottom: 2,
+        fontFamily: FONT_FAMILIES.primary,
     },
     totalLabel: {
         fontSize: 12,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
     // Legacy styles (kept for compatibility)
     section: {
@@ -985,6 +1010,7 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '600',
         marginBottom: 8,
+        fontFamily: FONT_FAMILIES.primary,
     },
     engagementContainer: {
         alignItems: 'center',
@@ -993,10 +1019,12 @@ const styles = StyleSheet.create({
     engagementValue: {
         fontSize: 36,
         fontWeight: '700',
+        fontFamily: FONT_FAMILIES.primary,
     },
     engagementLabel: {
         fontSize: 14,
         marginTop: 4,
+        fontFamily: FONT_FAMILIES.primary,
     },
     postItem: {
         flexDirection: 'row',
@@ -1012,6 +1040,7 @@ const styles = StyleSheet.create({
     rankNumber: {
         fontSize: 14,
         fontWeight: '600',
+        fontFamily: FONT_FAMILIES.primary,
     },
     postStats: {
         flex: 1,
@@ -1026,6 +1055,7 @@ const styles = StyleSheet.create({
     postStatText: {
         fontSize: 14,
         fontWeight: '500',
+        fontFamily: FONT_FAMILIES.primary,
     },
 });
 

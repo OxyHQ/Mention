@@ -10,6 +10,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Toggle } from '@/components/Toggle';
+import { FONT_FAMILIES } from '@/styles/typography';
 
 const IconComponent = Ionicons as any;
 
@@ -403,10 +404,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
+    fontFamily: FONT_FAMILIES.primary,
   },
   settingDescription: {
     fontSize: 14,
     lineHeight: 20,
+    fontFamily: FONT_FAMILIES.primary,
   },
   infoContainer: {
     flexDirection: 'row',
@@ -419,11 +422,13 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
+    fontFamily: FONT_FAMILIES.primary,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 16,
+    fontFamily: FONT_FAMILIES.primary,
   },
   styleGrid: {
     flexDirection: 'row',
@@ -495,10 +500,12 @@ const styles = StyleSheet.create({
   styleName: {
     fontSize: 14,
     fontWeight: '600',
+    fontFamily: FONT_FAMILIES.primary,
   },
   styleDescription: {
     fontSize: 12,
     lineHeight: 16,
+    fontFamily: FONT_FAMILIES.primary,
   },
   selectedIndicator: {
     position: 'absolute',

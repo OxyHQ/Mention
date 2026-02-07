@@ -12,7 +12,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Loading } from '@/components/ui/Loading';
 import { SPACING } from '@/styles/spacing';
-import { FONT_SIZES } from '@/styles/typography';
+import { FONT_SIZES, FONT_FAMILIES } from '@/styles/typography';
 import { Divider } from '@/components/Divider';
 import { useTranslation } from 'react-i18next';
 
@@ -396,11 +396,13 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xl,
     fontWeight: '700',
     marginBottom: SPACING.xs,
+    fontFamily: FONT_FAMILIES.primary,
   },
   sectionDescription: {
     fontSize: FONT_SIZES.base,
     lineHeight: FONT_SIZES.base * 1.5,
     marginBottom: SPACING.base,
+    fontFamily: FONT_FAMILIES.primary,
   },
 
   // Theme Cards
@@ -461,10 +463,12 @@ const styles = StyleSheet.create({
   themeCardLabel: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
+    fontFamily: FONT_FAMILIES.primary,
   },
   themeCardDesc: {
     fontSize: FONT_SIZES.sm,
     marginLeft: 24,
+    fontFamily: FONT_FAMILIES.primary,
   },
   radioOuter: {
     position: 'absolute',
@@ -518,6 +522,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: FONT_SIZES.sm,
+    fontFamily: FONT_FAMILIES.primary,
   },
   colorsGrid: {
     flexDirection: 'row',
@@ -548,6 +553,7 @@ const styles = StyleSheet.create({
   resetButtonText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '500',
+    fontFamily: FONT_FAMILIES.primary,
   },
 
   // Header Image
@@ -594,9 +600,11 @@ const styles = StyleSheet.create({
   headerUploadText: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
+    fontFamily: FONT_FAMILIES.primary,
   },
   headerUploadHint: {
     fontSize: FONT_SIZES.sm,
+    fontFamily: FONT_FAMILIES.primary,
   },
 
   bottomSpacer: {

@@ -11,6 +11,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { storeData, getData } from '@/utils/storage';
+import { FONT_FAMILIES } from '@/styles/typography';
 
 const IconComponent = Ionicons as any;
 
@@ -175,6 +176,7 @@ const styles = StyleSheet.create({
     },
     savingText: {
         fontSize: 14,
+        fontFamily: FONT_FAMILIES.primary,
     },
     section: {
         marginTop: 8,
@@ -186,6 +188,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
         marginBottom: 12,
         paddingHorizontal: 4,
+        fontFamily: FONT_FAMILIES.primary,
     },
     settingsCard: {
         borderRadius: 16,
@@ -211,6 +214,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '500',
         flex: 1,
+        fontFamily: FONT_FAMILIES.primary,
     },
     selectedIndicator: {
         marginLeft: 12,

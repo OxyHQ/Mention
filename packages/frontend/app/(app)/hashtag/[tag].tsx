@@ -21,6 +21,7 @@ import PostItem from '@/components/Feed/PostItem';
 import { FeedResponse } from '@mention/shared-types';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { createScopedLogger } from '@/utils/logger';
+import { FONT_FAMILIES } from '@/styles/typography';
 import SEO from '@/components/SEO';
 import { FeedEmptyState } from '@/components/Feed/FeedEmptyState';
 
@@ -270,9 +271,11 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: 'bold',
         marginBottom: 4,
+        fontFamily: FONT_FAMILIES.primary,
     },
     postCount: {
         fontSize: 14,
+        fontFamily: FONT_FAMILIES.primary,
     },
     footer: {
         padding: 16,

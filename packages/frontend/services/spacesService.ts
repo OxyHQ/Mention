@@ -25,7 +25,7 @@ class SpacesService {
       const params: any = {};
       if (status) params.status = status;
       const res = await authenticatedClient.get("/spaces", { params });
-      return res.data.data || res.data || [];
+      return res.data.spaces || res.data.data || res.data || [];
     } catch (error) {
       console.warn("Failed to fetch spaces", error);
       return [];
@@ -36,7 +36,7 @@ class SpacesService {
     if (!id) return null;
     try {
       const res = await authenticatedClient.get(`/spaces/${id}`);
-      return res.data.data || res.data || null;
+      return res.data.space || res.data.data || res.data || null;
     } catch (error) {
       console.warn("Failed to fetch space", error);
       return null;
@@ -46,7 +46,7 @@ class SpacesService {
   async createSpace(data: { title: string; description?: string; topic?: string; scheduledStart?: string }): Promise<Space | null> {
     try {
       const res = await authenticatedClient.post("/spaces", data);
-      return res.data.data || res.data || null;
+      return res.data.space || res.data.data || res.data || null;
     } catch (error) {
       console.warn("Failed to create space", error);
       return null;

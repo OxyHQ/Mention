@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { colors } from '@/styles/colors';
+import { FONT_FAMILIES } from '@/styles/typography';
 import { useAuth } from '@oxyhq/services';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
@@ -97,7 +98,7 @@ export default function CreateListScreen() {
             {results.map((u) => (
               <TouchableOpacity key={u.id} style={styles.resultRow} onPress={() => addMember(u)}>
                 <Text style={styles.resultText}>@{u.username} {(u.name?.full ? `• ${u.name.full}` : '')}</Text>
-                <Text style={{ color: colors.linkColor, fontWeight: '600' }}>{t('lists.create.add')}</Text>
+                <Text style={{ color: colors.linkColor, fontWeight: '600', fontFamily: FONT_FAMILIES.primary }}>{t('lists.create.add')}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -126,14 +127,14 @@ export default function CreateListScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 14, color: colors.COLOR_BLACK_LIGHT_3, marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 10, padding: 10, marginBottom: 10, color: colors.COLOR_BLACK_LIGHT_1, backgroundColor: colors.primaryLight },
+  label: { fontSize: 14, color: colors.COLOR_BLACK_LIGHT_3, marginBottom: 6, fontFamily: FONT_FAMILIES.primary },
+  input: { borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 10, padding: 10, marginBottom: 10, color: colors.COLOR_BLACK_LIGHT_1, backgroundColor: colors.primaryLight, fontFamily: FONT_FAMILIES.primary },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   resultsBox: { borderWidth: 1, borderColor: colors.COLOR_BLACK_LIGHT_6, borderRadius: 10, overflow: 'hidden' },
   resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.COLOR_BLACK_LIGHT_6 },
-  resultText: { color: colors.COLOR_BLACK_LIGHT_1 },
+  resultText: { color: colors.COLOR_BLACK_LIGHT_1, fontFamily: FONT_FAMILIES.primary },
   memberChip: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
   createBtn: { marginTop: 20, backgroundColor: colors.primaryColor, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  createBtnText: { color: colors.primaryLight, fontWeight: '700' },
+  createBtnText: { color: colors.primaryLight, fontWeight: '700', fontFamily: FONT_FAMILIES.primary },
 });
 

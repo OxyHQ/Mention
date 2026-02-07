@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { FONT_FAMILIES } from './typography';
 
 export const styles = StyleSheet.create({
     container: {
@@ -20,7 +21,8 @@ export const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        marginBottom: 16
+        marginBottom: 16,
+        fontFamily: FONT_FAMILIES.primary,
     },
     settingItem: {
         flexDirection: 'row',
@@ -31,7 +33,8 @@ export const styles = StyleSheet.create({
         borderBottomColor: '#f0f0f0'
     },
     settingLabel: {
-        fontSize: 16
+        fontSize: 16,
+        fontFamily: FONT_FAMILIES.primary,
     },
     adFreeBanner: {
         backgroundColor: '#f8f9fa',
@@ -43,6 +46,7 @@ export const styles = StyleSheet.create({
     adFreeBannerText: {
         textAlign: 'center',
         color: '#6c757d',
-        fontSize: 14
+        fontSize: 14,
+        fontFamily: FONT_FAMILIES.primary,
     }
 });
