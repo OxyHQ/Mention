@@ -70,17 +70,27 @@ export function useSpaceAudio({
       .catch(() => {});
   }, []);
 
-  // Configure audio mode for spaces
+  // Configure audio mode — role-aware
+  // Listeners: playback only (routes through main speaker)
+  // Speakers: playback + recording (allowsRecording enables microphone input)
   useEffect(() => {
-    if (isConnected) {
-      setAudioModeAsync({
-        playsInSilentMode: true,
-        allowsRecording: true,
-      }).catch((err) => {
-        console.warn('[SpaceAudio] Failed to set audio mode:', err);
-      });
+    if (!isConnected) return;
+
+    const mode: Parameters<typeof setAudioModeAsync>[0] = {
+      playsInSilentMode: true,
+      interruptionMode: 'mixWithOthers' as const,
+      shouldRouteThroughEarpiece: false,
+    };
+
+    if (isSpeaker && permissionGranted) {
+      mode.allowsRecording = true;
     }
-  }, [isConnected]);
+
+    console.log('[SpaceAudio] Setting audio mode:', { isSpeaker, permissionGranted, allowsRecording: !!mode.allowsRecording });
+    setAudioModeAsync(mode).catch((err) => {
+      console.warn('[SpaceAudio] Failed to set audio mode:', err);
+    });
+  }, [isConnected, isSpeaker, permissionGranted]);
 
   // Recording loop for speakers
   // NOTE: recorder is excluded from deps intentionally — we use recorderRef
@@ -177,7 +187,9 @@ export function useSpaceAudio({
   useEffect(() => {
     if (!isConnected) return;
 
-    // Keep a pool of active players to avoid creating too many simultaneously
+    console.log('[SpaceAudio] Playback listener registered');
+
+    // Track active players for cleanup
     const activePlayers = new Set<AudioPlayer>();
 
     const handleAudioData = async (data: AudioDataPayload) => {
@@ -185,16 +197,37 @@ export function useSpaceAudio({
       let player: AudioPlayer | null = null;
 
       try {
-        // Write base64 chunk to a temp file
-        tempUri = `${FileSystem.cacheDirectory}space_audio_${data.userId}_${data.sequence}.m4a`;
+        console.log(`[SpaceAudio] Received chunk from ${data.userId}, seq=${data.sequence}, size=${data.chunk.length}`);
+
+        // Write base64 chunk to a temp file (Date.now prevents filename collisions)
+        tempUri = `${FileSystem.cacheDirectory}space_audio_${data.userId}_${data.sequence}_${Date.now()}.m4a`;
         await FileSystem.writeAsStringAsync(tempUri, data.chunk, {
           encoding: FileSystem.EncodingType.Base64,
         });
 
-        // Create and play the audio chunk
-        player = createAudioPlayer({ uri: tempUri });
+        // Create player with string URI
+        player = createAudioPlayer(tempUri);
         activePlayers.add(player);
+
+        // Wait for the player to load before playing
+        if (!player.isLoaded) {
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('Player load timeout'));
+            }, 3000);
+
+            const sub = player!.addListener('playbackStatusUpdate', (status: { isLoaded: boolean }) => {
+              if (status.isLoaded) {
+                clearTimeout(timeout);
+                sub.remove();
+                resolve();
+              }
+            });
+          });
+        }
+
         player.play();
+        console.log(`[SpaceAudio] Playing chunk seq=${data.sequence}`);
 
         // Clean up after playback (chunk is ~500ms, 2s timeout for safety)
         const cleanupPlayer = player;
@@ -222,6 +255,7 @@ export function useSpaceAudio({
     const unsubscribe = spaceSocketService.onAudioData(handleAudioData);
 
     return () => {
+      console.log('[SpaceAudio] Playback listener unregistered');
       unsubscribe();
       // Clean up all active players
       for (const p of activePlayers) {

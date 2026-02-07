@@ -261,6 +261,7 @@ export function initializeSpaceSocket(io: Server): Namespace {
         }
 
         // Broadcast to all others in the room (not back to sender)
+        logger.debug(`[audio:data] Relaying chunk from user ${userId} in space ${spaceId}, seq=${sequence}, size=${chunk.length}`);
         socket.to(`space:${spaceId}`).emit('audio:data', {
           userId,
           chunk,
