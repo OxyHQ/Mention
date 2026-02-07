@@ -224,7 +224,7 @@ class TrendingService {
         logger.debug(`[Trending] Invalidated ${keys.length} cache keys`);
       }
     } catch (error) {
-      logger.warn('[Trending] Failed to invalidate cache:', error);
+      // Redis unavailable — cache invalidation skipped silently
     }
   }
 }

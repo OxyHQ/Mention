@@ -34,21 +34,11 @@ function createRedisOptions(): RedisClientOptions {
       host: config.redisHost,
       port: config.redisPort,
       reconnectStrategy: (retries: number) => {
-        // Stop retrying after 10 attempts, but don't throw error
-        // Return false to stop reconnecting gracefully
-        if (retries > 10) {
-          if (!hasLoggedRedisUnavailable && isMainClient) {
-            logger.warn('Redis connection unavailable after 10 retries - app will continue without Redis');
-            hasLoggedRedisUnavailable = true;
-          }
-          return false; // Stop reconnecting, but don't crash
+        if (retries > 3) {
+          hasLoggedRedisUnavailable = true;
+          return false;
         }
-        const delay = Math.min(retries * 50, 2000);
-        // Only log retry attempts from main client to reduce spam
-        if (retries <= 3 && isMainClient && !hasLoggedRedisUnavailable) {
-          logger.debug(`Redis connection retry attempt ${retries}, waiting ${delay}ms`);
-        }
-        return delay;
+        return Math.min(retries * 50, 2000);
       },
       connectTimeout: 10000,
       keepAlive: true,
@@ -106,13 +96,13 @@ export function getRedisClient(): RedisClientType {
   // Mark this as the main client for logging purposes
   isMainClient = true;
 
-  // Debug: Log what config we're using to diagnose connection issues
-  if (isMainClient) {
+  // Log connection config once
+  if (isMainClient && !hasLoggedRedisUnavailable) {
     if (config.redisUrl) {
-      logger.debug(`Redis config: Using URL (length: ${config.redisUrl.length}, starts with: ${config.redisUrl.substring(0, 8)})`);
+      const sanitized = config.redisUrl.replace(/:[^:@]+@/, ':****@');
+      logger.info(`Connecting to Redis: ${sanitized}`);
     } else {
-      logger.debug(`Redis config: Using host/port (${config.redisHost}:${config.redisPort}) - REDIS_URL not set or empty`);
-      logger.debug(`Environment check: REDIS_URL=${process.env.REDIS_URL ? `"${process.env.REDIS_URL.substring(0, 20)}..."` : 'not set'}, REDIS_URI=${process.env.REDIS_URI ? 'set' : 'not set'}`);
+      logger.debug(`Connecting to Redis: ${config.redisHost}:${config.redisPort}`);
     }
   }
 
@@ -123,9 +113,7 @@ export function getRedisClient(): RedisClientType {
     const isTLS = config.redisUrl.startsWith('rediss://');
     const sanitizedUrl = config.redisUrl.replace(/:[^:@]+@/, ':****@');
     
-    if (isMainClient) {
-      logger.info(`Initializing Redis client with URL: ${sanitizedUrl} (TLS: ${isTLS ? 'enabled' : 'disabled'})`);
-    }
+    // Config already logged above
     
     // When using URL, only set socket options that don't conflict (no host/port!)
     const urlOptions: RedisClientOptions = {
@@ -135,18 +123,11 @@ export function getRedisClient(): RedisClientType {
       socket: {
         // Only set reconnect strategy and timeouts - NO host/port!
         reconnectStrategy: (retries: number) => {
-          if (retries > 10) {
-            if (!hasLoggedRedisUnavailable && isMainClient) {
-              logger.warn(`Redis connection unavailable after 10 retries (${sanitizedUrl}) - app will continue without Redis`);
-              hasLoggedRedisUnavailable = true;
-            }
+          if (retries > 3) {
+            hasLoggedRedisUnavailable = true;
             return false;
           }
-          const delay = Math.min(retries * 50, 2000);
-          if (retries <= 3 && isMainClient && !hasLoggedRedisUnavailable) {
-            logger.debug(`Redis connection retry attempt ${retries}, waiting ${delay}ms`);
-          }
-          return delay;
+          return Math.min(retries * 50, 2000);
         },
         connectTimeout: isTLS ? 20000 : 15000, // Longer timeout for TLS connections
         keepAlive: true,
@@ -159,9 +140,6 @@ export function getRedisClient(): RedisClientType {
     (redisClient as any)._createdWithUrl = true;
   } else {
     // No URL provided - use host/port configuration
-    if (isMainClient) {
-      logger.info(`Initializing Redis client with host/port: ${config.redisHost}:${config.redisPort}`);
-    }
     const options = createRedisOptions();
     redisClient = createClient(options) as RedisClientType;
     // Mark that this client was created without URL
@@ -171,140 +149,66 @@ export function getRedisClient(): RedisClientType {
   // Set up event handlers
   if (redisClient) {
     redisClient.on('connect', () => {
-      const config = getRedisConfig();
-      const connectionInfo = config.redisUrl 
-        ? (config.redisUrl.startsWith('rediss://') ? 'TLS' : 'non-TLS')
-        : `Host: ${config.redisHost}, Port: ${config.redisPort}`;
-      logger.debug(`Redis client connecting (${connectionInfo})...`);
+      // Silent — we log on 'ready' instead
     });
 
     redisClient.on('ready', () => {
-      logger.info('Redis client ready and connected');
+      logger.info('Redis connected');
     });
 
     redisClient.on('error', (err: Error) => {
-      // Only log connection errors once from main client to reduce spam
-      // The app can continue without Redis (graceful degradation)
-      const config = getRedisConfig();
-      const connectionInfo = config.redisUrl 
-        ? `URL: ${config.redisUrl.replace(/:[^:@]+@/, ':****@')}`
-        : `Host: ${config.redisHost}, Port: ${config.redisPort}`;
-      
-      // Log detailed error information for debugging
-      const errorDetails = {
-        message: err.message,
-        code: (err as any).code,
-        errno: (err as any).errno,
-        syscall: (err as any).syscall,
-        address: (err as any).address,
-        port: (err as any).port,
-      };
-      
-      if (err.message.includes('ECONNREFUSED') || err.message.includes('ENOTFOUND')) {
+      if (hasLoggedRedisUnavailable) return; // Already logged, stay quiet
+
+      const isConnectionError =
+        err.message.includes('ECONNREFUSED') ||
+        err.message.includes('ENOTFOUND') ||
+        err.message.includes('Socket closed unexpectedly') ||
+        err.message.includes('Connection closed');
+
+      if (isConnectionError) {
         if (!hasLoggedRedisUnavailable && isMainClient) {
-          const isTLS = config.redisUrl?.startsWith('rediss://');
-          const troubleshooting = isTLS 
-            ? ' (Check: 1) Your IP is in trusted sources, 2) VPN/firewall not blocking, 3) TLS enabled)'
-            : '';
-          logger.warn(`Redis connection unavailable (${connectionInfo})${troubleshooting} - app will continue without caching`, errorDetails);
-          hasLoggedRedisUnavailable = true;
-        }
-      } else if (err.message.includes('certificate') || err.message.includes('TLS') || err.message.includes('SSL')) {
-        // Log TLS/SSL errors with more detail for debugging
-        if (!hasLoggedRedisUnavailable && isMainClient) {
-          logger.error('Redis TLS connection error:', {
-            ...errorDetails,
-            stack: err.stack,
-            connectionInfo,
-            url: config.redisUrl ? (config.redisUrl.replace(/:[^:@]+@/, ':****@')) : 'not set'
-          });
+          logger.warn('Redis not available — running without cache');
           hasLoggedRedisUnavailable = true;
         }
       } else if (err.message.includes('NOAUTH') || err.message.includes('AUTH')) {
-        // Authentication errors - likely missing or incorrect password
-        if (!hasLoggedRedisUnavailable && isMainClient) {
-          logger.error(`Redis authentication error (${connectionInfo}): Check username/password in connection string`, errorDetails);
-          hasLoggedRedisUnavailable = true;
-        }
-      } else if (err.message.includes('Socket closed unexpectedly') || err.message.includes('Connection closed')) {
-        // Transient disconnects - client will auto-reconnect, log as warning not error
-        if (isMainClient) {
-          logger.warn(`Redis connection dropped (${connectionInfo}) - will auto-reconnect`, { message: err.message });
-        }
-      } else {
-        // Log other errors with full details for debugging
-        if (isMainClient) {
-          logger.error('Redis client error:', { ...errorDetails, connectionInfo, stack: err.stack });
-        }
+        logger.error('Redis authentication failed — check credentials');
+        hasLoggedRedisUnavailable = true;
+      } else if (err.message.includes('certificate') || err.message.includes('TLS') || err.message.includes('SSL')) {
+        logger.error('Redis TLS error:', err.message);
+        hasLoggedRedisUnavailable = true;
+      } else if (isMainClient) {
+        logger.error('Redis error:', err.message);
       }
     });
 
     redisClient.on('end', () => {
-      logger.warn('Redis client connection ended');
       redisClient = null;
       redisClientPromise = null;
     });
 
     redisClient.on('reconnecting', () => {
-      // Don't log reconnecting - it's too noisy when Redis is unavailable
-      // The reconnect strategy will handle logging
+      // Silent
     });
 
     // Connect the client (non-blocking - app can start without Redis)
     redisClientPromise = redisClient.connect().then(async () => {
-      // Wait for client to be ready, not just connected
-      // Give it up to 2 seconds to become ready
+      // Wait for client to be ready
       for (let i = 0; i < 20; i++) {
         if (redisClient!.isReady) {
-          // Verify with ping to ensure connection is actually working
           try {
             await redisClient!.ping();
-            hasLoggedRedisUnavailable = false; // Reset flag on successful connection
-            isMainClient = true; // Reset flag
-            const config = getRedisConfig();
-            const sanitizedUrl = config.redisUrl?.replace(/:[^:@]+@/, ':****@') || 'local';
-            logger.info(`Redis client ready and verified with ping (${sanitizedUrl})`);
+            hasLoggedRedisUnavailable = false;
             return redisClient!;
-          } catch (pingError: any) {
-            // Ping failed - connection not actually working
-            if (isMainClient) {
-              logger.warn('Redis client connected but ping failed:', pingError.message);
-            }
+          } catch {
             break;
           }
         }
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-      // If still not ready after 2 seconds, log a warning but continue
-      if (isMainClient && !hasLoggedRedisUnavailable) {
-        const config = getRedisConfig();
-        const connectionInfo = config.redisUrl 
-          ? `URL: ${config.redisUrl.replace(/:[^:@]+@/, ':****@')}`
-          : `Host: ${config.redisHost}, Port: ${config.redisPort}`;
-        logger.warn(`Redis client connected but not ready after 2s (${connectionInfo}) - may not be fully functional`);
-      }
       return redisClient!;
-    }).catch((error: any) => {
-      // Log connection errors with details for debugging
-      if (isMainClient) {
-        const config = getRedisConfig();
-        const connectionInfo = config.redisUrl 
-          ? `URL: ${config.redisUrl.replace(/:[^:@]+@/, ':****@')}`
-          : `Host: ${config.redisHost}, Port: ${config.redisPort}`;
-        logger.debug(`Redis connect() failed (${connectionInfo}):`, {
-          message: error.message,
-          code: error.code,
-          errno: error.errno,
-          syscall: error.syscall,
-        });
-      }
-      // Don't crash the app if Redis is unavailable
-      // The app will gracefully degrade without Redis
-      // Error logging is handled by the error event handler and reconnect strategy
-      // Keep the client reference but mark promise as failed
-      // This allows the app to continue and Redis operations will gracefully degrade
+    }).catch(() => {
+      // Connection failed — error handler already logged it
       redisClientPromise = null;
-      // Don't throw - allow app to start without Redis
       return redisClient!;
     });
   }
@@ -331,12 +235,7 @@ export async function isRedisConnected(): Promise<boolean> {
     // Perform actual ping to verify connection is working
     await client.ping();
     return true;
-  } catch (error) {
-    const config = getRedisConfig();
-    const connectionInfo = config.redisUrl 
-      ? `URL: ${config.redisUrl.replace(/:[^:@]+@/, ':****@')}`
-      : `Host: ${config.redisHost}, Port: ${config.redisPort}`;
-    logger.debug(`Redis health check failed (${connectionInfo}):`, error);
+  } catch {
     return false;
   }
 }
@@ -444,11 +343,8 @@ export async function closeRedisConnection(): Promise<void> {
 export function createRedisPubSub(): { publisher: RedisClientType; subscriber: RedisClientType } {
   const config = getRedisConfig();
   
-  // Silent reconnect strategy for pub/sub clients
   const reconnectStrategy = (retries: number) => {
-    if (retries > 10) {
-      return false; // Stop reconnecting silently
-    }
+    if (retries > 3) return false;
     return Math.min(retries * 50, 2000);
   };
 
@@ -480,50 +376,10 @@ export function createRedisPubSub(): { publisher: RedisClientType; subscriber: R
       }) as RedisClientType;
     }
     
-    // Set up error handlers - gracefully handle connection issues
-    let lastConnectionErrorTime = 0;
-    const CONNECTION_ERROR_THROTTLE_MS = 10000; // Throttle connection error logs to once per 10 seconds
-    
-    client.on('error', (err: Error) => {
-      const errorMessage = err.message || '';
-      const errorName = err.name || '';
-      const now = Date.now();
-      
-      // Don't log expected connection errors (already handled by main client)
-      // These are normal during reconnection and should not spam logs
-      const isConnectionError = 
-        errorMessage.includes('ECONNREFUSED') ||
-        errorMessage.includes('ENOTFOUND') ||
-        errorMessage.includes('Socket closed unexpectedly') ||
-        errorMessage.includes('SocketClosedUnexpectedlyError') ||
-        errorName.includes('SocketClosed') ||
-        errorName === 'SocketClosedUnexpectedlyError' ||
-        errorMessage.includes('Connection closed') ||
-        errorMessage.includes('Connection lost') ||
-        errorMessage.includes('The socket closed unexpectedly');
-      
-      // Only log unexpected errors (not connection-related)
-      if (!isConnectionError) {
-        logger.error('Redis pub/sub error:', err);
-      } else {
-        // Throttle connection error logging (only log once per 10 seconds per client)
-        if (now - lastConnectionErrorTime > CONNECTION_ERROR_THROTTLE_MS) {
-          logger.debug(`Redis pub/sub connection issue (reconnecting automatically): ${errorName || errorMessage}`);
-          lastConnectionErrorTime = now;
-        }
-        // Don't log as error - this is expected during reconnection, Redis client will auto-reconnect
-      }
-    });
-    
-    // Handle reconnection events gracefully
-    client.on('reconnecting', () => {
-      // Don't log - too noisy during normal reconnection
-    });
-    
-    // Handle connection end gracefully
-    client.on('end', () => {
-      logger.debug('Redis pub/sub connection ended (will reconnect if needed)');
-    });
+    // Suppress all connection errors — main client already handles logging
+    client.on('error', () => {});
+    client.on('reconnecting', () => {});
+    client.on('end', () => {});
     
     return client;
   };
