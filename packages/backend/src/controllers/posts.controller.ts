@@ -758,7 +758,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         const io = (global as any).io;
         if (io) {
           io.emit('feed:updated', {
-            type: 'for-you',
+            type: 'for_you',
             post: transformedPost,
             timestamp: new Date().toISOString()
           });
@@ -1009,7 +1009,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // Emit the first post (main post) to feeds
         const mainPost = createdPosts[0];
         io.emit('feed:updated', {
-          type: 'for-you',
+          type: 'for_you',
           post: mainPost,
           timestamp: new Date().toISOString()
         });
