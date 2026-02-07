@@ -33,6 +33,7 @@ class SpacesService {
   }
 
   async getSpace(id: string): Promise<Space | null> {
+    if (!id) return null;
     try {
       const res = await authenticatedClient.get(`/spaces/${id}`);
       return res.data.data || res.data || null;
@@ -53,6 +54,7 @@ class SpacesService {
   }
 
   async startSpace(id: string): Promise<boolean> {
+    if (!id) return false;
     try {
       await authenticatedClient.post(`/spaces/${id}/start`);
       return true;
@@ -63,6 +65,7 @@ class SpacesService {
   }
 
   async endSpace(id: string): Promise<boolean> {
+    if (!id) return false;
     try {
       await authenticatedClient.post(`/spaces/${id}/end`);
       return true;
@@ -73,6 +76,7 @@ class SpacesService {
   }
 
   async joinSpace(id: string): Promise<boolean> {
+    if (!id) return false;
     try {
       await authenticatedClient.post(`/spaces/${id}/join`);
       return true;
@@ -83,6 +87,7 @@ class SpacesService {
   }
 
   async leaveSpace(id: string): Promise<boolean> {
+    if (!id) return false;
     try {
       await authenticatedClient.post(`/spaces/${id}/leave`);
       return true;
