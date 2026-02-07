@@ -113,6 +113,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    maxWidth: 500,
+    margin: 'auto',
     zIndex: 1000,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
