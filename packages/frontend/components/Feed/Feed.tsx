@@ -13,7 +13,7 @@ import PostItem from './PostItem';
 type FeedItem = UIPost | Reply | Repost;
 import ErrorBoundary from '../ErrorBoundary';
 import { PostErrorBoundary } from './PostErrorBoundary';
-import { LoadingTopSpinner } from '@/components/ui/Loading';
+import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
@@ -352,9 +352,11 @@ const Feed = memo((props: FeedProps) => {
                 style={containerStyle}
                 {...(Platform.OS === 'web' && dataSetForWeb ? { 'data-layoutscroll': 'true' } : {})}
             >
-                <LoadingTopSpinner
-                    showLoading={feedState.isLoading && !refreshing && !isLoadingMore && finalRenderItems.length === 0}
-                />
+                {feedState.isLoading && !refreshing && !isLoadingMore && finalRenderItems.length === 0 ? (
+                    <View style={styles.initialLoadingContainer}>
+                        <LoadingIcon size={44} color={theme.colors.primary} />
+                    </View>
+                ) : null}
                 <FlashList
                     ref={assignListRef}
                     data={finalRenderItems}
@@ -427,6 +429,12 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         minHeight: 0,
+    },
+    initialLoadingContainer: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1,
     },
     list: {
         flex: 1,

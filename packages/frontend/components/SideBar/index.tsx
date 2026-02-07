@@ -362,6 +362,7 @@ const styles = StyleSheet.create({
         paddingRight: 0,
     },
     addPropertyButton: {
+        flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 100,
