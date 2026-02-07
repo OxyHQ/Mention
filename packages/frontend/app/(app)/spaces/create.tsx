@@ -49,7 +49,7 @@ const CreateSpaceScreen = () => {
         // Start the space immediately
         const started = await spacesService.startSpace(space._id);
         if (started) {
-          router.replace(`/spaces/${space._id}`);
+          router.replace(`/spaces/live/${space._id}`);
         } else {
           Alert.alert('Success', 'Space created but failed to start', [
             { text: 'OK', onPress: () => router.replace(`/spaces/${space._id}`) },

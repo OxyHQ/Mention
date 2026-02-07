@@ -152,15 +152,11 @@ export function useSpaceAudio({
         const player = createAudioPlayer({ uri: tempUri });
         player.play();
 
-        // Clean up after playback finishes
-        player.addListener('playbackStatusUpdate', (status) => {
-          if (status.didJustFinish) {
-            player.remove();
-            FileSystem.deleteAsync(tempUri, { idempotent: true }).catch(
-              () => {}
-            );
-          }
-        });
+        // Clean up after playback (chunks are ~500ms, generous timeout for safety)
+        setTimeout(() => {
+          try { player.remove(); } catch {}
+          FileSystem.deleteAsync(tempUri, { idempotent: true }).catch(() => {});
+        }, 1500);
       } catch (err) {
         console.warn('Audio playback error:', err);
       }

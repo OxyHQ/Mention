@@ -188,7 +188,7 @@ const SpacesScreen = () => {
                     <SpaceCard
                       key={space._id}
                       space={space}
-                      onPress={() => router.push(`/spaces/${space._id}`)}
+                      onPress={() => router.push(`/spaces/live/${space._id}`)}
                     />
                   ))}
                 </View>

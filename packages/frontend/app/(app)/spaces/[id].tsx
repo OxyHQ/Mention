@@ -21,10 +21,12 @@ import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';
 import { spacesService, type Space } from '@/services/spacesService';
+import { useAuth } from '@oxyhq/services';
 
 const SpaceDetailScreen = () => {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
   const [space, setSpace] = useState<Space | null>(null);
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
@@ -36,8 +38,9 @@ const SpaceDetailScreen = () => {
       setLoading(true);
       const data = await spacesService.getSpace(id);
       setSpace(data);
-      // You would check if current user is in participants array
-      // setIsJoined(data?.participants.includes(currentUserId));
+      if (data && user?.id) {
+        setIsJoined(data.participants?.includes(user.id) ?? false);
+      }
     } catch (error) {
       console.warn('Failed to load space', error);
     } finally {
@@ -54,7 +57,7 @@ const SpaceDetailScreen = () => {
     setActionLoading(true);
     const success = await spacesService.startSpace(id);
     if (success) {
-      loadSpace();
+      router.replace(`/spaces/live/${id}`);
     } else {
       Alert.alert('Error', 'Failed to start space');
     }
@@ -88,15 +91,7 @@ const SpaceDetailScreen = () => {
 
   const handleJoinSpace = async () => {
     if (!id || !space) return;
-    setActionLoading(true);
-    const success = await spacesService.joinSpace(id);
-    if (success) {
-      setIsJoined(true);
-      loadSpace();
-    } else {
-      Alert.alert('Error', 'Failed to join space');
-    }
-    setActionLoading(false);
+    router.push(`/spaces/live/${id}`);
   };
 
   const handleLeaveSpace = async () => {
@@ -135,8 +130,7 @@ const SpaceDetailScreen = () => {
   const isLive = space.status === 'live';
   const isScheduled = space.status === 'scheduled';
   const isEnded = space.status === 'ended';
-  // In a real app, you would check if current user is the host
-  const isHost = false;
+  const isHost = space.host === user?.id;
 
   return (
     <>
@@ -274,66 +268,47 @@ const SpaceDetailScreen = () => {
 
         {/* Action Buttons */}
         <View style={[styles.actionBar, { backgroundColor: theme.colors.background, borderTopColor: theme.colors.border }]}>
-          {isHost ? (
-            <>
-              {isScheduled && (
-                <TouchableOpacity
-                  style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-                  onPress={handleStartSpace}
-                  disabled={actionLoading}
-                >
-                  <Ionicons name="play" size={20} color={theme.colors.card} />
-                  <Text style={[styles.primaryButtonText, { color: theme.colors.card }]}>
-                    Start Space
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {isLive && (
-                <TouchableOpacity
-                  style={[styles.dangerButton, { backgroundColor: '#FF4458' }]}
-                  onPress={handleEndSpace}
-                  disabled={actionLoading}
-                >
-                  <Ionicons name="stop" size={20} color="#FFFFFF" />
-                  <Text style={styles.dangerButtonText}>End Space</Text>
-                </TouchableOpacity>
-              )}
-            </>
-          ) : (
-            <>
-              {isLive && !isJoined && (
-                <TouchableOpacity
-                  style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-                  onPress={handleJoinSpace}
-                  disabled={actionLoading}
-                >
-                  <Ionicons name="enter-outline" size={20} color={theme.colors.card} />
-                  <Text style={[styles.primaryButtonText, { color: theme.colors.card }]}>
-                    Join Space
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {isLive && isJoined && (
-                <TouchableOpacity
-                  style={[styles.secondaryButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
-                  onPress={handleLeaveSpace}
-                  disabled={actionLoading}
-                >
-                  <Ionicons name="exit-outline" size={20} color={theme.colors.text} />
-                  <Text style={[styles.secondaryButtonText, { color: theme.colors.text }]}>
-                    Leave Space
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {isScheduled && (
-                <View style={[styles.infoButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                  <Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} />
-                  <Text style={[styles.infoButtonText, { color: theme.colors.textSecondary }]}>
-                    Space not started yet
-                  </Text>
-                </View>
-              )}
-            </>
+          {isLive && (
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => router.push(`/spaces/live/${id}`)}
+              disabled={actionLoading}
+            >
+              <Ionicons name="radio" size={20} color={theme.colors.card} />
+              <Text style={[styles.primaryButtonText, { color: theme.colors.card }]}>
+                Join Live
+              </Text>
+            </TouchableOpacity>
+          )}
+          {isHost && isScheduled && (
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
+              onPress={handleStartSpace}
+              disabled={actionLoading}
+            >
+              <Ionicons name="play" size={20} color={theme.colors.card} />
+              <Text style={[styles.primaryButtonText, { color: theme.colors.card }]}>
+                Start Space
+              </Text>
+            </TouchableOpacity>
+          )}
+          {!isHost && isScheduled && (
+            <View style={[styles.infoButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} />
+              <Text style={[styles.infoButtonText, { color: theme.colors.textSecondary }]}>
+                Space not started yet
+              </Text>
+            </View>
+          )}
+          {isHost && isLive && (
+            <TouchableOpacity
+              style={[styles.dangerButton, { backgroundColor: '#FF4458' }]}
+              onPress={handleEndSpace}
+              disabled={actionLoading}
+            >
+              <Ionicons name="stop" size={20} color="#FFFFFF" />
+              <Text style={styles.dangerButtonText}>End Space</Text>
+            </TouchableOpacity>
           )}
         </View>
       </SafeAreaView>

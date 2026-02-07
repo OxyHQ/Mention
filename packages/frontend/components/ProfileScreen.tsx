@@ -371,6 +371,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             {profileData && (
                                 <ProfileContent
                                     profileData={profileData}
+                                    avatarUri={avatarUri}
                                     isOwnProfile={isOwnProfile}
                                     isPrivate={isPrivate}
                                     currentUsername={currentUser?.username}

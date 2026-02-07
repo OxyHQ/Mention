@@ -20,6 +20,7 @@ import type { ProfileContentProps } from './types';
  */
 export const ProfileContent = memo(function ProfileContent({
   profileData,
+  avatarUri,
   isOwnProfile,
   isPrivate,
   currentUsername,
@@ -58,7 +59,7 @@ export const ProfileContent = memo(function ProfileContent({
         <ProfileHeaderMinimalist
           displayName={design?.displayName || ''}
           username={profileData.username}
-          avatarUri={design?.avatar}
+          avatarUri={avatarUri}
           verified={profileData.verified}
           isPrivate={isPrivate}
           privacySettings={profileData.privacy}
@@ -69,7 +70,7 @@ export const ProfileContent = memo(function ProfileContent({
         <ProfileHeaderDefault
           displayName={design?.displayName || ''}
           username={profileData.username}
-          avatarUri={design?.avatar}
+          avatarUri={avatarUri}
           verified={profileData.verified}
           isOwnProfile={isOwnProfile}
           currentUsername={currentUsername}
