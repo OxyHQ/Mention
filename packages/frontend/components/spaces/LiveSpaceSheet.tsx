@@ -191,7 +191,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   } = useSpaceConnection({ spaceId, enabled: !!spaceId });
 
   // Audio — LiveKit handles WebRTC audio transport
-  const { isLiveKitConnected } = useSpaceAudio({
+  const { isLiveKitConnected, micPermissionDenied } = useSpaceAudio({
     spaceId,
     isSpeaker: myRole === 'speaker' || myRole === 'host',
     isMuted,
@@ -296,6 +296,16 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
           </Text>
         )}
       </View>
+
+      {/* Mic permission banner */}
+      {micPermissionDenied && canSpeak && (
+        <View style={[styles.micBanner, { backgroundColor: '#FFF3CD', borderColor: '#FFE69C' }]}>
+          <Ionicons name="mic-off" size={18} color="#856404" />
+          <Text style={styles.micBannerText}>
+            Microphone access denied. Allow mic permission in your browser settings to speak.
+          </Text>
+        </View>
+      )}
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
         {/* Speakers Grid */}
@@ -492,6 +502,23 @@ const styles = StyleSheet.create({
   spaceTopic: {
     fontSize: 14,
     marginTop: 4,
+  },
+  micBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  micBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#856404',
   },
   scrollContent: {
     paddingBottom: 120,

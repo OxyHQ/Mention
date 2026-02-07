@@ -21,6 +21,7 @@ interface UseSpaceAudioOptions {
 interface UseSpaceAudioReturn {
   isLiveKitConnected: boolean;
   localAudioEnabled: boolean;
+  micPermissionDenied: boolean;
 }
 
 export function useSpaceAudio({
@@ -31,6 +32,7 @@ export function useSpaceAudio({
 }: UseSpaceAudioOptions): UseSpaceAudioReturn {
   const [isLiveKitConnected, setIsLiveKitConnected] = useState(false);
   const [localAudioEnabled, setLocalAudioEnabled] = useState(false);
+  const [micPermissionDenied, setMicPermissionDenied] = useState(false);
   const roomRef = useRef<Room | null>(null);
   // Track attached <audio> elements on web for cleanup (no-op on native)
   const audioElementsRef = useRef<Map<string, HTMLMediaElement>>(new Map());
@@ -140,15 +142,20 @@ export function useSpaceAudio({
       .setMicrophoneEnabled(shouldPublish)
       .then(() => {
         setLocalAudioEnabled(shouldPublish);
+        setMicPermissionDenied(false);
         console.log(`[SpaceAudio] Mic ${shouldPublish ? 'enabled' : 'disabled'}`);
       })
       .catch((err) => {
         console.warn('[SpaceAudio] Failed to toggle mic:', err);
+        if (err instanceof Error && err.name === 'NotAllowedError') {
+          setMicPermissionDenied(true);
+        }
       });
   }, [isSpeaker, isMuted, isLiveKitConnected]);
 
   return {
     isLiveKitConnected,
     localAudioEnabled,
+    micPermissionDenied,
   };
 }
