@@ -17,6 +17,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
+import { LiveSpaceProvider } from '@/context/LiveSpaceContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { Toaster } from '@/lib/sonner';
@@ -55,9 +56,10 @@ export const AppProviders = memo(function AppProviders({
             <I18nextProvider i18n={i18n}>
               <BottomSheetModalProvider>
                 <BottomSheetProvider>
-                  <MenuProvider>
-                    <ErrorBoundary>
-                      <LayoutScrollProvider>
+                  <LiveSpaceProvider>
+                    <MenuProvider>
+                      <ErrorBoundary>
+                        <LayoutScrollProvider>
                         <HomeRefreshProvider>
                           {children}
                           <StatusBar style="auto" />
@@ -67,9 +69,10 @@ export const AppProviders = memo(function AppProviders({
                             offset={15}
                           />
                         </HomeRefreshProvider>
-                      </LayoutScrollProvider>
-                    </ErrorBoundary>
-                  </MenuProvider>
+                        </LayoutScrollProvider>
+                      </ErrorBoundary>
+                    </MenuProvider>
+                  </LiveSpaceProvider>
                 </BottomSheetProvider>
               </BottomSheetModalProvider>
             </I18nextProvider>

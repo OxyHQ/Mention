@@ -220,10 +220,7 @@ export default function ConnectionsScreen() {
       item?.displayName ||
       usernameValue;
 
-    const avatarSource =
-      typeof item?.avatar === 'string'
-        ? oxyServices.getFileDownloadUrl?.(item.avatar, 'thumb') ?? item.avatar
-        : (item as any)?.avatar?.url || (item as any)?.avatar || (item as any)?.profilePicture;
+    const avatarSource = item?.avatar ?? (item as any)?.profilePicture;
 
     const bio = item?.profile?.bio || item?.bio;
 

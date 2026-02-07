@@ -5,11 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { toast } from 'sonner';
 
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
@@ -22,6 +22,7 @@ import SEO from '@/components/SEO';
 import { useTheme } from '@/hooks/useTheme';
 import { useSpaceUsers, getDisplayName, getAvatarUrl } from '@/hooks/useSpaceUsers';
 import { useUserById } from '@/stores/usersStore';
+import { useLiveSpace } from '@/context/LiveSpaceContext';
 import { spacesService, type Space } from '@/services/spacesService';
 import { useAuth } from '@oxyhq/services';
 
@@ -58,6 +59,7 @@ const SpaceDetailScreen = () => {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, oxyServices } = useAuth();
+  const { joinLiveSpace } = useLiveSpace();
   const [space, setSpace] = useState<Space | null>(null);
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
@@ -88,9 +90,9 @@ const SpaceDetailScreen = () => {
     setActionLoading(true);
     const success = await spacesService.startSpace(id);
     if (success) {
-      router.replace(`/spaces/live/${id}`);
+      joinLiveSpace(id);
     } else {
-      Alert.alert('Error', 'Failed to start space');
+      toast.error('Failed to start space');
     }
     setActionLoading(false);
   };
@@ -102,14 +104,14 @@ const SpaceDetailScreen = () => {
     if (success) {
       router.back();
     } else {
-      Alert.alert('Error', 'Failed to end space');
+      toast.error('Failed to end space');
     }
     setActionLoading(false);
   };
 
   const handleJoinSpace = async () => {
     if (!id || !space) return;
-    router.push(`/spaces/live/${id}`);
+    joinLiveSpace(id);
   };
 
   const handleLeaveSpace = async () => {
@@ -120,7 +122,7 @@ const SpaceDetailScreen = () => {
       setIsJoined(false);
       loadSpace();
     } else {
-      Alert.alert('Error', 'Failed to leave space');
+      toast.error('Failed to leave space');
     }
     setActionLoading(false);
   };
@@ -289,7 +291,7 @@ const SpaceDetailScreen = () => {
           {isLive && (
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-              onPress={() => router.push(`/spaces/live/${id}`)}
+              onPress={() => joinLiveSpace(id)}
               disabled={actionLoading}
             >
               <Ionicons name="radio" size={20} color={theme.colors.card} />

@@ -8,13 +8,12 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { toast } from 'sonner';
 
-import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -22,10 +21,12 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useLiveSpace } from '@/context/LiveSpaceContext';
 import { spacesService } from '@/services/spacesService';
 
 const CreateSpaceScreen = () => {
   const theme = useTheme();
+  const { joinLiveSpace } = useLiveSpace();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [topic, setTopic] = useState('');
@@ -49,18 +50,18 @@ const CreateSpaceScreen = () => {
         // Start the space immediately
         const started = await spacesService.startSpace(space._id);
         if (started) {
-          router.replace(`/spaces/live/${space._id}`);
+          router.replace('/spaces');
+          joinLiveSpace(space._id);
         } else {
-          Alert.alert('Success', 'Space created but failed to start', [
-            { text: 'OK', onPress: () => router.replace(`/spaces/${space._id}`) },
-          ]);
+          toast.error('Space created but failed to start');
+          router.replace(`/spaces/${space._id}`);
         }
       } else {
-        Alert.alert('Error', 'Failed to create space');
+        toast.error('Failed to create space');
       }
     } catch (error) {
       console.error('Error creating space:', error);
-      Alert.alert('Error', 'Failed to create space');
+      toast.error('Failed to create space');
     } finally {
       setLoading(false);
     }
@@ -70,7 +71,7 @@ const CreateSpaceScreen = () => {
     if (!isValid || loading) return;
 
     if (!scheduledStart.trim()) {
-      Alert.alert('Schedule Required', 'Please enter a scheduled start time');
+      toast.error('Please enter a scheduled start time');
       return;
     }
 
@@ -86,11 +87,11 @@ const CreateSpaceScreen = () => {
       if (space) {
         router.replace(`/spaces/${space._id}`);
       } else {
-        Alert.alert('Error', 'Failed to create space');
+        toast.error('Failed to create space');
       }
     } catch (error) {
       console.error('Error creating space:', error);
-      Alert.alert('Error', 'Failed to create space');
+      toast.error('Failed to create space');
     } finally {
       setLoading(false);
     }

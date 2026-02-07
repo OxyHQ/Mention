@@ -441,10 +441,7 @@ export default function RestrictedUsersScreen() {
     }, []);
 
     const getAvatarUri = useCallback((user: RestrictedUser) => {
-        if (user.avatar) {
-            return oxyServices.getFileDownloadUrl(user.avatar, 'thumb');
-        }
-        return undefined;
+        return user.avatar;
     }, []);
 
     return (
@@ -514,7 +511,7 @@ export default function RestrictedUsersScreen() {
                                         disabled={isRestricting}
                                     >
                                         <Avatar
-                                            source={avatarUri ? { uri: avatarUri } : undefined}
+                                            source={avatarUri}
                                             size={40}
                                             label={displayName?.[0] || handle?.[0]}
                                         />
@@ -576,7 +573,7 @@ export default function RestrictedUsersScreen() {
                                     <View key={userId}>
                                         <View style={styles.restrictedUserItem}>
                                             <Avatar
-                                                source={avatarUri ? { uri: avatarUri } : undefined}
+                                                source={avatarUri}
                                                 size={48}
                                                 label={displayName?.[0] || handle?.[0]}
                                             />

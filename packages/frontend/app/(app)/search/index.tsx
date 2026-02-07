@@ -26,7 +26,6 @@ import { ProfileCard, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard as ListCardComponent, type ListCardData } from "@/components/ListCard";
 import { Divider } from "@/components/Divider";
-import { useAuth } from "@oxyhq/services";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SPACING } from "@/styles/spacing";
 import { FONT_SIZES } from "@/styles/typography";
@@ -56,7 +55,6 @@ export default function SearchIndex() {
     const theme = useTheme();
     const params = useLocalSearchParams();
     const urlQuery = (params.q as string) || "";
-    const { oxyServices } = useAuth();
 
     const [query, setQuery] = useState(urlQuery);
     const [activeTab, setActiveTab] = useState<SearchTab>("all");
@@ -205,9 +203,7 @@ export default function SearchIndex() {
         }
 
         const username = user.username || user.handle || '';
-        const avatarUri = user?.avatar && oxyServices?.getFileDownloadUrl
-            ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb')
-            : undefined;
+        const avatarUri = user?.avatar;
 
         const profileData: ProfileCardData = {
             id: String(user.id || user.username || ''),
@@ -227,7 +223,7 @@ export default function SearchIndex() {
                 />
             </View>
         );
-    }, [oxyServices]);
+    }, []);
 
     const renderFeedItem = useCallback((feed: any) => {
         const feedData: FeedCardData = {

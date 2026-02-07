@@ -128,7 +128,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                             }}
                         >
                             <Avatar
-                                source={item.avatar ? { uri: oxyServices.getFileDownloadUrl(item.avatar, 'thumb') } : undefined}
+                                source={item.avatar}
                                 size={40}
                             />
                             <View style={styles.userInfo}>

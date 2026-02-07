@@ -358,10 +358,7 @@ export default function BlockedUsersScreen() {
     };
 
     const getAvatarUri = (user: BlockedUser) => {
-        if (user.avatar) {
-            return oxyServices.getFileDownloadUrl(user.avatar, 'thumb');
-        }
-        return undefined;
+        return user.avatar;
     };
 
     return (
@@ -423,7 +420,7 @@ export default function BlockedUsersScreen() {
                                         disabled={isBlocking}
                                     >
                                         <Avatar
-                                            source={avatarUri ? { uri: avatarUri } : undefined}
+                                            source={avatarUri}
                                             size={40}
                                             label={displayName?.[0] || handle?.[0]}
                                         />
@@ -485,7 +482,7 @@ export default function BlockedUsersScreen() {
                                     <View key={userId}>
                                         <View style={styles.blockedUserItem}>
                                             <Avatar
-                                                source={avatarUri ? { uri: avatarUri } : undefined}
+                                                source={avatarUri}
                                                 size={48}
                                                 label={displayName?.[0] || handle?.[0]}
                                             />

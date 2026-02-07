@@ -22,6 +22,7 @@ import SEO from '@/components/SEO';
 import { useTheme } from '@/hooks/useTheme';
 import { useSpaceUsers, getAvatarUrl } from '@/hooks/useSpaceUsers';
 import { useUserById } from '@/stores/usersStore';
+import { useLiveSpace } from '@/context/LiveSpaceContext';
 import { spacesService, type Space } from '@/services/spacesService';
 import { useAuth } from '@oxyhq/services';
 
@@ -104,6 +105,7 @@ const SpaceCard = ({ space, onPress, oxyServices }: { space: Space; onPress: () 
 const SpacesScreen = () => {
   const theme = useTheme();
   const { oxyServices } = useAuth();
+  const { joinLiveSpace } = useLiveSpace();
   const [liveSpaces, setLiveSpaces] = useState<Space[]>([]);
   const [scheduledSpaces, setScheduledSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(false);
@@ -208,7 +210,7 @@ const SpacesScreen = () => {
                       key={space._id}
                       space={space}
                       oxyServices={oxyServices}
-                      onPress={() => router.push(`/spaces/live/${space._id}`)}
+                      onPress={() => joinLiveSpace(space._id)}
                     />
                   ))}
                 </View>

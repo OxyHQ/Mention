@@ -12,7 +12,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileData } from '@/hooks/useProfileData';
-import { useAuth } from '@oxyhq/services';
 
 export default function AccountInfoScreen() {
   const insets = useSafeAreaInsets();
@@ -20,25 +19,10 @@ export default function AccountInfoScreen() {
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const { t } = useTranslation();
   const theme = useTheme();
-  const { oxyServices } = useAuth();
-  
   // Use unified profile data hook - automatically fetches profile and appearance settings
   const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
 
-  // Get avatar URL using oxyServices to properly resolve file URLs
-  // Similar to ProfileScreen, use design.avatar first, then fall back to profileData.avatar
-  const avatarSource = useMemo(() => {
-    const avatarPath = profileData?.design?.avatar || profileData?.avatar;
-    if (!avatarPath) return undefined;
-    
-    if (typeof avatarPath === 'string') {
-      // Use oxyServices to get the proper download URL for avatar files
-      return oxyServices?.getFileDownloadUrl?.(avatarPath, 'thumb') ?? avatarPath;
-    }
-    
-    // Handle object-based avatar
-    return (avatarPath as any)?.url || (avatarPath as any);
-  }, [profileData?.design?.avatar, profileData?.avatar, oxyServices]);
+  const avatarSource = profileData?.design?.avatar || profileData?.avatar;
 
   // Format join date
   const joinDate = useMemo(() => {

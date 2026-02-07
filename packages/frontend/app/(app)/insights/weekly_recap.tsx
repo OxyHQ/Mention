@@ -37,7 +37,7 @@ const WeeklyRecapScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
-    const { user, oxyServices } = useAuth();
+    const { user } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<WeeklyRecapData | null>(null);
@@ -272,7 +272,7 @@ const WeeklyRecapScreen: React.FC = () => {
 
     const currentWeekDates = getWeekDates(0);
     const dateRange = formatDateRange(currentWeekDates.start, currentWeekDates.end);
-    const avatarUri = user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined;
+    const avatarUri = user?.avatar;
 
     const statCards = [
         {

@@ -1217,7 +1217,7 @@ const ComposeScreen = () => {
                     <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                       <TouchableOpacity activeOpacity={0.7}>
                         <Avatar
-                          source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
+                          source={user?.avatar}
                           size={40}
                           verified={Boolean(user?.verified)}
                           style={{ marginRight: 12 }}
@@ -1451,7 +1451,7 @@ const ComposeScreen = () => {
                 <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                   <TouchableOpacity activeOpacity={0.7}>
                     <Avatar
-                      source={user?.avatar ? { uri: oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') } : undefined}
+                      source={user?.avatar}
                       size={40}
                       verified={Boolean(user?.verified)}
                       style={{ marginRight: 12 }}

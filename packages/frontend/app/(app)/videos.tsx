@@ -186,12 +186,7 @@ const VideoItem = memo<VideoItemProps>(({
         return () => clearTimeout(timeoutId);
     }, [isVisible, player, item.videoUrl, globalMuted]);
 
-    // Memoized avatar source
-    const avatarSource = useMemo(() => {
-        return item.user?.avatar && oxyServices?.getFileDownloadUrl
-            ? oxyServices.getFileDownloadUrl(item.user.avatar)
-            : undefined;
-    }, [item.user?.avatar, oxyServices]);
+    const avatarSource = item.user?.avatar;
 
     // Memoized user name
     const userName = useMemo(() => item.user?.name || '', [item.user?.name]);
