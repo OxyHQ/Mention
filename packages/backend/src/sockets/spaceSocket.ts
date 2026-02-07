@@ -231,19 +231,34 @@ export function initializeSpaceSocket(io: Server): Namespace {
     socket.on('audio:data', (data: { spaceId: string; chunk: string; sequence: number }) => {
       try {
         const { spaceId, chunk, sequence } = data || {};
-        if (!spaceId || !chunk) return;
+        if (!spaceId || !chunk) {
+          logger.debug(`[audio:data] Rejected: missing spaceId or chunk from user ${userId}`);
+          return;
+        }
 
         const room = activeRooms.get(spaceId);
-        if (!room) return;
+        if (!room) {
+          logger.debug(`[audio:data] Rejected: no active room for space ${spaceId}`);
+          return;
+        }
 
         const participant = room.participants.get(userId);
-        if (!participant) return;
+        if (!participant) {
+          logger.debug(`[audio:data] Rejected: user ${userId} not in room ${spaceId}`);
+          return;
+        }
 
         // Only speakers and hosts can send audio
-        if (participant.role === 'listener') return;
+        if (participant.role === 'listener') {
+          logger.debug(`[audio:data] Rejected: user ${userId} is a listener`);
+          return;
+        }
 
         // Don't relay if muted
-        if (participant.isMuted) return;
+        if (participant.isMuted) {
+          logger.debug(`[audio:data] Rejected: user ${userId} is muted`);
+          return;
+        }
 
         // Broadcast to all others in the room (not back to sender)
         socket.to(`space:${spaceId}`).emit('audio:data', {
@@ -272,6 +287,7 @@ export function initializeSpaceSocket(io: Server): Namespace {
         if (!participant) return;
 
         participant.isMuted = isMuted;
+        logger.debug(`[audio:mute] User ${userId} ${isMuted ? 'muted' : 'unmuted'} in space ${spaceId} (role: ${participant.role})`);
 
         // Broadcast mute state change
         spacesNamespace.to(`space:${spaceId}`).emit('space:participant:mute', {

@@ -6,6 +6,7 @@ import {
   setAudioModeAsync,
   createAudioPlayer,
 } from 'expo-audio';
+import type { AudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 import {
   spaceSocketService,
@@ -13,6 +14,7 @@ import {
 } from '@/services/spaceSocketService';
 
 const CHUNK_DURATION_MS = 500;
+const INTER_CHUNK_DELAY_MS = 50; // Brief pause between stop and next prepare
 
 interface UseSpaceAudioOptions {
   spaceId: string;
@@ -39,6 +41,14 @@ export function useSpaceAudio({
   const isActiveRef = useRef(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
+  // Use refs to avoid stale closures in the recording loop
+  const spaceIdRef = useRef(spaceId);
+  spaceIdRef.current = spaceId;
+
+  // Store recorder in ref so the loop always uses the current instance
+  const recorderRef = useRef(recorder);
+  recorderRef.current = recorder;
+
   // Request microphone permission
   const requestPermission = useCallback(async (): Promise<boolean> => {
     try {
@@ -46,7 +56,7 @@ export function useSpaceAudio({
       setPermissionGranted(status.granted);
       return status.granted;
     } catch (err) {
-      console.warn('Failed to request audio permission:', err);
+      console.warn('[SpaceAudio] Failed to request audio permission:', err);
       return false;
     }
   }, []);
@@ -66,18 +76,23 @@ export function useSpaceAudio({
       setAudioModeAsync({
         playsInSilentMode: true,
         allowsRecording: true,
-      }).catch(() => {});
+      }).catch((err) => {
+        console.warn('[SpaceAudio] Failed to set audio mode:', err);
+      });
     }
   }, [isConnected]);
 
   // Recording loop for speakers
+  // NOTE: recorder is excluded from deps intentionally — we use recorderRef
+  // to avoid restarting the loop on every render
   useEffect(() => {
     if (!isSpeaker || isMuted || !isConnected || !permissionGranted) {
       if (isActiveRef.current) {
         isActiveRef.current = false;
         setIsRecording(false);
-        // Stop any active recording
-        recorder.stop().catch(() => {});
+        try {
+          recorderRef.current.stop().catch(() => {});
+        } catch {}
       }
       return;
     }
@@ -85,80 +100,122 @@ export function useSpaceAudio({
     let cancelled = false;
     isActiveRef.current = true;
     setIsRecording(true);
+    console.log('[SpaceAudio] Starting recording loop for space:', spaceId);
 
     const recordLoop = async () => {
+      // Small delay to ensure audio mode is configured
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       while (isActiveRef.current && !cancelled) {
+        const rec = recorderRef.current;
         try {
           // Prepare and start recording
-          await recorder.prepareToRecordAsync();
-          recorder.record();
+          await rec.prepareToRecordAsync();
+          rec.record();
 
           // Wait for chunk duration
           await new Promise((resolve) => setTimeout(resolve, CHUNK_DURATION_MS));
 
+          // Check if still active before processing
+          if (!isActiveRef.current || cancelled) {
+            try { await rec.stop(); } catch {}
+            break;
+          }
+
           // Stop and get the URI
-          await recorder.stop();
-          const uri = recorder.uri;
+          await rec.stop();
+          const uri = rec.uri;
 
           if (uri && isActiveRef.current && !cancelled) {
-            // Read file as base64
-            const base64 = await FileSystem.readAsStringAsync(uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
+            try {
+              // Read file as base64
+              const base64 = await FileSystem.readAsStringAsync(uri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
 
-            // Send via socket
-            sequenceRef.current += 1;
-            spaceSocketService.sendAudioData(
-              spaceId,
-              base64,
-              sequenceRef.current
-            );
+              if (base64 && base64.length > 0) {
+                // Send via socket
+                sequenceRef.current += 1;
+                spaceSocketService.sendAudioData(
+                  spaceIdRef.current,
+                  base64,
+                  sequenceRef.current
+                );
+              }
+            } catch (readErr) {
+              console.warn('[SpaceAudio] Failed to read audio chunk:', readErr);
+            }
 
             // Clean up temp file
-            await FileSystem.deleteAsync(uri, { idempotent: true }).catch(
-              () => {}
-            );
+            FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
           }
+
+          // Brief pause between cycles to let the recorder reset
+          await new Promise((resolve) => setTimeout(resolve, INTER_CHUNK_DELAY_MS));
         } catch (err) {
-          console.warn('Recording chunk error:', err);
-          // Brief pause before retry
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          console.warn('[SpaceAudio] Recording chunk error:', err);
+          // Longer pause before retry on error
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
+
+      console.log('[SpaceAudio] Recording loop ended');
     };
 
     recordLoop();
 
     return () => {
+      console.log('[SpaceAudio] Cleanup: stopping recording loop');
       cancelled = true;
       isActiveRef.current = false;
       setIsRecording(false);
     };
-  }, [isSpeaker, isMuted, isConnected, permissionGranted, spaceId, recorder]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSpeaker, isMuted, isConnected, permissionGranted, spaceId]);
 
   // Playback for incoming audio chunks
   useEffect(() => {
     if (!isConnected) return;
 
+    // Keep a pool of active players to avoid creating too many simultaneously
+    const activePlayers = new Set<AudioPlayer>();
+
     const handleAudioData = async (data: AudioDataPayload) => {
+      let tempUri: string | null = null;
+      let player: AudioPlayer | null = null;
+
       try {
         // Write base64 chunk to a temp file
-        const tempUri = `${FileSystem.cacheDirectory}space_audio_${data.userId}_${data.sequence}.m4a`;
+        tempUri = `${FileSystem.cacheDirectory}space_audio_${data.userId}_${data.sequence}.m4a`;
         await FileSystem.writeAsStringAsync(tempUri, data.chunk, {
           encoding: FileSystem.EncodingType.Base64,
         });
 
-        // Play the audio chunk
-        const player = createAudioPlayer({ uri: tempUri });
+        // Create and play the audio chunk
+        player = createAudioPlayer({ uri: tempUri });
+        activePlayers.add(player);
         player.play();
 
-        // Clean up after playback (chunks are ~500ms, generous timeout for safety)
+        // Clean up after playback (chunk is ~500ms, 2s timeout for safety)
+        const cleanupPlayer = player;
+        const cleanupUri = tempUri;
         setTimeout(() => {
-          try { player.remove(); } catch {}
-          FileSystem.deleteAsync(tempUri, { idempotent: true }).catch(() => {});
-        }, 1500);
+          activePlayers.delete(cleanupPlayer);
+          try { cleanupPlayer.remove(); } catch {}
+          if (cleanupUri) {
+            FileSystem.deleteAsync(cleanupUri, { idempotent: true }).catch(() => {});
+          }
+        }, 2000);
       } catch (err) {
-        console.warn('Audio playback error:', err);
+        console.warn('[SpaceAudio] Audio playback error:', err);
+        // Clean up on error
+        if (player) {
+          activePlayers.delete(player);
+          try { player.remove(); } catch {}
+        }
+        if (tempUri) {
+          FileSystem.deleteAsync(tempUri, { idempotent: true }).catch(() => {});
+        }
       }
     };
 
@@ -166,6 +223,11 @@ export function useSpaceAudio({
 
     return () => {
       unsubscribe();
+      // Clean up all active players
+      for (const p of activePlayers) {
+        try { p.remove(); } catch {}
+      }
+      activePlayers.clear();
     };
   }, [isConnected]);
 
