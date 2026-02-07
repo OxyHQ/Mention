@@ -16,11 +16,11 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import { colors } from '../../styles/colors';
-import PostItem from '../../components/Feed/PostItem';
-import Feed from '../../components/Feed/Feed';
-import PostAttachmentsRow from '../../components/Post/PostAttachmentsRow';
-import { usePostsStore } from '../../stores/postsStore';
+import { colors } from '@/styles/colors';
+import PostItem from '@/components/Feed/PostItem';
+import Feed from '@/components/Feed/Feed';
+import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
+import { usePostsStore } from '@/stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
 import { useAuth } from '@oxyhq/services';
@@ -247,16 +247,16 @@ const PostDetailScreen: React.FC = () => {
 
             try {
                 setError(null);
-                
+
                 // Check cache first for instant loading (offline support)
                 const { postsById } = usePostsStore.getState();
                 const cachedPost = postsById[id];
-                
+
                 if (cachedPost) {
                     // Post is cached - load instantly
                     setPost(cachedPost as any);
                     setLoading(false);
-                    
+
                     // Fetch parent post if this is a reply
                     if ((cachedPost as any).parentPostId) {
                         const cachedParent = postsById[(cachedPost as any).parentPostId];
@@ -272,7 +272,7 @@ const PostDetailScreen: React.FC = () => {
                             }
                         }
                     }
-                    
+
                     // Track view in background (non-blocking)
                     if (user) {
                         statisticsService.trackPostView(String(id)).catch(() => {
@@ -284,7 +284,7 @@ const PostDetailScreen: React.FC = () => {
                     setLoading(true);
                     const response = await getPostById(id);
                     setPost(response);
-                    
+
                     // Fetch parent post if this is a reply
                     if (response && (response as any).parentPostId) {
                         try {
@@ -294,7 +294,7 @@ const PostDetailScreen: React.FC = () => {
                             // Silently ignore parent fetch errors
                         }
                     }
-                    
+
                     // Track post view
                     if (user) {
                         statisticsService.trackPostView(String(id)).catch(() => {
@@ -328,8 +328,8 @@ const PostDetailScreen: React.FC = () => {
     }, [post, oxyServices]);
 
     const postText = (post as any)?.content?.text || '';
-    const postDescription = postText.length > 200 
-        ? `${postText.substring(0, 197)}...` 
+    const postDescription = postText.length > 200
+        ? `${postText.substring(0, 197)}...`
         : postText || t('seo.post.description', { defaultValue: 'View this post on Mention' });
     const postAuthor = (post as any)?.user?.name || (post as any)?.user?.handle || t('common.someone');
     const postTitle = t('seo.post.title', { author: postAuthor, defaultValue: `${postAuthor} on Mention` });
@@ -487,178 +487,178 @@ const PostDetailScreen: React.FC = () => {
                     disableSticky={true}
                 />
 
-            <ScrollView
-                ref={scrollViewRef}
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                onScroll={handleScrollEvent}
-                scrollEventThrottle={scrollEventThrottle}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled={true}
-                {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
-            >
-                {/* Show parent post on top if this is a reply */}
-                {parentPost && (post as any)?.parentPostId && (
-                    <View style={[styles.parentPostContainer, { borderBottomColor: theme.colors.border }]}>
-                        <Text style={[styles.parentPostLabel, { color: theme.colors.textSecondary }]}>Replying to</Text>
+                <ScrollView
+                    ref={scrollViewRef}
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    onScroll={handleScrollEvent}
+                    scrollEventThrottle={scrollEventThrottle}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled={true}
+                    {...(Platform.OS === 'web' ? { 'data-layoutscroll': 'true' } : {})}
+                >
+                    {/* Show parent post on top if this is a reply */}
+                    {parentPost && (post as any)?.parentPostId && (
+                        <View style={[styles.parentPostContainer, { borderBottomColor: theme.colors.border }]}>
+                            <Text style={[styles.parentPostLabel, { color: theme.colors.textSecondary }]}>Replying to</Text>
+                            <PostItem
+                                post={parentPost}
+                                onReply={handleFocusInput}
+                            />
+                            <View style={[styles.replyConnector, { backgroundColor: theme.colors.border }]} />
+                        </View>
+                    )}
+
+                    <View style={styles.postContainer}>
                         <PostItem
-                            post={parentPost}
+                            post={post}
                             onReply={handleFocusInput}
                         />
-                        <View style={[styles.replyConnector, { backgroundColor: theme.colors.border }]} />
                     </View>
-                )}
+                    <View style={styles.repliesSection}>
+                        <Text style={[styles.repliesTitle, { color: theme.colors.text }]}>Replies</Text>
+                        <Feed
+                            type={'replies' as any}
+                            hideHeader={true}
+                            style={styles.repliesFeed}
+                            contentContainerStyle={feedContentStyle}
+                            filters={feedFilters}
+                            reloadKey={repliesReloadKey}
+                            recycleItems={true}
+                            maintainVisibleContentPosition={true}
+                            scrollEnabled={false}
+                        />
+                    </View>
+                </ScrollView>
 
-                <View style={styles.postContainer}>
-                    <PostItem
-                        post={post}
-                        onReply={handleFocusInput}
-                    />
-                </View>
-                <View style={styles.repliesSection}>
-                    <Text style={[styles.repliesTitle, { color: theme.colors.text }]}>Replies</Text>
-                    <Feed
-                        type={'replies' as any}
-                        hideHeader={true}
-                        style={styles.repliesFeed}
-                        contentContainerStyle={feedContentStyle}
-                        filters={feedFilters}
-                        reloadKey={repliesReloadKey}
-                        recycleItems={true}
-                        maintainVisibleContentPosition={true}
-                        scrollEnabled={false}
-                    />
-                </View>
-            </ScrollView>
+                {/* Inline Reply Composer */}
+                <ThemedView style={[styles.composerContainer, { borderTopColor: theme.colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}
+                >
+                    <View style={styles.composerContent}>
+                        <View style={styles.composer}>
+                            <View style={styles.composerAvatarWrap}>
+                                <Image
+                                    source={{ uri: (user as any)?.avatar || 'https://via.placeholder.com/40' }}
+                                    style={[styles.composerAvatar, { backgroundColor: theme.colors.backgroundSecondary }]}
+                                />
+                            </View>
+                            <View style={styles.composerInputContainer}>
+                                <MentionTextInput
+                                    style={[styles.composerInput, {
+                                        color: theme.colors.text,
+                                        backgroundColor: theme.colors.background
+                                    }]}
+                                    placeholder="Post your reply"
+                                    value={content}
+                                    onChangeText={setContent}
+                                    onMentionsChange={setMentions}
+                                    multiline
+                                    maxLength={MAX_CHARACTERS}
+                                />
 
-            {/* Inline Reply Composer */}
-            <ThemedView style={[styles.composerContainer, { borderTopColor: theme.colors.border, paddingBottom: Math.max(insets.bottom, 8) }]}
-            >
-                <View style={styles.composerContent}>
-                    <View style={styles.composer}>
-                        <View style={styles.composerAvatarWrap}>
-                            <Image
-                                source={{ uri: (user as any)?.avatar || 'https://via.placeholder.com/40' }}
-                                style={[styles.composerAvatar, { backgroundColor: theme.colors.backgroundSecondary }]}
-                            />
-                        </View>
-                        <View style={styles.composerInputContainer}>
-                            <MentionTextInput
-                                style={[styles.composerInput, {
-                                    color: theme.colors.text,
-                                    backgroundColor: theme.colors.background
-                                }]}
-                                placeholder="Post your reply"
-                                value={content}
-                                onChangeText={setContent}
-                                onMentionsChange={setMentions}
-                                multiline
-                                maxLength={MAX_CHARACTERS}
-                            />
+                                {/* Media Preview */}
+                                {mediaIds.length > 0 && (
+                                    <View style={styles.mediaPreview}>
+                                        <PostAttachmentsRow
+                                            media={mediaIds.map(m => ({ id: m.id, type: m.type }))}
+                                            leftOffset={0}
+                                        />
+                                    </View>
+                                )}
 
-                            {/* Media Preview */}
-                            {mediaIds.length > 0 && (
-                                <View style={styles.mediaPreview}>
-                                    <PostAttachmentsRow
-                                        media={mediaIds.map(m => ({ id: m.id, type: m.type }))}
-                                        leftOffset={0}
-                                    />
-                                </View>
-                            )}
+                                {/* Poll Creator */}
+                                {showPollCreator && (
+                                    <View style={[styles.pollCreator, { borderColor: theme.colors.border }]}>
+                                        <View style={styles.pollHeader}>
+                                            <Text style={[styles.pollTitle, { color: theme.colors.text }]}>{t('Create a poll')}</Text>
+                                            <TouchableOpacity onPress={removePoll}>
+                                                <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
+                                            </TouchableOpacity>
+                                        </View>
+                                        {pollOptions.map((option, index) => (
+                                            <View key={index} style={styles.pollOptionRow}>
+                                                <TextInput
+                                                    style={[styles.pollOptionInput, {
+                                                        borderColor: theme.colors.border,
+                                                        color: theme.colors.text,
+                                                        backgroundColor: theme.colors.background
+                                                    }]}
+                                                    placeholder={t(`Option ${index + 1}`)}
+                                                    placeholderTextColor={theme.colors.textSecondary}
+                                                    value={option}
+                                                    onChangeText={(value) => updatePollOption(index, value)}
+                                                    maxLength={50}
+                                                />
+                                                {pollOptions.length > 2 && (
+                                                    <TouchableOpacity onPress={() => removePollOption(index)}>
+                                                        <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        ))}
+                                        {pollOptions.length < 4 && (
+                                            <TouchableOpacity style={styles.addPollOptionBtn} onPress={addPollOption}>
+                                                <Ionicons name="add" size={16} color={theme.colors.primary} />
+                                                <Text style={[styles.addPollOptionText, { color: theme.colors.primary }]}>
+                                                    {t('Add option')}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                )}
 
-                            {/* Poll Creator */}
-                            {showPollCreator && (
-                                <View style={[styles.pollCreator, { borderColor: theme.colors.border }]}>
-                                    <View style={styles.pollHeader}>
-                                        <Text style={[styles.pollTitle, { color: theme.colors.text }]}>{t('Create a poll')}</Text>
-                                        <TouchableOpacity onPress={removePoll}>
-                                            <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
+                                {/* Location Display */}
+                                {location && (
+                                    <View style={[styles.locationDisplay, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
+                                        <Ionicons name="location" size={16} color={theme.colors.primary} />
+                                        <Text style={[styles.locationText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                                            {location.address}
+                                        </Text>
+                                        <TouchableOpacity onPress={removeLocation}>
+                                            <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
                                         </TouchableOpacity>
                                     </View>
-                                    {pollOptions.map((option, index) => (
-                                        <View key={index} style={styles.pollOptionRow}>
-                                            <TextInput
-                                                style={[styles.pollOptionInput, {
-                                                    borderColor: theme.colors.border,
-                                                    color: theme.colors.text,
-                                                    backgroundColor: theme.colors.background
-                                                }]}
-                                                placeholder={t(`Option ${index + 1}`)}
-                                                placeholderTextColor={theme.colors.textSecondary}
-                                                value={option}
-                                                onChangeText={(value) => updatePollOption(index, value)}
-                                                maxLength={50}
-                                            />
-                                            {pollOptions.length > 2 && (
-                                                <TouchableOpacity onPress={() => removePollOption(index)}>
-                                                    <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    ))}
-                                    {pollOptions.length < 4 && (
-                                        <TouchableOpacity style={styles.addPollOptionBtn} onPress={addPollOption}>
-                                            <Ionicons name="add" size={16} color={theme.colors.primary} />
-                                            <Text style={[styles.addPollOptionText, { color: theme.colors.primary }]}>
-                                                {t('Add option')}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            )}
+                                )}
 
-                            {/* Location Display */}
-                            {location && (
-                                <View style={[styles.locationDisplay, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-                                    <Ionicons name="location" size={16} color={theme.colors.primary} />
-                                    <Text style={[styles.locationText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                                        {location.address}
-                                    </Text>
-                                    <TouchableOpacity onPress={removeLocation}>
-                                        <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-
-                            {/* Compose Toolbar */}
-                            <ComposeToolbar
-                                onMediaPress={openMediaPicker}
-                                onPollPress={openPollCreator}
-                                onLocationPress={requestLocation}
-                                hasLocation={!!location}
-                                isGettingLocation={isGettingLocation}
-                                hasPoll={showPollCreator}
-                                hasMedia={mediaIds.length > 0}
-                                disabled={isSubmitting}
-                            />
+                                {/* Compose Toolbar */}
+                                <ComposeToolbar
+                                    onMediaPress={openMediaPicker}
+                                    onPollPress={openPollCreator}
+                                    onLocationPress={requestLocation}
+                                    hasLocation={!!location}
+                                    isGettingLocation={isGettingLocation}
+                                    hasPoll={showPollCreator}
+                                    hasMedia={mediaIds.length > 0}
+                                    disabled={isSubmitting}
+                                />
+                            </View>
+                            <TouchableOpacity
+                                onPress={handleReply}
+                                disabled={!canReply}
+                                style={[
+                                    styles.composerButton,
+                                    { backgroundColor: theme.colors.primary },
+                                    !canReply && styles.composerButtonDisabled
+                                ]}
+                            >
+                                <Text style={[styles.composerButtonText, { color: theme.colors.card }]}>{isSubmitting ? '...' : 'Reply'}</Text>
+                            </TouchableOpacity>
                         </View>
-                        <TouchableOpacity
-                            onPress={handleReply}
-                            disabled={!canReply}
-                            style={[
-                                styles.composerButton,
-                                { backgroundColor: theme.colors.primary },
-                                !canReply && styles.composerButtonDisabled
-                            ]}
-                        >
-                            <Text style={[styles.composerButtonText, { color: theme.colors.card }]}>{isSubmitting ? '...' : 'Reply'}</Text>
-                        </TouchableOpacity>
+                        <View style={styles.composerMeta}>
+                            <Text
+                                style={[
+                                    styles.characterCountText,
+                                    { color: theme.colors.textSecondary },
+                                    isOverLimit && [styles.characterCountWarning, { color: theme.colors.error }]
+                                ]}
+                            >
+                                {characterCount}/{MAX_CHARACTERS}
+                            </Text>
+                        </View>
                     </View>
-                    <View style={styles.composerMeta}>
-                        <Text
-                            style={[
-                                styles.characterCountText,
-                                { color: theme.colors.textSecondary },
-                                isOverLimit && [styles.characterCountWarning, { color: theme.colors.error }]
-                            ]}
-                        >
-                            {characterCount}/{MAX_CHARACTERS}
-                        </Text>
-                    </View>
-                </View>
-            </ThemedView>
-        </KeyboardAvoidingView>
+                </ThemedView>
+            </KeyboardAvoidingView>
         </>
     );
 };

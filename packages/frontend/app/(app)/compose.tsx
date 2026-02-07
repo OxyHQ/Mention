@@ -20,7 +20,7 @@ import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { colors } from '../styles/colors';
+import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
@@ -28,7 +28,7 @@ import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEve
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { usePostsStore } from '../stores/postsStore';
+import { usePostsStore } from '@/stores/postsStore';
 import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
 import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
@@ -1112,14 +1112,14 @@ const ComposeScreen = () => {
                             <GifPickerSheet
                               onClose={() => bottomSheet.openBottomSheet(false)}
                               onSelectGif={async (gifUrl: string, gifId: string) => {
-                              try {
-                                const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
-                                setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
-                                toast.success(t('GIF attached'));
-                              } catch (error: any) {
-                                toast.error(error?.message || t('Failed to attach GIF'));
-                              }
-                            }}
+                                try {
+                                  const mediaItem: ComposerMediaItem = { id: gifId, type: 'gif' };
+                                  setMediaIds(prev => prev.some(m => m.id === gifId) ? prev : [...prev, mediaItem]);
+                                  toast.success(t('GIF attached'));
+                                } catch (error: any) {
+                                  toast.error(error?.message || t('Failed to attach GIF'));
+                                }
+                              }}
                             />
                           </Suspense>
                         );

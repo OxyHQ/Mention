@@ -7,11 +7,11 @@ import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import Feed from '../components/Feed/Feed';
+import Feed from '@/components/Feed/Feed';
 import { useAuth } from '@oxyhq/services';
 import { getData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
-import AnimatedTabBar from '../components/common/AnimatedTabBar';
+import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@/hooks/useTheme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
@@ -55,16 +55,16 @@ const HomeScreen: React.FC = () => {
 
         try {
             const pinned = (await getData<string[]>(PINNED_KEY)) || [];
-            
+
             // Fetch both user's feeds and public feeds to find all pinned feeds
             const [mineFeeds, publicFeeds] = await Promise.all([
                 customFeedsService.list({ mine: true }),
                 customFeedsService.list({ publicOnly: true })
             ]);
-            
+
             const myFeedsList = mineFeeds.items || [];
             const publicFeedsList = publicFeeds.items || [];
-            
+
             // Combine feeds, deduplicating by id
             const allFeedsMap = new Map<string, any>();
             [...myFeedsList, ...publicFeedsList].forEach((feed: any) => {
@@ -74,7 +74,7 @@ const HomeScreen: React.FC = () => {
                 }
             });
             const allFeeds = Array.from(allFeedsMap.values());
-            
+
             setMyFeeds(myFeedsList);
 
             // Find pinned feeds from all available feeds (mine + public)
@@ -133,16 +133,16 @@ const HomeScreen: React.FC = () => {
     useEffect(() => {
         let isScrollingDown = false;
         let lastKnownScrollY = 0;
-        
+
         const listenerId = scrollY.addListener(({ value }) => {
             const currentScrollY = typeof value === 'number' ? value : 0;
             const scrollDelta = currentScrollY - lastKnownScrollY;
-            
+
             // Determine scroll direction (only update if movement is significant)
             if (Math.abs(scrollDelta) > 1) {
                 isScrollingDown = scrollDelta > 0;
             }
-            
+
             if (currentScrollY > 50) { // Only hide after scrolling past threshold
                 if (isScrollingDown) {
                     // Scrolling down - hide header and FAB with opacity
@@ -164,14 +164,14 @@ const HomeScreen: React.FC = () => {
                 fabTranslateY.value = withTiming(0, { duration: 200 });
                 fabOpacity.value = withTiming(1, { duration: 200 });
             }
-            
+
             lastKnownScrollY = currentScrollY;
         });
-        
+
         return () => {
             scrollY.removeListener(listenerId);
         };
-        }, [scrollY, headerTranslateY, headerOpacity, fabTranslateY, fabOpacity, headerHeight, fabHeight, insets.top]);
+    }, [scrollY, headerTranslateY, headerOpacity, fabTranslateY, fabOpacity, headerHeight, fabHeight, insets.top]);
 
     const headerAnimatedStyle = useAnimatedStyle(() => {
         return {
@@ -290,62 +290,62 @@ const HomeScreen: React.FC = () => {
                 <ThemedView style={{ flex: 1 }}>
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-                {/* Header - animated */}
-                <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
-                    <Header
-                        options={{
-                            title: 'Mention',
-                            rightComponents: [
-                                <IconButton variant="icon"
-                                    key="search"
-                                    onPress={() => router.push('/search')}
-                                >
-                                    <Search color={theme.colors.text} size={20} />
-                                </IconButton>,
-                                <IconButton variant="icon"
-                                    key="notifications"
-                                    onPress={() => router.push('/notifications')}
-                                >
-                                    <Ionicons name="notifications-outline" size={20} color={theme.colors.text} />
-                                </IconButton>
-                            ]
-                        }}
-                        hideBottomBorder={true}
-                        disableSticky={true}
-                    />
-                </Animated.View>
+                    {/* Header - animated */}
+                    <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
+                        <Header
+                            options={{
+                                title: 'Mention',
+                                rightComponents: [
+                                    <IconButton variant="icon"
+                                        key="search"
+                                        onPress={() => router.push('/search')}
+                                    >
+                                        <Search color={theme.colors.text} size={20} />
+                                    </IconButton>,
+                                    <IconButton variant="icon"
+                                        key="notifications"
+                                        onPress={() => router.push('/notifications')}
+                                    >
+                                        <Ionicons name="notifications-outline" size={20} color={theme.colors.text} />
+                                    </IconButton>
+                                ]
+                            }}
+                            hideBottomBorder={true}
+                            disableSticky={true}
+                        />
+                    </Animated.View>
 
-                {/* Spacer for header - maintains layout space */}
-                <Animated.View style={[styles.tabBarSpacer, tabBarSpacerStyle]} />
-                
-                {/* Tab Navigation - sticky */}
-                <View style={styles.stickyTabBar}>
-                    <AnimatedTabBar
-                    tabs={[
-                        { id: 'for_you', label: t('For You') },
-                        ...(isAuthenticated ? [{ id: 'following', label: t('Following') }] : []),
-                        { id: 'trending', label: t('Trending') },
-                        ...(isAuthenticated ? pinnedFeeds.map((feed) => ({ id: feed.id, label: feed.title })) : []),
-                    ]}
-                    activeTabId={activeTab}
-                    onTabPress={handleTabPress}
-                    scrollEnabled={isAuthenticated && pinnedFeeds.length > 0}
-                />
-                </View>
+                    {/* Spacer for header - maintains layout space */}
+                    <Animated.View style={[styles.tabBarSpacer, tabBarSpacerStyle]} />
 
-                {/* Content */}
-                {renderContent()}
+                    {/* Tab Navigation - sticky */}
+                    <View style={styles.stickyTabBar}>
+                        <AnimatedTabBar
+                            tabs={[
+                                { id: 'for_you', label: t('For You') },
+                                ...(isAuthenticated ? [{ id: 'following', label: t('Following') }] : []),
+                                { id: 'trending', label: t('Trending') },
+                                ...(isAuthenticated ? pinnedFeeds.map((feed) => ({ id: feed.id, label: feed.title })) : []),
+                            ]}
+                            activeTabId={activeTab}
+                            onTabPress={handleTabPress}
+                            scrollEnabled={isAuthenticated && pinnedFeeds.length > 0}
+                        />
+                    </View>
 
-                {/* Floating Action Button */}
-                {isAuthenticated && (
-                    <FAB
-                        onPress={() => router.push('/compose')}
-                        animatedTranslateY={fabTranslateY}
-                        animatedOpacity={fabOpacity}
-                    />
-                )}
-            </ThemedView>
-        </SafeAreaView>
+                    {/* Content */}
+                    {renderContent()}
+
+                    {/* Floating Action Button */}
+                    {isAuthenticated && (
+                        <FAB
+                            onPress={() => router.push('/compose')}
+                            animatedTranslateY={fabTranslateY}
+                            animatedOpacity={fabOpacity}
+                        />
+                    )}
+                </ThemedView>
+            </SafeAreaView>
         </>
     );
 };

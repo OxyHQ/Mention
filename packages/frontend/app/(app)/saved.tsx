@@ -4,13 +4,13 @@ import { Loading } from '@/components/ui/Loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import PostItem from '../components/Feed/PostItem';
-import { colors } from '../styles/colors';
+import PostItem from '@/components/Feed/PostItem';
+import { colors } from '@/styles/colors';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Search } from '@/assets/icons/search-icon';
-import { feedService } from '../services/feedService';
+import { feedService } from '@/services/feedService';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 
@@ -53,59 +53,59 @@ const SavedPostsScreen: React.FC = () => {
             />
             <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
                 <Stack.Screen
-                options={{
-                    title: 'Saved Posts',
-                    headerShown: true,
-                }}
-            />
-
-            <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <View style={styles.searchIcon}>
-                    <Search
-                        size={20}
-                        color={theme.colors.textSecondary}
-                    />
-                </View>
-                <TextInput
-                    style={[styles.searchInput, { color: theme.colors.text }]}
-                    placeholder={t("search.placeholder", "Search saved posts...")}
-                    placeholderTextColor={theme.colors.textSecondary}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
+                    options={{
+                        title: 'Saved Posts',
+                        headerShown: true,
+                    }}
                 />
-                {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery("")}>
-                        <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
-                    </TouchableOpacity>
-                )}
-            </View>
 
-            <ScrollView style={styles.resultsContainer}>
-                {loading && (
-                    <View style={styles.loadingContainer}>
-                        <Loading size="large" />
+                <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <View style={styles.searchIcon}>
+                        <Search
+                            size={20}
+                            color={theme.colors.textSecondary}
+                        />
                     </View>
-                )}
-
-                {!loading && posts.length === 0 && (
-                    <EmptyState
-                        title={searchQuery.trim() 
-                            ? t("search.noResults", "No results found")
-                            : t("search.startSearching", "No saved posts yet")}
-                        customIcon={<Search size={48} color={theme.colors.textSecondary} />}
-                        containerStyle={styles.emptyContainer}
+                    <TextInput
+                        style={[styles.searchInput, { color: theme.colors.text }]}
+                        placeholder={t("search.placeholder", "Search saved posts...")}
+                        placeholderTextColor={theme.colors.textSecondary}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
                     />
-                )}
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchQuery("")}>
+                            <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+                        </TouchableOpacity>
+                    )}
+                </View>
 
-                {!loading && posts.length > 0 && (
-                    <View style={styles.postsContainer}>
-                        {posts.map((post: any) => (
-                            <PostItem key={post.id || post._id} post={post} />
-                        ))}
-                    </View>
-                )}
-            </ScrollView>
-        </ThemedView>
+                <ScrollView style={styles.resultsContainer}>
+                    {loading && (
+                        <View style={styles.loadingContainer}>
+                            <Loading size="large" />
+                        </View>
+                    )}
+
+                    {!loading && posts.length === 0 && (
+                        <EmptyState
+                            title={searchQuery.trim()
+                                ? t("search.noResults", "No results found")
+                                : t("search.startSearching", "No saved posts yet")}
+                            customIcon={<Search size={48} color={theme.colors.textSecondary} />}
+                            containerStyle={styles.emptyContainer}
+                        />
+                    )}
+
+                    {!loading && posts.length > 0 && (
+                        <View style={styles.postsContainer}>
+                            {posts.map((post: any) => (
+                                <PostItem key={post.id || post._id} post={post} />
+                            ))}
+                        </View>
+                    )}
+                </ScrollView>
+            </ThemedView>
         </>
     );
 };

@@ -12,7 +12,7 @@ import { useLayoutScroll } from "@/context/LayoutScrollContext";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import { LogoIcon } from "../../assets/logo";
+import { LogoIcon } from "@/assets/logo";
 import { authenticatedClient } from "@/utils/api";
 import { confirmDialog, alertDialog } from "@/utils/alerts";
 import { getData, storeData } from "@/utils/storage";
@@ -163,17 +163,17 @@ export default function SettingsScreen() {
     const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
     const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
     const currentColorScheme = useColorScheme();
-    
+
     // Load settings on mount if not already loaded
     useEffect(() => {
         if (!mySettings) {
             loadMySettings();
         }
     }, [mySettings, loadMySettings]);
-    
+
     // Determine if dark mode is currently active (useColorScheme already handles system preference)
     const isDarkModeActive = currentColorScheme === 'dark';
-    
+
     const handleDarkModeToggle = useCallback(async (value: boolean) => {
         const newThemeMode = value ? 'dark' : 'light';
         await updateMySettings({
@@ -198,13 +198,13 @@ export default function SettingsScreen() {
             }
         };
         loadLanguage();
-        
+
         // Listen for language changes
         const handleLanguageChanged = (lng: string) => {
             setCurrentLanguage(lng);
         };
         i18n.on('languageChanged', handleLanguageChanged);
-        
+
         return () => {
             i18n.off('languageChanged', handleLanguageChanged);
         };
@@ -257,14 +257,14 @@ export default function SettingsScreen() {
 
         try {
             await authenticatedClient.delete('/profile/settings/behavior');
-            await alertDialog({ 
-                title: t('common.success'), 
+            await alertDialog({
+                title: t('common.success'),
                 message: t('settings.data.resetPersonalizationSuccess')
             });
         } catch (error) {
             console.error('Error resetting personalization:', error);
-            await alertDialog({ 
-                title: t('common.error'), 
+            await alertDialog({
+                title: t('common.error'),
                 message: t('settings.data.resetPersonalizationError')
             });
         }
@@ -326,9 +326,9 @@ export default function SettingsScreen() {
                                     <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
                                         {currentUserProfile?.design?.displayName ||
                                             (user
-                                            ? typeof user.name === 'string'
-                                                ? user.name
-                                                : user.name?.full || user.name?.first || user.username
+                                                ? typeof user.name === 'string'
+                                                    ? user.name
+                                                    : user.name?.full || user.name?.first || user.username
                                                 : 'User')}
                                     </Text>
                                     <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>{user?.username || 'Username'}</Text>

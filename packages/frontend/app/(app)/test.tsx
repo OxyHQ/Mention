@@ -1,7 +1,7 @@
 import { Text, Button } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 
-import { api } from '../utils/api';
+import { api } from '@/utils/api';
 
 const handleTest = async () => {
     try {
