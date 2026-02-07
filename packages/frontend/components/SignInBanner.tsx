@@ -10,7 +10,7 @@ import { useTheme } from '@/hooks/useTheme';
 export const SignInBanner = memo(function SignInBanner() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { showBottomSheet } = useAuth();
+  const { signIn } = useAuth();
   const { t } = useTranslation();
 
   return (
@@ -36,7 +36,7 @@ export const SignInBanner = memo(function SignInBanner() {
             size="small"
             style={styles.signInButton}
             textStyle={styles.signInButtonText}
-            onPress={() => showBottomSheet?.('SignIn')}
+            onPress={() => signIn().catch(() => {})}
           >
             {t('Sign In')}
           </Button>

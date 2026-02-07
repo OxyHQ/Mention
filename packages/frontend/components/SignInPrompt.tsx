@@ -16,14 +16,14 @@ interface SignInPromptProps {
 }
 
 const SignInPrompt: React.FC<SignInPromptProps> = ({ onSignInPress }) => {
-    const { showBottomSheet } = useAuth();
+    const { signIn } = useAuth();
     const theme = useTheme();
 
     const handleSignInPress = () => {
         if (onSignInPress) {
             onSignInPress();
         } else {
-            showBottomSheet?.('OxyAuth');
+            signIn().catch(() => {});
         }
     };
 

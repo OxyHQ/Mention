@@ -20,11 +20,11 @@ interface FeedFooterProps {
 export const FeedFooter = memo<FeedFooterProps>(
     ({ showOnlySaved, hasMore, isLoadingMore, hasItems }) => {
         const theme = useTheme();
-        const { isAuthenticated, showBottomSheet } = useAuth();
+        const { isAuthenticated, signIn } = useAuth();
 
         const handleSignIn = useCallback(() => {
-            showBottomSheet?.('SignIn');
-        }, [showBottomSheet]);
+            signIn().catch(() => {});
+        }, [signIn]);
 
         // Show sign-in prompt for unauthenticated users at the end of the feed
         if (!isAuthenticated && hasItems && !showOnlySaved) {

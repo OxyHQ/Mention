@@ -109,7 +109,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, showBottomSheet } = useAuth();
+  const { isAuthenticated, signIn } = useAuth();
   const router = useRouter();
 
   // Animation values
@@ -144,8 +144,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
   const handleCreateAccount = useCallback(() => {
     stableOnClose();
-    showBottomSheet?.('OxyAuth');
-  }, [stableOnClose, showBottomSheet]);
+    signIn().catch(() => {});
+  }, [stableOnClose, signIn]);
 
   const handleExploreApp = useCallback(() => {
     stableOnClose();
@@ -154,8 +154,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
   const handleSignIn = useCallback(() => {
     stableOnClose();
-    showBottomSheet?.('OxyAuth');
-  }, [stableOnClose, showBottomSheet]);
+    signIn().catch(() => {});
+  }, [stableOnClose, signIn]);
 
   // Animated styles
   const backdropAnimatedStyle = useAnimatedStyle(() => ({

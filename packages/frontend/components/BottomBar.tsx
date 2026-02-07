@@ -14,7 +14,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 export const BottomBar = () => {
     const router = useRouter();
     const pathname = usePathname();
-    const { showBottomSheet, user, isAuthenticated, oxyServices } = useAuth();
+    const { showBottomSheet, signIn, user, isAuthenticated, oxyServices } = useAuth();
     const insets = useSafeAreaInsets();
     const theme = useTheme();
     const { triggerHomeRefresh } = useHomeRefresh();
@@ -118,6 +118,7 @@ export const BottomBar = () => {
                     position: 'fixed',
                     height: 60,
                     paddingBottom: 0,
+                    boxShadow: '0px -1px 4px 0px rgba(0, 0, 0, 0.1)',
                 },
             }),
         } as ViewStyle,
@@ -168,7 +169,7 @@ export const BottomBar = () => {
                     if (isAuthenticated && user?.username) {
                         handlePress(`/@${user.username}`);
                     } else {
-                        showBottomSheet?.('SignIn');
+                        signIn().catch(() => {});
                     }
                 }}
                 onLongPress={() => {

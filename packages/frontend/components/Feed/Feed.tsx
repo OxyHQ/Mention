@@ -80,7 +80,7 @@ const Feed = memo((props: FeedProps) => {
     // Determine if we should use scoped (local) feed state
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
 
-    const { user: currentUser, isAuthenticated, showBottomSheet } = useAuth();
+    const { user: currentUser, isAuthenticated, signIn } = useAuth();
     const { blockedSet } = usePrivacyControls();
 
     // Use the feed state hook for all feed operations
@@ -114,12 +114,12 @@ const Feed = memo((props: FeedProps) => {
 
         // If user is not authenticated, show sign-in prompt instead of loading more
         if (!isAuthenticated) {
-            showBottomSheet?.('SignIn');
+            signIn().catch(() => {});
             return;
         }
 
         feedState.loadMore();
-    }, [feedState.hasMore, feedState.isLoading, feedState.loadMore, isAuthenticated, showBottomSheet]);
+    }, [feedState.hasMore, feedState.isLoading, feedState.loadMore, isAuthenticated, signIn]);
 
     // Process items with single-pass deduplication and sorting
     const finalRenderItems = useDeepCompareMemo(() => {

@@ -11,7 +11,7 @@ import { useTheme } from '@/hooks/useTheme';
 
 export default function AuthScreen() {
   const theme = useTheme();
-  const { showBottomSheet } = useAuth();
+  const { signIn } = useAuth();
   const { t } = useTranslation();
   const isDesktop = useMediaQuery({ minWidth: 768 });
 
@@ -36,7 +36,7 @@ export default function AuthScreen() {
               variant="primary"
               size="large"
               style={styles.signInButton}
-              onPress={() => showBottomSheet?.('SignIn')}
+              onPress={() => signIn().catch(() => {})}
             >
               {t('Sign In with Oxy')}
             </Button>
@@ -62,7 +62,7 @@ export default function AuthScreen() {
           variant="primary"
           size="large"
           style={styles.signInButton}
-          onPress={() => showBottomSheet?.('SignIn')}
+          onPress={() => signIn().catch(() => {})}
         >
           {t('Sign In with Oxy')}
         </Button>
