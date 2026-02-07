@@ -274,6 +274,8 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     article: raw?.content?.article,
     sources: raw?.content?.sources,
     location: raw?.content?.location,
+    event: raw?.content?.event,
+    space: raw?.content?.space,
   };
 
   const user = raw?.user ?? {};
@@ -1050,18 +1052,8 @@ export const usePostsStore = create<FeedState>()(
           }
 
           const newPost: FeedItem = {
-            id: rawPost.id,
-            user: rawPost.user,
-            content: rawPost.content || { text: '' },
-            date: new Date().toISOString(),
-            engagement: { replies: 0, reposts: 0, likes: 0 },
-            media: rawPost.content?.images || [],
-            type: rawPost.type,
-            visibility: rawPost.visibility,
-            hashtags: rawPost.hashtags || [],
-            mentions: rawPost.mentions || [],
-            status: rawPost.status,
-            scheduledFor: rawPost.scheduledFor || null,
+            ...transformToUIItem(rawPost),
+            engagement: { replies: 0, reposts: 0, likes: 0, saves: null, views: null, impressions: null },
             isLocalNew: true
           };
 

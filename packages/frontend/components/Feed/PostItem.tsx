@@ -20,6 +20,7 @@ const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet')
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { useLiveSpace } from '@/context/LiveSpaceContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -57,6 +58,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const router = useRouter();
     const pathname = usePathname();
     const bottomSheet = useContext(BottomSheetContext);
+    const { joinLiveSpace } = useLiveSpace();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
 
     const postId = (post as any)?.id;
@@ -429,6 +431,11 @@ const PostItem: React.FC<PostItemProps> = ({
                                     host: spaceContent.host,
                                 }
                                 : null
+                        }
+                        onSpacePress={
+                            spaceContent?.spaceId
+                                ? () => joinLiveSpace(spaceContent.spaceId)
+                                : undefined
                         }
                         location={location}
                         sources={sourcesList}

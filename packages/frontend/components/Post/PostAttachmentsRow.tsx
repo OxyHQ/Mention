@@ -179,6 +179,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       addMediaItem(id, m.type);
     });
 
+    // Always add space if present, even if not in attachment descriptors
+    if (hasSpace && !results.some(item => item.type === 'space')) {
+      results.push({ type: 'space' });
+    }
+
     // Always add link if detected, even if not in attachment descriptors
     if (hasLink && linkMetadata && !results.some(item => item.type === 'link')) {
       const linkItem: AttachmentItem = {

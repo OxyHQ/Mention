@@ -689,6 +689,7 @@ export class PostHydrationService {
       sources: Array.isArray(baseContent.sources) ? baseContent.sources : undefined,
       location: baseContent.location,
       event: baseContent.event,
+      space: baseContent.space,
       attachments: Array.isArray(baseContent.attachments) ? baseContent.attachments : undefined,
     };
   }
@@ -756,7 +757,7 @@ export class PostHydrationService {
     }
 
     if (content.space) {
-      (attachments as any).space = {
+      attachments.space = {
         spaceId: content.space.spaceId,
         title: content.space.title,
         status: content.space.status,
