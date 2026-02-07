@@ -25,6 +25,7 @@ import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
+import SpaceCard from '@/components/SpaceCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -51,6 +52,7 @@ const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'))
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
+const CreateSpaceSheet = lazy(() => import('@/components/spaces/CreateSpaceSheet'));
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
 import type { ScheduleOption } from '@/components/Compose/ScheduleSheet';
@@ -66,6 +68,7 @@ import { useSourcesManager } from '@/hooks/useSourcesManager';
 import { useThreadManager } from '@/hooks/useThreadManager';
 import { useArticleManager } from '@/hooks/useArticleManager';
 import { useEventManager } from '@/hooks/useEventManager';
+import { useSpaceManager } from '@/hooks/useSpaceManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { usePostSubmission } from '@/hooks/usePostSubmission';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
@@ -97,6 +100,7 @@ import {
   POLL_ATTACHMENT_KEY,
   ARTICLE_ATTACHMENT_KEY,
   EVENT_ATTACHMENT_KEY,
+  SPACE_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
   LINK_ATTACHMENT_KEY,
@@ -129,6 +133,7 @@ const ComposeScreen = () => {
   const threadManager = useThreadManager();
   const articleManager = useArticleManager();
   const eventManager = useEventManager();
+  const spaceManager = useSpaceManager();
 
   // Destructure for easier access (need these first for useAttachmentOrder)
   const { mediaIds, setMediaIds, addMedia, addMultipleMedia, removeMedia, moveMedia } = mediaManager;
@@ -205,9 +210,17 @@ const ComposeScreen = () => {
     loadEventFromDraft,
     clearEvent,
   } = eventManager;
+  const {
+    space,
+    attachSpace,
+    removeSpace,
+    hasContent: spaceHasContent,
+    clearSpace,
+  } = spaceManager;
 
   const hasArticleContent = articleHasContent();
   const hasEventContent = eventHasContent();
+  const hasSpaceContent = spaceHasContent();
 
   // Remaining local state
   const [postContent, setPostContent] = useState('');
@@ -319,6 +332,8 @@ const ComposeScreen = () => {
     article,
     hasEventContent,
     event,
+    hasSpaceContent,
+    space,
     location,
     sources,
     mediaIds,
@@ -384,7 +399,7 @@ const ComposeScreen = () => {
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
 
-    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent)) {
+    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent || hasSpaceContent)) {
       toast.error(t('Add text, an image, a poll, or an article'));
       return;
     }
@@ -406,6 +421,8 @@ const ComposeScreen = () => {
         hasArticleContent,
         event,
         hasEventContent,
+        space,
+        hasSpaceContent,
         location,
         formattedSources,
         attachmentOrder: attachmentOrderRef.current || attachmentOrder,
@@ -735,6 +752,7 @@ const ComposeScreen = () => {
                             setArticleDraftTitle('');
                             setArticleDraftBody('');
                             clearAllThreads();
+                            clearSpace();
                             setMentions([]);
                             clearSchedule({ silent: true });
                             toast.success(t('common.cleared'));
@@ -1002,6 +1020,57 @@ const ComposeScreen = () => {
                             );
                           }
 
+                          if (key === SPACE_ATTACHMENT_KEY) {
+                            if (!(hasSpaceContent && space)) return null;
+                            return (
+                              <View
+                                key={key}
+                                style={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                              >
+                                {total > 1 ? (
+                                  <View style={[styles.mediaReorderControls, { pointerEvents: 'box-none' }]}>
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(SPACE_ATTACHMENT_KEY, 'left')}
+                                      disabled={!canMoveLeft}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveLeft && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <BackArrowIcon size={14} color={!canMoveLeft ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onPress={() => moveAttachment(SPACE_ATTACHMENT_KEY, 'right')}
+                                      disabled={!canMoveRight}
+                                      style={[styles.mediaReorderButton, { backgroundColor: theme.colors.background }, !canMoveRight && styles.mediaReorderButtonDisabled]}
+                                    >
+                                      <ChevronRightIcon size={14} color={!canMoveRight ? theme.colors.textTertiary : theme.colors.textSecondary} />
+                                    </TouchableOpacity>
+                                  </View>
+                                ) : null}
+                                <SpaceCard
+                                  space={{
+                                    _id: space.spaceId,
+                                    title: space.title,
+                                    status: space.status || 'scheduled',
+                                    topic: space.topic,
+                                    participants: [],
+                                    host: space.host || '',
+                                  }}
+                                  variant="compact"
+                                  style={styles.articleAttachmentPreview}
+                                />
+                                <TouchableOpacity
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    removeSpace();
+                                  }}
+                                  style={[styles.articleAttachmentRemoveButton, { backgroundColor: theme.colors.background }]}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <CloseIcon size={16} color={theme.colors.text} />
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          }
+
                           if (key === LINK_ATTACHMENT_KEY) {
                             if (detectedLinks.length === 0) return null;
                             const link = detectedLinks[0];
@@ -1142,6 +1211,26 @@ const ComposeScreen = () => {
                       onSourcesPress={openSourcesSheet}
                       onArticlePress={openArticleEditor}
                       onEventPress={openEventEditor}
+                      onSpacePress={() => {
+                        bottomSheet.setBottomSheetContent(
+                          <Suspense fallback={null}>
+                            <CreateSpaceSheet
+                              onClose={() => bottomSheet.openBottomSheet(false)}
+                              mode="embed"
+                              onSpaceCreated={(createdSpace) => {
+                                attachSpace({
+                                  spaceId: createdSpace._id,
+                                  title: createdSpace.title,
+                                  status: createdSpace.status,
+                                  topic: createdSpace.topic,
+                                  host: createdSpace.host,
+                                });
+                              }}
+                            />
+                          </Suspense>
+                        );
+                        bottomSheet.openBottomSheet(true);
+                      }}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
@@ -1149,6 +1238,7 @@ const ComposeScreen = () => {
                       hasSources={sources.length > 0}
                       hasArticle={hasArticleContent}
                       hasEvent={hasEventContent}
+                      hasSpace={hasSpaceContent}
                       hasSchedule={Boolean(scheduledAt)}
                       scheduleEnabled={scheduleEnabled}
                       hasSourceErrors={invalidSources}

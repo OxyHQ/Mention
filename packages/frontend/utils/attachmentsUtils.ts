@@ -10,6 +10,7 @@ export const buildAttachmentsPayload = (
     includeEvent?: boolean;
     includeLocation?: boolean;
     includeSources?: boolean;
+    includeSpace?: boolean;
   }
 ): PostAttachmentDescriptor[] => {
   const descriptors: PostAttachmentDescriptor[] = [];
@@ -20,7 +21,7 @@ export const buildAttachmentsPayload = (
     mediaMap.set(item.id, item);
   });
 
-  const addNonMedia = (type: "poll" | "article" | "event" | "location" | "sources") => {
+  const addNonMedia = (type: "poll" | "article" | "event" | "location" | "sources" | "space") => {
     if (!descriptors.some((d) => d.type === type)) {
       descriptors.push({ type });
     }
@@ -44,6 +45,7 @@ export const buildAttachmentsPayload = (
   const EVENT_ATTACHMENT_KEY = "event";
   const LOCATION_ATTACHMENT_KEY = "location";
   const SOURCES_ATTACHMENT_KEY = "sources";
+  const SPACE_ATTACHMENT_KEY = "space";
   const MEDIA_ATTACHMENT_PREFIX = "media:";
   const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
   const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
@@ -69,6 +71,10 @@ export const buildAttachmentsPayload = (
       if (options.includeSources) addNonMedia("sources");
       return;
     }
+    if (key === SPACE_ATTACHMENT_KEY) {
+      if (options.includeSpace) addNonMedia("space");
+      return;
+    }
     if (isMediaAttachmentKey(key)) {
       const mediaId = getMediaIdFromAttachmentKey(key);
       addMedia(mediaId);
@@ -80,6 +86,7 @@ export const buildAttachmentsPayload = (
   if (options.includeEvent) addNonMedia("event");
   if (options.includeLocation) addNonMedia("location");
   if (options.includeSources) addNonMedia("sources");
+  if (options.includeSpace) addNonMedia("space");
 
   mediaList.forEach((item) => {
     if (!usedMedia.has(item.id)) {

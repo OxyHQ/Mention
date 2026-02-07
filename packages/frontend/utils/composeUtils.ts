@@ -9,6 +9,7 @@ export const ARTICLE_ATTACHMENT_KEY = "article";
 export const EVENT_ATTACHMENT_KEY = "event";
 export const LOCATION_ATTACHMENT_KEY = "location";
 export const SOURCES_ATTACHMENT_KEY = "sources";
+export const SPACE_ATTACHMENT_KEY = "space";
 export const LINK_ATTACHMENT_KEY = "link";
 export const MEDIA_ATTACHMENT_PREFIX = "media:";
 

@@ -90,6 +90,8 @@ const PostItem: React.FC<PostItemProps> = ({
     const eventContent = attachmentsBundle.event ?? content.event ?? null;
     const hasEvent = Boolean(eventContent);
 
+    const spaceContent = (attachmentsBundle as any).space ?? content.space ?? null;
+
     const pollData = attachmentsBundle.poll ?? content.poll ?? null;
     const pollId = content.pollId ?? null;
 
@@ -113,6 +115,7 @@ const PostItem: React.FC<PostItemProps> = ({
         Boolean(pollData) ||
         Boolean(articleContent) ||
         Boolean(eventContent) ||
+        Boolean(spaceContent) ||
         Boolean(linkPreview) ||
         hasValidLocation;
 
@@ -413,6 +416,17 @@ const PostItem: React.FC<PostItemProps> = ({
                                     date: eventContent.date,
                                     location: eventContent.location,
                                     description: eventContent.description,
+                                }
+                                : null
+                        }
+                        space={
+                            spaceContent
+                                ? {
+                                    spaceId: spaceContent.spaceId,
+                                    title: spaceContent.title,
+                                    status: spaceContent.status,
+                                    topic: spaceContent.topic,
+                                    host: spaceContent.host,
                                 }
                                 : null
                         }

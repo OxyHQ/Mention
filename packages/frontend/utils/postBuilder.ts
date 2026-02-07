@@ -18,6 +18,8 @@ interface BuildMainPostParams {
   hasArticleContent: boolean;
   event: any;
   hasEventContent: boolean;
+  space: any;
+  hasSpaceContent: boolean;
   location: any;
   formattedSources: any[];
   attachmentOrder: string[];
@@ -51,6 +53,8 @@ export const buildMainPost = (params: BuildMainPostParams) => {
     hasArticleContent,
     event,
     hasEventContent,
+    space,
+    hasSpaceContent,
     location,
     formattedSources,
     attachmentOrder,
@@ -66,6 +70,7 @@ export const buildMainPost = (params: BuildMainPostParams) => {
     includePoll: hasPoll,
     includeArticle: Boolean(hasArticleContent && article),
     includeEvent: Boolean(hasEventContent && event),
+    includeSpace: Boolean(hasSpaceContent && space),
     includeLocation: Boolean(location),
     includeSources: formattedSources.length > 0,
   });
@@ -103,6 +108,15 @@ export const buildMainPost = (params: BuildMainPostParams) => {
           date: event.date,
           ...(event.location?.trim() && { location: event.location.trim() }),
           ...(event.description?.trim() && { description: event.description.trim() }),
+        }
+      }),
+      ...(hasSpaceContent && space && {
+        space: {
+          spaceId: space.spaceId,
+          title: space.title.trim(),
+          ...(space.status && { status: space.status }),
+          ...(space.topic?.trim() && { topic: space.topic.trim() }),
+          ...(space.host && { host: space.host }),
         }
       }),
       ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
