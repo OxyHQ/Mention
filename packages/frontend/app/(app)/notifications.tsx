@@ -13,7 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { LoadingSpinner } from '@/components/ui/Loading';
+import { Loading } from '@/components/ui/Loading';
 import { NotificationItem } from '@/components/NotificationItem';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { notificationService } from '@/services/notificationService';
@@ -288,7 +288,7 @@ const NotificationsScreen: React.FC = () => {
         if (isLoading && !refreshing) {
             return (
                 <ThemedView style={styles.loadingContainer}>
-                    <LoadingSpinner />
+                    <Loading size="large" />
                 </ThemedView>
             );
         }

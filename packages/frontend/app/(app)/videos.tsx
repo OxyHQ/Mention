@@ -13,7 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
-import { LoadingTopSpinner } from '@/components/ui/Loading';
+import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -723,7 +723,11 @@ export default function VideosScreen() {
                 description={t('seo.videos.description')}
             />
             <ThemedView style={styles.container}>
-                <LoadingTopSpinner showLoading={isLoading && posts.length === 0} />
+                {isLoading && posts.length === 0 && (
+                    <View style={styles.initialLoadingContainer}>
+                        <LoadingIcon size={44} color="#FFFFFF" />
+                    </View>
+                )}
 
             {posts.length > 0 && (
                 <FlatList
@@ -784,6 +788,12 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         backgroundColor: '#000000',
+    },
+    initialLoadingContainer: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1,
     },
     list: {
         flex: 1,

@@ -541,10 +541,10 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     loadingContainer: {
-        paddingTop: 60,
-        paddingBottom: 20,
+        flex: 1,
         alignItems: "center",
         justifyContent: "center",
+        minHeight: 300,
     },
     section: {
         marginBottom: SPACING.base,
