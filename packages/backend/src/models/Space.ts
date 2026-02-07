@@ -6,11 +6,18 @@ export enum SpaceStatus {
   ENDED = 'ended'
 }
 
+export enum SpeakerPermission {
+  EVERYONE = 'everyone',
+  FOLLOWERS = 'followers',
+  INVITED = 'invited'
+}
+
 export interface ISpace extends Document {
   title: string;
   description?: string;
   host: string;
   status: SpaceStatus;
+  speakerPermission: SpeakerPermission;
   participants: string[];
   speakers: string[];
   maxParticipants: number;
@@ -49,6 +56,11 @@ const SpaceSchema = new Schema({
     enum: Object.values(SpaceStatus),
     default: SpaceStatus.SCHEDULED,
     index: true
+  },
+  speakerPermission: {
+    type: String,
+    enum: Object.values(SpeakerPermission),
+    default: SpeakerPermission.INVITED
   },
   participants: {
     type: [String],

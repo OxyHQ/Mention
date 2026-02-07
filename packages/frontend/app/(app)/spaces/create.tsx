@@ -31,6 +31,7 @@ const CreateSpaceScreen = () => {
   const [description, setDescription] = useState('');
   const [topic, setTopic] = useState('');
   const [scheduledStart, setScheduledStart] = useState('');
+  const [speakerPermission, setSpeakerPermission] = useState<'everyone' | 'followers' | 'invited'>('invited');
   const [loading, setLoading] = useState(false);
 
   const isValid = title.trim().length > 0;
@@ -44,6 +45,7 @@ const CreateSpaceScreen = () => {
         title: title.trim(),
         description: description.trim() || undefined,
         topic: topic.trim() || undefined,
+        speakerPermission,
       });
 
       if (space) {
@@ -82,6 +84,7 @@ const CreateSpaceScreen = () => {
         description: description.trim() || undefined,
         topic: topic.trim() || undefined,
         scheduledStart: scheduledStart.trim(),
+        speakerPermission,
       });
 
       if (space) {
@@ -203,6 +206,54 @@ const CreateSpaceScreen = () => {
               <Text style={[styles.helperText, { color: theme.colors.textSecondary }]}>
                 {description.length}/500
               </Text>
+            </View>
+
+            {/* Speaker Permission */}
+            <View style={styles.inputSection}>
+              <ThemedText type="defaultSemiBold" style={styles.label}>
+                Speakers
+              </ThemedText>
+              <Text style={[styles.helperText, { color: theme.colors.textSecondary, marginTop: 0, marginBottom: 12 }]}>
+                Who can speak? Current speakers will not be affected.
+              </Text>
+              {([
+                { value: 'everyone' as const, label: 'Everyone' },
+                { value: 'followers' as const, label: 'People you follow' },
+                { value: 'invited' as const, label: 'Only people you invite to speak' },
+              ]).map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.radioRow,
+                    {
+                      borderColor: theme.colors.border,
+                      backgroundColor: theme.colors.card,
+                    },
+                  ]}
+                  onPress={() => setSpeakerPermission(option.value)}
+                >
+                  <Text style={[styles.radioLabel, { color: theme.colors.text }]}>
+                    {option.label}
+                  </Text>
+                  <View
+                    style={[
+                      styles.radioCircle,
+                      {
+                        borderColor: speakerPermission === option.value
+                          ? theme.colors.primary
+                          : theme.colors.border,
+                        backgroundColor: speakerPermission === option.value
+                          ? theme.colors.primary
+                          : 'transparent',
+                      },
+                    ]}
+                  >
+                    {speakerPermission === option.value && (
+                      <Ionicons name="checkmark" size={14} color={theme.colors.card} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
             </View>
 
             {/* Schedule Input */}
@@ -385,6 +436,28 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  radioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  radioLabel: {
+    fontSize: 15,
+    flex: 1,
+  },
+  radioCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   guidelinesCard: {
     borderWidth: 1,

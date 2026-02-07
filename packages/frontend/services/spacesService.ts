@@ -15,6 +15,7 @@ export interface Space {
   endedAt?: string;
   topic?: string;
   tags?: string[];
+  speakerPermission?: 'everyone' | 'followers' | 'invited';
   stats?: { peakListeners: number; totalJoined: number };
   createdAt: string;
 }
@@ -43,7 +44,7 @@ class SpacesService {
     }
   }
 
-  async createSpace(data: { title: string; description?: string; topic?: string; scheduledStart?: string }): Promise<Space | null> {
+  async createSpace(data: { title: string; description?: string; topic?: string; scheduledStart?: string; speakerPermission?: 'everyone' | 'followers' | 'invited' }): Promise<Space | null> {
     try {
       const res = await authenticatedClient.post("/spaces", data);
       return res.data.space || res.data.data || res.data || null;

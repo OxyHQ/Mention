@@ -1,6 +1,7 @@
 import { Server, Socket, Namespace } from 'socket.io';
 import { logger } from '../utils/logger';
-import Space, { SpaceStatus } from '../models/Space';
+import Space, { SpaceStatus, SpeakerPermission } from '../models/Space';
+import { checkFollowAccess } from '../utils/privacyHelpers';
 
 interface AuthenticatedSocket extends Socket {
   user?: { id: string; [key: string]: any };
@@ -103,6 +104,18 @@ export function initializeSpaceSocket(io: Server): Namespace {
           role = 'host';
         } else if (space.speakers.includes(userId)) {
           role = 'speaker';
+        } else {
+          // Apply speakerPermission rules for new joiners
+          const perm = (space as any).speakerPermission || SpeakerPermission.INVITED;
+          if (perm === SpeakerPermission.EVERYONE) {
+            role = 'speaker';
+          } else if (perm === SpeakerPermission.FOLLOWERS) {
+            const hostFollowsUser = await checkFollowAccess(space.host, userId);
+            if (hostFollowsUser) {
+              role = 'speaker';
+            }
+          }
+          // INVITED: stays as 'listener' (default)
         }
 
         // Create or get room
@@ -274,7 +287,7 @@ export function initializeSpaceSocket(io: Server): Namespace {
     /**
      * Request to speak (listener → host)
      */
-    socket.on('speaker:request', (data: { spaceId: string }) => {
+    socket.on('speaker:request', async (data: { spaceId: string }) => {
       try {
         const { spaceId } = data || {};
         if (!spaceId) return;
@@ -284,6 +297,15 @@ export function initializeSpaceSocket(io: Server): Namespace {
 
         const participant = room.participants.get(userId);
         if (!participant || participant.role !== 'listener') return;
+
+        // If speakerPermission is 'everyone', auto-promote instead of requesting
+        const space = await Space.findById(spaceId).lean();
+        if (space && (space as any).speakerPermission === SpeakerPermission.EVERYONE) {
+          participant.role = 'speaker';
+          broadcastParticipants(spacesNamespace, room);
+          await Space.findByIdAndUpdate(spaceId, { $addToSet: { speakers: userId } });
+          return;
+        }
 
         // Already requested
         if (room.speakerRequests.has(userId)) return;

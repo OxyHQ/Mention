@@ -17,6 +17,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import Avatar from '@/components/Avatar';
+import { Loading } from '@/components/ui/Loading';
 import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -150,7 +151,7 @@ const SpaceDetailScreen = () => {
           }}
         />
         <View style={styles.centerContent}>
-          <ThemedText>Loading...</ThemedText>
+          <Loading />
         </View>
       </SafeAreaView>
     );

@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import Space, { SpaceStatus } from '../models/Space';
+import Space, { SpaceStatus, SpeakerPermission } from '../models/Space';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
 
@@ -12,7 +12,7 @@ const router = Router();
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { title, description, scheduledStart, maxParticipants, topic, tags } = req.body;
+    const { title, description, scheduledStart, maxParticipants, topic, tags, speakerPermission } = req.body;
 
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -45,6 +45,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       scheduledStart: scheduledStartDate,
       topic: topic ? String(topic).trim() : undefined,
       tags: Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(Boolean) : [],
+      speakerPermission: speakerPermission && Object.values(SpeakerPermission).includes(speakerPermission)
+        ? speakerPermission
+        : SpeakerPermission.INVITED,
       stats: {
         peakListeners: 0,
         totalJoined: 0
