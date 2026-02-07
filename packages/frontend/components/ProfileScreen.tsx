@@ -13,7 +13,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, useFollow } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { usePostsStore } from '@/stores/postsStore';
@@ -71,7 +71,7 @@ const FEED_TYPES: FeedType[] = ['posts', 'replies', 'media', 'likes', 'reposts']
  * Follows industry best practices with clean separation of concerns
  */
 const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
-    const { user: currentUser, oxyServices, showBottomSheet, useFollow } = useAuth();
+    const { user: currentUser, oxyServices, showBottomSheet } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
@@ -104,9 +104,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
 
     // Follow data
     const stableUserId = profileData?.id || '';
-    const { followerCount = 0, followingCount = 0 } = (
-        useFollow as (userId: string) => { followerCount?: number; followingCount?: number }
-    )(stableUserId);
+    const { followerCount = 0, followingCount = 0 } = useFollow(stableUserId);
 
     // Subscription handling
     const { subscribed, loading: subLoading, toggle: toggleSubscription } = useSubscription(
