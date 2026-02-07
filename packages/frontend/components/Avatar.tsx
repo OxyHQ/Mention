@@ -15,7 +15,7 @@ import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { colors } from '../styles/colors';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { useTheme } from '@/hooks/useTheme';
-import { useAuth } from '@oxyhq/services';
+import { oxyServices } from '@/lib/oxyServices';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import Svg, { Path } from 'react-native-svg';
 
@@ -46,25 +46,20 @@ const Avatar: React.FC<AvatarProps> = ({
   useAnimated = false,
 }) => {
   const theme = useTheme();
-  const { oxyServices } = useAuth();
   const [errored, setErrored] = React.useState(false);
 
   // Resolve source: handles file IDs, HTTP URLs, and ImageSourcePropType objects
+  // Uses the app-level oxyServices singleton (same instance as OxyProvider) — no hook needed
   const resolvedSource = React.useMemo(() => {
     if (!source || errored) return undefined;
     if (typeof source !== 'string') return source;
-    // Already an HTTP URL — use as-is
     if (source.startsWith('http')) return source;
-    // File ID — resolve to download URL via cache
-    if (oxyServices) {
-      try {
-        return getCachedFileDownloadUrlSync(oxyServices, source, 'thumb');
-      } catch {
-        return undefined;
-      }
+    try {
+      return getCachedFileDownloadUrlSync(oxyServices, source, 'thumb');
+    } catch {
+      return undefined;
     }
-    return undefined;
-  }, [source, errored, oxyServices]);
+  }, [source, errored]);
 
   // Memoize imageSource for Image component
   const imageSource = React.useMemo(() => {

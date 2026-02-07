@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useRef, useCallback, useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import React, { createContext, useContext, useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -35,11 +35,15 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
     [insets.bottom]
   );
 
+  // Snap to expanded when a space becomes active
+  useEffect(() => {
+    if (activeSpaceId) {
+      sheetRef.current?.snapToIndex(1);
+    }
+  }, [activeSpaceId]);
+
   const joinLiveSpace = useCallback((spaceId: string) => {
     setActiveSpaceId(spaceId);
-    requestAnimationFrame(() => {
-      sheetRef.current?.snapToIndex(1);
-    });
   }, []);
 
   const leaveLiveSpace = useCallback(() => {
@@ -79,25 +83,25 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
   return (
     <LiveSpaceContext.Provider value={contextValue}>
       {children}
-      {activeSpaceId && (
-        <BottomSheet
-          ref={sheetRef}
-          snapPoints={snapPoints}
-          index={-1}
-          enablePanDownToClose={false}
-          enableContentPanningGesture={false}
-          topInset={insets.top}
-          handleComponent={null}
-          backgroundStyle={{ backgroundColor: theme.colors.background }}
-          style={styles.sheet}
-          backdropComponent={renderBackdrop}
-          onChange={(index) => {
-            setSheetIndex(index);
-            if (index === -1 && activeSpaceId) {
-              setActiveSpaceId(null);
-            }
-          }}
-        >
+      <BottomSheet
+        ref={sheetRef}
+        snapPoints={snapPoints}
+        index={-1}
+        enablePanDownToClose={false}
+        enableContentPanningGesture={false}
+        topInset={insets.top}
+        handleComponent={null}
+        backgroundStyle={{ backgroundColor: theme.colors.background }}
+        style={styles.sheet}
+        backdropComponent={renderBackdrop}
+        onChange={(index) => {
+          setSheetIndex(index);
+          if (index === -1 && activeSpaceId) {
+            setActiveSpaceId(null);
+          }
+        }}
+      >
+        {activeSpaceId ? (
           <LiveSpaceSheet
             spaceId={activeSpaceId}
             isExpanded={sheetIndex >= 1}
@@ -105,18 +109,24 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
             onExpand={handleExpand}
             onLeave={leaveLiveSpace}
           />
-        </BottomSheet>
-      )}
+        ) : (
+          <View />
+        )}
+      </BottomSheet>
     </LiveSpaceContext.Provider>
   );
 }
 
 const styles = StyleSheet.create({
   sheet: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 16,
-  },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.15)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.15,
+          shadowRadius: 12,
+          elevation: 16,
+        }),
+  } as any,
 });
