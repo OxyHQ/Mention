@@ -94,10 +94,10 @@ export function useSpaceConnection({
     unsubs.push(
       spaceSocketService.onSpeakerRequestReceived((data) => {
         if (data.spaceId === spaceId) {
-          setSpeakerRequests((prev) => [
-            ...prev,
-            { userId: data.userId, requestedAt: data.timestamp },
-          ]);
+          setSpeakerRequests((prev) => {
+            if (prev.some((r) => r.userId === data.userId)) return prev;
+            return [...prev, { userId: data.userId, requestedAt: data.timestamp }];
+          });
         }
       })
     );
@@ -149,10 +149,11 @@ export function useSpaceConnection({
     spaceSocketService.setMute(spaceId, newMuted);
   }, [spaceId, isMuted]);
 
-  // Request to speak
+  // Request to speak (skip if already a speaker/host — backend also deduplicates)
   const requestToSpeak = useCallback(() => {
+    if (myRole === 'speaker' || myRole === 'host') return;
     spaceSocketService.requestToSpeak(spaceId);
-  }, [spaceId]);
+  }, [spaceId, myRole]);
 
   // Approve speaker
   const approveSpeaker = useCallback(
