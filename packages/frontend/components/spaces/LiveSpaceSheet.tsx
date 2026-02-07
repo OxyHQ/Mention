@@ -4,8 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
-import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner';
 import { useAuth } from '@oxyhq/services';
@@ -304,7 +304,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
         )}
       </View>
 
-      <BottomSheetScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
         {/* Speakers Grid */}
         <View style={styles.speakerGrid}>
           {speakers.map((p) => (
@@ -354,7 +354,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
             ))}
           </View>
         )}
-      </BottomSheetScrollView>
+      </ScrollView>
 
       {/* Bottom Control Bar */}
       <View

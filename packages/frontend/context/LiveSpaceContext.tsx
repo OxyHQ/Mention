@@ -1,6 +1,12 @@
-import React, { createContext, useContext, useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
-import BottomSheet, { BottomSheetBackdrop, type BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import {
+  View,
+  Animated,
+  StyleSheet,
+  Platform,
+  Pressable,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -26,54 +32,34 @@ export function useLiveSpace() {
 export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const sheetRef = useRef<BottomSheet>(null);
+  const { height: screenHeight } = useWindowDimensions();
+
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
-  const [sheetIndex, setSheetIndex] = useState(-1);
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  const snapPoints = useMemo(
-    () => [MINI_BAR_HEIGHT + insets.bottom, '100%'],
-    [insets.bottom]
-  );
-
-  // Snap to expanded when a space becomes active
-  useEffect(() => {
-    if (activeSpaceId) {
-      sheetRef.current?.snapToIndex(1);
-    }
-  }, [activeSpaceId]);
+  const sheetHeight = isExpanded
+    ? screenHeight
+    : activeSpaceId
+      ? MINI_BAR_HEIGHT + insets.bottom
+      : 0;
 
   const joinLiveSpace = useCallback((spaceId: string) => {
     setActiveSpaceId(spaceId);
+    setIsExpanded(true);
   }, []);
 
   const leaveLiveSpace = useCallback(() => {
-    sheetRef.current?.close();
-    setTimeout(() => {
-      setActiveSpaceId(null);
-      setSheetIndex(-1);
-    }, 300);
+    setActiveSpaceId(null);
+    setIsExpanded(false);
   }, []);
 
   const handleCollapse = useCallback(() => {
-    sheetRef.current?.snapToIndex(0);
+    setIsExpanded(false);
   }, []);
 
   const handleExpand = useCallback(() => {
-    sheetRef.current?.snapToIndex(1);
+    setIsExpanded(true);
   }, []);
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={1}
-        disappearsOnIndex={0}
-        pressBehavior="none"
-        opacity={0.3}
-      />
-    ),
-    []
-  );
 
   const contextValue = useMemo(
     () => ({ activeSpaceId, joinLiveSpace, leaveLiveSpace }),
@@ -83,42 +69,54 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
   return (
     <LiveSpaceContext.Provider value={contextValue}>
       {children}
-      <BottomSheet
-        ref={sheetRef}
-        snapPoints={snapPoints}
-        index={-1}
-        enablePanDownToClose={false}
-        enableContentPanningGesture={false}
-        topInset={insets.top}
-        handleComponent={null}
-        backgroundStyle={{ backgroundColor: theme.colors.background }}
-        style={styles.sheet}
-        backdropComponent={renderBackdrop}
-        onChange={(index) => {
-          setSheetIndex(index);
-          if (index === -1 && activeSpaceId) {
-            setActiveSpaceId(null);
-          }
-        }}
-      >
-        {activeSpaceId ? (
+
+      {/* Backdrop */}
+      {activeSpaceId && isExpanded && (
+        <Pressable
+          style={[StyleSheet.absoluteFill, styles.backdrop]}
+          onPress={handleCollapse}
+        />
+      )}
+
+      {/* Sheet */}
+      {activeSpaceId && (
+        <View
+          style={[
+            styles.sheet,
+            {
+              height: sheetHeight,
+              backgroundColor: theme.colors.background,
+              paddingBottom: isExpanded ? 0 : insets.bottom,
+            },
+          ]}
+        >
           <LiveSpaceSheet
             spaceId={activeSpaceId}
-            isExpanded={sheetIndex >= 1}
+            isExpanded={isExpanded}
             onCollapse={handleCollapse}
             onExpand={handleExpand}
             onLeave={leaveLiveSpace}
           />
-        ) : (
-          <View />
-        )}
-      </BottomSheet>
+        </View>
+      )}
     </LiveSpaceContext.Provider>
   );
 }
 
 const styles = StyleSheet.create({
+  backdrop: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 999,
+  },
   sheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
     ...(Platform.OS === 'web'
       ? { boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.15)' }
       : {
