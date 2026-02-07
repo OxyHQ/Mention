@@ -2,8 +2,8 @@
 import 'react-native-reanimated';
 
 // Register LiveKit WebRTC globals (must be called before any LiveKit usage)
-import { Platform } from 'react-native';
-if (Platform.OS !== 'web') {
+// Uses require() to avoid duplicate Platform import with line below
+if (require('react-native').Platform.OS !== 'web') {
   try {
     const { registerGlobals } = require('@livekit/react-native');
     registerGlobals();
