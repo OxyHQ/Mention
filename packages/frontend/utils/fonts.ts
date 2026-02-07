@@ -24,17 +24,6 @@ export const FONT_CONFIG = {
       Black: '900',
     },
   },
-  Phudu: {
-    family: 'Phudu',
-    variable: require('@/assets/fonts/Phudu-VariableFont_wght.ttf'),
-    weights: {
-      Thin: '100',
-      Regular: '400',
-      Medium: '500',
-      SemiBold: '600',
-      Bold: '700',
-    },
-  },
 } as const;
 
 /**
@@ -52,14 +41,6 @@ export function getOptimizedFontMap() {
     fontMap[`${FONT_CONFIG.Inter.family}-${weight}`] = FONT_CONFIG.Inter.variable;
   });
   
-  // Phudu font family - single variable font
-  fontMap[`${FONT_CONFIG.Phudu.family}-Variable`] = FONT_CONFIG.Phudu.variable;
-  
-  // Create aliases for each weight
-  Object.keys(FONT_CONFIG.Phudu.weights).forEach((weight) => {
-    fontMap[`${FONT_CONFIG.Phudu.family}-${weight}`] = FONT_CONFIG.Phudu.variable;
-  });
-  
   return fontMap;
 }
 
@@ -67,7 +48,7 @@ export function getOptimizedFontMap() {
  * Get font family name with weight
  * For variable fonts, we use the same family name and set fontWeight in styles
  */
-export function getFontFamily(family: 'Inter' | 'Phudu', weight?: string): string {
+export function getFontFamily(family: 'Inter', weight?: string): string {
   if (weight) {
     return `${family}-${weight}`;
   }

@@ -148,7 +148,6 @@ return {
                       fonts: [
                         './assets/fonts/inter/InterVariable.ttf',
                         './assets/fonts/inter/InterVariable-Italic.ttf',
-                        './assets/fonts/Phudu-VariableFont_wght.ttf',
                       ],
                     },
                   ],

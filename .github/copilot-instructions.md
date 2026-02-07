@@ -120,17 +120,7 @@ const textColor = isDarkTheme ? '#FFFFFF' : '#000000';
 const primaryColor = '#d169e5'; // Oxy brand color
 ```
 
-**Font Usage**: Use the Phudu font family for headings and brand elements:
-
-```typescript
-const styles = StyleSheet.create({
-  title: {
-    fontFamily: Platform.OS === 'web' ? 'Phudu' : 'Phudu-Bold',
-    fontWeight: Platform.OS === 'web' ? 'bold' : undefined,
-    fontSize: 24,
-  }
-});
-```
+**Font Usage**: Use the Inter font family (the app's primary font) for all text. Use the typography presets from `styles/typography.ts` for consistent styling.
 
 ## Navigation & Screens
 

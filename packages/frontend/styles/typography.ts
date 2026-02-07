@@ -11,8 +11,6 @@ import { Platform, TextStyle } from 'react-native';
 export const FONT_FAMILIES = {
   /** Primary font - Inter Variable */
   primary: 'Inter-Regular',
-  /** Display font - Phudu Variable */
-  display: 'Phudu-Regular',
 } as const;
 
 /**
@@ -102,7 +100,7 @@ export interface TypographyPreset {
 export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   /** Display large - for hero text */
   displayLarge: {
-    fontFamily: FONT_FAMILIES.display,
+    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES['6xl'],
     fontWeight: Platform.OS === 'web' ? FONT_WEIGHTS.bold : '700',
     lineHeight: FONT_SIZES['6xl'] * LINE_HEIGHTS.tight,
@@ -110,7 +108,7 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Display medium - for large headings */
   displayMedium: {
-    fontFamily: FONT_FAMILIES.display,
+    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES['5xl'],
     fontWeight: Platform.OS === 'web' ? FONT_WEIGHTS.bold : '700',
     lineHeight: FONT_SIZES['5xl'] * LINE_HEIGHTS.tight,
