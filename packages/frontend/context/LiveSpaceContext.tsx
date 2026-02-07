@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import { StyleSheet, Platform, Pressable, useWindowDimensions } from 'react-native';
+import { StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -152,14 +152,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.15)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.15,
-          shadowRadius: 12,
-          elevation: 16,
-        }),
+    boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.15)',
+    elevation: 16,
   } as any,
 });
