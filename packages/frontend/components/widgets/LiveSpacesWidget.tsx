@@ -51,7 +51,7 @@ const SpaceRow = React.memo(function SpaceRow({
             {space.title}
           </Text>
           <View style={styles.spaceMeta}>
-            <Ionicons name="headset-outline" size={12} color={theme.colors.textSecondary} />
+            <Ionicons name="headset-outline" size={11} color={theme.colors.textSecondary} />
             <Text style={[styles.spaceMetaText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
               {listenerCount} listening  ·  {hostName}
             </Text>
@@ -187,42 +187,40 @@ const styles = StyleSheet.create({
   muted: {
     fontSize: 13,
   },
-  listContainer: {
-    paddingTop: 4,
-  },
+  listContainer: {},
   spaceItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
     ...Platform.select({ web: { cursor: 'pointer' as const } }),
   },
   spaceContent: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#FF4458',
   },
   spaceTextContainer: {
     flex: 1,
   },
   spaceTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   spaceMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
+    gap: 3,
+    marginTop: 1,
   },
   spaceMetaText: {
-    fontSize: 13,
+    fontSize: 12,
     flex: 1,
   },
   showMore: {
