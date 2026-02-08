@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { feedService } from '@/services/feedService';
+import Avatar from '@/components/Avatar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -81,10 +82,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
           style={styles.userRow}
         onPress={() => handleUserPress(item.handle)}
       >
-        <Image
-          source={{ uri: item.avatar || 'https://via.placeholder.com/50' }}
-          style={styles.avatar}
-        />
+        <Avatar source={item.avatar} size={50} style={{ marginRight: 12 }} />
         <View style={styles.userInfo}>
           <View style={styles.nameRow}>
             <Text style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
@@ -196,12 +194,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'transparent',
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
   },
   userInfo: {
     flex: 1,

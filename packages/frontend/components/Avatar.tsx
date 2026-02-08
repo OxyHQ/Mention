@@ -94,6 +94,11 @@ const Avatar: React.FC<AvatarProps> = ({
           )
         ) : (
           <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.backgroundSecondary }]}>
+            <Image
+              source={DEFAULT_AVATAR_SOURCE}
+              style={[StyleSheet.absoluteFillObject, { borderRadius: size / 2 }]}
+              resizeMode="cover"
+            />
             {label ? (
               <Text style={[styles.fallbackText, { fontSize: Math.round(size * 0.4), color: theme.colors.text }]}>
                 {label}

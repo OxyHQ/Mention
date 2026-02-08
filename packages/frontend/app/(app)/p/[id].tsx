@@ -8,7 +8,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     TextInput,
-    Image,
     ScrollView
 } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
@@ -17,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { colors } from '@/styles/colors';
+import Avatar from '@/components/Avatar';
 import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
 import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
@@ -538,10 +538,7 @@ const PostDetailScreen: React.FC = () => {
                     <View style={styles.composerContent}>
                         <View style={styles.composer}>
                             <View style={styles.composerAvatarWrap}>
-                                <Image
-                                    source={{ uri: (user as any)?.avatar || 'https://via.placeholder.com/40' }}
-                                    style={[styles.composerAvatar, { backgroundColor: theme.colors.backgroundSecondary }]}
-                                />
+                                <Avatar source={(user as any)?.avatar} size={36} />
                             </View>
                             <View style={styles.composerInputContainer}>
                                 <MentionTextInput
@@ -757,11 +754,6 @@ const styles = StyleSheet.create({
     },
     composerAvatarWrap: {
         paddingTop: 8,
-    },
-    composerAvatar: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
     },
     composerInputContainer: {
         flex: 1,
