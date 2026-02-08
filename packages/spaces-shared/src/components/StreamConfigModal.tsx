@@ -293,7 +293,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                       {rtmpUrl}
                     </Text>
                     <TouchableOpacity onPress={() => copyToClipboard(rtmpUrl, 'RTMP URL')} style={styles.copyBtn}>
-                      <MaterialCommunityIcons name="copy" size={18} color={theme.colors.primary} />
+                      <MaterialCommunityIcons name="content-copy" size={18} color={theme.colors.primary} />
                     </TouchableOpacity>
                   </View>
 
@@ -303,12 +303,12 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                       {streamKey}
                     </Text>
                     <TouchableOpacity onPress={() => copyToClipboard(streamKey!, 'Stream key')} style={styles.copyBtn}>
-                      <MaterialCommunityIcons name="copy" size={18} color={theme.colors.primary} />
+                      <MaterialCommunityIcons name="content-copy" size={18} color={theme.colors.primary} />
                     </TouchableOpacity>
                   </View>
 
                   <View style={styles.infoRow}>
-                    <MaterialCommunityIcons name="information-circle" size={16} color={theme.colors.textSecondary} />
+                    <MaterialCommunityIcons name="information" size={16} color={theme.colors.textSecondary} />
                     <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
                       Use these in OBS or your streaming app. Audio will play in the space once you start streaming.
                     </Text>
@@ -403,7 +403,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                 {loading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <MaterialCommunityIcons name="save" size={18} color="#FFFFFF" />
+                  <MaterialCommunityIcons name="content-save" size={18} color="#FFFFFF" />
                 )}
                 <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 16 }}>
                   Save Stream Info

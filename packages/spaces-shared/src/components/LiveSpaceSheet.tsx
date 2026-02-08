@@ -70,7 +70,7 @@ const SpeakerTile = ({
         <AvatarComponent size={64} source={avatarUri} shape="squircle" />
         {participant.isMuted && (
           <View style={[styles.muteIndicator, { backgroundColor: '#FF4458' }]}>
-            <MaterialCommunityIcons name="mic-off" size={12} color="#FFFFFF" />
+            <MaterialCommunityIcons name="microphone-off" size={12} color="#FFFFFF" />
           </View>
         )}
       </View>
@@ -134,7 +134,7 @@ const ConnectedRequestRow = ({ request, theme, oxyServices, onApprove, onDeny, A
         {displayName}
       </Text>
       <TouchableOpacity onPress={() => onApprove(request.userId)} style={[styles.approveBtn, { backgroundColor: theme.colors.primary }]}>
-        <MaterialCommunityIcons name="checkmark" size={18} color="#FFFFFF" />
+        <MaterialCommunityIcons name="check" size={18} color="#FFFFFF" />
       </TouchableOpacity>
       <TouchableOpacity onPress={() => onDeny(request.userId)} style={[styles.denyBtn, { backgroundColor: theme.colors.backgroundSecondary }]}>
         <MaterialCommunityIcons name="close" size={18} color={theme.colors.text} />
@@ -314,7 +314,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
 
       {micPermissionDenied && canSpeak && (
         <View style={[styles.micBanner, { backgroundColor: '#FFF3CD', borderColor: '#FFE69C' }]}>
-          <MaterialCommunityIcons name="mic-off" size={18} color="#856404" />
+          <MaterialCommunityIcons name="microphone-off" size={18} color="#856404" />
           <Text style={styles.micBannerText}>
             Microphone access denied. Allow mic permission in your browser settings to speak.
           </Text>
@@ -434,7 +434,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
               ]}
             >
               <MaterialCommunityIcons
-                name={isMuted ? 'mic-off' : 'mic'}
+                name={isMuted ? 'microphone-off' : 'microphone'}
                 size={24}
                 color={isMuted ? theme.colors.text : '#FFFFFF'}
               />
@@ -451,7 +451,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
                 { backgroundColor: theme.colors.backgroundSecondary },
               ]}
             >
-              <MaterialCommunityIcons name="hand-left" size={24} color={theme.colors.text} />
+              <MaterialCommunityIcons name="hand-back-left" size={24} color={theme.colors.text} />
             </View>
             <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
               Request
@@ -466,7 +466,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
               { backgroundColor: theme.colors.backgroundSecondary },
             ]}
           >
-            <MaterialCommunityIcons name="people" size={24} color={theme.colors.text} />
+            <MaterialCommunityIcons name="account-group" size={24} color={theme.colors.text} />
           </View>
           <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
             {participants.length}
@@ -486,7 +486,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
 
         <TouchableOpacity style={styles.controlItem} onPress={handleLeave}>
           <View style={[styles.leaveCircle, { backgroundColor: '#FF4458' }]}>
-            <MaterialCommunityIcons name="exit-outline" size={24} color="#FFFFFF" />
+            <MaterialCommunityIcons name="exit-run" size={24} color="#FFFFFF" />
           </View>
           <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
             Leave

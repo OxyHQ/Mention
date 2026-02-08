@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxyhq/services';
 
 import { useTheme } from '@/hooks/useTheme';
+import { PrimaryButton } from '@/components/PrimaryButton';
 
 export default function SignInScreen() {
   const theme = useTheme();
@@ -29,12 +30,12 @@ export default function SignInScreen() {
           Live audio conversations with your community
         </Text>
 
-        <TouchableOpacity
-          style={[styles.signInButton, { backgroundColor: theme.colors.primary }]}
+        <PrimaryButton
+          title="Sign In"
           onPress={() => signIn?.()}
-        >
-          <Text style={styles.signInButtonText}>Sign In</Text>
-        </TouchableOpacity>
+          style={{ marginTop: 40, paddingHorizontal: 48, paddingVertical: 16, borderRadius: 28 }}
+          textStyle={{ fontSize: 17 }}
+        />
       </View>
     </View>
   );
@@ -65,16 +66,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     lineHeight: 22,
-  },
-  signInButton: {
-    marginTop: 40,
-    paddingHorizontal: 48,
-    paddingVertical: 16,
-    borderRadius: 28,
-  },
-  signInButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
   },
 });

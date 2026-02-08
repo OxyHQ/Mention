@@ -79,7 +79,7 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
             )}
             {!isCompact && isScheduled && (
               <View style={[styles.scheduledBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <MaterialCommunityIcons name="calendar-outline" size={12} color={theme.colors.textSecondary} />
+                <MaterialCommunityIcons name="calendar" size={12} color={theme.colors.textSecondary} />
                 <Text style={[styles.scheduledText, { color: theme.colors.textSecondary }]}>SCHEDULED</Text>
               </View>
             )}
@@ -95,7 +95,7 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
               )}
               {isScheduled && (
                 <View style={[styles.scheduledBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                  <MaterialCommunityIcons name="calendar-outline" size={10} color={theme.colors.textSecondary} />
+                  <MaterialCommunityIcons name="calendar" size={10} color={theme.colors.textSecondary} />
                   <Text style={[styles.scheduledText, { color: theme.colors.textSecondary }]}>SCHEDULED</Text>
                 </View>
               )}

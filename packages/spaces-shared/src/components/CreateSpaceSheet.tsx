@@ -327,8 +327,8 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
           <View style={styles.radioGroup}>
             {([
               { value: 'everyone' as const, label: 'Everyone', icon: 'earth' as const },
-              { value: 'followers' as const, label: 'People you follow', icon: 'account-group-outline' as const },
-              { value: 'invited' as const, label: 'Only invited speakers', icon: 'account-plus-outline' as const },
+              { value: 'followers' as const, label: 'People you follow', icon: 'account-group' as const },
+              { value: 'invited' as const, label: 'Only invited speakers', icon: 'account-plus' as const },
             ]).map((option, index, arr) => {
               const selected = speakerPermission === option.value;
               const isFirst = index === 0;

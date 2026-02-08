@@ -24,6 +24,7 @@ import {
 
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
+import { PrimaryButton } from '@/components/PrimaryButton';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -233,12 +234,7 @@ export default function HomeScreen() {
             title="No spaces yet"
             subtitle="Start a space and invite people to listen and chat"
           >
-            <TouchableOpacity
-              style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
-              onPress={openCreateSheet}
-            >
-              <Text style={[styles.createButtonText, { color: theme.colors.onPrimary }]}>Create Space</Text>
-            </TouchableOpacity>
+            <PrimaryButton title="Create Space" onPress={openCreateSheet} style={{ marginTop: 10 }} />
           </EmptyState>
         )}
       </ScrollView>
@@ -329,15 +325,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
   },
-  createButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 22,
-    marginTop: 10,
-  },
-  createButtonText: { fontSize: 15, fontWeight: '600' },
 });
 
 const sheetStyles = StyleSheet.create({
