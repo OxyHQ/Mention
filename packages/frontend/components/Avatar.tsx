@@ -93,10 +93,10 @@ const Avatar: React.FC<AvatarProps> = ({
             />
           )
         ) : (
-          <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.colors.backgroundSecondary }]}>
+          <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: theme.colors.backgroundSecondary }]}>
             <Image
               source={DEFAULT_AVATAR_SOURCE}
-              style={[StyleSheet.absoluteFillObject, { borderRadius: size / 2 }]}
+              style={{ width: size, height: size, borderRadius: size / 2 }}
               resizeMode="cover"
             />
             {label ? (
