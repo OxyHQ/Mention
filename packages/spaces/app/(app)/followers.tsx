@@ -3,15 +3,18 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth, FollowersListScreen } from '@oxyhq/services';
+import { useAuth, useFollow } from '@oxyhq/services';
 
 import { useTheme } from '@/hooks/useTheme';
+import { EmptyState } from '@/components/EmptyState';
 
 export default function FollowersScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const userId = user?.id ?? user?._id ?? '';
+  const { followerCount = 0 } = useFollow(userId) as any;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -22,7 +25,10 @@ export default function FollowersScreen() {
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Followers</Text>
         <View style={styles.backButton} />
       </View>
-      <FollowersListScreen userId={user?.id ?? user?._id ?? ''} goBack={router.back} />
+      <View style={styles.content}>
+        <Text style={[styles.countText, { color: theme.colors.text }]}>{followerCount}</Text>
+        <Text style={[styles.countLabel, { color: theme.colors.textSecondary }]}>Followers</Text>
+      </View>
     </View>
   );
 }
@@ -39,4 +45,18 @@ const styles = StyleSheet.create({
   },
   backButton: { width: 32 },
   headerTitle: { fontSize: 18, fontWeight: '700' },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 80,
+  },
+  countText: {
+    fontSize: 48,
+    fontWeight: '800',
+  },
+  countLabel: {
+    fontSize: 16,
+    marginTop: 4,
+  },
 });
