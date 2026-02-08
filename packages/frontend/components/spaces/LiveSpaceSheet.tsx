@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   avatarRing: {
-    borderRadius: 20, // squircle: ~64 * 0.25 + padding
+    borderRadius: 19, // squircle match: (64 + padding + border) * 0.25
     padding: 2,
     borderWidth: 3,
     borderColor: 'transparent',

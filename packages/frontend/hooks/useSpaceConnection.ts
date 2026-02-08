@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@oxyhq/services';
+import { createAudioPlayer } from 'expo-audio';
 import {
   spaceSocketService,
   SpaceParticipant,
@@ -160,6 +161,10 @@ export function useSpaceConnection({
       if (res.success && res.participants) {
         setParticipants(res.participants);
         hasJoined.current = true;
+        try {
+          const player = createAudioPlayer(require('@/assets/sounds/intro.mp3'));
+          player.play();
+        } catch {}
       }
     });
   }, [spaceId]);
