@@ -6,12 +6,31 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useSpacesConfig } from '../context/SpacesConfigContext';
 import { useLiveSpace } from '../context/LiveSpaceContext';
 import type { Space } from '../types';
+
+const TOPICS = [
+  'Technology',
+  'Music',
+  'Sports',
+  'Gaming',
+  'News',
+  'Politics',
+  'Science',
+  'Art',
+  'Business',
+  'Education',
+  'Entertainment',
+  'Health',
+  'Culture',
+  'Crypto',
+  'AI',
+] as const;
 
 export interface CreateSpaceSheetRef {
   handleCreateAndStart: () => void;
@@ -242,42 +261,59 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
 
       <Scroll
         style={{ flex: 1 }}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, hideFooter && { paddingBottom: 72 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.inputSection}>
+        <View style={[styles.inputSection, styles.sectionPadded]}>
           <Text style={[styles.label, { color: theme.colors.text }]}>Title *</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, color: theme.colors.text }]}
+            style={[styles.input, { backgroundColor: theme.colors.backgroundSecondary, color: theme.colors.text }]}
             placeholder="What's your space about?"
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor={theme.colors.textTertiary}
             value={title}
             onChangeText={setTitle}
             maxLength={100}
           />
-          <Text style={[styles.helperText, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.charCount, { color: theme.colors.textTertiary }]}>
             {title.length}/100
           </Text>
         </View>
 
         <View style={styles.inputSection}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Topic</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, color: theme.colors.text }]}
-            placeholder="e.g., Technology, Music, Sports"
-            placeholderTextColor={theme.colors.textSecondary}
-            value={topic}
-            onChangeText={setTopic}
-            maxLength={50}
+          <Text style={[styles.label, styles.sectionPadded, { color: theme.colors.text }]}>Topic</Text>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={TOPICS}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.chipList}
+            renderItem={({ item }) => {
+              const selected = topic === item;
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: selected ? theme.colors.primary : theme.colors.backgroundSecondary,
+                    },
+                  ]}
+                  onPress={() => setTopic(selected ? '' : item)}
+                >
+                  <Text style={[styles.chipText, { color: selected ? '#FFFFFF' : theme.colors.text }]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
           />
         </View>
 
-        <View style={styles.inputSection}>
+        <View style={[styles.inputSection, styles.sectionPadded]}>
           <Text style={[styles.label, { color: theme.colors.text }]}>Description</Text>
           <TextInput
-            style={[styles.textArea, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, color: theme.colors.text }]}
+            style={[styles.textArea, { backgroundColor: theme.colors.backgroundSecondary, color: theme.colors.text }]}
             placeholder="Tell people what to expect..."
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor={theme.colors.textTertiary}
             value={description}
             onChangeText={setDescription}
             multiline
@@ -286,48 +322,66 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
           />
         </View>
 
-        <View style={styles.inputSection}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Speakers</Text>
-          <Text style={[styles.helperText, { color: theme.colors.textSecondary, marginTop: 0, marginBottom: 12 }]}>
-            Who can speak? Current speakers will not be affected.
-          </Text>
-          {([
-            { value: 'everyone' as const, label: 'Everyone' },
-            { value: 'followers' as const, label: 'People you follow' },
-            { value: 'invited' as const, label: 'Only people you invite to speak' },
-          ]).map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              style={[styles.radioRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-              onPress={() => setSpeakerPermission(option.value)}
-            >
-              <Text style={[styles.radioLabel, { color: theme.colors.text }]}>
-                {option.label}
-              </Text>
-              <View
-                style={[
-                  styles.radioCircle,
-                  {
-                    borderColor: speakerPermission === option.value ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: speakerPermission === option.value ? theme.colors.primary : 'transparent',
-                  },
-                ]}
-              >
-                {speakerPermission === option.value && (
-                  <Ionicons name="checkmark" size={14} color={theme.colors.card} />
-                )}
-              </View>
-            </TouchableOpacity>
-          ))}
+        <View style={[styles.inputSection, styles.sectionPadded]}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>Who can speak?</Text>
+          <View style={styles.radioGroup}>
+            {([
+              { value: 'everyone' as const, label: 'Everyone', icon: 'globe-outline' as const },
+              { value: 'followers' as const, label: 'People you follow', icon: 'people-outline' as const },
+              { value: 'invited' as const, label: 'Only invited speakers', icon: 'person-add-outline' as const },
+            ]).map((option, index, arr) => {
+              const selected = speakerPermission === option.value;
+              const isFirst = index === 0;
+              const isLast = index === arr.length - 1;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.radioRow,
+                    {
+                      backgroundColor: theme.colors.backgroundSecondary,
+                      borderTopLeftRadius: isFirst ? 12 : 0,
+                      borderTopRightRadius: isFirst ? 12 : 0,
+                      borderBottomLeftRadius: isLast ? 12 : 0,
+                      borderBottomRightRadius: isLast ? 12 : 0,
+                    },
+                  ]}
+                  onPress={() => setSpeakerPermission(option.value)}
+                >
+                  <Ionicons
+                    name={option.icon}
+                    size={18}
+                    color={selected ? theme.colors.primary : theme.colors.textSecondary}
+                  />
+                  <Text style={[styles.radioLabel, { color: selected ? theme.colors.primary : theme.colors.text }]}>
+                    {option.label}
+                  </Text>
+                  <View
+                    style={[
+                      styles.radioCircle,
+                      {
+                        borderColor: selected ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: selected ? theme.colors.primary : 'transparent',
+                      },
+                    ]}
+                  >
+                    {selected && (
+                      <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {mode === 'standalone' && (
-          <View style={styles.inputSection}>
+          <View style={[styles.inputSection, styles.sectionPadded]}>
             <Text style={[styles.label, { color: theme.colors.text }]}>Schedule (Optional)</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, color: theme.colors.text }]}
+              style={[styles.input, { backgroundColor: theme.colors.backgroundSecondary, color: theme.colors.text }]}
               placeholder="e.g., 2024-03-20 14:00"
-              placeholderTextColor={theme.colors.textSecondary}
+              placeholderTextColor={theme.colors.textTertiary}
               value={scheduledStart}
               onChangeText={setScheduledStart}
             />
@@ -354,71 +408,77 @@ const styles = StyleSheet.create({
   },
   headerCloseBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 16, fontWeight: '600' },
-  scrollContent: { padding: 16, paddingBottom: 16 },
-  inputSection: { marginBottom: 20 },
-  label: { fontSize: 15, fontWeight: '600', marginBottom: 8 },
+  scrollContent: { paddingVertical: 16, paddingBottom: 12 },
+  sectionPadded: { paddingHorizontal: 16 },
+  inputSection: { marginBottom: 16 },
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
   input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
   },
   textArea: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    minHeight: 80,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    minHeight: 72,
     textAlignVertical: 'top',
   },
-  helperText: { fontSize: 13, marginTop: 4 },
+  charCount: { fontSize: 11, marginTop: 4 },
+  chipList: { gap: 8, paddingHorizontal: 16 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  chipText: { fontSize: 13, fontWeight: '500' },
+  radioGroup: {
+    gap: 3,
+  },
   radioRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderRadius: 8,
-    marginBottom: 8,
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  radioLabel: { fontSize: 15, flex: 1 },
+  radioLabel: { fontSize: 14, flex: 1 },
   radioCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   footer: {
-    gap: 12,
+    gap: 10,
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
     borderTopWidth: 0.5,
   },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 24,
-    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 22,
+    gap: 6,
   },
-  primaryButtonText: { fontSize: 16, fontWeight: '600' },
+  primaryButtonText: { fontSize: 15, fontWeight: '600' },
   secondaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 24,
+    paddingVertical: 12,
+    borderRadius: 22,
     borderWidth: 1,
-    gap: 8,
+    gap: 6,
   },
-  secondaryButtonText: { fontSize: 16, fontWeight: '600' },
+  secondaryButtonText: { fontSize: 15, fontWeight: '600' },
 });
 
 export default CreateSpaceSheet;
