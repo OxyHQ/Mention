@@ -60,10 +60,10 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
         {isOwnProfile && currentUsername === username ? (
           <View style={styles.actionButtons}>
             <TouchableOpacity
-              style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
+              style={[styles.followButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
               onPress={() => showBottomSheet?.('EditProfile')}
             >
-              <Text style={styles.followButtonText}>{t('profile.editProfile')}</Text>
+              <Text style={[styles.followButtonText, { color: theme.colors.text }]}>{t('profile.editProfile')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -181,10 +181,10 @@ export const ProfileActions = memo(function ProfileActions({
   return (
     <View style={styles.actionButtons}>
       <TouchableOpacity
-        style={[styles.followButton, { backgroundColor: theme.colors.primary }]}
+        style={[styles.followButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
         onPress={() => showBottomSheet?.('EditProfile')}
       >
-        <Text style={styles.followButtonText}>{t('profile.editProfile')}</Text>
+        <Text style={[styles.followButtonText, { color: theme.colors.text }]}>{t('profile.editProfile')}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[
