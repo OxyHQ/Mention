@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { Room, RoomEvent, Track, ConnectionState } from 'livekit-client';
+import { setAudioModeAsync } from 'expo-audio';
 import { getSpaceToken } from '@/services/livekitService';
 
 // Conditionally import native-only modules
@@ -40,11 +41,24 @@ export function useSpaceAudio({
   // Audio session lifecycle (native only)
   useEffect(() => {
     if (!isConnected || Platform.OS === 'web') return;
-    if (!AudioSession) return;
 
-    AudioSession.startAudioSession();
+    (async () => {
+      try {
+        await setAudioModeAsync({
+          shouldPlayInBackground: true,
+          playsInSilentMode: true,
+          interruptionMode: 'duckOthers',
+        });
+      } catch {}
+      if (AudioSession) {
+        AudioSession.startAudioSession();
+      }
+    })();
+
     return () => {
-      AudioSession.stopAudioSession();
+      if (AudioSession) {
+        AudioSession.stopAudioSession();
+      }
     };
   }, [isConnected]);
 
