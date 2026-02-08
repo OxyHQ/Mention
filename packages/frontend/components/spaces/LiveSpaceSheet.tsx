@@ -74,7 +74,7 @@ const SpeakerTile = ({
         <Avatar
           size={64}
           source={avatarUri}
-          label={displayName[0]?.toUpperCase()}
+          shape="squircle"
         />
         {participant.isMuted && (
           <View style={[styles.muteIndicator, { backgroundColor: '#FF4458' }]}>
@@ -110,7 +110,7 @@ const ListenerAvatar = ({
       <Avatar
         size={40}
         source={avatarUri}
-        label={displayName[0]?.toUpperCase()}
+        shape="squircle"
       />
     </View>
   );
@@ -141,7 +141,7 @@ const ConnectedRequestRow = ({ request, theme, oxyServices, onApprove, onDeny }:
 
   return (
     <View style={[styles.requestRow, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <Avatar size={36} source={avatarUri} label={displayName[0]?.toUpperCase()} />
+      <Avatar size={36} source={avatarUri} shape="squircle" />
       <Text style={[styles.requestName, { color: theme.colors.text }]} numberOfLines={1}>
         {displayName}
       </Text>
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   avatarRing: {
-    borderRadius: 40,
+    borderRadius: 20, // squircle: ~64 * 0.25 + padding
     padding: 2,
     borderWidth: 3,
     borderColor: 'transparent',

@@ -126,7 +126,7 @@ const SpaceCard: React.FC<SpaceCardProps> = ({
         </View>
 
         {hostAvatarUri && (
-          <Avatar size={isCompact ? 14 : 16} source={hostAvatarUri} style={{ marginRight: 4 }} />
+          <Avatar size={isCompact ? 14 : 16} source={hostAvatarUri} shape="squircle" style={{ marginRight: 4 }} />
         )}
         <Text
           style={[isCompact ? styles.compactHost : styles.host, { color: theme.colors.textSecondary }]}

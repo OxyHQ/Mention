@@ -32,7 +32,7 @@ const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyService
   const profile = useUserById(userId);
   const avatarUri = getAvatarUrl(profile, oxyServices);
   const displayName = getDisplayName(profile, userId);
-  return <Avatar size={32} source={avatarUri} label={displayName[0]?.toUpperCase()} />;
+  return <Avatar size={32} source={avatarUri} shape="squircle" />;
 };
 
 // Host info with resolved profile
@@ -43,7 +43,7 @@ const HostInfo = ({ hostId, oxyServices, theme }: { hostId: string; oxyServices:
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <Avatar size={48} source={avatarUri} label={displayName[0]?.toUpperCase() || 'H'} />
+      <Avatar size={48} source={avatarUri} shape="squircle" />
       <View style={{ flex: 1, marginLeft: 12 }}>
         <ThemedText type="defaultSemiBold">{displayName}</ThemedText>
         {profile?.username && (

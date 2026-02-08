@@ -23,21 +23,29 @@ const AnimatedImage = Animated.createAnimatedComponent(Image);
 // Memoize the default avatar source to prevent re-creation on every render
 const DEFAULT_AVATAR_SOURCE = DefaultAvatar;
 
+type AvatarShape = 'circle' | 'squircle';
+
 interface AvatarProps {
   source?: ImageSourcePropType | string | undefined | null;
   size?: number;
   verified?: boolean;
+  shape?: AvatarShape;
   style?: StyleProp<ViewStyle>;
   imageStyle?: StyleProp<ImageStyle>;
-  label?: string; // initials or single char to show when no image
+  label?: string; // kept for backward compat — not rendered
   onPress?: () => void;
   useAnimated?: boolean; // render Animated.Image so parent can pass animated styles in imageStyle
 }
+
+/** Compute border radius for the given shape */
+const getBorderRadius = (size: number, shape: AvatarShape) =>
+  shape === 'squircle' ? size * 0.25 : size / 2;
 
 const Avatar: React.FC<AvatarProps> = ({
   source,
   size = 40,
   verified = false,
+  shape = 'circle',
   style,
   imageStyle,
   onPress,
@@ -45,6 +53,7 @@ const Avatar: React.FC<AvatarProps> = ({
 }) => {
   const theme = useTheme();
   const [errored, setErrored] = React.useState(false);
+  const radius = getBorderRadius(size, shape);
 
   // Resolve source: handles file IDs, HTTP URLs, and ImageSourcePropType objects
   // Uses the app-level oxyServices singleton (same instance as OxyProvider) — no hook needed
@@ -72,14 +81,14 @@ const Avatar: React.FC<AvatarProps> = ({
 
   const content = (
     <Animated.View style={[styles.container, { width: size, height: size }, style]}>
-      <View style={[styles.imageContainer, { width: size, height: size, borderRadius: size / 2 }]}>
+      <View style={[styles.imageContainer, { width: size, height: size, borderRadius: radius }]}>
         {resolvedSource && !errored ? (
           useAnimated ? (
             <AnimatedImage
               source={imageSource}
               onError={() => setErrored(true)}
               resizeMode="cover"
-              style={[StyleSheet.absoluteFillObject, { borderRadius: size / 2 }, imageStyle]}
+              style={[StyleSheet.absoluteFillObject, { borderRadius: radius }, imageStyle]}
               defaultSource={DEFAULT_AVATAR_SOURCE}
             />
           ) : (
@@ -87,15 +96,15 @@ const Avatar: React.FC<AvatarProps> = ({
               source={imageSource}
               onError={() => setErrored(true)}
               resizeMode="cover"
-              style={[StyleSheet.absoluteFillObject, { borderRadius: size / 2 }, imageStyle]}
+              style={[StyleSheet.absoluteFillObject, { borderRadius: radius }, imageStyle]}
               defaultSource={DEFAULT_AVATAR_SOURCE}
             />
           )
         ) : (
-          <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: theme.colors.backgroundSecondary }]}>
+          <View style={[styles.fallback, { width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: theme.colors.backgroundSecondary }]}>
             <Image
               source={DEFAULT_AVATAR_SOURCE}
-              style={{ width: size, height: size, borderRadius: size / 2 }}
+              style={{ width: size, height: size, borderRadius: radius }}
               resizeMode="cover"
             />
           </View>
