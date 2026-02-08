@@ -61,7 +61,8 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
         height: 56,
         borderRadius: 28,
         backgroundColor: theme.colors.card,
-        borderTopWidth: 0,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
         flexDirection: 'row',
         alignItems: 'center',
         ...(Platform.OS === 'web' ? {

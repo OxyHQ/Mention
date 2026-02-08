@@ -1,9 +1,10 @@
 import React from 'react';
 import { View } from 'react-native';
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Spaces, SpacesActive } from '@mention/spaces-shared';
 import { useAuth } from '@oxyhq/services';
+import { Search, SearchActive } from '@/assets/icons/search-icon';
+import { Bell, BellActive } from '@/assets/icons/bell-icon';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useIsScreenNotMobile } from '@/hooks/useMediaQuery';
@@ -39,18 +40,20 @@ export default function TabsLayout() {
         name="explore"
         options={{
           title: 'Explore',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused, color, size }) =>
+            focused
+              ? <SearchActive color={color} size={size} />
+              : <Search color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="notifications"
         options={{
           title: 'Notifications',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="notifications-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused, color, size }) =>
+            focused
+              ? <BellActive color={color} size={size} />
+              : <Bell color={color} size={size} />,
         }}
       />
       <Tabs.Screen

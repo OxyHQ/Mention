@@ -1,8 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, Pressable, Platform } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { SpacesActive } from '@mention/spaces-shared';
+import { Home, HomeActive } from '@/assets/icons/home-icon';
+import { Search, SearchActive } from '@/assets/icons/search-icon';
+import { Bell, BellActive } from '@/assets/icons/bell-icon';
+import { User, UserActive } from '@/assets/icons/user-icon';
+import { Gear, GearActive } from '@/assets/icons/gear-icon';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useIsScreenNotMobile, useIsSidebarExpanded } from '@/hooks/useMediaQuery';
@@ -72,50 +76,42 @@ export function SideBar() {
 
   if (!isScreenNotMobile) return null;
 
+  const isHome = pathname === '/' || pathname === '/(tabs)' || pathname === '/(app)/(tabs)';
+
   const navItems = [
     {
       text: 'Home',
       href: '/',
       icon: (color: string) =>
-        pathname === '/' || pathname === '/(tabs)'
-          ? <Ionicons name="home" size={20} color={color} />
-          : <Ionicons name="home-outline" size={20} color={color} />,
-      isActive: pathname === '/' || pathname === '/(tabs)' || pathname === '/(app)/(tabs)',
+        isHome ? <HomeActive size={20} color={color} /> : <Home size={20} color={color} />,
+      isActive: isHome,
     },
     {
       text: 'Explore',
       href: '/explore',
       icon: (color: string) =>
-        pathname === '/explore'
-          ? <Ionicons name="search" size={20} color={color} />
-          : <Ionicons name="search-outline" size={20} color={color} />,
+        pathname === '/explore' ? <SearchActive size={20} color={color} /> : <Search size={20} color={color} />,
       isActive: pathname === '/explore',
     },
     {
       text: 'Notifications',
       href: '/notifications',
       icon: (color: string) =>
-        pathname === '/notifications'
-          ? <Ionicons name="notifications" size={20} color={color} />
-          : <Ionicons name="notifications-outline" size={20} color={color} />,
+        pathname === '/notifications' ? <BellActive size={20} color={color} /> : <Bell size={20} color={color} />,
       isActive: pathname === '/notifications',
     },
     {
       text: 'Profile',
       href: '/profile',
       icon: (color: string) =>
-        pathname === '/profile'
-          ? <Ionicons name="person" size={20} color={color} />
-          : <Ionicons name="person-outline" size={20} color={color} />,
+        pathname === '/profile' ? <UserActive size={20} color={color} /> : <User size={20} color={color} />,
       isActive: pathname === '/profile',
     },
     {
       text: 'Settings',
       href: '/settings',
       icon: (color: string) =>
-        pathname.startsWith('/settings')
-          ? <Ionicons name="settings" size={20} color={color} />
-          : <Ionicons name="settings-outline" size={20} color={color} />,
+        pathname.startsWith('/settings') ? <GearActive size={20} color={color} /> : <Gear size={20} color={color} />,
       isActive: pathname.startsWith('/settings'),
     },
   ];
