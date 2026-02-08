@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import Space, { SpaceStatus, SpeakerPermission } from '../models/Space';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
-import { generateSpaceToken, createLiveKitRoom, deleteLiveKitRoom, createUrlIngress, deleteIngress } from '../utils/livekit';
+import { generateSpaceToken, createLiveKitRoom, deleteLiveKitRoom, createUrlIngress, createRtmpIngress, deleteIngress } from '../utils/livekit';
 
 const router = Router();
 
@@ -149,6 +149,8 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     if (req.user?.id !== space.host) {
       delete space.activeStreamUrl;
       delete space.activeIngressId;
+      delete space.rtmpUrl;
+      delete space.rtmpStreamKey;
     }
 
     res.json({ space });
@@ -274,6 +276,8 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
       space.streamTitle = undefined;
       space.streamImage = undefined;
       space.streamDescription = undefined;
+      space.rtmpUrl = undefined;
+      space.rtmpStreamKey = undefined;
     }
 
     await space.save();
@@ -666,9 +670,11 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
     // Create the URL ingress
     const ingress = await createUrlIngress(String(id), trimmedUrl);
 
-    // Persist ingress info + metadata
+    // Persist ingress info + metadata (clear RTMP fields if switching modes)
     space.activeIngressId = ingress.ingressId;
     space.activeStreamUrl = trimmedUrl;
+    space.rtmpUrl = undefined;
+    space.rtmpStreamKey = undefined;
     space.streamTitle = title ? String(title).trim() : undefined;
     space.streamImage = image ? String(image).trim() : undefined;
     space.streamDescription = description ? String(description).trim() : undefined;
@@ -737,6 +743,8 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
     space.streamTitle = undefined;
     space.streamImage = undefined;
     space.streamDescription = undefined;
+    space.rtmpUrl = undefined;
+    space.rtmpStreamKey = undefined;
     await space.save();
 
     logger.info(`Live stream stopped in space ${id}`);
@@ -755,6 +763,80 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
     logger.error('Error stopping stream:', { userId: req.user?.id, spaceId: req.params.id, error });
     res.status(500).json({
       message: 'Error stopping stream',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Generate RTMP stream key (host only)
+ * POST /api/spaces/:id/stream/rtmp
+ * Body: { title?, image?, description? }
+ */
+router.post('/:id/stream/rtmp', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { title, image, description } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const space = await Space.findById(id);
+    if (!space) {
+      return res.status(404).json({ message: 'Space not found' });
+    }
+
+    if (space.host !== userId) {
+      return res.status(403).json({ message: 'Only the host can configure streaming' });
+    }
+
+    if (space.status !== SpaceStatus.LIVE) {
+      return res.status(400).json({ message: 'Space must be live to configure streaming' });
+    }
+
+    // If there's already an active ingress, delete it first
+    if (space.activeIngressId) {
+      await deleteIngress(space.activeIngressId);
+    }
+
+    // Create the RTMP ingress
+    const ingress = await createRtmpIngress(String(id));
+
+    // Persist ingress info + metadata (clear URL mode fields)
+    space.activeIngressId = ingress.ingressId;
+    space.activeStreamUrl = undefined;
+    space.rtmpUrl = ingress.url;
+    space.rtmpStreamKey = ingress.streamKey;
+    space.streamTitle = title ? String(title).trim() : undefined;
+    space.streamImage = image ? String(image).trim() : undefined;
+    space.streamDescription = description ? String(description).trim() : undefined;
+    await space.save();
+
+    logger.info(`RTMP ingress created for space ${id}: ${ingress.ingressId}`);
+
+    // Notify participants via socket (metadata only — no credentials)
+    const io = (global as any).io;
+    if (io) {
+      io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
+        spaceId: id,
+        title: space.streamTitle || null,
+        image: space.streamImage || null,
+        description: space.streamDescription || null,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      message: 'RTMP stream key generated',
+      rtmpUrl: ingress.url,
+      streamKey: ingress.streamKey,
+    });
+  } catch (error) {
+    logger.error('Error generating RTMP key:', { userId: req.user?.id, spaceId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error generating stream key',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }

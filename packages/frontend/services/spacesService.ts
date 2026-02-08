@@ -22,6 +22,8 @@ export interface Space {
   streamTitle?: string;
   streamImage?: string;
   streamDescription?: string;
+  rtmpUrl?: string;
+  rtmpStreamKey?: string;
   createdAt: string;
 }
 
@@ -110,6 +112,17 @@ class SpacesService {
       return res.data;
     } catch (error) {
       console.warn("Failed to start stream", error);
+      return null;
+    }
+  }
+
+  async generateStreamKey(id: string, data?: { title?: string; image?: string; description?: string }): Promise<{ rtmpUrl: string; streamKey: string } | null> {
+    if (!id) return null;
+    try {
+      const res = await authenticatedClient.post(`/spaces/${id}/stream/rtmp`, data || {});
+      return res.data;
+    } catch (error) {
+      console.warn("Failed to generate stream key", error);
       return null;
     }
   }

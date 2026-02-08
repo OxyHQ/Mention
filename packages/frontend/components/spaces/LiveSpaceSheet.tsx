@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner';
@@ -15,12 +14,14 @@ import { useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
 import Avatar from '@/components/Avatar';
 import { MiniSpaceBar } from '@/components/spaces/MiniSpaceBar';
+import { StreamConfigModal } from '@/components/spaces/StreamConfigModal';
 import { useTheme } from '@/hooks/useTheme';
 import { useSpaceConnection, StreamInfo } from '@/hooks/useSpaceConnection';
 import { useSpaceAudio } from '@/hooks/useSpaceAudio';
 import { useSpaceUsers, getDisplayName, getAvatarUrl } from '@/hooks/useSpaceUsers';
 import { useUserById, type UserEntity } from '@/stores/usersStore';
 import { spacesService, type Space } from '@/services/spacesService';
+import { getCachedFileDownloadUrl } from '@/utils/imageUrlCache';
 import type { SpaceParticipant } from '@/services/spaceSocketService';
 
 // --- Sub-components ---
@@ -233,11 +234,8 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
     }
   };
 
-  // Live stream state
-  const [streamUrlInput, setStreamUrlInput] = useState('');
-  const [streamTitleInput, setStreamTitleInput] = useState('');
-  const [streamImageInput, setStreamImageInput] = useState('');
-  const [streamDescInput, setStreamDescInput] = useState('');
+  // Stream modal & loading state
+  const [streamConfigVisible, setStreamConfigVisible] = useState(false);
   const [streamLoading, setStreamLoading] = useState(false);
 
   // Determine if a stream is active (from socket events or initial REST data)
@@ -246,31 +244,15 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
       ? { title: space.streamTitle, image: space.streamImage, description: space.streamDescription }
       : null);
 
-  const handleStartStream = async () => {
-    if (!spaceId || !streamUrlInput.trim() || streamLoading) return;
-    setStreamLoading(true);
-    try {
-      const result = await spacesService.startStream(spaceId, {
-        url: streamUrlInput.trim(),
-        title: streamTitleInput.trim() || undefined,
-        image: streamImageInput.trim() || undefined,
-        description: streamDescInput.trim() || undefined,
-      });
-      if (result) {
-        setStreamUrlInput('');
-        setStreamTitleInput('');
-        setStreamImageInput('');
-        setStreamDescInput('');
-        toast.success('Live stream started');
-      } else {
-        toast.error('Failed to start stream');
-      }
-    } catch {
-      toast.error('Failed to start stream');
-    } finally {
-      setStreamLoading(false);
+  // Resolve stream cover image file ID to a URL
+  const [streamImageUrl, setStreamImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (effectiveStream?.image) {
+      getCachedFileDownloadUrl(oxyServices, effectiveStream.image).then(setStreamImageUrl);
+    } else {
+      setStreamImageUrl(null);
     }
-  };
+  }, [effectiveStream?.image, oxyServices]);
 
   const handleStopStream = async () => {
     if (!spaceId || streamLoading) return;
@@ -278,7 +260,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
     try {
       const success = await spacesService.stopStream(spaceId);
       if (success) {
-        toast.success('Live stream stopped');
+        toast.success('Stream stopped');
       } else {
         toast.error('Failed to stop stream');
       }
@@ -369,8 +351,8 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
       {/* Active stream card */}
       {effectiveStream && (
         <View style={[styles.streamCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          {effectiveStream.image ? (
-            <Image source={{ uri: effectiveStream.image }} style={styles.streamCardImage} />
+          {streamImageUrl ? (
+            <Image source={{ uri: streamImageUrl }} style={styles.streamCardImage} />
           ) : (
             <View style={[styles.streamCardIconBox, { backgroundColor: '#E8F5E9' }]}>
               <Ionicons name="radio" size={20} color="#2E7D32" />
@@ -445,74 +427,17 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
           </View>
         )}
 
-        {/* Live Stream Control (host only) */}
-        {isHost && !effectiveStream && (
-          <View style={styles.streamSection}>
-            <Text style={[styles.listenerHeader, { color: theme.colors.textSecondary }]}>
-              Live Stream
-            </Text>
-            <TextInput
-              style={[styles.streamInput, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, color: theme.colors.text }]}
-              placeholder="Stream URL (required)"
-              placeholderTextColor={theme.colors.textSecondary}
-              value={streamUrlInput}
-              onChangeText={setStreamUrlInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-            />
-            <TextInput
-              style={[styles.streamInput, styles.streamInputSpaced, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, color: theme.colors.text }]}
-              placeholder="Title (optional)"
-              placeholderTextColor={theme.colors.textSecondary}
-              value={streamTitleInput}
-              onChangeText={setStreamTitleInput}
-              maxLength={200}
-            />
-            <TextInput
-              style={[styles.streamInput, styles.streamInputSpaced, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, color: theme.colors.text }]}
-              placeholder="Cover image URL (optional)"
-              placeholderTextColor={theme.colors.textSecondary}
-              value={streamImageInput}
-              onChangeText={setStreamImageInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-            />
-            <TextInput
-              style={[styles.streamInput, styles.streamInputSpaced, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, color: theme.colors.text }]}
-              placeholder="Description (optional)"
-              placeholderTextColor={theme.colors.textSecondary}
-              value={streamDescInput}
-              onChangeText={setStreamDescInput}
-              maxLength={500}
-              multiline
-            />
-            <TouchableOpacity
-              style={[
-                styles.streamStartBtn,
-                {
-                  backgroundColor: streamUrlInput.trim()
-                    ? theme.colors.primary
-                    : theme.colors.backgroundSecondary,
-                  opacity: streamLoading ? 0.6 : 1,
-                },
-              ]}
-              onPress={handleStartStream}
-              disabled={!streamUrlInput.trim() || streamLoading}
-            >
-              <Ionicons
-                name="play"
-                size={18}
-                color={streamUrlInput.trim() ? '#FFFFFF' : theme.colors.textSecondary}
-              />
-              <Text style={{ color: streamUrlInput.trim() ? '#FFFFFF' : theme.colors.textSecondary, fontWeight: '600', fontSize: 14 }}>
-                Start Stream
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
+
+      {/* Stream Config Modal */}
+      <StreamConfigModal
+        visible={streamConfigVisible}
+        onClose={() => setStreamConfigVisible(false)}
+        spaceId={spaceId}
+        onStreamStarted={() => {
+          spacesService.getSpace(spaceId).then(setSpace);
+        }}
+      />
 
       {/* Bottom Control Bar */}
       <View
@@ -572,6 +497,17 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
             {participants.length}
           </Text>
         </View>
+
+        {isHost && !effectiveStream && (
+          <TouchableOpacity style={styles.controlItem} onPress={() => setStreamConfigVisible(true)}>
+            <View style={[styles.controlCircle, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <Ionicons name="radio" size={24} color={theme.colors.text} />
+            </View>
+            <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
+              Stream
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity style={styles.controlItem} onPress={handleLeave}>
           <View style={[styles.leaveCircle, { backgroundColor: '#FF4458' }]}>
@@ -847,29 +783,5 @@ const styles = StyleSheet.create({
   },
   streamCardStop: {
     padding: 4,
-  },
-  streamSection: {
-    paddingHorizontal: 16,
-    marginTop: 24,
-    gap: 0,
-  },
-  streamInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-  },
-  streamInputSpaced: {
-    marginTop: 8,
-  },
-  streamStartBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingVertical: 12,
-    borderRadius: 10,
   },
 });

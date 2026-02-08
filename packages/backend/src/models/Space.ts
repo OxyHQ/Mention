@@ -35,6 +35,8 @@ export interface ISpace extends Document {
   streamTitle?: string;
   streamImage?: string;
   streamDescription?: string;
+  rtmpUrl?: string;
+  rtmpStreamKey?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -133,6 +135,14 @@ const SpaceSchema = new Schema({
     default: null,
     trim: true,
     maxlength: 500,
+  },
+  rtmpUrl: {
+    type: String,
+    default: null,
+  },
+  rtmpStreamKey: {
+    type: String,
+    default: null,
   },
 }, {
   timestamps: true

@@ -136,6 +136,27 @@ export async function createUrlIngress(
 }
 
 /**
+ * Create an RTMP-type ingress that accepts push streams from external apps
+ * (OBS, etc.) and publishes audio into the space's LiveKit room.
+ * Returns IngressInfo with .url (RTMP endpoint) and .streamKey.
+ */
+export async function createRtmpIngress(spaceId: string): Promise<IngressInfo> {
+  try {
+    const ingress = await getIngressClient().createIngress(IngressInput.RTMP_INPUT, {
+      roomName: `space_${spaceId}`,
+      participantIdentity: `stream_${spaceId}`,
+      participantName: 'Live Stream',
+      enableTranscoding: true,
+    });
+    logger.info(`RTMP ingress created for space ${spaceId}: ${ingress.ingressId}`);
+    return ingress;
+  } catch (error) {
+    logger.error(`Failed to create RTMP ingress for space ${spaceId}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Delete an active ingress by its ID.
  */
 export async function deleteIngress(ingressId: string): Promise<void> {
