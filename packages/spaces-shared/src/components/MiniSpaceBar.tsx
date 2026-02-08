@@ -32,7 +32,7 @@ export function MiniSpaceBar({
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={onExpand}
-      style={[styles.container, { backgroundColor: theme.colors.card, borderTopColor: theme.colors.border }]}
+      style={[styles.container, { backgroundColor: theme.colors.card }]}
     >
       <View style={styles.liveIndicator}>
         <View style={styles.liveDot} />
@@ -87,7 +87,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    borderTopWidth: 1,
     gap: 12,
   },
   liveIndicator: {

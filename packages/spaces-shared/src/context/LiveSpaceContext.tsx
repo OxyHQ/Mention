@@ -32,7 +32,8 @@ export function useLiveSpace() {
 }
 
 const SPRING_CONFIG = { damping: 28, stiffness: 220, overshootClamping: true };
-const BOTTOM_BAR_BASE = 60;
+// Bottom bar: bottom 12 + height 56 + gap 8
+const BOTTOM_BAR_OFFSET = 76;
 
 export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
   const { useTheme, isDesktop } = useSpacesConfig();
@@ -43,20 +44,47 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const bottomOffset = isDesktop ? 0 : BOTTOM_BAR_BASE + insets.bottom;
+  const bottomOffset = isDesktop ? 0 : BOTTOM_BAR_OFFSET;
   const collapsedHeight = MINI_BAR_HEIGHT;
   const expandedMaxHeight = screenHeight * 0.85 - bottomOffset;
 
   const progress = useSharedValue(0);
 
-  const sheetAnimStyle = useAnimatedStyle(() => ({
-    height: interpolate(
+  const sheetAnimStyle = useAnimatedStyle(() => {
+    const h = interpolate(
       progress.value,
       [0, 1, 2],
       [0, collapsedHeight, expandedMaxHeight],
       Extrapolation.CLAMP,
-    ),
-  }));
+    );
+    const inset = isDesktop ? 0 : interpolate(
+      progress.value,
+      [1, 2],
+      [16, 0],
+      Extrapolation.CLAMP,
+    );
+    const topRadius = interpolate(
+      progress.value,
+      [1, 2],
+      [collapsedHeight / 2, 16],
+      Extrapolation.CLAMP,
+    );
+    const bottomRadius = interpolate(
+      progress.value,
+      [1, 2],
+      [collapsedHeight / 2, 0],
+      Extrapolation.CLAMP,
+    );
+    return {
+      height: h,
+      left: inset,
+      right: inset,
+      borderTopLeftRadius: topRadius,
+      borderTopRightRadius: topRadius,
+      borderBottomLeftRadius: bottomRadius,
+      borderBottomRightRadius: bottomRadius,
+    };
+  });
 
   const backdropAnimStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [1, 2], [0, 1], Extrapolation.CLAMP),
@@ -115,6 +143,7 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
             {
               bottom: bottomOffset,
               backgroundColor: theme.colors.background,
+              borderColor: theme.colors.border,
             },
             sheetAnimStyle,
           ]}
@@ -139,15 +168,12 @@ const styles = StyleSheet.create({
   },
   sheet: {
     position: 'absolute',
-    left: 0,
-    right: 0,
     maxWidth: 500,
     margin: 'auto',
     zIndex: 1000,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
     overflow: 'hidden',
-    boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.15)',
-    elevation: 16,
+    borderWidth: 1,
+    boxShadow: '0 2px 16px rgba(0, 0, 0, 0.15)',
+    elevation: 8,
   } as any,
 });
