@@ -4,6 +4,8 @@ rtc:
   port_range_end: 60000
   use_external_ip: true
   tcp_port: 7881
+redis:
+  address: localhost:6379
 keys:
   API030367b273b39: biK2dpkd3E7w1jMxhq6LnF/O34ue2ij6UzCiG/Y/buw=
 logging:
