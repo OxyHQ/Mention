@@ -128,6 +128,7 @@ app.use(async (req, res, next) => {
 // CORS and security headers
 const ALLOWED_ORIGINS: string[] = [
   process.env.FRONTEND_URL || "https://mention.earth",
+  "https://spaces.mention.earth",
   ...(process.env.NODE_ENV !== 'production' ? [
     "http://localhost:8081",
     "http://localhost:8082",
