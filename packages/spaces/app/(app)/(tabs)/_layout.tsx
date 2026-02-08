@@ -59,6 +59,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
+          href: user?.username ? `/(app)/@${user.username}` as any : undefined,
           title: 'Profile',
           tabBarIcon: ({ focused, size }) => (
             <View style={{

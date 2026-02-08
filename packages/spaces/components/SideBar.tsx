@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, Pressable, Platform } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { SpacesActive } from '@mention/spaces-shared';
+import { useAuth } from '@oxyhq/services';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Search, SearchActive } from '@/assets/icons/search-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
@@ -73,10 +74,13 @@ export function SideBar() {
   const isExpanded = useIsSidebarExpanded();
   const theme = useTheme();
   const pathname = usePathname();
+  const { user } = useAuth();
 
   if (!isScreenNotMobile) return null;
 
   const isHome = pathname === '/' || pathname === '/(tabs)' || pathname === '/(app)/(tabs)';
+  const profileHref = user?.username ? `/@${user.username}` : '/profile';
+  const isProfileActive = pathname === '/profile' || pathname?.startsWith('/@');
 
   const navItems = [
     {
@@ -102,10 +106,10 @@ export function SideBar() {
     },
     {
       text: 'Profile',
-      href: '/profile',
+      href: profileHref,
       icon: (color: string) =>
-        pathname === '/profile' ? <UserActive size={20} color={color} /> : <User size={20} color={color} />,
-      isActive: pathname === '/profile',
+        isProfileActive ? <UserActive size={20} color={color} /> : <User size={20} color={color} />,
+      isActive: isProfileActive,
     },
     {
       text: 'Settings',
