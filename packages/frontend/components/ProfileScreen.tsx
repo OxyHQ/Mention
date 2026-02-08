@@ -404,6 +404,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                         {/* FAB */}
                         <FAB
                             onPress={() => router.push('/compose')}
+                            icon="create-outline"
                             style={themedStyles.fabStyle}
                         />
                     </>

@@ -340,6 +340,7 @@ const HomeScreen: React.FC = () => {
                     {isAuthenticated && (
                         <FAB
                             onPress={() => router.push('/compose')}
+                            icon="create-outline"
                             animatedTranslateY={fabTranslateY}
                             animatedOpacity={fabOpacity}
                         />
