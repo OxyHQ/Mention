@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BottomSheet, { BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import {
   SpaceCard,
   CreateSpaceSheet,
@@ -27,7 +27,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { spacesService } = useSpacesConfig();
   const { joinLiveSpace } = useLiveSpace();
-  const bottomSheetRef = useRef<BottomSheet>(null);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ['85%'], []);
 
   const [liveSpaces, setLiveSpaces] = useState<Space[]>([]);
@@ -57,13 +57,13 @@ export default function HomeScreen() {
     joinLiveSpace(space._id);
   };
 
-  const openCreateSheet = () => {
-    bottomSheetRef.current?.expand();
-  };
+  const openCreateSheet = useCallback(() => {
+    bottomSheetRef.current?.present();
+  }, []);
 
-  const closeCreateSheet = () => {
-    bottomSheetRef.current?.close();
-  };
+  const closeCreateSheet = useCallback(() => {
+    bottomSheetRef.current?.dismiss();
+  }, []);
 
   const renderBackdrop = useCallback(
     (props: any) => (
@@ -182,9 +182,8 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      <BottomSheet
+      <BottomSheetModal
         ref={bottomSheetRef}
-        index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose
         backdropComponent={renderBackdrop}
@@ -195,7 +194,7 @@ export default function HomeScreen() {
           onClose={closeCreateSheet}
           onSpaceCreated={() => loadSpaces()}
         />
-      </BottomSheet>
+      </BottomSheetModal>
     </View>
   );
 }
