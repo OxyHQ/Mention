@@ -1,15 +1,19 @@
 import React from 'react';
+import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Spaces, SpacesActive } from '@mention/spaces-shared';
+import { useAuth } from '@oxyhq/services';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useIsScreenNotMobile } from '@/hooks/useMediaQuery';
 import { AnimatedTabBar } from '@/components/AnimatedTabBar';
+import Avatar from '@/components/Avatar';
 
 export default function TabsLayout() {
   const theme = useTheme();
   const isScreenNotMobile = useIsScreenNotMobile();
+  const { user } = useAuth();
 
   return (
     <Tabs
@@ -53,8 +57,15 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+          tabBarIcon: ({ focused, size }) => (
+            <View style={{
+              borderRadius: size / 2 + 1,
+              borderWidth: focused ? 2 : 0,
+              borderColor: theme.colors.primary,
+              padding: focused ? 0 : 2,
+            }}>
+              <Avatar source={user?.avatar} size={size - 2} shape="circle" />
+            </View>
           ),
         }}
       />
