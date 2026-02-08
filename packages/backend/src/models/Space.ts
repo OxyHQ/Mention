@@ -30,6 +30,8 @@ export interface ISpace extends Document {
     peakListeners: number;
     totalJoined: number;
   };
+  activeIngressId?: string;
+  activeStreamUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -103,6 +105,14 @@ const SpaceSchema = new Schema({
       type: Number,
       default: 0
     }
+  },
+  activeIngressId: {
+    type: String,
+    default: null,
+  },
+  activeStreamUrl: {
+    type: String,
+    default: null,
   }
 }, {
   timestamps: true

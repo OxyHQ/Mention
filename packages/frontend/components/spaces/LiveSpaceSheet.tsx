@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner';
@@ -181,6 +182,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
     myRole,
     isMuted,
     speakerRequests,
+    activeStreamUrl,
     join,
     leave,
     toggleMute,
@@ -227,6 +229,46 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
       onLeave();
     } else {
       toast.error('Failed to end space');
+    }
+  };
+
+  // Live stream state
+  const [streamUrlInput, setStreamUrlInput] = useState('');
+  const [streamLoading, setStreamLoading] = useState(false);
+  const effectiveStreamUrl = activeStreamUrl ?? space?.activeStreamUrl ?? null;
+
+  const handleStartStream = async () => {
+    if (!spaceId || !streamUrlInput.trim() || streamLoading) return;
+    setStreamLoading(true);
+    try {
+      const result = await spacesService.startStream(spaceId, streamUrlInput.trim());
+      if (result) {
+        setStreamUrlInput('');
+        toast.success('Live stream started');
+      } else {
+        toast.error('Failed to start stream');
+      }
+    } catch {
+      toast.error('Failed to start stream');
+    } finally {
+      setStreamLoading(false);
+    }
+  };
+
+  const handleStopStream = async () => {
+    if (!spaceId || streamLoading) return;
+    setStreamLoading(true);
+    try {
+      const success = await spacesService.stopStream(spaceId);
+      if (success) {
+        toast.success('Live stream stopped');
+      } else {
+        toast.error('Failed to stop stream');
+      }
+    } catch {
+      toast.error('Failed to stop stream');
+    } finally {
+      setStreamLoading(false);
     }
   };
 
@@ -307,6 +349,21 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
         </View>
       )}
 
+      {/* Active stream indicator */}
+      {effectiveStreamUrl && (
+        <View style={[styles.streamBanner, { backgroundColor: '#E8F5E9', borderColor: '#A5D6A7' }]}>
+          <Ionicons name="radio" size={18} color="#2E7D32" />
+          <Text style={styles.streamBannerText} numberOfLines={1}>
+            Streaming: {effectiveStreamUrl}
+          </Text>
+          {isHost && (
+            <TouchableOpacity onPress={handleStopStream} disabled={streamLoading}>
+              <Ionicons name="close-circle" size={22} color="#C62828" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
         {/* Speakers Grid */}
         <View style={styles.speakerGrid}>
@@ -355,6 +412,53 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
                 onDeny={denySpeaker}
               />
             ))}
+          </View>
+        )}
+
+        {/* Live Stream Control (host only) */}
+        {isHost && !effectiveStreamUrl && (
+          <View style={styles.streamSection}>
+            <Text style={[styles.listenerHeader, { color: theme.colors.textSecondary }]}>
+              Live Stream
+            </Text>
+            <View style={styles.streamInputRow}>
+              <TextInput
+                style={[
+                  styles.streamInput,
+                  {
+                    backgroundColor: theme.colors.card,
+                    borderColor: theme.colors.border,
+                    color: theme.colors.text,
+                  },
+                ]}
+                placeholder="https://example.com/live/stream.m3u8"
+                placeholderTextColor={theme.colors.textSecondary}
+                value={streamUrlInput}
+                onChangeText={setStreamUrlInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
+              <TouchableOpacity
+                style={[
+                  styles.streamPlayBtn,
+                  {
+                    backgroundColor: streamUrlInput.trim()
+                      ? theme.colors.primary
+                      : theme.colors.backgroundSecondary,
+                    opacity: streamLoading ? 0.6 : 1,
+                  },
+                ]}
+                onPress={handleStartStream}
+                disabled={!streamUrlInput.trim() || streamLoading}
+              >
+                <Ionicons
+                  name="play"
+                  size={20}
+                  color={streamUrlInput.trim() ? '#FFFFFF' : theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -656,5 +760,45 @@ const styles = StyleSheet.create({
   controlLabel: {
     fontSize: 11,
     fontWeight: '500',
+  },
+  streamBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  streamBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#2E7D32',
+  },
+  streamSection: {
+    paddingHorizontal: 16,
+    marginTop: 24,
+  },
+  streamInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  streamInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  streamPlayBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

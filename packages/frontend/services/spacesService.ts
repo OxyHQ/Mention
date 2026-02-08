@@ -17,6 +17,8 @@ export interface Space {
   tags?: string[];
   speakerPermission?: 'everyone' | 'followers' | 'invited';
   stats?: { peakListeners: number; totalJoined: number };
+  activeIngressId?: string;
+  activeStreamUrl?: string;
   createdAt: string;
 }
 
@@ -94,6 +96,28 @@ class SpacesService {
       return true;
     } catch (error) {
       console.warn("Failed to leave space", error);
+      return false;
+    }
+  }
+
+  async startStream(id: string, url: string): Promise<{ ingressId: string; url: string } | null> {
+    if (!id) return null;
+    try {
+      const res = await authenticatedClient.post(`/spaces/${id}/stream`, { url });
+      return res.data;
+    } catch (error) {
+      console.warn("Failed to start stream", error);
+      return null;
+    }
+  }
+
+  async stopStream(id: string): Promise<boolean> {
+    if (!id) return false;
+    try {
+      await authenticatedClient.delete(`/spaces/${id}/stream`);
+      return true;
+    } catch (error) {
+      console.warn("Failed to stop stream", error);
       return false;
     }
   }

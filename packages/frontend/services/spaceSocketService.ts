@@ -166,6 +166,16 @@ class SpaceSocketService {
     this.socket?.on('space:user:left', cb);
     return () => { this.socket?.off('space:user:left', cb); };
   }
+
+  onStreamStarted(cb: (data: { spaceId: string; url: string; timestamp: string }) => void): () => void {
+    this.socket?.on('space:stream:started', cb);
+    return () => { this.socket?.off('space:stream:started', cb); };
+  }
+
+  onStreamStopped(cb: (data: { spaceId: string; timestamp: string }) => void): () => void {
+    this.socket?.on('space:stream:stopped', cb);
+    return () => { this.socket?.off('space:stream:stopped', cb); };
+  }
 }
 
 export const spaceSocketService = new SpaceSocketService();

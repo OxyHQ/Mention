@@ -1,4 +1,4 @@
-import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, TrackSource, IngressClient, IngressInput, IngressInfo } from 'livekit-server-sdk';
 import { logger } from './logger';
 
 const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
@@ -17,6 +17,15 @@ function getRoomService(): RoomServiceClient {
     roomService = new RoomServiceClient(getLiveKitUrl(), LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
   }
   return roomService;
+}
+
+let ingressClient: IngressClient | null = null;
+
+function getIngressClient(): IngressClient {
+  if (!ingressClient) {
+    ingressClient = new IngressClient(getLiveKitUrl(), LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+  }
+  return ingressClient;
 }
 
 /**
@@ -99,6 +108,54 @@ export async function updateParticipantPermissions(
   } catch (error) {
     // Participant may not be in the LiveKit room yet — not critical
     logger.warn(`Failed to update LiveKit permissions for ${userId} in space ${spaceId}:`, error);
+  }
+}
+
+/**
+ * Create a URL-type ingress that pulls live audio from an external URL
+ * and publishes it into the space's LiveKit room.
+ */
+export async function createUrlIngress(
+  spaceId: string,
+  url: string
+): Promise<IngressInfo> {
+  try {
+    const ingress = await getIngressClient().createIngress(IngressInput.URL_INPUT, {
+      roomName: `space_${spaceId}`,
+      participantIdentity: `stream_${spaceId}`,
+      participantName: 'Live Stream',
+      url,
+      enableTranscoding: true,
+    });
+    logger.info(`URL ingress created for space ${spaceId}: ${ingress.ingressId}`);
+    return ingress;
+  } catch (error) {
+    logger.error(`Failed to create URL ingress for space ${spaceId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Delete an active ingress by its ID.
+ */
+export async function deleteIngress(ingressId: string): Promise<void> {
+  try {
+    await getIngressClient().deleteIngress(ingressId);
+    logger.info(`Ingress deleted: ${ingressId}`);
+  } catch (error) {
+    logger.warn(`Failed to delete ingress ${ingressId}:`, error);
+  }
+}
+
+/**
+ * List all ingresses for a given space room (for diagnostics).
+ */
+export async function listSpaceIngresses(spaceId: string): Promise<IngressInfo[]> {
+  try {
+    return await getIngressClient().listIngress({ roomName: `space_${spaceId}` });
+  } catch (error) {
+    logger.warn(`Failed to list ingresses for space ${spaceId}:`, error);
+    return [];
   }
 }
 

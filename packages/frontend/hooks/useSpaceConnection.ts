@@ -16,6 +16,7 @@ interface UseSpaceConnectionReturn {
   myRole: 'host' | 'speaker' | 'listener' | null;
   isMuted: boolean;
   speakerRequests: Array<{ userId: string; requestedAt: string }>;
+  activeStreamUrl: string | null;
   join: () => void;
   leave: () => void;
   toggleMute: () => void;
@@ -40,6 +41,7 @@ export function useSpaceConnection({
     Array<{ userId: string; requestedAt: string }>
   >([]);
   const [isSpaceEnded, setIsSpaceEnded] = useState(false);
+  const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
 
   const hasJoined = useRef(false);
 
@@ -106,6 +108,7 @@ export function useSpaceConnection({
       spaceSocketService.onSpaceEnded((data) => {
         if (data.spaceId === spaceId) {
           setIsSpaceEnded(true);
+          setActiveStreamUrl(null);
         }
       })
     );
@@ -115,6 +118,22 @@ export function useSpaceConnection({
         if (data.spaceId === spaceId) {
           // Role update will come via participants:update
           setIsMuted(true);
+        }
+      })
+    );
+
+    unsubs.push(
+      spaceSocketService.onStreamStarted((data) => {
+        if (data.spaceId === spaceId) {
+          setActiveStreamUrl(data.url);
+        }
+      })
+    );
+
+    unsubs.push(
+      spaceSocketService.onStreamStopped((data) => {
+        if (data.spaceId === spaceId) {
+          setActiveStreamUrl(null);
         }
       })
     );
@@ -203,6 +222,7 @@ export function useSpaceConnection({
     myRole,
     isMuted,
     speakerRequests,
+    activeStreamUrl,
     join,
     leave,
     toggleMute,

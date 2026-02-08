@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import Space, { SpaceStatus, SpeakerPermission } from '../models/Space';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
-import { generateSpaceToken, createLiveKitRoom, deleteLiveKitRoom } from '../utils/livekit';
+import { generateSpaceToken, createLiveKitRoom, deleteLiveKitRoom, createUrlIngress, deleteIngress } from '../utils/livekit';
 
 const router = Router();
 
@@ -257,6 +257,16 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
     // Update space status
     space.status = SpaceStatus.ENDED;
     space.endedAt = new Date();
+
+    // Clean up active ingress if any
+    if (space.activeIngressId) {
+      deleteIngress(space.activeIngressId).catch((err) => {
+        logger.error(`Failed to delete ingress for space ${id}:`, err);
+      });
+      space.activeIngressId = undefined;
+      space.activeStreamUrl = undefined;
+    }
+
     await space.save();
 
     // Clean up LiveKit room
@@ -591,6 +601,143 @@ router.post('/:id/token', async (req: AuthRequest, res: Response) => {
     logger.error('Error generating space token:', { userId: req.user?.id, spaceId: req.params.id, error });
     res.status(500).json({
       message: 'Error generating token',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Start external live stream (host only)
+ * POST /api/spaces/:id/stream
+ * Body: { url: string }
+ */
+router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { url } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ message: 'url is required' });
+    }
+
+    const trimmedUrl = url.trim();
+
+    try {
+      const parsed = new URL(trimmedUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return res.status(400).json({ message: 'Only http and https URLs are supported' });
+      }
+    } catch {
+      return res.status(400).json({ message: 'Invalid URL format' });
+    }
+
+    const space = await Space.findById(id);
+    if (!space) {
+      return res.status(404).json({ message: 'Space not found' });
+    }
+
+    if (space.host !== userId) {
+      return res.status(403).json({ message: 'Only the host can add a live stream' });
+    }
+
+    if (space.status !== SpaceStatus.LIVE) {
+      return res.status(400).json({ message: 'Space must be live to add a stream' });
+    }
+
+    // If there's already an active ingress, delete it first
+    if (space.activeIngressId) {
+      await deleteIngress(space.activeIngressId);
+    }
+
+    // Create the URL ingress
+    const ingress = await createUrlIngress(String(id), trimmedUrl);
+
+    // Persist ingress info
+    space.activeIngressId = ingress.ingressId;
+    space.activeStreamUrl = trimmedUrl;
+    await space.save();
+
+    logger.info(`Live stream started in space ${id}: ${trimmedUrl}`);
+
+    // Notify participants via socket
+    const io = (global as any).io;
+    if (io) {
+      io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
+        spaceId: id,
+        url: trimmedUrl,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      message: 'Stream started successfully',
+      ingressId: ingress.ingressId,
+      url: trimmedUrl,
+    });
+  } catch (error) {
+    logger.error('Error starting stream:', { userId: req.user?.id, spaceId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error starting stream',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Stop external live stream (host only)
+ * DELETE /api/spaces/:id/stream
+ */
+router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const space = await Space.findById(id);
+    if (!space) {
+      return res.status(404).json({ message: 'Space not found' });
+    }
+
+    if (space.host !== userId) {
+      return res.status(403).json({ message: 'Only the host can remove the stream' });
+    }
+
+    if (!space.activeIngressId) {
+      return res.status(400).json({ message: 'No active stream' });
+    }
+
+    // Delete the ingress from LiveKit
+    await deleteIngress(space.activeIngressId);
+
+    // Clear ingress state
+    space.activeIngressId = undefined;
+    space.activeStreamUrl = undefined;
+    await space.save();
+
+    logger.info(`Live stream stopped in space ${id}`);
+
+    // Notify participants via socket
+    const io = (global as any).io;
+    if (io) {
+      io.of('/spaces').to(`space:${id}`).emit('space:stream:stopped', {
+        spaceId: id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({ message: 'Stream stopped successfully' });
+  } catch (error) {
+    logger.error('Error stopping stream:', { userId: req.user?.id, spaceId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error stopping stream',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
