@@ -15,7 +15,7 @@ import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query'
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AppState, Platform, type AppStateStatus } from "react-native";
+import { AppState, Platform, Text, TextInput, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
 
 // Components
@@ -63,9 +63,28 @@ export default function RootLayout() {
         fontMap[`Inter-${weight}`] = InterVariable;
       });
 
+      // Also register as "Inter" so fontFamily: 'Inter' works everywhere
+      fontMap['Inter'] = InterVariable;
+
       return fontMap;
     }, [])
   );
+
+  // Set Inter as the default font for all Text and TextInput components
+  useEffect(() => {
+    if (!fontsLoaded) return;
+    const defaultTextStyle = { fontFamily: 'Inter' };
+    const textProps = (Text as any).defaultProps || {};
+    (Text as any).defaultProps = {
+      ...textProps,
+      style: [textProps.style, defaultTextStyle],
+    };
+    const textInputProps = (TextInput as any).defaultProps || {};
+    (TextInput as any).defaultProps = {
+      ...textInputProps,
+      style: [textInputProps.style, defaultTextStyle],
+    };
+  }, [fontsLoaded]);
 
   // Callbacks
   const handleSplashFadeComplete = useCallback(() => {

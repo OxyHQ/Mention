@@ -39,10 +39,10 @@ router.post('/:userId', async (req: AuthRequest, res: Response) => {
 
     // Send notification to the poked user
     await createNotification({
-      recipientId: userId,
-      actorId: pokerId,
+      recipientId: String(userId),
+      actorId: String(pokerId),
       type: 'poke',
-      entityId: pokerId,
+      entityId: String(pokerId),
       entityType: 'profile',
     });
 
