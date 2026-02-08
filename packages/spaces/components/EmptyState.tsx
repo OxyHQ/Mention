@@ -16,12 +16,14 @@ export function EmptyState({ animation, title, subtitle, children }: EmptyStateP
 
   return (
     <View style={styles.container}>
-      <LottieView
-        source={animation}
-        autoPlay
-        loop
-        style={styles.lottie}
-      />
+      <View style={styles.lottieContainer}>
+        <LottieView
+          source={animation}
+          autoPlay
+          loop
+          style={styles.lottie}
+        />
+      </View>
       <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
       <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>{subtitle}</Text>
       {children}
@@ -37,6 +39,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 12,
   },
+  lottieContainer: { width: 120, height: 120 },
   lottie: { width: 120, height: 120 },
   title: { fontSize: 20, fontWeight: '700' },
   subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22 },

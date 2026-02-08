@@ -42,7 +42,7 @@ export { SpaceCard } from './components/SpaceCard';
 export { LiveSpaceSheet } from './components/LiveSpaceSheet';
 export { MiniSpaceBar, MINI_BAR_HEIGHT } from './components/MiniSpaceBar';
 export { StreamConfigModal } from './components/StreamConfigModal';
-export { CreateSpaceSheet } from './components/CreateSpaceSheet';
+export { CreateSpaceSheet, type CreateSpaceSheetRef, type CreateSpaceFormState } from './components/CreateSpaceSheet';
 
 // Assets
 export { Spaces, SpacesActive } from './assets/icons/spaces-icon';

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Text, TextInput } from 'react-native';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -19,14 +19,40 @@ if (Platform.OS !== 'web') {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    Inter: require('@/assets/fonts/inter/InterVariable.ttf'),
-  });
+  const [fontsLoaded] = useFonts(
+    useMemo(() => {
+      const fontMap: Record<string, any> = {};
+      const InterVariable = require('@/assets/fonts/inter/InterVariable.ttf');
+
+      ['Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'].forEach(weight => {
+        fontMap[`Inter-${weight}`] = InterVariable;
+      });
+
+      fontMap['Inter'] = InterVariable;
+      return fontMap;
+    }, [])
+  );
 
   const oxyServices = useMemo(
     () => new OxyServices({ baseURL: OXY_BASE_URL }),
     []
   );
+
+  // Set Inter as the default font for all Text and TextInput components
+  useEffect(() => {
+    if (!fontsLoaded) return;
+    const defaultTextStyle = { fontFamily: 'Inter' };
+    const textProps = (Text as any).defaultProps || {};
+    (Text as any).defaultProps = {
+      ...textProps,
+      style: [textProps.style, defaultTextStyle],
+    };
+    const textInputProps = (TextInput as any).defaultProps || {};
+    (TextInput as any).defaultProps = {
+      ...textInputProps,
+      style: [textInputProps.style, defaultTextStyle],
+    };
+  }, [fontsLoaded]);
 
   useEffect(() => {
     if (fontsLoaded) {

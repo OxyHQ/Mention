@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -13,17 +13,36 @@ import { useSpacesConfig } from '../context/SpacesConfigContext';
 import { useLiveSpace } from '../context/LiveSpaceContext';
 import type { Space } from '../types';
 
+export interface CreateSpaceSheetRef {
+  handleCreateAndStart: () => void;
+  handleSchedule: () => void;
+  handleCreateForEmbed: () => void;
+}
+
+export interface CreateSpaceFormState {
+  isValid: boolean;
+  loading: boolean;
+  hasScheduledStart: boolean;
+}
+
 interface CreateSpaceSheetProps {
   onClose: () => void;
   onSpaceCreated?: (space: Space) => void;
   mode?: 'standalone' | 'embed';
+  ScrollViewComponent?: React.ComponentType<any>;
+  hideFooter?: boolean;
+  onFormStateChange?: (state: CreateSpaceFormState) => void;
 }
 
-export const CreateSpaceSheet: React.FC<CreateSpaceSheetProps> = ({
+export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheetProps>(({
   onClose,
   onSpaceCreated,
   mode = 'standalone',
-}) => {
+  ScrollViewComponent,
+  hideFooter = false,
+  onFormStateChange,
+}, ref) => {
+  const Scroll = ScrollViewComponent || ScrollView;
   const { useTheme, spacesService, toast } = useSpacesConfig();
   const theme = useTheme();
   const { joinLiveSpace } = useLiveSpace();
@@ -35,6 +54,10 @@ export const CreateSpaceSheet: React.FC<CreateSpaceSheetProps> = ({
   const [loading, setLoading] = useState(false);
 
   const isValid = title.trim().length > 0;
+
+  useEffect(() => {
+    onFormStateChange?.({ isValid, loading, hasScheduledStart: !!scheduledStart.trim() });
+  }, [isValid, loading, scheduledStart, onFormStateChange]);
 
   const handleCreateAndStart = async () => {
     if (!isValid || loading) return;
@@ -126,6 +149,85 @@ export const CreateSpaceSheet: React.FC<CreateSpaceSheetProps> = ({
     }
   };
 
+  useImperativeHandle(ref, () => ({
+    handleCreateAndStart,
+    handleSchedule,
+    handleCreateForEmbed,
+  }), [handleCreateAndStart, handleSchedule, handleCreateForEmbed]);
+
+  const renderFooterContent = () => {
+    if (hideFooter) return null;
+    return (
+      <View style={[styles.footer, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+        {mode === 'standalone' ? (
+          <>
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                {
+                  backgroundColor: isValid ? theme.colors.primary : theme.colors.backgroundSecondary,
+                  opacity: loading ? 0.6 : 1,
+                },
+              ]}
+              onPress={handleCreateAndStart}
+              disabled={!isValid || loading}
+            >
+              <Ionicons
+                name="play"
+                size={20}
+                color={isValid ? theme.colors.card : theme.colors.textSecondary}
+              />
+              <Text
+                style={[styles.primaryButtonText, { color: isValid ? theme.colors.card : theme.colors.textSecondary }]}
+              >
+                {loading ? 'Creating...' : 'Start Now'}
+              </Text>
+            </TouchableOpacity>
+
+            {scheduledStart.trim() && (
+              <TouchableOpacity
+                style={[
+                  styles.secondaryButton,
+                  { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, opacity: loading ? 0.6 : 1 },
+                ]}
+                onPress={handleSchedule}
+                disabled={!isValid || loading}
+              >
+                <Ionicons name="calendar" size={20} color={theme.colors.text} />
+                <Text style={[styles.secondaryButtonText, { color: theme.colors.text }]}>
+                  Schedule Space
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.primaryButton,
+              {
+                backgroundColor: isValid ? theme.colors.primary : theme.colors.backgroundSecondary,
+                opacity: loading ? 0.6 : 1,
+              },
+            ]}
+            onPress={handleCreateForEmbed}
+            disabled={!isValid || loading}
+          >
+            <Ionicons
+              name="radio"
+              size={20}
+              color={isValid ? theme.colors.card : theme.colors.textSecondary}
+            />
+            <Text
+              style={[styles.primaryButtonText, { color: isValid ? theme.colors.card : theme.colors.textSecondary }]}
+            >
+              {loading ? 'Creating...' : 'Create Space'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
@@ -138,7 +240,7 @@ export const CreateSpaceSheet: React.FC<CreateSpaceSheetProps> = ({
         <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView
+      <Scroll
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -231,81 +333,17 @@ export const CreateSpaceSheet: React.FC<CreateSpaceSheetProps> = ({
             />
           </View>
         )}
+      </Scroll>
 
-        <View style={styles.actionsSection}>
-          {mode === 'standalone' ? (
-            <>
-              <TouchableOpacity
-                style={[
-                  styles.primaryButton,
-                  {
-                    backgroundColor: isValid ? theme.colors.primary : theme.colors.backgroundSecondary,
-                    opacity: loading ? 0.6 : 1,
-                  },
-                ]}
-                onPress={handleCreateAndStart}
-                disabled={!isValid || loading}
-              >
-                <Ionicons
-                  name="play"
-                  size={20}
-                  color={isValid ? theme.colors.card : theme.colors.textSecondary}
-                />
-                <Text
-                  style={[styles.primaryButtonText, { color: isValid ? theme.colors.card : theme.colors.textSecondary }]}
-                >
-                  {loading ? 'Creating...' : 'Start Now'}
-                </Text>
-              </TouchableOpacity>
-
-              {scheduledStart.trim() && (
-                <TouchableOpacity
-                  style={[
-                    styles.secondaryButton,
-                    { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, opacity: loading ? 0.6 : 1 },
-                  ]}
-                  onPress={handleSchedule}
-                  disabled={!isValid || loading}
-                >
-                  <Ionicons name="calendar" size={20} color={theme.colors.text} />
-                  <Text style={[styles.secondaryButtonText, { color: theme.colors.text }]}>
-                    Schedule Space
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </>
-          ) : (
-            <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                {
-                  backgroundColor: isValid ? theme.colors.primary : theme.colors.backgroundSecondary,
-                  opacity: loading ? 0.6 : 1,
-                },
-              ]}
-              onPress={handleCreateForEmbed}
-              disabled={!isValid || loading}
-            >
-              <Ionicons
-                name="radio"
-                size={20}
-                color={isValid ? theme.colors.card : theme.colors.textSecondary}
-              />
-              <Text
-                style={[styles.primaryButtonText, { color: isValid ? theme.colors.card : theme.colors.textSecondary }]}
-              >
-                {loading ? 'Creating...' : 'Create Space'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
+      {renderFooterContent()}
     </View>
   );
-};
+});
+
+CreateSpaceSheet.displayName = 'CreateSpaceSheet';
 
 const styles = StyleSheet.create({
-  container: { flex: 1, maxHeight: 600 },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,7 +354,7 @@ const styles = StyleSheet.create({
   },
   headerCloseBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 16, fontWeight: '600' },
-  scrollContent: { padding: 16, paddingBottom: 32 },
+  scrollContent: { padding: 16, paddingBottom: 16 },
   inputSection: { marginBottom: 20 },
   label: { fontSize: 15, fontWeight: '600', marginBottom: 8 },
   input: {
@@ -355,7 +393,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionsSection: { gap: 12, marginBottom: 16 },
+  footer: {
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 0.5,
+  },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',

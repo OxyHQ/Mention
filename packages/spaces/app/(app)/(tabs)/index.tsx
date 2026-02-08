@@ -10,13 +10,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop, BottomSheetFooter } from '@gorhom/bottom-sheet';
+import type { BottomSheetFooterProps } from '@gorhom/bottom-sheet';
 import {
   SpaceCard,
   CreateSpaceSheet,
   useLiveSpace,
   useSpacesConfig,
   type Space,
+  type CreateSpaceSheetRef,
+  type CreateSpaceFormState,
 } from '@mention/spaces-shared';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -27,12 +30,25 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { spacesService } = useSpacesConfig();
   const { joinLiveSpace } = useLiveSpace();
-  const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const modalRef = useRef<BottomSheetModal>(null);
+  const createSheetRef = useRef<CreateSpaceSheetRef>(null);
   const snapPoints = useMemo(() => ['85%'], []);
 
   const [liveSpaces, setLiveSpaces] = useState<Space[]>([]);
   const [scheduledSpaces, setScheduledSpaces] = useState<Space[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [formState, setFormState] = useState<CreateSpaceFormState>({
+    isValid: false,
+    loading: false,
+    hasScheduledStart: false,
+  });
+
+  useEffect(() => {
+    if (sheetOpen) {
+      modalRef.current?.present();
+    }
+  }, [sheetOpen]);
 
   const loadSpaces = useCallback(async () => {
     const [live, scheduled] = await Promise.all([
@@ -58,11 +74,12 @@ export default function HomeScreen() {
   };
 
   const openCreateSheet = useCallback(() => {
-    bottomSheetRef.current?.present();
+    setSheetOpen(true);
   }, []);
 
   const closeCreateSheet = useCallback(() => {
-    bottomSheetRef.current?.dismiss();
+    modalRef.current?.dismiss();
+    setSheetOpen(false);
   }, []);
 
   const renderBackdrop = useCallback(
@@ -75,6 +92,54 @@ export default function HomeScreen() {
       />
     ),
     [],
+  );
+
+  const renderFooter = useCallback(
+    (props: BottomSheetFooterProps) => (
+      <BottomSheetFooter {...props} bottomInset={0}>
+        <View style={[sheetStyles.footer, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+          <TouchableOpacity
+            style={[
+              sheetStyles.primaryButton,
+              {
+                backgroundColor: formState.isValid ? theme.colors.primary : theme.colors.backgroundSecondary,
+                opacity: formState.loading ? 0.6 : 1,
+              },
+            ]}
+            onPress={() => createSheetRef.current?.handleCreateAndStart()}
+            disabled={!formState.isValid || formState.loading}
+          >
+            <Ionicons
+              name="play"
+              size={20}
+              color={formState.isValid ? '#FFFFFF' : theme.colors.textSecondary}
+            />
+            <Text
+              style={[sheetStyles.primaryButtonText, { color: formState.isValid ? '#FFFFFF' : theme.colors.textSecondary }]}
+            >
+              {formState.loading ? 'Creating...' : 'Start Now'}
+            </Text>
+          </TouchableOpacity>
+
+          {formState.hasScheduledStart && (
+            <TouchableOpacity
+              style={[
+                sheetStyles.secondaryButton,
+                { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border, opacity: formState.loading ? 0.6 : 1 },
+              ]}
+              onPress={() => createSheetRef.current?.handleSchedule()}
+              disabled={!formState.isValid || formState.loading}
+            >
+              <Ionicons name="calendar" size={20} color={theme.colors.text} />
+              <Text style={[sheetStyles.secondaryButtonText, { color: theme.colors.text }]}>
+                Schedule Space
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </BottomSheetFooter>
+    ),
+    [formState, theme],
   );
 
   return (
@@ -183,16 +248,23 @@ export default function HomeScreen() {
       </ScrollView>
 
       <BottomSheetModal
-        ref={bottomSheetRef}
+        ref={modalRef}
         snapPoints={snapPoints}
         enablePanDownToClose
+        onDismiss={() => setSheetOpen(false)}
         backdropComponent={renderBackdrop}
+        footerComponent={renderFooter}
         backgroundStyle={{ backgroundColor: theme.colors.background, borderRadius: 24 }}
         handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
+        style={{ maxWidth: 500, margin: 'auto' }}
       >
         <CreateSpaceSheet
+          ref={createSheetRef}
           onClose={closeCreateSheet}
-          onSpaceCreated={() => loadSpaces()}
+          onSpaceCreated={() => { closeCreateSheet(); loadSpaces(); }}
+          ScrollViewComponent={BottomSheetScrollView}
+          hideFooter
+          onFormStateChange={setFormState}
         />
       </BottomSheetModal>
     </View>
@@ -252,4 +324,33 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   createButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+});
+
+const sheetStyles = StyleSheet.create({
+  footer: {
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderTopWidth: 0.5,
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 24,
+    gap: 8,
+  },
+  primaryButtonText: { fontSize: 16, fontWeight: '600' },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    gap: 8,
+  },
+  secondaryButtonText: { fontSize: 16, fontWeight: '600' },
 });
