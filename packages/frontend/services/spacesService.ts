@@ -118,12 +118,18 @@ class SpacesService {
 
   async generateStreamKey(id: string, data?: { title?: string; image?: string; description?: string }): Promise<{ rtmpUrl: string; streamKey: string } | null> {
     if (!id) return null;
+    const res = await authenticatedClient.post(`/spaces/${id}/stream/rtmp`, data || {});
+    return res.data;
+  }
+
+  async updateStreamMetadata(id: string, data: { title?: string; image?: string; description?: string }): Promise<boolean> {
+    if (!id) return false;
     try {
-      const res = await authenticatedClient.post(`/spaces/${id}/stream/rtmp`, data || {});
-      return res.data;
+      await authenticatedClient.patch(`/spaces/${id}/stream`, data);
+      return true;
     } catch (error) {
-      console.warn("Failed to generate stream key", error);
-      return null;
+      console.warn("Failed to update stream metadata", error);
+      return false;
     }
   }
 

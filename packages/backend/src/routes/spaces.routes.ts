@@ -769,6 +769,64 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * Update stream metadata (host only)
+ * PATCH /api/spaces/:id/stream
+ * Body: { title?, image?, description? }
+ */
+router.patch('/:id/stream', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { title, image, description } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const space = await Space.findById(id);
+    if (!space) {
+      return res.status(404).json({ message: 'Space not found' });
+    }
+
+    if (space.host !== userId) {
+      return res.status(403).json({ message: 'Only the host can update stream info' });
+    }
+
+    if (!space.activeIngressId) {
+      return res.status(400).json({ message: 'No active stream to update' });
+    }
+
+    // Update metadata fields
+    if (title !== undefined) space.streamTitle = title ? String(title).trim() : undefined;
+    if (image !== undefined) space.streamImage = image ? String(image).trim() : undefined;
+    if (description !== undefined) space.streamDescription = description ? String(description).trim() : undefined;
+    await space.save();
+
+    logger.info(`Stream metadata updated for space ${id}`);
+
+    // Notify participants via socket with updated metadata
+    const io = (global as any).io;
+    if (io) {
+      io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
+        spaceId: id,
+        title: space.streamTitle || null,
+        image: space.streamImage || null,
+        description: space.streamDescription || null,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({ message: 'Stream info updated' });
+  } catch (error) {
+    logger.error('Error updating stream metadata:', { userId: req.user?.id, spaceId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error updating stream info',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * Generate RTMP stream key (host only)
  * POST /api/spaces/:id/stream/rtmp
  * Body: { title?, image?, description? }

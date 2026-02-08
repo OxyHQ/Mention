@@ -9,6 +9,8 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  ScrollView,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner';
@@ -80,11 +82,21 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
       setUploadingImage(true);
 
       try {
-        const file = {
-          uri: asset.uri,
-          type: asset.mimeType || 'image/jpeg',
-          name: 'stream-cover.jpg',
-        } as any;
+        let file: any;
+
+        if (Platform.OS === 'web') {
+          // On web, expo-image-picker returns a blob: URI. Fetch it and create a File object.
+          const response = await fetch(asset.uri);
+          const blob = await response.blob();
+          file = new File([blob], 'stream-cover.jpg', { type: asset.mimeType || 'image/jpeg' });
+        } else {
+          // On native, use the { uri, type, name } pattern
+          file = {
+            uri: asset.uri,
+            type: asset.mimeType || 'image/jpeg',
+            name: 'stream-cover.jpg',
+          };
+        }
 
         const uploadResponse = await oxyServices.uploadFile(file, {
           folder: 'user_content',
@@ -96,16 +108,19 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
         if (fileId) {
           setImageFileId(fileId);
         } else {
+          console.error('Upload response missing file ID:', JSON.stringify(uploadResponse, null, 2));
           toast.error('Failed to upload image');
           setImagePreviewUri(null);
         }
-      } catch {
+      } catch (err) {
+        console.error('Image upload error:', err);
         toast.error('Failed to upload image');
         setImagePreviewUri(null);
       } finally {
         setUploadingImage(false);
       }
-    } catch {
+    } catch (err) {
+      console.error('Image picker error:', err);
       toast.error('Could not open image picker');
     }
   };
@@ -144,18 +159,43 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
         image: imageFileId || undefined,
         description: description.trim() || undefined,
       });
-      if (result) {
+      if (result?.rtmpUrl && result?.streamKey) {
         setRtmpUrl(result.rtmpUrl);
         setStreamKey(result.streamKey);
         toast.success('Stream key generated');
         onStreamStarted();
       } else {
-        toast.error('Failed to generate stream key');
+        console.error('Generate stream key response:', JSON.stringify(result, null, 2));
+        toast.error('Failed to generate stream key — check server logs');
       }
-    } catch {
-      toast.error('Failed to generate stream key');
+    } catch (err: any) {
+      console.error('Generate stream key error:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Unknown error';
+      toast.error(`Stream key error: ${msg}`);
     } finally {
       setGeneratingKey(false);
+    }
+  };
+
+  const handleUpdateMetadata = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const success = await spacesService.updateStreamMetadata(spaceId, {
+        title: title.trim() || undefined,
+        image: imageFileId || undefined,
+        description: description.trim() || undefined,
+      });
+      if (success) {
+        toast.success('Stream info updated');
+        onStreamStarted();
+      } else {
+        toast.error('Failed to update stream info');
+      }
+    } catch {
+      toast.error('Failed to update stream info');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -180,7 +220,10 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
       presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <KeyboardAvoidingView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
@@ -190,6 +233,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
           <View style={styles.closeBtn} />
         </View>
 
+        <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* Mode Selector */}
         <View style={styles.modeSelector}>
           <TouchableOpacity
@@ -344,9 +388,9 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
           />
         </View>
 
-        {/* Start Button (URL mode only — RTMP starts when encoder connects) */}
-        {mode === 'url' && (
-          <View style={styles.footer}>
+        {/* Action buttons */}
+        <View style={styles.footer}>
+          {mode === 'url' && (
             <TouchableOpacity
               style={[
                 styles.startBtn,
@@ -371,15 +415,36 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                 Start Stream
               </Text>
             </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          )}
+
+          {mode === 'rtmp' && rtmpUrl && (
+            <TouchableOpacity
+              style={[styles.startBtn, { backgroundColor: theme.colors.primary, opacity: loading ? 0.6 : 1 }]}
+              onPress={handleUpdateMetadata}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="save" size={18} color="#FFFFFF" />
+              )}
+              <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 16 }}>
+                Save Stream Info
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  scrollContent: {
     flex: 1,
   },
   header: {
@@ -522,6 +587,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 16,
     paddingTop: 20,
+    paddingBottom: 40,
   },
   startBtn: {
     flexDirection: 'row',
