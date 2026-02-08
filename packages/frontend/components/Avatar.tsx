@@ -5,7 +5,6 @@ import {
   Animated,
   StyleSheet,
   ImageSourcePropType,
-  Text,
   StyleProp,
   ViewStyle,
   ImageStyle,
@@ -41,7 +40,6 @@ const Avatar: React.FC<AvatarProps> = ({
   verified = false,
   style,
   imageStyle,
-  label,
   onPress,
   useAnimated = false,
 }) => {
@@ -100,11 +98,6 @@ const Avatar: React.FC<AvatarProps> = ({
               style={{ width: size, height: size, borderRadius: size / 2 }}
               resizeMode="cover"
             />
-            {label ? (
-              <Text style={[styles.fallbackText, { fontSize: Math.round(size * 0.4), color: theme.colors.text }]}>
-                {label}
-              </Text>
-            ) : null}
           </View>
         )}
       </View>
@@ -160,9 +153,6 @@ const styles = StyleSheet.create({
   fallback: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  fallbackText: {
-    fontWeight: '700',
   },
 });
 
