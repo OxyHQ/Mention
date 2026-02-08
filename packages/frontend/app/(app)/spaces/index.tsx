@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/ThemedText';
+import { Spaces as SpacesIcon } from '@/assets/icons/spaces-icon';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import SpaceCard from '@/components/SpaceCard';
@@ -121,10 +122,7 @@ const SpacesScreen = () => {
             <EmptyState
               title="No spaces available"
               subtitle="Create a space to start a live audio conversation or schedule one for later"
-              icon={{
-                name: 'radio',
-                size: 48,
-              }}
+              customIcon={<SpacesIcon size={48} color={theme.colors.textSecondary} />}
               action={{
                 label: 'Create Space',
                 onPress: openCreateSheet,
@@ -137,7 +135,7 @@ const SpacesScreen = () => {
                 <View style={styles.section}>
                   <View style={styles.sectionHeader}>
                     <View style={[styles.sectionIcon, { backgroundColor: '#FF4458' }]}>
-                      <Ionicons name="radio" size={18} color="#FFFFFF" />
+                      <SpacesIcon size={18} color="#FFFFFF" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <ThemedText type="subtitle">Live Now</ThemedText>

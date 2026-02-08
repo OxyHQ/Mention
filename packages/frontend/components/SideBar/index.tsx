@@ -30,6 +30,7 @@ import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-ico
 import { useTheme } from "@/hooks/useTheme";
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
+import { Spaces, SpacesActive } from '@/assets/icons/spaces-icon';
 
 const IconComponent = Ionicons as any;
 
@@ -98,8 +99,8 @@ export function SideBar() {
             },
             {
                 title: t("Spaces"),
-                icon: <IconComponent name="radio-outline" size={20} color={theme.colors.text} />,
-                iconActive: <IconComponent name="radio" size={20} color={theme.colors.primary} />,
+                icon: <Spaces color={theme.colors.text} />,
+                iconActive: <SpacesActive color={theme.colors.primary} />,
                 route: '/spaces',
             },
             {
