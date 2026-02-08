@@ -115,7 +115,7 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
 
       <View style={styles.footer}>
         <View style={styles.participantsRow}>
-          <MaterialCommunityIcons name="people" size={isCompact ? 14 : 16} color={theme.colors.textSecondary} />
+          <MaterialCommunityIcons name="account-group" size={isCompact ? 14 : 16} color={theme.colors.textSecondary} />
           <Text style={[isCompact ? styles.compactCount : styles.count, { color: theme.colors.textSecondary }]}>
             {space.participants?.length || 0} listening
           </Text>

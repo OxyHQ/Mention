@@ -326,9 +326,9 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
           <Text style={[styles.label, { color: theme.colors.text }]}>Who can speak?</Text>
           <View style={styles.radioGroup}>
             {([
-              { value: 'everyone' as const, label: 'Everyone', icon: 'globe-outline' as const },
-              { value: 'followers' as const, label: 'People you follow', icon: 'people-outline' as const },
-              { value: 'invited' as const, label: 'Only invited speakers', icon: 'person-add-outline' as const },
+              { value: 'everyone' as const, label: 'Everyone', icon: 'earth' as const },
+              { value: 'followers' as const, label: 'People you follow', icon: 'account-group-outline' as const },
+              { value: 'invited' as const, label: 'Only invited speakers', icon: 'account-plus-outline' as const },
             ]).map((option, index, arr) => {
               const selected = speakerPermission === option.value;
               const isFirst = index === 0;
@@ -366,7 +366,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
                     ]}
                   >
                     {selected && (
-                      <MaterialCommunityIcons name="checkmark" size={12} color="#FFFFFF" />
+                      <MaterialCommunityIcons name="check" size={12} color="#FFFFFF" />
                     )}
                   </View>
                 </TouchableOpacity>
