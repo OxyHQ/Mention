@@ -2,14 +2,10 @@ import { oxyServices } from '@/lib/oxyServices';
 import axios from 'axios';
 import { API_URL } from '@/config';
 
-const API_CONFIG = {
-  baseURL: API_URL,
-};
-
 // Authenticated axios client for Mention backend (api.mention.earth)
 // Auth token is read from the shared OxyServices instance on every request
 const authenticatedClient = axios.create({
-  baseURL: API_CONFIG.baseURL,
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -23,7 +19,7 @@ authenticatedClient.interceptors.request.use((config) => {
 
 // Public API client (no authentication)
 const publicClient = axios.create({
-  baseURL: API_CONFIG.baseURL,
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -74,7 +70,7 @@ export function isNotFoundError(error: any): boolean {
  */
 export function getApiOrigin(): string {
   try {
-    const url = new URL(API_CONFIG.baseURL);
+    const url = new URL(API_URL);
     if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
       return `${url.protocol}//${url.hostname}:3000`;
     }
@@ -84,4 +80,4 @@ export function getApiOrigin(): string {
   }
 }
 
-export { API_CONFIG, authenticatedClient, publicClient };
+export { authenticatedClient, publicClient };

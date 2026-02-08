@@ -1,5 +1,5 @@
 import { LinkMetadata } from '../stores/linksStore';
-import { API_CONFIG, getApiOrigin } from '../utils/api';
+import { publicClient, getApiOrigin } from '../utils/api';
 import { normalizeUrl } from '../utils/composeUtils';
 
 /**
@@ -7,9 +7,6 @@ import { normalizeUrl } from '../utils/composeUtils';
  * Thin client wrapper around backend API endpoint
  */
 class LinkMetadataService {
-  private readonly apiOrigin = getApiOrigin();
-  private readonly baseURL = API_CONFIG.baseURL.replace(/\/$/, ''); // Remove trailing slash
-
   /**
    * Fetch metadata for a URL from backend API
    */
@@ -20,19 +17,17 @@ class LinkMetadataService {
     }
 
     try {
-      const response = await fetch(
-        `${this.baseURL}/links/metadata?url=${encodeURIComponent(normalizedUrl)}`,
-        { method: 'GET', headers: { 'Content-Type': 'application/json' } }
-      );
+      const response = await publicClient.get('/links/metadata', {
+        params: { url: normalizedUrl },
+      });
 
-      if (!response.ok) return this.createFallback(normalizedUrl);
-
-      const data = await response.json();
+      const data = response.data;
       if (!data?.success || !data.url) return this.createFallback(normalizedUrl);
 
       // Construct absolute image URL if present (handles relative paths)
+      const apiOrigin = getApiOrigin();
       const imageUrl = data.image && !data.image.startsWith('http')
-        ? `${this.apiOrigin}${data.image}`
+        ? `${apiOrigin}${data.image}`
         : data.image;
 
       return {
@@ -44,8 +39,7 @@ class LinkMetadataService {
         favicon: data.favicon,
         fetchedAt: Date.now(),
       };
-    } catch (error) {
-      console.debug('[LinkMetadataService] Fetch failed:', error);
+    } catch {
       return this.createFallback(normalizedUrl);
     }
   }

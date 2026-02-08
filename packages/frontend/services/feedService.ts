@@ -10,7 +10,7 @@ import {
   FeedType
 } from '@mention/shared-types';
 import { FeedFilters } from '../utils/feedUtils';
-import { authenticatedClient, API_CONFIG } from '../utils/api';
+import { authenticatedClient, publicClient } from '../utils/api';
 import { logger } from '../utils/logger';
 
 // Extended FeedRequest with frontend-specific filter properties
@@ -18,38 +18,15 @@ interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
   filters?: FeedFilters;
 }
 
-// Helper function to make unauthenticated requests using fetch
+// Helper function to make unauthenticated requests using publicClient
 const makePublicRequest = async (endpoint: string, params?: Record<string, any>): Promise<any> => {
-  const baseURL = API_CONFIG.baseURL.replace(/\/$/, ''); // Remove trailing slash if any
-  const url = new URL(endpoint, `${baseURL}/`);
-  
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, String(value));
-      }
-    });
+  try {
+    const response = await publicClient.get(endpoint, { params });
+    return response.data;
+  } catch (error: any) {
+    const message = error?.response?.data?.message || error?.message || `HTTP error! status: ${error?.response?.status}`;
+    throw new Error(message);
   }
-  
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorData;
-    try {
-      errorData = JSON.parse(errorText);
-    } catch {
-      errorData = { message: errorText };
-    }
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-  
-  return response.json();
 };
 
 interface FeedServiceOptions {

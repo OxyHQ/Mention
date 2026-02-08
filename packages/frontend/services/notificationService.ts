@@ -57,20 +57,10 @@ class NotificationService {
      */
     async markAllAsRead(): Promise<{ message: string }> {
         try {
-            logger.info('Calling markAllAsRead endpoint: /notifications/read-all');
             const response = await authenticatedClient.patch('/notifications/read-all');
-            logger.info('markAllAsRead response:', response);
             return response.data || { message: 'All notifications marked as read' };
-        } catch (error: any) {
+        } catch (error) {
             logger.error('Error marking all notifications as read:', error);
-            logger.error('Error details:', {
-                status: error?.response?.status,
-                statusText: error?.response?.statusText,
-                data: error?.response?.data,
-                message: error?.message,
-                url: error?.config?.url,
-                method: error?.config?.method,
-            });
             throw error;
         }
     }
