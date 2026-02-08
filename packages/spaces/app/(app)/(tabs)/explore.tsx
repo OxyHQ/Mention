@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SpaceCard, useLiveSpace, useSpacesConfig, type Space } from '@mention/spaces-shared';
 
 import { useTheme } from '@/hooks/useTheme';
+import { EmptyState } from '@/components/EmptyState';
 
 export default function ExploreScreen() {
   const theme = useTheme();
@@ -86,12 +87,11 @@ export default function ExploreScreen() {
             ))}
           </View>
         ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="search-outline" size={48} color={theme.colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              {searchQuery.trim() ? 'No spaces match your search' : 'No spaces available'}
-            </Text>
-          </View>
+          <EmptyState
+            animation={require('@/assets/lottie/onair.json')}
+            title={searchQuery.trim() ? 'No results' : 'No spaces available'}
+            subtitle={searchQuery.trim() ? 'No spaces match your search' : 'Spaces will appear here when they go live'}
+          />
         )}
       </ScrollView>
     </View>
@@ -116,10 +116,4 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15 },
   scrollContent: { paddingBottom: 100 },
   cardList: { paddingHorizontal: 16 },
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: 60,
-    gap: 12,
-  },
-  emptyText: { fontSize: 15, textAlign: 'center' },
 });
