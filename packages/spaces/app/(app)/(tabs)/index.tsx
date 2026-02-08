@@ -112,10 +112,10 @@ export default function HomeScreen() {
             <Ionicons
               name="play"
               size={20}
-              color={formState.isValid ? '#FFFFFF' : theme.colors.textSecondary}
+              color={formState.isValid ? theme.colors.onPrimary : theme.colors.textSecondary}
             />
             <Text
-              style={[sheetStyles.primaryButtonText, { color: formState.isValid ? '#FFFFFF' : theme.colors.textSecondary }]}
+              style={[sheetStyles.primaryButtonText, { color: formState.isValid ? theme.colors.onPrimary : theme.colors.textSecondary }]}
             >
               {formState.loading ? 'Creating...' : 'Start Now'}
             </Text>
@@ -240,8 +240,7 @@ export default function HomeScreen() {
               style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
               onPress={openCreateSheet}
             >
-              <Ionicons name="add" size={20} color="#FFFFFF" />
-              <Text style={styles.createButtonText}>Create Space</Text>
+              <Text style={[styles.createButtonText, { color: theme.colors.onPrimary }]}>Create Space</Text>
             </TouchableOpacity>
           </EmptyState>
         )}
@@ -317,13 +316,12 @@ const styles = StyleSheet.create({
   createButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 24,
-    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 22,
+    marginTop: 10,
   },
-  createButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  createButtonText: { fontSize: 15, fontWeight: '600' },
 });
 
 const sheetStyles = StyleSheet.create({
