@@ -145,6 +145,12 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Space not found' });
     }
 
+    // Strip internal stream fields from non-host users
+    if (req.user?.id !== space.host) {
+      delete space.activeStreamUrl;
+      delete space.activeIngressId;
+    }
+
     res.json({ space });
   } catch (error) {
     logger.error('Error fetching space:', { userId: req.user?.id, spaceId: req.params.id, error });
@@ -265,6 +271,9 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
       });
       space.activeIngressId = undefined;
       space.activeStreamUrl = undefined;
+      space.streamTitle = undefined;
+      space.streamImage = undefined;
+      space.streamDescription = undefined;
     }
 
     await space.save();
@@ -615,7 +624,7 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
-    const { url } = req.body;
+    const { url, title, image, description } = req.body;
 
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -657,19 +666,24 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
     // Create the URL ingress
     const ingress = await createUrlIngress(String(id), trimmedUrl);
 
-    // Persist ingress info
+    // Persist ingress info + metadata
     space.activeIngressId = ingress.ingressId;
     space.activeStreamUrl = trimmedUrl;
+    space.streamTitle = title ? String(title).trim() : undefined;
+    space.streamImage = image ? String(image).trim() : undefined;
+    space.streamDescription = description ? String(description).trim() : undefined;
     await space.save();
 
     logger.info(`Live stream started in space ${id}: ${trimmedUrl}`);
 
-    // Notify participants via socket
+    // Notify participants via socket (no URL — only metadata)
     const io = (global as any).io;
     if (io) {
       io.of('/spaces').to(`space:${id}`).emit('space:stream:started', {
         spaceId: id,
-        url: trimmedUrl,
+        title: space.streamTitle || null,
+        image: space.streamImage || null,
+        description: space.streamDescription || null,
         timestamp: new Date().toISOString(),
       });
     }
@@ -717,9 +731,12 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
     // Delete the ingress from LiveKit
     await deleteIngress(space.activeIngressId);
 
-    // Clear ingress state
+    // Clear all stream fields
     space.activeIngressId = undefined;
     space.activeStreamUrl = undefined;
+    space.streamTitle = undefined;
+    space.streamImage = undefined;
+    space.streamDescription = undefined;
     await space.save();
 
     logger.info(`Live stream stopped in space ${id}`);

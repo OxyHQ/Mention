@@ -19,6 +19,9 @@ export interface Space {
   stats?: { peakListeners: number; totalJoined: number };
   activeIngressId?: string;
   activeStreamUrl?: string;
+  streamTitle?: string;
+  streamImage?: string;
+  streamDescription?: string;
   createdAt: string;
 }
 
@@ -100,10 +103,10 @@ class SpacesService {
     }
   }
 
-  async startStream(id: string, url: string): Promise<{ ingressId: string; url: string } | null> {
+  async startStream(id: string, data: { url: string; title?: string; image?: string; description?: string }): Promise<{ ingressId: string; url: string } | null> {
     if (!id) return null;
     try {
-      const res = await authenticatedClient.post(`/spaces/${id}/stream`, { url });
+      const res = await authenticatedClient.post(`/spaces/${id}/stream`, data);
       return res.data;
     } catch (error) {
       console.warn("Failed to start stream", error);

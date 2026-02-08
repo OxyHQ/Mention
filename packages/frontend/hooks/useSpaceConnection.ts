@@ -10,13 +10,19 @@ interface UseSpaceConnectionOptions {
   enabled?: boolean;
 }
 
+export interface StreamInfo {
+  title?: string;
+  image?: string;
+  description?: string;
+}
+
 interface UseSpaceConnectionReturn {
   isConnected: boolean;
   participants: SpaceParticipant[];
   myRole: 'host' | 'speaker' | 'listener' | null;
   isMuted: boolean;
   speakerRequests: Array<{ userId: string; requestedAt: string }>;
-  activeStreamUrl: string | null;
+  activeStream: StreamInfo | null;
   join: () => void;
   leave: () => void;
   toggleMute: () => void;
@@ -41,7 +47,7 @@ export function useSpaceConnection({
     Array<{ userId: string; requestedAt: string }>
   >([]);
   const [isSpaceEnded, setIsSpaceEnded] = useState(false);
-  const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null);
+  const [activeStream, setActiveStream] = useState<StreamInfo | null>(null);
 
   const hasJoined = useRef(false);
 
@@ -108,7 +114,7 @@ export function useSpaceConnection({
       spaceSocketService.onSpaceEnded((data) => {
         if (data.spaceId === spaceId) {
           setIsSpaceEnded(true);
-          setActiveStreamUrl(null);
+          setActiveStream(null);
         }
       })
     );
@@ -125,7 +131,11 @@ export function useSpaceConnection({
     unsubs.push(
       spaceSocketService.onStreamStarted((data) => {
         if (data.spaceId === spaceId) {
-          setActiveStreamUrl(data.url);
+          setActiveStream({
+            title: data.title,
+            image: data.image,
+            description: data.description,
+          });
         }
       })
     );
@@ -133,7 +143,7 @@ export function useSpaceConnection({
     unsubs.push(
       spaceSocketService.onStreamStopped((data) => {
         if (data.spaceId === spaceId) {
-          setActiveStreamUrl(null);
+          setActiveStream(null);
         }
       })
     );
@@ -222,7 +232,7 @@ export function useSpaceConnection({
     myRole,
     isMuted,
     speakerRequests,
-    activeStreamUrl,
+    activeStream,
     join,
     leave,
     toggleMute,

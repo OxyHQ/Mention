@@ -32,6 +32,9 @@ export interface ISpace extends Document {
   };
   activeIngressId?: string;
   activeStreamUrl?: string;
+  streamTitle?: string;
+  streamImage?: string;
+  streamDescription?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -113,7 +116,24 @@ const SpaceSchema = new Schema({
   activeStreamUrl: {
     type: String,
     default: null,
-  }
+  },
+  streamTitle: {
+    type: String,
+    default: null,
+    trim: true,
+    maxlength: 200,
+  },
+  streamImage: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  streamDescription: {
+    type: String,
+    default: null,
+    trim: true,
+    maxlength: 500,
+  },
 }, {
   timestamps: true
 });
