@@ -37,43 +37,15 @@ interface AvatarProps {
   useAnimated?: boolean; // render Animated.Image so parent can pass animated styles in imageStyle
 }
 
-// --- Squircle path generation (superellipse n=4.5, matching the provided polygon) ---
+// Exact squircle clip path derived from the design polygon, normalized to 0–1 coordinate space.
+// Uses viewBox="0 0 1 1" on the SVG so it scales to any avatar size.
+const SQUIRCLE_PATH =
+  'M0 0.5 L0.00122 0.31674 L0.00489 0.25123 L0.01103 0.20331 L0.01969 0.16478 L0.03097 0.13257 L0.04495 0.10518 L0.0618 0.08177 L0.08177 0.0618 L0.10518 0.04495 L0.13257 0.03097 L0.16478 0.01969 L0.20331 0.01103 L0.25123 0.00489 L0.31674 0.00122 L0.5 0' +
+  ' L0.68895 0.0014 L0.7564 0.00561 L0.80559 0.01267 L0.84499 0.02264 L0.87771 0.03564 L0.9053 0.05181 L0.92862 0.07138 L0.94819 0.0947 L0.96436 0.12228 L0.97736 0.15501 L0.98733 0.19441 L0.99439 0.2436 L0.9986 0.31105 L1 0.5' +
+  ' L0.9986 0.68895 L0.99439 0.7564 L0.98733 0.80559 L0.97736 0.84499 L0.96436 0.87771 L0.94819 0.9053 L0.92862 0.92862 L0.9053 0.94819 L0.87771 0.96436 L0.84499 0.97736 L0.80559 0.98733 L0.7564 0.99439 L0.68895 0.9986 L0.5 1' +
+  ' L0.31105 0.9986 L0.2436 0.99439 L0.19441 0.98733 L0.15501 0.97736 L0.12228 0.96436 L0.0947 0.94819 L0.07138 0.92862 L0.05181 0.9053 L0.03564 0.87771 L0.02264 0.84499 L0.01267 0.80559 L0.00561 0.7564 L0.0014 0.68895 L0 0.5Z';
 
 let _clipIdCounter = 0;
-
-/**
- * Generate an SVG path for a squircle (superellipse n=4.5) at a given pixel size.
- * The exponent 4.5 closely matches the CSS polygon shape provided for the squircle.
- */
-function generateSquirclePath(size: number): string {
-  const r = size / 2;
-  const n = 4.5;
-  const steps = 72;
-  const parts: string[] = [];
-
-  for (let i = 0; i <= steps; i++) {
-    const t = (2 * Math.PI * i) / steps;
-    const cosT = Math.cos(t);
-    const sinT = Math.sin(t);
-    const x = r + r * Math.sign(cosT) * Math.pow(Math.abs(cosT), 2 / n);
-    const y = r + r * Math.sign(sinT) * Math.pow(Math.abs(sinT), 2 / n);
-    parts.push(`${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`);
-  }
-
-  return parts.join(' ') + 'Z';
-}
-
-// Cache squircle paths by size to avoid recomputation
-const _pathCache = new Map<number, string>();
-function getSquirclePath(size: number): string {
-  const rounded = Math.round(size);
-  let path = _pathCache.get(rounded);
-  if (!path) {
-    path = generateSquirclePath(rounded);
-    _pathCache.set(rounded, path);
-  }
-  return path;
-}
 
 /** Compute border radius for the circle shape */
 const getCircleRadius = (size: number) => size / 2;
@@ -94,12 +66,6 @@ const Avatar: React.FC<AvatarProps> = ({
 
   // Unique clip ID per instance (stable across re-renders)
   const clipId = React.useMemo(() => `sqc${_clipIdCounter++}`, []);
-
-  // Squircle SVG path (memoized, only computed when needed)
-  const squirclePath = React.useMemo(
-    () => (shape === 'squircle' ? getSquirclePath(size) : ''),
-    [size, shape],
-  );
 
   // Resolve source: handles file IDs, HTTP URLs, and ImageSourcePropType objects
   // Uses the app-level oxyServices singleton (same instance as OxyProvider) — no hook needed
@@ -140,16 +106,16 @@ const Avatar: React.FC<AvatarProps> = ({
               onError={() => setErrored(true)}
             />
           )}
-          <Svg width={size} height={size}>
+          <Svg width={size} height={size} viewBox="0 0 1 1">
             <Defs>
               <ClipPath id={clipId}>
-                <Path d={squirclePath} />
+                <Path d={SQUIRCLE_PATH} />
               </ClipPath>
             </Defs>
             <SvgImage
               href={svgHref}
-              width={size}
-              height={size}
+              width={1}
+              height={1}
               preserveAspectRatio="xMidYMid slice"
               clipPath={`url(#${clipId})`}
             />
