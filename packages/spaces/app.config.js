@@ -10,7 +10,7 @@ module.exports = function (_config) {
       slug: 'spaces',
       version: VERSION,
       orientation: 'portrait',
-      icon: './assets/images/spaces-icon.png',
+      icon: './assets/images/icon.png',
       scheme: 'mention-spaces',
       userInterfaceStyle: 'automatic',
       newArchEnabled: true,
@@ -24,7 +24,7 @@ module.exports = function (_config) {
       },
       android: {
         adaptiveIcon: {
-          foregroundImage: './assets/images/spaces-icon.png',
+          foregroundImage: './assets/images/adaptive-icon.png',
           backgroundColor: '#794BC4',
         },
         permissions: [
@@ -47,7 +47,21 @@ module.exports = function (_config) {
       web: {
         bundler: 'metro',
         output: 'static',
-        favicon: './assets/images/favicon.png',
+        favicon: './assets/images/favicon.ico',
+        meta: {
+          viewport: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no',
+          themeColor: '#794BC4',
+          appleMobileWebAppCapable: 'yes',
+          appleMobileWebAppStatusBarStyle: 'default',
+          appleMobileWebAppTitle: 'Spaces',
+          applicationName: 'Spaces by Mention',
+          msapplicationTileColor: '#794BC4',
+        },
+        build: {
+          babel: {
+            include: ['@expo/vector-icons'],
+          },
+        },
       },
       plugins: (() => {
         const base = [
@@ -55,7 +69,7 @@ module.exports = function (_config) {
           [
             'expo-splash-screen',
             {
-              image: './assets/images/spaces-icon.png',
+              image: './assets/images/splash-icon.png',
               imageWidth: 200,
               resizeMode: 'contain',
               backgroundColor: '#ffffff',
