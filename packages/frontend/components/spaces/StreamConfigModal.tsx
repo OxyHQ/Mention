@@ -98,12 +98,9 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
           };
         }
 
-        const uploadResponse = await oxyServices.uploadFile(file, {
-          folder: 'user_content',
-          isPublic: true,
-        });
+        const uploadResponse = await oxyServices.uploadRawFile(file, 'public');
 
-        const fileId = uploadResponse?.file?.key || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.file?.id || uploadResponse?.data?.id;
+        const fileId = uploadResponse?.file?.key || uploadResponse?.file?.id || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.data?.id;
 
         if (fileId) {
           setImageFileId(fileId);
