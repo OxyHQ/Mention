@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { OxyProvider, useAuth } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { SpacesProvider, LiveSpaceProvider } from '@mention/spaces-shared';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Toaster } from 'sonner-native';
 
 import { spacesConfig } from '@/lib/spacesConfig';
@@ -45,13 +46,15 @@ export const AppProviders = memo(function AppProviders({
             <OxyServicesSync>
               <SpacesProvider config={spacesConfig}>
                 <LiveSpaceProvider>
-                  {children}
-                  <StatusBar style="auto" />
-                  <Toaster
-                    position="bottom-center"
-                    swipeToDismissDirection="left"
-                    offset={15}
-                  />
+                  <BottomSheetModalProvider>
+                    {children}
+                    <StatusBar style="auto" />
+                    <Toaster
+                      position="bottom-center"
+                      swipeToDismissDirection="left"
+                      offset={15}
+                    />
+                  </BottomSheetModalProvider>
                 </LiveSpaceProvider>
               </SpacesProvider>
             </OxyServicesSync>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,11 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  Modal,
   FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BottomSheet, { BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import {
   SpaceCard,
   CreateSpaceSheet,
@@ -27,11 +27,12 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { spacesService } = useSpacesConfig();
   const { joinLiveSpace } = useLiveSpace();
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  const snapPoints = useMemo(() => ['85%'], []);
 
   const [liveSpaces, setLiveSpaces] = useState<Space[]>([]);
   const [scheduledSpaces, setScheduledSpaces] = useState<Space[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
 
   const loadSpaces = useCallback(async () => {
     const [live, scheduled] = await Promise.all([
@@ -56,11 +57,31 @@ export default function HomeScreen() {
     joinLiveSpace(space._id);
   };
 
+  const openCreateSheet = () => {
+    bottomSheetRef.current?.expand();
+  };
+
+  const closeCreateSheet = () => {
+    bottomSheetRef.current?.close();
+  };
+
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.5}
+      />
+    ),
+    [],
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: theme.colors.border }]}>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Spaces</Text>
-        <TouchableOpacity onPress={() => setShowCreate(true)}>
+        <TouchableOpacity onPress={openCreateSheet}>
           <Ionicons name="add-circle" size={28} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
@@ -152,7 +173,7 @@ export default function HomeScreen() {
           >
             <TouchableOpacity
               style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
-              onPress={() => setShowCreate(true)}
+              onPress={openCreateSheet}
             >
               <Ionicons name="add" size={20} color="#FFFFFF" />
               <Text style={styles.createButtonText}>Create Space</Text>
@@ -161,17 +182,20 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      <Modal
-        visible={showCreate}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowCreate(false)}
+      <BottomSheet
+        ref={bottomSheetRef}
+        index={-1}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        backdropComponent={renderBackdrop}
+        backgroundStyle={{ backgroundColor: theme.colors.background, borderRadius: 24 }}
+        handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
       >
         <CreateSpaceSheet
-          onClose={() => setShowCreate(false)}
+          onClose={closeCreateSheet}
           onSpaceCreated={() => loadSpaces()}
         />
-      </Modal>
+      </BottomSheet>
     </View>
   );
 }
