@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import LottieView from 'lottie-react-native';
 import {
   SpaceCard,
   CreateSpaceSheet,
@@ -21,6 +20,7 @@ import {
 } from '@mention/spaces-shared';
 
 import { useTheme } from '@/hooks/useTheme';
+import { EmptyState } from '@/components/EmptyState';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -145,19 +145,11 @@ export default function HomeScreen() {
 
         {/* Empty state */}
         {liveSpaces.length === 0 && scheduledSpaces.length === 0 && !refreshing && (
-          <View style={styles.emptyState}>
-            <LottieView
-              source={require('@/assets/lottie/onair.json')}
-              autoPlay
-              loop
-              style={styles.lottie}
-            />
-            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
-              No spaces yet
-            </Text>
-            <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-              Start a space and invite people to listen and chat
-            </Text>
+          <EmptyState
+            animation={require('@/assets/lottie/onair.json')}
+            title="No spaces yet"
+            subtitle="Start a space and invite people to listen and chat"
+          >
             <TouchableOpacity
               style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
               onPress={() => setShowCreate(true)}
@@ -165,7 +157,7 @@ export default function HomeScreen() {
               <Ionicons name="add" size={20} color="#FFFFFF" />
               <Text style={styles.createButtonText}>Create Space</Text>
             </TouchableOpacity>
-          </View>
+          </EmptyState>
         )}
       </ScrollView>
 
@@ -227,16 +219,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   cardList: { paddingHorizontal: 16 },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 80,
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  lottie: { width: 120, height: 120 },
-  emptyTitle: { fontSize: 20, fontWeight: '700' },
-  emptySubtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
   createButton: {
     flexDirection: 'row',
     alignItems: 'center',

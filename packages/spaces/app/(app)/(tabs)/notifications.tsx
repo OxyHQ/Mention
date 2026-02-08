@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import LottieView from 'lottie-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
+import { EmptyState } from '@/components/EmptyState';
 
 export default function NotificationsScreen() {
   const theme = useTheme();
@@ -15,20 +15,13 @@ export default function NotificationsScreen() {
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Notifications</Text>
       </View>
 
-      <View style={styles.emptyState}>
-        <LottieView
-          source={require('@/assets/lottie/nonotifications.json')}
-          autoPlay
-          loop
-          style={styles.lottie}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+        <EmptyState
+          animation={require('@/assets/lottie/nonotifications.json')}
+          title="No notifications yet"
+          subtitle="You'll be notified when spaces you follow go live"
         />
-        <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
-          No notifications yet
-        </Text>
-        <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-          You'll be notified when spaces you follow go live
-        </Text>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -41,17 +34,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 28, fontWeight: '800' },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 8,
-  },
-  lottie: {
-    width: 120,
-    height: 120,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '600' },
-  emptySubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  scrollContent: { paddingBottom: 100 },
 });
