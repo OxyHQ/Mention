@@ -118,6 +118,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             case 'post':
                 // Use i18n key when available with a sensible default
                 return t('notification.post', { actorName: display, defaultValue: `${display} posted a new update` });
+            case 'poke':
+                return t('notification.poke', { actorName: display });
             case 'welcome':
                 return t('notification.welcome.title');
             default:
@@ -141,6 +143,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 return 'chatbox-ellipses';
             case 'post':
                 return 'create';
+            case 'poke':
+                return 'hand-left';
             case 'welcome':
                 return 'notifications';
             default:
@@ -160,6 +164,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 return colors.primaryColor;
             case 'post':
                 return colors.primaryColor;
+            case 'poke':
+                return colors.away;
             default:
                 return colors.primaryColor;
         }

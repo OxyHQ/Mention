@@ -9,6 +9,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PrivateBadge } from './PrivateBadge';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
+import { usePoke } from './hooks/usePoke';
 import type {
   ProfileHeaderDefaultProps,
   ProfileHeaderMinimalistProps,
@@ -32,6 +33,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   showBottomSheet,
 }: ProfileHeaderDefaultProps) {
   const { t } = useTranslation();
+  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
 
   return (
     <View style={styles.avatarRow}>
@@ -85,7 +87,22 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
             </TouchableOpacity>
           </View>
         ) : profileId ? (
-          <FollowButtonComponent userId={profileId} />
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[
+                styles.settingsButton,
+                {
+                  backgroundColor: poked ? theme.colors.primary : theme.colors.background,
+                  borderColor: poked ? theme.colors.primary : theme.colors.border,
+                },
+              ]}
+              onPress={togglePoke}
+              disabled={pokeLoading}
+            >
+              <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
+            </TouchableOpacity>
+            <FollowButtonComponent userId={profileId} />
+          </View>
         ) : null}
       </View>
     </View>
@@ -173,9 +190,28 @@ export const ProfileActions = memo(function ProfileActions({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
 
   if (!isOwnProfile || currentUsername !== profileUsername) {
-    return profileId ? <FollowButtonComponent userId={profileId} /> : null;
+    if (!profileId) return null;
+    return (
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={[
+            styles.settingsButton,
+            {
+              backgroundColor: poked ? theme.colors.primary : theme.colors.background,
+              borderColor: poked ? theme.colors.primary : theme.colors.border,
+            },
+          ]}
+          onPress={togglePoke}
+          disabled={pokeLoading}
+        >
+          <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
+        </TouchableOpacity>
+        <FollowButtonComponent userId={profileId} />
+      </View>
+    );
   }
 
   return (

@@ -51,6 +51,7 @@ import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
 import profileDesignRoutes from './src/routes/profileDesign';
 import subscriptionsRoutes from './src/routes/subscriptions';
+import pokesRoutes from './src/routes/pokes';
 import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
 import imagesRoutes from './src/routes/images';
@@ -746,6 +747,7 @@ authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/reports", reportsRoutes);
 authenticatedApiRouter.use("/spaces", spacesRoutes);
+authenticatedApiRouter.use("/pokes", pokesRoutes);
 // You can add more protected routers here as needed
 
 // --- Root API Welcome Route ---

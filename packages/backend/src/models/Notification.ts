@@ -16,7 +16,7 @@ const NotificationSchema = new Schema({
   type: { 
     type: String, 
     required: true,
-  enum: ['like', 'reply', 'mention', 'follow', 'repost', 'quote', 'welcome', 'post']
+  enum: ['like', 'reply', 'mention', 'follow', 'repost', 'quote', 'welcome', 'post', 'poke']
   },
   entityId: { type: Schema.Types.ObjectId, required: true },
   entityType: { 

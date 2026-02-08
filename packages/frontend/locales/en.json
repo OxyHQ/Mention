@@ -90,6 +90,7 @@
     "notification.follow": "{{actorName}} started following you",
     "notification.repost": "{{actorName}} reposted your post",
     "notification.quote": "{{actorName}} quoted your post",
+    "notification.poke": "{{actorName}} poked you",
     "notification.like_reply": "{{actorName}} liked your reply",
     "notification.reply_reply": "{{actorName}} replied to your reply",
     "notification.mention_reply": "{{actorName}} mentioned you in a reply",
