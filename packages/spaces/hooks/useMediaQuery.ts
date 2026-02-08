@@ -10,6 +10,10 @@ export function useIsScreenNotMobile() {
   return useOptimizedMediaQuery({ minWidth: 500 });
 }
 
+export function useIsSidebarExpanded() {
+  return useOptimizedMediaQuery({ minWidth: 900 });
+}
+
 export function useIsDesktop() {
   return useOptimizedMediaQuery({ minWidth: 1024 });
 }

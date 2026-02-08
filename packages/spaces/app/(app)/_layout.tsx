@@ -16,16 +16,18 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
   const theme = useTheme();
 
   const styles = useMemo(() => StyleSheet.create({
-    container: {
+    outerContainer: {
       flex: 1,
-      width: '100%',
-      marginHorizontal: 'auto',
-      flexDirection: isScreenNotMobile ? 'row' : 'column',
       backgroundColor: theme.colors.background,
     },
+    centeredWrapper: {
+      flex: 1,
+      flexDirection: 'row',
+      maxWidth: isScreenNotMobile ? 1200 : undefined,
+      width: '100%',
+      marginHorizontal: 'auto',
+    },
     mainContent: {
-      maxWidth: 950,
-      marginHorizontal: isScreenNotMobile ? 'auto' : 0,
       flex: 1,
       backgroundColor: theme.colors.background,
       ...(isScreenNotMobile ? {
@@ -37,14 +39,16 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
   }), [isScreenNotMobile, theme.colors.background, theme.colors.border]);
 
   return (
-    <View style={styles.container}>
-      <SideBar />
-      <View style={styles.mainContent}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="spaces/[id]" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="settings/index" />
-        </Stack>
+    <View style={styles.outerContainer}>
+      <View style={styles.centeredWrapper}>
+        <SideBar />
+        <View style={styles.mainContent}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="spaces/[id]" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="settings/index" />
+          </Stack>
+        </View>
       </View>
     </View>
   );

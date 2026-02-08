@@ -1,11 +1,11 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, Pressable, Platform } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Spaces, SpacesActive } from '@mention/spaces-shared';
+import { SpacesActive } from '@mention/spaces-shared';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useIsScreenNotMobile } from '@/hooks/useMediaQuery';
+import { useIsScreenNotMobile, useIsSidebarExpanded } from '@/hooks/useMediaQuery';
 
 interface SideBarItemProps {
   icon: React.ReactNode;
@@ -62,19 +62,9 @@ function SideBarItem({ icon, text, href, isActive, isExpanded, theme }: SideBarI
 
 export function SideBar() {
   const isScreenNotMobile = useIsScreenNotMobile();
+  const isExpanded = useIsSidebarExpanded();
   const theme = useTheme();
   const pathname = usePathname();
-  const [isExpanded, setIsExpanded] = useState(false);
-  const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleHoverIn = useCallback(() => {
-    if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
-    setIsExpanded(true);
-  }, []);
-
-  const handleHoverOut = useCallback(() => {
-    hoverTimeout.current = setTimeout(() => setIsExpanded(false), 200);
-  }, []);
 
   if (!isScreenNotMobile) return null;
 
@@ -126,48 +116,41 @@ export function SideBar() {
     },
   ];
 
-  const styles = StyleSheet.create({
-    container: {
-      width: isExpanded ? 240 : 60,
-      backgroundColor: theme.colors.background,
-      paddingVertical: 16,
-      paddingHorizontal: 8,
-      borderRightWidth: 0.5,
-      borderRightColor: theme.colors.border,
-      ...(Platform.OS === 'web' ? {
-        position: 'sticky' as any,
-        top: 0,
-        height: '100vh' as any,
-        transition: 'width 220ms cubic-bezier(0.4, 0, 0.2, 1)',
-        overflowX: 'hidden' as any,
-      } : {
-        height: '100%',
-      }),
-    },
-    logo: {
-      paddingHorizontal: isExpanded ? 16 : 8,
-      paddingVertical: 12,
-      marginBottom: 8,
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-    },
-    logoText: {
-      marginLeft: 12,
-      fontSize: 20,
-      fontWeight: '700',
-      color: theme.colors.primary,
-    },
-  });
-
   return (
     <View
-      style={styles.container}
-      onPointerEnter={handleHoverIn}
-      onPointerLeave={handleHoverOut}
+      style={{
+        width: isExpanded ? 220 : 60,
+        backgroundColor: theme.colors.background,
+        paddingVertical: 16,
+        paddingHorizontal: 8,
+        ...(Platform.OS === 'web' ? {
+          position: 'sticky' as any,
+          top: 0,
+          height: '100vh' as any,
+          overflowX: 'hidden' as any,
+        } : {
+          height: '100%',
+        }),
+      }}
     >
-      <View style={styles.logo}>
+      <View style={{
+        paddingHorizontal: isExpanded ? 16 : 8,
+        paddingVertical: 12,
+        marginBottom: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}>
         <SpacesActive color={theme.colors.primary} size={28} />
-        {isExpanded && <Text style={styles.logoText}>Spaces</Text>}
+        {isExpanded && (
+          <Text style={{
+            marginLeft: 12,
+            fontSize: 20,
+            fontWeight: '700',
+            color: theme.colors.primary,
+          }}>
+            Spaces
+          </Text>
+        )}
       </View>
       {navItems.map((item) => (
         <SideBarItem
