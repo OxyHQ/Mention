@@ -4,9 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Spaces, SpacesActive } from '@mention/spaces-shared';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useIsScreenNotMobile } from '@/hooks/useMediaQuery';
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const isScreenNotMobile = useIsScreenNotMobile();
 
   return (
     <Tabs
@@ -14,10 +16,12 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: theme.colors.background,
-          borderTopColor: theme.colors.border,
-        },
+        tabBarStyle: isScreenNotMobile
+          ? { display: 'none' }
+          : {
+              backgroundColor: theme.colors.background,
+              borderTopColor: theme.colors.border,
+            },
       }}
     >
       <Tabs.Screen
