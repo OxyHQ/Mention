@@ -8,7 +8,7 @@ import {
   ScrollView,
   FlatList,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { useSpacesConfig } from '../context/SpacesConfigContext';
 import { useLiveSpace } from '../context/LiveSpaceContext';
@@ -191,7 +191,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
               onPress={handleCreateAndStart}
               disabled={!isValid || loading}
             >
-              <Ionicons
+              <MaterialCommunityIcons
                 name="play"
                 size={20}
                 color={isValid ? theme.colors.card : theme.colors.textSecondary}
@@ -212,7 +212,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
                 onPress={handleSchedule}
                 disabled={!isValid || loading}
               >
-                <Ionicons name="calendar" size={20} color={theme.colors.text} />
+                <MaterialCommunityIcons name="calendar" size={20} color={theme.colors.text} />
                 <Text style={[styles.secondaryButtonText, { color: theme.colors.text }]}>
                   Schedule Space
                 </Text>
@@ -231,7 +231,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
             onPress={handleCreateForEmbed}
             disabled={!isValid || loading}
           >
-            <Ionicons
+            <MaterialCommunityIcons
               name="radio"
               size={20}
               color={isValid ? theme.colors.card : theme.colors.textSecondary}
@@ -251,7 +251,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity onPress={onClose} style={styles.headerCloseBtn}>
-          <Ionicons name="close" size={20} color={theme.colors.text} />
+          <MaterialCommunityIcons name="close" size={20} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           Create Space
@@ -348,7 +348,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
                   ]}
                   onPress={() => setSpeakerPermission(option.value)}
                 >
-                  <Ionicons
+                  <MaterialCommunityIcons
                     name={option.icon}
                     size={18}
                     color={selected ? theme.colors.primary : theme.colors.textSecondary}
@@ -366,7 +366,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
                     ]}
                   >
                     {selected && (
-                      <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                      <MaterialCommunityIcons name="checkmark" size={12} color="#FFFFFF" />
                     )}
                   </View>
                 </TouchableOpacity>

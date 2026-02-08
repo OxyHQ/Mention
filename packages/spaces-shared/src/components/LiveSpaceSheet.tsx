@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '@oxyhq/services';
 
 import { useSpacesConfig } from '../context/SpacesConfigContext';
@@ -70,7 +70,7 @@ const SpeakerTile = ({
         <AvatarComponent size={64} source={avatarUri} shape="squircle" />
         {participant.isMuted && (
           <View style={[styles.muteIndicator, { backgroundColor: '#FF4458' }]}>
-            <Ionicons name="mic-off" size={12} color="#FFFFFF" />
+            <MaterialCommunityIcons name="mic-off" size={12} color="#FFFFFF" />
           </View>
         )}
       </View>
@@ -134,10 +134,10 @@ const ConnectedRequestRow = ({ request, theme, oxyServices, onApprove, onDeny, A
         {displayName}
       </Text>
       <TouchableOpacity onPress={() => onApprove(request.userId)} style={[styles.approveBtn, { backgroundColor: theme.colors.primary }]}>
-        <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+        <MaterialCommunityIcons name="checkmark" size={18} color="#FFFFFF" />
       </TouchableOpacity>
       <TouchableOpacity onPress={() => onDeny(request.userId)} style={[styles.denyBtn, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <Ionicons name="close" size={18} color={theme.colors.text} />
+        <MaterialCommunityIcons name="close" size={18} color={theme.colors.text} />
       </TouchableOpacity>
     </View>
   );
@@ -279,7 +279,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity onPress={onCollapse} style={styles.headerButton}>
-          <Ionicons name="chevron-down" size={24} color={theme.colors.text} />
+          <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.text} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -314,7 +314,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
 
       {micPermissionDenied && canSpeak && (
         <View style={[styles.micBanner, { backgroundColor: '#FFF3CD', borderColor: '#FFE69C' }]}>
-          <Ionicons name="mic-off" size={18} color="#856404" />
+          <MaterialCommunityIcons name="mic-off" size={18} color="#856404" />
           <Text style={styles.micBannerText}>
             Microphone access denied. Allow mic permission in your browser settings to speak.
           </Text>
@@ -327,7 +327,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
             <Image source={{ uri: streamImageUrl }} style={styles.streamCardImage} />
           ) : (
             <View style={[styles.streamCardIconBox, { backgroundColor: '#E8F5E9' }]}>
-              <Ionicons name="radio" size={20} color="#2E7D32" />
+              <MaterialCommunityIcons name="radio" size={20} color="#2E7D32" />
             </View>
           )}
           <View style={styles.streamCardContent}>
@@ -342,7 +342,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
           </View>
           {isHost && (
             <TouchableOpacity onPress={handleStopStream} disabled={streamLoading} style={styles.streamCardStop}>
-              <Ionicons name="close-circle" size={22} color="#C62828" />
+              <MaterialCommunityIcons name="close-circle" size={22} color="#C62828" />
             </TouchableOpacity>
           )}
         </View>
@@ -433,7 +433,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
                 },
               ]}
             >
-              <Ionicons
+              <MaterialCommunityIcons
                 name={isMuted ? 'mic-off' : 'mic'}
                 size={24}
                 color={isMuted ? theme.colors.text : '#FFFFFF'}
@@ -451,7 +451,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
                 { backgroundColor: theme.colors.backgroundSecondary },
               ]}
             >
-              <Ionicons name="hand-left" size={24} color={theme.colors.text} />
+              <MaterialCommunityIcons name="hand-left" size={24} color={theme.colors.text} />
             </View>
             <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
               Request
@@ -466,7 +466,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
               { backgroundColor: theme.colors.backgroundSecondary },
             ]}
           >
-            <Ionicons name="people" size={24} color={theme.colors.text} />
+            <MaterialCommunityIcons name="people" size={24} color={theme.colors.text} />
           </View>
           <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
             {participants.length}
@@ -476,7 +476,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
         {isHost && !effectiveStream && (
           <TouchableOpacity style={styles.controlItem} onPress={() => setStreamConfigVisible(true)}>
             <View style={[styles.controlCircle, { backgroundColor: theme.colors.backgroundSecondary }]}>
-              <Ionicons name="radio" size={24} color={theme.colors.text} />
+              <MaterialCommunityIcons name="radio" size={24} color={theme.colors.text} />
             </View>
             <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
               Stream
@@ -486,7 +486,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
 
         <TouchableOpacity style={styles.controlItem} onPress={handleLeave}>
           <View style={[styles.leaveCircle, { backgroundColor: '#FF4458' }]}>
-            <Ionicons name="exit-outline" size={24} color="#FFFFFF" />
+            <MaterialCommunityIcons name="exit-outline" size={24} color="#FFFFFF" />
           </View>
           <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
             Leave

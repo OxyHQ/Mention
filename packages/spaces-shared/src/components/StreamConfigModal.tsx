@@ -12,7 +12,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '@oxyhq/services';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -217,7 +217,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
       >
         <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={theme.colors.text} />
+            <MaterialCommunityIcons name="close" size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Stream Setup</Text>
           <View style={styles.closeBtn} />
@@ -233,7 +233,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
               ]}
               onPress={() => setMode('url')}
             >
-              <Ionicons name="link" size={16} color={mode === 'url' ? '#FFFFFF' : theme.colors.text} />
+              <MaterialCommunityIcons name="link" size={16} color={mode === 'url' ? '#FFFFFF' : theme.colors.text} />
               <Text style={[styles.modeTabText, { color: mode === 'url' ? '#FFFFFF' : theme.colors.text }]}>
                 Stream URL
               </Text>
@@ -246,7 +246,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
               ]}
               onPress={() => setMode('rtmp')}
             >
-              <Ionicons name="key" size={16} color={mode === 'rtmp' ? '#FFFFFF' : theme.colors.text} />
+              <MaterialCommunityIcons name="key" size={16} color={mode === 'rtmp' ? '#FFFFFF' : theme.colors.text} />
               <Text style={[styles.modeTabText, { color: mode === 'rtmp' ? '#FFFFFF' : theme.colors.text }]}>
                 External App
               </Text>
@@ -279,7 +279,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                   {generatingKey ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Ionicons name="key" size={18} color="#FFFFFF" />
+                    <MaterialCommunityIcons name="key" size={18} color="#FFFFFF" />
                   )}
                   <Text style={styles.generateBtnText}>
                     {generatingKey ? 'Generating...' : 'Generate Stream Key'}
@@ -293,7 +293,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                       {rtmpUrl}
                     </Text>
                     <TouchableOpacity onPress={() => copyToClipboard(rtmpUrl, 'RTMP URL')} style={styles.copyBtn}>
-                      <Ionicons name="copy" size={18} color={theme.colors.primary} />
+                      <MaterialCommunityIcons name="copy" size={18} color={theme.colors.primary} />
                     </TouchableOpacity>
                   </View>
 
@@ -303,12 +303,12 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                       {streamKey}
                     </Text>
                     <TouchableOpacity onPress={() => copyToClipboard(streamKey!, 'Stream key')} style={styles.copyBtn}>
-                      <Ionicons name="copy" size={18} color={theme.colors.primary} />
+                      <MaterialCommunityIcons name="copy" size={18} color={theme.colors.primary} />
                     </TouchableOpacity>
                   </View>
 
                   <View style={styles.infoRow}>
-                    <Ionicons name="information-circle" size={16} color={theme.colors.textSecondary} />
+                    <MaterialCommunityIcons name="information-circle" size={16} color={theme.colors.textSecondary} />
                     <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
                       Use these in OBS or your streaming app. Audio will play in the space once you start streaming.
                     </Text>
@@ -341,7 +341,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                 <Image source={{ uri: imagePreviewUri }} style={styles.imagePreview} />
               ) : (
                 <View style={styles.imagePickerPlaceholder}>
-                  <Ionicons name="image" size={24} color={theme.colors.textSecondary} />
+                  <MaterialCommunityIcons name="image" size={24} color={theme.colors.textSecondary} />
                   <Text style={[styles.imagePickerText, { color: theme.colors.textSecondary }]}>
                     Cover image
                   </Text>
@@ -382,7 +382,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                 {loading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Ionicons
+                  <MaterialCommunityIcons
                     name="play"
                     size={18}
                     color={streamUrl.trim() ? '#FFFFFF' : theme.colors.textSecondary}
@@ -403,7 +403,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                 {loading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Ionicons name="save" size={18} color="#FFFFFF" />
+                  <MaterialCommunityIcons name="save" size={18} color="#FFFFFF" />
                 )}
                 <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 16 }}>
                   Save Stream Info

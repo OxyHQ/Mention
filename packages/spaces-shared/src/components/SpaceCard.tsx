@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '@oxyhq/services';
 
 import { useSpacesConfig } from '../context/SpacesConfigContext';
@@ -79,7 +79,7 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
             )}
             {!isCompact && isScheduled && (
               <View style={[styles.scheduledBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <Ionicons name="calendar-outline" size={12} color={theme.colors.textSecondary} />
+                <MaterialCommunityIcons name="calendar-outline" size={12} color={theme.colors.textSecondary} />
                 <Text style={[styles.scheduledText, { color: theme.colors.textSecondary }]}>SCHEDULED</Text>
               </View>
             )}
@@ -95,7 +95,7 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
               )}
               {isScheduled && (
                 <View style={[styles.scheduledBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                  <Ionicons name="calendar-outline" size={10} color={theme.colors.textSecondary} />
+                  <MaterialCommunityIcons name="calendar-outline" size={10} color={theme.colors.textSecondary} />
                   <Text style={[styles.scheduledText, { color: theme.colors.textSecondary }]}>SCHEDULED</Text>
                 </View>
               )}
@@ -115,7 +115,7 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
 
       <View style={styles.footer}>
         <View style={styles.participantsRow}>
-          <Ionicons name="people" size={isCompact ? 14 : 16} color={theme.colors.textSecondary} />
+          <MaterialCommunityIcons name="people" size={isCompact ? 14 : 16} color={theme.colors.textSecondary} />
           <Text style={[isCompact ? styles.compactCount : styles.count, { color: theme.colors.textSecondary }]}>
             {space.participants?.length || 0} listening
           </Text>

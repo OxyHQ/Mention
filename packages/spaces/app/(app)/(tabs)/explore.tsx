@@ -7,7 +7,7 @@ import {
   ScrollView,
   RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SpaceCard, useLiveSpace, useSpacesConfig, type Space } from '@mention/spaces-shared';
 
@@ -57,7 +57,7 @@ export default function ExploreScreen() {
       </View>
 
       <View style={[styles.searchBar, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-        <Ionicons name="search" size={18} color={theme.colors.textSecondary} />
+        <MaterialCommunityIcons name="magnify" size={18} color={theme.colors.textSecondary} />
         <TextInput
           style={[styles.searchInput, { color: theme.colors.text }]}
           placeholder="Search spaces..."

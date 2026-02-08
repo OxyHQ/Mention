@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   FlatList,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop, BottomSheetFooter } from '@gorhom/bottom-sheet';
 import type { BottomSheetFooterProps } from '@gorhom/bottom-sheet';
@@ -109,7 +109,7 @@ export default function HomeScreen() {
             onPress={() => createSheetRef.current?.handleCreateAndStart()}
             disabled={!formState.isValid || formState.loading}
           >
-            <Ionicons
+            <MaterialCommunityIcons
               name="play"
               size={20}
               color={formState.isValid ? theme.colors.onPrimary : theme.colors.textSecondary}
@@ -130,7 +130,7 @@ export default function HomeScreen() {
               onPress={() => createSheetRef.current?.handleSchedule()}
               disabled={!formState.isValid || formState.loading}
             >
-              <Ionicons name="calendar" size={20} color={theme.colors.text} />
+              <MaterialCommunityIcons name="calendar" size={20} color={theme.colors.text} />
               <Text style={[sheetStyles.secondaryButtonText, { color: theme.colors.text }]}>
                 Schedule Space
               </Text>
@@ -144,11 +144,8 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: theme.colors.border }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Spaces</Text>
-        <TouchableOpacity onPress={openCreateSheet}>
-          <Ionicons name="add-circle" size={28} color={theme.colors.primary} />
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -212,7 +209,7 @@ export default function HomeScreen() {
         {scheduledSpaces.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeaderPadded}>
-              <Ionicons name="calendar" size={18} color={theme.colors.textSecondary} />
+              <MaterialCommunityIcons name="calendar" size={18} color={theme.colors.textSecondary} />
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
                 Upcoming
               </Text>
@@ -246,6 +243,14 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        onPress={openCreateSheet}
+        activeOpacity={0.8}
+      >
+        <MaterialCommunityIcons name="plus" size={28} color={theme.colors.onPrimary} />
+      </TouchableOpacity>
+
       <BottomSheetModal
         ref={modalRef}
         snapPoints={snapPoints}
@@ -273,12 +278,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 28, fontWeight: '800' },
   scrollContent: { paddingBottom: 100 },
@@ -313,6 +314,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   cardList: { paddingHorizontal: 16 },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 80,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
   createButton: {
     flexDirection: 'row',
     alignItems: 'center',

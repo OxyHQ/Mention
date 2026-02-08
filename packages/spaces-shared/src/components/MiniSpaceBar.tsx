@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { useSpacesConfig } from '../context/SpacesConfigContext';
 
@@ -61,7 +61,7 @@ export function MiniSpaceBar({
             ]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons
+            <MaterialCommunityIcons
               name={isMuted ? 'mic-off' : 'mic'}
               size={16}
               color={isMuted ? theme.colors.text : '#FFFFFF'}
@@ -74,7 +74,7 @@ export function MiniSpaceBar({
           style={[styles.controlButton, { backgroundColor: '#FF4458' }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="close" size={16} color="#FFFFFF" />
+          <MaterialCommunityIcons name="close" size={16} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
