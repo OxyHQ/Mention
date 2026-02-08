@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import LottieView from 'lottie-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 
@@ -16,7 +16,12 @@ export default function NotificationsScreen() {
       </View>
 
       <View style={styles.emptyState}>
-        <Ionicons name="notifications-outline" size={48} color={theme.colors.textTertiary} />
+        <LottieView
+          source={require('@/assets/lottie/nonotifications.json')}
+          autoPlay
+          loop
+          style={styles.lottie}
+        />
         <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
           No notifications yet
         </Text>
@@ -43,6 +48,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 8,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '600', marginTop: 8 },
+  lottie: {
+    width: 180,
+    height: 180,
+  },
+  emptyTitle: { fontSize: 18, fontWeight: '600' },
   emptySubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
 });
