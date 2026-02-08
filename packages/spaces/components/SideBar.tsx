@@ -23,16 +23,20 @@ function SideBarItem({ icon, text, href, isActive, isExpanded, theme }: SideBarI
   const itemStyle = useMemo(() => ({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    paddingVertical: 12,
-    paddingHorizontal: isExpanded ? 16 : 12,
-    marginVertical: 2,
-    borderRadius: 12,
+    justifyContent: isExpanded ? ('flex-start' as const) : ('center' as const),
+    paddingVertical: 8,
+    paddingHorizontal: isExpanded ? 12 : 0,
+    width: isExpanded ? undefined : 40,
+    height: isExpanded ? undefined : 40,
+    marginVertical: 1,
+    borderRadius: 20,
+    alignSelf: isExpanded ? ('stretch' as const) : ('center' as const),
     backgroundColor: isActive
       ? `${theme.colors.primary}1A`
       : isHovered
         ? `${theme.colors.primary}14`
         : 'transparent',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any, transition: 'background-color 200ms ease' } : {}),
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any, transition: 'background-color 150ms ease' } : {}),
   }), [isActive, isHovered, isExpanded, theme.colors.primary]);
 
   return (
@@ -46,9 +50,9 @@ function SideBarItem({ icon, text, href, isActive, isExpanded, theme }: SideBarI
       {isExpanded && (
         <Text
           style={{
-            marginLeft: 16,
-            fontSize: 16,
-            fontWeight: isActive ? '700' : '400',
+            marginLeft: 12,
+            fontSize: 14,
+            fontWeight: isActive ? '600' : '400',
             color: isActive ? theme.colors.primary : theme.colors.text,
           }}
           numberOfLines={1}
@@ -74,8 +78,8 @@ export function SideBar() {
       href: '/',
       icon: (color: string) =>
         pathname === '/' || pathname === '/(tabs)'
-          ? <Ionicons name="home" size={24} color={color} />
-          : <Ionicons name="home-outline" size={24} color={color} />,
+          ? <Ionicons name="home" size={20} color={color} />
+          : <Ionicons name="home-outline" size={20} color={color} />,
       isActive: pathname === '/' || pathname === '/(tabs)' || pathname === '/(app)/(tabs)',
     },
     {
@@ -83,8 +87,8 @@ export function SideBar() {
       href: '/explore',
       icon: (color: string) =>
         pathname === '/explore'
-          ? <Ionicons name="search" size={24} color={color} />
-          : <Ionicons name="search-outline" size={24} color={color} />,
+          ? <Ionicons name="search" size={20} color={color} />
+          : <Ionicons name="search-outline" size={20} color={color} />,
       isActive: pathname === '/explore',
     },
     {
@@ -92,8 +96,8 @@ export function SideBar() {
       href: '/notifications',
       icon: (color: string) =>
         pathname === '/notifications'
-          ? <Ionicons name="notifications" size={24} color={color} />
-          : <Ionicons name="notifications-outline" size={24} color={color} />,
+          ? <Ionicons name="notifications" size={20} color={color} />
+          : <Ionicons name="notifications-outline" size={20} color={color} />,
       isActive: pathname === '/notifications',
     },
     {
@@ -101,8 +105,8 @@ export function SideBar() {
       href: '/profile',
       icon: (color: string) =>
         pathname === '/profile'
-          ? <Ionicons name="person" size={24} color={color} />
-          : <Ionicons name="person-outline" size={24} color={color} />,
+          ? <Ionicons name="person" size={20} color={color} />
+          : <Ionicons name="person-outline" size={20} color={color} />,
       isActive: pathname === '/profile',
     },
     {
@@ -110,8 +114,8 @@ export function SideBar() {
       href: '/settings',
       icon: (color: string) =>
         pathname.startsWith('/settings')
-          ? <Ionicons name="settings" size={24} color={color} />
-          : <Ionicons name="settings-outline" size={24} color={color} />,
+          ? <Ionicons name="settings" size={20} color={color} />
+          : <Ionicons name="settings-outline" size={20} color={color} />,
       isActive: pathname.startsWith('/settings'),
     },
   ];
@@ -119,10 +123,10 @@ export function SideBar() {
   return (
     <View
       style={{
-        width: isExpanded ? 220 : 60,
+        width: isExpanded ? 180 : 52,
         backgroundColor: theme.colors.background,
-        paddingVertical: 16,
-        paddingHorizontal: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 6,
         ...(Platform.OS === 'web' ? {
           position: 'sticky' as any,
           top: 0,
@@ -134,17 +138,18 @@ export function SideBar() {
       }}
     >
       <View style={{
-        paddingHorizontal: isExpanded ? 16 : 8,
-        paddingVertical: 12,
-        marginBottom: 8,
+        paddingHorizontal: isExpanded ? 12 : 0,
+        paddingVertical: 8,
+        marginBottom: 4,
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: isExpanded ? 'flex-start' : 'center',
       }}>
-        <SpacesActive color={theme.colors.primary} size={28} />
+        <SpacesActive color={theme.colors.primary} size={24} />
         {isExpanded && (
           <Text style={{
-            marginLeft: 12,
-            fontSize: 20,
+            marginLeft: 10,
+            fontSize: 17,
             fontWeight: '700',
             color: theme.colors.primary,
           }}>
