@@ -6,6 +6,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 
 import { useTheme } from '@/hooks/useTheme';
 
@@ -51,32 +52,29 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
     backgroundColor: `${theme.colors.primary}1A`,
   }));
 
-  return (
-    <View
-      style={{
-        position: 'absolute',
-        bottom: 12,
-        left: 16,
-        right: 16,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: theme.colors.card,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        flexDirection: 'row',
-        alignItems: 'center',
-        ...(Platform.OS === 'web' ? {
-          boxShadow: `0 2px 16px ${theme.colors.shadow}`,
-        } : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.15,
-          shadowRadius: 12,
-          elevation: 8,
-        }),
-      }}
-      onLayout={onBarLayout}
-    >
+  const containerStyle = {
+    position: 'absolute' as const,
+    bottom: 12,
+    left: 16,
+    right: 16,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    overflow: 'hidden' as const,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: `0 2px 16px ${theme.colors.shadow}`,
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 8,
+    }),
+  };
+
+  const innerContent = (
+    <>
       <Animated.View style={indicatorStyle} />
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
@@ -128,6 +126,40 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
           </Pressable>
         );
       })}
+    </>
+  );
+
+  if (Platform.OS === 'web') {
+    return (
+      <View
+        style={{
+          ...containerStyle,
+          backgroundColor: `${theme.colors.card}CC`,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          flexDirection: 'row',
+          alignItems: 'center',
+        } as any}
+        onLayout={onBarLayout}
+      >
+        {innerContent}
+      </View>
+    );
+  }
+
+  return (
+    <View style={containerStyle} onLayout={onBarLayout}>
+      <BlurView
+        intensity={80}
+        tint={theme.isDark ? 'dark' : 'light'}
+        style={{
+          flex: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+        }}
+      >
+        {innerContent}
+      </BlurView>
     </View>
   );
 }

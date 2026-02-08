@@ -25,7 +25,7 @@ module.exports = function (_config) {
       android: {
         adaptiveIcon: {
           foregroundImage: './assets/images/adaptive-icon.png',
-          backgroundColor: '#794BC4',
+          backgroundColor: '#FFC107',
         },
         permissions: [
           'android.permission.RECORD_AUDIO',
@@ -50,12 +50,12 @@ module.exports = function (_config) {
         favicon: './assets/images/favicon.png',
         meta: {
           viewport: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no',
-          themeColor: '#794BC4',
+          themeColor: '#FFC107',
           appleMobileWebAppCapable: 'yes',
           appleMobileWebAppStatusBarStyle: 'default',
           appleMobileWebAppTitle: 'Spaces',
           applicationName: 'Spaces by Mention',
-          msapplicationTileColor: '#794BC4',
+          msapplicationTileColor: '#FFC107',
         },
         build: {
           babel: {

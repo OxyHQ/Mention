@@ -34,7 +34,7 @@ export interface Theme {
   isLight: boolean;
 }
 
-const PRIMARY_COLOR = '#794BC4';
+const PRIMARY_COLOR = '#FFC107';
 
 export function useTheme(): Theme {
   const colorScheme = useColorScheme() ?? 'light';
@@ -52,8 +52,8 @@ export function useTheme(): Theme {
         border: '#38383A',
         borderLight: '#2C2C2E',
         primary: PRIMARY_COLOR,
-        primaryLight: '#9B7DD4',
-        primaryDark: '#5A2E9E',
+        primaryLight: '#FFD54F',
+        primaryDark: '#FFA000',
         secondary: '#FF6B35',
         tint: PRIMARY_COLOR,
         icon: '#8E8E93',
