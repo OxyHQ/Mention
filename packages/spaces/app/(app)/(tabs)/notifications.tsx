@@ -49,8 +49,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   lottie: {
-    width: 180,
-    height: 180,
+    width: 120,
+    height: 120,
   },
   emptyTitle: { fontSize: 18, fontWeight: '600' },
   emptySubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },

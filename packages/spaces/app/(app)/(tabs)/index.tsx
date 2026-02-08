@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import LottieView from 'lottie-react-native';
 import {
   SpaceCard,
   CreateSpaceSheet,
@@ -145,7 +146,12 @@ export default function HomeScreen() {
         {/* Empty state */}
         {liveSpaces.length === 0 && scheduledSpaces.length === 0 && !refreshing && (
           <View style={styles.emptyState}>
-            <Ionicons name="radio-outline" size={64} color={theme.colors.textTertiary} />
+            <LottieView
+              source={require('@/assets/lottie/onair.json')}
+              autoPlay
+              loop
+              style={styles.lottie}
+            />
             <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
               No spaces yet
             </Text>
@@ -228,7 +234,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 12,
   },
-  emptyTitle: { fontSize: 20, fontWeight: '700', marginTop: 8 },
+  lottie: { width: 120, height: 120 },
+  emptyTitle: { fontSize: 20, fontWeight: '700' },
   emptySubtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
   createButton: {
     flexDirection: 'row',
