@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@oxyhq/services';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Spaces as SpacesIcon } from '@/assets/icons/spaces-icon';
@@ -27,6 +28,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 const CreateSpaceSheet = lazy(() => import('@/components/spaces/CreateSpaceSheet'));
 
 const SpacesScreen = () => {
+  const { isAuthenticated } = useAuth();
   const theme = useTheme();
   const bottomSheet = useContext(BottomSheetContext);
   const { joinLiveSpace } = useLiveSpace();
@@ -36,6 +38,7 @@ const SpacesScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadSpaces = useCallback(async () => {
+    if (!isAuthenticated) return;
     try {
       setLoading(true);
       const [live, scheduled] = await Promise.all([
@@ -50,7 +53,7 @@ const SpacesScreen = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     loadSpaces();
