@@ -56,7 +56,8 @@ const Avatar: React.FC<AvatarProps> = ({
     if (source.startsWith('http')) return source;
     try {
       return getCachedFileDownloadUrlSync(oxyServices, source, 'thumb');
-    } catch {
+    } catch (e) {
+      if (__DEV__) console.warn('[Avatar] Failed to resolve source:', source, e);
       return undefined;
     }
   }, [source, errored]);

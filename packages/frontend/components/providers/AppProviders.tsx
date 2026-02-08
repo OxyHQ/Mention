@@ -50,7 +50,7 @@ export const AppProviders = memo(function AppProviders({
             oxyServices={oxyServices}
             initialScreen="SignIn"
             autoPresent={false}
-            storageKeyPrefix="oxy_example"
+            storageKeyPrefix="mention"
             theme={colorScheme ?? undefined}
           >
             <I18nextProvider i18n={i18n}>
