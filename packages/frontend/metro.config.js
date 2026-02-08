@@ -9,9 +9,11 @@ const config = getDefaultConfig(projectRoot);
 // Explicitly set projectRoot
 config.projectRoot = projectRoot;
 
-// CRITICAL: Only watch the frontend package
-// This prevents Metro from watching the entire monorepo
-config.watchFolders = [projectRoot];
+// Watch the frontend package and shared spaces package
+config.watchFolders = [
+  projectRoot,
+  path.resolve(monorepoRoot, 'packages/spaces-shared'),
+];
 
 // Helper to create block patterns
 const blockPath = (dir) => {
@@ -47,6 +49,7 @@ config.resolver = {
   ],
   extraNodeModules: {
     '@mention/shared-types': path.join(monorepoRoot, 'packages/shared-types'),
+    '@mention/spaces-shared': path.join(monorepoRoot, 'packages/spaces-shared'),
   },
   // Resolve from frontend node_modules first, then root (for workspaces)
   nodeModulesPaths: [
