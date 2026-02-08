@@ -748,19 +748,6 @@ authenticatedApiRouter.use("/reports", reportsRoutes);
 authenticatedApiRouter.use("/spaces", spacesRoutes);
 // You can add more protected routers here as needed
 
-// Mount public and authenticated API routers
-app.use("/", publicApiRouter);
-app.use("/", oxy.auth(), authenticatedApiRouter);
-
-// Performance monitoring middleware
-import { performanceMiddleware } from "./src/middleware/performance";
-app.use(performanceMiddleware);
-
-// Global error handler — must be the LAST middleware registered.
-// Catches unhandled errors from route handlers and prevents raw error leakage.
-import { globalErrorHandler } from "./src/utils/error";
-app.use(globalErrorHandler);
-
 // --- Root API Welcome Route ---
 app.get("", async (req, res) => {
   try {
@@ -821,6 +808,19 @@ app.get("/health", async (req, res) => {
     });
   }
 });
+
+// Mount public and authenticated API routers
+app.use("/", publicApiRouter);
+app.use("/", oxy.auth(), authenticatedApiRouter);
+
+// Performance monitoring middleware
+import { performanceMiddleware } from "./src/middleware/performance";
+app.use(performanceMiddleware);
+
+// Global error handler — must be the LAST middleware registered.
+// Catches unhandled errors from route handlers and prevents raw error leakage.
+import { globalErrorHandler } from "./src/utils/error";
+app.use(globalErrorHandler);
 
 // --- MongoDB Connection ---
 const db = mongoose.connection;
