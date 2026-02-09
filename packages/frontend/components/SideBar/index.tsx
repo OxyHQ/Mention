@@ -30,7 +30,7 @@ import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-ico
 import { useTheme } from "@/hooks/useTheme";
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { Agora, AgoraActive } from '@/assets/icons/spaces-icon';
+import { Agora, AgoraActive } from '@mention/agora-shared';
 
 const IconComponent = Ionicons as any;
 

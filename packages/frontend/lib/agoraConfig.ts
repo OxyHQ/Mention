@@ -23,6 +23,5 @@ export const agoraConfig: AgoraConfig = {
       error: (message: string) => toast.error(message),
     }
   ),
-  introSound: require('@/assets/sounds/intro.mp3'),
   isDesktop: false, // Will be overridden at runtime if needed
 };
