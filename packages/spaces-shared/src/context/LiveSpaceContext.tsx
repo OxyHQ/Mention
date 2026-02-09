@@ -44,9 +44,9 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const bottomOffset = isDesktop ? 0 : BOTTOM_BAR_OFFSET;
+  const bottomBarOffset = isDesktop ? 0 : BOTTOM_BAR_OFFSET;
   const collapsedHeight = MINI_BAR_HEIGHT;
-  const expandedMaxHeight = screenHeight * 0.85 - bottomOffset;
+  const expandedMaxHeight = screenHeight * 0.85;
 
   const progress = useSharedValue(0);
 
@@ -57,10 +57,22 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
       [0, collapsedHeight, expandedMaxHeight],
       Extrapolation.CLAMP,
     );
+    const bottom = isDesktop ? 0 : interpolate(
+      progress.value,
+      [1, 2],
+      [bottomBarOffset, 0],
+      Extrapolation.CLAMP,
+    );
     const inset = isDesktop ? 0 : interpolate(
       progress.value,
       [1, 2],
       [16, 0],
+      Extrapolation.CLAMP,
+    );
+    const pb = isDesktop ? 0 : interpolate(
+      progress.value,
+      [1, 2],
+      [0, bottomBarOffset],
       Extrapolation.CLAMP,
     );
     const topRadius = interpolate(
@@ -77,8 +89,10 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
     );
     return {
       height: h,
+      bottom,
       left: inset,
       right: inset,
+      paddingBottom: pb,
       borderTopLeftRadius: topRadius,
       borderTopRightRadius: topRadius,
       borderBottomLeftRadius: bottomRadius,
@@ -141,7 +155,6 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
           style={[
             styles.sheet,
             {
-              bottom: bottomOffset,
               backgroundColor: theme.colors.background,
               borderColor: theme.colors.border,
             },

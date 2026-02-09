@@ -129,15 +129,18 @@ app.use(async (req, res, next) => {
 const ALLOWED_ORIGINS: string[] = [
   process.env.FRONTEND_URL || "https://mention.earth",
   "https://spaces.mention.earth",
-  ...(process.env.NODE_ENV !== 'production' ? [
-    "http://localhost:8081",
-    "http://localhost:8082",
-  ] : []),
 ];
+
+const isAllowedOrigin = (origin: string): boolean => {
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  // Allow any localhost origin for development
+  if (origin.startsWith("http://localhost:")) return true;
+  return false;
+};
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+  if (origin && isAllowedOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else if (process.env.FRONTEND_URL) {
     res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
@@ -241,7 +244,13 @@ const io = new SocketIOServer(server, {
   maxHttpBufferSize: SOCKET_CONFIG.MAX_BUFFER_SIZE,
   connectTimeout: SOCKET_CONFIG.CONNECT_TIMEOUT,
   cors: {
-    origin: ALLOWED_ORIGINS,
+    origin: (origin, callback) => {
+      if (!origin || isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With", "Accept", "Accept-Version", "Content-Length", "Content-MD5", "Date", "X-Api-Version"]
