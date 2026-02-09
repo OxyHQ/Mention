@@ -308,6 +308,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
     return (
       <StreamConfigPanel
         roomId={roomId}
+        roomStatus={room?.status}
         onClose={() => setActivePanel(null)}
         onStreamStarted={() => {
           agoraService.getRoom(roomId).then(setRoom);
@@ -538,7 +539,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
           </Text>
         </TouchableOpacity>
 
-        {isHost && isRoomLive && !effectiveStream && (
+        {isHost && !effectiveStream && (
           <TouchableOpacity style={styles.controlItem} onPress={() => setActivePanel('stream')}>
             <View style={[styles.controlCircle, { backgroundColor: theme.colors.backgroundSecondary }]}>
               <MaterialCommunityIcons name="radio" size={24} color={theme.colors.text} />

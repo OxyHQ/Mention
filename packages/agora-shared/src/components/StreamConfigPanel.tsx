@@ -18,13 +18,14 @@ import { useAgoraConfig } from '../context/AgoraConfigContext';
 
 interface StreamConfigPanelProps {
   roomId: string;
+  roomStatus?: string;
   onClose: () => void;
   onStreamStarted: () => void;
 }
 
 type StreamMode = 'url' | 'rtmp';
 
-export function StreamConfigPanel({ roomId, onClose, onStreamStarted }: StreamConfigPanelProps) {
+export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted }: StreamConfigPanelProps) {
   const { useTheme, agoraService, toast } = useAgoraConfig();
   const theme = useTheme();
   const { oxyServices } = useAuth();
@@ -106,10 +107,25 @@ export function StreamConfigPanel({ roomId, onClose, onStreamStarted }: StreamCo
     }
   };
 
+  const ensureRoomLive = async (): Promise<boolean> => {
+    if (roomStatus === 'live') return true;
+    if (roomStatus === 'scheduled') {
+      const started = await agoraService.startRoom(roomId);
+      if (!started) {
+        toast.error('Failed to start room');
+        return false;
+      }
+      return true;
+    }
+    toast.error('Room cannot be started');
+    return false;
+  };
+
   const handleStartUrlStream = async () => {
     if (!streamUrl.trim() || loading) return;
     setLoading(true);
     try {
+      if (!(await ensureRoomLive())) return;
       const result = await agoraService.startStream(roomId, {
         url: streamUrl.trim(),
         title: title.trim() || undefined,
