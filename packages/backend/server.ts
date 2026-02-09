@@ -128,7 +128,7 @@ app.use(async (req, res, next) => {
 // CORS and security headers
 const ALLOWED_ORIGINS: string[] = [
   process.env.FRONTEND_URL || "https://mention.earth",
-  "https://spaces.mention.earth",
+  "https://agora.mention.earth",
 ];
 
 const isAllowedOrigin = (origin: string): boolean => {

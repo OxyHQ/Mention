@@ -23,7 +23,7 @@
       "path": "./packages/shared-types"
     },
     {
-      "path": "./packages/spaces-shared"
+      "path": "./packages/agora-shared"
     },
     {
       "path": "./packages/backend"
@@ -32,7 +32,7 @@
       "path": "./packages/frontend"
     },
     {
-      "path": "./packages/spaces"
+      "path": "./packages/agora"
     }
   ],
   "exclude": [

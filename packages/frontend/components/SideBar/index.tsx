@@ -30,7 +30,7 @@ import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-ico
 import { useTheme } from "@/hooks/useTheme";
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { Spaces, SpacesActive } from '@/assets/icons/spaces-icon';
+import { Agora, AgoraActive } from '@/assets/icons/spaces-icon';
 
 const IconComponent = Ionicons as any;
 
@@ -98,9 +98,9 @@ export function SideBar() {
                 route: '/chat',
             },
             {
-                title: t("Spaces"),
-                icon: <Spaces color={theme.colors.text} />,
-                iconActive: <SpacesActive color={theme.colors.primary} />,
+                title: t("Agora"),
+                icon: <Agora color={theme.colors.text} />,
+                iconActive: <AgoraActive color={theme.colors.primary} />,
                 route: '/spaces',
             },
             {

@@ -80,7 +80,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const { status, host, limit = '20', cursor } = req.query;
 
-    const query: any = {};
+    const query: any = {
+      archived: { $ne: true }
+    };
 
     // Filter by status
     if (status && typeof status === 'string') {
@@ -896,6 +898,94 @@ router.post('/:id/stream/rtmp', async (req: AuthRequest, res: Response) => {
     res.status(500).json({
       message: 'Error generating stream key',
       error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Delete a space (host only)
+ * DELETE /api/spaces/:id
+ */
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const space = await Space.findById(id);
+
+    if (!space) {
+      return res.status(404).json({ message: 'Space not found' });
+    }
+
+    // Only host can delete the space
+    if (space.host !== userId) {
+      return res.status(403).json({ message: 'Only the host can delete the space' });
+    }
+
+    // Cannot delete a live space
+    if (space.status === SpaceStatus.LIVE) {
+      return res.status(400).json({ message: 'Cannot delete a live space. End it first.' });
+    }
+
+    await Space.findByIdAndDelete(id);
+
+    logger.info(`Space deleted: ${id} by ${userId}`);
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error deleting space:', { userId: req.user?.id, spaceId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error deleting space',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Archive/Unarchive a space (host only)
+ * PATCH /api/spaces/:id/archive
+ */
+router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const space = await Space.findById(id);
+
+    if (!space) {
+      return res.status(404).json({ message: 'Space not found' });
+    }
+
+    // Only host can archive the space
+    if (space.host !== userId) {
+      return res.status(403).json({ message: 'Only the host can archive the space' });
+    }
+
+    // Cannot archive a live space
+    if (space.status === SpaceStatus.LIVE) {
+      return res.status(400).json({ message: 'Cannot archive a live space. End it first.' });
+    }
+
+    // Toggle archived status
+    space.archived = !space.archived;
+    await space.save();
+
+    logger.info(`Space ${space.archived ? 'archived' : 'unarchived'}: ${id} by ${userId}`);
+
+    res.json({ success: true, archived: space.archived });
+  } catch (error) {
+    logger.error('Error archiving space:', { userId: req.user?.id, spaceId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error archiving space',
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });

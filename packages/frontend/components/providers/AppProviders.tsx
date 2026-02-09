@@ -15,7 +15,7 @@ import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
-import { SpacesProvider } from '@mention/spaces-shared';
+import { AgoraProvider } from '@mention/agora-shared';
 import { LiveSpaceProvider } from '@/context/LiveSpaceContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
@@ -23,7 +23,7 @@ import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { Toaster } from '@/lib/sonner';
 import i18n from '@/lib/i18n';
-import { spacesConfig } from '@/lib/spacesConfig';
+import { agoraConfig } from '@/lib/agoraConfig';
 import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 
 interface AppProvidersProps {
@@ -58,7 +58,7 @@ export const AppProviders = memo(function AppProviders({
             <I18nextProvider i18n={i18n}>
               <BottomSheetModalProvider>
                 <BottomSheetProvider>
-                  <SpacesProvider config={spacesConfig}>
+                  <AgoraProvider config={agoraConfig}>
                   <LiveSpaceProvider>
                     <MenuProvider>
                       <ErrorBoundary>
@@ -76,7 +76,7 @@ export const AppProviders = memo(function AppProviders({
                       </ErrorBoundary>
                     </MenuProvider>
                   </LiveSpaceProvider>
-                  </SpacesProvider>
+                  </AgoraProvider>
                 </BottomSheetProvider>
               </BottomSheetModalProvider>
             </I18nextProvider>

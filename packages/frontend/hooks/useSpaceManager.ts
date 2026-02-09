@@ -1,2 +1,2 @@
-export { useSpaceManager } from '@mention/spaces-shared';
-export type { SpaceAttachmentData } from '@mention/spaces-shared';
+export { useSpaceManager } from '@mention/agora-shared';
+export type { SpaceAttachmentData } from '@mention/agora-shared';

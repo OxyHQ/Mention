@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Spaces as SpacesIcon } from '@/assets/icons/spaces-icon';
+import { Agora as SpacesIcon } from '@/assets/icons/spaces-icon';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import SpaceCard from '@/components/SpaceCard';
@@ -90,11 +90,11 @@ const SpacesScreen = () => {
 
   return (
     <>
-      <SEO title="Spaces" description="Join live audio conversations" />
+      <SEO title="Agora" description="Join live audio conversations" />
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <Header
           options={{
-            title: 'Spaces',
+            title: 'Agora',
             rightComponents: [
               <TouchableOpacity
                 key="create"

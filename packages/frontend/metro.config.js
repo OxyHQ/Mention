@@ -9,10 +9,10 @@ const config = getDefaultConfig(projectRoot);
 // Explicitly set projectRoot
 config.projectRoot = projectRoot;
 
-// Watch the frontend package and shared spaces package
+// Watch the frontend package and shared agora package
 config.watchFolders = [
   projectRoot,
-  path.resolve(monorepoRoot, 'packages/spaces-shared'),
+  path.resolve(monorepoRoot, 'packages/agora-shared'),
 ];
 
 // Helper to create block patterns
@@ -49,7 +49,7 @@ config.resolver = {
   ],
   extraNodeModules: {
     '@mention/shared-types': path.join(monorepoRoot, 'packages/shared-types'),
-    '@mention/spaces-shared': path.join(monorepoRoot, 'packages/spaces-shared'),
+    '@mention/agora-shared': path.join(monorepoRoot, 'packages/agora-shared'),
   },
   // Resolve from frontend node_modules first, then root (for workspaces)
   nodeModulesPaths: [

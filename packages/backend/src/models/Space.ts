@@ -26,6 +26,7 @@ export interface ISpace extends Document {
   endedAt?: Date;
   topic?: string;
   tags: string[];
+  archived: boolean;
   stats: {
     peakListeners: number;
     totalJoined: number;
@@ -100,6 +101,10 @@ const SpaceSchema = new Schema({
   tags: {
     type: [String],
     default: []
+  },
+  archived: {
+    type: Boolean,
+    default: false
   },
   stats: {
     peakListeners: {

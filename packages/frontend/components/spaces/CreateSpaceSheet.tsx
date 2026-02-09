@@ -1,1 +1,1 @@
-export { CreateSpaceSheet, CreateSpaceSheet as default } from '@mention/spaces-shared';
+export { CreateSpaceSheet, CreateSpaceSheet as default } from '@mention/agora-shared';

@@ -4,7 +4,7 @@ import { ViewStyle } from 'react-native';
 import { colors } from '@/styles/colors';
 
 
-export const Spaces = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const Agora = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
     return (
         <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
             <Path
@@ -15,7 +15,7 @@ export const Spaces = ({ color = colors.primaryColor, size = 26, style }: { colo
     );
 };
 
-export const SpacesActive = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
+export const AgoraActive = ({ color = colors.primaryColor, size = 26, style }: { color?: string; size?: number; style?: ViewStyle }) => {
     return (
         <Svg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }}>
             <Path

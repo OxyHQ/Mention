@@ -1,1 +1,1 @@
-export { useSpaceAudio } from '@mention/spaces-shared';
+export { useSpaceAudio } from '@mention/agora-shared';

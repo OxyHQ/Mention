@@ -1,1 +1,1 @@
-export { StreamConfigModal } from '@mention/spaces-shared';
+export { StreamConfigModal } from '@mention/agora-shared';
