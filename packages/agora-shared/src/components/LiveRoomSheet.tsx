@@ -224,6 +224,26 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
     }
   };
 
+  const [startingRoom, setStartingRoom] = useState(false);
+  const handleStartRoom = async () => {
+    if (!roomId || startingRoom) return;
+    setStartingRoom(true);
+    try {
+      const success = await agoraService.startRoom(roomId);
+      if (success) {
+        const updated = await agoraService.getRoom(roomId);
+        if (updated) setRoom(updated);
+        toast.success('Room is now live!');
+      } else {
+        toast.error('Failed to start room');
+      }
+    } catch {
+      toast.error('Failed to start room');
+    } finally {
+      setStartingRoom(false);
+    }
+  };
+
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [streamLoading, setStreamLoading] = useState(false);
 
@@ -316,19 +336,36 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <View style={[styles.liveBadge, { backgroundColor: '#FF4458' }]}>
-            <View style={styles.livePulse} />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
+          {isRoomLive ? (
+            <View style={[styles.liveBadge, { backgroundColor: '#FF4458' }]}>
+              <View style={styles.livePulse} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          ) : (
+            <View style={[styles.liveBadge, { backgroundColor: theme.colors.textSecondary }]}>
+              <Text style={styles.liveText}>SCHEDULED</Text>
+            </View>
+          )}
           <Text style={[styles.listenerCount, { color: theme.colors.textSecondary }]}>
             {participants.length} in room
           </Text>
         </View>
 
         <View style={styles.headerRight}>
-          {isHost && (
+          {isHost && isRoomLive && (
             <TouchableOpacity onPress={handleEndRoom} style={styles.endButton}>
               <Text style={styles.endButtonText}>End</Text>
+            </TouchableOpacity>
+          )}
+          {isHost && !isRoomLive && room?.status === 'scheduled' && (
+            <TouchableOpacity
+              onPress={handleStartRoom}
+              disabled={startingRoom}
+              style={[styles.endButton, { backgroundColor: theme.colors.primary }]}
+            >
+              <Text style={[styles.endButtonText, { color: '#FFFFFF' }]}>
+                {startingRoom ? 'Starting...' : 'Go Live'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -501,7 +538,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
           </Text>
         </TouchableOpacity>
 
-        {isHost && !effectiveStream && (
+        {isHost && isRoomLive && !effectiveStream && (
           <TouchableOpacity style={styles.controlItem} onPress={() => setActivePanel('stream')}>
             <View style={[styles.controlCircle, { backgroundColor: theme.colors.backgroundSecondary }]}>
               <MaterialCommunityIcons name="radio" size={24} color={theme.colors.text} />
