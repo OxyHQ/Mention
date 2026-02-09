@@ -11,6 +11,17 @@ export type {
   SpacesTheme,
 } from './types';
 
+// Validation
+export {
+  ZSpace,
+  ZSpaceParticipant,
+  ZStartStreamResponse,
+  ZGenerateStreamKeyResponse,
+  ZStreamInfo,
+  validateSpace,
+  validateSpaces,
+} from './validation';
+
 // Context
 export {
   SpacesProvider,
@@ -42,6 +53,8 @@ export { SpaceCard } from './components/SpaceCard';
 export { LiveSpaceSheet } from './components/LiveSpaceSheet';
 export { MiniSpaceBar, MINI_BAR_HEIGHT } from './components/MiniSpaceBar';
 export { StreamConfigModal } from './components/StreamConfigModal';
+export { StreamConfigPanel } from './components/StreamConfigPanel';
+export { InsightsPanel } from './components/InsightsPanel';
 export { CreateSpaceSheet, type CreateSpaceSheetRef, type CreateSpaceFormState } from './components/CreateSpaceSheet';
 
 // Assets

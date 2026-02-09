@@ -1,4 +1,5 @@
 import type { Space } from '../types';
+import { validateSpaces, validateSpace, ZStartStreamResponse, ZGenerateStreamKeyResponse } from '../validation';
 
 type HttpClient = {
   get: (url: string, config?: any) => Promise<any>;
@@ -14,7 +15,8 @@ export function createSpacesService(httpClient: HttpClient) {
         const params: any = {};
         if (status) params.status = status;
         const res = await httpClient.get("/spaces", { params });
-        return res.data.spaces || res.data.data || res.data || [];
+        const raw = res.data.spaces || res.data.data || res.data || [];
+        return validateSpaces(raw);
       } catch (error) {
         console.warn("Failed to fetch spaces", error);
         return [];
@@ -25,7 +27,8 @@ export function createSpacesService(httpClient: HttpClient) {
       if (!id) return null;
       try {
         const res = await httpClient.get(`/spaces/${id}`);
-        return res.data.space || res.data.data || res.data || null;
+        const raw = res.data.space || res.data.data || res.data || null;
+        return raw ? validateSpace(raw) : null;
       } catch (error) {
         console.warn("Failed to fetch space", error);
         return null;
@@ -35,7 +38,8 @@ export function createSpacesService(httpClient: HttpClient) {
     async createSpace(data: { title: string; description?: string; topic?: string; scheduledStart?: string; speakerPermission?: 'everyone' | 'followers' | 'invited' }): Promise<Space | null> {
       try {
         const res = await httpClient.post("/spaces", data);
-        return res.data.space || res.data.data || res.data || null;
+        const raw = res.data.space || res.data.data || res.data || null;
+        return raw ? validateSpace(raw) : null;
       } catch (error) {
         console.warn("Failed to create space", error);
         return null;
@@ -90,7 +94,12 @@ export function createSpacesService(httpClient: HttpClient) {
       if (!id) return null;
       try {
         const res = await httpClient.post(`/spaces/${id}/stream`, data);
-        return res.data;
+        const parsed = ZStartStreamResponse.safeParse(res.data);
+        if (!parsed.success) {
+          console.warn('[spaces-shared] Invalid startStream response:', parsed.error.issues[0]);
+          return null;
+        }
+        return parsed.data;
       } catch (error) {
         console.warn("Failed to start stream", error);
         return null;
@@ -100,7 +109,12 @@ export function createSpacesService(httpClient: HttpClient) {
     async generateStreamKey(id: string, data?: { title?: string; image?: string; description?: string }): Promise<{ rtmpUrl: string; streamKey: string } | null> {
       if (!id) return null;
       const res = await httpClient.post(`/spaces/${id}/stream/rtmp`, data || {});
-      return res.data;
+      const parsed = ZGenerateStreamKeyResponse.safeParse(res.data);
+      if (!parsed.success) {
+        console.warn('[spaces-shared] Invalid generateStreamKey response:', parsed.error.issues[0]);
+        return null;
+      }
+      return parsed.data;
     },
 
     async updateStreamMetadata(id: string, data: { title?: string; image?: string; description?: string }): Promise<boolean> {

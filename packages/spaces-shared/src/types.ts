@@ -1,36 +1,6 @@
-export interface Space {
-  _id: string;
-  id?: string;
-  title: string;
-  description?: string;
-  host: string;
-  status: 'scheduled' | 'live' | 'ended';
-  participants: string[];
-  speakers: string[];
-  maxParticipants: number;
-  scheduledStart?: string;
-  startedAt?: string;
-  endedAt?: string;
-  topic?: string;
-  tags?: string[];
-  speakerPermission?: 'everyone' | 'followers' | 'invited';
-  stats?: { peakListeners: number; totalJoined: number };
-  activeIngressId?: string;
-  activeStreamUrl?: string;
-  streamTitle?: string;
-  streamImage?: string;
-  streamDescription?: string;
-  rtmpUrl?: string;
-  rtmpStreamKey?: string;
-  createdAt: string;
-}
+import type { SpaceParticipant } from './validation';
 
-export interface SpaceParticipant {
-  userId: string;
-  role: 'host' | 'speaker' | 'listener';
-  isMuted: boolean;
-  joinedAt: string;
-}
+export type { Space, SpaceParticipant, StreamInfo } from './validation';
 
 export interface ParticipantsUpdateData {
   spaceId: string;
@@ -49,12 +19,6 @@ export interface SpeakerRequestData {
   spaceId: string;
   userId: string;
   timestamp: string;
-}
-
-export interface StreamInfo {
-  title?: string;
-  image?: string;
-  description?: string;
 }
 
 export interface SpaceAttachmentData {

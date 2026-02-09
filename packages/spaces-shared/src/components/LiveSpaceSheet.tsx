@@ -12,11 +12,14 @@ import { useAuth } from '@oxyhq/services';
 
 import { useSpacesConfig } from '../context/SpacesConfigContext';
 import { MiniSpaceBar } from './MiniSpaceBar';
-import { StreamConfigModal } from './StreamConfigModal';
+import { StreamConfigPanel } from './StreamConfigPanel';
+import { InsightsPanel } from './InsightsPanel';
 import { useSpaceConnection } from '../hooks/useSpaceConnection';
 import { useSpaceAudio } from '../hooks/useSpaceAudio';
 import { useSpaceUsers, getDisplayName, getAvatarUrl } from '../hooks/useSpaceUsers';
 import type { SpaceParticipant, Space, StreamInfo, UserEntity } from '../types';
+
+type ActivePanel = null | 'stream' | 'insights';
 
 const RoleBadge = ({ role, theme }: { role: string; theme: any }) => {
   if (role === 'host') {
@@ -216,7 +219,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
     }
   };
 
-  const [streamConfigVisible, setStreamConfigVisible] = useState(false);
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [streamLoading, setStreamLoading] = useState(false);
 
   const effectiveStream: StreamInfo | null = activeStream
@@ -258,7 +261,8 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   );
   const listeners = participants.filter((p) => p.role === 'listener');
 
-  const isHost = myRole === 'host' || space?.host === user?.id;
+  const userId = user?.id ?? (user as any)?._id;
+  const isHost = myRole === 'host' || (!!userId && space?.host === userId);
   const canSpeak = myRole === 'host' || myRole === 'speaker';
 
   if (!isExpanded) {
@@ -271,6 +275,30 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
         onExpand={onExpand}
         onToggleMute={toggleMute}
         onLeave={handleLeave}
+      />
+    );
+  }
+
+  if (activePanel === 'stream') {
+    return (
+      <StreamConfigPanel
+        spaceId={spaceId}
+        onClose={() => setActivePanel(null)}
+        onStreamStarted={() => {
+          spacesService.getSpace(spaceId).then(setSpace);
+          setActivePanel(null);
+        }}
+      />
+    );
+  }
+
+  if (activePanel === 'insights') {
+    return (
+      <InsightsPanel
+        space={space}
+        participants={participants}
+        theme={theme}
+        onClose={() => setActivePanel(null)}
       />
     );
   }
@@ -358,7 +386,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
             <ConnectedSpeakerTile
               key={p.userId}
               participant={p}
-              isCurrentUser={p.userId === user?.id}
+              isCurrentUser={p.userId === userId}
               theme={theme}
               oxyServices={oxyServices}
               AvatarComponent={AvatarComponent}
@@ -410,15 +438,6 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
         )}
       </ScrollView>
 
-      <StreamConfigModal
-        visible={streamConfigVisible}
-        onClose={() => setStreamConfigVisible(false)}
-        spaceId={spaceId}
-        onStreamStarted={() => {
-          spacesService.getSpace(spaceId).then(setSpace);
-        }}
-      />
-
       <View
         style={[
           styles.controlBar,
@@ -463,22 +482,22 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
           </TouchableOpacity>
         )}
 
-        <View style={styles.controlItem}>
+        <TouchableOpacity style={styles.controlItem} onPress={() => setActivePanel('insights')}>
           <View
             style={[
               styles.controlCircle,
               { backgroundColor: theme.colors.backgroundSecondary },
             ]}
           >
-            <MaterialCommunityIcons name="account-group" size={24} color={theme.colors.text} />
+            <MaterialCommunityIcons name="chart-box-outline" size={24} color={theme.colors.text} />
           </View>
           <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
-            {participants.length}
+            Insights
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {isHost && !effectiveStream && (
-          <TouchableOpacity style={styles.controlItem} onPress={() => setStreamConfigVisible(true)}>
+          <TouchableOpacity style={styles.controlItem} onPress={() => setActivePanel('stream')}>
             <View style={[styles.controlCircle, { backgroundColor: theme.colors.backgroundSecondary }]}>
               <MaterialCommunityIcons name="radio" size={24} color={theme.colors.text} />
             </View>

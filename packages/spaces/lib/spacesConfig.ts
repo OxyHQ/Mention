@@ -25,5 +25,5 @@ export const spacesConfig: SpacesConfig = {
       error: (message: string) => toast.error(message),
     }
   ),
-  introSound: undefined,
+  introSound: require('@/assets/sounds/intro.mp3'),
 };

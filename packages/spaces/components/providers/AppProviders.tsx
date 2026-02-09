@@ -1,4 +1,5 @@
 import React, { memo, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -11,6 +12,13 @@ import { Toaster } from 'sonner-native';
 
 import { spacesConfig } from '@/lib/spacesConfig';
 import { setOxyServicesRef } from '@/utils/api';
+
+let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
+if (Platform.OS !== 'web') {
+  try {
+    KeyboardProvider = require('react-native-keyboard-controller').KeyboardProvider;
+  } catch {}
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,28 +46,30 @@ export const AppProviders = memo(function AppProviders({
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <QueryClientProvider client={queryClient}>
-          <OxyProvider
-            oxyServices={oxyServices}
-            storageKeyPrefix="spaces"
-          >
-            <OxyServicesSync>
-              <SpacesProvider config={spacesConfig}>
-                <LiveSpaceProvider>
-                  <BottomSheetModalProvider>
-                    {children}
-                    <StatusBar style="auto" />
-                    <Toaster
-                      position="bottom-center"
-                      swipeToDismissDirection="left"
-                      offset={15}
-                    />
-                  </BottomSheetModalProvider>
-                </LiveSpaceProvider>
-              </SpacesProvider>
-            </OxyServicesSync>
-          </OxyProvider>
-        </QueryClientProvider>
+        <KeyboardProvider>
+          <QueryClientProvider client={queryClient}>
+            <OxyProvider
+              oxyServices={oxyServices}
+              storageKeyPrefix="spaces"
+            >
+              <OxyServicesSync>
+                <SpacesProvider config={spacesConfig}>
+                  <LiveSpaceProvider>
+                    <BottomSheetModalProvider>
+                      {children}
+                      <StatusBar style="auto" />
+                      <Toaster
+                        position="bottom-center"
+                        swipeToDismissDirection="left"
+                        offset={15}
+                      />
+                    </BottomSheetModalProvider>
+                  </LiveSpaceProvider>
+                </SpacesProvider>
+              </OxyServicesSync>
+            </OxyProvider>
+          </QueryClientProvider>
+        </KeyboardProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
