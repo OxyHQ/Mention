@@ -14,12 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop, BottomSheetFooter } from '@gorhom/bottom-sheet';
 import type { BottomSheetFooterProps, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import {
-  SpaceCard,
-  CreateSpaceSheet,
-  useLiveSpace,
-  type Space,
-  type CreateSpaceSheetRef,
-  type CreateSpaceFormState,
+  RoomCard,
+  CreateRoomSheet,
+  useLiveRoom,
+  type Room,
+  type CreateRoomSheetRef,
+  type CreateRoomFormState,
 } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -30,9 +30,9 @@ import { useSpaces, useSpacesQueryInvalidation } from '@/hooks/useSpacesQuery';
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { joinLiveSpace } = useLiveSpace();
+  const { joinLiveRoom } = useLiveRoom();
   const modalRef = useRef<BottomSheetModal>(null);
-  const createSheetRef = useRef<CreateSpaceSheetRef>(null);
+  const createSheetRef = useRef<CreateRoomSheetRef>(null);
   const snapPoints = useMemo(() => ['85%'], []);
 
   const { data: liveSpaces = [], isRefetching: liveRefetching } = useSpaces('live');
@@ -42,7 +42,7 @@ export default function HomeScreen() {
   const onRefresh = () => { invalidateSpaceLists(); };
 
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [formState, setFormState] = useState<CreateSpaceFormState>({
+  const [formState, setFormState] = useState<CreateRoomFormState>({
     isValid: false,
     loading: false,
     hasScheduledStart: false,
@@ -54,8 +54,8 @@ export default function HomeScreen() {
     }
   }, [sheetOpen]);
 
-  const handleJoinSpace = (space: Space) => {
-    joinLiveSpace(space._id);
+  const handleJoinSpace = (space: Room) => {
+    joinLiveRoom(space._id);
   };
 
   const openCreateSheet = useCallback(() => {
@@ -159,8 +159,8 @@ export default function HomeScreen() {
                 keyExtractor={(item) => item._id}
                 contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
                 renderItem={({ item }) => (
-                  <SpaceCard
-                    space={item}
+                  <RoomCard
+                    room={item}
                     variant="compact"
                     onPress={() => handleJoinSpace(item)}
                   />
@@ -180,9 +180,9 @@ export default function HomeScreen() {
             </View>
             <View style={styles.cardList}>
               {liveSpaces.map((space) => (
-                <SpaceCard
+                <RoomCard
                   key={space._id}
-                  space={space}
+                  room={space}
                   onPress={() => handleJoinSpace(space)}
                 />
               ))}
@@ -201,9 +201,9 @@ export default function HomeScreen() {
             </View>
             <View style={styles.cardList}>
               {scheduledSpaces.map((space) => (
-                <SpaceCard
+                <RoomCard
                   key={space._id}
-                  space={space}
+                  room={space}
                   onPress={() => handleJoinSpace(space)}
                 />
               ))}
@@ -242,7 +242,7 @@ export default function HomeScreen() {
         handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
         style={{ maxWidth: 500, margin: 'auto' }}
       >
-        <CreateSpaceSheet
+        <CreateRoomSheet
           ref={createSheetRef}
           onClose={closeCreateSheet}
           onSpaceCreated={() => { closeCreateSheet(); invalidateSpaceLists(); }}

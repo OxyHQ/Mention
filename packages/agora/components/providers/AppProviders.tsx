@@ -6,7 +6,7 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider, useAuth } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
-import { AgoraProvider, LiveSpaceProvider } from '@mention/agora-shared';
+import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Toaster } from 'sonner-native';
 
@@ -52,7 +52,7 @@ export const AppProviders = memo(function AppProviders({
             >
               <OxyServicesSync>
                 <AgoraProvider config={agoraConfig}>
-                  <LiveSpaceProvider>
+                  <LiveRoomProvider>
                     <BottomSheetModalProvider>
                       {children}
                       <StatusBar style="auto" />
@@ -62,7 +62,7 @@ export const AppProviders = memo(function AppProviders({
                         offset={15}
                       />
                     </BottomSheetModalProvider>
-                  </LiveSpaceProvider>
+                  </LiveRoomProvider>
                 </AgoraProvider>
               </OxyServicesSync>
             </OxyProvider>

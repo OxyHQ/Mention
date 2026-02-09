@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SpaceCard, useLiveSpace, type Space } from '@mention/agora-shared';
+import { RoomCard, useLiveRoom, type Room } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
@@ -18,7 +18,7 @@ import { useSpaces, useSpacesQueryInvalidation } from '@/hooks/useSpacesQuery';
 export default function ExploreScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { joinLiveSpace } = useLiveSpace();
+  const { joinLiveRoom } = useLiveRoom();
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -64,11 +64,11 @@ export default function ExploreScreen() {
         {filteredSpaces.length > 0 ? (
           <View style={styles.cardList}>
             {filteredSpaces.map((space) => (
-              <SpaceCard
+              <RoomCard
                 key={space._id}
-                space={space}
+                room={space}
                 onPress={() => {
-                  if (space.status === 'live') joinLiveSpace(space._id);
+                  if (space.status === 'live') joinLiveRoom(space._id);
                 }}
               />
             ))}

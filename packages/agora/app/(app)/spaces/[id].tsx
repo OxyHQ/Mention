@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLiveSpace, type Space } from '@mention/agora-shared';
+import { useLiveRoom, type Room } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useSpace } from '@/hooks/useSpacesQuery';
@@ -13,7 +13,7 @@ export default function SpaceDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { joinLiveSpace } = useLiveSpace();
+  const { joinLiveRoom } = useLiveRoom();
 
   const { data: space = null, isLoading: loading } = useSpace(id as string);
 
@@ -80,7 +80,7 @@ export default function SpaceDetailScreen() {
           <TouchableOpacity
             style={[styles.joinButton, { backgroundColor: theme.colors.primary }]}
             onPress={() => {
-              joinLiveSpace(space._id);
+              joinLiveRoom(space._id);
               router.back();
             }}
           >

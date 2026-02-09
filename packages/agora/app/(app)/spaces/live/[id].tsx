@@ -1,18 +1,18 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useLiveSpace } from '@mention/agora-shared';
+import { useLiveRoom } from '@mention/agora-shared';
 
-export default function LiveSpaceRedirect() {
+export default function LiveRoomRedirect() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { joinLiveSpace } = useLiveSpace();
+  const { joinLiveRoom } = useLiveRoom();
 
   useEffect(() => {
     if (id) {
-      joinLiveSpace(id);
+      joinLiveRoom(id);
       router.replace('/(app)/(tabs)');
     }
-  }, [id, joinLiveSpace]);
+  }, [id, joinLiveRoom]);
 
   return <View />;
 }

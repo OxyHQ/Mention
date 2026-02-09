@@ -4,8 +4,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth, useFollowerCounts } from '@oxyhq/services';
-import { useLiveSpace, SpaceCard } from '@mention/agora-shared';
-import type { Space } from '@mention/agora-shared';
+import { useLiveRoom, RoomCard } from '@mention/agora-shared';
+import type { Room } from '@mention/agora-shared';
 
 import { toast } from 'sonner-native';
 import { useTheme } from '@/hooks/useTheme';
@@ -26,7 +26,7 @@ export default function ProfileScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const { username } = useLocalSearchParams<{ username: string }>();
-  const { joinLiveSpace } = useLiveSpace();
+  const { joinLiveRoom } = useLiveRoom();
 
   const navigation = useNavigation();
   const canGoBack = navigation.canGoBack();
@@ -46,7 +46,7 @@ export default function ProfileScreen() {
   const deleteSpace = useDeleteSpace();
   const archiveSpace = useArchiveSpace();
 
-  const handleSpaceActions = (space: Space) => {
+  const handleSpaceActions = (space: Room) => {
     const isLive = space.status === 'live';
     const actions: { text: string; style?: 'destructive' | 'cancel' | 'default'; onPress?: () => void }[] = [];
 
@@ -107,8 +107,8 @@ export default function ProfileScreen() {
     ? user?.name?.full || user?.name?.first
     : user?.name || user?.username || 'User';
 
-  const handleJoinSpace = (space: Space) => {
-    joinLiveSpace(space._id);
+  const handleJoinSpace = (space: Room) => {
+    joinLiveRoom(space._id);
   };
 
   const currentSpaces =
@@ -213,8 +213,8 @@ export default function ProfileScreen() {
           <View style={styles.spacesContainer}>
             {currentSpaces.map((space) => (
               <View key={space._id} style={{ position: 'relative' }}>
-                <SpaceCard
-                  space={space}
+                <RoomCard
+                  room={space}
                   onPress={() => handleJoinSpace(space)}
                 />
                 {isOwnProfile && (
