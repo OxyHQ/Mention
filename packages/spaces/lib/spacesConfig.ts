@@ -2,6 +2,7 @@ import type { SpacesConfig } from '@mention/spaces-shared';
 import { authenticatedClient } from '@/utils/api';
 import { API_URL_SOCKET } from '@/config';
 import { useTheme } from '@/hooks/useTheme';
+import { useIsScreenNotMobile } from '@/hooks/useMediaQuery';
 import { useUserById, useUsersStore } from '@/stores/usersStore';
 import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import Avatar from '@/components/Avatar';
@@ -11,6 +12,7 @@ export const spacesConfig: SpacesConfig = {
   httpClient: authenticatedClient,
   socketUrl: API_URL_SOCKET,
   useTheme,
+  useIsDesktop: useIsScreenNotMobile,
   useUserById,
   ensureUserById: useUsersStore.getState().ensureById,
   getCachedFileDownloadUrl,
@@ -23,6 +25,5 @@ export const spacesConfig: SpacesConfig = {
       error: (message: string) => toast.error(message),
     }
   ),
-  introSound: undefined, // Will be set after asset is available
-  isDesktop: false,
+  introSound: undefined,
 };

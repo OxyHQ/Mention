@@ -28,6 +28,7 @@ export interface SpacesConfig {
   };
   introSound?: any;
   isDesktop?: boolean;
+  useIsDesktop?: () => boolean;
 }
 
 export interface SpacesConfigInternal extends SpacesConfig {

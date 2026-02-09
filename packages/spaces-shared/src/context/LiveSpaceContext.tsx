@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import { StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import { StyleSheet, Pressable, useWindowDimensions, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -10,6 +10,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 
 import { useSpacesConfig } from './SpacesConfigContext';
 import { LiveSpaceSheet } from '../components/LiveSpaceSheet';
@@ -34,19 +35,24 @@ export function useLiveSpace() {
 const SPRING_CONFIG = { damping: 28, stiffness: 220, overshootClamping: true };
 // Bottom bar: bottom 12 + height 56 + gap 8
 const BOTTOM_BAR_OFFSET = 76;
+const defaultUseIsDesktop = () => false;
 
 export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
-  const { useTheme, isDesktop } = useSpacesConfig();
-  const theme = useTheme();
+  const config = useSpacesConfig();
+  const theme = config.useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+
+  const useIsDesktopHook = config.useIsDesktop ?? defaultUseIsDesktop;
+  const isDesktop = useIsDesktopHook();
 
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const bottomBarOffset = isDesktop ? 0 : BOTTOM_BAR_OFFSET;
+  const hasBottomBar = !isDesktop;
+  const bottomBarOffset = hasBottomBar ? BOTTOM_BAR_OFFSET : 12;
   const collapsedHeight = MINI_BAR_HEIGHT;
-  const expandedMaxHeight = screenHeight * 0.85;
+  const expandedMaxHeight = screenHeight * 0.85 - bottomBarOffset;
 
   const progress = useSharedValue(0);
 
@@ -57,24 +63,7 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
       [0, collapsedHeight, expandedMaxHeight],
       Extrapolation.CLAMP,
     );
-    const bottom = isDesktop ? 0 : interpolate(
-      progress.value,
-      [1, 2],
-      [bottomBarOffset, 0],
-      Extrapolation.CLAMP,
-    );
-    const inset = isDesktop ? 0 : interpolate(
-      progress.value,
-      [1, 2],
-      [16, 0],
-      Extrapolation.CLAMP,
-    );
-    const pb = isDesktop ? 0 : interpolate(
-      progress.value,
-      [1, 2],
-      [0, bottomBarOffset],
-      Extrapolation.CLAMP,
-    );
+    const inset = 16;
     const topRadius = interpolate(
       progress.value,
       [1, 2],
@@ -84,15 +73,13 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
     const bottomRadius = interpolate(
       progress.value,
       [1, 2],
-      [collapsedHeight / 2, 0],
+      [collapsedHeight / 2, 16],
       Extrapolation.CLAMP,
     );
     return {
       height: h,
-      bottom,
       left: inset,
       right: inset,
-      paddingBottom: pb,
       borderTopLeftRadius: topRadius,
       borderTopRightRadius: topRadius,
       borderBottomLeftRadius: bottomRadius,
@@ -155,19 +142,47 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
           style={[
             styles.sheet,
             {
-              backgroundColor: theme.colors.background,
+              bottom: bottomBarOffset,
               borderColor: theme.colors.border,
+              ...(Platform.OS === 'web' ? {
+                backgroundColor: `${theme.colors.card}CC`,
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: `0 2px 16px ${theme.colors.shadow}`,
+              } : {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 12,
+                elevation: 8,
+              }),
             },
             sheetAnimStyle,
           ]}
         >
-          <LiveSpaceSheet
-            spaceId={activeSpaceId}
-            isExpanded={isExpanded}
-            onCollapse={handleCollapse}
-            onExpand={handleExpand}
-            onLeave={leaveLiveSpace}
-          />
+          {Platform.OS === 'web' ? (
+            <LiveSpaceSheet
+              spaceId={activeSpaceId}
+              isExpanded={isExpanded}
+              onCollapse={handleCollapse}
+              onExpand={handleExpand}
+              onLeave={leaveLiveSpace}
+            />
+          ) : (
+            <BlurView
+              intensity={80}
+              tint={theme.isDark ? 'dark' : 'light'}
+              style={{ flex: 1 }}
+            >
+              <LiveSpaceSheet
+                spaceId={activeSpaceId}
+                isExpanded={isExpanded}
+                onCollapse={handleCollapse}
+                onExpand={handleExpand}
+                onLeave={leaveLiveSpace}
+              />
+            </BlurView>
+          )}
         </Animated.View>
       )}
     </LiveSpaceContext.Provider>
@@ -186,7 +201,5 @@ const styles = StyleSheet.create({
     zIndex: 1000,
     overflow: 'hidden',
     borderWidth: 1,
-    boxShadow: '0 2px 16px rgba(0, 0, 0, 0.15)',
-    elevation: 8,
   } as any,
 });

@@ -18,7 +18,8 @@
     "socket.io-client": ">=4",
     "@expo/vector-icons": ">=15",
     "react-native-svg": ">=15",
-    "sonner-native": ">=0.14"
+    "sonner-native": ">=0.14",
+    "expo-blur": ">=14"
   },
   "devDependencies": {
     "typescript": "~5.9.2",

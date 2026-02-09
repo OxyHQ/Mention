@@ -128,7 +128,7 @@ const ConnectedRequestRow = ({ request, theme, oxyServices, onApprove, onDeny, A
   const avatarUri = getAvatarUrl(userProfile, oxyServices, getCachedFileDownloadUrlSync);
 
   return (
-    <View style={[styles.requestRow, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+    <View style={[styles.requestRow, { backgroundColor: `${theme.colors.card}80`, borderColor: theme.colors.border }]}>
       <AvatarComponent size={36} source={avatarUri} shape="squircle" />
       <Text style={[styles.requestName, { color: theme.colors.text }]} numberOfLines={1}>
         {displayName}
@@ -276,8 +276,8 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+    <View style={styles.container}>
+      <View style={[styles.header, { borderBottomColor: `${theme.colors.border}80` }]}>
         <TouchableOpacity onPress={onCollapse} style={styles.headerButton}>
           <MaterialCommunityIcons name="chevron-down" size={24} color={theme.colors.text} />
         </TouchableOpacity>
@@ -322,7 +322,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
       )}
 
       {effectiveStream && (
-        <View style={[styles.streamCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <View style={[styles.streamCard, { backgroundColor: `${theme.colors.card}80`, borderColor: theme.colors.border }]}>
           {streamImageUrl ? (
             <Image source={{ uri: streamImageUrl }} style={styles.streamCardImage} />
           ) : (
@@ -418,7 +418,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
       <View
         style={[
           styles.controlBar,
-          { backgroundColor: theme.colors.card, borderTopColor: theme.colors.border },
+          { borderTopColor: theme.colors.border },
         ]}
       >
         {canSpeak ? (
