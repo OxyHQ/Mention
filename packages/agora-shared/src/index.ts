@@ -1,12 +1,19 @@
-// Types
+// Types — primary
 export type {
-  Space,
-  SpaceParticipant,
+  Room,
+  RoomParticipant,
+  House,
+  HouseMember,
+  Series,
+  SeriesEpisode,
+  Recurrence,
+  RoomTemplate,
+  RoomAttachment,
+  RoomAttachmentData,
   ParticipantsUpdateData,
   MuteUpdateData,
   SpeakerRequestData,
   StreamInfo,
-  SpaceAttachmentData,
   UserEntity,
   SpacesTheme,
   HttpResponse,
@@ -15,13 +22,37 @@ export type {
   FileDownloadService,
 } from './types';
 
-// Validation
+// Types — backward compat aliases
+export type {
+  Space,
+  SpaceParticipant,
+  SpaceAttachmentData,
+} from './types';
+
+// Validation — primary
 export {
-  ZSpace,
-  ZSpaceParticipant,
+  ZRoom,
+  ZRoomParticipant,
+  ZHouse,
+  ZHouseMember,
+  ZSeries,
+  ZRecurrence,
+  ZRoomTemplate,
+  ZSeriesEpisode,
+  ZRoomAttachment,
   ZStartStreamResponse,
   ZGenerateStreamKeyResponse,
   ZStreamInfo,
+  validateRoom,
+  validateRooms,
+  validateHouse,
+  validateSeries,
+} from './validation';
+
+// Validation — backward compat aliases
+export {
+  ZSpace,
+  ZSpaceParticipant,
   validateSpace,
   validateSpaces,
 } from './validation';

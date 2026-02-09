@@ -1,10 +1,27 @@
-import type { SpaceParticipant } from './validation';
+import type { RoomParticipant } from './validation';
 
-export type { Space, SpaceParticipant, StreamInfo } from './validation';
+// Re-export new primary types
+export type {
+  Room,
+  RoomParticipant,
+  StreamInfo,
+  House,
+  HouseMember,
+  Series,
+  SeriesEpisode,
+  Recurrence,
+  RoomTemplate,
+  RoomAttachment,
+} from './validation';
+
+// Backward compat aliases
+export type { Space, SpaceParticipant } from './validation';
 
 export interface ParticipantsUpdateData {
-  spaceId: string;
-  participants: SpaceParticipant[];
+  roomId: string;
+  /** @deprecated use roomId */
+  spaceId?: string;
+  participants: RoomParticipant[];
   count: number;
   timestamp: string;
 }
@@ -16,18 +33,24 @@ export interface MuteUpdateData {
 }
 
 export interface SpeakerRequestData {
-  spaceId: string;
+  roomId: string;
+  /** @deprecated use roomId */
+  spaceId?: string;
   userId: string;
   timestamp: string;
 }
 
-export interface SpaceAttachmentData {
-  spaceId: string;
+export interface RoomAttachmentData {
+  roomId: string;
   title: string;
   status?: 'scheduled' | 'live' | 'ended';
+  type?: 'talk' | 'stage' | 'broadcast';
   topic?: string;
   host?: string;
 }
+
+/** @deprecated use RoomAttachmentData */
+export type SpaceAttachmentData = RoomAttachmentData;
 
 export interface UserEntity {
   id: string;
