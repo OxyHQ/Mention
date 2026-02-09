@@ -15,8 +15,7 @@ import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
-import { AgoraProvider } from '@mention/agora-shared';
-import { LiveRoomProvider } from '@/context/LiveSpaceContext';
+import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
