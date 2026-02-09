@@ -13,7 +13,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useAgoraConfig } from '@mention/agora-shared';
-import type { Room, UserEntity } from '@mention/agora-shared';
+import type { Room, House, UserEntity } from '@mention/agora-shared';
 import type { OxyServices } from '@oxyhq/core';
 
 // ---------------------------------------------------------------------------
@@ -63,12 +63,20 @@ export function useOptimizedMutation<
 export const roomQueryKeys = {
   all: ['rooms'] as const,
   lists: () => [...roomQueryKeys.all, 'list'] as const,
-  list: (status?: string) => [...roomQueryKeys.lists(), status] as const,
+  list: (status?: string, type?: string) => [...roomQueryKeys.lists(), status, type] as const,
   details: () => [...roomQueryKeys.all, 'detail'] as const,
   detail: (id: string) => [...roomQueryKeys.details(), id] as const,
   userRooms: (userId: string) => [...roomQueryKeys.all, 'user', userId] as const,
   followers: (userId: string) => ['followers', userId] as const,
   following: (userId: string) => ['following', userId] as const,
+} as const;
+
+export const houseQueryKeys = {
+  all: ['houses'] as const,
+  lists: () => [...houseQueryKeys.all, 'list'] as const,
+  publicList: () => [...houseQueryKeys.lists(), 'public'] as const,
+  myHouses: (userId: string) => [...houseQueryKeys.lists(), 'mine', userId] as const,
+  detail: (id: string) => [...houseQueryKeys.all, 'detail', id] as const,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -117,13 +125,13 @@ export function useRoomsQueryInvalidation() {
 // Domain hooks -- Rooms
 // ---------------------------------------------------------------------------
 
-/** Fetch a list of rooms, optionally filtered by status. */
-export function useRooms(status?: string) {
+/** Fetch a list of rooms, optionally filtered by status and/or type. */
+export function useRooms(status?: string, type?: string) {
   const { agoraService } = useAgoraConfig();
 
   return useOptimizedQuery<Room[]>({
-    queryKey: roomQueryKeys.list(status),
-    queryFn: () => agoraService.getRooms(status),
+    queryKey: roomQueryKeys.list(status, type),
+    queryFn: () => agoraService.getRooms(status, type),
   });
 }
 
@@ -210,6 +218,31 @@ export function useFollowingList(oxyServices: OxyServices | null | undefined, us
 }
 
 // ---------------------------------------------------------------------------
+// Domain hooks -- Houses
+// ---------------------------------------------------------------------------
+
+/** Fetch public houses. */
+export function usePublicHouses() {
+  const { agoraService } = useAgoraConfig();
+
+  return useOptimizedQuery<House[]>({
+    queryKey: houseQueryKeys.publicList(),
+    queryFn: () => agoraService.getHouses(),
+  });
+}
+
+/** Fetch houses where the user has HOST role or higher. */
+export function useMyHouses(userId: string | undefined) {
+  const { agoraService } = useAgoraConfig();
+
+  return useOptimizedQuery<House[]>({
+    queryKey: houseQueryKeys.myHouses(userId!),
+    queryFn: () => agoraService.getMyHouses(userId!),
+    enabled: !!userId,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Mutation hooks
 // ---------------------------------------------------------------------------
 
@@ -219,6 +252,9 @@ interface CreateRoomInput {
   topic?: string;
   scheduledStart?: string;
   speakerPermission?: 'everyone' | 'followers' | 'invited';
+  type?: 'talk' | 'stage' | 'broadcast';
+  ownerType?: 'profile' | 'house';
+  houseId?: string;
 }
 
 /** Create a new room. Invalidates room list queries on success. */

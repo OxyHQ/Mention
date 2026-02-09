@@ -12,7 +12,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { useAgoraConfig } from '../context/AgoraConfigContext';
 import { useLiveRoom } from '../context/LiveRoomContext';
-import type { Room } from '../types';
+import type { Room, House } from '../types';
 
 const TOPICS = [
   'Technology',
@@ -30,6 +30,12 @@ const TOPICS = [
   'Culture',
   'Crypto',
   'AI',
+] as const;
+
+const ROOM_TYPES = [
+  { value: 'talk' as const, label: 'Talk', icon: 'microphone' as const, description: 'Open conversation' },
+  { value: 'stage' as const, label: 'Stage', icon: 'account-voice' as const, description: 'Panel discussion' },
+  { value: 'broadcast' as const, label: 'Broadcast', icon: 'broadcast' as const, description: 'One-to-many stream' },
 ] as const;
 
 export interface CreateRoomSheetRef {
@@ -51,6 +57,7 @@ interface CreateRoomSheetProps {
   ScrollViewComponent?: React.ComponentType<{ children: React.ReactNode }>;
   hideFooter?: boolean;
   onFormStateChange?: (state: CreateRoomFormState) => void;
+  houses?: House[];
 }
 
 export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetProps>(({
@@ -60,6 +67,7 @@ export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetPro
   ScrollViewComponent,
   hideFooter = false,
   onFormStateChange,
+  houses,
 }, ref) => {
   const Scroll = ScrollViewComponent || ScrollView;
   const { useTheme, agoraService, toast } = useAgoraConfig();
@@ -70,25 +78,33 @@ export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetPro
   const [topic, setTopic] = useState('');
   const [scheduledStart, setScheduledStart] = useState('');
   const [speakerPermission, setSpeakerPermission] = useState<'everyone' | 'followers' | 'invited'>('invited');
+  const [roomType, setRoomType] = useState<'talk' | 'stage' | 'broadcast'>('talk');
+  const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [loading, setLoading] = useState(false);
 
   const isValid = title.trim().length > 0;
+  const isBroadcast = roomType === 'broadcast';
 
   useEffect(() => {
     onFormStateChange?.({ isValid, loading, hasScheduledStart: !!scheduledStart.trim() });
   }, [isValid, loading, scheduledStart, onFormStateChange]);
+
+  const buildCreatePayload = () => ({
+    title: title.trim(),
+    description: description.trim() || undefined,
+    topic: topic.trim() || undefined,
+    speakerPermission: isBroadcast ? 'invited' as const : speakerPermission,
+    type: roomType,
+    ownerType: selectedHouse ? 'house' as const : 'profile' as const,
+    houseId: selectedHouse?._id,
+  });
 
   const handleCreateAndStart = async () => {
     if (!isValid || loading) return;
 
     setLoading(true);
     try {
-      const room = await agoraService.createRoom({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        topic: topic.trim() || undefined,
-        speakerPermission,
-      });
+      const room = await agoraService.createRoom(buildCreatePayload());
 
       if (room) {
         const started = await agoraService.startRoom(room._id);
@@ -121,11 +137,8 @@ export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetPro
     setLoading(true);
     try {
       const room = await agoraService.createRoom({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        topic: topic.trim() || undefined,
+        ...buildCreatePayload(),
         scheduledStart: scheduledStart.trim(),
-        speakerPermission,
       });
 
       if (room) {
@@ -147,12 +160,7 @@ export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetPro
 
     setLoading(true);
     try {
-      const room = await agoraService.createRoom({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        topic: topic.trim() || undefined,
-        speakerPermission,
-      });
+      const room = await agoraService.createRoom(buildCreatePayload());
 
       if (room) {
         onClose();
@@ -264,6 +272,81 @@ export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetPro
         contentContainerStyle={[styles.scrollContent, hideFooter && { paddingBottom: 72 }]}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Room Type Selector */}
+        <View style={[styles.inputSection, styles.sectionPadded]}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>Room Type</Text>
+          <View style={styles.typeSelector}>
+            {ROOM_TYPES.map((rt) => {
+              const selected = roomType === rt.value;
+              return (
+                <TouchableOpacity
+                  key={rt.value}
+                  style={[
+                    styles.typeCard,
+                    {
+                      backgroundColor: selected ? theme.colors.primary : theme.colors.backgroundSecondary,
+                      borderColor: selected ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => setRoomType(rt.value)}
+                >
+                  <MaterialCommunityIcons
+                    name={rt.icon}
+                    size={22}
+                    color={selected ? '#FFFFFF' : theme.colors.textSecondary}
+                  />
+                  <Text style={[styles.typeCardLabel, { color: selected ? '#FFFFFF' : theme.colors.text }]}>
+                    {rt.label}
+                  </Text>
+                  <Text style={[styles.typeCardDesc, { color: selected ? 'rgba(255,255,255,0.8)' : theme.colors.textSecondary }]}>
+                    {rt.description}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* House Picker */}
+        {houses && houses.length > 0 && (
+          <View style={styles.inputSection}>
+            <Text style={[styles.label, styles.sectionPadded, { color: theme.colors.text }]}>Create for</Text>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={[null, ...houses]}
+              keyExtractor={(item) => item?._id ?? 'personal'}
+              contentContainerStyle={styles.chipList}
+              renderItem={({ item }) => {
+                const selected = item === null ? !selectedHouse : selectedHouse?._id === item._id;
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: selected ? theme.colors.primary : theme.colors.backgroundSecondary,
+                      },
+                    ]}
+                    onPress={() => setSelectedHouse(item)}
+                  >
+                    {item && (
+                      <MaterialCommunityIcons
+                        name="home-group"
+                        size={14}
+                        color={selected ? '#FFFFFF' : theme.colors.textSecondary}
+                        style={{ marginRight: 4 }}
+                      />
+                    )}
+                    <Text style={[styles.chipText, { color: selected ? '#FFFFFF' : theme.colors.text }]}>
+                      {item ? item.name : 'Personal'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        )}
+
         <View style={[styles.inputSection, styles.sectionPadded]}>
           <Text style={[styles.label, { color: theme.colors.text }]}>Title *</Text>
           <TextInput
@@ -322,58 +405,61 @@ export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetPro
           />
         </View>
 
-        <View style={[styles.inputSection, styles.sectionPadded]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Who can speak?</Text>
-          <View style={styles.radioGroup}>
-            {([
-              { value: 'everyone' as const, label: 'Everyone', icon: 'earth' as const },
-              { value: 'followers' as const, label: 'People you follow', icon: 'account-group' as const },
-              { value: 'invited' as const, label: 'Only invited speakers', icon: 'account-plus' as const },
-            ]).map((option, index, arr) => {
-              const selected = speakerPermission === option.value;
-              const isFirst = index === 0;
-              const isLast = index === arr.length - 1;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.radioRow,
-                    {
-                      backgroundColor: theme.colors.backgroundSecondary,
-                      borderTopLeftRadius: isFirst ? 12 : 0,
-                      borderTopRightRadius: isFirst ? 12 : 0,
-                      borderBottomLeftRadius: isLast ? 12 : 0,
-                      borderBottomRightRadius: isLast ? 12 : 0,
-                    },
-                  ]}
-                  onPress={() => setSpeakerPermission(option.value)}
-                >
-                  <MaterialCommunityIcons
-                    name={option.icon}
-                    size={18}
-                    color={selected ? theme.colors.primary : theme.colors.textSecondary}
-                  />
-                  <Text style={[styles.radioLabel, { color: selected ? theme.colors.primary : theme.colors.text }]}>
-                    {option.label}
-                  </Text>
-                  <View
+        {/* Hide speaker permission for broadcast (backend forces invited) */}
+        {!isBroadcast && (
+          <View style={[styles.inputSection, styles.sectionPadded]}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>Who can speak?</Text>
+            <View style={styles.radioGroup}>
+              {([
+                { value: 'everyone' as const, label: 'Everyone', icon: 'earth' as const },
+                { value: 'followers' as const, label: 'People you follow', icon: 'account-group' as const },
+                { value: 'invited' as const, label: 'Only invited speakers', icon: 'account-plus' as const },
+              ]).map((option, index, arr) => {
+                const selected = speakerPermission === option.value;
+                const isFirst = index === 0;
+                const isLast = index === arr.length - 1;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
                     style={[
-                      styles.radioCircle,
+                      styles.radioRow,
                       {
-                        borderColor: selected ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: selected ? theme.colors.primary : 'transparent',
+                        backgroundColor: theme.colors.backgroundSecondary,
+                        borderTopLeftRadius: isFirst ? 12 : 0,
+                        borderTopRightRadius: isFirst ? 12 : 0,
+                        borderBottomLeftRadius: isLast ? 12 : 0,
+                        borderBottomRightRadius: isLast ? 12 : 0,
                       },
                     ]}
+                    onPress={() => setSpeakerPermission(option.value)}
                   >
-                    {selected && (
-                      <MaterialCommunityIcons name="check" size={12} color="#FFFFFF" />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                    <MaterialCommunityIcons
+                      name={option.icon}
+                      size={18}
+                      color={selected ? theme.colors.primary : theme.colors.textSecondary}
+                    />
+                    <Text style={[styles.radioLabel, { color: selected ? theme.colors.primary : theme.colors.text }]}>
+                      {option.label}
+                    </Text>
+                    <View
+                      style={[
+                        styles.radioCircle,
+                        {
+                          borderColor: selected ? theme.colors.primary : theme.colors.border,
+                          backgroundColor: selected ? theme.colors.primary : 'transparent',
+                        },
+                      ]}
+                    >
+                      {selected && (
+                        <MaterialCommunityIcons name="check" size={12} color="#FFFFFF" />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-        </View>
+        )}
 
         {mode === 'standalone' && (
           <View style={[styles.inputSection, styles.sectionPadded]}>
@@ -427,8 +513,32 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   charCount: { fontSize: 11, marginTop: 4 },
+  typeSelector: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  typeCard: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  typeCardLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  typeCardDesc: {
+    fontSize: 10,
+    textAlign: 'center',
+  },
   chipList: { gap: 8, paddingHorizontal: 16 },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,

@@ -1,5 +1,5 @@
-import type { Room, HttpClient } from '../types';
-import { validateRooms, validateRoom, ZStartStreamResponse, ZGenerateStreamKeyResponse } from '../validation';
+import type { Room, House, HttpClient } from '../types';
+import { validateRooms, validateRoom, validateHouse, ZStartStreamResponse, ZGenerateStreamKeyResponse } from '../validation';
 
 export interface CreateRoomData {
   [key: string]: unknown;
@@ -184,6 +184,48 @@ export function createAgoraService(httpClient: HttpClient) {
       } catch (error) {
         console.warn("Failed to archive room", error);
         return { success: false, archived: false };
+      }
+    },
+
+    async getHouses(search?: string): Promise<House[]> {
+      try {
+        const params: Record<string, string> = {};
+        if (search) params.search = search;
+        const res = await httpClient.get("/houses", { params });
+        const raw = res.data.houses || res.data.data || res.data || [];
+        const items = Array.isArray(raw) ? raw : [];
+        return items
+          .map((h: unknown) => validateHouse(h))
+          .filter((h): h is House => h !== null);
+      } catch (error) {
+        console.warn("Failed to fetch houses", error);
+        return [];
+      }
+    },
+
+    async getHouse(id: string): Promise<House | null> {
+      if (!id) return null;
+      try {
+        const res = await httpClient.get(`/houses/${id}`);
+        const raw = res.data.house || res.data.data || res.data || null;
+        return raw ? validateHouse(raw) : null;
+      } catch (error) {
+        console.warn("Failed to fetch house", error);
+        return null;
+      }
+    },
+
+    async getMyHouses(userId: string): Promise<House[]> {
+      if (!userId) return [];
+      try {
+        const houses = await this.getHouses();
+        const ROLE_HIERARCHY: Record<string, number> = { member: 0, host: 1, admin: 2, owner: 3 };
+        return houses.filter((h) =>
+          h.members.some((m) => m.userId === userId && (ROLE_HIERARCHY[m.role] ?? 0) >= 1)
+        );
+      } catch (error) {
+        console.warn("Failed to fetch user houses", error);
+        return [];
       }
     },
   };

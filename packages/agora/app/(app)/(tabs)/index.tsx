@@ -22,15 +22,18 @@ import {
   type CreateRoomFormState,
 } from '@mention/agora-shared';
 
+import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { useRooms, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
+import { useRooms, useMyHouses, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { joinLiveRoom } = useLiveRoom();
+  const { user } = useAuth();
+  const { data: myHouses = [] } = useMyHouses(user?.id);
   const modalRef = useRef<BottomSheetModal>(null);
   const createSheetRef = useRef<CreateRoomSheetRef>(null);
   const snapPoints = useMemo(() => ['85%'], []);
@@ -249,6 +252,7 @@ export default function HomeScreen() {
           ScrollViewComponent={BottomSheetScrollView}
           hideFooter
           onFormStateChange={setFormState}
+          houses={myHouses}
         />
       </BottomSheetModal>
     </View>

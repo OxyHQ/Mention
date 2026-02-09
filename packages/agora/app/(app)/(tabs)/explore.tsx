@@ -6,14 +6,50 @@ import {
   TextInput,
   ScrollView,
   RefreshControl,
+  TouchableOpacity,
+  FlatList,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RoomCard, useLiveRoom, type Room } from '@mention/agora-shared';
+import { RoomCard, useLiveRoom, type Room, type House } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
-import { useRooms, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
+import { useRooms, usePublicHouses, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
+
+const TYPE_FILTERS = [
+  { value: null, label: 'All', icon: null },
+  { value: 'talk', label: 'Talk', icon: 'microphone' as const },
+  { value: 'stage', label: 'Stage', icon: 'account-voice' as const },
+  { value: 'broadcast', label: 'Broadcast', icon: 'broadcast' as const },
+] as const;
+
+function HouseCard({ house }: { house: House }) {
+  const theme = useTheme();
+  return (
+    <TouchableOpacity
+      style={[houseStyles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+      activeOpacity={0.7}
+    >
+      <View style={[houseStyles.avatar, { backgroundColor: theme.colors.primary + '25' }]}>
+        <Text style={[houseStyles.avatarText, { color: theme.colors.primary }]}>
+          {house.name.charAt(0).toUpperCase()}
+        </Text>
+      </View>
+      <Text style={[houseStyles.name, { color: theme.colors.text }]} numberOfLines={1}>
+        {house.name}
+      </Text>
+      <Text style={[houseStyles.meta, { color: theme.colors.textSecondary }]}>
+        {house.members.length} {house.members.length === 1 ? 'member' : 'members'}
+      </Text>
+      {house.tags && house.tags.length > 0 && (
+        <Text style={[houseStyles.tags, { color: theme.colors.textTertiary }]} numberOfLines={1}>
+          {house.tags.slice(0, 2).join(' · ')}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
+}
 
 export default function ExploreScreen() {
   const theme = useTheme();
@@ -21,21 +57,29 @@ export default function ExploreScreen() {
   const { joinLiveRoom } = useLiveRoom();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedType, setSelectedType] = useState<string | null>(null);
 
-  const { data: liveRooms = [], isRefetching: liveRefetching } = useRooms('live');
-  const { data: scheduledRooms = [], isRefetching: scheduledRefetching } = useRooms('scheduled');
+  const { data: liveRooms = [], isRefetching: liveRefetching } = useRooms('live', selectedType || undefined);
+  const { data: scheduledRooms = [], isRefetching: scheduledRefetching } = useRooms('scheduled', selectedType || undefined);
+  const { data: publicHouses = [] } = usePublicHouses();
   const { invalidateRoomLists } = useRoomsQueryInvalidation();
-  const rooms = [...liveRooms, ...scheduledRooms];
   const refreshing = liveRefetching || scheduledRefetching;
   const onRefresh = () => { invalidateRoomLists(); };
 
-  const filteredRooms = searchQuery.trim()
-    ? rooms.filter(
-        (s) =>
-          s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          s.topic?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : rooms;
+  // Client-side search filter on top of server-side type filter
+  const filterBySearch = (rooms: Room[]) => {
+    if (!searchQuery.trim()) return rooms;
+    const q = searchQuery.toLowerCase();
+    return rooms.filter(
+      (r) =>
+        r.title.toLowerCase().includes(q) ||
+        r.topic?.toLowerCase().includes(q)
+    );
+  };
+
+  const filteredLive = filterBySearch(liveRooms);
+  const filteredScheduled = filterBySearch(scheduledRooms);
+  const hasRooms = filteredLive.length > 0 || filteredScheduled.length > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -43,6 +87,7 @@ export default function ExploreScreen() {
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Explore</Text>
       </View>
 
+      {/* Search Bar */}
       <View style={[styles.searchBar, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
         <MaterialCommunityIcons name="magnify" size={18} color={theme.colors.textSecondary} />
         <TextInput
@@ -54,6 +99,41 @@ export default function ExploreScreen() {
         />
       </View>
 
+      {/* Type Filter Chips */}
+      <FlatList
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        data={TYPE_FILTERS}
+        keyExtractor={(item) => item.label}
+        contentContainerStyle={styles.filterChips}
+        renderItem={({ item }) => {
+          const selected = selectedType === item.value;
+          return (
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: selected ? theme.colors.primary : theme.colors.backgroundSecondary,
+                  borderColor: selected ? theme.colors.primary : theme.colors.border,
+                },
+              ]}
+              onPress={() => setSelectedType(item.value)}
+            >
+              {item.icon && (
+                <MaterialCommunityIcons
+                  name={item.icon}
+                  size={14}
+                  color={selected ? '#FFFFFF' : theme.colors.textSecondary}
+                />
+              )}
+              <Text style={[styles.filterChipText, { color: selected ? '#FFFFFF' : theme.colors.text }]}>
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
+
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
@@ -61,23 +141,88 @@ export default function ExploreScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
         }
       >
-        {filteredRooms.length > 0 ? (
-          <View style={styles.cardList}>
-            {filteredRooms.map((room) => (
-              <RoomCard
-                key={room._id}
-                room={room}
-                onPress={() => {
-                  if (room.status === 'live') joinLiveRoom(room._id);
-                }}
-              />
-            ))}
+        {/* Houses Section */}
+        {publicHouses.length > 0 && !searchQuery.trim() && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="home-group" size={18} color={theme.colors.textSecondary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Houses</Text>
+            </View>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={publicHouses}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
+              renderItem={({ item }) => <HouseCard house={item} />}
+            />
           </View>
-        ) : (
+        )}
+
+        {/* Live Now */}
+        {filteredLive.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+              </View>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                Live Now
+              </Text>
+              <Text style={[styles.sectionCount, { color: theme.colors.textSecondary }]}>
+                {filteredLive.length}
+              </Text>
+            </View>
+            <View style={styles.cardList}>
+              {filteredLive.map((room) => (
+                <RoomCard
+                  key={room._id}
+                  room={room}
+                  onPress={() => joinLiveRoom(room._id)}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Upcoming */}
+        {filteredScheduled.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="calendar" size={18} color={theme.colors.textSecondary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                Upcoming
+              </Text>
+              <Text style={[styles.sectionCount, { color: theme.colors.textSecondary }]}>
+                {filteredScheduled.length}
+              </Text>
+            </View>
+            <View style={styles.cardList}>
+              {filteredScheduled.map((room) => (
+                <RoomCard
+                  key={room._id}
+                  room={room}
+                  onPress={() => {
+                    if (room.status === 'live') joinLiveRoom(room._id);
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Empty state */}
+        {!hasRooms && !refreshing && (
           <EmptyState
             animation={require('@/assets/lottie/onair.json')}
             title={searchQuery.trim() ? 'No results' : 'No rooms available'}
-            subtitle={searchQuery.trim() ? 'No rooms match your search' : 'Rooms will appear here when they go live'}
+            subtitle={
+              searchQuery.trim()
+                ? 'No rooms match your search'
+                : selectedType
+                  ? `No ${selectedType} rooms right now`
+                  : 'Rooms will appear here when they go live'
+            }
           />
         )}
       </ScrollView>
@@ -101,6 +246,80 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchInput: { flex: 1, fontSize: 15 },
+  filterChips: {
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 5,
+  },
+  filterChipText: { fontSize: 13, fontWeight: '500' },
   scrollContent: { paddingBottom: 100 },
+  section: { marginTop: 16 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: '700' },
+  sectionCount: { fontSize: 14, fontWeight: '500' },
+  liveIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF4458',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
   cardList: { paddingHorizontal: 16 },
+});
+
+const houseStyles = StyleSheet.create({
+  card: {
+    width: 140,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    alignItems: 'center',
+    gap: 6,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  name: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  meta: {
+    fontSize: 11,
+  },
+  tags: {
+    fontSize: 10,
+    textAlign: 'center',
+  },
 });

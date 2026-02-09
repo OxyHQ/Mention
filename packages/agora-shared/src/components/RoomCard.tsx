@@ -6,11 +6,17 @@ import { useAuth } from '@oxyhq/services';
 import { useAgoraConfig } from '../context/AgoraConfigContext';
 import { getAvatarUrl } from '../hooks/useRoomUsers';
 
+const ROOM_TYPE_META: Record<string, { icon: 'account-voice' | 'broadcast'; label: string; color: string }> = {
+  stage: { icon: 'account-voice', label: 'Stage', color: '#3B82F6' },
+  broadcast: { icon: 'broadcast', label: 'Broadcast', color: '#FF6B35' },
+};
+
 interface RoomCardProps {
   room: {
     _id: string;
     title: string;
     status: 'scheduled' | 'live' | 'ended';
+    type?: 'talk' | 'stage' | 'broadcast';
     topic?: string;
     participants?: string[];
     host: string;
@@ -47,6 +53,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   const hostAvatarUri = hostAvatarUriProp ?? getAvatarUrl(hostProfile, oxyServices, getCachedFileDownloadUrlSync);
 
   const isCompact = variant === 'compact';
+  const typeMeta = room.type && room.type !== 'talk' ? ROOM_TYPE_META[room.type] : null;
 
   return (
     <TouchableOpacity
@@ -83,10 +90,16 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                 <Text style={[styles.scheduledText, { color: theme.colors.textSecondary }]}>SCHEDULED</Text>
               </View>
             )}
+            {!isCompact && typeMeta && (
+              <View style={[styles.typeBadge, { backgroundColor: typeMeta.color + '20' }]}>
+                <MaterialCommunityIcons name={typeMeta.icon} size={10} color={typeMeta.color} />
+                <Text style={[styles.typeText, { color: typeMeta.color }]}>{typeMeta.label}</Text>
+              </View>
+            )}
           </View>
 
-          {isCompact && (isLive || isScheduled) && (
-            <View style={{ flexDirection: 'row', marginTop: 4 }}>
+          {isCompact && (isLive || isScheduled || typeMeta) && (
+            <View style={{ flexDirection: 'row', marginTop: 4, gap: 4, flexWrap: 'wrap' }}>
               {isLive && (
                 <View style={[styles.liveBadge, { backgroundColor: '#FF4458' }]}>
                   <View style={styles.livePulse} />
@@ -97,6 +110,12 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                 <View style={[styles.scheduledBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
                   <MaterialCommunityIcons name="calendar" size={10} color={theme.colors.textSecondary} />
                   <Text style={[styles.scheduledText, { color: theme.colors.textSecondary }]}>SCHEDULED</Text>
+                </View>
+              )}
+              {typeMeta && (
+                <View style={[styles.typeBadge, { backgroundColor: typeMeta.color + '20' }]}>
+                  <MaterialCommunityIcons name={typeMeta.icon} size={10} color={typeMeta.color} />
+                  <Text style={[styles.typeText, { color: typeMeta.color }]}>{typeMeta.label}</Text>
                 </View>
               )}
             </View>
@@ -215,6 +234,19 @@ const styles = StyleSheet.create({
   },
   scheduledText: {
     fontSize: 10,
+    fontWeight: '700',
+  },
+  typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+    gap: 3,
+    marginLeft: 4,
+  },
+  typeText: {
+    fontSize: 9,
     fontWeight: '700',
   },
   footer: {
