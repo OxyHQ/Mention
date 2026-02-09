@@ -19,24 +19,27 @@ import { useAgoraConfig } from '../context/AgoraConfigContext';
 interface StreamConfigPanelProps {
   roomId: string;
   roomStatus?: string;
+  initialRtmpUrl?: string;
+  initialStreamKey?: string;
   onClose: () => void;
   onStreamStarted: () => void;
 }
 
 type StreamMode = 'url' | 'rtmp';
 
-export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted }: StreamConfigPanelProps) {
+export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialStreamKey, onClose, onStreamStarted }: StreamConfigPanelProps) {
   const { useTheme, agoraService, toast, onRoomChanged } = useAgoraConfig();
   const theme = useTheme();
   const { oxyServices } = useAuth();
 
-  const [mode, setMode] = useState<StreamMode>('url');
+  const hasExistingKey = !!(initialStreamKey);
+  const [mode, setMode] = useState<StreamMode>(hasExistingKey ? 'rtmp' : 'url');
   const [loading, setLoading] = useState(false);
 
   const [streamUrl, setStreamUrl] = useState('');
 
-  const [rtmpUrl, setRtmpUrl] = useState<string | null>(null);
-  const [streamKey, setStreamKey] = useState<string | null>(null);
+  const [rtmpUrl, setRtmpUrl] = useState<string | null>(initialRtmpUrl || null);
+  const [streamKey, setStreamKey] = useState<string | null>(initialStreamKey || null);
   const [generatingKey, setGeneratingKey] = useState(false);
 
   const [title, setTitle] = useState('');
@@ -319,6 +322,21 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
                     Use these in OBS or your streaming app. Audio will play in the room once you start streaming.
                   </Text>
                 </View>
+
+                <TouchableOpacity
+                  style={styles.regenerateBtn}
+                  onPress={() => {
+                    setStreamKey(null);
+                    setRtmpUrl(null);
+                    generateKey();
+                  }}
+                  disabled={generatingKey}
+                >
+                  <MaterialCommunityIcons name="refresh" size={16} color={theme.colors.textSecondary} />
+                  <Text style={[styles.regenerateText, { color: theme.colors.textSecondary }]}>
+                    Regenerate key
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -510,6 +528,15 @@ const styles = StyleSheet.create({
   },
   loadingText: { fontSize: 14 },
   credentialsBox: { gap: 4 },
+  regenerateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  regenerateText: { fontSize: 13, fontWeight: '500' },
   credLabel: {
     fontSize: 12,
     fontWeight: '600',
