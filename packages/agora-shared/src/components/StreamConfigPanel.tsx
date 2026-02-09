@@ -15,6 +15,7 @@ import { useAuth } from '@oxyhq/services';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useAgoraConfig } from '../context/AgoraConfigContext';
+import { PanelHeader } from './PanelHeader';
 
 interface StreamConfigPanelProps {
   roomId: string;
@@ -227,13 +228,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { borderBottomColor: `${theme.colors.border}80` }]}>
-        <TouchableOpacity onPress={onClose} style={styles.backButton}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Stream Setup</Text>
-        <View style={styles.backButton} />
-      </View>
+      <PanelHeader title="Stream Setup" theme={theme} onBack={onClose} />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -442,16 +437,6 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: { width: 40, alignItems: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '600' },
   scrollContent: { paddingBottom: 32 },
   modeSelector: {
     flexDirection: 'row',

@@ -15,6 +15,7 @@ import { useAgoraConfig } from '../context/AgoraConfigContext';
 import { MiniRoomBar } from './MiniRoomBar';
 import { StreamConfigPanel } from './StreamConfigPanel';
 import { InsightsPanel } from './InsightsPanel';
+import { PanelHeader } from './PanelHeader';
 import { useRoomConnection } from '../hooks/useRoomConnection';
 import { useRoomAudio } from '../hooks/useRoomAudio';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '../hooks/useRoomUsers';
@@ -750,9 +751,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingTop: 12,
     paddingBottom: 12,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
-    gap: 32,
+    gap: 20,
   },
   controlItem: { alignItems: 'center', gap: 4 },
   controlCircle: {
