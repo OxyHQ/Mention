@@ -20,7 +20,7 @@ const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet')
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { useLiveSpace } from '@/context/LiveSpaceContext';
+import { useLiveRoom } from '@/context/LiveSpaceContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -58,7 +58,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const router = useRouter();
     const pathname = usePathname();
     const bottomSheet = useContext(BottomSheetContext);
-    const { joinLiveSpace } = useLiveSpace();
+    const { joinLiveRoom } = useLiveRoom();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
 
     const postId = (post as any)?.id;
@@ -92,7 +92,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const eventContent = attachmentsBundle.event ?? content.event ?? null;
     const hasEvent = Boolean(eventContent);
 
-    const spaceContent = (attachmentsBundle as any).space ?? content.space ?? null;
+    const roomContent = (attachmentsBundle as any).space ?? content.space ?? null;
 
     const pollData = attachmentsBundle.poll ?? content.poll ?? null;
     const pollId = content.pollId ?? null;
@@ -117,7 +117,7 @@ const PostItem: React.FC<PostItemProps> = ({
         Boolean(pollData) ||
         Boolean(articleContent) ||
         Boolean(eventContent) ||
-        Boolean(spaceContent) ||
+        Boolean(roomContent) ||
         Boolean(linkPreview) ||
         hasValidLocation;
 
@@ -422,19 +422,19 @@ const PostItem: React.FC<PostItemProps> = ({
                                 : null
                         }
                         space={
-                            spaceContent
+                            roomContent
                                 ? {
-                                    spaceId: spaceContent.spaceId,
-                                    title: spaceContent.title,
-                                    status: spaceContent.status,
-                                    topic: spaceContent.topic,
-                                    host: spaceContent.host,
+                                    spaceId: roomContent.spaceId,
+                                    title: roomContent.title,
+                                    status: roomContent.status,
+                                    topic: roomContent.topic,
+                                    host: roomContent.host,
                                 }
                                 : null
                         }
                         onSpacePress={
-                            spaceContent?.spaceId
-                                ? () => joinLiveSpace(spaceContent.spaceId)
+                            roomContent?.spaceId
+                                ? () => joinLiveRoom(roomContent.spaceId)
                                 : undefined
                         }
                         location={location}

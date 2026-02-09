@@ -14,17 +14,17 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '@oxyhq/services';
 import * as ImagePicker from 'expo-image-picker';
 
-import { useAgoraConfig } from '../context/SpacesConfigContext';
+import { useAgoraConfig } from '../context/AgoraConfigContext';
 
 interface StreamConfigPanelProps {
-  spaceId: string;
+  roomId: string;
   onClose: () => void;
   onStreamStarted: () => void;
 }
 
 type StreamMode = 'url' | 'rtmp';
 
-export function StreamConfigPanel({ spaceId, onClose, onStreamStarted }: StreamConfigPanelProps) {
+export function StreamConfigPanel({ roomId, onClose, onStreamStarted }: StreamConfigPanelProps) {
   const { useTheme, agoraService, toast } = useAgoraConfig();
   const theme = useTheme();
   const { oxyServices } = useAuth();
@@ -110,7 +110,7 @@ export function StreamConfigPanel({ spaceId, onClose, onStreamStarted }: StreamC
     if (!streamUrl.trim() || loading) return;
     setLoading(true);
     try {
-      const result = await agoraService.startStream(spaceId, {
+      const result = await agoraService.startStream(roomId, {
         url: streamUrl.trim(),
         title: title.trim() || undefined,
         image: imageFileId || undefined,
@@ -135,7 +135,7 @@ export function StreamConfigPanel({ spaceId, onClose, onStreamStarted }: StreamC
     if (generatingKey) return;
     setGeneratingKey(true);
     try {
-      const result = await agoraService.generateStreamKey(spaceId, {
+      const result = await agoraService.generateStreamKey(roomId, {
         title: title.trim() || undefined,
         image: imageFileId || undefined,
         description: description.trim() || undefined,
@@ -162,7 +162,7 @@ export function StreamConfigPanel({ spaceId, onClose, onStreamStarted }: StreamC
     if (loading) return;
     setLoading(true);
     try {
-      const success = await agoraService.updateStreamMetadata(spaceId, {
+      const success = await agoraService.updateStreamMetadata(roomId, {
         title: title.trim() || undefined,
         image: imageFileId || undefined,
         description: description.trim() || undefined,
@@ -296,7 +296,7 @@ export function StreamConfigPanel({ spaceId, onClose, onStreamStarted }: StreamC
                 <View style={styles.infoRow}>
                   <MaterialCommunityIcons name="information" size={16} color={theme.colors.textSecondary} />
                   <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-                    Use these in OBS or your streaming app. Audio will play in the space once you start streaming.
+                    Use these in OBS or your streaming app. Audio will play in the room once you start streaming.
                   </Text>
                 </View>
               </View>

@@ -16,7 +16,7 @@ import { OxyServices } from '@oxyhq/core';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { AgoraProvider } from '@mention/agora-shared';
-import { LiveSpaceProvider } from '@/context/LiveSpaceContext';
+import { LiveRoomProvider } from '@/context/LiveSpaceContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
@@ -59,7 +59,7 @@ export const AppProviders = memo(function AppProviders({
               <BottomSheetModalProvider>
                 <BottomSheetProvider>
                   <AgoraProvider config={agoraConfig}>
-                  <LiveSpaceProvider>
+                  <LiveRoomProvider>
                     <MenuProvider>
                       <ErrorBoundary>
                         <LayoutScrollProvider>
@@ -75,7 +75,7 @@ export const AppProviders = memo(function AppProviders({
                         </LayoutScrollProvider>
                       </ErrorBoundary>
                     </MenuProvider>
-                  </LiveSpaceProvider>
+                  </LiveRoomProvider>
                   </AgoraProvider>
                 </BottomSheetProvider>
               </BottomSheetModalProvider>
@@ -86,4 +86,3 @@ export const AppProviders = memo(function AppProviders({
     </SafeAreaProvider>
   );
 });
-

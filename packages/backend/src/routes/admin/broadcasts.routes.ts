@@ -21,7 +21,7 @@ const router = Router();
 // ---------------------------------------------------------------------------
 // Helper: Validate that a room is an Agora Broadcast
 // ---------------------------------------------------------------------------
-function isAgoraBroadcast(room: IRoom): boolean {
+function isAgoraBroadcast(room: Pick<IRoom, 'ownerType' | 'type' | 'broadcastKind'>): boolean {
   return (
     room.ownerType === OwnerType.AGORA &&
     room.type === RoomType.BROADCAST &&
@@ -192,7 +192,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Broadcast not found' });
     }
 
-    if (!isAgoraBroadcast(room as IRoom)) {
+    if (!isAgoraBroadcast(room)) {
       return res.status(404).json({ message: 'Broadcast not found' });
     }
 

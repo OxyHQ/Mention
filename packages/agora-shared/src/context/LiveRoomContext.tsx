@@ -12,24 +12,24 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 
-import { useAgoraConfig } from './SpacesConfigContext';
-import { LiveSpaceSheet } from '../components/LiveSpaceSheet';
-import { MINI_BAR_HEIGHT } from '../components/MiniSpaceBar';
+import { useAgoraConfig } from './AgoraConfigContext';
+import { LiveRoomSheet } from '../components/LiveRoomSheet';
+import { MINI_BAR_HEIGHT } from '../components/MiniRoomBar';
 
-interface LiveSpaceContextProps {
-  activeSpaceId: string | null;
-  joinLiveSpace: (spaceId: string) => void;
-  leaveLiveSpace: () => void;
+interface LiveRoomContextProps {
+  activeRoomId: string | null;
+  joinLiveRoom: (roomId: string) => void;
+  leaveLiveRoom: () => void;
 }
 
-const LiveSpaceContext = createContext<LiveSpaceContextProps>({
-  activeSpaceId: null,
-  joinLiveSpace: () => {},
-  leaveLiveSpace: () => {},
+const LiveRoomContext = createContext<LiveRoomContextProps>({
+  activeRoomId: null,
+  joinLiveRoom: () => {},
+  leaveLiveRoom: () => {},
 });
 
-export function useLiveSpace() {
-  return useContext(LiveSpaceContext);
+export function useLiveRoom() {
+  return useContext(LiveRoomContext);
 }
 
 const SPRING_CONFIG = { damping: 28, stiffness: 220, overshootClamping: true };
@@ -37,7 +37,7 @@ const SPRING_CONFIG = { damping: 28, stiffness: 220, overshootClamping: true };
 const BOTTOM_BAR_OFFSET = 76;
 const defaultUseIsDesktop = () => false;
 
-export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
+export function LiveRoomProvider({ children }: { children: React.ReactNode }) {
   const config = useAgoraConfig();
   const theme = config.useTheme();
   const insets = useSafeAreaInsets();
@@ -46,7 +46,7 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
   const useIsDesktopHook = config.useIsDesktop ?? defaultUseIsDesktop;
   const isDesktop = useIsDesktopHook();
 
-  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const hasBottomBar = !isDesktop;
@@ -91,23 +91,23 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
     opacity: interpolate(progress.value, [1, 2], [0, 1], Extrapolation.CLAMP),
   }));
 
-  const joinLiveSpace = useCallback((spaceId: string) => {
-    setActiveSpaceId(spaceId);
+  const joinLiveRoom = useCallback((roomId: string) => {
+    setActiveRoomId(roomId);
     setIsExpanded(true);
     progress.value = withSpring(2, SPRING_CONFIG);
   }, [progress]);
 
-  const clearSpace = useCallback(() => {
-    setActiveSpaceId(null);
+  const clearRoom = useCallback(() => {
+    setActiveRoomId(null);
     setIsExpanded(false);
   }, []);
 
-  const leaveLiveSpace = useCallback(() => {
+  const leaveLiveRoom = useCallback(() => {
     setIsExpanded(false);
     progress.value = withTiming(0, { duration: 250 }, (finished) => {
-      if (finished) runOnJS(clearSpace)();
+      if (finished) runOnJS(clearRoom)();
     });
-  }, [progress, clearSpace]);
+  }, [progress, clearRoom]);
 
   const handleCollapse = useCallback(() => {
     setIsExpanded(false);
@@ -120,15 +120,15 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
   }, [progress]);
 
   const contextValue = useMemo(
-    () => ({ activeSpaceId, joinLiveSpace, leaveLiveSpace }),
-    [activeSpaceId, joinLiveSpace, leaveLiveSpace]
+    () => ({ activeRoomId, joinLiveRoom, leaveLiveRoom }),
+    [activeRoomId, joinLiveRoom, leaveLiveRoom]
   );
 
   return (
-    <LiveSpaceContext.Provider value={contextValue}>
+    <LiveRoomContext.Provider value={contextValue}>
       {children}
 
-      {activeSpaceId && (
+      {activeRoomId && (
         <Animated.View
           style={[StyleSheet.absoluteFill, styles.backdrop, backdropAnimStyle]}
           pointerEvents={isExpanded ? 'auto' : 'none'}
@@ -137,7 +137,7 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
         </Animated.View>
       )}
 
-      {activeSpaceId && (
+      {activeRoomId && (
         <Animated.View
           style={[
             styles.sheet,
@@ -161,12 +161,12 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
           ]}
         >
           {Platform.OS === 'web' ? (
-            <LiveSpaceSheet
-              spaceId={activeSpaceId}
+            <LiveRoomSheet
+              roomId={activeRoomId}
               isExpanded={isExpanded}
               onCollapse={handleCollapse}
               onExpand={handleExpand}
-              onLeave={leaveLiveSpace}
+              onLeave={leaveLiveRoom}
             />
           ) : (
             <BlurView
@@ -174,18 +174,18 @@ export function LiveSpaceProvider({ children }: { children: React.ReactNode }) {
               tint={theme.isDark ? 'dark' : 'light'}
               style={{ flex: 1 }}
             >
-              <LiveSpaceSheet
-                spaceId={activeSpaceId}
+              <LiveRoomSheet
+                roomId={activeRoomId}
                 isExpanded={isExpanded}
                 onCollapse={handleCollapse}
                 onExpand={handleExpand}
-                onLeave={leaveLiveSpace}
+                onLeave={leaveLiveRoom}
               />
             </BlurView>
           )}
         </Animated.View>
       )}
-    </LiveSpaceContext.Provider>
+    </LiveRoomContext.Provider>
   );
 }
 

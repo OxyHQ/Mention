@@ -2,22 +2,22 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
-import { useLiveSpace } from '@/context/LiveSpaceContext';
+import { useLiveRoom } from '@/context/LiveSpaceContext';
 
 /**
  * Deep link redirect: when navigating to /spaces/live/[id],
- * open the live space bottom sheet and go back to the spaces list.
+ * open the live room bottom sheet and go back to the spaces list.
  */
-export default function LiveSpaceRedirect() {
+export default function LiveRoomRedirect() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { joinLiveSpace } = useLiveSpace();
+  const { joinLiveRoom } = useLiveRoom();
 
   useEffect(() => {
     if (id) {
-      joinLiveSpace(id);
+      joinLiveRoom(id);
       router.replace('/spaces');
     }
-  }, [id, joinLiveSpace]);
+  }, [id, joinLiveRoom]);
 
   return <View />;
 }

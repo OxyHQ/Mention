@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, StyleProp, ViewStyle } from '
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '@oxyhq/services';
 
-import { useAgoraConfig } from '../context/SpacesConfigContext';
-import { getAvatarUrl } from '../hooks/useSpaceUsers';
+import { useAgoraConfig } from '../context/AgoraConfigContext';
+import { getAvatarUrl } from '../hooks/useRoomUsers';
 
-interface SpaceCardProps {
-  space: {
+interface RoomCardProps {
+  room: {
     _id: string;
     title: string;
     status: 'scheduled' | 'live' | 'ended';
@@ -22,8 +22,8 @@ interface SpaceCardProps {
   style?: StyleProp<ViewStyle>;
 }
 
-export const SpaceCard: React.FC<SpaceCardProps> = ({
-  space,
+export const RoomCard: React.FC<RoomCardProps> = ({
+  room,
   onPress,
   variant = 'default',
   hostName: hostNameProp,
@@ -33,16 +33,16 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
   const { useTheme, useUserById, AvatarComponent, getCachedFileDownloadUrlSync } = useAgoraConfig();
   const theme = useTheme();
   const { oxyServices } = useAuth();
-  const hostProfile = useUserById(space.host);
+  const hostProfile = useUserById(room.host);
 
-  const isLive = space.status === 'live';
-  const isScheduled = space.status === 'scheduled';
+  const isLive = room.status === 'live';
+  const isScheduled = room.status === 'scheduled';
 
   const hostName = hostNameProp
     ?? (hostProfile?.username
       ? `@${hostProfile.username}`
       : (typeof hostProfile?.name === 'object' ? hostProfile?.name?.full : typeof hostProfile?.name === 'string' ? hostProfile?.name : null)
-        || space.host?.slice(0, 10)
+        || room.host?.slice(0, 10)
         || 'Unknown');
   const hostAvatarUri = hostAvatarUriProp ?? getAvatarUrl(hostProfile, oxyServices, getCachedFileDownloadUrlSync);
 
@@ -69,7 +69,7 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
               style={[isCompact ? styles.compactTitle : styles.title, { color: theme.colors.text }]}
               numberOfLines={isCompact ? 2 : 1}
             >
-              {space.title}
+              {room.title}
             </Text>
             {!isCompact && isLive && (
               <View style={[styles.liveBadge, { backgroundColor: '#FF4458' }]}>
@@ -102,12 +102,12 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
             </View>
           )}
 
-          {space.topic && (
+          {room.topic && (
             <Text
               style={[isCompact ? styles.compactTopic : styles.topic, { color: theme.colors.textSecondary }]}
               numberOfLines={1}
             >
-              {space.topic}
+              {room.topic}
             </Text>
           )}
         </View>
@@ -117,7 +117,7 @@ export const SpaceCard: React.FC<SpaceCardProps> = ({
         <View style={styles.participantsRow}>
           <MaterialCommunityIcons name="account-group" size={isCompact ? 14 : 16} color={theme.colors.textSecondary} />
           <Text style={[isCompact ? styles.compactCount : styles.count, { color: theme.colors.textSecondary }]}>
-            {space.participants?.length || 0} listening
+            {room.participants?.length || 0} listening
           </Text>
         </View>
 
@@ -246,4 +246,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SpaceCard;
+export default RoomCard;

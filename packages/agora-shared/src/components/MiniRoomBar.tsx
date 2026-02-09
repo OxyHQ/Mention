@@ -2,9 +2,9 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-import { useAgoraConfig } from '../context/SpacesConfigContext';
+import { useAgoraConfig } from '../context/AgoraConfigContext';
 
-interface MiniSpaceBarProps {
+interface MiniRoomBarProps {
   title: string;
   participantCount: number;
   isMuted: boolean;
@@ -16,7 +16,7 @@ interface MiniSpaceBarProps {
 
 export const MINI_BAR_HEIGHT = 64;
 
-export function MiniSpaceBar({
+export function MiniRoomBar({
   title,
   participantCount,
   isMuted,
@@ -24,7 +24,7 @@ export function MiniSpaceBar({
   onExpand,
   onToggleMute,
   onLeave,
-}: MiniSpaceBarProps) {
+}: MiniRoomBarProps) {
   const { useTheme } = useAgoraConfig();
   const theme = useTheme();
 
@@ -40,7 +40,7 @@ export function MiniSpaceBar({
 
       <View style={styles.info}>
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-          {title || 'Space'}
+          {title || 'Room'}
         </Text>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
           {participantCount} listening

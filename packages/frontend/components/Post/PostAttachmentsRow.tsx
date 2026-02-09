@@ -12,7 +12,7 @@ import {
   PostAttachmentPoll,
   PostAttachmentNested,
   PostAttachmentEvent,
-  PostAttachmentSpace,
+  PostAttachmentRoom,
 } from './Attachments';
 
 interface MediaObj { id: string; type: 'image' | 'video' | 'gif' }
@@ -377,9 +377,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         }
         if (item.type === 'space') {
           return (
-            <PostAttachmentSpace
-              key={`space-${idx}`}
-              spaceId={space?.spaceId || ''}
+            <PostAttachmentRoom
+              key={`room-${idx}`}
+              roomId={space?.spaceId || ''}
               title={space?.title || ''}
               status={space?.status as any}
               topic={space?.topic}

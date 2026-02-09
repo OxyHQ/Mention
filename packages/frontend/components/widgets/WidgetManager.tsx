@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
-import { LiveSpacesWidget } from './LiveSpacesWidget';
+import { LiveRoomsWidget } from './LiveSpacesWidget';
 
 // Define screen IDs for social network
 export type ScreenId =
@@ -32,7 +32,7 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
         switch (screen) {
             case 'home':
                 return [
-                    <LiveSpacesWidget key="live-spaces" />,
+                    <LiveRoomsWidget key="live-rooms" />,
                     <TrendsWidget key="trends" />,
                     <WhoToFollowWidget key="who-to-follow" />,
                 ];

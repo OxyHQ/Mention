@@ -2,28 +2,28 @@ import { useState, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { Room, RoomEvent, Track, ConnectionState } from 'livekit-client';
 import { setAudioModeAsync } from 'expo-audio';
-import { useAgoraConfig } from '../context/SpacesConfigContext';
+import { useAgoraConfig } from '../context/AgoraConfigContext';
 
 let AudioSession: { startAudioSession: () => void; stopAudioSession: () => void } | null = null;
 if (Platform.OS !== 'web') {
   try { AudioSession = require('@livekit/react-native').AudioSession; } catch {}
 }
 
-interface UseSpaceAudioOptions {
-  spaceId: string;
+interface UseRoomAudioOptions {
+  roomId: string;
   isSpeaker: boolean;
   isMuted: boolean;
   isConnected: boolean;
 }
 
-interface UseSpaceAudioReturn {
+interface UseRoomAudioReturn {
   isLiveKitConnected: boolean;
   localAudioEnabled: boolean;
   micPermissionDenied: boolean;
 }
 
-export function useSpaceAudio({ spaceId, isSpeaker, isMuted, isConnected }: UseSpaceAudioOptions): UseSpaceAudioReturn {
-  const { getSpaceToken } = useAgoraConfig();
+export function useRoomAudio({ roomId, isSpeaker, isMuted, isConnected }: UseRoomAudioOptions): UseRoomAudioReturn {
+  const { getRoomToken } = useAgoraConfig();
   const [isLiveKitConnected, setIsLiveKitConnected] = useState(false);
   const [localAudioEnabled, setLocalAudioEnabled] = useState(false);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
@@ -42,7 +42,7 @@ export function useSpaceAudio({ spaceId, isSpeaker, isMuted, isConnected }: UseS
   }, [isConnected]);
 
   useEffect(() => {
-    if (!isConnected || !spaceId) return;
+    if (!isConnected || !roomId) return;
     let cancelled = false;
     const room = new Room({ adaptiveStream: true, dynacast: true });
     roomRef.current = room;
@@ -64,10 +64,10 @@ export function useSpaceAudio({ spaceId, isSpeaker, isMuted, isConnected }: UseS
 
     (async () => {
       try {
-        const { token, url } = await getSpaceToken(spaceId);
+        const { token, url } = await getRoomToken(roomId);
         if (cancelled || !url) return;
         await room.connect(url, token);
-      } catch (err) { console.warn('[SpaceAudio] LiveKit connection error:', err); }
+      } catch (err) { console.warn('[RoomAudio] LiveKit connection error:', err); }
     })();
 
     return () => {
@@ -81,7 +81,7 @@ export function useSpaceAudio({ spaceId, isSpeaker, isMuted, isConnected }: UseS
       setIsLiveKitConnected(false);
       setLocalAudioEnabled(false);
     };
-  }, [isConnected, spaceId, getSpaceToken]);
+  }, [isConnected, roomId, getRoomToken]);
 
   useEffect(() => {
     const room = roomRef.current;
@@ -90,7 +90,7 @@ export function useSpaceAudio({ spaceId, isSpeaker, isMuted, isConnected }: UseS
     room.localParticipant.setMicrophoneEnabled(shouldPublish)
       .then(() => { setLocalAudioEnabled(shouldPublish); setMicPermissionDenied(false); })
       .catch((err) => {
-        console.warn('[SpaceAudio] Failed to toggle mic:', err);
+        console.warn('[RoomAudio] Failed to toggle mic:', err);
         if (err instanceof Error && err.name === 'NotAllowedError') setMicPermissionDenied(true);
       });
   }, [isSpeaker, isMuted, isLiveKitConnected]);

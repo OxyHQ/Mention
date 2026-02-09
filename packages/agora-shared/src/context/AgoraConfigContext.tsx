@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import type { ViewStyle } from 'react-native';
-import type { SpacesTheme, UserEntity, HttpClient } from '../types';
+import type { AgoraTheme, UserEntity, HttpClient } from '../types';
 import { createAgoraService, type AgoraServiceInstance } from '../services/spacesService';
-import { SpaceSocketService } from '../services/spaceSocketService';
-import { createGetSpaceToken, type GetSpaceTokenFn } from '../services/livekitService';
+import { RoomSocketService } from '../services/spaceSocketService';
+import { createGetRoomToken, type GetRoomTokenFn } from '../services/livekitService';
 
 export interface AgoraConfig {
   httpClient: HttpClient;
   socketUrl: string;
-  useTheme: () => SpacesTheme;
+  useTheme: () => AgoraTheme;
   useUserById: (id: string | undefined) => UserEntity | undefined;
   ensureUserById: (
     id: string,
@@ -29,8 +29,8 @@ export interface AgoraConfig {
 
 export interface AgoraConfigInternal extends AgoraConfig {
   agoraService: AgoraServiceInstance;
-  spaceSocketService: SpaceSocketService;
-  getSpaceToken: GetSpaceTokenFn;
+  roomSocketService: RoomSocketService;
+  getRoomToken: GetRoomTokenFn;
 }
 
 const AgoraConfigContext = createContext<AgoraConfigInternal | null>(null);
@@ -44,9 +44,9 @@ export function useAgoraConfig(): AgoraConfigInternal {
 export function AgoraProvider({ config, children }: { config: AgoraConfig; children: React.ReactNode }) {
   const fullConfig = useMemo<AgoraConfigInternal>(() => {
     const agoraService = createAgoraService(config.httpClient);
-    const spaceSocketService = new SpaceSocketService(config.socketUrl);
-    const getSpaceToken = createGetSpaceToken(config.httpClient);
-    return { ...config, agoraService, spaceSocketService, getSpaceToken };
+    const roomSocketService = new RoomSocketService(config.socketUrl);
+    const getRoomToken = createGetRoomToken(config.httpClient);
+    return { ...config, agoraService, roomSocketService, getRoomToken };
   }, [config]);
 
   return (

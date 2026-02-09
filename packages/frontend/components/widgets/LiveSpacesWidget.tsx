@@ -6,53 +6,53 @@ import { useAuth } from '@oxyhq/services';
 
 import { BaseWidget } from './BaseWidget';
 import { useTheme } from '@/hooks/useTheme';
-import { useLiveSpace } from '@/context/LiveSpaceContext';
-import { spacesService, type Space } from '@/services/spacesService';
-import { useSpaceUsers, getDisplayName } from '@/hooks/useSpaceUsers';
+import { useLiveRoom } from '@/context/LiveSpaceContext';
+import { roomsService, type Room } from '@/services/spacesService';
+import { useRoomUsers, getDisplayName } from '@/hooks/useSpaceUsers';
 import { useUserById } from '@/stores/usersStore';
 import { Agora as SpacesIcon } from '@mention/agora-shared';
 import { Loading } from '@/components/ui/Loading';
 
-const MAX_SPACES_DISPLAYED = 3;
+const MAX_ROOMS_DISPLAYED = 3;
 const REFRESH_INTERVAL_MS = 30_000;
 
-const SpaceRow = React.memo(function SpaceRow({
-  space,
+const RoomRow = React.memo(function RoomRow({
+  room,
   isLast,
   onPress,
 }: {
-  space: Space;
+  room: Room;
   isLast: boolean;
   onPress: () => void;
 }) {
   const theme = useTheme();
-  const hostProfile = useUserById(space.host);
+  const hostProfile = useUserById(room.host);
   const hostName = hostProfile?.username
     ? `@${hostProfile.username}`
-    : getDisplayName(hostProfile, space.host);
-  const listenerCount = space.participants?.length || 0;
+    : getDisplayName(hostProfile, room.host);
+  const listenerCount = room.participants?.length || 0;
 
   return (
     <TouchableOpacity
       style={[
-        styles.spaceItem,
+        styles.roomItem,
         !isLast && { borderBottomWidth: 0.5, borderBottomColor: theme.colors.border },
       ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={styles.spaceContent}>
+      <View style={styles.roomContent}>
         <View style={styles.liveDot} />
-        <View style={styles.spaceTextContainer}>
+        <View style={styles.roomTextContainer}>
           <Text
-            style={[styles.spaceTitle, { color: theme.colors.text }]}
+            style={[styles.roomTitle, { color: theme.colors.text }]}
             numberOfLines={1}
           >
-            {space.title}
+            {room.title}
           </Text>
-          <View style={styles.spaceMeta}>
+          <View style={styles.roomMeta}>
             <Ionicons name="headset-outline" size={11} color={theme.colors.textSecondary} />
-            <Text style={[styles.spaceMetaText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+            <Text style={[styles.roomMetaText, { color: theme.colors.textSecondary }]} numberOfLines={1}>
               {listenerCount} listening  ·  {hostName}
             </Text>
           </View>
@@ -62,29 +62,29 @@ const SpaceRow = React.memo(function SpaceRow({
   );
 });
 
-export function LiveSpacesWidget() {
+export function LiveRoomsWidget() {
   const { isAuthenticated } = useAuth();
   const theme = useTheme();
   const router = useRouter();
-  const { joinLiveSpace } = useLiveSpace();
+  const { joinLiveRoom } = useLiveRoom();
 
-  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLiveSpaces = useCallback(async (silent = false) => {
+  const fetchLiveRooms = useCallback(async (silent = false) => {
     if (!isAuthenticated) return;
     if (!silent) {
       setIsLoading(true);
       setError(null);
     }
     try {
-      const liveSpaces = await spacesService.getSpaces('live');
-      setSpaces(liveSpaces);
+      const liveRooms = await roomsService.getRooms('live');
+      setRooms(liveRooms);
       if (!silent) setIsLoading(false);
     } catch (err: any) {
       if (!silent) {
-        setError(err?.message || 'Failed to load live spaces');
+        setError(err?.message || 'Failed to load live rooms');
         setIsLoading(false);
       }
     }
@@ -100,14 +100,14 @@ export function LiveSpacesWidget() {
         setError(null);
       }
       try {
-        const liveSpaces = await spacesService.getSpaces('live');
+        const liveRooms = await roomsService.getRooms('live');
         if (mounted) {
-          setSpaces(liveSpaces);
+          setRooms(liveRooms);
           if (!silent) setIsLoading(false);
         }
       } catch (err: any) {
         if (mounted && !silent) {
-          setError(err?.message || 'Failed to load live spaces');
+          setError(err?.message || 'Failed to load live rooms');
           setIsLoading(false);
         }
       }
@@ -121,46 +121,46 @@ export function LiveSpacesWidget() {
     };
   }, [isAuthenticated]);
 
-  const displayedSpaces = useMemo(
-    () => spaces.slice(0, MAX_SPACES_DISPLAYED),
-    [spaces],
+  const displayedRooms = useMemo(
+    () => rooms.slice(0, MAX_ROOMS_DISPLAYED),
+    [rooms],
   );
 
   const hostIds = useMemo(
-    () => displayedSpaces.map((s) => s.host).filter(Boolean),
-    [displayedSpaces],
+    () => displayedRooms.map((r) => r.host).filter(Boolean),
+    [displayedRooms],
   );
-  useSpaceUsers(hostIds);
+  useRoomUsers(hostIds);
 
   const handleShowMore = useCallback(() => {
     router.push('/spaces' as any);
   }, [router]);
 
   if (!isAuthenticated) return null;
-  if (!isLoading && !error && spaces.length === 0) return null;
+  if (!isLoading && !error && rooms.length === 0) return null;
 
   return (
     <BaseWidget
-      title="Live Spaces"
+      title="Live Rooms"
       icon={<SpacesIcon size={18} color={theme.colors.text} />}
     >
       {isLoading ? (
         <View style={styles.centerRow}>
           <Loading size="small" style={{ flex: undefined }} />
           <Text style={[styles.muted, { color: theme.colors.textSecondary }]}>
-            Loading spaces…
+            Loading rooms…
           </Text>
         </View>
       ) : error ? (
         <Text style={{ color: theme.colors.error }}>{error}</Text>
       ) : (
         <View style={styles.listContainer}>
-          {displayedSpaces.map((space, index) => (
-            <SpaceRow
-              key={space._id}
-              space={space}
-              isLast={index === displayedSpaces.length - 1}
-              onPress={() => joinLiveSpace(space._id)}
+          {displayedRooms.map((room, index) => (
+            <RoomRow
+              key={room._id}
+              room={room}
+              isLast={index === displayedRooms.length - 1}
+              onPress={() => joinLiveRoom(room._id)}
             />
           ))}
           <TouchableOpacity
@@ -188,13 +188,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   listContainer: {},
-  spaceItem: {
+  roomItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
     ...Platform.select({ web: { cursor: 'pointer' as const } }),
   },
-  spaceContent: {
+  roomContent: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -206,20 +206,20 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#FF4458',
   },
-  spaceTextContainer: {
+  roomTextContainer: {
     flex: 1,
   },
-  spaceTitle: {
+  roomTitle: {
     fontSize: 14,
     fontWeight: '700',
   },
-  spaceMeta: {
+  roomMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
     marginTop: 1,
   },
-  spaceMetaText: {
+  roomMetaText: {
     fontSize: 12,
     flex: 1,
   },

@@ -10,9 +10,9 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-import { useAgoraConfig } from '../context/SpacesConfigContext';
-import { useLiveSpace } from '../context/LiveSpaceContext';
-import type { Space } from '../types';
+import { useAgoraConfig } from '../context/AgoraConfigContext';
+import { useLiveRoom } from '../context/LiveRoomContext';
+import type { Room } from '../types';
 
 const TOPICS = [
   'Technology',
@@ -32,30 +32,30 @@ const TOPICS = [
   'AI',
 ] as const;
 
-export interface CreateSpaceSheetRef {
+export interface CreateRoomSheetRef {
   handleCreateAndStart: () => void;
   handleSchedule: () => void;
   handleCreateForEmbed: () => void;
 }
 
-export interface CreateSpaceFormState {
+export interface CreateRoomFormState {
   isValid: boolean;
   loading: boolean;
   hasScheduledStart: boolean;
 }
 
-interface CreateSpaceSheetProps {
+interface CreateRoomSheetProps {
   onClose: () => void;
-  onSpaceCreated?: (space: Space) => void;
+  onRoomCreated?: (room: Room) => void;
   mode?: 'standalone' | 'embed';
   ScrollViewComponent?: React.ComponentType<{ children: React.ReactNode }>;
   hideFooter?: boolean;
-  onFormStateChange?: (state: CreateSpaceFormState) => void;
+  onFormStateChange?: (state: CreateRoomFormState) => void;
 }
 
-export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheetProps>(({
+export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetProps>(({
   onClose,
-  onSpaceCreated,
+  onRoomCreated,
   mode = 'standalone',
   ScrollViewComponent,
   hideFooter = false,
@@ -64,7 +64,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
   const Scroll = ScrollViewComponent || ScrollView;
   const { useTheme, agoraService, toast } = useAgoraConfig();
   const theme = useTheme();
-  const { joinLiveSpace } = useLiveSpace();
+  const { joinLiveRoom } = useLiveRoom();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [topic, setTopic] = useState('');
@@ -83,28 +83,28 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
 
     setLoading(true);
     try {
-      const space = await agoraService.createSpace({
+      const room = await agoraService.createRoom({
         title: title.trim(),
         description: description.trim() || undefined,
         topic: topic.trim() || undefined,
         speakerPermission,
       });
 
-      if (space) {
-        const started = await agoraService.startSpace(space._id);
+      if (room) {
+        const started = await agoraService.startRoom(room._id);
         onClose();
         if (started) {
-          joinLiveSpace(space._id);
+          joinLiveRoom(room._id);
         } else {
-          toast.error('Space created but failed to start');
+          toast.error('Room created but failed to start');
         }
-        onSpaceCreated?.(space);
+        onRoomCreated?.(room);
       } else {
-        toast.error('Failed to create space');
+        toast.error('Failed to create room');
       }
     } catch (error) {
-      console.error('Error creating space:', error);
-      toast.error('Failed to create space');
+      console.error('Error creating room:', error);
+      toast.error('Failed to create room');
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
 
     setLoading(true);
     try {
-      const space = await agoraService.createSpace({
+      const room = await agoraService.createRoom({
         title: title.trim(),
         description: description.trim() || undefined,
         topic: topic.trim() || undefined,
@@ -128,15 +128,15 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
         speakerPermission,
       });
 
-      if (space) {
+      if (room) {
         onClose();
-        onSpaceCreated?.(space);
+        onRoomCreated?.(room);
       } else {
-        toast.error('Failed to create space');
+        toast.error('Failed to create room');
       }
     } catch (error) {
-      console.error('Error creating space:', error);
-      toast.error('Failed to create space');
+      console.error('Error creating room:', error);
+      toast.error('Failed to create room');
     } finally {
       setLoading(false);
     }
@@ -147,22 +147,22 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
 
     setLoading(true);
     try {
-      const space = await agoraService.createSpace({
+      const room = await agoraService.createRoom({
         title: title.trim(),
         description: description.trim() || undefined,
         topic: topic.trim() || undefined,
         speakerPermission,
       });
 
-      if (space) {
+      if (room) {
         onClose();
-        onSpaceCreated?.(space);
+        onRoomCreated?.(room);
       } else {
-        toast.error('Failed to create space');
+        toast.error('Failed to create room');
       }
     } catch (error) {
-      console.error('Error creating space:', error);
-      toast.error('Failed to create space');
+      console.error('Error creating room:', error);
+      toast.error('Failed to create room');
     } finally {
       setLoading(false);
     }
@@ -214,7 +214,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
               >
                 <MaterialCommunityIcons name="calendar" size={20} color={theme.colors.text} />
                 <Text style={[styles.secondaryButtonText, { color: theme.colors.text }]}>
-                  Schedule Space
+                  Schedule Room
                 </Text>
               </TouchableOpacity>
             )}
@@ -239,7 +239,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
             <Text
               style={[styles.primaryButtonText, { color: isValid ? theme.colors.card : theme.colors.textSecondary }]}
             >
-              {loading ? 'Creating...' : 'Create Space'}
+              {loading ? 'Creating...' : 'Create Room'}
             </Text>
           </TouchableOpacity>
         )}
@@ -254,7 +254,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
           <MaterialCommunityIcons name="close" size={20} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Create Space
+          Create Room
         </Text>
         <View style={{ width: 28 }} />
       </View>
@@ -268,7 +268,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
           <Text style={[styles.label, { color: theme.colors.text }]}>Title *</Text>
           <TextInput
             style={[styles.input, { backgroundColor: theme.colors.backgroundSecondary, color: theme.colors.text }]}
-            placeholder="What's your space about?"
+            placeholder="What's your room about?"
             placeholderTextColor={theme.colors.textTertiary}
             value={title}
             onChangeText={setTitle}
@@ -394,7 +394,7 @@ export const CreateSpaceSheet = forwardRef<CreateSpaceSheetRef, CreateSpaceSheet
   );
 });
 
-CreateSpaceSheet.displayName = 'CreateSpaceSheet';
+CreateRoomSheet.displayName = 'CreateRoomSheet';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -481,4 +481,4 @@ const styles = StyleSheet.create({
   secondaryButtonText: { fontSize: 15, fontWeight: '600' },
 });
 
-export default CreateSpaceSheet;
+export default CreateRoomSheet;

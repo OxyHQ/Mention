@@ -1,17 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@oxyhq/services';
 import { createAudioPlayer } from 'expo-audio';
-import { useAgoraConfig } from '../context/SpacesConfigContext';
-import type { SpaceParticipant, StreamInfo } from '../types';
+import { useAgoraConfig } from '../context/AgoraConfigContext';
+import type { RoomParticipant, StreamInfo } from '../types';
 
-interface UseSpaceConnectionOptions {
-  spaceId: string;
+interface UseRoomConnectionOptions {
+  roomId: string;
   enabled?: boolean;
 }
 
-interface UseSpaceConnectionReturn {
+interface UseRoomConnectionReturn {
   isConnected: boolean;
-  participants: SpaceParticipant[];
+  participants: RoomParticipant[];
   myRole: 'host' | 'speaker' | 'listener' | null;
   isMuted: boolean;
   speakerRequests: Array<{ userId: string; requestedAt: string }>;
@@ -23,22 +23,22 @@ interface UseSpaceConnectionReturn {
   approveSpeaker: (userId: string) => void;
   denySpeaker: (userId: string) => void;
   removeSpeaker: (userId: string) => void;
-  isSpaceEnded: boolean;
+  isRoomEnded: boolean;
 }
 
-export function useSpaceConnection({
-  spaceId,
+export function useRoomConnection({
+  roomId,
   enabled = true,
-}: UseSpaceConnectionOptions): UseSpaceConnectionReturn {
+}: UseRoomConnectionOptions): UseRoomConnectionReturn {
   const { user, isAuthenticated } = useAuth();
-  const { spaceSocketService, introSound } = useAgoraConfig();
+  const { roomSocketService, introSound } = useAgoraConfig();
   const userId = user?.id;
 
   const [isConnected, setIsConnected] = useState(false);
-  const [participants, setParticipants] = useState<SpaceParticipant[]>([]);
+  const [participants, setParticipants] = useState<RoomParticipant[]>([]);
   const [isMuted, setIsMuted] = useState(true);
   const [speakerRequests, setSpeakerRequests] = useState<Array<{ userId: string; requestedAt: string }>>([]);
-  const [isSpaceEnded, setIsSpaceEnded] = useState(false);
+  const [isRoomEnded, setIsRoomEnded] = useState(false);
   const [activeStream, setActiveStream] = useState<StreamInfo | null>(null);
   const hasJoined = useRef(false);
 
@@ -47,49 +47,49 @@ export function useSpaceConnection({
 
   useEffect(() => {
     if (!enabled || !isAuthenticated || !userId) return;
-    spaceSocketService.connect(userId);
-    const interval = setInterval(() => { setIsConnected(spaceSocketService.isConnected); }, 500);
+    roomSocketService.connect(userId);
+    const interval = setInterval(() => { setIsConnected(roomSocketService.isConnected); }, 500);
     return () => { clearInterval(interval); };
-  }, [enabled, isAuthenticated, userId, spaceSocketService]);
+  }, [enabled, isAuthenticated, userId, roomSocketService]);
 
   useEffect(() => {
     if (!enabled) return;
     const unsubs: Array<() => void> = [];
 
-    unsubs.push(spaceSocketService.onParticipantsUpdate((data) => {
-      if (data.spaceId === spaceId) setParticipants(data.participants);
+    unsubs.push(roomSocketService.onParticipantsUpdate((data) => {
+      if (data.roomId === roomId) setParticipants(data.participants);
     }));
-    unsubs.push(spaceSocketService.onParticipantMute((data) => {
+    unsubs.push(roomSocketService.onParticipantMute((data) => {
       setParticipants((prev) => prev.map((p) => p.userId === data.userId ? { ...p, isMuted: data.isMuted } : p));
       if (data.userId === userId) setIsMuted(data.isMuted);
     }));
-    unsubs.push(spaceSocketService.onSpeakerRequestReceived((data) => {
-      if (data.spaceId === spaceId) {
+    unsubs.push(roomSocketService.onSpeakerRequestReceived((data) => {
+      if (data.roomId === roomId) {
         setSpeakerRequests((prev) => {
           if (prev.some((r) => r.userId === data.userId)) return prev;
           return [...prev, { userId: data.userId, requestedAt: data.timestamp }];
         });
       }
     }));
-    unsubs.push(spaceSocketService.onSpaceEnded((data) => {
-      if (data.spaceId === spaceId) { setIsSpaceEnded(true); setActiveStream(null); }
+    unsubs.push(roomSocketService.onRoomEnded((data) => {
+      if (data.roomId === roomId) { setIsRoomEnded(true); setActiveStream(null); }
     }));
-    unsubs.push(spaceSocketService.onSpeakerRemoved((data) => {
-      if (data.spaceId === spaceId) setIsMuted(true);
+    unsubs.push(roomSocketService.onSpeakerRemoved((data) => {
+      if (data.roomId === roomId) setIsMuted(true);
     }));
-    unsubs.push(spaceSocketService.onStreamStarted((data) => {
-      if (data.spaceId === spaceId) setActiveStream({ title: data.title, image: data.image, description: data.description });
+    unsubs.push(roomSocketService.onStreamStarted((data) => {
+      if (data.roomId === roomId) setActiveStream({ title: data.title, image: data.image, description: data.description });
     }));
-    unsubs.push(spaceSocketService.onStreamStopped((data) => {
-      if (data.spaceId === spaceId) setActiveStream(null);
+    unsubs.push(roomSocketService.onStreamStopped((data) => {
+      if (data.roomId === roomId) setActiveStream(null);
     }));
 
     return () => { unsubs.forEach((fn) => fn()); };
-  }, [enabled, spaceId, userId, spaceSocketService]);
+  }, [enabled, roomId, userId, roomSocketService]);
 
   const join = useCallback(() => {
     if (hasJoined.current) return;
-    spaceSocketService.joinSpace(spaceId, (res) => {
+    roomSocketService.joinRoom(roomId, (res) => {
       if (res.success && res.participants) {
         setParticipants(res.participants);
         hasJoined.current = true;
@@ -98,47 +98,47 @@ export function useSpaceConnection({
         }
       }
     });
-  }, [spaceId, spaceSocketService, introSound]);
+  }, [roomId, roomSocketService, introSound]);
 
   const leave = useCallback(() => {
-    spaceSocketService.leaveSpace(spaceId);
+    roomSocketService.leaveRoom(roomId);
     setParticipants([]);
     hasJoined.current = false;
-  }, [spaceId, spaceSocketService]);
+  }, [roomId, roomSocketService]);
 
   const toggleMute = useCallback(() => {
     const newMuted = !isMuted;
     setIsMuted(newMuted);
-    spaceSocketService.setMute(spaceId, newMuted);
-  }, [spaceId, isMuted, spaceSocketService]);
+    roomSocketService.setMute(roomId, newMuted);
+  }, [roomId, isMuted, roomSocketService]);
 
   const requestToSpeak = useCallback(() => {
     if (myRole === 'speaker' || myRole === 'host') return;
-    spaceSocketService.requestToSpeak(spaceId);
-  }, [spaceId, myRole, spaceSocketService]);
+    roomSocketService.requestToSpeak(roomId);
+  }, [roomId, myRole, roomSocketService]);
 
   const approveSpeaker = useCallback((targetUserId: string) => {
-    spaceSocketService.approveSpeaker(spaceId, targetUserId);
+    roomSocketService.approveSpeaker(roomId, targetUserId);
     setSpeakerRequests((prev) => prev.filter((r) => r.userId !== targetUserId));
-  }, [spaceId, spaceSocketService]);
+  }, [roomId, roomSocketService]);
 
   const denySpeaker = useCallback((targetUserId: string) => {
-    spaceSocketService.denySpeaker(spaceId, targetUserId);
+    roomSocketService.denySpeaker(roomId, targetUserId);
     setSpeakerRequests((prev) => prev.filter((r) => r.userId !== targetUserId));
-  }, [spaceId, spaceSocketService]);
+  }, [roomId, roomSocketService]);
 
   const removeSpeaker = useCallback((targetUserId: string) => {
-    spaceSocketService.removeSpeaker(spaceId, targetUserId);
-  }, [spaceId, spaceSocketService]);
+    roomSocketService.removeSpeaker(roomId, targetUserId);
+  }, [roomId, roomSocketService]);
 
   useEffect(() => {
     return () => {
-      if (hasJoined.current && spaceId) {
-        spaceSocketService.leaveSpace(spaceId);
+      if (hasJoined.current && roomId) {
+        roomSocketService.leaveRoom(roomId);
         hasJoined.current = false;
       }
     };
-  }, [spaceId, spaceSocketService]);
+  }, [roomId, roomSocketService]);
 
-  return { isConnected, participants, myRole, isMuted, speakerRequests, activeStream, join, leave, toggleMute, requestToSpeak, approveSpeaker, denySpeaker, removeSpeaker, isSpaceEnded };
+  return { isConnected, participants, myRole, isMuted, speakerRequests, activeStream, join, leave, toggleMute, requestToSpeak, approveSpeaker, denySpeaker, removeSpeaker, isRoomEnded };
 }

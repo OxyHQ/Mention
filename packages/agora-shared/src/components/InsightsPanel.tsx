@@ -2,12 +2,12 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-import type { Space, SpaceParticipant, SpacesTheme } from '../types';
+import type { Room, RoomParticipant, AgoraTheme } from '../types';
 
 interface InsightsPanelProps {
-  space: Space | null;
-  participants: SpaceParticipant[];
-  theme: SpacesTheme;
+  room: Room | null;
+  participants: RoomParticipant[];
+  theme: AgoraTheme;
   onClose: () => void;
 }
 
@@ -24,11 +24,11 @@ function formatDuration(startedAt: string | undefined): string {
   return `${secs}s`;
 }
 
-export function InsightsPanel({ space, participants, theme, onClose }: InsightsPanelProps) {
+export function InsightsPanel({ room, participants, theme, onClose }: InsightsPanelProps) {
   const speakers = participants.filter((p) => p.role === 'host' || p.role === 'speaker');
   const listeners = participants.filter((p) => p.role === 'listener');
 
-  const duration = useMemo(() => formatDuration(space?.startedAt), [space?.startedAt]);
+  const duration = useMemo(() => formatDuration(room?.startedAt), [room?.startedAt]);
 
   const stats = [
     {
@@ -40,13 +40,13 @@ export function InsightsPanel({ space, participants, theme, onClose }: InsightsP
     {
       icon: 'chart-line' as const,
       label: 'Peak',
-      value: space?.stats?.peakListeners?.toString() ?? '—',
+      value: room?.stats?.peakListeners?.toString() ?? '—',
       color: '#FF9800',
     },
     {
       icon: 'account-plus' as const,
       label: 'Total Joined',
-      value: space?.stats?.totalJoined?.toString() ?? '—',
+      value: room?.stats?.totalJoined?.toString() ?? '—',
       color: '#4CAF50',
     },
     {
@@ -109,11 +109,11 @@ export function InsightsPanel({ space, participants, theme, onClose }: InsightsP
           </View>
         </View>
 
-        {space?.tags && space.tags.length > 0 && (
+        {room?.tags && room.tags.length > 0 && (
           <View style={styles.tagsSection}>
             <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Tags</Text>
             <View style={styles.tagsRow}>
-              {space.tags.map((tag) => (
+              {room.tags.map((tag) => (
                 <View key={tag} style={[styles.tagChip, { backgroundColor: `${theme.colors.primary}1A` }]}>
                   <Text style={[styles.tagText, { color: theme.colors.primary }]}>#{tag}</Text>
                 </View>
@@ -122,19 +122,19 @@ export function InsightsPanel({ space, participants, theme, onClose }: InsightsP
           </View>
         )}
 
-        {space?.startedAt && (
+        {room?.startedAt && (
           <View style={styles.metaSection}>
             <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Details</Text>
             <View style={[styles.metaRow, { backgroundColor: `${theme.colors.card}80`, borderColor: theme.colors.border }]}>
               <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>Started</Text>
               <Text style={[styles.metaValue, { color: theme.colors.text }]}>
-                {new Date(space.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {new Date(room.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
-            {space.topic && (
+            {room.topic && (
               <View style={[styles.metaRow, { backgroundColor: `${theme.colors.card}80`, borderColor: theme.colors.border }]}>
                 <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>Topic</Text>
-                <Text style={[styles.metaValue, { color: theme.colors.text }]} numberOfLines={1}>{space.topic}</Text>
+                <Text style={[styles.metaValue, { color: theme.colors.text }]} numberOfLines={1}>{room.topic}</Text>
               </View>
             )}
           </View>

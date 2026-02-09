@@ -1,1 +1,1 @@
-export { SpaceCard, SpaceCard as default } from '@mention/agora-shared';
+export { RoomCard, RoomCard as default } from '@mention/agora-shared';

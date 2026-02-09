@@ -16,18 +16,18 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '@oxyhq/services';
 import * as ImagePicker from 'expo-image-picker';
 
-import { useAgoraConfig } from '../context/SpacesConfigContext';
+import { useAgoraConfig } from '../context/AgoraConfigContext';
 
 interface StreamConfigModalProps {
   visible: boolean;
   onClose: () => void;
-  spaceId: string;
+  roomId: string;
   onStreamStarted: () => void;
 }
 
 type StreamMode = 'url' | 'rtmp';
 
-export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }: StreamConfigModalProps) {
+export function StreamConfigModal({ visible, onClose, roomId, onStreamStarted }: StreamConfigModalProps) {
   const { useTheme, agoraService, toast } = useAgoraConfig();
   const theme = useTheme();
   const { oxyServices } = useAuth();
@@ -117,7 +117,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
     if (!streamUrl.trim() || loading) return;
     setLoading(true);
     try {
-      const result = await agoraService.startStream(spaceId, {
+      const result = await agoraService.startStream(roomId, {
         url: streamUrl.trim(),
         title: title.trim() || undefined,
         image: imageFileId || undefined,
@@ -142,7 +142,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
     if (generatingKey) return;
     setGeneratingKey(true);
     try {
-      const result = await agoraService.generateStreamKey(spaceId, {
+      const result = await agoraService.generateStreamKey(roomId, {
         title: title.trim() || undefined,
         image: imageFileId || undefined,
         description: description.trim() || undefined,
@@ -169,7 +169,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
     if (loading) return;
     setLoading(true);
     try {
-      const success = await agoraService.updateStreamMetadata(spaceId, {
+      const success = await agoraService.updateStreamMetadata(roomId, {
         title: title.trim() || undefined,
         image: imageFileId || undefined,
         description: description.trim() || undefined,
@@ -307,7 +307,7 @@ export function StreamConfigModal({ visible, onClose, spaceId, onStreamStarted }
                   <View style={styles.infoRow}>
                     <MaterialCommunityIcons name="information" size={16} color={theme.colors.textSecondary} />
                     <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-                      Use these in OBS or your streaming app. Audio will play in the space once you start streaming.
+                      Use these in OBS or your streaming app. Audio will play in the room once you start streaming.
                     </Text>
                   </View>
                 </View>

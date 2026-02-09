@@ -21,10 +21,10 @@ import { Loading } from '@/components/ui/Loading';
 import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useSpaceUsers, getDisplayName, getAvatarUrl } from '@/hooks/useSpaceUsers';
+import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useSpaceUsers';
 import { useUserById } from '@/stores/usersStore';
-import { useLiveSpace } from '@/context/LiveSpaceContext';
-import { spacesService, type Space } from '@/services/spacesService';
+import { useLiveRoom } from '@/context/LiveSpaceContext';
+import { roomsService, type Room } from '@/services/spacesService';
 import { useAuth } from '@oxyhq/services';
 
 // Wrapper to use useUserById hook for each participant
@@ -56,93 +56,93 @@ const HostInfo = ({ hostId, oxyServices, theme }: { hostId: string; oxyServices:
   );
 };
 
-const SpaceDetailScreen = () => {
+const RoomDetailScreen = () => {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, oxyServices } = useAuth();
-  const { joinLiveSpace } = useLiveSpace();
-  const [space, setSpace] = useState<Space | null>(null);
+  const { joinLiveRoom } = useLiveRoom();
+  const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const loadSpace = useCallback(async () => {
+  const loadRoom = useCallback(async () => {
     if (!id) return;
     try {
       setLoading(true);
-      const data = await spacesService.getSpace(id);
-      setSpace(data);
+      const data = await roomsService.getRoom(id);
+      setRoom(data);
       if (data && user?.id) {
         setIsJoined(data.participants?.includes(user.id) ?? false);
       }
     } catch (error) {
-      console.warn('Failed to load space', error);
+      console.warn('Failed to load room', error);
     } finally {
       setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    loadSpace();
-  }, [loadSpace]);
+    loadRoom();
+  }, [loadRoom]);
 
-  const handleStartSpace = async () => {
-    if (!id || !space) return;
+  const handleStartRoom = async () => {
+    if (!id || !room) return;
     setActionLoading(true);
-    const success = await spacesService.startSpace(id);
+    const success = await roomsService.startRoom(id);
     if (success) {
-      joinLiveSpace(id);
+      joinLiveRoom(id);
     } else {
-      toast.error('Failed to start space');
+      toast.error('Failed to start room');
     }
     setActionLoading(false);
   };
 
-  const handleEndSpace = async () => {
-    if (!id || !space) return;
+  const handleEndRoom = async () => {
+    if (!id || !room) return;
     setActionLoading(true);
-    const success = await spacesService.endSpace(id);
+    const success = await roomsService.endRoom(id);
     if (success) {
       router.back();
     } else {
-      toast.error('Failed to end space');
+      toast.error('Failed to end room');
     }
     setActionLoading(false);
   };
 
-  const handleJoinSpace = async () => {
-    if (!id || !space) return;
-    joinLiveSpace(id);
+  const handleJoinRoom = async () => {
+    if (!id || !room) return;
+    joinLiveRoom(id);
   };
 
-  const handleLeaveSpace = async () => {
-    if (!id || !space) return;
+  const handleLeaveRoom = async () => {
+    if (!id || !room) return;
     setActionLoading(true);
-    const success = await spacesService.leaveSpace(id);
+    const success = await roomsService.leaveRoom(id);
     if (success) {
       setIsJoined(false);
-      loadSpace();
+      loadRoom();
     } else {
-      toast.error('Failed to leave space');
+      toast.error('Failed to leave room');
     }
     setActionLoading(false);
   };
 
   // Resolve user IDs to real profiles (must be before conditional return for hooks rules)
-  const allUserIds = [space?.host, ...(space?.participants || []), ...(space?.speakers || [])].filter(Boolean);
-  useSpaceUsers(allUserIds);
+  const allUserIds = [room?.host, ...(room?.participants || []), ...(room?.speakers || [])].filter(Boolean);
+  useRoomUsers(allUserIds);
 
-  const isLive = space?.status === 'live';
-  const isScheduled = space?.status === 'scheduled';
-  const isEnded = space?.status === 'ended';
-  const isHost = space?.host === user?.id;
+  const isLive = room?.status === 'live';
+  const isScheduled = room?.status === 'scheduled';
+  const isEnded = room?.status === 'ended';
+  const isHost = room?.host === user?.id;
 
-  if (loading || !space) {
+  if (loading || !room) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <Header
           options={{
-            title: 'Space',
+            title: 'Room',
             leftComponents: [
               <IconButton variant="icon" key="back" onPress={() => router.back()}>
                 <BackArrowIcon size={20} color={theme.colors.text} />
@@ -159,7 +159,7 @@ const SpaceDetailScreen = () => {
 
   return (
     <>
-      <SEO title={space.title} description={space.description || 'Join this space'} />
+      <SEO title={room.title} description={room.description || 'Join this room'} />
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <Header
           options={{
@@ -203,16 +203,16 @@ const SpaceDetailScreen = () => {
           {/* Title and Description */}
           <View style={styles.headerSection}>
             <ThemedText type="title" style={styles.title}>
-              {space.title}
+              {room.title}
             </ThemedText>
-            {space.topic && (
+            {room.topic && (
               <Text style={[styles.topic, { color: theme.colors.textSecondary }]}>
-                {space.topic}
+                {room.topic}
               </Text>
             )}
-            {space.description && (
+            {room.description && (
               <Text style={[styles.description, { color: theme.colors.text }]}>
-                {space.description}
+                {room.description}
               </Text>
             )}
           </View>
@@ -223,18 +223,18 @@ const SpaceDetailScreen = () => {
               Host
             </ThemedText>
             <View style={styles.hostCard}>
-              <HostInfo hostId={space.host} oxyServices={oxyServices} theme={theme} />
+              <HostInfo hostId={room.host} oxyServices={oxyServices} theme={theme} />
             </View>
           </View>
 
           {/* Participants */}
           <View style={styles.section}>
             <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
-              Participants ({space.participants?.length || 0})
+              Participants ({room.participants?.length || 0})
             </ThemedText>
             <View style={styles.participantsList}>
-              {space.participants?.length > 0 ? (
-                space.participants.slice(0, 10).map((participantId) => (
+              {room.participants?.length > 0 ? (
+                room.participants.slice(0, 10).map((participantId) => (
                   <View key={participantId} style={styles.participantItem}>
                     <ParticipantAvatar userId={participantId} oxyServices={oxyServices} />
                   </View>
@@ -248,13 +248,13 @@ const SpaceDetailScreen = () => {
           </View>
 
           {/* Speakers */}
-          {space.speakers && space.speakers.length > 0 && (
+          {room.speakers && room.speakers.length > 0 && (
             <View style={styles.section}>
               <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
                 Speakers
               </ThemedText>
               <View style={styles.participantsList}>
-                {space.speakers.map((speakerId) => (
+                {room.speakers.map((speakerId) => (
                   <View key={speakerId} style={styles.participantItem}>
                     <ParticipantAvatar userId={speakerId} oxyServices={oxyServices} />
                   </View>
@@ -264,11 +264,11 @@ const SpaceDetailScreen = () => {
           )}
 
           {/* Stats */}
-          {space.stats && (
+          {room.stats && (
             <View style={[styles.statsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
               <View style={styles.statItem}>
                 <ThemedText type="defaultSemiBold" style={styles.statValue}>
-                  {space.stats.peakListeners || 0}
+                  {room.stats.peakListeners || 0}
                 </ThemedText>
                 <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                   Peak listeners
@@ -277,7 +277,7 @@ const SpaceDetailScreen = () => {
               <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
               <View style={styles.statItem}>
                 <ThemedText type="defaultSemiBold" style={styles.statValue}>
-                  {space.stats.totalJoined || 0}
+                  {room.stats.totalJoined || 0}
                 </ThemedText>
                 <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                   Total joined
@@ -292,7 +292,7 @@ const SpaceDetailScreen = () => {
           {isLive && (
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-              onPress={() => joinLiveSpace(id)}
+              onPress={() => joinLiveRoom(id)}
               disabled={actionLoading}
             >
               <Ionicons name="radio" size={20} color={theme.colors.card} />
@@ -304,12 +304,12 @@ const SpaceDetailScreen = () => {
           {isHost && isScheduled && (
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-              onPress={handleStartSpace}
+              onPress={handleStartRoom}
               disabled={actionLoading}
             >
               <Ionicons name="play" size={20} color={theme.colors.card} />
               <Text style={[styles.primaryButtonText, { color: theme.colors.card }]}>
-                Start Space
+                Start Room
               </Text>
             </TouchableOpacity>
           )}
@@ -317,18 +317,18 @@ const SpaceDetailScreen = () => {
             <View style={[styles.infoButton, { backgroundColor: theme.colors.backgroundSecondary }]}>
               <Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} />
               <Text style={[styles.infoButtonText, { color: theme.colors.textSecondary }]}>
-                Space not started yet
+                Room not started yet
               </Text>
             </View>
           )}
           {isHost && isLive && (
             <TouchableOpacity
               style={[styles.dangerButton, { backgroundColor: '#FF4458' }]}
-              onPress={handleEndSpace}
+              onPress={handleEndRoom}
               disabled={actionLoading}
             >
               <Ionicons name="stop" size={20} color="#FFFFFF" />
-              <Text style={styles.dangerButtonText}>End Space</Text>
+              <Text style={styles.dangerButtonText}>End Room</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -500,4 +500,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SpaceDetailScreen;
+export default RoomDetailScreen;

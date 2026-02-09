@@ -1,9 +1,9 @@
 import React from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
-import SpaceCard from '@/components/SpaceCard';
+import RoomCard from '@/components/SpaceCard';
 
-interface PostAttachmentSpaceProps {
-  spaceId: string;
+interface PostAttachmentRoomProps {
+  roomId: string;
   title: string;
   status?: 'scheduled' | 'live' | 'ended';
   topic?: string;
@@ -12,8 +12,8 @@ interface PostAttachmentSpaceProps {
   style?: StyleProp<ViewStyle>;
 }
 
-const PostAttachmentSpace: React.FC<PostAttachmentSpaceProps> = ({
-  spaceId,
+const PostAttachmentRoom: React.FC<PostAttachmentRoomProps> = ({
+  roomId,
   title,
   status,
   topic,
@@ -22,9 +22,9 @@ const PostAttachmentSpace: React.FC<PostAttachmentSpaceProps> = ({
   style,
 }) => {
   return (
-    <SpaceCard
+    <RoomCard
       space={{
-        _id: spaceId,
+        _id: roomId,
         title,
         status: status || 'scheduled',
         topic,
@@ -38,4 +38,4 @@ const PostAttachmentSpace: React.FC<PostAttachmentSpaceProps> = ({
   );
 };
 
-export default PostAttachmentSpace;
+export default PostAttachmentRoom;

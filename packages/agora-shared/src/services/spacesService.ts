@@ -2,6 +2,7 @@ import type { Room, HttpClient } from '../types';
 import { validateRooms, validateRoom, ZStartStreamResponse, ZGenerateStreamKeyResponse } from '../validation';
 
 export interface CreateRoomData {
+  [key: string]: unknown;
   title: string;
   description?: string;
   topic?: string;
@@ -43,7 +44,7 @@ export function createAgoraService(httpClient: HttpClient) {
 
     async createRoom(data: CreateRoomData): Promise<Room | null> {
       try {
-        const res = await httpClient.post("/rooms", data as Record<string, unknown>);
+        const res = await httpClient.post("/rooms", data);
         const raw = res.data.room || res.data.data || res.data || null;
         return raw ? validateRoom(raw) : null;
       } catch (error) {

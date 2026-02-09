@@ -34,6 +34,12 @@ export interface IHouse extends Document {
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
+
+  // Methods
+  hasRole(userId: string, minRole: HouseMemberRole): boolean;
+  getMemberRole(userId: string): HouseMemberRole | null;
+  isMember(userId: string): boolean;
+  canCreateRoom(userId: string): boolean;
 }
 
 // --- Schema ---
@@ -130,7 +136,7 @@ HouseSchema.methods.hasRole = function(userId: string, minRole: HouseMemberRole)
   const member = this.members.find((m: IHouseMember) => m.userId === userId);
   if (!member) return false;
 
-  return hierarchy[member.role] >= hierarchy[minRole];
+  return hierarchy[member.role as HouseMemberRole] >= hierarchy[minRole];
 };
 
 /**

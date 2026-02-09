@@ -11,21 +11,21 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '@oxyhq/services';
 
-import { useAgoraConfig } from '../context/SpacesConfigContext';
-import { MiniSpaceBar } from './MiniSpaceBar';
+import { useAgoraConfig } from '../context/AgoraConfigContext';
+import { MiniRoomBar } from './MiniRoomBar';
 import { StreamConfigPanel } from './StreamConfigPanel';
 import { InsightsPanel } from './InsightsPanel';
-import { useSpaceConnection } from '../hooks/useSpaceConnection';
-import { useSpaceAudio } from '../hooks/useSpaceAudio';
-import { useSpaceUsers, getDisplayName, getAvatarUrl } from '../hooks/useSpaceUsers';
-import type { SpaceParticipant, Space, StreamInfo, UserEntity, SpacesTheme } from '../types';
+import { useRoomConnection } from '../hooks/useRoomConnection';
+import { useRoomAudio } from '../hooks/useRoomAudio';
+import { useRoomUsers, getDisplayName, getAvatarUrl } from '../hooks/useRoomUsers';
+import type { RoomParticipant, Room, StreamInfo, UserEntity, AgoraTheme } from '../types';
 
 type ActivePanel = null | 'stream' | 'insights';
 
 type AvatarComponentType = React.ComponentType<{ size: number; source?: string; shape?: string; style?: ViewStyle }>;
 type CachedFileDownloadUrlSyncFn = (oxyServices: unknown, fileId: string, variant?: string) => string;
 
-const RoleBadge = ({ role, theme }: { role: string; theme: SpacesTheme }) => {
+const RoleBadge = ({ role, theme }: { role: string; theme: AgoraTheme }) => {
   if (role === 'host') {
     return (
       <View style={[styles.roleBadge, { backgroundColor: theme.colors.primary }]}>
@@ -52,9 +52,9 @@ const SpeakerTile = ({
   AvatarComponent,
   getCachedFileDownloadUrlSync,
 }: {
-  participant: SpaceParticipant;
+  participant: RoomParticipant;
   isCurrentUser: boolean;
-  theme: SpacesTheme;
+  theme: AgoraTheme;
   userProfile: UserEntity | undefined;
   oxyServices: unknown;
   AvatarComponent: AvatarComponentType;
@@ -96,7 +96,7 @@ const ListenerAvatar = ({
   AvatarComponent,
   getCachedFileDownloadUrlSync,
 }: {
-  participant: SpaceParticipant;
+  participant: RoomParticipant;
   userProfile: UserEntity | undefined;
   oxyServices: unknown;
   AvatarComponent: AvatarComponentType;
@@ -110,7 +110,7 @@ const ListenerAvatar = ({
 };
 
 const ConnectedSpeakerTile = ({ participant, isCurrentUser, theme, oxyServices, AvatarComponent, getCachedFileDownloadUrlSync, useUserById }: {
-  participant: SpaceParticipant; isCurrentUser: boolean; theme: SpacesTheme; oxyServices: unknown;
+  participant: RoomParticipant; isCurrentUser: boolean; theme: AgoraTheme; oxyServices: unknown;
   AvatarComponent: AvatarComponentType; getCachedFileDownloadUrlSync: CachedFileDownloadUrlSyncFn; useUserById: (id: string | undefined) => UserEntity | undefined;
 }) => {
   const userProfile = useUserById(participant.userId);
@@ -118,7 +118,7 @@ const ConnectedSpeakerTile = ({ participant, isCurrentUser, theme, oxyServices, 
 };
 
 const ConnectedListenerAvatar = ({ participant, oxyServices, AvatarComponent, getCachedFileDownloadUrlSync, useUserById }: {
-  participant: SpaceParticipant; oxyServices: unknown;
+  participant: RoomParticipant; oxyServices: unknown;
   AvatarComponent: AvatarComponentType; getCachedFileDownloadUrlSync: CachedFileDownloadUrlSyncFn; useUserById: (id: string | undefined) => UserEntity | undefined;
 }) => {
   const userProfile = useUserById(participant.userId);
@@ -126,7 +126,7 @@ const ConnectedListenerAvatar = ({ participant, oxyServices, AvatarComponent, ge
 };
 
 const ConnectedRequestRow = ({ request, theme, oxyServices, onApprove, onDeny, AvatarComponent, getCachedFileDownloadUrlSync, useUserById }: {
-  request: { userId: string; requestedAt: string }; theme: SpacesTheme; oxyServices: unknown;
+  request: { userId: string; requestedAt: string }; theme: AgoraTheme; oxyServices: unknown;
   onApprove: (userId: string) => void; onDeny: (userId: string) => void;
   AvatarComponent: AvatarComponentType; getCachedFileDownloadUrlSync: CachedFileDownloadUrlSyncFn; useUserById: (id: string | undefined) => UserEntity | undefined;
 }) => {
@@ -150,25 +150,25 @@ const ConnectedRequestRow = ({ request, theme, oxyServices, onApprove, onDeny, A
   );
 };
 
-interface LiveSpaceSheetProps {
-  spaceId: string;
+interface LiveRoomSheetProps {
+  roomId: string;
   isExpanded: boolean;
   onCollapse: () => void;
   onExpand: () => void;
   onLeave: () => void;
 }
 
-export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLeave }: LiveSpaceSheetProps) {
+export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeave }: LiveRoomSheetProps) {
   const { useTheme, useUserById, AvatarComponent, agoraService, toast, getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } = useAgoraConfig();
   const theme = useTheme();
   const { user, oxyServices } = useAuth();
-  const [space, setSpace] = useState<Space | null>(null);
+  const [room, setRoom] = useState<Room | null>(null);
 
   useEffect(() => {
-    if (spaceId) {
-      agoraService.getSpace(spaceId).then(setSpace);
+    if (roomId) {
+      agoraService.getRoom(roomId).then(setRoom);
     }
-  }, [spaceId]);
+  }, [roomId]);
 
   const {
     isConnected,
@@ -183,43 +183,43 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
     requestToSpeak,
     approveSpeaker,
     denySpeaker,
-    isSpaceEnded,
-  } = useSpaceConnection({ spaceId, enabled: !!spaceId });
+    isRoomEnded,
+  } = useRoomConnection({ roomId, enabled: !!roomId });
 
-  const { isLiveKitConnected, micPermissionDenied } = useSpaceAudio({
-    spaceId,
+  const { isLiveKitConnected, micPermissionDenied } = useRoomAudio({
+    roomId,
     isSpeaker: myRole === 'speaker' || myRole === 'host',
     isMuted,
     isConnected,
   });
 
   useEffect(() => {
-    if (isConnected && spaceId) {
+    if (isConnected && roomId) {
       join();
     }
-  }, [isConnected, spaceId, join]);
+  }, [isConnected, roomId, join]);
 
   useEffect(() => {
-    if (isSpaceEnded) {
-      toast('Space ended');
+    if (isRoomEnded) {
+      toast('Room ended');
       leave();
       onLeave();
     }
-  }, [isSpaceEnded]);
+  }, [isRoomEnded]);
 
   const handleLeave = () => {
     leave();
     onLeave();
   };
 
-  const handleEndSpace = async () => {
-    if (!spaceId) return;
-    const success = await agoraService.endSpace(spaceId);
+  const handleEndRoom = async () => {
+    if (!roomId) return;
+    const success = await agoraService.endRoom(roomId);
     if (success) {
       leave();
       onLeave();
     } else {
-      toast.error('Failed to end space');
+      toast.error('Failed to end room');
     }
   };
 
@@ -227,8 +227,8 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   const [streamLoading, setStreamLoading] = useState(false);
 
   const effectiveStream: StreamInfo | null = activeStream
-    ?? (space?.streamTitle || space?.activeStreamUrl
-      ? { title: space.streamTitle, image: space.streamImage, description: space.streamDescription }
+    ?? (room?.streamTitle || room?.activeStreamUrl
+      ? { title: room.streamTitle, image: room.streamImage, description: room.streamDescription }
       : null);
 
   const [streamImageUrl, setStreamImageUrl] = useState<string | null>(null);
@@ -241,10 +241,10 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   }, [effectiveStream?.image, oxyServices]);
 
   const handleStopStream = async () => {
-    if (!spaceId || streamLoading) return;
+    if (!roomId || streamLoading) return;
     setStreamLoading(true);
     try {
-      const success = await agoraService.stopStream(spaceId);
+      const success = await agoraService.stopStream(roomId);
       if (success) {
         toast.success('Stream stopped');
       } else {
@@ -258,7 +258,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   };
 
   const participantIds = useMemo(() => participants.map((p) => p.userId), [participants]);
-  useSpaceUsers(participantIds);
+  useRoomUsers(participantIds);
 
   const speakers = participants.filter(
     (p) => p.role === 'host' || p.role === 'speaker'
@@ -266,13 +266,13 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   const listeners = participants.filter((p) => p.role === 'listener');
 
   const userId = user?.id;
-  const isHost = myRole === 'host' || (!!userId && space?.host === userId);
+  const isHost = myRole === 'host' || (!!userId && room?.host === userId);
   const canSpeak = myRole === 'host' || myRole === 'speaker';
 
   if (!isExpanded) {
     return (
-      <MiniSpaceBar
-        title={space?.title || 'Space'}
+      <MiniRoomBar
+        title={room?.title || 'Room'}
         participantCount={participants.length}
         isMuted={isMuted}
         canSpeak={canSpeak}
@@ -286,10 +286,10 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   if (activePanel === 'stream') {
     return (
       <StreamConfigPanel
-        spaceId={spaceId}
+        roomId={roomId}
         onClose={() => setActivePanel(null)}
         onStreamStarted={() => {
-          agoraService.getSpace(spaceId).then(setSpace);
+          agoraService.getRoom(roomId).then(setRoom);
           setActivePanel(null);
         }}
       />
@@ -299,7 +299,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   if (activePanel === 'insights') {
     return (
       <InsightsPanel
-        space={space}
+        room={room}
         participants={participants}
         theme={theme}
         onClose={() => setActivePanel(null)}
@@ -326,20 +326,20 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
 
         <View style={styles.headerRight}>
           {isHost && (
-            <TouchableOpacity onPress={handleEndSpace} style={styles.endButton}>
+            <TouchableOpacity onPress={handleEndRoom} style={styles.endButton}>
               <Text style={styles.endButtonText}>End</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      <View style={styles.spaceInfo}>
-        <Text style={[styles.spaceTitle, { color: theme.colors.text }]} numberOfLines={2}>
-          {space?.title || 'Space'}
+      <View style={styles.roomInfo}>
+        <Text style={[styles.roomTitle, { color: theme.colors.text }]} numberOfLines={2}>
+          {room?.title || 'Room'}
         </Text>
-        {space?.topic && (
-          <Text style={[styles.spaceTopic, { color: theme.colors.textSecondary }]}>
-            {space.topic}
+        {room?.topic && (
+          <Text style={[styles.roomTopic, { color: theme.colors.textSecondary }]}>
+            {room.topic}
           </Text>
         )}
       </View>
@@ -560,9 +560,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF44581A',
   },
   endButtonText: { fontSize: 15, fontWeight: '600', color: '#FF4458' },
-  spaceInfo: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  spaceTitle: { fontSize: 32, fontWeight: 'bold', lineHeight: 38 },
-  spaceTopic: { fontSize: 14, marginTop: 4 },
+  roomInfo: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  roomTitle: { fontSize: 32, fontWeight: 'bold', lineHeight: 38 },
+  roomTopic: { fontSize: 14, marginTop: 4 },
   micBanner: {
     flexDirection: 'row',
     alignItems: 'center',

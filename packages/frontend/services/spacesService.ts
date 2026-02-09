@@ -1,6 +1,6 @@
 import { authenticatedClient } from "@/utils/api";
 
-export interface Space {
+export interface Room {
   _id: string;
   id?: string;
   title: string;
@@ -24,83 +24,88 @@ export interface Space {
   streamDescription?: string;
   rtmpUrl?: string;
   rtmpStreamKey?: string;
+  type?: 'talk' | 'stage' | 'broadcast';
+  ownerType?: 'profile' | 'house' | 'agora';
+  broadcastKind?: 'user' | 'agora';
+  houseId?: string;
+  seriesId?: string;
   createdAt: string;
 }
 
-class SpacesService {
-  async getSpaces(status?: string): Promise<Space[]> {
+class RoomsService {
+  async getRooms(status?: string): Promise<Room[]> {
     try {
       const params: any = {};
       if (status) params.status = status;
-      const res = await authenticatedClient.get("/spaces", { params });
-      return res.data.spaces || res.data.data || res.data || [];
+      const res = await authenticatedClient.get("/rooms", { params });
+      return res.data.rooms || res.data.data || res.data || [];
     } catch (error) {
-      console.warn("Failed to fetch spaces", error);
+      console.warn("Failed to fetch rooms", error);
       return [];
     }
   }
 
-  async getSpace(id: string): Promise<Space | null> {
+  async getRoom(id: string): Promise<Room | null> {
     if (!id) return null;
     try {
-      const res = await authenticatedClient.get(`/spaces/${id}`);
-      return res.data.space || res.data.data || res.data || null;
+      const res = await authenticatedClient.get(`/rooms/${id}`);
+      return res.data.room || res.data.data || res.data || null;
     } catch (error) {
-      console.warn("Failed to fetch space", error);
+      console.warn("Failed to fetch room", error);
       return null;
     }
   }
 
-  async createSpace(data: { title: string; description?: string; topic?: string; scheduledStart?: string; speakerPermission?: 'everyone' | 'followers' | 'invited' }): Promise<Space | null> {
+  async createRoom(data: { title: string; description?: string; topic?: string; scheduledStart?: string; speakerPermission?: 'everyone' | 'followers' | 'invited' }): Promise<Room | null> {
     try {
-      const res = await authenticatedClient.post("/spaces", data);
-      return res.data.space || res.data.data || res.data || null;
+      const res = await authenticatedClient.post("/rooms", data);
+      return res.data.room || res.data.data || res.data || null;
     } catch (error) {
-      console.warn("Failed to create space", error);
+      console.warn("Failed to create room", error);
       return null;
     }
   }
 
-  async startSpace(id: string): Promise<boolean> {
+  async startRoom(id: string): Promise<boolean> {
     if (!id) return false;
     try {
-      await authenticatedClient.post(`/spaces/${id}/start`);
+      await authenticatedClient.post(`/rooms/${id}/start`);
       return true;
     } catch (error) {
-      console.warn("Failed to start space", error);
+      console.warn("Failed to start room", error);
       return false;
     }
   }
 
-  async endSpace(id: string): Promise<boolean> {
+  async endRoom(id: string): Promise<boolean> {
     if (!id) return false;
     try {
-      await authenticatedClient.post(`/spaces/${id}/end`);
+      await authenticatedClient.post(`/rooms/${id}/end`);
       return true;
     } catch (error) {
-      console.warn("Failed to end space", error);
+      console.warn("Failed to end room", error);
       return false;
     }
   }
 
-  async joinSpace(id: string): Promise<boolean> {
+  async joinRoom(id: string): Promise<boolean> {
     if (!id) return false;
     try {
-      await authenticatedClient.post(`/spaces/${id}/join`);
+      await authenticatedClient.post(`/rooms/${id}/join`);
       return true;
     } catch (error) {
-      console.warn("Failed to join space", error);
+      console.warn("Failed to join room", error);
       return false;
     }
   }
 
-  async leaveSpace(id: string): Promise<boolean> {
+  async leaveRoom(id: string): Promise<boolean> {
     if (!id) return false;
     try {
-      await authenticatedClient.post(`/spaces/${id}/leave`);
+      await authenticatedClient.post(`/rooms/${id}/leave`);
       return true;
     } catch (error) {
-      console.warn("Failed to leave space", error);
+      console.warn("Failed to leave room", error);
       return false;
     }
   }
@@ -108,7 +113,7 @@ class SpacesService {
   async startStream(id: string, data: { url: string; title?: string; image?: string; description?: string }): Promise<{ ingressId: string; url: string } | null> {
     if (!id) return null;
     try {
-      const res = await authenticatedClient.post(`/spaces/${id}/stream`, data);
+      const res = await authenticatedClient.post(`/rooms/${id}/stream`, data);
       return res.data;
     } catch (error) {
       console.warn("Failed to start stream", error);
@@ -118,14 +123,14 @@ class SpacesService {
 
   async generateStreamKey(id: string, data?: { title?: string; image?: string; description?: string }): Promise<{ rtmpUrl: string; streamKey: string } | null> {
     if (!id) return null;
-    const res = await authenticatedClient.post(`/spaces/${id}/stream/rtmp`, data || {});
+    const res = await authenticatedClient.post(`/rooms/${id}/stream/rtmp`, data || {});
     return res.data;
   }
 
   async updateStreamMetadata(id: string, data: { title?: string; image?: string; description?: string }): Promise<boolean> {
     if (!id) return false;
     try {
-      await authenticatedClient.patch(`/spaces/${id}/stream`, data);
+      await authenticatedClient.patch(`/rooms/${id}/stream`, data);
       return true;
     } catch (error) {
       console.warn("Failed to update stream metadata", error);
@@ -136,7 +141,7 @@ class SpacesService {
   async stopStream(id: string): Promise<boolean> {
     if (!id) return false;
     try {
-      await authenticatedClient.delete(`/spaces/${id}/stream`);
+      await authenticatedClient.delete(`/rooms/${id}/stream`);
       return true;
     } catch (error) {
       console.warn("Failed to stop stream", error);
@@ -145,4 +150,4 @@ class SpacesService {
   }
 }
 
-export const spacesService = new SpacesService();
+export const roomsService = new RoomsService();

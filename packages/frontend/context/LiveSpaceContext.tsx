@@ -1,1 +1,1 @@
-export { LiveSpaceProvider, useLiveSpace } from '@mention/agora-shared';
+export { LiveRoomProvider, useLiveRoom } from '@mention/agora-shared';

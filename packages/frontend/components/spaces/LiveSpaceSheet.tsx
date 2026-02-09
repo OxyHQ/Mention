@@ -1,1 +1,1 @@
-export { LiveSpaceSheet } from '@mention/agora-shared';
+export { LiveRoomSheet } from '@mention/agora-shared';

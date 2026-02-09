@@ -1,9 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@oxyhq/services';
-import { useAgoraConfig } from '../context/SpacesConfigContext';
+import { useAgoraConfig } from '../context/AgoraConfigContext';
 import type { UserEntity } from '../types';
 
-export function useSpaceUsers(userIds: string[]) {
+export function useRoomUsers(userIds: string[]) {
   const { oxyServices } = useAuth();
   const { ensureUserById } = useAgoraConfig();
   const resolvedRef = useRef<Set<string>>(new Set());

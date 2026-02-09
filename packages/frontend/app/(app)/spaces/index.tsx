@@ -16,39 +16,39 @@ import { ThemedText } from '@/components/ThemedText';
 import { Agora as SpacesIcon } from '@mention/agora-shared';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
-import SpaceCard from '@/components/SpaceCard';
+import RoomCard from '@/components/SpaceCard';
 import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useSpaceUsers } from '@/hooks/useSpaceUsers';
-import { useLiveSpace } from '@/context/LiveSpaceContext';
-import { spacesService, type Space } from '@/services/spacesService';
+import { useRoomUsers } from '@/hooks/useSpaceUsers';
+import { useLiveRoom } from '@/context/LiveSpaceContext';
+import { roomsService, type Room } from '@/services/spacesService';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 
-const CreateSpaceSheet = lazy(() => import('@/components/spaces/CreateSpaceSheet'));
+const CreateRoomSheet = lazy(() => import('@/components/spaces/CreateSpaceSheet'));
 
 const SpacesScreen = () => {
   const { isAuthenticated } = useAuth();
   const theme = useTheme();
   const bottomSheet = useContext(BottomSheetContext);
-  const { joinLiveSpace } = useLiveSpace();
-  const [liveSpaces, setLiveSpaces] = useState<Space[]>([]);
-  const [scheduledSpaces, setScheduledSpaces] = useState<Space[]>([]);
+  const { joinLiveRoom } = useLiveRoom();
+  const [liveRooms, setLiveRooms] = useState<Room[]>([]);
+  const [scheduledRooms, setScheduledRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadSpaces = useCallback(async () => {
+  const loadRooms = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
       setLoading(true);
       const [live, scheduled] = await Promise.all([
-        spacesService.getSpaces('live'),
-        spacesService.getSpaces('scheduled'),
+        roomsService.getRooms('live'),
+        roomsService.getRooms('scheduled'),
       ]);
-      setLiveSpaces(live);
-      setScheduledSpaces(scheduled);
+      setLiveRooms(live);
+      setScheduledRooms(scheduled);
     } catch (error) {
-      console.warn('Failed to load spaces', error);
+      console.warn('Failed to load rooms', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -56,37 +56,37 @@ const SpacesScreen = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    loadSpaces();
-  }, [loadSpaces]);
+    loadRooms();
+  }, [loadRooms]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadSpaces();
-  }, [loadSpaces]);
+    loadRooms();
+  }, [loadRooms]);
 
   const openCreateSheet = useCallback(() => {
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
-        <CreateSpaceSheet
+        <CreateRoomSheet
           onClose={() => bottomSheet.openBottomSheet(false)}
           mode="standalone"
-          onSpaceCreated={(space) => {
-            if (!space.scheduledStart) {
-              joinLiveSpace(space._id);
+          onSpaceCreated={(room) => {
+            if (!room.scheduledStart) {
+              joinLiveRoom(room._id);
             }
-            loadSpaces();
+            loadRooms();
           }}
         />
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, joinLiveSpace, loadSpaces]);
+  }, [bottomSheet, joinLiveRoom, loadRooms]);
 
   // Resolve all host IDs to user profiles
-  const allHostIds = [...liveSpaces, ...scheduledSpaces].map((s) => s.host).filter(Boolean);
-  useSpaceUsers(allHostIds);
+  const allHostIds = [...liveRooms, ...scheduledRooms].map((r) => r.host).filter(Boolean);
+  useRoomUsers(allHostIds);
 
-  const hasSpaces = liveSpaces.length > 0 || scheduledSpaces.length > 0;
+  const hasRooms = liveRooms.length > 0 || scheduledRooms.length > 0;
 
   return (
     <>
@@ -121,20 +121,20 @@ const SpacesScreen = () => {
           }
           contentContainerStyle={styles.scrollContent}
         >
-          {!loading && !hasSpaces ? (
+          {!loading && !hasRooms ? (
             <EmptyState
-              title="No spaces available"
-              subtitle="Create a space to start a live audio conversation or schedule one for later"
+              title="No rooms available"
+              subtitle="Create a room to start a live audio conversation or schedule one for later"
               customIcon={<SpacesIcon size={48} color={theme.colors.textSecondary} />}
               action={{
-                label: 'Create Space',
+                label: 'Create Room',
                 onPress: openCreateSheet,
               }}
               containerStyle={styles.emptyState}
             />
           ) : (
             <>
-              {liveSpaces.length > 0 && (
+              {liveRooms.length > 0 && (
                 <View style={styles.section}>
                   <View style={styles.sectionHeader}>
                     <View style={[styles.sectionIcon, { backgroundColor: '#FF4458' }]}>
@@ -147,17 +147,17 @@ const SpacesScreen = () => {
                       </Text>
                     </View>
                   </View>
-                  {liveSpaces.map((space) => (
-                    <SpaceCard
-                      key={space._id}
-                      space={space}
-                      onPress={() => joinLiveSpace(space._id)}
+                  {liveRooms.map((room) => (
+                    <RoomCard
+                      key={room._id}
+                      space={room}
+                      onPress={() => joinLiveRoom(room._id)}
                     />
                   ))}
                 </View>
               )}
 
-              {scheduledSpaces.length > 0 && (
+              {scheduledRooms.length > 0 && (
                 <View style={styles.section}>
                   <View style={styles.sectionHeader}>
                     <View style={[styles.sectionIcon, { backgroundColor: theme.colors.primary }]}>
@@ -166,15 +166,15 @@ const SpacesScreen = () => {
                     <View style={{ flex: 1 }}>
                       <ThemedText type="subtitle">Upcoming</ThemedText>
                       <Text style={[styles.sectionSubtitle, { color: theme.colors.textSecondary }]}>
-                        Scheduled spaces
+                        Scheduled rooms
                       </Text>
                     </View>
                   </View>
-                  {scheduledSpaces.map((space) => (
-                    <SpaceCard
-                      key={space._id}
-                      space={space}
-                      onPress={() => router.push(`/spaces/${space._id}`)}
+                  {scheduledRooms.map((room) => (
+                    <RoomCard
+                      key={room._id}
+                      space={room}
+                      onPress={() => router.push(`/spaces/${room._id}`)}
                     />
                   ))}
                 </View>

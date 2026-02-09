@@ -2,7 +2,7 @@ import { API_URL_SOCKET } from '@/config';
 import { io, Socket } from 'socket.io-client';
 
 // TypeScript interfaces
-export interface SpaceParticipant {
+export interface RoomParticipant {
   userId: string;
   role: 'host' | 'speaker' | 'listener';
   isMuted: boolean;
@@ -10,8 +10,8 @@ export interface SpaceParticipant {
 }
 
 export interface ParticipantsUpdateData {
-  spaceId: string;
-  participants: SpaceParticipant[];
+  roomId: string;
+  participants: RoomParticipant[];
   count: number;
   timestamp: string;
 }
@@ -23,7 +23,7 @@ export interface MuteUpdateData {
 }
 
 export interface SpeakerRequestData {
-  spaceId: string;
+  roomId: string;
   userId: string;
   timestamp: string;
 }
@@ -31,9 +31,9 @@ export interface SpeakerRequestData {
 type ParticipantsUpdateCallback = (data: ParticipantsUpdateData) => void;
 type MuteUpdateCallback = (data: MuteUpdateData) => void;
 type SpeakerRequestCallback = (data: SpeakerRequestData) => void;
-type SimpleSpaceCallback = (data: { spaceId: string; timestamp?: string }) => void;
+type SimpleRoomCallback = (data: { roomId: string; timestamp?: string }) => void;
 
-class SpaceSocketService {
+export class RoomSocketService {
   private socket: Socket | null = null;
   private _isConnected = false;
 
@@ -46,7 +46,7 @@ class SpaceSocketService {
 
     const baseUrl = API_URL_SOCKET || 'ws://localhost:3000';
 
-    this.socket = io(`${baseUrl}/spaces`, {
+    this.socket = io(`${baseUrl}/rooms`, {
       transports: ['websocket', 'polling'],
       auth: token ? { token, userId } : { userId },
       autoConnect: true,
@@ -64,7 +64,7 @@ class SpaceSocketService {
     });
 
     this.socket.on('connect_error', (err) => {
-      console.warn('Space socket connect error:', err.message);
+      console.warn('Room socket connect error:', err.message);
     });
   }
 
@@ -79,52 +79,52 @@ class SpaceSocketService {
 
   // --- Emit methods ---
 
-  joinSpace(
-    spaceId: string,
+  joinRoom(
+    roomId: string,
     callback?: (res: {
       success: boolean;
-      participants?: SpaceParticipant[];
+      participants?: RoomParticipant[];
       myRole?: string;
       error?: string;
     }) => void
   ): void {
-    this.socket?.emit('space:join', { spaceId }, callback);
+    this.socket?.emit('room:join', { roomId }, callback);
   }
 
-  leaveSpace(spaceId: string): void {
-    this.socket?.emit('space:leave', { spaceId });
+  leaveRoom(roomId: string): void {
+    this.socket?.emit('room:leave', { roomId });
   }
 
-  setMute(spaceId: string, isMuted: boolean): void {
-    this.socket?.emit('audio:mute', { spaceId, isMuted });
+  setMute(roomId: string, isMuted: boolean): void {
+    this.socket?.emit('audio:mute', { roomId, isMuted });
   }
 
-  requestToSpeak(spaceId: string): void {
-    this.socket?.emit('speaker:request', { spaceId });
+  requestToSpeak(roomId: string): void {
+    this.socket?.emit('speaker:request', { roomId });
   }
 
-  approveSpeaker(spaceId: string, targetUserId: string): void {
-    this.socket?.emit('speaker:approve', { spaceId, targetUserId });
+  approveSpeaker(roomId: string, targetUserId: string): void {
+    this.socket?.emit('speaker:approve', { roomId, targetUserId });
   }
 
-  denySpeaker(spaceId: string, targetUserId: string): void {
-    this.socket?.emit('speaker:deny', { spaceId, targetUserId });
+  denySpeaker(roomId: string, targetUserId: string): void {
+    this.socket?.emit('speaker:deny', { roomId, targetUserId });
   }
 
-  removeSpeaker(spaceId: string, targetUserId: string): void {
-    this.socket?.emit('speaker:remove', { spaceId, targetUserId });
+  removeSpeaker(roomId: string, targetUserId: string): void {
+    this.socket?.emit('speaker:remove', { roomId, targetUserId });
   }
 
   // --- Listener registration methods (return unsubscribe fn) ---
 
   onParticipantsUpdate(cb: ParticipantsUpdateCallback): () => void {
-    this.socket?.on('space:participants:update', cb);
-    return () => { this.socket?.off('space:participants:update', cb); };
+    this.socket?.on('room:participants:update', cb);
+    return () => { this.socket?.off('room:participants:update', cb); };
   }
 
   onParticipantMute(cb: MuteUpdateCallback): () => void {
-    this.socket?.on('space:participant:mute', cb);
-    return () => { this.socket?.off('space:participant:mute', cb); };
+    this.socket?.on('room:participant:mute', cb);
+    return () => { this.socket?.off('room:participant:mute', cb); };
   }
 
   onSpeakerRequestReceived(cb: SpeakerRequestCallback): () => void {
@@ -132,51 +132,51 @@ class SpaceSocketService {
     return () => { this.socket?.off('speaker:request:received', cb); };
   }
 
-  onSpeakerApproved(cb: SimpleSpaceCallback): () => void {
+  onSpeakerApproved(cb: SimpleRoomCallback): () => void {
     this.socket?.on('speaker:approved', cb);
     return () => { this.socket?.off('speaker:approved', cb); };
   }
 
-  onSpeakerDenied(cb: SimpleSpaceCallback): () => void {
+  onSpeakerDenied(cb: SimpleRoomCallback): () => void {
     this.socket?.on('speaker:denied', cb);
     return () => { this.socket?.off('speaker:denied', cb); };
   }
 
-  onSpeakerRemoved(cb: SimpleSpaceCallback): () => void {
+  onSpeakerRemoved(cb: SimpleRoomCallback): () => void {
     this.socket?.on('speaker:removed', cb);
     return () => { this.socket?.off('speaker:removed', cb); };
   }
 
-  onSpaceStarted(cb: SimpleSpaceCallback): () => void {
-    this.socket?.on('space:started', cb);
-    return () => { this.socket?.off('space:started', cb); };
+  onRoomStarted(cb: SimpleRoomCallback): () => void {
+    this.socket?.on('room:started', cb);
+    return () => { this.socket?.off('room:started', cb); };
   }
 
-  onSpaceEnded(cb: SimpleSpaceCallback): () => void {
-    this.socket?.on('space:ended', cb);
-    return () => { this.socket?.off('space:ended', cb); };
+  onRoomEnded(cb: SimpleRoomCallback): () => void {
+    this.socket?.on('room:ended', cb);
+    return () => { this.socket?.off('room:ended', cb); };
   }
 
-  onUserJoined(cb: (data: { userId: string; role: string; spaceId: string }) => void): () => void {
-    this.socket?.on('space:user:joined', cb);
-    return () => { this.socket?.off('space:user:joined', cb); };
+  onUserJoined(cb: (data: { userId: string; role: string; roomId: string }) => void): () => void {
+    this.socket?.on('room:user:joined', cb);
+    return () => { this.socket?.off('room:user:joined', cb); };
   }
 
-  onUserLeft(cb: (data: { userId: string; spaceId: string }) => void): () => void {
-    this.socket?.on('space:user:left', cb);
-    return () => { this.socket?.off('space:user:left', cb); };
+  onUserLeft(cb: (data: { userId: string; roomId: string }) => void): () => void {
+    this.socket?.on('room:user:left', cb);
+    return () => { this.socket?.off('room:user:left', cb); };
   }
 
-  onStreamStarted(cb: (data: { spaceId: string; title?: string; image?: string; description?: string; timestamp: string }) => void): () => void {
-    this.socket?.on('space:stream:started', cb);
-    return () => { this.socket?.off('space:stream:started', cb); };
+  onStreamStarted(cb: (data: { roomId: string; title?: string; image?: string; description?: string; timestamp: string }) => void): () => void {
+    this.socket?.on('room:stream:started', cb);
+    return () => { this.socket?.off('room:stream:started', cb); };
   }
 
-  onStreamStopped(cb: (data: { spaceId: string; timestamp: string }) => void): () => void {
-    this.socket?.on('space:stream:stopped', cb);
-    return () => { this.socket?.off('space:stream:stopped', cb); };
+  onStreamStopped(cb: (data: { roomId: string; timestamp: string }) => void): () => void {
+    this.socket?.on('room:stream:stopped', cb);
+    return () => { this.socket?.off('room:stream:stopped', cb); };
   }
 }
 
-export const spaceSocketService = new SpaceSocketService();
-export default spaceSocketService;
+export const roomSocketService = new RoomSocketService();
+export default roomSocketService;

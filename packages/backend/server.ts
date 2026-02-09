@@ -60,7 +60,6 @@ import followsRoutes from './src/routes/follows';
 import muteRoutes from './src/routes/mute.routes';
 import reportsRoutes from './src/routes/reports.routes';
 import trendingRoutes from './src/routes/trending.routes';
-import spacesRoutes from './src/routes/spaces.routes';
 import roomsRoutes from './src/routes/rooms.routes';
 import housesRoutes from './src/routes/houses.routes';
 import seriesRoutes from './src/routes/series.routes';
@@ -333,14 +332,9 @@ const postsNamespace = io.of("/posts");
 import { initializeRoomSocket } from './src/sockets/roomSocket';
 const roomsNamespace = initializeRoomSocket(io);
 
-// Backward compatibility: alias /spaces namespace to redirect clients to /rooms
-// This keeps old clients working while they migrate to the new namespace
-import { initializeSpaceSocket } from './src/sockets/spaceSocket';
-const spacesNamespace = initializeSpaceSocket(io);
-
 // --- Socket Auth Middleware ---
 // Authenticate socket connections using JWT token or userId from handshake
-[notificationsNamespace, postsNamespace, roomsNamespace, spacesNamespace, io].forEach((namespaceOrServer: any) => {
+[notificationsNamespace, postsNamespace, roomsNamespace, io].forEach((namespaceOrServer: any) => {
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
     namespaceOrServer.use(async (socket: AuthenticatedSocket, next: (err?: any) => void) => {
       try {
@@ -501,7 +495,6 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   notificationsNamespace,
   postsNamespace,
   roomsNamespace,
-  spacesNamespace
 ].forEach((namespace) => {
   configureNamespaceErrorHandling(namespace);
 });
@@ -669,7 +662,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 });
 
 // Enhanced error handling for namespaces
-[notificationsNamespace, postsNamespace, roomsNamespace, spacesNamespace].forEach(
+[notificationsNamespace, postsNamespace, roomsNamespace].forEach(
   (namespace: Namespace) => {
     namespace.on("connection_error", (error: Error) => {
       logger.error(`Namespace ${namespace.name} connection error`, error);
@@ -766,8 +759,7 @@ authenticatedApiRouter.use("/gifs", gifsRoutes);
 authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/reports", reportsRoutes);
-authenticatedApiRouter.use("/spaces", spacesRoutes); // Legacy backward compat - points to old spaces routes
-authenticatedApiRouter.use("/rooms", roomsRoutes);    // New rooms routes (replaces spaces)
+authenticatedApiRouter.use("/rooms", roomsRoutes);
 authenticatedApiRouter.use("/houses", housesRoutes);
 authenticatedApiRouter.use("/series", seriesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
