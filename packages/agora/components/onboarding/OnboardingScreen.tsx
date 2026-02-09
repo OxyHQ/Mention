@@ -143,6 +143,20 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
 
   const lastIndex = ONBOARDING_STEPS.length - 1;
 
+  // Per-step pager heights for dynamic bottom sheet sizing
+  const STEP_PAGER_HEIGHTS = ONBOARDING_STEPS.map((s) =>
+    s.type === 'interests' ? 440 : 360,
+  );
+
+  const pagerHeightStyle = useAnimatedStyle(() => {
+    const page = Math.max(0, scrollProgress.value);
+    const floor = Math.min(Math.floor(page), STEP_PAGER_HEIGHTS.length - 1);
+    const ceil = Math.min(Math.ceil(page), STEP_PAGER_HEIGHTS.length - 1);
+    const t = page - Math.floor(page);
+    const h = STEP_PAGER_HEIGHTS[floor] + (STEP_PAGER_HEIGHTS[ceil] - STEP_PAGER_HEIGHTS[floor]) * t;
+    return { height: h };
+  });
+
   const skipStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       scrollProgress.value,
@@ -169,32 +183,34 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
       </Animated.View>
 
       {pageWidth > 0 && (
-        <Animated.ScrollView
-          ref={scrollRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={onScroll}
-          decelerationRate="fast"
-          bounces={false}
-          overScrollMode="never"
-          style={styles.pagerArea}
-        >
-          {ONBOARDING_STEPS.map((step, i) => {
-            const PageComponent = step.type === 'interests' ? InterestsPage : OnboardingPage;
-            return (
-              <PageComponent
-                key={step.id}
-                step={step}
-                index={i}
-                scrollProgress={scrollProgress}
-                pageWidth={pageWidth}
-                reduceMotion={reduceMotion}
-              />
-            );
-          })}
-        </Animated.ScrollView>
+        <Animated.View style={[styles.pagerWrapper, pagerHeightStyle]}>
+          <Animated.ScrollView
+            ref={scrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={onScroll}
+            decelerationRate="fast"
+            bounces={false}
+            overScrollMode="never"
+            style={styles.pagerArea}
+          >
+            {ONBOARDING_STEPS.map((step, i) => {
+              const PageComponent = step.type === 'interests' ? InterestsPage : OnboardingPage;
+              return (
+                <PageComponent
+                  key={step.id}
+                  step={step}
+                  index={i}
+                  scrollProgress={scrollProgress}
+                  pageWidth={pageWidth}
+                  reduceMotion={reduceMotion}
+                />
+              );
+            })}
+          </Animated.ScrollView>
+        </Animated.View>
       )}
 
       <View style={[styles.controlsArea, { paddingBottom: Math.max(insets.bottom, 24) }]}>
@@ -213,9 +229,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: {},
   skipContainer: {
     position: 'absolute',
     right: 24,
@@ -224,6 +238,9 @@ const styles = StyleSheet.create({
   skipText: {
     fontSize: 13,
     fontWeight: '500',
+  },
+  pagerWrapper: {
+    overflow: 'hidden',
   },
   pagerArea: {
     flex: 1,

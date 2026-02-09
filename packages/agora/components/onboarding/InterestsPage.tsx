@@ -100,7 +100,7 @@ const InterestsPage: React.FC<OnboardingPageProps> = ({
                 </Text>
                 <MaterialCommunityIcons
                   name={isSelected ? 'check' : 'plus'}
-                  size={14}
+                  size={12}
                   color={isSelected ? '#FFFFFF' : theme.colors.textSecondary}
                 />
               </Pressable>
@@ -115,48 +115,48 @@ const InterestsPage: React.FC<OnboardingPageProps> = ({
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 48,
+    paddingHorizontal: 20,
+    paddingTop: 32,
   },
   content: {
     flex: 1,
     alignItems: 'center',
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
     letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-    paddingHorizontal: 16,
+    lineHeight: 20,
+    marginBottom: 18,
+    paddingHorizontal: 12,
   },
   chipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 10,
-    paddingHorizontal: 8,
+    gap: 8,
+    paddingHorizontal: 4,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 22,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 18,
     borderWidth: 1,
-    gap: 6,
+    gap: 4,
   },
   chipEmoji: {
-    fontSize: 16,
+    fontSize: 13,
   },
   chipLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
   },
 });

@@ -12,10 +12,8 @@ import { STORAGE_KEY_ONBOARDING } from './constants';
 import OnboardingScreen from './OnboardingScreen';
 import type { OnboardingProgress } from './types';
 
-const SNAP_POINTS = ['95%'];
-
 /**
- * Presents the onboarding flow as a near-full-screen bottom sheet.
+ * Presents the onboarding flow as a dynamically-sized bottom sheet.
  * Auto-presents when onboarding hasn't been completed or skipped.
  * Dismissing via swipe-down is treated as skip.
  */
@@ -80,8 +78,7 @@ const OnboardingGate: React.FC = () => {
   return (
     <BottomSheet
       ref={sheetRef}
-      snapPoints={SNAP_POINTS}
-      index={0}
+      enableDynamicSizing
       enablePanDownToClose
       enableContentPanningGesture={false}
       onChange={handleSheetChange}
@@ -90,7 +87,7 @@ const OnboardingGate: React.FC = () => {
       handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
       style={styles.sheet}
     >
-      <BottomSheetView style={styles.content}>
+      <BottomSheetView>
         <OnboardingScreen onComplete={handleComplete} />
       </BottomSheetView>
     </BottomSheet>
@@ -105,9 +102,7 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     marginHorizontal: 'auto',
   },
-  content: {
-    flex: 1,
-  },
+  content: {},
 });
 
 export default memo(OnboardingGate);
