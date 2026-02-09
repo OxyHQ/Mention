@@ -275,9 +275,10 @@ export function initializeRoomSocket(io: Server): Namespace {
         });
 
         // Update DB: add to participants if not already there
+        const isNewJoin = !room.participants.some((p: any) => String(p) === String(userId));
         await Room.findByIdAndUpdate(roomId, {
           $addToSet: { participants: userId },
-          $inc: { 'stats.totalJoined': 1 },
+          ...(isNewJoin ? { $inc: { 'stats.totalJoined': 1 } } : {}),
         });
 
         // Update peak listeners
