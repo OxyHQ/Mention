@@ -275,7 +275,7 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
 
         {mode === 'rtmp' && (
           <View style={styles.section}>
-            {!rtmpUrl ? (
+            {!streamKey ? (
               <TouchableOpacity
                 style={[styles.generateBtn, { backgroundColor: theme.colors.primary, opacity: generatingKey ? 0.6 : 1 }]}
                 onPress={handleGenerateKey}
@@ -399,7 +399,7 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
             </TouchableOpacity>
           )}
 
-          {mode === 'rtmp' && rtmpUrl && (
+          {mode === 'rtmp' && streamKey && (
             <TouchableOpacity
               style={[styles.startBtn, { backgroundColor: theme.colors.primary, opacity: loading ? 0.6 : 1 }]}
               onPress={handleUpdateMetadata}
