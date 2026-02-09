@@ -159,7 +159,7 @@ interface LiveRoomSheetProps {
 }
 
 export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeave }: LiveRoomSheetProps) {
-  const { useTheme, useUserById, AvatarComponent, agoraService, toast, getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } = useAgoraConfig();
+  const { useTheme, useUserById, AvatarComponent, agoraService, toast, getCachedFileDownloadUrl, getCachedFileDownloadUrlSync, onRoomChanged } = useAgoraConfig();
   const theme = useTheme();
   const { user, oxyServices } = useAuth();
   const [room, setRoom] = useState<Room | null>(null);
@@ -217,6 +217,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
     if (!roomId) return;
     const success = await agoraService.endRoom(roomId);
     if (success) {
+      onRoomChanged?.(roomId);
       leave();
       onLeave();
     } else {
@@ -233,6 +234,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
       if (success) {
         const updated = await agoraService.getRoom(roomId);
         if (updated) setRoom(updated);
+        onRoomChanged?.(roomId);
         toast.success('Room is now live!');
       } else {
         toast.error('Failed to start room');
@@ -312,6 +314,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
         onClose={() => setActivePanel(null)}
         onStreamStarted={() => {
           agoraService.getRoom(roomId).then(setRoom);
+          onRoomChanged?.(roomId);
           setActivePanel(null);
         }}
       />

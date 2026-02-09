@@ -25,6 +25,7 @@ export interface AgoraConfig {
   introSound?: number;
   isDesktop?: boolean;
   useIsDesktop?: () => boolean;
+  onRoomChanged?: (roomId: string) => void;
 }
 
 export interface AgoraConfigInternal extends AgoraConfig {

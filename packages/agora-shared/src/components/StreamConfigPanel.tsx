@@ -26,7 +26,7 @@ interface StreamConfigPanelProps {
 type StreamMode = 'url' | 'rtmp';
 
 export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted }: StreamConfigPanelProps) {
-  const { useTheme, agoraService, toast } = useAgoraConfig();
+  const { useTheme, agoraService, toast, onRoomChanged } = useAgoraConfig();
   const theme = useTheme();
   const { oxyServices } = useAuth();
 
@@ -115,6 +115,7 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
         toast.error('Failed to start room');
         return false;
       }
+      onRoomChanged?.(roomId);
       return true;
     }
     toast.error('Room cannot be started');

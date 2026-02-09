@@ -1,6 +1,6 @@
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, useMemo, useCallback } from 'react';
 import { Platform } from 'react-native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -11,6 +11,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Toaster } from 'sonner-native';
 
 import { agoraConfig } from '@/lib/agoraConfig';
+import { roomQueryKeys } from '@/hooks/useRoomsQuery';
 import { setOxyServicesRef } from '@/utils/api';
 
 let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
@@ -37,6 +38,15 @@ function OxyServicesSync({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AgoraProviderWithInvalidation({ children }: { children: React.ReactNode }) {
+  const qc = useQueryClient();
+  const onRoomChanged = useCallback((roomId: string) => {
+    qc.invalidateQueries({ queryKey: roomQueryKeys.all });
+  }, [qc]);
+  const config = useMemo(() => ({ ...agoraConfig, onRoomChanged }), [onRoomChanged]);
+  return <AgoraProvider config={config}>{children}</AgoraProvider>;
+}
+
 export const AppProviders = memo(function AppProviders({
   children,
   oxyServices,
@@ -51,7 +61,7 @@ export const AppProviders = memo(function AppProviders({
               storageKeyPrefix="agora"
             >
               <OxyServicesSync>
-                <AgoraProvider config={agoraConfig}>
+                <AgoraProviderWithInvalidation>
                   <LiveRoomProvider>
                     <BottomSheetModalProvider>
                       {children}
@@ -63,7 +73,7 @@ export const AppProviders = memo(function AppProviders({
                       />
                     </BottomSheetModalProvider>
                   </LiveRoomProvider>
-                </AgoraProvider>
+                </AgoraProviderWithInvalidation>
               </OxyServicesSync>
             </OxyProvider>
           </QueryClientProvider>
