@@ -13,7 +13,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useAgoraConfig } from '@mention/agora-shared';
-import type { Space, UserEntity } from '@mention/agora-shared';
+import type { Room, UserEntity } from '@mention/agora-shared';
 import type { OxyServices } from '@oxyhq/core';
 
 // ---------------------------------------------------------------------------
@@ -121,9 +121,9 @@ export function useSpacesQueryInvalidation() {
 export function useSpaces(status?: string) {
   const { agoraService } = useAgoraConfig();
 
-  return useOptimizedQuery<Space[]>({
+  return useOptimizedQuery<Room[]>({
     queryKey: spaceQueryKeys.list(status),
-    queryFn: () => agoraService.getSpaces(status),
+    queryFn: () => agoraService.getRooms(status),
   });
 }
 
@@ -131,17 +131,17 @@ export function useSpaces(status?: string) {
 export function useSpace(id: string | undefined) {
   const { agoraService } = useAgoraConfig();
 
-  return useOptimizedQuery<Space | null>({
+  return useOptimizedQuery<Room | null>({
     queryKey: spaceQueryKeys.detail(id!),
-    queryFn: () => agoraService.getSpace(id!),
+    queryFn: () => agoraService.getRoom(id!),
     enabled: !!id,
   });
 }
 
 interface UserSpacesResult {
-  all: Space[];
-  live: Space[];
-  scheduled: Space[];
+  all: Room[];
+  live: Room[];
+  scheduled: Room[];
 }
 
 /**
@@ -156,12 +156,12 @@ export function useUserSpaces(userId: string | undefined) {
     queryKey: spaceQueryKeys.userSpaces(userId!),
     queryFn: async (): Promise<UserSpacesResult> => {
       const [live, scheduled, ended] = await Promise.all([
-        agoraService.getSpaces('live'),
-        agoraService.getSpaces('scheduled'),
-        agoraService.getSpaces('ended'),
+        agoraService.getRooms('live'),
+        agoraService.getRooms('scheduled'),
+        agoraService.getRooms('ended'),
       ]);
 
-      const isHost = (s: Space) => s.host === userId;
+      const isHost = (s: Room) => s.host === userId;
       const all = [...live, ...scheduled, ...ended].filter(isHost);
 
       return {
@@ -226,8 +226,8 @@ export function useCreateSpace() {
   const { agoraService } = useAgoraConfig();
   const { invalidateSpaceLists } = useSpacesQueryInvalidation();
 
-  return useOptimizedMutation<Space | null, Error, CreateSpaceInput>({
-    mutationFn: (data) => agoraService.createSpace(data),
+  return useOptimizedMutation<Room | null, Error, CreateSpaceInput>({
+    mutationFn: (data) => agoraService.createRoom(data),
     onSuccess: () => {
       invalidateSpaceLists();
     },
@@ -240,7 +240,7 @@ export function useStartSpace() {
   const { invalidateSpaceLists, invalidateSpace } = useSpacesQueryInvalidation();
 
   return useOptimizedMutation<boolean, Error, string>({
-    mutationFn: (id) => agoraService.startSpace(id),
+    mutationFn: (id) => agoraService.startRoom(id),
     onSuccess: (_data, id) => {
       invalidateSpace(id);
       invalidateSpaceLists();
@@ -254,7 +254,7 @@ export function useEndSpace() {
   const { invalidateSpaceLists, invalidateSpace } = useSpacesQueryInvalidation();
 
   return useOptimizedMutation<boolean, Error, string>({
-    mutationFn: (id) => agoraService.endSpace(id),
+    mutationFn: (id) => agoraService.endRoom(id),
     onSuccess: (_data, id) => {
       invalidateSpace(id);
       invalidateSpaceLists();
@@ -268,7 +268,7 @@ export function useDeleteSpace() {
   const { invalidateSpaceLists, invalidateUserSpaces } = useSpacesQueryInvalidation();
 
   return useOptimizedMutation<boolean, Error, { id: string; userId: string }>({
-    mutationFn: ({ id }) => agoraService.deleteSpace(id),
+    mutationFn: ({ id }) => agoraService.deleteRoom(id),
     onSuccess: (_data, { userId }) => {
       invalidateSpaceLists();
       if (userId) invalidateUserSpaces(userId);
@@ -282,7 +282,7 @@ export function useArchiveSpace() {
   const { invalidateSpaceLists, invalidateSpace, invalidateUserSpaces } = useSpacesQueryInvalidation();
 
   return useOptimizedMutation<{ success: boolean; archived: boolean }, Error, { id: string; userId: string }>({
-    mutationFn: ({ id }) => agoraService.archiveSpace(id),
+    mutationFn: ({ id }) => agoraService.archiveRoom(id),
     onSuccess: (_data, { id, userId }) => {
       invalidateSpace(id);
       invalidateSpaceLists();

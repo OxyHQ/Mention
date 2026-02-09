@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -34,7 +34,11 @@ export default function ProfileScreen() {
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const isOwnProfile = cleanUsername === user?.username;
   const userId = user?.id ?? '';
-  const { followerCount, followingCount } = useFollowerCounts(userId);
+  const { followerCount, followingCount, fetchUserCounts } = useFollowerCounts(userId);
+
+  useEffect(() => {
+    if (userId) fetchUserCounts();
+  }, [userId, fetchUserCounts]);
 
   const [activeTab, setActiveTab] = useState('spaces');
 
@@ -186,11 +190,11 @@ export default function ProfileScreen() {
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Spaces</Text>
           </View>
           <TouchableOpacity style={styles.statItem} onPress={() => router.push({ pathname: '/(app)/[username]/followers', params: { username: '@' + cleanUsername } })}>
-            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{followerCount}</Text>
+            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{followerCount ?? 0}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Followers</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statItem} onPress={() => router.push({ pathname: '/(app)/[username]/following', params: { username: '@' + cleanUsername } })}>
-            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{followingCount}</Text>
+            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{followingCount ?? 0}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Following</Text>
           </TouchableOpacity>
         </View>
