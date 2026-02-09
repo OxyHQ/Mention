@@ -158,8 +158,8 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
         image: imageFileId || undefined,
         description: description.trim() || undefined,
       });
-      if (result?.rtmpUrl && result?.streamKey) {
-        setRtmpUrl(result.rtmpUrl);
+      if (result?.streamKey) {
+        setRtmpUrl(result.rtmpUrl || '');
         setStreamKey(result.streamKey);
         toast.success('Stream key generated');
         onStreamStarted();
