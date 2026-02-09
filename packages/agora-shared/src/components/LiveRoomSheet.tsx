@@ -186,11 +186,12 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
     isRoomEnded,
   } = useRoomConnection({ roomId, enabled: !!roomId });
 
+  const isRoomLive = room?.status === 'live';
   const { isLiveKitConnected, micPermissionDenied } = useRoomAudio({
     roomId,
     isSpeaker: myRole === 'speaker' || myRole === 'host',
     isMuted,
-    isConnected,
+    isConnected: isConnected && isRoomLive,
   });
 
   useEffect(() => {
