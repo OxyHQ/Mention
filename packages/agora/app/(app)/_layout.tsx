@@ -5,6 +5,7 @@ import { useAuth } from '@oxyhq/services';
 import { Redirect } from 'expo-router';
 
 import { SideBar } from '@/components/SideBar';
+import { OnboardingGate } from '@/components/onboarding';
 import { useTheme } from '@/hooks/useTheme';
 import { useIsScreenNotMobile } from '@/hooks/useMediaQuery';
 
@@ -65,5 +66,10 @@ export default function AppLayout() {
     return <Redirect href="/(auth)/sign-in" />;
   }
 
-  return <MainLayout isScreenNotMobile={isScreenNotMobile} />;
+  return (
+    <View style={{ flex: 1 }}>
+      <MainLayout isScreenNotMobile={isScreenNotMobile} />
+      <OnboardingGate />
+    </View>
+  );
 }
