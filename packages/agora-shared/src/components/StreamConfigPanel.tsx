@@ -151,6 +151,7 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
     if (generatingKey) return;
     setGeneratingKey(true);
     try {
+      if (!(await ensureRoomLive())) { setGeneratingKey(false); return; }
       const result = await agoraService.generateStreamKey(roomId, {
         title: title.trim() || undefined,
         image: imageFileId || undefined,
