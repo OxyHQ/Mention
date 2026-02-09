@@ -23,6 +23,26 @@ authenticatedClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Retry once on 401 after waiting for OxyServices token refresh
+authenticatedClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config;
+    if (error.response?.status === 401 && _oxyServices && !config._retried) {
+      config._retried = true;
+      const ready = await _oxyServices.waitForAuth(3000);
+      if (ready) {
+        const token = _oxyServices.getAccessToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return authenticatedClient(config);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const api = {
   async get<T = unknown>(endpoint: string, params?: Record<string, string | number | boolean | undefined>): Promise<{ data: T }> {
     const response = await authenticatedClient.get(endpoint, { params });
