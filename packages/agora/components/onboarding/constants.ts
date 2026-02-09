@@ -20,6 +20,13 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     lottieSource: require('@/assets/lottie/looking.json'),
   },
   {
+    id: 'interests',
+    title: 'Topics to Follow',
+    subtitle: 'Choose topics that interest you to personalize your experience.',
+    lottieSource: require('@/assets/lottie/looking.json'),
+    type: 'interests' as const,
+  },
+  {
     id: 'create',
     title: 'Create Your Space',
     subtitle: 'Host rooms, build communities, and shape the conversation.',
@@ -38,3 +45,26 @@ export const ONBOARDING_ANIMATION = {
 export const DOT_SIZE = 8;
 export const DOT_ACTIVE_WIDTH = 24;
 export const DOT_GAP = 8;
+
+export const INTEREST_TOPICS = [
+  { label: 'Clubhouse', emoji: '👋' },
+  { label: 'Dating', emoji: '💖' },
+  { label: 'Flirting', emoji: '💋' },
+  { label: 'Happiness', emoji: '🤗' },
+  { label: 'Television', emoji: '📺' },
+  { label: 'Health', emoji: '🍎' },
+  { label: 'Relationships', emoji: '💕' },
+  { label: 'Positivity', emoji: '🌈' },
+  { label: 'Weights', emoji: '🏋️' },
+  { label: 'Nutrition', emoji: '🥗' },
+  { label: 'Support', emoji: '☕' },
+  { label: 'Love Stories', emoji: '💝' },
+  { label: 'Technology', emoji: '💻' },
+  { label: 'Music', emoji: '🎵' },
+  { label: 'Sports', emoji: '⚽' },
+  { label: 'Gaming', emoji: '🎮' },
+  { label: 'Science', emoji: '🔬' },
+  { label: 'Art', emoji: '🎨' },
+  { label: 'Business', emoji: '💼' },
+  { label: 'Crypto', emoji: '🪙' },
+] as const;

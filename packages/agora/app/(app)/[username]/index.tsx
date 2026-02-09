@@ -5,11 +5,11 @@ import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth, useFollowerCounts } from '@oxyhq/services';
 import { useLiveRoom, RoomCard } from '@mention/agora-shared';
-import type { Room } from '@mention/agora-shared';
+import type { Room, House } from '@mention/agora-shared';
 
 import { toast } from 'sonner-native';
 import { useTheme } from '@/hooks/useTheme';
-import { useUserRooms, useRoomsQueryInvalidation, useDeleteRoom, useArchiveRoom } from '@/hooks/useRoomsQuery';
+import { useUserRooms, useUserHouses, useRoomsQueryInvalidation, useDeleteRoom, useArchiveRoom } from '@/hooks/useRoomsQuery';
 import Avatar from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { ProfileTabBar } from '@/components/ProfileTabBar';
@@ -44,6 +44,7 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState('rooms');
 
   const { data: myRooms = { all: [], live: [], scheduled: [] }, isRefetching } = useUserRooms(userId || undefined);
+  const { data: userHouses = [] } = useUserHouses(userId || undefined);
   const { invalidateUserRooms } = useRoomsQueryInvalidation();
   const refreshing = isRefetching;
   const onRefresh = () => { invalidateUserRooms(userId); };
@@ -210,6 +211,36 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Member of */}
+        {userHouses.length > 0 && (
+          <View style={styles.housesSection}>
+            <Text style={[styles.housesLabel, { color: theme.colors.textSecondary }]}>
+              Member of
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.housesList}
+            >
+              {userHouses.map((house) => (
+                <View key={house._id} style={styles.houseItem}>
+                  <View style={[styles.houseAvatar, { backgroundColor: theme.colors.primary + '20' }]}>
+                    <Text style={[styles.houseAvatarText, { color: theme.colors.primary }]}>
+                      {house.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[styles.houseItemName, { color: theme.colors.textSecondary }]}
+                    numberOfLines={1}
+                  >
+                    {house.name}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Tab Bar */}
         <ProfileTabBar tabs={TABS} activeTab={activeTab} onTabPress={setActiveTab} />
 
@@ -332,6 +363,40 @@ const styles = StyleSheet.create({
   editButtonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  housesSection: {
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  housesLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  housesList: {
+    gap: 16,
+  },
+  houseItem: {
+    alignItems: 'center',
+    width: 56,
+  },
+  houseAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  houseAvatarText: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  houseItemName: {
+    fontSize: 10,
+    textAlign: 'center',
   },
   roomsContainer: {
     paddingHorizontal: 16,

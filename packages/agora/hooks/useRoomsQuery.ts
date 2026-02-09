@@ -76,6 +76,7 @@ export const houseQueryKeys = {
   lists: () => [...houseQueryKeys.all, 'list'] as const,
   publicList: () => [...houseQueryKeys.lists(), 'public'] as const,
   myHouses: (userId: string) => [...houseQueryKeys.lists(), 'mine', userId] as const,
+  userHouses: (userId: string) => [...houseQueryKeys.lists(), 'user', userId] as const,
   detail: (id: string) => [...houseQueryKeys.all, 'detail', id] as const,
 } as const;
 
@@ -239,6 +240,37 @@ export function useMyHouses(userId: string | undefined) {
     queryKey: houseQueryKeys.myHouses(userId!),
     queryFn: () => agoraService.getMyHouses(userId!),
     enabled: !!userId,
+  });
+}
+
+/** Fetch all houses where the user is a member (any role). */
+export function useUserHouses(userId: string | undefined) {
+  const { agoraService } = useAgoraConfig();
+
+  return useOptimizedQuery<House[]>({
+    queryKey: houseQueryKeys.userHouses(userId!),
+    queryFn: () => agoraService.getUserHouses(userId!),
+    enabled: !!userId,
+  });
+}
+
+interface CreateHouseInput {
+  name: string;
+  description?: string;
+  tags?: string[];
+  isPublic?: boolean;
+}
+
+/** Create a new house. Invalidates house list queries on success. */
+export function useCreateHouse() {
+  const { agoraService } = useAgoraConfig();
+  const queryClient = useQueryClient();
+
+  return useOptimizedMutation<House | null, Error, CreateHouseInput>({
+    mutationFn: (data) => agoraService.createHouse(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: houseQueryKeys.all });
+    },
   });
 }
 

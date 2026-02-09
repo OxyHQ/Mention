@@ -228,6 +228,30 @@ export function createAgoraService(httpClient: HttpClient) {
         return [];
       }
     },
+
+    async getUserHouses(userId: string): Promise<House[]> {
+      if (!userId) return [];
+      try {
+        const houses = await this.getHouses();
+        return houses.filter((h) =>
+          h.members.some((m) => m.userId === userId)
+        );
+      } catch (error) {
+        console.warn("Failed to fetch user houses", error);
+        return [];
+      }
+    },
+
+    async createHouse(data: { name: string; description?: string; tags?: string[]; isPublic?: boolean }): Promise<House | null> {
+      try {
+        const res = await httpClient.post("/houses", data);
+        const raw = res.data.house || res.data.data || res.data || null;
+        return raw ? validateHouse(raw) : null;
+      } catch (error) {
+        console.warn("Failed to create house", error);
+        return null;
+      }
+    },
   };
 }
 

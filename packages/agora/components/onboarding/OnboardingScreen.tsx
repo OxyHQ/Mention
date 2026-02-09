@@ -22,6 +22,7 @@ import { useAuth } from '@oxyhq/services';
 
 import { useTheme } from '@/hooks/useTheme';
 import OnboardingPage from './OnboardingPage';
+import InterestsPage from './InterestsPage';
 import OnboardingButtons from './OnboardingButtons';
 import { useOnboardingProgress } from './useOnboardingProgress';
 import { ONBOARDING_STEPS } from './constants';
@@ -180,16 +181,19 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
           overScrollMode="never"
           style={styles.pagerArea}
         >
-          {ONBOARDING_STEPS.map((step, i) => (
-            <OnboardingPage
-              key={step.id}
-              step={step}
-              index={i}
-              scrollProgress={scrollProgress}
-              pageWidth={pageWidth}
-              reduceMotion={reduceMotion}
-            />
-          ))}
+          {ONBOARDING_STEPS.map((step, i) => {
+            const PageComponent = step.type === 'interests' ? InterestsPage : OnboardingPage;
+            return (
+              <PageComponent
+                key={step.id}
+                step={step}
+                index={i}
+                scrollProgress={scrollProgress}
+                pageWidth={pageWidth}
+                reduceMotion={reduceMotion}
+              />
+            );
+          })}
         </Animated.ScrollView>
       )}
 

@@ -6,6 +6,7 @@ export interface OnboardingStep {
   title: string;
   subtitle: string;
   lottieSource: AnimationObject | { uri: string };
+  type?: 'info' | 'interests';
 }
 
 export interface OnboardingProgress {

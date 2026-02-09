@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,13 +8,17 @@ import {
   RefreshControl,
   TouchableOpacity,
   FlatList,
+  Platform,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { RoomCard, useLiveRoom, type Room, type House } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
+import { CreateHouseSheet } from '@/components/CreateHouseSheet';
 import { useRooms, usePublicHouses, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
 
 const TYPE_FILTERS = [
@@ -65,6 +69,28 @@ export default function ExploreScreen() {
   const { invalidateRoomLists } = useRoomsQueryInvalidation();
   const refreshing = liveRefetching || scheduledRefetching;
   const onRefresh = () => { invalidateRoomLists(); };
+
+  const modalRef = useRef<BottomSheetModal>(null);
+  const snapPoints = useMemo(() => ['85%'], []);
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+      />
+    ),
+    [],
+  );
+
+  const openCreateHouse = () => {
+    modalRef.current?.present();
+  };
+
+  const closeCreateHouse = () => {
+    modalRef.current?.dismiss();
+  };
 
   // Client-side search filter on top of server-side type filter
   const filterBySearch = (rooms: Room[]) => {
@@ -142,20 +168,37 @@ export default function ExploreScreen() {
         }
       >
         {/* Houses Section */}
-        {publicHouses.length > 0 && !searchQuery.trim() && (
+        {!searchQuery.trim() && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <MaterialCommunityIcons name="home-group" size={18} color={theme.colors.textSecondary} />
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Houses</Text>
+              <TouchableOpacity onPress={openCreateHouse} style={{ marginLeft: 'auto' }}>
+                <MaterialCommunityIcons name="plus-circle-outline" size={22} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
             </View>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={publicHouses}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
-              renderItem={({ item }) => <HouseCard house={item} />}
-            />
+            {publicHouses.length > 0 ? (
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={publicHouses}
+                keyExtractor={(item) => item._id}
+                contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
+                renderItem={({ item }) => <HouseCard house={item} />}
+              />
+            ) : (
+              <TouchableOpacity
+                style={[styles.createHouseCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+                onPress={openCreateHouse}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="home-plus" size={28} color={theme.colors.primary} />
+                <Text style={[styles.createHouseTitle, { color: theme.colors.text }]}>Create a House</Text>
+                <Text style={[styles.createHouseSubtitle, { color: theme.colors.textSecondary }]}>
+                  Start a community for your audience
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -226,6 +269,24 @@ export default function ExploreScreen() {
           />
         )}
       </ScrollView>
+
+      <BottomSheetModal
+        ref={modalRef}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        onDismiss={() => {}}
+        backdropComponent={renderBackdrop}
+        backgroundStyle={{ backgroundColor: theme.colors.background, borderRadius: 24 }}
+        handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
+        style={{ maxWidth: 500, margin: 'auto' }}
+      >
+        <BottomSheetScrollView>
+          <CreateHouseSheet
+            onClose={closeCreateHouse}
+            onHouseCreated={closeCreateHouse}
+          />
+        </BottomSheetScrollView>
+      </BottomSheetModal>
     </View>
   );
 }
@@ -287,6 +348,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   cardList: { paddingHorizontal: 16 },
+  createHouseCard: {
+    marginHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 20,
+    alignItems: 'center',
+    gap: 6,
+  },
+  createHouseTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  createHouseSubtitle: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
 });
 
 const houseStyles = StyleSheet.create({
