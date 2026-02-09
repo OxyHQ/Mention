@@ -6,7 +6,7 @@ export const ZRoom = z.object({
   _id: z.string(),
   id: z.string().optional(),
   title: z.string(),
-  description: z.string().optional(),
+  description: z.string().nullish(),
 
   // Ownership
   ownerType: z.enum(['profile', 'house', 'agora']).default('profile'),
@@ -20,21 +20,21 @@ export const ZRoom = z.object({
 
   // Lifecycle
   status: z.enum(['scheduled', 'live', 'ended']),
-  scheduledStart: z.string().optional(),
-  startedAt: z.string().optional(),
-  endedAt: z.string().optional(),
+  scheduledStart: z.string().nullish(),
+  startedAt: z.string().nullish(),
+  endedAt: z.string().nullish(),
 
   // Participation
-  speakerPermission: z.enum(['everyone', 'followers', 'invited']).optional(),
+  speakerPermission: z.enum(['everyone', 'followers', 'invited']).nullish(),
   participants: z.array(z.string()).default([]),
   speakers: z.array(z.string()).default([]),
   maxParticipants: z.number().default(100),
 
   // Content
-  topic: z.string().optional(),
+  topic: z.string().nullish(),
   tags: z.array(z.string()).optional(),
   archived: z.boolean().optional().default(false),
-  seriesId: z.string().optional().nullable(),
+  seriesId: z.string().nullish(),
 
   // Stats
   stats: z.object({
@@ -43,13 +43,13 @@ export const ZRoom = z.object({
   }).optional(),
 
   // Streaming
-  activeIngressId: z.string().optional(),
-  activeStreamUrl: z.string().optional(),
-  streamTitle: z.string().optional(),
-  streamImage: z.string().optional(),
-  streamDescription: z.string().optional(),
-  rtmpUrl: z.string().optional(),
-  rtmpStreamKey: z.string().optional(),
+  activeIngressId: z.string().nullish(),
+  activeStreamUrl: z.string().nullish(),
+  streamTitle: z.string().nullish(),
+  streamImage: z.string().nullish(),
+  streamDescription: z.string().nullish(),
+  rtmpUrl: z.string().nullish(),
+  rtmpStreamKey: z.string().nullish(),
 
   createdAt: z.string(),
 }).passthrough();

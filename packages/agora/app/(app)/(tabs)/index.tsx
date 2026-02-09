@@ -25,7 +25,7 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { useSpaces, useSpacesQueryInvalidation } from '@/hooks/useSpacesQuery';
+import { useRooms, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -35,11 +35,11 @@ export default function HomeScreen() {
   const createSheetRef = useRef<CreateRoomSheetRef>(null);
   const snapPoints = useMemo(() => ['85%'], []);
 
-  const { data: liveSpaces = [], isRefetching: liveRefetching } = useSpaces('live');
-  const { data: scheduledSpaces = [], isRefetching: scheduledRefetching } = useSpaces('scheduled');
-  const { invalidateSpaceLists } = useSpacesQueryInvalidation();
+  const { data: liveRooms = [], isRefetching: liveRefetching } = useRooms('live');
+  const { data: scheduledRooms = [], isRefetching: scheduledRefetching } = useRooms('scheduled');
+  const { invalidateRoomLists } = useRoomsQueryInvalidation();
   const refreshing = liveRefetching || scheduledRefetching;
-  const onRefresh = () => { invalidateSpaceLists(); };
+  const onRefresh = () => { invalidateRoomLists(); };
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [formState, setFormState] = useState<CreateRoomFormState>({
@@ -54,8 +54,8 @@ export default function HomeScreen() {
     }
   }, [sheetOpen]);
 
-  const handleJoinSpace = (space: Room) => {
-    joinLiveRoom(space._id);
+  const handleJoinRoom = (room: Room) => {
+    joinLiveRoom(room._id);
   };
 
   const openCreateSheet = useCallback(() => {
@@ -117,7 +117,7 @@ export default function HomeScreen() {
             >
               <MaterialCommunityIcons name="calendar" size={20} color={theme.colors.text} />
               <Text style={[sheetStyles.secondaryButtonText, { color: theme.colors.text }]}>
-                Schedule Space
+                Schedule Room
               </Text>
             </TouchableOpacity>
           )}
@@ -141,7 +141,7 @@ export default function HomeScreen() {
         }
       >
         {/* Live Now */}
-        {liveSpaces.length > 0 && (
+        {liveRooms.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.liveIndicator}>
@@ -151,18 +151,18 @@ export default function HomeScreen() {
                 Live Now
               </Text>
             </View>
-            {liveSpaces.length > 0 && (
+            {liveRooms.length > 0 && (
               <FlatList
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                data={liveSpaces}
+                data={liveRooms}
                 keyExtractor={(item) => item._id}
                 contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
                 renderItem={({ item }) => (
                   <RoomCard
                     room={item}
                     variant="compact"
-                    onPress={() => handleJoinSpace(item)}
+                    onPress={() => handleJoinRoom(item)}
                   />
                 )}
               />
@@ -170,20 +170,20 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* All Live Spaces (full cards) */}
-        {liveSpaces.length > 0 && (
+        {/* All Live Rooms (full cards) */}
+        {liveRooms.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeaderPadded}>
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                Join a Space
+                Join a Room
               </Text>
             </View>
             <View style={styles.cardList}>
-              {liveSpaces.map((space) => (
+              {liveRooms.map((room) => (
                 <RoomCard
-                  key={space._id}
-                  room={space}
-                  onPress={() => handleJoinSpace(space)}
+                  key={room._id}
+                  room={room}
+                  onPress={() => handleJoinRoom(room)}
                 />
               ))}
             </View>
@@ -191,7 +191,7 @@ export default function HomeScreen() {
         )}
 
         {/* Upcoming */}
-        {scheduledSpaces.length > 0 && (
+        {scheduledRooms.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeaderPadded}>
               <MaterialCommunityIcons name="calendar" size={18} color={theme.colors.textSecondary} />
@@ -200,11 +200,11 @@ export default function HomeScreen() {
               </Text>
             </View>
             <View style={styles.cardList}>
-              {scheduledSpaces.map((space) => (
+              {scheduledRooms.map((room) => (
                 <RoomCard
-                  key={space._id}
-                  room={space}
-                  onPress={() => handleJoinSpace(space)}
+                  key={room._id}
+                  room={room}
+                  onPress={() => handleJoinRoom(room)}
                 />
               ))}
             </View>
@@ -212,13 +212,13 @@ export default function HomeScreen() {
         )}
 
         {/* Empty state */}
-        {liveSpaces.length === 0 && scheduledSpaces.length === 0 && !refreshing && (
+        {liveRooms.length === 0 && scheduledRooms.length === 0 && !refreshing && (
           <EmptyState
             animation={require('@/assets/lottie/onair.json')}
-            title="No spaces yet"
-            subtitle="Start a space and invite people to listen and chat"
+            title="No rooms yet"
+            subtitle="Start a room and invite people to listen and chat"
           >
-            <PrimaryButton title="Create Space" onPress={openCreateSheet} style={{ marginTop: 10 }} />
+            <PrimaryButton title="Create Room" onPress={openCreateSheet} style={{ marginTop: 10 }} />
           </EmptyState>
         )}
       </ScrollView>
@@ -245,7 +245,7 @@ export default function HomeScreen() {
         <CreateRoomSheet
           ref={createSheetRef}
           onClose={closeCreateSheet}
-          onSpaceCreated={() => { closeCreateSheet(); invalidateSpaceLists(); }}
+          onRoomCreated={() => { closeCreateSheet(); invalidateRoomLists(); }}
           ScrollViewComponent={BottomSheetScrollView}
           hideFooter
           onFormStateChange={setFormState}

@@ -6,16 +6,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLiveRoom, type Room } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useSpace } from '@/hooks/useSpacesQuery';
+import { useRoom } from '@/hooks/useRoomsQuery';
 
-export default function SpaceDetailScreen() {
+export default function RoomDetailScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { joinLiveRoom } = useLiveRoom();
 
-  const { data: space = null, isLoading: loading } = useSpace(id as string);
+  const { data: room = null, isLoading: loading } = useRoom(id as string);
 
   if (loading) {
     return (
@@ -25,10 +25,10 @@ export default function SpaceDetailScreen() {
     );
   }
 
-  if (!space) {
+  if (!room) {
     return (
       <View style={[styles.container, styles.centered, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>Space not found</Text>
+        <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>Room not found</Text>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.backLink, { color: theme.colors.primary }]}>Go back</Text>
         </TouchableOpacity>
@@ -43,21 +43,21 @@ export default function SpaceDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]} numberOfLines={1}>
-          {space.title}
+          {room.title}
         </Text>
         <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.content}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>{space.title}</Text>
-        {space.description && (
+        <Text style={[styles.title, { color: theme.colors.text }]}>{room.title}</Text>
+        {room.description && (
           <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-            {space.description}
+            {room.description}
           </Text>
         )}
-        {space.topic && (
+        {room.topic && (
           <View style={[styles.topicBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
-            <Text style={[styles.topicText, { color: theme.colors.textSecondary }]}>{space.topic}</Text>
+            <Text style={[styles.topicText, { color: theme.colors.textSecondary }]}>{room.topic}</Text>
           </View>
         )}
 
@@ -65,27 +65,27 @@ export default function SpaceDetailScreen() {
           <View style={styles.statRow}>
             <Ionicons name="people" size={18} color={theme.colors.textSecondary} />
             <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
-              {space.participants?.length || 0} participants
+              {room.participants?.length || 0} participants
             </Text>
           </View>
           <View style={styles.statRow}>
-            <Ionicons name="radio" size={18} color={space.status === 'live' ? '#FF4458' : theme.colors.textSecondary} />
-            <Text style={[styles.statText, { color: space.status === 'live' ? '#FF4458' : theme.colors.textSecondary }]}>
-              {space.status.toUpperCase()}
+            <Ionicons name="radio" size={18} color={room.status === 'live' ? '#FF4458' : theme.colors.textSecondary} />
+            <Text style={[styles.statText, { color: room.status === 'live' ? '#FF4458' : theme.colors.textSecondary }]}>
+              {room.status.toUpperCase()}
             </Text>
           </View>
         </View>
 
-        {space.status === 'live' && (
+        {room.status === 'live' && (
           <TouchableOpacity
             style={[styles.joinButton, { backgroundColor: theme.colors.primary }]}
             onPress={() => {
-              joinLiveRoom(space._id);
+              joinLiveRoom(room._id);
               router.back();
             }}
           >
             <Ionicons name="headset" size={20} color="#FFFFFF" />
-            <Text style={styles.joinButtonText}>Join Space</Text>
+            <Text style={styles.joinButtonText}>Join Room</Text>
           </TouchableOpacity>
         )}
       </View>

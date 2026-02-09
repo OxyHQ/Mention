@@ -19,7 +19,7 @@ export default function NotificationsScreen() {
         <EmptyState
           animation={require('@/assets/lottie/nonotifications.json')}
           title="No notifications yet"
-          subtitle="You'll be notified when spaces you follow go live"
+          subtitle="You'll be notified when rooms you follow go live"
         />
       </ScrollView>
     </View>

@@ -9,13 +9,13 @@ import type { Room } from '@mention/agora-shared';
 
 import { toast } from 'sonner-native';
 import { useTheme } from '@/hooks/useTheme';
-import { useUserSpaces, useSpacesQueryInvalidation, useDeleteSpace, useArchiveSpace } from '@/hooks/useSpacesQuery';
+import { useUserRooms, useRoomsQueryInvalidation, useDeleteRoom, useArchiveRoom } from '@/hooks/useRoomsQuery';
 import Avatar from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { ProfileTabBar } from '@/components/ProfileTabBar';
 
 const TABS = [
-  { id: 'spaces', label: 'Spaces' },
+  { id: 'rooms', label: 'Rooms' },
   { id: 'live', label: 'Live' },
   { id: 'scheduled', label: 'Scheduled' },
 ];
@@ -40,32 +40,32 @@ export default function ProfileScreen() {
     if (userId) fetchUserCounts();
   }, [userId, fetchUserCounts]);
 
-  const [activeTab, setActiveTab] = useState('spaces');
+  const [activeTab, setActiveTab] = useState('rooms');
 
-  const { data: mySpaces = { all: [], live: [], scheduled: [] }, isRefetching } = useUserSpaces(userId || undefined);
-  const { invalidateUserSpaces } = useSpacesQueryInvalidation();
+  const { data: myRooms = { all: [], live: [], scheduled: [] }, isRefetching } = useUserRooms(userId || undefined);
+  const { invalidateUserRooms } = useRoomsQueryInvalidation();
   const refreshing = isRefetching;
-  const onRefresh = () => { invalidateUserSpaces(userId); };
+  const onRefresh = () => { invalidateUserRooms(userId); };
 
-  const deleteSpace = useDeleteSpace();
-  const archiveSpace = useArchiveSpace();
+  const deleteRoom = useDeleteRoom();
+  const archiveRoom = useArchiveRoom();
 
-  const handleSpaceActions = (space: Room) => {
-    const isLive = space.status === 'live';
+  const handleRoomActions = (room: Room) => {
+    const isLive = room.status === 'live';
     const actions: { text: string; style?: 'destructive' | 'cancel' | 'default'; onPress?: () => void }[] = [];
 
     if (!isLive) {
       actions.push({
-        text: space.archived ? 'Unarchive' : 'Archive',
+        text: room.archived ? 'Unarchive' : 'Archive',
         onPress: () => {
-          archiveSpace.mutate(
-            { id: space._id, userId },
+          archiveRoom.mutate(
+            { id: room._id, userId },
             {
               onSuccess: (data) => {
-                toast(data.archived ? 'Space archived' : 'Space unarchived');
+                toast(data.archived ? 'Room archived' : 'Room unarchived');
               },
               onError: () => {
-                toast('Failed to update space');
+                toast('Failed to update room');
               },
             },
           );
@@ -76,7 +76,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: () => {
           Alert.alert(
-            'Delete Space',
+            'Delete Room',
             'Are you sure? This cannot be undone.',
             [
               { text: 'Cancel', style: 'cancel' },
@@ -84,14 +84,14 @@ export default function ProfileScreen() {
                 text: 'Delete',
                 style: 'destructive',
                 onPress: () =>
-                  deleteSpace.mutate(
-                    { id: space._id, userId },
+                  deleteRoom.mutate(
+                    { id: room._id, userId },
                     {
                       onSuccess: () => {
-                        toast('Space deleted');
+                        toast('Room deleted');
                       },
                       onError: () => {
-                        toast('Failed to delete space');
+                        toast('Failed to delete room');
                       },
                     },
                   ),
@@ -104,26 +104,26 @@ export default function ProfileScreen() {
 
     actions.push({ text: 'Cancel', style: 'cancel' });
 
-    Alert.alert('Space Options', undefined, actions);
+    Alert.alert('Room Options', undefined, actions);
   };
 
   const displayName = typeof user?.name === 'object'
     ? user?.name?.full || user?.name?.first
     : user?.name || user?.username || 'User';
 
-  const handleJoinSpace = (space: Room) => {
-    joinLiveRoom(space._id);
+  const handleJoinRoom = (room: Room) => {
+    joinLiveRoom(room._id);
   };
 
-  const currentSpaces =
-    activeTab === 'live' ? mySpaces.live
-      : activeTab === 'scheduled' ? mySpaces.scheduled
-        : mySpaces.all;
+  const currentRooms =
+    activeTab === 'live' ? myRooms.live
+      : activeTab === 'scheduled' ? myRooms.scheduled
+        : myRooms.all;
 
   const emptyMessages: Record<string, { title: string; subtitle: string }> = {
-    spaces: { title: 'No spaces yet', subtitle: 'Your hosted spaces will appear here' },
-    live: { title: 'No live spaces', subtitle: 'Your live spaces will appear here' },
-    scheduled: { title: 'No scheduled spaces', subtitle: 'Your scheduled spaces will appear here' },
+    rooms: { title: 'No rooms yet', subtitle: 'Your hosted rooms will appear here' },
+    live: { title: 'No live rooms', subtitle: 'Your live rooms will appear here' },
+    scheduled: { title: 'No scheduled rooms', subtitle: 'Your scheduled rooms will appear here' },
   };
 
   return (
@@ -160,11 +160,11 @@ export default function ProfileScreen() {
       >
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
-            {mySpaces.live.length > 0 && (
+            {myRooms.live.length > 0 && (
               <View style={styles.liveRing} />
             )}
             <Avatar source={user?.avatar} size={80} />
-            {mySpaces.live.length > 0 && (
+            {myRooms.live.length > 0 && (
               <View style={styles.liveBadge}>
                 <Text style={styles.liveBadgeText}>LIVE</Text>
               </View>
@@ -186,8 +186,8 @@ export default function ProfileScreen() {
         {/* Stats Row */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{mySpaces.all.length}</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Spaces</Text>
+            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{myRooms.all.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Rooms</Text>
           </View>
           <TouchableOpacity style={styles.statItem} onPress={() => router.push({ pathname: '/(app)/[username]/followers', params: { username: '@' + cleanUsername } })}>
             <Text style={[styles.statNumber, { color: theme.colors.text }]}>{followerCount ?? 0}</Text>
@@ -213,17 +213,17 @@ export default function ProfileScreen() {
         <ProfileTabBar tabs={TABS} activeTab={activeTab} onTabPress={setActiveTab} />
 
         {/* Tab Content */}
-        {currentSpaces.length > 0 ? (
-          <View style={styles.spacesContainer}>
-            {currentSpaces.map((space) => (
-              <View key={space._id} style={{ position: 'relative' }}>
+        {currentRooms.length > 0 ? (
+          <View style={styles.roomsContainer}>
+            {currentRooms.map((room) => (
+              <View key={room._id} style={{ position: 'relative' }}>
                 <RoomCard
-                  room={space}
-                  onPress={() => handleJoinSpace(space)}
+                  room={room}
+                  onPress={() => handleJoinRoom(room)}
                 />
                 {isOwnProfile && (
                   <TouchableOpacity
-                    onPress={() => handleSpaceActions(space)}
+                    onPress={() => handleRoomActions(room)}
                     style={{
                       position: 'absolute',
                       top: 8,
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  spacesContainer: {
+  roomsContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
   },

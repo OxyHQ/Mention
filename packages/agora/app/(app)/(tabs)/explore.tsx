@@ -13,7 +13,7 @@ import { RoomCard, useLiveRoom, type Room } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
-import { useSpaces, useSpacesQueryInvalidation } from '@/hooks/useSpacesQuery';
+import { useRooms, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
 
 export default function ExploreScreen() {
   const theme = useTheme();
@@ -22,20 +22,20 @@ export default function ExploreScreen() {
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: liveSpaces = [], isRefetching: liveRefetching } = useSpaces('live');
-  const { data: scheduledSpaces = [], isRefetching: scheduledRefetching } = useSpaces('scheduled');
-  const { invalidateSpaceLists } = useSpacesQueryInvalidation();
-  const spaces = [...liveSpaces, ...scheduledSpaces];
+  const { data: liveRooms = [], isRefetching: liveRefetching } = useRooms('live');
+  const { data: scheduledRooms = [], isRefetching: scheduledRefetching } = useRooms('scheduled');
+  const { invalidateRoomLists } = useRoomsQueryInvalidation();
+  const rooms = [...liveRooms, ...scheduledRooms];
   const refreshing = liveRefetching || scheduledRefetching;
-  const onRefresh = () => { invalidateSpaceLists(); };
+  const onRefresh = () => { invalidateRoomLists(); };
 
-  const filteredSpaces = searchQuery.trim()
-    ? spaces.filter(
+  const filteredRooms = searchQuery.trim()
+    ? rooms.filter(
         (s) =>
           s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           s.topic?.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : spaces;
+    : rooms;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -47,7 +47,7 @@ export default function ExploreScreen() {
         <MaterialCommunityIcons name="magnify" size={18} color={theme.colors.textSecondary} />
         <TextInput
           style={[styles.searchInput, { color: theme.colors.text }]}
-          placeholder="Search spaces..."
+          placeholder="Search rooms..."
           placeholderTextColor={theme.colors.textSecondary}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -61,14 +61,14 @@ export default function ExploreScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
         }
       >
-        {filteredSpaces.length > 0 ? (
+        {filteredRooms.length > 0 ? (
           <View style={styles.cardList}>
-            {filteredSpaces.map((space) => (
+            {filteredRooms.map((room) => (
               <RoomCard
-                key={space._id}
-                room={space}
+                key={room._id}
+                room={room}
                 onPress={() => {
-                  if (space.status === 'live') joinLiveRoom(space._id);
+                  if (room.status === 'live') joinLiveRoom(room._id);
                 }}
               />
             ))}
@@ -76,8 +76,8 @@ export default function ExploreScreen() {
         ) : (
           <EmptyState
             animation={require('@/assets/lottie/onair.json')}
-            title={searchQuery.trim() ? 'No results' : 'No spaces available'}
-            subtitle={searchQuery.trim() ? 'No spaces match your search' : 'Spaces will appear here when they go live'}
+            title={searchQuery.trim() ? 'No results' : 'No rooms available'}
+            subtitle={searchQuery.trim() ? 'No rooms match your search' : 'Rooms will appear here when they go live'}
           />
         )}
       </ScrollView>

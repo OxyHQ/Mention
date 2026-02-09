@@ -1,10 +1,10 @@
 /**
- * Query Hooks & Cache Key Utilities for the Spaces app
+ * Query Hooks & Cache Key Utilities for the Agora app
  *
  * useOptimizedQuery / useOptimizedMutation are thin wrappers around React Query
  * that set sensible defaults (5-min staleTime, 1 retry for mutations).
- * The primary value of this module is the `spaceQueryKeys` factory and the
- * `useSpacesQueryInvalidation` helper which enforce consistent cache keys.
+ * The primary value of this module is the `roomQueryKeys` factory and the
+ * `useRoomsQueryInvalidation` helper which enforce consistent cache keys.
  */
 
 import {
@@ -60,13 +60,13 @@ export function useOptimizedMutation<
 // Query key factory
 // ---------------------------------------------------------------------------
 
-export const spaceQueryKeys = {
-  all: ['spaces'] as const,
-  lists: () => [...spaceQueryKeys.all, 'list'] as const,
-  list: (status?: string) => [...spaceQueryKeys.lists(), status] as const,
-  details: () => [...spaceQueryKeys.all, 'detail'] as const,
-  detail: (id: string) => [...spaceQueryKeys.details(), id] as const,
-  userSpaces: (userId: string) => [...spaceQueryKeys.all, 'user', userId] as const,
+export const roomQueryKeys = {
+  all: ['rooms'] as const,
+  lists: () => [...roomQueryKeys.all, 'list'] as const,
+  list: (status?: string) => [...roomQueryKeys.lists(), status] as const,
+  details: () => [...roomQueryKeys.all, 'detail'] as const,
+  detail: (id: string) => [...roomQueryKeys.details(), id] as const,
+  userRooms: (userId: string) => [...roomQueryKeys.all, 'user', userId] as const,
   followers: (userId: string) => ['followers', userId] as const,
   following: (userId: string) => ['following', userId] as const,
 } as const;
@@ -75,38 +75,38 @@ export const spaceQueryKeys = {
 // Invalidation helper
 // ---------------------------------------------------------------------------
 
-export function useSpacesQueryInvalidation() {
+export function useRoomsQueryInvalidation() {
   const queryClient = useQueryClient();
 
   return {
-    /** Invalidate all space list queries (any status filter). */
-    invalidateSpaceLists: () => {
-      queryClient.invalidateQueries({ queryKey: spaceQueryKeys.lists() });
+    /** Invalidate all room list queries (any status filter). */
+    invalidateRoomLists: () => {
+      queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
     },
 
-    /** Invalidate a single space detail query. */
-    invalidateSpace: (id: string) => {
-      queryClient.invalidateQueries({ queryKey: spaceQueryKeys.detail(id) });
+    /** Invalidate a single room detail query. */
+    invalidateRoom: (id: string) => {
+      queryClient.invalidateQueries({ queryKey: roomQueryKeys.detail(id) });
     },
 
-    /** Invalidate the spaces belonging to a specific user. */
-    invalidateUserSpaces: (userId: string) => {
-      queryClient.invalidateQueries({ queryKey: spaceQueryKeys.userSpaces(userId) });
+    /** Invalidate the rooms belonging to a specific user. */
+    invalidateUserRooms: (userId: string) => {
+      queryClient.invalidateQueries({ queryKey: roomQueryKeys.userRooms(userId) });
     },
 
     /** Invalidate a user's followers list. */
     invalidateFollowers: (userId: string) => {
-      queryClient.invalidateQueries({ queryKey: spaceQueryKeys.followers(userId) });
+      queryClient.invalidateQueries({ queryKey: roomQueryKeys.followers(userId) });
     },
 
     /** Invalidate a user's following list. */
     invalidateFollowing: (userId: string) => {
-      queryClient.invalidateQueries({ queryKey: spaceQueryKeys.following(userId) });
+      queryClient.invalidateQueries({ queryKey: roomQueryKeys.following(userId) });
     },
 
-    /** Nuclear option -- invalidate every spaces-related query. */
+    /** Nuclear option -- invalidate every room-related query. */
     invalidateAll: () => {
-      queryClient.invalidateQueries({ queryKey: spaceQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: roomQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: ['followers'] });
       queryClient.invalidateQueries({ queryKey: ['following'] });
     },
@@ -114,47 +114,47 @@ export function useSpacesQueryInvalidation() {
 }
 
 // ---------------------------------------------------------------------------
-// Domain hooks -- Spaces
+// Domain hooks -- Rooms
 // ---------------------------------------------------------------------------
 
-/** Fetch a list of spaces, optionally filtered by status. */
-export function useSpaces(status?: string) {
+/** Fetch a list of rooms, optionally filtered by status. */
+export function useRooms(status?: string) {
   const { agoraService } = useAgoraConfig();
 
   return useOptimizedQuery<Room[]>({
-    queryKey: spaceQueryKeys.list(status),
+    queryKey: roomQueryKeys.list(status),
     queryFn: () => agoraService.getRooms(status),
   });
 }
 
-/** Fetch a single space by id. Disabled when id is falsy. */
-export function useSpace(id: string | undefined) {
+/** Fetch a single room by id. Disabled when id is falsy. */
+export function useRoom(id: string | undefined) {
   const { agoraService } = useAgoraConfig();
 
   return useOptimizedQuery<Room | null>({
-    queryKey: spaceQueryKeys.detail(id!),
+    queryKey: roomQueryKeys.detail(id!),
     queryFn: () => agoraService.getRoom(id!),
     enabled: !!id,
   });
 }
 
-interface UserSpacesResult {
+interface UserRoomsResult {
   all: Room[];
   live: Room[];
   scheduled: Room[];
 }
 
 /**
- * Fetch all spaces where the given user is the host.
+ * Fetch all rooms where the given user is the host.
  * Fires three parallel requests (live, scheduled, ended) and filters by host.
  * Disabled when userId is falsy.
  */
-export function useUserSpaces(userId: string | undefined) {
+export function useUserRooms(userId: string | undefined) {
   const { agoraService } = useAgoraConfig();
 
-  return useOptimizedQuery<UserSpacesResult>({
-    queryKey: spaceQueryKeys.userSpaces(userId!),
-    queryFn: async (): Promise<UserSpacesResult> => {
+  return useOptimizedQuery<UserRoomsResult>({
+    queryKey: roomQueryKeys.userRooms(userId!),
+    queryFn: async (): Promise<UserRoomsResult> => {
       const [live, scheduled, ended] = await Promise.all([
         agoraService.getRooms('live'),
         agoraService.getRooms('scheduled'),
@@ -185,7 +185,7 @@ export function useUserSpaces(userId: string | undefined) {
  */
 export function useFollowersList(oxyServices: OxyServices | null | undefined, userId: string | undefined) {
   return useOptimizedQuery<UserEntity[]>({
-    queryKey: spaceQueryKeys.followers(userId!),
+    queryKey: roomQueryKeys.followers(userId!),
     queryFn: async () => {
       const result = await oxyServices!.getUserFollowers(userId!);
       return result.followers ?? [];
@@ -200,7 +200,7 @@ export function useFollowersList(oxyServices: OxyServices | null | undefined, us
  */
 export function useFollowingList(oxyServices: OxyServices | null | undefined, userId: string | undefined) {
   return useOptimizedQuery<UserEntity[]>({
-    queryKey: spaceQueryKeys.following(userId!),
+    queryKey: roomQueryKeys.following(userId!),
     queryFn: async () => {
       const result = await oxyServices!.getUserFollowing(userId!);
       return result.following ?? [];
@@ -213,7 +213,7 @@ export function useFollowingList(oxyServices: OxyServices | null | undefined, us
 // Mutation hooks
 // ---------------------------------------------------------------------------
 
-interface CreateSpaceInput {
+interface CreateRoomInput {
   title: string;
   description?: string;
   topic?: string;
@@ -221,72 +221,72 @@ interface CreateSpaceInput {
   speakerPermission?: 'everyone' | 'followers' | 'invited';
 }
 
-/** Create a new space. Invalidates space list queries on success. */
-export function useCreateSpace() {
+/** Create a new room. Invalidates room list queries on success. */
+export function useCreateRoom() {
   const { agoraService } = useAgoraConfig();
-  const { invalidateSpaceLists } = useSpacesQueryInvalidation();
+  const { invalidateRoomLists } = useRoomsQueryInvalidation();
 
-  return useOptimizedMutation<Room | null, Error, CreateSpaceInput>({
+  return useOptimizedMutation<Room | null, Error, CreateRoomInput>({
     mutationFn: (data) => agoraService.createRoom(data),
     onSuccess: () => {
-      invalidateSpaceLists();
+      invalidateRoomLists();
     },
   });
 }
 
-/** Start a space. Invalidates both the individual space and list queries. */
-export function useStartSpace() {
+/** Start a room. Invalidates both the individual room and list queries. */
+export function useStartRoom() {
   const { agoraService } = useAgoraConfig();
-  const { invalidateSpaceLists, invalidateSpace } = useSpacesQueryInvalidation();
+  const { invalidateRoomLists, invalidateRoom } = useRoomsQueryInvalidation();
 
   return useOptimizedMutation<boolean, Error, string>({
     mutationFn: (id) => agoraService.startRoom(id),
     onSuccess: (_data, id) => {
-      invalidateSpace(id);
-      invalidateSpaceLists();
+      invalidateRoom(id);
+      invalidateRoomLists();
     },
   });
 }
 
-/** End a space. Invalidates both the individual space and list queries. */
-export function useEndSpace() {
+/** End a room. Invalidates both the individual room and list queries. */
+export function useEndRoom() {
   const { agoraService } = useAgoraConfig();
-  const { invalidateSpaceLists, invalidateSpace } = useSpacesQueryInvalidation();
+  const { invalidateRoomLists, invalidateRoom } = useRoomsQueryInvalidation();
 
   return useOptimizedMutation<boolean, Error, string>({
     mutationFn: (id) => agoraService.endRoom(id),
     onSuccess: (_data, id) => {
-      invalidateSpace(id);
-      invalidateSpaceLists();
+      invalidateRoom(id);
+      invalidateRoomLists();
     },
   });
 }
 
-/** Delete a space. Invalidates space list and user-specific queries on success. */
-export function useDeleteSpace() {
+/** Delete a room. Invalidates room list and user-specific queries on success. */
+export function useDeleteRoom() {
   const { agoraService } = useAgoraConfig();
-  const { invalidateSpaceLists, invalidateUserSpaces } = useSpacesQueryInvalidation();
+  const { invalidateRoomLists, invalidateUserRooms } = useRoomsQueryInvalidation();
 
   return useOptimizedMutation<boolean, Error, { id: string; userId: string }>({
     mutationFn: ({ id }) => agoraService.deleteRoom(id),
     onSuccess: (_data, { userId }) => {
-      invalidateSpaceLists();
-      if (userId) invalidateUserSpaces(userId);
+      invalidateRoomLists();
+      if (userId) invalidateUserRooms(userId);
     },
   });
 }
 
-/** Archive/unarchive a space. Invalidates the space detail, list, and user queries. */
-export function useArchiveSpace() {
+/** Archive/unarchive a room. Invalidates the room detail, list, and user queries. */
+export function useArchiveRoom() {
   const { agoraService } = useAgoraConfig();
-  const { invalidateSpaceLists, invalidateSpace, invalidateUserSpaces } = useSpacesQueryInvalidation();
+  const { invalidateRoomLists, invalidateRoom, invalidateUserRooms } = useRoomsQueryInvalidation();
 
   return useOptimizedMutation<{ success: boolean; archived: boolean }, Error, { id: string; userId: string }>({
     mutationFn: ({ id }) => agoraService.archiveRoom(id),
     onSuccess: (_data, { id, userId }) => {
-      invalidateSpace(id);
-      invalidateSpaceLists();
-      if (userId) invalidateUserSpaces(userId);
+      invalidateRoom(id);
+      invalidateRoomLists();
+      if (userId) invalidateUserRooms(userId);
     },
   });
 }
