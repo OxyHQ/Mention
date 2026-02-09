@@ -10,7 +10,7 @@ import { useLiveSpace } from '@/context/LiveSpaceContext';
 import { spacesService, type Space } from '@/services/spacesService';
 import { useSpaceUsers, getDisplayName } from '@/hooks/useSpaceUsers';
 import { useUserById } from '@/stores/usersStore';
-import { Spaces as SpacesIcon } from '@/assets/icons/spaces-icon';
+import { Agora as SpacesIcon } from '@mention/agora-shared';
 import { Loading } from '@/components/ui/Loading';
 
 const MAX_SPACES_DISPLAYED = 3;

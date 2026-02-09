@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Agora as SpacesIcon } from '@/assets/icons/spaces-icon';
+import { Agora as SpacesIcon } from '@mention/agora-shared';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import SpaceCard from '@/components/SpaceCard';
