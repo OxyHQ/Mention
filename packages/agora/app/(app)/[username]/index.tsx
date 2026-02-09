@@ -38,7 +38,8 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (userId) fetchUserCounts();
-  }, [userId, fetchUserCounts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const [activeTab, setActiveTab] = useState('rooms');
 
