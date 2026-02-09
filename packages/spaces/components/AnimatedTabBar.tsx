@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
-import { View, Text, Pressable, Platform, LayoutChangeEvent } from 'react-native';
+import { View, Text, Pressable, Platform, LayoutChangeEvent, type ViewStyle } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import Animated, {
   useSharedValue,

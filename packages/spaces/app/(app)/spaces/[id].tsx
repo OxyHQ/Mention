@@ -1,31 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLiveSpace, useSpacesConfig, type Space } from '@mention/spaces-shared';
+import { useLiveSpace, type Space } from '@mention/spaces-shared';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useSpace } from '@/hooks/useSpacesQuery';
 
 export default function SpaceDetailScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { spacesService } = useSpacesConfig();
   const { joinLiveSpace } = useLiveSpace();
 
-  const [space, setSpace] = useState<Space | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (id) {
-      spacesService.getSpace(id).then((s) => {
-        setSpace(s);
-        setLoading(false);
-      });
-    }
-  }, [id]);
+  const { data: space = null, isLoading: loading } = useSpace(id as string);
 
   if (loading) {
     return (

@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth, useFollow } from '@oxyhq/services';
-import { useSpacesConfig, useLiveSpace, SpaceCard } from '@mention/spaces-shared';
+import { useLiveSpace, SpaceCard } from '@mention/spaces-shared';
 import type { Space } from '@mention/spaces-shared';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useUserSpaces, useSpacesQueryInvalidation } from '@/hooks/useSpacesQuery';
 import Avatar from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { ProfileTabBar } from '@/components/ProfileTabBar';
@@ -24,53 +25,26 @@ export default function ProfileScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const { username } = useLocalSearchParams<{ username: string }>();
-  const { spacesService } = useSpacesConfig();
   const { joinLiveSpace } = useLiveSpace();
+
+  const navigation = useNavigation();
+  const canGoBack = navigation.canGoBack();
 
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const isOwnProfile = cleanUsername === user?.username;
-  const userId = user?.id ?? user?._id ?? '';
+  const userId = user?.id ?? (user as any)?._id ?? '';
   const { followerCount = 0, followingCount = 0 } = useFollow(userId) as any;
 
   const [activeTab, setActiveTab] = useState('spaces');
-  const [mySpaces, setMySpaces] = useState<{ all: Space[]; live: Space[]; scheduled: Space[] }>({
-    all: [],
-    live: [],
-    scheduled: [],
-  });
-  const [refreshing, setRefreshing] = useState(false);
+
+  const { data: mySpaces = { all: [], live: [], scheduled: [] }, isRefetching } = useUserSpaces(userId || undefined);
+  const { invalidateUserSpaces } = useSpacesQueryInvalidation();
+  const refreshing = isRefetching;
+  const onRefresh = () => { invalidateUserSpaces(userId); };
 
   const displayName = typeof user?.name === 'object'
     ? user?.name?.full || user?.name?.first
     : user?.name || user?.username || 'User';
-
-  const loadMySpaces = useCallback(async () => {
-    try {
-      const [live, scheduled, ended] = await Promise.all([
-        spacesService.getSpaces('live'),
-        spacesService.getSpaces('scheduled'),
-        spacesService.getSpaces('ended'),
-      ]);
-      const uid = user?.id ?? user?._id;
-      setMySpaces({
-        all: [...live, ...scheduled, ...ended].filter((s: Space) => s.host === uid),
-        live: live.filter((s: Space) => s.host === uid),
-        scheduled: scheduled.filter((s: Space) => s.host === uid),
-      });
-    } catch {
-      // silently fail
-    }
-  }, [spacesService, user?.id, user?._id]);
-
-  useEffect(() => {
-    loadMySpaces();
-  }, [loadMySpaces]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadMySpaces();
-    setRefreshing(false);
-  };
 
   const handleJoinSpace = (space: Space) => {
     joinLiveSpace(space._id);
@@ -90,9 +64,24 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
+        {canGoBack ? (
+          <TouchableOpacity
+            onPress={() => {
+              if (isOwnProfile) {
+                // Navigate to home tab directly to avoid redirect loop
+                // (the (tabs)/profile screen has a <Redirect> that would send us right back)
+                router.replace('/(app)/(tabs)');
+              } else {
+                router.back();
+              }
+            }}
+            style={styles.backButton}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.backButton} />
+        )}
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>@{cleanUsername}</Text>
         <TouchableOpacity onPress={() => router.push('/(app)/settings')}>
           <MaterialCommunityIcons name="cog-outline" size={24} color={theme.colors.text} />

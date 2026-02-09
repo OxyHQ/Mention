@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,38 +9,25 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SpaceCard, useLiveSpace, useSpacesConfig, type Space } from '@mention/spaces-shared';
+import { SpaceCard, useLiveSpace, type Space } from '@mention/spaces-shared';
 
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
+import { useSpaces, useSpacesQueryInvalidation } from '@/hooks/useSpacesQuery';
 
 export default function ExploreScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { spacesService } = useSpacesConfig();
   const { joinLiveSpace } = useLiveSpace();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [spaces, setSpaces] = useState<Space[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const loadSpaces = useCallback(async () => {
-    const [live, scheduled] = await Promise.all([
-      spacesService.getSpaces('live'),
-      spacesService.getSpaces('scheduled'),
-    ]);
-    setSpaces([...live, ...scheduled]);
-  }, [spacesService]);
-
-  useEffect(() => {
-    loadSpaces();
-  }, [loadSpaces]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadSpaces();
-    setRefreshing(false);
-  };
+  const { data: liveSpaces = [], isRefetching: liveRefetching } = useSpaces('live');
+  const { data: scheduledSpaces = [], isRefetching: scheduledRefetching } = useSpaces('scheduled');
+  const { invalidateSpaceLists } = useSpacesQueryInvalidation();
+  const spaces = [...liveSpaces, ...scheduledSpaces];
+  const refreshing = liveRefetching || scheduledRefetching;
+  const onRefresh = () => { invalidateSpaceLists(); };
 
   const filteredSpaces = searchQuery.trim()
     ? spaces.filter(

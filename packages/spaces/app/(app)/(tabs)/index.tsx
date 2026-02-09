@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,6 @@ import {
   SpaceCard,
   CreateSpaceSheet,
   useLiveSpace,
-  useSpacesConfig,
   type Space,
   type CreateSpaceSheetRef,
   type CreateSpaceFormState,
@@ -25,19 +24,22 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { useSpaces, useSpacesQueryInvalidation } from '@/hooks/useSpacesQuery';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { spacesService } = useSpacesConfig();
   const { joinLiveSpace } = useLiveSpace();
   const modalRef = useRef<BottomSheetModal>(null);
   const createSheetRef = useRef<CreateSpaceSheetRef>(null);
   const snapPoints = useMemo(() => ['85%'], []);
 
-  const [liveSpaces, setLiveSpaces] = useState<Space[]>([]);
-  const [scheduledSpaces, setScheduledSpaces] = useState<Space[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+  const { data: liveSpaces = [], isRefetching: liveRefetching } = useSpaces('live');
+  const { data: scheduledSpaces = [], isRefetching: scheduledRefetching } = useSpaces('scheduled');
+  const { invalidateSpaceLists } = useSpacesQueryInvalidation();
+  const refreshing = liveRefetching || scheduledRefetching;
+  const onRefresh = () => { invalidateSpaceLists(); };
+
   const [sheetOpen, setSheetOpen] = useState(false);
   const [formState, setFormState] = useState<CreateSpaceFormState>({
     isValid: false,
@@ -50,25 +52,6 @@ export default function HomeScreen() {
       modalRef.current?.present();
     }
   }, [sheetOpen]);
-
-  const loadSpaces = useCallback(async () => {
-    const [live, scheduled] = await Promise.all([
-      spacesService.getSpaces('live'),
-      spacesService.getSpaces('scheduled'),
-    ]);
-    setLiveSpaces(live);
-    setScheduledSpaces(scheduled);
-  }, [spacesService]);
-
-  useEffect(() => {
-    loadSpaces();
-  }, [loadSpaces]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadSpaces();
-    setRefreshing(false);
-  };
 
   const handleJoinSpace = (space: Space) => {
     joinLiveSpace(space._id);
@@ -261,7 +244,7 @@ export default function HomeScreen() {
         <CreateSpaceSheet
           ref={createSheetRef}
           onClose={closeCreateSheet}
-          onSpaceCreated={() => { closeCreateSheet(); loadSpaces(); }}
+          onSpaceCreated={() => { closeCreateSheet(); invalidateSpaceLists(); }}
           ScrollViewComponent={BottomSheetScrollView}
           hideFooter
           onFormStateChange={setFormState}

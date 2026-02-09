@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useFollowersList } from '@/hooks/useSpacesQuery';
 import Avatar from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 
@@ -15,33 +16,12 @@ export default function FollowersScreen() {
   const router = useRouter();
   const { username } = useLocalSearchParams<{ username: string }>();
   const { oxyServices, user } = useAuth();
-  const [followers, setFollowers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
   const isOwnProfile = cleanUsername === user?.username;
 
-  const loadFollowers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const userId = isOwnProfile ? (user?.id ?? user?._id) : cleanUsername;
-      const result: any = await (oxyServices as any).getUserFollowers(userId);
-      const list = Array.isArray(result?.followers)
-        ? result.followers
-        : Array.isArray(result)
-          ? result
-          : [];
-      setFollowers(list);
-    } catch (error) {
-      console.error('Error loading followers:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [oxyServices, isOwnProfile, user?.id, user?._id, cleanUsername]);
-
-  useEffect(() => {
-    loadFollowers();
-  }, [loadFollowers]);
+  const userId = isOwnProfile ? (user?.id ?? (user as any)?._id) : cleanUsername;
+  const { data: followers = [], isLoading: loading } = useFollowersList(oxyServices, userId);
 
   const renderItem = ({ item }: { item: any }) => {
     const name =

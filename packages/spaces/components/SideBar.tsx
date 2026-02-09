@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, Pressable, Platform } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { View, Text, Pressable, Platform, type ViewStyle } from 'react-native';
+import { useRouter, usePathname, type Href } from 'expo-router';
 import { SpacesActive } from '@mention/spaces-shared';
 import { useAuth } from '@oxyhq/services';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
@@ -41,12 +41,12 @@ function SideBarItem({ icon, text, href, isActive, isExpanded, theme }: SideBarI
       : isHovered
         ? `${theme.colors.primary}14`
         : 'transparent',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any, transition: 'background-color 150ms ease' } : {}),
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'background-color 150ms ease' } as unknown as ViewStyle : {}),
   }), [isActive, isHovered, isExpanded, theme.colors.primary]);
 
   return (
     <Pressable
-      onPress={() => router.push(href as any)}
+      onPress={() => router.push(href as Href)}
       onHoverIn={() => setIsHovered(true)}
       onHoverOut={() => setIsHovered(false)}
       style={itemStyle}
@@ -128,11 +128,11 @@ export function SideBar() {
         paddingVertical: 12,
         paddingHorizontal: 6,
         ...(Platform.OS === 'web' ? {
-          position: 'sticky' as any,
+          position: 'sticky',
           top: 0,
-          height: '100vh' as any,
-          overflowX: 'hidden' as any,
-        } : {
+          height: '100vh',
+          overflowX: 'hidden',
+        } as unknown as ViewStyle : {
           height: '100%',
         }),
       }}

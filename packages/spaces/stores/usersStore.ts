@@ -44,20 +44,20 @@ export const useUsersStore = create<UsersState>()(
 
     upsertUser: (user) => {
       if (!user) return;
-      const id = String(user.id ?? (user as any)._id ?? '');
+      const id = String(user.id ?? user._id ?? '');
       if (!id) return;
-      const username = (user as any).username ?? (user as any).handle;
+      const username = user.username ?? user.handle;
       set((state) => {
         const prev = state.usersById[id]?.data || {};
-        const merged: UserEntity = { ...prev, ...user, id } as UserEntity;
-        const isFull = Boolean((user as any)?.bio || (user as any)?.createdAt);
+        const merged: UserEntity = { ...prev, ...user, id };
+        const isFull = Boolean(user.bio || user.createdAt);
         const next: UsersState['usersById'] = {
           ...state.usersById,
           [id]: { data: merged, fetchedAt: now(), isFull: isFull || state.usersById[id]?.isFull || false },
         };
         const nextMap = { ...state.idByUsername };
         if (username) nextMap[String(username).toLowerCase()] = id;
-        return { usersById: next, idByUsername: nextMap } as Partial<UsersState> as any;
+        return { usersById: next, idByUsername: nextMap } as Partial<UsersState>;
       });
     },
 
@@ -71,14 +71,14 @@ export const useUsersStore = create<UsersState>()(
       const loaded = await loader(id).catch(() => undefined);
       if (loaded) {
         set((state) => {
-          const username = (loaded as any).username ?? (loaded as any).handle;
+          const username = loaded.username ?? loaded.handle;
           const nextUsers = {
             ...state.usersById,
-            [id]: { data: { ...(state.usersById[id]?.data || {}), ...loaded, id } as UserEntity, fetchedAt: now(), isFull: true },
+            [id]: { data: { ...(state.usersById[id]?.data || {}), ...loaded, id }, fetchedAt: now(), isFull: true },
           };
           const nextMap = { ...state.idByUsername };
           if (username) nextMap[String(username).toLowerCase()] = id;
-          return { usersById: nextUsers, idByUsername: nextMap } as Partial<UsersState> as any;
+          return { usersById: nextUsers, idByUsername: nextMap } as Partial<UsersState>;
         });
       }
       return loaded || cached?.data;
