@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -148,11 +148,14 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
     }
   };
 
-  const handleGenerateKey = async () => {
-    if (generatingKey) return;
+  const generatingRef = useRef(false);
+
+  const generateKey = async () => {
+    if (generatingRef.current) return;
+    generatingRef.current = true;
     setGeneratingKey(true);
     try {
-      if (!(await ensureRoomLive())) { setGeneratingKey(false); return; }
+      if (!(await ensureRoomLive())) return;
       const result = await agoraService.generateStreamKey(roomId, {
         title: title.trim() || undefined,
         image: imageFileId || undefined,
@@ -161,9 +164,6 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
       if (result?.streamKey) {
         setRtmpUrl(result.rtmpUrl || '');
         setStreamKey(result.streamKey);
-        toast.success('Stream key generated');
-        // Don't call onStreamStarted() here — keep the panel open so the
-        // user can copy the RTMP URL and stream key.
       } else {
         console.error('Generate stream key response:', JSON.stringify(result, null, 2));
         toast.error('Failed to generate stream key');
@@ -174,8 +174,17 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
       toast.error(`Stream key error: ${msg}`);
     } finally {
       setGeneratingKey(false);
+      generatingRef.current = false;
     }
   };
+
+  // Auto-generate RTMP credentials when switching to the External App tab
+  useEffect(() => {
+    if (mode === 'rtmp' && !streamKey && !generatingRef.current) {
+      generateKey();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const handleUpdateMetadata = async () => {
     if (loading) return;
@@ -276,20 +285,12 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
         {mode === 'rtmp' && (
           <View style={styles.section}>
             {!streamKey ? (
-              <TouchableOpacity
-                style={[styles.generateBtn, { backgroundColor: theme.colors.primary, opacity: generatingKey ? 0.6 : 1 }]}
-                onPress={handleGenerateKey}
-                disabled={generatingKey}
-              >
-                {generatingKey ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <MaterialCommunityIcons name="key" size={18} color="#FFFFFF" />
-                )}
-                <Text style={styles.generateBtnText}>
-                  {generatingKey ? 'Generating...' : 'Generate Stream Key'}
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+                  Generating stream key...
                 </Text>
-              </TouchableOpacity>
+              </View>
             ) : (
               <View style={styles.credentialsBox}>
                 <Text style={[styles.credLabel, { color: theme.colors.textSecondary }]}>RTMP URL</Text>
@@ -501,6 +502,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   generateBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  loadingBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 24,
+  },
+  loadingText: { fontSize: 14 },
   credentialsBox: { gap: 4 },
   credLabel: {
     fontSize: 12,
