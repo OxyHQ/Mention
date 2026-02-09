@@ -988,10 +988,20 @@ router.post('/:id/stream/rtmp', async (req: AuthRequest, res: Response) => {
     // Create the RTMP ingress
     const ingress = await createRoomRtmpIngress(String(id));
 
+    // LiveKit may return an empty url if the RTMP service doesn't have a
+    // public URL configured.  Derive a fallback from LIVEKIT_URL.
+    let rtmpUrl = ingress.url || '';
+    if (!rtmpUrl) {
+      const host = (process.env.LIVEKIT_URL || '')
+        .replace(/^wss?:\/\//, '')
+        .replace(/\/+$/, '');
+      if (host) rtmpUrl = `rtmp://${host}:1935/live`;
+    }
+
     // Persist ingress info + metadata (clear URL mode fields)
     room.activeIngressId = ingress.ingressId;
     room.activeStreamUrl = undefined;
-    room.rtmpUrl = ingress.url;
+    room.rtmpUrl = rtmpUrl;
     room.rtmpStreamKey = ingress.streamKey;
     room.streamTitle = title ? String(title).trim() : undefined;
     room.streamImage = image ? String(image).trim() : undefined;
@@ -1015,7 +1025,7 @@ router.post('/:id/stream/rtmp', async (req: AuthRequest, res: Response) => {
 
     res.json({
       message: 'RTMP stream key generated',
-      rtmpUrl: ingress.url,
+      rtmpUrl,
       streamKey: ingress.streamKey,
     });
   } catch (error) {

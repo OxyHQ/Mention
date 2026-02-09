@@ -115,13 +115,18 @@ export function createAgoraService(httpClient: HttpClient) {
 
     async generateStreamKey(id: string, data?: { title?: string; image?: string; description?: string }): Promise<{ rtmpUrl: string; streamKey: string } | null> {
       if (!id) return null;
-      const res = await httpClient.post(`/rooms/${id}/stream/rtmp`, data || {});
-      const parsed = ZGenerateStreamKeyResponse.safeParse(res.data);
-      if (!parsed.success) {
-        console.warn('[agora] Invalid generateStreamKey response:', parsed.error.issues[0]);
+      try {
+        const res = await httpClient.post(`/rooms/${id}/stream/rtmp`, data || {});
+        const parsed = ZGenerateStreamKeyResponse.safeParse(res.data);
+        if (!parsed.success) {
+          console.warn('[agora] Invalid generateStreamKey response:', parsed.error.issues[0]);
+          return null;
+        }
+        return parsed.data;
+      } catch (error) {
+        console.warn("Failed to generate stream key", error);
         return null;
       }
-      return parsed.data;
     },
 
     async updateStreamMetadata(id: string, data: { title?: string; image?: string; description?: string }): Promise<boolean> {
