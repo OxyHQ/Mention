@@ -351,15 +351,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
   if (activePanel === 'settings') {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { borderBottomColor: `${theme.colors.border}80` }]}>
-          <TouchableOpacity onPress={() => setActivePanel(null)} style={styles.headerButton}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Room Settings</Text>
-          </View>
-          <View style={styles.headerButton} />
-        </View>
+        <PanelHeader title="Room Settings" theme={theme} onBack={() => setActivePanel(null)} />
         <View style={styles.settingsContent}>
           <TouchableOpacity
             style={styles.settingsItem}

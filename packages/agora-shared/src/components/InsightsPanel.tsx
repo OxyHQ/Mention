@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
+import { PanelHeader } from './PanelHeader';
 import type { Room, RoomParticipant, AgoraTheme } from '../types';
 
 interface InsightsPanelProps {
@@ -59,13 +60,7 @@ export function InsightsPanel({ room, participants, theme, onClose }: InsightsPa
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { borderBottomColor: `${theme.colors.border}80` }]}>
-        <TouchableOpacity onPress={onClose} style={styles.backButton}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Insights</Text>
-        <View style={styles.backButton} />
-      </View>
+      <PanelHeader title="Insights" theme={theme} onBack={onClose} />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -146,16 +141,6 @@ export function InsightsPanel({ room, participants, theme, onClose }: InsightsPa
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: { width: 40, alignItems: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '600' },
   scrollContent: { padding: 16, paddingBottom: 32 },
   statsGrid: {
     flexDirection: 'row',
