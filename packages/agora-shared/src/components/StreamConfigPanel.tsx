@@ -162,7 +162,8 @@ export function StreamConfigPanel({ roomId, roomStatus, onClose, onStreamStarted
         setRtmpUrl(result.rtmpUrl || '');
         setStreamKey(result.streamKey);
         toast.success('Stream key generated');
-        onStreamStarted();
+        // Don't call onStreamStarted() here — keep the panel open so the
+        // user can copy the RTMP URL and stream key.
       } else {
         console.error('Generate stream key response:', JSON.stringify(result, null, 2));
         toast.error('Failed to generate stream key');
