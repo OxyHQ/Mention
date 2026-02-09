@@ -258,7 +258,7 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
   );
   const listeners = participants.filter((p) => p.role === 'listener');
 
-  const isHost = myRole === 'host';
+  const isHost = myRole === 'host' || space?.host === user?.id;
   const canSpeak = myRole === 'host' || myRole === 'speaker';
 
   if (!isExpanded) {
@@ -348,7 +348,11 @@ export function LiveSpaceSheet({ spaceId, isExpanded, onCollapse, onExpand, onLe
         </View>
       )}
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.speakerGrid}>
           {speakers.map((p) => (
             <ConnectedSpeakerTile
@@ -534,7 +538,7 @@ const styles = StyleSheet.create({
   },
   endButtonText: { fontSize: 15, fontWeight: '600', color: '#FF4458' },
   spaceInfo: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  spaceTitle: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
+  spaceTitle: { fontSize: 32, fontWeight: 'bold', lineHeight: 38 },
   spaceTopic: { fontSize: 14, marginTop: 4 },
   micBanner: {
     flexDirection: 'row',
@@ -624,7 +628,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
     paddingTop: 12,
-    paddingBottom: 24,
+    paddingBottom: 12,
     paddingHorizontal: 24,
     borderTopWidth: 1,
     gap: 32,
