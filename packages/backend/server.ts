@@ -61,6 +61,9 @@ import muteRoutes from './src/routes/mute.routes';
 import reportsRoutes from './src/routes/reports.routes';
 import trendingRoutes from './src/routes/trending.routes';
 import spacesRoutes from './src/routes/spaces.routes';
+import roomsRoutes from './src/routes/rooms.routes';
+import housesRoutes from './src/routes/houses.routes';
+import seriesRoutes from './src/routes/series.routes';
 import adminRoutes from './src/routes/admin';
 
 // Middleware
@@ -763,7 +766,10 @@ authenticatedApiRouter.use("/gifs", gifsRoutes);
 authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/reports", reportsRoutes);
-authenticatedApiRouter.use("/spaces", spacesRoutes);
+authenticatedApiRouter.use("/spaces", spacesRoutes); // Legacy backward compat - points to old spaces routes
+authenticatedApiRouter.use("/rooms", roomsRoutes);    // New rooms routes (replaces spaces)
+authenticatedApiRouter.use("/houses", housesRoutes);
+authenticatedApiRouter.use("/series", seriesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
 authenticatedApiRouter.use("/admin", adminRoutes);
 // You can add more protected routers here as needed
