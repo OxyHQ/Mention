@@ -28,10 +28,183 @@ function getIngressClient(): IngressClient {
   return ingressClient;
 }
 
+// ---------------------------------------------------------------------------
+// Room-based functions (new naming convention using `room_{id}`)
+// ---------------------------------------------------------------------------
+
 /**
- * Generate a LiveKit access token for a user joining a space.
+ * Generate a LiveKit access token for a user joining a room.
  * - Hosts and speakers can publish audio (microphone)
  * - Listeners can only subscribe
+ */
+export async function generateRoomToken(
+  roomId: string,
+  userId: string,
+  role: 'host' | 'speaker' | 'listener'
+): Promise<string> {
+  const canPublish = role !== 'listener';
+
+  const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+    identity: userId,
+    ttl: '6h',
+    metadata: JSON.stringify({ roomId, role }),
+  });
+
+  at.addGrant({
+    roomJoin: true,
+    room: `room_${roomId}`,
+    canPublish,
+    canSubscribe: true,
+    canPublishData: true,
+    canPublishSources: canPublish ? [TrackSource.MICROPHONE] : [],
+  });
+
+  return await at.toJwt();
+}
+
+/**
+ * Generate a listen-only LiveKit token for broadcast rooms.
+ * Non-host users always get subscribe-only access (no publish).
+ * The host receives full publish permissions.
+ */
+export async function generateBroadcastToken(
+  roomId: string,
+  userId: string,
+  isHost: boolean
+): Promise<string> {
+  const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+    identity: userId,
+    ttl: '6h',
+    metadata: JSON.stringify({ roomId, role: isHost ? 'host' : 'listener', broadcast: true }),
+  });
+
+  at.addGrant({
+    roomJoin: true,
+    room: `room_${roomId}`,
+    canPublish: isHost,
+    canSubscribe: true,
+    canPublishData: isHost,
+    canPublishSources: isHost ? [TrackSource.MICROPHONE] : [],
+  });
+
+  return await at.toJwt();
+}
+
+/**
+ * Create a LiveKit room when a room goes live.
+ */
+export async function createLiveKitRoomForRoom(roomId: string, maxParticipants: number = 100) {
+  try {
+    const room = await getRoomService().createRoom({
+      name: `room_${roomId}`,
+      emptyTimeout: 5 * 60, // 5 minutes before auto-cleanup
+      maxParticipants,
+    });
+    logger.info(`LiveKit room created: room_${roomId}`);
+    return room;
+  } catch (error) {
+    logger.error(`Failed to create LiveKit room for room ${roomId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a LiveKit room when a room ends.
+ */
+export async function deleteLiveKitRoomForRoom(roomId: string) {
+  try {
+    await getRoomService().deleteRoom(`room_${roomId}`);
+    logger.info(`LiveKit room deleted: room_${roomId}`);
+  } catch (error) {
+    // Room may already be gone -- not critical
+    logger.warn(`Failed to delete LiveKit room for room ${roomId}:`, error);
+  }
+}
+
+/**
+ * Update a participant's publish permissions in a LiveKit room (room-based).
+ * Called when a speaker is approved or removed.
+ */
+export async function updateRoomParticipantPermissions(
+  roomId: string,
+  userId: string,
+  canPublish: boolean
+) {
+  try {
+    await getRoomService().updateParticipant(`room_${roomId}`, userId, undefined, {
+      canPublish,
+      canPublishSources: canPublish ? [TrackSource.MICROPHONE] : [],
+      canSubscribe: true,
+    });
+    logger.debug(`Updated LiveKit permissions for ${userId} in room ${roomId}: canPublish=${canPublish}`);
+  } catch (error) {
+    // Participant may not be in the LiveKit room yet -- not critical
+    logger.warn(`Failed to update LiveKit permissions for ${userId} in room ${roomId}:`, error);
+  }
+}
+
+/**
+ * Create a URL-type ingress for a room.
+ */
+export async function createRoomUrlIngress(
+  roomId: string,
+  url: string
+): Promise<IngressInfo> {
+  try {
+    const ingress = await getIngressClient().createIngress(IngressInput.URL_INPUT, {
+      roomName: `room_${roomId}`,
+      participantIdentity: `stream_${roomId}`,
+      participantName: 'Live Stream',
+      url,
+      enableTranscoding: true,
+    });
+    logger.info(`URL ingress created for room ${roomId}: ${ingress.ingressId}`);
+    return ingress;
+  } catch (error) {
+    logger.error(`Failed to create URL ingress for room ${roomId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Create an RTMP-type ingress for a room.
+ */
+export async function createRoomRtmpIngress(roomId: string): Promise<IngressInfo> {
+  try {
+    const ingress = await getIngressClient().createIngress(IngressInput.RTMP_INPUT, {
+      roomName: `room_${roomId}`,
+      participantIdentity: `stream_${roomId}`,
+      participantName: 'Live Stream',
+      enableTranscoding: true,
+    });
+    logger.info(`RTMP ingress created for room ${roomId}: ${ingress.ingressId}`);
+    return ingress;
+  } catch (error) {
+    logger.error(`Failed to create RTMP ingress for room ${roomId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * List all ingresses for a given room (for diagnostics).
+ */
+export async function listRoomIngresses(roomId: string): Promise<IngressInfo[]> {
+  try {
+    return await getIngressClient().listIngress({ roomName: `room_${roomId}` });
+  } catch (error) {
+    logger.warn(`Failed to list ingresses for room ${roomId}:`, error);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compatible aliases (old `space_{id}` naming)
+// These delegate to the legacy implementations so existing callers and the
+// spaceSocket module continue to work without changes.
+// ---------------------------------------------------------------------------
+
+/**
+ * @deprecated Use generateRoomToken instead
  */
 export async function generateSpaceToken(
   spaceId: string,
@@ -59,7 +232,7 @@ export async function generateSpaceToken(
 }
 
 /**
- * Create a LiveKit room for a space when it goes live.
+ * @deprecated Use createLiveKitRoomForRoom instead
  */
 export async function createLiveKitRoom(spaceId: string, maxParticipants: number = 100) {
   try {
@@ -77,21 +250,20 @@ export async function createLiveKitRoom(spaceId: string, maxParticipants: number
 }
 
 /**
- * Delete a LiveKit room when a space ends.
+ * @deprecated Use deleteLiveKitRoomForRoom instead
  */
 export async function deleteLiveKitRoom(spaceId: string) {
   try {
     await getRoomService().deleteRoom(`space_${spaceId}`);
     logger.info(`LiveKit room deleted: space_${spaceId}`);
   } catch (error) {
-    // Room may already be gone — not critical
+    // Room may already be gone -- not critical
     logger.warn(`Failed to delete LiveKit room for space ${spaceId}:`, error);
   }
 }
 
 /**
- * Update a participant's publish permissions in a LiveKit room.
- * Called when a speaker is approved or removed.
+ * @deprecated Use updateRoomParticipantPermissions instead
  */
 export async function updateParticipantPermissions(
   spaceId: string,
@@ -106,14 +278,13 @@ export async function updateParticipantPermissions(
     });
     logger.debug(`Updated LiveKit permissions for ${userId} in space ${spaceId}: canPublish=${canPublish}`);
   } catch (error) {
-    // Participant may not be in the LiveKit room yet — not critical
+    // Participant may not be in the LiveKit room yet -- not critical
     logger.warn(`Failed to update LiveKit permissions for ${userId} in space ${spaceId}:`, error);
   }
 }
 
 /**
- * Create a URL-type ingress that pulls live audio from an external URL
- * and publishes it into the space's LiveKit room.
+ * @deprecated Use createRoomUrlIngress instead
  */
 export async function createUrlIngress(
   spaceId: string,
@@ -136,9 +307,7 @@ export async function createUrlIngress(
 }
 
 /**
- * Create an RTMP-type ingress that accepts push streams from external apps
- * (OBS, etc.) and publishes audio into the space's LiveKit room.
- * Returns IngressInfo with .url (RTMP endpoint) and .streamKey.
+ * @deprecated Use createRoomRtmpIngress instead
  */
 export async function createRtmpIngress(spaceId: string): Promise<IngressInfo> {
   try {
@@ -169,7 +338,7 @@ export async function deleteIngress(ingressId: string): Promise<void> {
 }
 
 /**
- * List all ingresses for a given space room (for diagnostics).
+ * @deprecated Use listRoomIngresses instead
  */
 export async function listSpaceIngresses(spaceId: string): Promise<IngressInfo[]> {
   try {

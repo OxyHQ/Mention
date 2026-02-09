@@ -1,10 +1,10 @@
 import type { HttpClient } from '../types';
 
-export type GetSpaceTokenFn = (spaceId: string) => Promise<{ token: string; url: string }>;
+export type GetRoomTokenFn = (roomId: string) => Promise<{ token: string; url: string }>;
 
-export function createGetSpaceToken(httpClient: Pick<HttpClient, 'post'>): GetSpaceTokenFn {
-  return async function getSpaceToken(spaceId: string): Promise<{ token: string; url: string }> {
-    const res = await httpClient.post(`/spaces/${spaceId}/token`);
+export function createGetRoomToken(httpClient: Pick<HttpClient, 'post'>): GetRoomTokenFn {
+  return async function getRoomToken(roomId: string): Promise<{ token: string; url: string }> {
+    const res = await httpClient.post(`/rooms/${roomId}/token`);
     const { token, url } = res.data;
     return { token: String(token), url: String(url) };
   };

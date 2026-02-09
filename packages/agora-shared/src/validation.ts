@@ -56,10 +56,6 @@ export const ZRoom = z.object({
 
 export type Room = z.infer<typeof ZRoom>;
 
-// Backward compat aliases
-export const ZSpace = ZRoom;
-export type Space = Room;
-
 // --- Room Participant ---
 
 export const ZRoomParticipant = z.object({
@@ -70,10 +66,6 @@ export const ZRoomParticipant = z.object({
 }).passthrough();
 
 export type RoomParticipant = z.infer<typeof ZRoomParticipant>;
-
-// Backward compat alias
-export const ZSpaceParticipant = ZRoomParticipant;
-export type SpaceParticipant = RoomParticipant;
 
 // --- House ---
 
@@ -220,6 +212,3 @@ export function validateSeries(data: unknown): Series | null {
   return null;
 }
 
-// Backward compat aliases
-export const validateSpace = validateRoom;
-export const validateSpaces = validateRooms;

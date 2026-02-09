@@ -1,6 +1,5 @@
 import type { RoomParticipant } from './validation';
 
-// Re-export new primary types
 export type {
   Room,
   RoomParticipant,
@@ -14,13 +13,8 @@ export type {
   RoomAttachment,
 } from './validation';
 
-// Backward compat aliases
-export type { Space, SpaceParticipant } from './validation';
-
 export interface ParticipantsUpdateData {
   roomId: string;
-  /** @deprecated use roomId */
-  spaceId?: string;
   participants: RoomParticipant[];
   count: number;
   timestamp: string;
@@ -34,8 +28,6 @@ export interface MuteUpdateData {
 
 export interface SpeakerRequestData {
   roomId: string;
-  /** @deprecated use roomId */
-  spaceId?: string;
   userId: string;
   timestamp: string;
 }
@@ -48,9 +40,6 @@ export interface RoomAttachmentData {
   topic?: string;
   host?: string;
 }
-
-/** @deprecated use RoomAttachmentData */
-export type SpaceAttachmentData = RoomAttachmentData;
 
 export interface UserEntity {
   id: string;
@@ -65,7 +54,7 @@ export interface UserEntity {
   [key: string]: unknown;
 }
 
-export interface SpacesTheme {
+export interface AgoraTheme {
   isDark?: boolean;
   colors: {
     text: string;

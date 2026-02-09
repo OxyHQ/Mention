@@ -1,4 +1,4 @@
-// Types — primary
+// Types
 export type {
   Room,
   RoomParticipant,
@@ -15,21 +15,14 @@ export type {
   SpeakerRequestData,
   StreamInfo,
   UserEntity,
-  SpacesTheme,
+  AgoraTheme,
   HttpResponse,
   HttpRequestConfig,
   HttpClient,
   FileDownloadService,
 } from './types';
 
-// Types — backward compat aliases
-export type {
-  Space,
-  SpaceParticipant,
-  SpaceAttachmentData,
-} from './types';
-
-// Validation — primary
+// Validation
 export {
   ZRoom,
   ZRoomParticipant,
@@ -49,48 +42,41 @@ export {
   validateSeries,
 } from './validation';
 
-// Validation — backward compat aliases
-export {
-  ZSpace,
-  ZSpaceParticipant,
-  validateSpace,
-  validateSpaces,
-} from './validation';
-
 // Context
 export {
   AgoraProvider,
   useAgoraConfig,
   type AgoraConfig,
   type AgoraConfigInternal,
-} from './context/SpacesConfigContext';
-export { LiveSpaceProvider, useLiveSpace } from './context/LiveSpaceContext';
+} from './context/AgoraConfigContext';
+export { LiveRoomProvider, useLiveRoom } from './context/LiveRoomContext';
 
 // Services
 export {
   createAgoraService,
   type AgoraServiceInstance,
+  type CreateRoomData,
 } from './services/spacesService';
-export { SpaceSocketService } from './services/spaceSocketService';
+export { RoomSocketService } from './services/spaceSocketService';
 export {
-  createGetSpaceToken,
-  type GetSpaceTokenFn,
+  createGetRoomToken,
+  type GetRoomTokenFn,
 } from './services/livekitService';
 
 // Hooks
-export { useSpaceConnection } from './hooks/useSpaceConnection';
-export { useSpaceAudio } from './hooks/useSpaceAudio';
-export { useSpaceUsers, getDisplayName, getAvatarUrl } from './hooks/useSpaceUsers';
-export { useSpaceManager } from './hooks/useSpaceManager';
+export { useRoomConnection } from './hooks/useRoomConnection';
+export { useRoomAudio } from './hooks/useRoomAudio';
+export { useRoomUsers, getDisplayName, getAvatarUrl } from './hooks/useRoomUsers';
+export { useRoomManager } from './hooks/useRoomManager';
 
 // Components
-export { SpaceCard } from './components/SpaceCard';
-export { LiveSpaceSheet } from './components/LiveSpaceSheet';
-export { MiniSpaceBar, MINI_BAR_HEIGHT } from './components/MiniSpaceBar';
+export { RoomCard } from './components/RoomCard';
+export { LiveRoomSheet } from './components/LiveRoomSheet';
+export { MiniRoomBar, MINI_BAR_HEIGHT } from './components/MiniRoomBar';
 export { StreamConfigModal } from './components/StreamConfigModal';
 export { StreamConfigPanel } from './components/StreamConfigPanel';
 export { InsightsPanel } from './components/InsightsPanel';
-export { CreateSpaceSheet, type CreateSpaceSheetRef, type CreateSpaceFormState } from './components/CreateSpaceSheet';
+export { CreateRoomSheet, type CreateRoomSheetRef, type CreateRoomFormState } from './components/CreateRoomSheet';
 
 // Assets
 export { Agora, AgoraActive } from './assets/icons/spaces-icon';

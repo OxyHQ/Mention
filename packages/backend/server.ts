@@ -61,6 +61,7 @@ import muteRoutes from './src/routes/mute.routes';
 import reportsRoutes from './src/routes/reports.routes';
 import trendingRoutes from './src/routes/trending.routes';
 import spacesRoutes from './src/routes/spaces.routes';
+import adminRoutes from './src/routes/admin';
 
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
@@ -325,13 +326,18 @@ const configureNamespaceErrorHandling = (namespace: Namespace) => {
 const notificationsNamespace = io.of("/notifications");
 const postsNamespace = io.of("/posts");
 
-// Import and initialize spaces socket namespace
+// Import and initialize rooms socket namespace (replaces spaces)
+import { initializeRoomSocket } from './src/sockets/roomSocket';
+const roomsNamespace = initializeRoomSocket(io);
+
+// Backward compatibility: alias /spaces namespace to redirect clients to /rooms
+// This keeps old clients working while they migrate to the new namespace
 import { initializeSpaceSocket } from './src/sockets/spaceSocket';
 const spacesNamespace = initializeSpaceSocket(io);
 
 // --- Socket Auth Middleware ---
 // Authenticate socket connections using JWT token or userId from handshake
-[notificationsNamespace, postsNamespace, spacesNamespace, io].forEach((namespaceOrServer: any) => {
+[notificationsNamespace, postsNamespace, roomsNamespace, spacesNamespace, io].forEach((namespaceOrServer: any) => {
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
     namespaceOrServer.use(async (socket: AuthenticatedSocket, next: (err?: any) => void) => {
       try {
@@ -491,6 +497,7 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
 [
   notificationsNamespace,
   postsNamespace,
+  roomsNamespace,
   spacesNamespace
 ].forEach((namespace) => {
   configureNamespaceErrorHandling(namespace);
@@ -659,7 +666,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 });
 
 // Enhanced error handling for namespaces
-[notificationsNamespace, postsNamespace, spacesNamespace].forEach(
+[notificationsNamespace, postsNamespace, roomsNamespace, spacesNamespace].forEach(
   (namespace: Namespace) => {
     namespace.on("connection_error", (error: Error) => {
       logger.error(`Namespace ${namespace.name} connection error`, error);
@@ -758,6 +765,7 @@ authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/reports", reportsRoutes);
 authenticatedApiRouter.use("/spaces", spacesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
+authenticatedApiRouter.use("/admin", adminRoutes);
 // You can add more protected routers here as needed
 
 // --- Root API Welcome Route ---
@@ -910,5 +918,5 @@ if (require.main === module) {
   void bootServer();
 }
 
-export { io, notificationsNamespace };
+export { io, notificationsNamespace, roomsNamespace };
 export default server;
