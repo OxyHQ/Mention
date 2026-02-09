@@ -20,7 +20,7 @@ import { useRoomAudio } from '../hooks/useRoomAudio';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '../hooks/useRoomUsers';
 import type { RoomParticipant, Room, StreamInfo, UserEntity, AgoraTheme } from '../types';
 
-type ActivePanel = null | 'stream' | 'insights';
+type ActivePanel = null | 'stream' | 'insights' | 'settings';
 
 type AvatarComponentType = React.ComponentType<{ size: number; source?: string; shape?: string; style?: ViewStyle }>;
 type CachedFileDownloadUrlSyncFn = (oxyServices: unknown, fileId: string, variant?: string) => string;
@@ -213,15 +213,28 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
     onLeave();
   };
 
-  const handleEndRoom = async () => {
+  const handleStopRoom = async () => {
     if (!roomId) return;
-    const success = await agoraService.endRoom(roomId);
+    const success = await agoraService.stopRoom(roomId);
     if (success) {
       onRoomChanged?.(roomId);
       leave();
       onLeave();
     } else {
-      toast.error('Failed to end room');
+      toast.error('Failed to stop session');
+    }
+  };
+
+  const handleDeleteRoom = async () => {
+    if (!roomId) return;
+    const success = await agoraService.deleteRoom(roomId);
+    if (success) {
+      onRoomChanged?.(roomId);
+      leave();
+      onLeave();
+      toast.success('Room deleted');
+    } else {
+      toast.error('Failed to delete room');
     }
   };
 
@@ -334,6 +347,36 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
     );
   }
 
+  if (activePanel === 'settings') {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.header, { borderBottomColor: `${theme.colors.border}80` }]}>
+          <TouchableOpacity onPress={() => setActivePanel(null)} style={styles.headerButton}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Room Settings</Text>
+          </View>
+          <View style={styles.headerButton} />
+        </View>
+        <View style={styles.settingsContent}>
+          <TouchableOpacity
+            style={styles.settingsItem}
+            onPress={handleDeleteRoom}
+          >
+            <MaterialCommunityIcons name="delete-outline" size={22} color="#FF4458" />
+            <View style={styles.settingsItemText}>
+              <Text style={[styles.settingsItemTitle, { color: '#FF4458' }]}>Delete Room</Text>
+              <Text style={[styles.settingsItemDesc, { color: theme.colors.textSecondary }]}>
+                Permanently remove this room
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { borderBottomColor: `${theme.colors.border}80` }]}>
@@ -359,7 +402,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
 
         <View style={styles.headerRight}>
           {isHost && isRoomLive && (
-            <TouchableOpacity onPress={handleEndRoom} style={styles.endButton}>
+            <TouchableOpacity onPress={handleStopRoom} style={styles.endButton}>
               <Text style={styles.endButtonText}>End</Text>
             </TouchableOpacity>
           )}
@@ -555,6 +598,17 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
           </TouchableOpacity>
         )}
 
+        {isHost && (
+          <TouchableOpacity style={styles.controlItem} onPress={() => setActivePanel('settings')}>
+            <View style={[styles.controlCircle, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <MaterialCommunityIcons name="cog-outline" size={24} color={theme.colors.text} />
+            </View>
+            <Text style={[styles.controlLabel, { color: theme.colors.textSecondary }]}>
+              Settings
+            </Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity style={styles.controlItem} onPress={handleLeave}>
           <View style={[styles.leaveCircle, { backgroundColor: '#FF4458' }]}>
             <MaterialCommunityIcons name="exit-run" size={24} color="#FFFFFF" />
@@ -738,4 +792,17 @@ const styles = StyleSheet.create({
   streamCardTitle: { fontSize: 14, fontWeight: '600' },
   streamCardDesc: { fontSize: 12 },
   streamCardStop: { padding: 4 },
+  settingsContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  settingsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+  },
+  settingsItemText: { flex: 1 },
+  settingsItemTitle: { fontSize: 16, fontWeight: '600' },
+  settingsItemDesc: { fontSize: 13, marginTop: 2 },
 });

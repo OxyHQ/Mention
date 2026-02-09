@@ -75,6 +75,17 @@ export function createAgoraService(httpClient: HttpClient) {
       }
     },
 
+    async stopRoom(id: string): Promise<boolean> {
+      if (!id) return false;
+      try {
+        await httpClient.post(`/rooms/${id}/stop`);
+        return true;
+      } catch (error) {
+        console.warn("Failed to stop room", error);
+        return false;
+      }
+    },
+
     async joinRoom(id: string): Promise<boolean> {
       if (!id) return false;
       try {

@@ -418,6 +418,87 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * Stop a live session (host only) — returns room to scheduled status so it can
+ * be reused.  Cleans up LiveKit room and any active ingress, but does NOT
+ * permanently end the room.
+ * POST /api/rooms/:id/stop
+ */
+router.post('/:id/stop', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const room = await Room.findById(id);
+
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    if (room.host !== userId) {
+      return res.status(403).json({ message: 'Only the host can stop the room' });
+    }
+
+    if (room.status !== RoomStatus.LIVE) {
+      return res.status(400).json({
+        message: `Cannot stop room with status: ${room.status}`,
+      });
+    }
+
+    // Reset to scheduled so the host can go live again later
+    room.status = RoomStatus.SCHEDULED;
+    room.startedAt = undefined;
+
+    // Clean up active ingress if any
+    if (room.activeIngressId) {
+      deleteIngress(room.activeIngressId).catch((err) => {
+        logger.error(`Failed to delete ingress for room ${id}:`, err);
+      });
+      room.activeIngressId = undefined;
+      room.activeStreamUrl = undefined;
+      room.streamTitle = undefined;
+      room.streamImage = undefined;
+      room.streamDescription = undefined;
+      room.rtmpUrl = undefined;
+      room.rtmpStreamKey = undefined;
+    }
+
+    await room.save();
+
+    // Clean up LiveKit room
+    deleteLiveKitRoomForRoom(String(id)).catch((err) => {
+      logger.error(`Failed to delete LiveKit room for room ${id}:`, err);
+    });
+
+    logger.info(`Room stopped (back to scheduled): ${room._id}`);
+
+    // Emit socket event so participants know the session ended
+    const io = (global as any).io;
+    if (io) {
+      io.of('/spaces').to(`space:${id}`).emit('space:ended', {
+        spaceId: id,
+        roomId: id,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      message: 'Live session stopped',
+      room,
+    });
+  } catch (error) {
+    logger.error('Error stopping room:', { userId: req.user?.id, roomId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error stopping room',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * Join a room as listener
  * POST /api/rooms/:id/join
  */
