@@ -7,7 +7,7 @@ const DO_SPACES_SECRET = process.env.DO_SPACES_SECRET || '';
 const DO_SPACES_REGION = process.env.DO_SPACES_REGION || 'ams3';
 const DO_SPACES_BUCKET = process.env.DO_SPACES_BUCKET || 'mention-bucket';
 const DO_SPACES_ENDPOINT = process.env.DO_SPACES_ENDPOINT || `https://${DO_SPACES_REGION}.digitaloceanspaces.com`;
-const DO_SPACES_CDN_ENDPOINT = process.env.DO_SPACES_CDN_ENDPOINT || `https://${DO_SPACES_BUCKET}.${DO_SPACES_REGION}.cdn.digitaloceanspaces.com`;
+const DO_SPACES_CDN_ENDPOINT = process.env.DO_SPACES_CDN_ENDPOINT || 'https://cloud.mention.earth';
 
 let s3Client: S3Client | null = null;
 
