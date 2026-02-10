@@ -14,7 +14,9 @@
         "buildType": "apk"
       }
     },
-    "production": {},
+    "production": {
+      "node": "22.12.0"
+    },
     "production-apk": {
       "extends": "production",
       "android": {

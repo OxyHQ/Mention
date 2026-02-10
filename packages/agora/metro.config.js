@@ -9,8 +9,8 @@ const config = getDefaultConfig(projectRoot);
 config.projectRoot = projectRoot;
 
 config.watchFolders = [
-  projectRoot,
-  path.resolve(monorepoRoot, 'packages/agora-shared'),
+  ...(config.watchFolders || []),
+  monorepoRoot,
 ];
 
 const blockPath = (dir) => {
@@ -46,9 +46,6 @@ config.resolver = {
     path.join(projectRoot, 'node_modules'),
     path.join(monorepoRoot, 'node_modules'),
   ],
-  unstable_enableSymlinks: false,
-  sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
-  assetExts: config.resolver.assetExts.filter((ext) => ext !== 'svg'),
 };
 
 config.transformer = {

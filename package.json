@@ -42,5 +42,11 @@
     "react-native-css-interop": "^0.2.0",
     "react-native-worklets": "0.5.1",
     "react-native-worklets-core": "^1.6.2"
+  },
+  "overrides": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo-secure-store": "15.0.8",
+    "expo-file-system": "19.0.21",
+    "react-native-svg": "15.12.1"
   }
 }
