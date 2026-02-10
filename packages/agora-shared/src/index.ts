@@ -2,6 +2,7 @@
 export type {
   Room,
   RoomParticipant,
+  Recording,
   House,
   HouseMember,
   Series,
@@ -13,6 +14,7 @@ export type {
   ParticipantsUpdateData,
   MuteUpdateData,
   SpeakerRequestData,
+  RecordingStateData,
   StreamInfo,
   UserEntity,
   AgoraTheme,
@@ -36,10 +38,13 @@ export {
   ZStartStreamResponse,
   ZGenerateStreamKeyResponse,
   ZStreamInfo,
+  ZRecording,
   validateRoom,
   validateRooms,
   validateHouse,
   validateSeries,
+  validateRecording,
+  validateRecordings,
 } from './validation';
 
 // Context
@@ -78,6 +83,7 @@ export { StreamConfigModal } from './components/StreamConfigModal';
 export { StreamConfigPanel } from './components/StreamConfigPanel';
 export { InsightsPanel } from './components/InsightsPanel';
 export { CreateRoomSheet, type CreateRoomSheetRef, type CreateRoomFormState } from './components/CreateRoomSheet';
+export { RecordingsPanel } from './components/RecordingsPanel';
 
 // Assets
 export { Agora, AgoraActive } from './assets/icons/spaces-icon';

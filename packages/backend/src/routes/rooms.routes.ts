@@ -159,6 +159,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       ownerType,
       broadcastKind,
       houseId,
+      recordingEnabled,
     } = req.body;
 
     if (!userId) {
@@ -247,6 +248,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       topic: topic ? String(topic).trim() : undefined,
       tags: Array.isArray(tags) ? tags.map((t: unknown) => String(t).trim()).filter(Boolean) : [],
       speakerPermission: roomSpeakerPermission,
+      recordingEnabled: recordingEnabled !== false, // default true
       stats: {
         peakListeners: 0,
         totalJoined: 0,
