@@ -16,9 +16,16 @@ const SPRING_CONFIG = {
   mass: 0.5,
 };
 
+const VISIBLE_TABS = ['index', 'explore', 'notifications', 'profile'];
+
 export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const theme = useTheme();
-  const tabCount = state.routes.length;
+
+  const visibleRoutes = state.routes.filter(route => VISIBLE_TABS.includes(route.name));
+  const tabCount = visibleRoutes.length;
+  const activeVisibleIndex = visibleRoutes.findIndex(route => route.key === state.routes[state.index]?.key);
+  const effectiveIndex = activeVisibleIndex >= 0 ? activeVisibleIndex : 0;
+
   const tabWidth = useSharedValue(0);
   const indicatorX = useSharedValue(0);
   const barWidth = useSharedValue(0);
@@ -28,19 +35,19 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
     barWidth.value = width;
     tabWidth.value = width / tabCount;
     indicatorX.value = withSpring(
-      (width / tabCount) * state.index,
+      (width / tabCount) * effectiveIndex,
       SPRING_CONFIG,
     );
-  }, [tabCount, state.index]);
+  }, [tabCount, effectiveIndex]);
 
   useEffect(() => {
     if (tabWidth.value > 0) {
       indicatorX.value = withSpring(
-        tabWidth.value * state.index,
+        tabWidth.value * effectiveIndex,
         SPRING_CONFIG,
       );
     }
-  }, [state.index]);
+  }, [effectiveIndex]);
 
   const indicatorStyle = useAnimatedStyle(() => ({
     position: 'absolute',
@@ -78,9 +85,9 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
   const innerContent = (
     <>
       <Animated.View style={indicatorStyle} />
-      {state.routes.map((route, index) => {
+      {visibleRoutes.map((route, index) => {
         const { options } = descriptors[route.key];
-        const isFocused = state.index === index;
+        const isFocused = index === effectiveIndex;
 
         const color = isFocused ? theme.colors.primary : theme.colors.textSecondary;
 

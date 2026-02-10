@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { OxyProvider, useAuth } from '@oxyhq/services';
+import { OxyProvider, useOxy } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -12,7 +12,7 @@ import { Toaster } from 'sonner-native';
 
 import { agoraConfig } from '@/lib/agoraConfig';
 import { roomQueryKeys } from '@/hooks/useRoomsQuery';
-import { setOxyServicesRef } from '@/utils/api';
+import { setOxyServicesRef, setActiveSessionIdRef } from '@/utils/api';
 
 let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
 try {
@@ -31,10 +31,13 @@ interface AppProvidersProps {
 }
 
 function OxyServicesSync({ children }: { children: React.ReactNode }) {
-  const { oxyServices } = useAuth();
+  const { oxyServices, activeSessionId } = useOxy();
   useEffect(() => {
     if (oxyServices) setOxyServicesRef(oxyServices);
   }, [oxyServices]);
+  useEffect(() => {
+    setActiveSessionIdRef(activeSessionId ?? null);
+  }, [activeSessionId]);
   return <>{children}</>;
 }
 
