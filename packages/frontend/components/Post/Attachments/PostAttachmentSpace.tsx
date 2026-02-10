@@ -23,7 +23,7 @@ const PostAttachmentRoom: React.FC<PostAttachmentRoomProps> = ({
 }) => {
   return (
     <RoomCard
-      space={{
+      room={{
         _id: roomId,
         title,
         status: status || 'scheduled',

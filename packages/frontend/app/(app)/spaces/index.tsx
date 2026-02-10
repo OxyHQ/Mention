@@ -150,7 +150,7 @@ const SpacesScreen = () => {
                   {liveRooms.map((room) => (
                     <RoomCard
                       key={room._id}
-                      space={room}
+                      room={room}
                       onPress={() => joinLiveRoom(room._id)}
                     />
                   ))}
@@ -173,7 +173,7 @@ const SpacesScreen = () => {
                   {scheduledRooms.map((room) => (
                     <RoomCard
                       key={room._id}
-                      space={room}
+                      room={room}
                       onPress={() => router.push(`/spaces/${room._id}`)}
                     />
                   ))}
