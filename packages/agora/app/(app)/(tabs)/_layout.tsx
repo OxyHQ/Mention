@@ -1,4 +1,3 @@
-import React from 'react';
 import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Agora, AgoraActive } from '@mention/agora-shared';
