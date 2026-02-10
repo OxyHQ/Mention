@@ -65,7 +65,7 @@ interface RoomCardProps {
     title: string;
     status: 'scheduled' | 'live' | 'ended';
     type?: 'talk' | 'stage' | 'broadcast';
-    topic?: string;
+    topic?: string | null;
     participants?: string[];
     speakers?: string[];
     host: string;

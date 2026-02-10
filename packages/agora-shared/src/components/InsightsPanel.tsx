@@ -29,7 +29,7 @@ export function InsightsPanel({ room, participants, theme, onClose }: InsightsPa
   const speakers = participants.filter((p) => p.role === 'host' || p.role === 'speaker');
   const listeners = participants.filter((p) => p.role === 'listener');
 
-  const duration = useMemo(() => formatDuration(room?.startedAt), [room?.startedAt]);
+  const duration = useMemo(() => formatDuration(room?.startedAt ?? undefined), [room?.startedAt]);
 
   const stats = [
     {

@@ -296,7 +296,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
                   <Text style={[styles.credValue, { color: theme.colors.text }]} numberOfLines={1}>
                     {rtmpUrl}
                   </Text>
-                  <TouchableOpacity onPress={() => copyToClipboard(rtmpUrl, 'RTMP URL')} style={styles.copyBtn}>
+                  <TouchableOpacity onPress={() => copyToClipboard(rtmpUrl ?? '', 'RTMP URL')} style={styles.copyBtn}>
                     <MaterialCommunityIcons name="content-copy" size={18} color={theme.colors.primary} />
                   </TouchableOpacity>
                 </View>

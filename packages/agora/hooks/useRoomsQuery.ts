@@ -309,6 +309,7 @@ export function useCreateHouse() {
 // ---------------------------------------------------------------------------
 
 interface CreateRoomInput {
+  [key: string]: unknown;
   title: string;
   description?: string;
   topic?: string;
