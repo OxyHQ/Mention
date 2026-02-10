@@ -1588,7 +1588,7 @@ router.post('/:id/image', uploadMiddleware.single('file'), async (req: AuthReque
     if (room.host !== userId) return res.status(403).json({ message: 'Only the host can upload a room image' });
 
     const { buffer, contentType } = await processImage(req.file.buffer, 'roomImage');
-    const objectKey = getAgoraRoomImageKey(id);
+    const objectKey = getAgoraRoomImageKey(id as string);
 
     if (room.streamImage?.startsWith('https://cloud.mention.earth/')) {
       const oldKey = room.streamImage.replace('https://cloud.mention.earth/', '');

@@ -562,7 +562,7 @@ router.post('/:id/avatar', upload.single('file'), async (req: AuthRequest, res: 
     }
 
     const { buffer, contentType } = await processImage(req.file.buffer, 'avatar');
-    const objectKey = getAgoraHouseAvatarKey(id);
+    const objectKey = getAgoraHouseAvatarKey(id as string);
 
     // Delete old object if it was on our CDN
     if (house.avatar?.startsWith('https://cloud.mention.earth/')) {
@@ -600,7 +600,7 @@ router.post('/:id/cover', upload.single('file'), async (req: AuthRequest, res: R
     }
 
     const { buffer, contentType } = await processImage(req.file.buffer, 'cover');
-    const objectKey = getAgoraHouseCoverKey(id);
+    const objectKey = getAgoraHouseCoverKey(id as string);
 
     if (house.coverImage?.startsWith('https://cloud.mention.earth/')) {
       const oldKey = house.coverImage.replace('https://cloud.mention.earth/', '');

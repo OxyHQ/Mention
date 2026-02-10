@@ -447,7 +447,7 @@ router.post('/:id/cover', upload.single('file'), async (req: AuthRequest, res: R
     if (!hasPermission) return res.status(403).json({ message: 'You do not have permission to update this series' });
 
     const { buffer, contentType } = await processImage(req.file.buffer, 'cover');
-    const objectKey = getAgoraSeriesCoverKey(id);
+    const objectKey = getAgoraSeriesCoverKey(id as string);
 
     if (series.coverImage?.startsWith('https://cloud.mention.earth/')) {
       const oldKey = series.coverImage.replace('https://cloud.mention.earth/', '');
