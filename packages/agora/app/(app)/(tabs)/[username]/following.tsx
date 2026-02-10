@@ -21,7 +21,9 @@ export default function FollowingScreen() {
   const isOwnProfile = cleanUsername === user?.username;
 
   const userId = isOwnProfile ? (user?.id ?? '') : cleanUsername;
-  const { data: following = [], isLoading: loading } = useFollowingList(oxyServices, userId);
+  const { data: following = [], isLoading: loading, isRefetching } = useFollowingList(oxyServices, userId);
+  const { invalidateFollowing } = useRoomsQueryInvalidation();
+  const onRefresh = () => invalidateFollowing(userId);
 
   const renderItem = ({ item }: { item: UserEntity }) => {
     const rawName = item?.name;
@@ -73,6 +75,9 @@ export default function FollowingScreen() {
           data={following}
           renderItem={renderItem}
           keyExtractor={(item: UserEntity) => item.id || item.username || ''}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+          }
           ListEmptyComponent={
             <EmptyState
               animation={require('@/assets/lottie/looking.json')}
