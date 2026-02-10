@@ -165,6 +165,34 @@ const PostContentSchema = new Schema({
       maxlength: 500
     }
   },
+  room: {
+    roomId: {
+      type: String,
+      required: false
+    },
+    title: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 200
+    },
+    status: {
+      type: String,
+      enum: ['scheduled', 'live', 'ended'],
+      required: false
+    },
+    topic: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 100
+    },
+    host: {
+      type: String,
+      required: false
+    }
+  },
+  // Deprecated: old posts stored room data under "space" field
   space: {
     spaceId: {
       type: String,

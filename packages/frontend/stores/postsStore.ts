@@ -275,7 +275,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     sources: raw?.content?.sources,
     location: raw?.content?.location,
     event: raw?.content?.event,
-    space: raw?.content?.space,
+    room: raw?.content?.room ?? raw?.content?.space,
   };
 
   const user = raw?.user ?? {};

@@ -13,21 +13,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Agora as SpacesIcon } from '@mention/agora-shared';
+import { Agora as AgoraIcon } from '@mention/agora-shared';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
-import RoomCard from '@/components/SpaceCard';
+import RoomCard from '@/components/RoomCard';
 import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useRoomUsers } from '@/hooks/useSpaceUsers';
-import { useLiveRoom } from '@/context/LiveSpaceContext';
-import { roomsService, type Room } from '@/services/spacesService';
+import { useRoomUsers } from '@/hooks/useRoomUsers';
+import { useLiveRoom } from '@/context/LiveRoomContext';
+import { roomsService, type Room } from '@/services/roomsService';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 
-const CreateRoomSheet = lazy(() => import('@/components/spaces/CreateSpaceSheet'));
+const CreateRoomSheet = lazy(() => import('@/components/rooms/CreateRoomSheet'));
 
-const SpacesScreen = () => {
+const AgoraScreen = () => {
   const { isAuthenticated } = useAuth();
   const theme = useTheme();
   const bottomSheet = useContext(BottomSheetContext);
@@ -70,7 +70,7 @@ const SpacesScreen = () => {
         <CreateRoomSheet
           onClose={() => bottomSheet.openBottomSheet(false)}
           mode="standalone"
-          onSpaceCreated={(room) => {
+          onRoomCreated={(room) => {
             if (!room.scheduledStart) {
               joinLiveRoom(room._id);
             }
@@ -125,7 +125,7 @@ const SpacesScreen = () => {
             <EmptyState
               title="No rooms available"
               subtitle="Create a room to start a live audio conversation or schedule one for later"
-              customIcon={<SpacesIcon size={48} color={theme.colors.textSecondary} />}
+              customIcon={<AgoraIcon size={48} color={theme.colors.textSecondary} />}
               action={{
                 label: 'Create Room',
                 onPress: openCreateSheet,
@@ -138,7 +138,7 @@ const SpacesScreen = () => {
                 <View style={styles.section}>
                   <View style={styles.sectionHeader}>
                     <View style={[styles.sectionIcon, { backgroundColor: '#FF4458' }]}>
-                      <SpacesIcon size={18} color="#FFFFFF" />
+                      <AgoraIcon size={18} color="#FFFFFF" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <ThemedText type="subtitle">Live Now</ThemedText>
@@ -230,4 +230,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SpacesScreen;
+export default AgoraScreen;

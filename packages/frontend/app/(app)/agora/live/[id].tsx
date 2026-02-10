@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
-import { useLiveRoom } from '@/context/LiveSpaceContext';
+import { useLiveRoom } from '@/context/LiveRoomContext';
 
 /**
  * Deep link redirect: when navigating to /agora/live/[id],

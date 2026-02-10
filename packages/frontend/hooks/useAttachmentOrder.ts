@@ -10,7 +10,7 @@ import {
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
   LINK_ATTACHMENT_KEY,
-  SPACE_ATTACHMENT_KEY,
+  ROOM_ATTACHMENT_KEY,
 } from '@/utils/composeUtils';
 
 interface Source {
@@ -25,8 +25,8 @@ interface UseAttachmentOrderProps {
   article: any;
   hasEventContent: boolean;
   event: any;
-  hasSpaceContent: boolean;
-  space: any;
+  hasRoomContent: boolean;
+  room: any;
   location: any;
   sources: Source[];
   mediaIds: ComposerMediaItem[];
@@ -40,8 +40,8 @@ export const useAttachmentOrder = ({
   article,
   hasEventContent,
   event,
-  hasSpaceContent,
-  space,
+  hasRoomContent,
+  room,
   location,
   sources,
   mediaIds,
@@ -53,7 +53,7 @@ export const useAttachmentOrder = ({
   // Update attachment order when dependencies change
   useEffect(() => {
     const hasEventAttachment = Boolean(hasEventContent && event);
-    const hasSpaceAttachment = Boolean(hasSpaceContent && space);
+    const hasRoomAttachment = Boolean(hasRoomContent && room);
     const hasLocationAttachment = Boolean(location);
     const hasSourcesAttachment = sources.some(source => source?.url?.trim?.().length);
 
@@ -63,7 +63,7 @@ export const useAttachmentOrder = ({
         if (key === POLL_ATTACHMENT_KEY) return showPollCreator;
         if (key === ARTICLE_ATTACHMENT_KEY) return hasArticleContent && article;
         if (key === EVENT_ATTACHMENT_KEY) return hasEventAttachment;
-        if (key === SPACE_ATTACHMENT_KEY) return hasSpaceAttachment;
+        if (key === ROOM_ATTACHMENT_KEY) return hasRoomAttachment;
         if (key === LOCATION_ATTACHMENT_KEY) return hasLocationAttachment;
         if (key === SOURCES_ATTACHMENT_KEY) return hasSourcesAttachment;
         if (key === LINK_ATTACHMENT_KEY) return hasLink;
@@ -86,8 +86,8 @@ export const useAttachmentOrder = ({
       if (hasEventAttachment && !next.includes(EVENT_ATTACHMENT_KEY)) {
         next.push(EVENT_ATTACHMENT_KEY);
       }
-      if (hasSpaceAttachment && !next.includes(SPACE_ATTACHMENT_KEY)) {
-        next.push(SPACE_ATTACHMENT_KEY);
+      if (hasRoomAttachment && !next.includes(ROOM_ATTACHMENT_KEY)) {
+        next.push(ROOM_ATTACHMENT_KEY);
       }
       if (hasLocationAttachment && !next.includes(LOCATION_ATTACHMENT_KEY)) {
         next.push(LOCATION_ATTACHMENT_KEY);
@@ -107,7 +107,7 @@ export const useAttachmentOrder = ({
 
       return next;
     });
-  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasSpaceContent, space, location, sources, mediaIds, hasLink]);
+  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasRoomContent, room, location, sources, mediaIds, hasLink]);
 
   // Set the attachment order directly (for draft loading)
   const setOrder = useCallback((order: string[] | ((prev: string[]) => string[])) => {

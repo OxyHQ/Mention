@@ -20,7 +20,7 @@ const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet')
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { useLiveRoom } from '@/context/LiveSpaceContext';
+import { useLiveRoom } from '@/context/LiveRoomContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
@@ -92,7 +92,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const eventContent = attachmentsBundle.event ?? content.event ?? null;
     const hasEvent = Boolean(eventContent);
 
-    const roomContent = (attachmentsBundle as any).space ?? content.space ?? null;
+    const roomContent = attachmentsBundle.room ?? content.room ?? (attachmentsBundle as any).space ?? content.space ?? null;
 
     const pollData = attachmentsBundle.poll ?? content.poll ?? null;
     const pollId = content.pollId ?? null;
@@ -421,10 +421,10 @@ const PostItem: React.FC<PostItemProps> = ({
                                 }
                                 : null
                         }
-                        space={
+                        room={
                             roomContent
                                 ? {
-                                    spaceId: roomContent.spaceId,
+                                    roomId: roomContent.roomId || roomContent.spaceId,
                                     title: roomContent.title,
                                     status: roomContent.status,
                                     topic: roomContent.topic,
@@ -432,9 +432,9 @@ const PostItem: React.FC<PostItemProps> = ({
                                 }
                                 : null
                         }
-                        onSpacePress={
-                            roomContent?.spaceId
-                                ? () => joinLiveRoom(roomContent.spaceId)
+                        onRoomPress={
+                            (roomContent?.roomId || roomContent?.spaceId)
+                                ? () => joinLiveRoom(roomContent.roomId || roomContent.spaceId)
                                 : undefined
                         }
                         location={location}

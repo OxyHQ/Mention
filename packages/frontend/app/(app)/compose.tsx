@@ -25,7 +25,7 @@ import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
-import SpaceCard from '@/components/SpaceCard';
+import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -52,7 +52,7 @@ const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'))
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
-const CreateSpaceSheet = lazy(() => import('@/components/spaces/CreateSpaceSheet'));
+const CreateRoomSheet = lazy(() => import('@/components/rooms/CreateRoomSheet'));
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
 import type { ScheduleOption } from '@/components/Compose/ScheduleSheet';
@@ -68,7 +68,7 @@ import { useSourcesManager } from '@/hooks/useSourcesManager';
 import { useThreadManager } from '@/hooks/useThreadManager';
 import { useArticleManager } from '@/hooks/useArticleManager';
 import { useEventManager } from '@/hooks/useEventManager';
-import { useSpaceManager } from '@/hooks/useSpaceManager';
+import { useRoomManager } from '@/hooks/useRoomManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { usePostSubmission } from '@/hooks/usePostSubmission';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
@@ -101,7 +101,7 @@ import {
   POLL_ATTACHMENT_KEY,
   ARTICLE_ATTACHMENT_KEY,
   EVENT_ATTACHMENT_KEY,
-  SPACE_ATTACHMENT_KEY,
+  ROOM_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
   LINK_ATTACHMENT_KEY,
@@ -134,7 +134,7 @@ const ComposeScreen = () => {
   const threadManager = useThreadManager();
   const articleManager = useArticleManager();
   const eventManager = useEventManager();
-  const spaceManager = useSpaceManager();
+  const roomManager = useRoomManager();
 
   // Destructure for easier access (need these first for useAttachmentOrder)
   const { mediaIds, setMediaIds, addMedia, addMultipleMedia, removeMedia, moveMedia } = mediaManager;
@@ -212,16 +212,16 @@ const ComposeScreen = () => {
     clearEvent,
   } = eventManager;
   const {
-    space,
-    attachSpace,
-    removeSpace,
-    hasContent: spaceHasContent,
-    clearSpace,
-  } = spaceManager;
+    room: attachedRoom,
+    attachRoom,
+    removeRoom,
+    hasContent: roomHasContent,
+    clearRoom,
+  } = roomManager;
 
   const hasArticleContent = articleHasContent();
   const hasEventContent = eventHasContent();
-  const hasSpaceContent = spaceHasContent();
+  const hasRoomContent = roomHasContent();
 
   // Remaining local state
   const [postContent, setPostContent] = useState('');
@@ -333,8 +333,8 @@ const ComposeScreen = () => {
     article,
     hasEventContent,
     event,
-    hasSpaceContent,
-    space,
+    hasRoomContent,
+    room: attachedRoom,
     location,
     sources,
     mediaIds,
@@ -400,7 +400,7 @@ const ComposeScreen = () => {
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
 
-    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent || hasSpaceContent)) {
+    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent || hasRoomContent)) {
       toast.error(t('Add text, an image, a poll, or an article'));
       return;
     }
@@ -422,8 +422,8 @@ const ComposeScreen = () => {
         hasArticleContent,
         event,
         hasEventContent,
-        space,
-        hasSpaceContent,
+        room: attachedRoom,
+        hasRoomContent,
         location,
         formattedSources,
         attachmentOrder: attachmentOrderRef.current || attachmentOrder,
@@ -465,7 +465,7 @@ const ComposeScreen = () => {
       clearSchedule({ silent: true });
       clearArticle();
       clearEvent();
-      clearSpace();
+      clearRoom();
 
       // Navigate back after posting
       router.back();
@@ -745,7 +745,7 @@ const ComposeScreen = () => {
                             setSources([]);
                             clearArticle();
                             clearEvent();
-                            clearSpace();
+                            clearRoom();
                             clearAllThreads();
                             clearAttachmentOrder();
                             setMentions([]);
@@ -949,8 +949,8 @@ const ComposeScreen = () => {
                             );
                           }
 
-                          if (key === SPACE_ATTACHMENT_KEY) {
-                            if (!(hasSpaceContent && space)) return null;
+                          if (key === ROOM_ATTACHMENT_KEY) {
+                            if (!(hasRoomContent && attachedRoom)) return null;
                             return (
                               <AttachmentCarouselItem
                                 key={key}
@@ -958,17 +958,17 @@ const ComposeScreen = () => {
                                 index={index}
                                 total={total}
                                 onMove={moveAttachment}
-                                onRemove={removeSpace}
+                                onRemove={removeRoom}
                                 wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
-                                <SpaceCard
+                                <RoomCard
                                   room={{
-                                    _id: space.spaceId,
-                                    title: space.title,
-                                    status: space.status || 'scheduled',
-                                    topic: space.topic,
+                                    _id: attachedRoom.roomId,
+                                    title: attachedRoom.title,
+                                    status: attachedRoom.status || 'scheduled',
+                                    topic: attachedRoom.topic,
                                     participants: [],
-                                    host: space.host || '',
+                                    host: attachedRoom.host || '',
                                   }}
                                   variant="compact"
                                   style={styles.articleAttachmentPreview}
@@ -1074,19 +1074,19 @@ const ComposeScreen = () => {
                       onSourcesPress={openSourcesSheet}
                       onArticlePress={openArticleEditor}
                       onEventPress={openEventEditor}
-                      onSpacePress={() => {
+                      onRoomPress={() => {
                         bottomSheet.setBottomSheetContent(
                           <Suspense fallback={null}>
-                            <CreateSpaceSheet
+                            <CreateRoomSheet
                               onClose={() => bottomSheet.openBottomSheet(false)}
                               mode="embed"
-                              onSpaceCreated={(createdSpace) => {
-                                attachSpace({
-                                  spaceId: createdSpace._id,
-                                  title: createdSpace.title,
-                                  status: createdSpace.status,
-                                  topic: createdSpace.topic,
-                                  host: createdSpace.host,
+                              onRoomCreated={(createdRoom) => {
+                                attachRoom({
+                                  roomId: createdRoom._id,
+                                  title: createdRoom.title,
+                                  status: createdRoom.status,
+                                  topic: createdRoom.topic,
+                                  host: createdRoom.host,
                                 });
                               }}
                             />
@@ -1101,7 +1101,7 @@ const ComposeScreen = () => {
                       hasSources={sources.length > 0}
                       hasArticle={hasArticleContent}
                       hasEvent={hasEventContent}
-                      hasSpace={hasSpaceContent}
+                      hasRoom={hasRoomContent}
                       hasSchedule={Boolean(scheduledAt)}
                       scheduleEnabled={scheduleEnabled}
                       hasSourceErrors={invalidSources}

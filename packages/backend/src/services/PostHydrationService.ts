@@ -689,7 +689,7 @@ export class PostHydrationService {
       sources: Array.isArray(baseContent.sources) ? baseContent.sources : undefined,
       location: baseContent.location,
       event: baseContent.event,
-      space: baseContent.space,
+      room: baseContent.room ?? baseContent.space,
       attachments: Array.isArray(baseContent.attachments) ? baseContent.attachments : undefined,
     };
   }
@@ -756,13 +756,14 @@ export class PostHydrationService {
       };
     }
 
-    if (content.space) {
-      attachments.space = {
-        spaceId: content.space.spaceId,
-        title: content.space.title,
-        status: content.space.status,
-        topic: content.space.topic,
-        host: content.space.host,
+    const roomData = content.room ?? content.space;
+    if (roomData) {
+      attachments.room = {
+        roomId: roomData.roomId ?? roomData.spaceId,
+        title: roomData.title,
+        status: roomData.status,
+        topic: roomData.topic,
+        host: roomData.host,
       };
     }
 

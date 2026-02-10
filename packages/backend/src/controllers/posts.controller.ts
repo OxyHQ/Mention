@@ -105,16 +105,17 @@ const sanitizeEventData = (eventData: any): { eventId?: string; name?: string; d
   return sanitized;
 };
 
-const sanitizeSpaceData = (spaceData: any): { spaceId: string; title: string; status?: string; topic?: string; host?: string } | null => {
-  if (!spaceData || typeof spaceData !== 'object') return null;
-  if (typeof spaceData.spaceId !== 'string' || typeof spaceData.title !== 'string') return null;
+const sanitizeRoomData = (roomData: any): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
+  if (!roomData || typeof roomData !== 'object') return null;
+  const id = roomData.roomId ?? roomData.spaceId;
+  if (typeof id !== 'string' || typeof roomData.title !== 'string') return null;
 
   return {
-    spaceId: spaceData.spaceId.trim(),
-    title: spaceData.title.trim().slice(0, 200),
-    ...(typeof spaceData.status === 'string' && ['scheduled', 'live', 'ended'].includes(spaceData.status) ? { status: spaceData.status } : {}),
-    ...(typeof spaceData.topic === 'string' ? { topic: spaceData.topic.trim().slice(0, 100) } : {}),
-    ...(typeof spaceData.host === 'string' ? { host: spaceData.host.trim() } : {}),
+    roomId: id.trim(),
+    title: roomData.title.trim().slice(0, 200),
+    ...(typeof roomData.status === 'string' && ['scheduled', 'live', 'ended'].includes(roomData.status) ? { status: roomData.status } : {}),
+    ...(typeof roomData.topic === 'string' ? { topic: roomData.topic.trim().slice(0, 100) } : {}),
+    ...(typeof roomData.host === 'string' ? { host: roomData.host.trim() } : {}),
   };
 };
 
@@ -183,7 +184,7 @@ const normalizeMediaItems = (arr: any): NormalizedMediaItem[] => {
   return normalized;
 };
 
-const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'space', 'location', 'sources'];
+const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'space', 'location', 'sources'];
 
 const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
   if (!entry) return null;
@@ -237,7 +238,7 @@ interface AttachmentBuildOptions {
   includePoll?: boolean;
   includeArticle?: boolean;
   includeEvent?: boolean;
-  includeSpace?: boolean;
+  includeRoom?: boolean;
   includeLocation?: boolean;
   includeSources?: boolean;
 }
@@ -248,7 +249,7 @@ const buildOrderedAttachments = ({
   includePoll = false,
   includeArticle = false,
   includeEvent = false,
-  includeSpace = false,
+  includeRoom = false,
   includeLocation = false,
   includeSources = false
 }: AttachmentBuildOptions): PostAttachmentDescriptor[] | undefined => {
@@ -301,8 +302,9 @@ const buildOrderedAttachments = ({
       case 'event':
         if (includeEvent) addNonMedia('event');
         break;
-      case 'space':
-        if (includeSpace) addNonMedia('space');
+      case 'room':
+      case 'space': // backward compat for old posts
+        if (includeRoom) addNonMedia('room');
         break;
       case 'location':
         if (includeLocation) addNonMedia('location');
@@ -328,7 +330,7 @@ const buildOrderedAttachments = ({
   if (includePoll) addNonMedia('poll');
   if (includeArticle) addNonMedia('article');
   if (includeEvent) addNonMedia('event');
-  if (includeSpace) addNonMedia('space');
+  if (includeRoom) addNonMedia('room');
   if (includeSources) addNonMedia('sources');
   if (includeLocation) addNonMedia('location');
 
@@ -533,11 +535,11 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.event = sanitizedEvent;
     }
 
-    // Handle space data
-    const spaceData = content?.space || req.body.space;
-    const sanitizedSpace = sanitizeSpaceData(spaceData);
-    if (sanitizedSpace) {
-      postContent.space = sanitizedSpace;
+    // Handle room data (backward compat: also reads from space field)
+    const roomData = content?.room || content?.space || req.body.room || req.body.space;
+    const sanitizedRoom = sanitizeRoomData(roomData);
+    if (sanitizedRoom) {
+      postContent.room = sanitizedRoom;
     }
 
     const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
@@ -547,7 +549,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       includePoll: Boolean(postContent.pollId),
       includeArticle: Boolean(postContent.article),
       includeEvent: Boolean(postContent.event),
-      includeSpace: Boolean(postContent.space),
+      includeRoom: Boolean(postContent.room),
       includeLocation: Boolean(postContent.location),
       includeSources: Boolean(postContent.sources && postContent.sources.length)
     });
@@ -878,10 +880,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.event = threadSanitizedEvent;
       }
 
-      // Handle space data
-      const threadSanitizedSpace = sanitizeSpaceData(content?.space);
-      if (threadSanitizedSpace) {
-        postContent.space = threadSanitizedSpace;
+      // Handle room data (backward compat: also reads from space field)
+      const threadSanitizedRoom = sanitizeRoomData(content?.room || content?.space);
+      if (threadSanitizedRoom) {
+        postContent.room = threadSanitizedRoom;
       }
 
       // Handle poll creation
@@ -913,7 +915,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         includePoll: Boolean(postContent.pollId),
         includeArticle: Boolean(postContent.article),
         includeEvent: Boolean(postContent.event),
-        includeSpace: Boolean(postContent.space),
+        includeRoom: Boolean(postContent.room),
         includeLocation: Boolean(postContent.location),
         includeSources: Boolean(postContent.sources && postContent.sources.length)
       });
@@ -1204,7 +1206,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       includePoll: Boolean((post.content as any)?.pollId),
       includeArticle: Boolean(post.content.article),
       includeEvent: Boolean((post.content as any)?.event),
-      includeSpace: Boolean((post.content as any)?.space),
+      includeRoom: Boolean((post.content as any)?.room || (post.content as any)?.space),
       includeLocation: Boolean(post.content.location),
       includeSources: Boolean(post.content.sources && post.content.sources.length)
     });

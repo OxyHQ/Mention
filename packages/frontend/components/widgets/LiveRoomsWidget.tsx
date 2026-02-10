@@ -6,11 +6,11 @@ import { useAuth } from '@oxyhq/services';
 
 import { BaseWidget } from './BaseWidget';
 import { useTheme } from '@/hooks/useTheme';
-import { useLiveRoom } from '@/context/LiveSpaceContext';
-import { roomsService, type Room } from '@/services/spacesService';
-import { useRoomUsers, getDisplayName } from '@/hooks/useSpaceUsers';
+import { useLiveRoom } from '@/context/LiveRoomContext';
+import { roomsService, type Room } from '@/services/roomsService';
+import { useRoomUsers, getDisplayName } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/stores/usersStore';
-import { Agora as SpacesIcon } from '@mention/agora-shared';
+import { Agora as AgoraIcon } from '@mention/agora-shared';
 import { Loading } from '@/components/ui/Loading';
 
 const MAX_ROOMS_DISPLAYED = 3;
@@ -142,7 +142,7 @@ export function LiveRoomsWidget() {
   return (
     <BaseWidget
       title="Live Rooms"
-      icon={<SpacesIcon size={18} color={theme.colors.text} />}
+      icon={<AgoraIcon size={18} color={theme.colors.text} />}
     >
       {isLoading ? (
         <View style={styles.centerRow}>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
-import RoomCard from '@/components/SpaceCard';
+import RoomCard from '@/components/RoomCard';
 
 interface PostAttachmentRoomProps {
   roomId: string;

@@ -1,6 +1,6 @@
 import { authenticatedClient } from '@/utils/api';
 
-export async function getSpaceToken(spaceId: string): Promise<{ token: string; url: string }> {
-  const res = await authenticatedClient.post(`/spaces/${spaceId}/token`);
+export async function getRoomToken(roomId: string): Promise<{ token: string; url: string }> {
+  const res = await authenticatedClient.post(`/rooms/${roomId}/token`);
   return res.data;
 }

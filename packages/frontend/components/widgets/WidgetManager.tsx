@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
-import { LiveRoomsWidget } from './LiveSpacesWidget';
+import { LiveRoomsWidget } from './LiveRoomsWidget';
 
 // Define screen IDs for social network
 export type ScreenId =

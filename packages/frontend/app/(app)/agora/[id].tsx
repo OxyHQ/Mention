@@ -21,10 +21,10 @@ import { Loading } from '@/components/ui/Loading';
 import SEO from '@/components/SEO';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useSpaceUsers';
+import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/stores/usersStore';
-import { useLiveRoom } from '@/context/LiveSpaceContext';
-import { roomsService, type Room } from '@/services/spacesService';
+import { useLiveRoom } from '@/context/LiveRoomContext';
+import { roomsService, type Room } from '@/services/roomsService';
 import { useAuth } from '@oxyhq/services';
 
 // Wrapper to use useUserById hook for each participant

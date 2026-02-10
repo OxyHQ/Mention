@@ -24,7 +24,7 @@ export interface MediaItem {
   type: 'image' | 'video' | 'gif';
 }
 
-export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'space';
+export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'space';
 
 export interface PostAttachmentDescriptor {
   type: PostAttachmentType;
@@ -52,13 +52,16 @@ export interface PostEventContent {
   description?: string;
 }
 
-export interface PostSpaceContent {
-  spaceId: string;
+export interface PostRoomContent {
+  roomId: string;
   title: string;
   status?: 'scheduled' | 'live' | 'ended';
   topic?: string;
   host?: string;
 }
+
+/** @deprecated Use PostRoomContent instead */
+export type PostSpaceContent = PostRoomContent;
 
 export interface PostContent {
   text?: string;
@@ -69,7 +72,9 @@ export interface PostContent {
   sources?: PostSourceLink[]; // External sources cited within the post content
   article?: PostArticleContent; // Optional article content authored with the post
   event?: PostEventContent; // Optional event content
-  space?: PostSpaceContent; // Optional space content
+  room?: PostRoomContent; // Optional room content
+  /** @deprecated Use room instead */
+  space?: PostRoomContent;
   attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, event, etc.)
 }
 
@@ -233,7 +238,9 @@ export interface PostAttachmentBundle {
   sources?: PostSourceLink[];
   location?: GeoJSONPoint;
   event?: PostEventContent;
-  space?: PostSpaceContent;
+  room?: PostRoomContent;
+  /** @deprecated Use room instead */
+  space?: PostRoomContent;
 }
 
 export interface PostLinkPreview {

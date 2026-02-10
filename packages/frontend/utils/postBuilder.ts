@@ -18,8 +18,8 @@ interface BuildMainPostParams {
   hasArticleContent: boolean;
   event: any;
   hasEventContent: boolean;
-  space: any;
-  hasSpaceContent: boolean;
+  room: any;
+  hasRoomContent: boolean;
   location: any;
   formattedSources: any[];
   attachmentOrder: string[];
@@ -53,8 +53,8 @@ export const buildMainPost = (params: BuildMainPostParams) => {
     hasArticleContent,
     event,
     hasEventContent,
-    space,
-    hasSpaceContent,
+    room,
+    hasRoomContent,
     location,
     formattedSources,
     attachmentOrder,
@@ -70,7 +70,7 @@ export const buildMainPost = (params: BuildMainPostParams) => {
     includePoll: hasPoll,
     includeArticle: Boolean(hasArticleContent && article),
     includeEvent: Boolean(hasEventContent && event),
-    includeSpace: Boolean(hasSpaceContent && space),
+    includeRoom: Boolean(hasRoomContent && room),
     includeLocation: Boolean(location),
     includeSources: formattedSources.length > 0,
   });
@@ -110,13 +110,13 @@ export const buildMainPost = (params: BuildMainPostParams) => {
           ...(event.description?.trim() && { description: event.description.trim() }),
         }
       }),
-      ...(hasSpaceContent && space && {
-        space: {
-          spaceId: space.spaceId,
-          title: space.title.trim(),
-          ...(space.status && { status: space.status }),
-          ...(space.topic?.trim() && { topic: space.topic.trim() }),
-          ...(space.host && { host: space.host }),
+      ...(hasRoomContent && room && {
+        room: {
+          roomId: room.roomId,
+          title: room.title.trim(),
+          ...(room.status && { status: room.status }),
+          ...(room.topic?.trim() && { topic: room.topic.trim() }),
+          ...(room.host && { host: room.host }),
         }
       }),
       ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })

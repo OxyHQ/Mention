@@ -22,7 +22,7 @@ interface ComposeToolbarProps {
     onSourcesPress?: () => void;
     onArticlePress?: () => void;
     onEventPress?: () => void;
-    onSpacePress?: () => void;
+    onRoomPress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
@@ -30,7 +30,7 @@ interface ComposeToolbarProps {
     hasSources?: boolean;
     hasArticle?: boolean;
     hasEvent?: boolean;
-    hasSpace?: boolean;
+    hasRoom?: boolean;
     hasSchedule?: boolean;
     scheduleEnabled?: boolean;
     hasSourceErrors?: boolean;
@@ -47,7 +47,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     onSourcesPress,
     onArticlePress,
     onEventPress,
-    onSpacePress,
+    onRoomPress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
@@ -55,7 +55,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     hasSources = false,
     hasArticle = false,
     hasEvent = false,
-    hasSpace = false,
+    hasRoom = false,
     hasSchedule = false,
     scheduleEnabled = true,
     hasSourceErrors = false,
@@ -168,16 +168,16 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                 </TouchableOpacity>
             )}
 
-            {onSpacePress && (
+            {onRoomPress && (
                 <TouchableOpacity
-                    onPress={onSpacePress}
+                    onPress={onRoomPress}
                     disabled={disabled}
                     style={styles.button}
                 >
                     <Ionicons
                         name="radio-outline"
                         size={20}
-                        color={disabled ? theme.colors.textTertiary : (hasSpace ? theme.colors.primary : theme.colors.textSecondary)}
+                        color={disabled ? theme.colors.textTertiary : (hasRoom ? theme.colors.primary : theme.colors.textSecondary)}
                     />
                 </TouchableOpacity>
             )}
