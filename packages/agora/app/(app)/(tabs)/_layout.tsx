@@ -59,7 +59,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          href: user?.username ? { pathname: '/(app)/[username]', params: { username: '@' + user.username } } : undefined,
+          href: user?.username ? { pathname: '/(app)/(tabs)/[username]', params: { username: '@' + user.username } } : undefined,
           title: 'Profile',
           tabBarIcon: ({ focused, size }) => (
             <View style={{
@@ -73,6 +73,8 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="[username]" options={{ href: null }} />
+      <Tabs.Screen name="houses/[id]" options={{ href: null }} />
     </Tabs>
   );
 }

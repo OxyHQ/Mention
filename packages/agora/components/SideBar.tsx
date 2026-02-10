@@ -85,7 +85,7 @@ export function SideBar() {
 
   const isHome = pathname === '/' || pathname === '/(tabs)' || pathname === '/(app)/(tabs)';
   const profileHref: Href = user?.username
-    ? { pathname: '/(app)/[username]', params: { username: '@' + user.username } }
+    ? { pathname: '/(app)/(tabs)/[username]', params: { username: '@' + user.username } }
     : '/profile';
   const isProfileActive = pathname === '/profile' || pathname?.startsWith('/@');
 

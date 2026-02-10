@@ -106,7 +106,7 @@ export default function HouseScreen() {
     const userProfile = useUsersStore.getState().getCachedById(userId);
     const username = userProfile?.username || userProfile?.handle;
     if (username) {
-      router.push({ pathname: '/(app)/[username]', params: { username: '@' + username } });
+      router.push({ pathname: '/(app)/(tabs)/[username]', params: { username: '@' + username } });
     }
   };
 
@@ -121,10 +121,11 @@ export default function HouseScreen() {
   if (!house) {
     return (
       <View style={[styles.container, styles.centered, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>House not found</Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.backLink, { color: theme.colors.primary }]}>Go back</Text>
-        </TouchableOpacity>
+        <EmptyState
+          animation={require('@/assets/lottie/looking.json')}
+          title="House not found"
+          subtitle="This house may have been removed or doesn't exist"
+        />
       </View>
     );
   }

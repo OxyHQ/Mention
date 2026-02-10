@@ -202,7 +202,7 @@ export default function ExploreScreen() {
                 renderItem={({ item }) => (
                   <HouseCard
                     house={item}
-                    onPress={() => router.push({ pathname: '/(app)/houses/[id]', params: { id: item._id } })}
+                    onPress={() => router.push({ pathname: '/(app)/(tabs)/houses/[id]', params: { id: item._id } })}
                   />
                 )}
               />

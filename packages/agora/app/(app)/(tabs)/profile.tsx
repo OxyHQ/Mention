@@ -6,7 +6,7 @@ export default function ProfileRedirect() {
   const username = user?.username;
 
   if (username) {
-    return <Redirect href={{ pathname: '/(app)/[username]', params: { username: '@' + username } }} />;
+    return <Redirect href={{ pathname: '/(app)/(tabs)/[username]', params: { username: '@' + username } }} />;
   }
 
   return <Redirect href="/(app)/(tabs)" />;

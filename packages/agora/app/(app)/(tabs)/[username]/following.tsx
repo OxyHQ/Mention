@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -7,11 +6,11 @@ import { useAuth } from '@oxyhq/services';
 import type { UserEntity } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useFollowersList } from '@/hooks/useRoomsQuery';
+import { useFollowingList } from '@/hooks/useRoomsQuery';
 import Avatar from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 
-export default function FollowersScreen() {
+export default function FollowingScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -22,7 +21,7 @@ export default function FollowersScreen() {
   const isOwnProfile = cleanUsername === user?.username;
 
   const userId = isOwnProfile ? (user?.id ?? '') : cleanUsername;
-  const { data: followers = [], isLoading: loading } = useFollowersList(oxyServices, userId);
+  const { data: following = [], isLoading: loading } = useFollowingList(oxyServices, userId);
 
   const renderItem = ({ item }: { item: UserEntity }) => {
     const rawName = item?.name;
@@ -38,7 +37,7 @@ export default function FollowersScreen() {
     return (
       <TouchableOpacity
         style={[styles.row, { borderBottomColor: theme.colors.border }]}
-        onPress={() => handle && router.push({ pathname: '/(app)/[username]', params: { username: '@' + handle } })}
+        onPress={() => handle && router.push({ pathname: '/(app)/(tabs)/[username]', params: { username: '@' + handle } })}
       >
         <Avatar source={item?.avatar} size={40} />
         <View style={styles.rowText}>
@@ -61,7 +60,7 @@ export default function FollowersScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Followers</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Following</Text>
         <View style={styles.backButton} />
       </View>
 
@@ -71,17 +70,17 @@ export default function FollowersScreen() {
         </View>
       ) : (
         <FlatList
-          data={followers}
+          data={following}
           renderItem={renderItem}
           keyExtractor={(item: UserEntity) => item.id || item.username || ''}
           ListEmptyComponent={
             <EmptyState
               animation={require('@/assets/lottie/looking.json')}
-              title="No followers yet"
-              subtitle="When people follow this account, they'll show up here"
+              title="Not following anyone yet"
+              subtitle="When this account follows people, they'll show up here"
             />
           }
-          contentContainerStyle={followers.length === 0 ? { flex: 1 } : undefined}
+          contentContainerStyle={following.length === 0 ? { flex: 1 } : undefined}
         />
       )}
     </View>

@@ -220,11 +220,11 @@ export default function ProfileScreen() {
             <Text style={[styles.statNumber, { color: theme.colors.text }]}>{myRooms.all.length}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Rooms</Text>
           </View>
-          <TouchableOpacity style={styles.statItem} onPress={() => router.push({ pathname: '/(app)/[username]/followers', params: { username: '@' + cleanUsername } })}>
+          <TouchableOpacity style={styles.statItem} onPress={() => router.push({ pathname: '/(app)/(tabs)/[username]/followers', params: { username: '@' + cleanUsername } })}>
             <Text style={[styles.statNumber, { color: theme.colors.text }]}>{followerCount ?? 0}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Followers</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.statItem} onPress={() => router.push({ pathname: '/(app)/[username]/following', params: { username: '@' + cleanUsername } })}>
+          <TouchableOpacity style={styles.statItem} onPress={() => router.push({ pathname: '/(app)/(tabs)/[username]/following', params: { username: '@' + cleanUsername } })}>
             <Text style={[styles.statNumber, { color: theme.colors.text }]}>{followingCount ?? 0}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Following</Text>
           </TouchableOpacity>
@@ -256,7 +256,7 @@ export default function ProfileScreen() {
                   key={house._id}
                   house={house}
                   theme={theme}
-                  onPress={() => router.push({ pathname: '/(app)/houses/[id]', params: { id: house._id } })}
+                  onPress={() => router.push({ pathname: '/(app)/(tabs)/houses/[id]', params: { id: house._id } })}
                 />
               ))}
             </ScrollView>
