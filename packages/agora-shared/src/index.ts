@@ -68,6 +68,7 @@ export { useRoomConnection } from './hooks/useRoomConnection';
 export { useRoomAudio } from './hooks/useRoomAudio';
 export { useRoomUsers, getDisplayName, getAvatarUrl } from './hooks/useRoomUsers';
 export { useRoomManager } from './hooks/useRoomManager';
+export { useActiveSpeakers } from './hooks/useActiveSpeakers';
 
 // Components
 export { RoomCard } from './components/RoomCard';

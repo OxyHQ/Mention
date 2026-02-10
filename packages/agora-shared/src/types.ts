@@ -4,6 +4,7 @@ export type {
   Room,
   RoomParticipant,
   StreamInfo,
+  Recording,
   House,
   HouseMember,
   Series,
@@ -29,6 +30,13 @@ export interface MuteUpdateData {
 export interface SpeakerRequestData {
   roomId: string;
   userId: string;
+  timestamp: string;
+}
+
+export interface RecordingStateData {
+  roomId: string;
+  recordingId: string;
+  reason?: 'manual' | 'max_duration' | 'room_ended' | 'room_stopped';
   timestamp: string;
 }
 

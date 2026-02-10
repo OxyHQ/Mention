@@ -51,6 +51,10 @@ export const ZRoom = z.object({
   rtmpUrl: z.string().nullish(),
   rtmpStreamKey: z.string().nullish(),
 
+  // Recording
+  recordingEnabled: z.boolean().optional().default(true),
+  recordingEgressId: z.string().nullish(),
+
   createdAt: z.string(),
 }).passthrough();
 
@@ -142,6 +146,28 @@ export const ZSeries = z.object({
 
 export type Series = z.infer<typeof ZSeries>;
 
+// --- Recording ---
+
+export const ZRecording = z.object({
+  _id: z.string(),
+  roomId: z.string(),
+  roomTitle: z.string(),
+  host: z.string(),
+  status: z.enum(['recording', 'processing', 'ready', 'failed', 'deleted']),
+  egressId: z.string(),
+  objectKey: z.string(),
+  fileSize: z.number().nullish(),
+  durationMs: z.number().nullish(),
+  startedAt: z.string(),
+  stoppedAt: z.string().nullish(),
+  access: z.enum(['public', 'participants']).default('public'),
+  participantIds: z.array(z.string()).default([]),
+  expiresAt: z.string(),
+  createdAt: z.string(),
+}).passthrough();
+
+export type Recording = z.infer<typeof ZRecording>;
+
 // --- Stream responses ---
 
 export const ZStartStreamResponse = z.object({
@@ -203,6 +229,23 @@ export function validateHouse(data: unknown): House | null {
   if (result.success) return result.data;
   console.warn('[agora-shared] Invalid House:', result.error.issues[0]);
   return null;
+}
+
+export function validateRecording(data: unknown): Recording | null {
+  const result = ZRecording.safeParse(data);
+  if (result.success) return result.data;
+  console.warn('[agora-shared] Invalid Recording:', result.error.issues[0]);
+  return null;
+}
+
+export function validateRecordings(items: unknown[]): Recording[] {
+  if (!Array.isArray(items)) return [];
+  const valid: Recording[] = [];
+  for (const item of items) {
+    const parsed = ZRecording.safeParse(item);
+    if (parsed.success) valid.push(parsed.data);
+  }
+  return valid;
 }
 
 export function validateSeries(data: unknown): Series | null {

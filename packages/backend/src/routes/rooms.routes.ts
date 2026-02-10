@@ -11,9 +11,134 @@ import {
   createRoomUrlIngress,
   createRoomRtmpIngress,
   deleteIngress,
+  startRoomRecording,
+  stopRoomRecording,
 } from '../utils/livekit';
+import Recording, { RecordingStatus, RecordingAccess } from '../models/Recording';
+import { getRecordingObjectKey } from '../utils/spaces';
 
 const router = Router();
+
+// --- Recording auto-stop timers (1 hour max) ---
+const MAX_RECORDING_DURATION_MS = 60 * 60 * 1000; // 1 hour
+const RECORDING_EXPIRY_MS = 6 * 30 * 24 * 60 * 60 * 1000; // ~6 months
+
+const recordingTimers = new Map<string, NodeJS.Timeout>();
+
+function scheduleRecordingAutoStop(roomId: string, egressId: string, recordingId: string) {
+  clearRecordingAutoStop(roomId);
+
+  const timer = setTimeout(async () => {
+    try {
+      await stopRoomRecording(egressId);
+
+      const recording = await Recording.findById(recordingId);
+      if (recording && recording.status === RecordingStatus.RECORDING) {
+        recording.status = RecordingStatus.READY;
+        recording.stoppedAt = new Date();
+        recording.durationMs = recording.stoppedAt.getTime() - recording.startedAt.getTime();
+        await recording.save();
+      }
+
+      await Room.findByIdAndUpdate(roomId, { recordingEgressId: null });
+
+      const io = (global as any).io;
+      if (io) {
+        io.of('/rooms').to(`room:${roomId}`).emit('room:recording:stopped', {
+          roomId,
+          recordingId,
+          reason: 'max_duration',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      logger.info(`Recording auto-stopped after 1 hour for room ${roomId}`);
+    } catch (error) {
+      logger.error(`Failed to auto-stop recording for room ${roomId}:`, error);
+    } finally {
+      recordingTimers.delete(roomId);
+    }
+  }, MAX_RECORDING_DURATION_MS);
+
+  recordingTimers.set(roomId, timer);
+}
+
+function clearRecordingAutoStop(roomId: string) {
+  const timer = recordingTimers.get(roomId);
+  if (timer) {
+    clearTimeout(timer);
+    recordingTimers.delete(roomId);
+  }
+}
+
+/**
+ * Helper: start recording for a room and return the Recording doc.
+ * Non-fatal: returns null on failure so room lifecycle can proceed.
+ */
+async function startRecordingForRoom(room: any): Promise<any> {
+  const recording = new Recording({
+    roomId: String(room._id),
+    roomTitle: room.title,
+    host: room.host,
+    status: RecordingStatus.RECORDING,
+    egressId: 'pending',
+    objectKey: 'pending',
+    startedAt: new Date(),
+    access: RecordingAccess.PUBLIC,
+    expiresAt: new Date(Date.now() + RECORDING_EXPIRY_MS),
+  });
+  await recording.save();
+
+  const objectKey = getRecordingObjectKey(String(room._id), String(recording._id));
+  recording.objectKey = objectKey;
+
+  const egressId = await startRoomRecording(String(room._id), objectKey);
+  recording.egressId = egressId;
+  await recording.save();
+
+  room.recordingEgressId = egressId;
+  await room.save();
+
+  scheduleRecordingAutoStop(String(room._id), egressId, String(recording._id));
+
+  return recording;
+}
+
+/**
+ * Helper: stop recording for a room. Non-fatal.
+ */
+async function stopRecordingForRoom(room: any, reason: string = 'room_ended') {
+  if (!room.recordingEgressId) return;
+
+  const egressId = room.recordingEgressId;
+  try {
+    await stopRoomRecording(egressId);
+  } catch (err) {
+    logger.warn(`Failed to stop egress ${egressId}, may have already stopped:`, err);
+  }
+
+  const recording = await Recording.findOne({ egressId });
+  if (recording && recording.status === RecordingStatus.RECORDING) {
+    recording.status = RecordingStatus.READY;
+    recording.stoppedAt = new Date();
+    recording.durationMs = recording.stoppedAt.getTime() - recording.startedAt.getTime();
+    recording.participantIds = room.participants || [];
+    await recording.save();
+  }
+
+  clearRecordingAutoStop(String(room._id));
+  room.recordingEgressId = undefined;
+
+  const io = (global as any).io;
+  if (io) {
+    io.of('/rooms').to(`room:${room._id}`).emit('room:recording:stopped', {
+      roomId: String(room._id),
+      recordingId: recording ? String(recording._id) : undefined,
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
 
 /**
  * Create a room
@@ -311,6 +436,18 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
 
     logger.info(`Room started: ${room._id} (type=${room.type})`);
 
+    // Auto-start recording if enabled
+    let recordingDoc = null;
+    if (room.recordingEnabled) {
+      try {
+        recordingDoc = await startRecordingForRoom(room);
+        logger.info(`Auto-started recording for room ${room._id}, egressId: ${recordingDoc.egressId}`);
+      } catch (recErr) {
+        logger.error(`Failed to auto-start recording for room ${room._id}:`, recErr);
+        // Non-fatal: room goes live even if recording fails
+      }
+    }
+
     // Emit socket event on /spaces namespace (backward compat)
     const io = (global as any).io;
     if (io) {
@@ -320,6 +457,14 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
         startedAt: room.startedAt,
         timestamp: new Date().toISOString(),
       });
+
+      if (recordingDoc) {
+        io.of('/rooms').to(`room:${id}`).emit('room:recording:started', {
+          roomId: id,
+          recordingId: String(recordingDoc._id),
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
 
     res.json({
@@ -364,6 +509,13 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({
         message: `Cannot end room with status: ${room.status}`,
       });
+    }
+
+    // Stop active recording if any
+    try {
+      await stopRecordingForRoom(room, 'room_ended');
+    } catch (recErr) {
+      logger.error(`Error stopping recording for room ${id}:`, recErr);
     }
 
     // Update room status
@@ -446,6 +598,13 @@ router.post('/:id/stop', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({
         message: `Cannot stop room with status: ${room.status}`,
       });
+    }
+
+    // Stop active recording if any
+    try {
+      await stopRecordingForRoom(room, 'room_stopped');
+    } catch (recErr) {
+      logger.error(`Error stopping recording for room ${id}:`, recErr);
     }
 
     // Reset to scheduled so the host can go live again later
@@ -1201,6 +1360,170 @@ router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
     logger.error('Error archiving room:', { userId: req.user?.id, roomId: req.params.id, error });
     res.status(500).json({
       message: 'Error archiving room',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Recording endpoints (room-scoped)
+// ---------------------------------------------------------------------------
+
+/**
+ * Start recording a live room (host only)
+ * POST /api/rooms/:id/recording/start
+ */
+router.post('/:id/recording/start', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const room = await Room.findById(id);
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    if (room.host !== userId) {
+      return res.status(403).json({ message: 'Only the host can start recording' });
+    }
+
+    if (room.status !== RoomStatus.LIVE) {
+      return res.status(400).json({ message: 'Room must be live to start recording' });
+    }
+
+    if (room.recordingEgressId) {
+      return res.status(400).json({ message: 'Recording is already active' });
+    }
+
+    const recording = await startRecordingForRoom(room);
+
+    const io = (global as any).io;
+    if (io) {
+      io.of('/rooms').to(`room:${id}`).emit('room:recording:started', {
+        roomId: id,
+        recordingId: String(recording._id),
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.info(`Recording manually started for room ${id}`);
+
+    res.json({
+      message: 'Recording started',
+      recording,
+    });
+  } catch (error) {
+    logger.error('Error starting recording:', { userId: req.user?.id, roomId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error starting recording',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Stop recording a live room (host only)
+ * POST /api/rooms/:id/recording/stop
+ */
+router.post('/:id/recording/stop', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const room = await Room.findById(id);
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    if (room.host !== userId) {
+      return res.status(403).json({ message: 'Only the host can stop recording' });
+    }
+
+    if (!room.recordingEgressId) {
+      return res.status(400).json({ message: 'No active recording' });
+    }
+
+    await stopRecordingForRoom(room, 'manual');
+    await room.save();
+
+    logger.info(`Recording manually stopped for room ${id}`);
+
+    res.json({ message: 'Recording stopped' });
+  } catch (error) {
+    logger.error('Error stopping recording:', { userId: req.user?.id, roomId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error stopping recording',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * List recordings for a room (access-filtered)
+ * GET /api/rooms/:id/recordings
+ */
+router.get('/:id/recordings', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { limit = '20', cursor } = req.query;
+
+    const room = await Room.findById(id).lean();
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    const isHost = userId === room.host;
+
+    const query: Record<string, unknown> = {
+      roomId: id,
+      status: RecordingStatus.READY,
+    };
+
+    // Non-hosts can only see public recordings or ones they participated in
+    if (!isHost && userId) {
+      query.$or = [
+        { access: RecordingAccess.PUBLIC },
+        { access: RecordingAccess.PARTICIPANTS, participantIds: userId },
+      ];
+    } else if (!userId) {
+      query.access = RecordingAccess.PUBLIC;
+    }
+
+    if (cursor && typeof cursor === 'string') {
+      query._id = { $lt: cursor };
+    }
+
+    const limitNum = Math.min(Math.max(parseInt(limit as string, 10) || 20, 1), 100);
+
+    const recordings = await Recording.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limitNum + 1)
+      .lean();
+
+    const hasMore = recordings.length > limitNum;
+    const recordingsToReturn = hasMore ? recordings.slice(0, limitNum) : recordings;
+    const nextCursor = hasMore && recordingsToReturn.length > 0
+      ? recordingsToReturn[recordingsToReturn.length - 1]._id.toString()
+      : undefined;
+
+    res.json({
+      recordings: recordingsToReturn,
+      hasMore,
+      nextCursor,
+    });
+  } catch (error) {
+    logger.error('Error fetching recordings:', { userId: req.user?.id, roomId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error fetching recordings',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }

@@ -1,5 +1,5 @@
-import type { Room, House, HttpClient } from '../types';
-import { validateRooms, validateRoom, validateHouse, ZStartStreamResponse, ZGenerateStreamKeyResponse } from '../validation';
+import type { Room, Recording, House, HttpClient } from '../types';
+import { validateRooms, validateRoom, validateRecordings, validateHouse, ZStartStreamResponse, ZGenerateStreamKeyResponse } from '../validation';
 
 export interface CreateRoomData {
   [key: string]: unknown;
@@ -12,6 +12,7 @@ export interface CreateRoomData {
   ownerType?: 'profile' | 'house';
   houseId?: string;
   broadcastKind?: 'user';
+  recordingEnabled?: boolean;
 }
 
 export function createAgoraService(httpClient: HttpClient) {
@@ -255,6 +256,77 @@ export function createAgoraService(httpClient: HttpClient) {
         return [];
       }
     },
+
+    // --- Recording ---
+
+    async startRecording(roomId: string): Promise<boolean> {
+      if (!roomId) return false;
+      try {
+        await httpClient.post(`/rooms/${roomId}/recording/start`);
+        return true;
+      } catch (error) {
+        console.warn("Failed to start recording", error);
+        return false;
+      }
+    },
+
+    async stopRecording(roomId: string): Promise<boolean> {
+      if (!roomId) return false;
+      try {
+        await httpClient.post(`/rooms/${roomId}/recording/stop`);
+        return true;
+      } catch (error) {
+        console.warn("Failed to stop recording", error);
+        return false;
+      }
+    },
+
+    async getRoomRecordings(roomId: string): Promise<Recording[]> {
+      if (!roomId) return [];
+      try {
+        const res = await httpClient.get(`/rooms/${roomId}/recordings`);
+        const raw = res.data.recordings || [];
+        return validateRecordings(Array.isArray(raw) ? raw : []);
+      } catch (error) {
+        console.warn("Failed to fetch recordings", error);
+        return [];
+      }
+    },
+
+    async getRecording(recordingId: string): Promise<{ recording: Recording; playbackUrl: string } | null> {
+      if (!recordingId) return null;
+      try {
+        const res = await httpClient.get(`/recordings/${recordingId}`);
+        return res.data as any;
+      } catch (error) {
+        console.warn("Failed to fetch recording", error);
+        return null;
+      }
+    },
+
+    async updateRecordingAccess(recordingId: string, access: 'public' | 'participants'): Promise<boolean> {
+      if (!recordingId) return false;
+      try {
+        await httpClient.patch(`/recordings/${recordingId}`, { access });
+        return true;
+      } catch (error) {
+        console.warn("Failed to update recording access", error);
+        return false;
+      }
+    },
+
+    async deleteRecording(recordingId: string): Promise<boolean> {
+      if (!recordingId) return false;
+      try {
+        await httpClient.delete(`/recordings/${recordingId}`);
+        return true;
+      } catch (error) {
+        console.warn("Failed to delete recording", error);
+        return false;
+      }
+    },
+
+    // --- Houses ---
 
     async createHouse(data: { name: string; description?: string; avatar?: string; tags?: string[]; isPublic?: boolean }): Promise<House | null> {
       try {

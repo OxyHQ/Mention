@@ -71,6 +71,10 @@ export interface IRoom extends Document {
     totalJoined: number;
   };
 
+  // Recording
+  recordingEnabled: boolean;
+  recordingEgressId?: string;
+
   // Streaming (for Broadcast rooms or any room with external stream)
   activeIngressId?: string;
   activeStreamUrl?: string;
@@ -202,6 +206,16 @@ const RoomSchema = new Schema({
       type: Number,
       default: 0
     }
+  },
+
+  // Recording
+  recordingEnabled: {
+    type: Boolean,
+    default: true,
+  },
+  recordingEgressId: {
+    type: String,
+    default: null,
   },
 
   // Streaming

@@ -20,6 +20,7 @@ interface UseRoomAudioReturn {
   isLiveKitConnected: boolean;
   localAudioEnabled: boolean;
   micPermissionDenied: boolean;
+  livekitRoom: Room | null;
 }
 
 export function useRoomAudio({ roomId, isSpeaker, isMuted, isConnected }: UseRoomAudioOptions): UseRoomAudioReturn {
@@ -27,6 +28,7 @@ export function useRoomAudio({ roomId, isSpeaker, isMuted, isConnected }: UseRoo
   const [isLiveKitConnected, setIsLiveKitConnected] = useState(false);
   const [localAudioEnabled, setLocalAudioEnabled] = useState(false);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
+  const [livekitRoom, setLivekitRoom] = useState<Room | null>(null);
   const roomRef = useRef<Room | null>(null);
   const audioElementsRef = useRef<Map<string, HTMLMediaElement>>(new Map());
 
@@ -46,6 +48,7 @@ export function useRoomAudio({ roomId, isSpeaker, isMuted, isConnected }: UseRoo
     let cancelled = false;
     const room = new Room({ adaptiveStream: true, dynacast: true });
     roomRef.current = room;
+    setLivekitRoom(room);
 
     room.on(RoomEvent.Connected, () => { if (!cancelled) { setIsLiveKitConnected(true); } });
     room.on(RoomEvent.Disconnected, () => { if (!cancelled) { setIsLiveKitConnected(false); setLocalAudioEnabled(false); } });
@@ -78,6 +81,7 @@ export function useRoomAudio({ roomId, isSpeaker, isMuted, isConnected }: UseRoo
       }
       room.disconnect();
       roomRef.current = null;
+      setLivekitRoom(null);
       setIsLiveKitConnected(false);
       setLocalAudioEnabled(false);
     };
@@ -95,5 +99,5 @@ export function useRoomAudio({ roomId, isSpeaker, isMuted, isConnected }: UseRoo
       });
   }, [isSpeaker, isMuted, isLiveKitConnected]);
 
-  return { isLiveKitConnected, localAudioEnabled, micPermissionDenied };
+  return { isLiveKitConnected, localAudioEnabled, micPermissionDenied, livekitRoom };
 }

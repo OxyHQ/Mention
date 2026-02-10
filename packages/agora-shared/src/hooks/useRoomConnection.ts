@@ -16,6 +16,8 @@ interface UseRoomConnectionReturn {
   isMuted: boolean;
   speakerRequests: Array<{ userId: string; requestedAt: string }>;
   activeStream: StreamInfo | null;
+  isRecording: boolean;
+  activeRecordingId: string | null;
   join: () => void;
   leave: () => void;
   toggleMute: () => void;
@@ -40,6 +42,8 @@ export function useRoomConnection({
   const [speakerRequests, setSpeakerRequests] = useState<Array<{ userId: string; requestedAt: string }>>([]);
   const [isRoomEnded, setIsRoomEnded] = useState(false);
   const [activeStream, setActiveStream] = useState<StreamInfo | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [activeRecordingId, setActiveRecordingId] = useState<string | null>(null);
   const hasJoined = useRef(false);
 
   const myParticipant = participants.find((p) => p.userId === userId);
@@ -82,6 +86,18 @@ export function useRoomConnection({
     }));
     unsubs.push(roomSocketService.onStreamStopped((data) => {
       if (data.roomId === roomId) setActiveStream(null);
+    }));
+    unsubs.push(roomSocketService.onRecordingStarted((data) => {
+      if (data.roomId === roomId) {
+        setIsRecording(true);
+        setActiveRecordingId(data.recordingId);
+      }
+    }));
+    unsubs.push(roomSocketService.onRecordingStopped((data) => {
+      if (data.roomId === roomId) {
+        setIsRecording(false);
+        setActiveRecordingId(null);
+      }
     }));
 
     return () => { unsubs.forEach((fn) => fn()); };
@@ -140,5 +156,5 @@ export function useRoomConnection({
     };
   }, [roomId, roomSocketService]);
 
-  return { isConnected, participants, myRole, isMuted, speakerRequests, activeStream, join, leave, toggleMute, requestToSpeak, approveSpeaker, denySpeaker, removeSpeaker, isRoomEnded };
+  return { isConnected, participants, myRole, isMuted, speakerRequests, activeStream, isRecording, activeRecordingId, join, leave, toggleMute, requestToSpeak, approveSpeaker, denySpeaker, removeSpeaker, isRoomEnded };
 }

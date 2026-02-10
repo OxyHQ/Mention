@@ -1,4 +1,9 @@
-import { AccessToken, RoomServiceClient, TrackSource, IngressClient, IngressInput, IngressInfo } from 'livekit-server-sdk';
+import {
+  AccessToken, RoomServiceClient, TrackSource,
+  IngressClient, IngressInput, IngressInfo,
+  EgressClient, EncodedFileOutput, EncodedFileType,
+} from 'livekit-server-sdk';
+import { getS3UploadConfig } from './spaces';
 import { logger } from './logger';
 
 const LIVEKIT_URL = process.env.LIVEKIT_URL || '';
@@ -17,6 +22,15 @@ function getRoomService(): RoomServiceClient {
     roomService = new RoomServiceClient(getLiveKitUrl(), LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
   }
   return roomService;
+}
+
+let egressClient: EgressClient | null = null;
+
+function getEgressClient(): EgressClient {
+  if (!egressClient) {
+    egressClient = new EgressClient(getLiveKitUrl(), LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+  }
+  return egressClient;
 }
 
 let ingressClient: IngressClient | null = null;
@@ -215,4 +229,56 @@ export async function deleteIngress(ingressId: string): Promise<void> {
   }
 }
 
-export { getRoomService };
+// ---------------------------------------------------------------------------
+// Recording (Egress) functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Start a Room Composite Egress that records all room audio to an OGG file
+ * on DigitalOcean Spaces. Returns the egressId.
+ */
+export async function startRoomRecording(
+  roomId: string,
+  objectKey: string
+): Promise<string> {
+  try {
+    const s3Config = getS3UploadConfig(objectKey);
+
+    const output: EncodedFileOutput = new EncodedFileOutput({
+      fileType: EncodedFileType.OGG,
+      filepath: objectKey,
+      output: {
+        case: 's3',
+        value: s3Config,
+      },
+      disableManifest: true,
+    });
+
+    const info = await getEgressClient().startRoomCompositeEgress(
+      `room_${roomId}`,
+      { file: output },
+      { audioOnly: true }
+    );
+
+    logger.info(`Recording started for room ${roomId}, egressId: ${info.egressId}`);
+    return info.egressId;
+  } catch (error) {
+    logger.error(`Failed to start recording for room ${roomId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Stop an active room recording by egressId.
+ */
+export async function stopRoomRecording(egressId: string): Promise<void> {
+  try {
+    await getEgressClient().stopEgress(egressId);
+    logger.info(`Recording stopped: egressId ${egressId}`);
+  } catch (error) {
+    logger.error(`Failed to stop recording (egressId: ${egressId}):`, error);
+    throw error;
+  }
+}
+
+export { getRoomService, getEgressClient };

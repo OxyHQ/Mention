@@ -116,4 +116,14 @@ export class RoomSocketService {
     this.socket?.on('room:stream:stopped', cb);
     return () => { this.socket?.off('room:stream:stopped', cb); };
   }
+
+  onRecordingStarted(cb: (data: { roomId: string; recordingId: string; timestamp: string }) => void): () => void {
+    this.socket?.on('room:recording:started', cb);
+    return () => { this.socket?.off('room:recording:started', cb); };
+  }
+
+  onRecordingStopped(cb: (data: { roomId: string; recordingId?: string; reason?: string; timestamp: string }) => void): () => void {
+    this.socket?.on('room:recording:stopped', cb);
+    return () => { this.socket?.off('room:recording:stopped', cb); };
+  }
 }

@@ -61,6 +61,7 @@ import muteRoutes from './src/routes/mute.routes';
 import reportsRoutes from './src/routes/reports.routes';
 import trendingRoutes from './src/routes/trending.routes';
 import roomsRoutes from './src/routes/rooms.routes';
+import recordingsRoutes from './src/routes/recordings.routes';
 import housesRoutes from './src/routes/houses.routes';
 import seriesRoutes from './src/routes/series.routes';
 import adminRoutes from './src/routes/admin';
@@ -760,6 +761,7 @@ authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/reports", reportsRoutes);
 authenticatedApiRouter.use("/rooms", roomsRoutes);
+authenticatedApiRouter.use("/recordings", recordingsRoutes);
 authenticatedApiRouter.use("/houses", housesRoutes);
 authenticatedApiRouter.use("/series", seriesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
@@ -884,6 +886,15 @@ db.once("open", () => {
     logger.info("Trending service initialized");
   } catch (error) {
     logger.warn("Failed to initialize trending service", error);
+  }
+
+  // Initialize Recording Cleanup Service
+  try {
+    const { recordingCleanupService } = require("./src/services/RecordingCleanupService");
+    recordingCleanupService.start();
+    logger.info("Recording cleanup service started");
+  } catch (error) {
+    logger.warn("Failed to start recording cleanup service", error);
   }
 });
 

@@ -80,6 +80,7 @@ export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetPro
   const [speakerPermission, setSpeakerPermission] = useState<'everyone' | 'followers' | 'invited'>('invited');
   const [roomType, setRoomType] = useState<'talk' | 'stage' | 'broadcast'>('talk');
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
+  const [recordingEnabled, setRecordingEnabled] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const isValid = title.trim().length > 0;
@@ -97,6 +98,7 @@ export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetPro
     type: roomType,
     ownerType: selectedHouse ? 'house' as const : 'profile' as const,
     houseId: selectedHouse?._id,
+    recordingEnabled,
   });
 
   const handleCreateAndStart = async () => {
@@ -473,6 +475,42 @@ export const CreateRoomSheet = forwardRef<CreateRoomSheetRef, CreateRoomSheetPro
             />
           </View>
         )}
+
+        <View style={[styles.inputSection, styles.sectionPadded]}>
+          <TouchableOpacity
+            style={[styles.toggleRow, { backgroundColor: theme.colors.backgroundSecondary }]}
+            onPress={() => setRecordingEnabled(!recordingEnabled)}
+          >
+            <MaterialCommunityIcons
+              name={recordingEnabled ? 'record-circle' : 'record-circle-outline'}
+              size={20}
+              color={recordingEnabled ? '#FF0000' : theme.colors.textSecondary}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
+                Auto-record
+              </Text>
+              <Text style={{ fontSize: 11, color: theme.colors.textSecondary }}>
+                Record audio when room goes live (max 1h, expires in 6 months)
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.toggleIndicator,
+                {
+                  backgroundColor: recordingEnabled ? theme.colors.primary : theme.colors.border,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.toggleDot,
+                  recordingEnabled && { transform: [{ translateX: 14 }] },
+                ]}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
       </Scroll>
 
       {renderFooterContent()}
@@ -589,6 +627,28 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   secondaryButtonText: { fontSize: 15, fontWeight: '600' },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  toggleLabel: { fontSize: 14, fontWeight: '500' },
+  toggleIndicator: {
+    width: 36,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+  },
 });
 
 export default CreateRoomSheet;

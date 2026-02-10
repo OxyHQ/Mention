@@ -16,8 +16,10 @@ import { MiniRoomBar } from './MiniRoomBar';
 import { StreamConfigPanel } from './StreamConfigPanel';
 import { InsightsPanel } from './InsightsPanel';
 import { PanelHeader } from './PanelHeader';
+import { AnimatedSpeakerRing } from './AnimatedSpeakerRing';
 import { useRoomConnection } from '../hooks/useRoomConnection';
 import { useRoomAudio } from '../hooks/useRoomAudio';
+import { useActiveSpeakers } from '../hooks/useActiveSpeakers';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '../hooks/useRoomUsers';
 import type { RoomParticipant, Room, StreamInfo, UserEntity, AgoraTheme } from '../types';
 
@@ -47,6 +49,7 @@ const RoleBadge = ({ role, theme }: { role: string; theme: AgoraTheme }) => {
 const SpeakerTile = ({
   participant,
   isCurrentUser,
+  isSpeaking,
   theme,
   userProfile,
   oxyServices,
@@ -55,6 +58,7 @@ const SpeakerTile = ({
 }: {
   participant: RoomParticipant;
   isCurrentUser: boolean;
+  isSpeaking: boolean;
   theme: AgoraTheme;
   userProfile: UserEntity | undefined;
   oxyServices: unknown;
@@ -66,14 +70,10 @@ const SpeakerTile = ({
 
   return (
     <View style={styles.speakerTile}>
-      <View
-        style={[
-          styles.avatarRing,
-          !participant.isMuted && {
-            borderColor: theme.colors.primary,
-            borderWidth: 3,
-          },
-        ]}
+      <AnimatedSpeakerRing
+        isSpeaking={isSpeaking}
+        isMuted={participant.isMuted}
+        primaryColor={theme.colors.primary}
       >
         <AvatarComponent size={64} source={avatarUri} shape="squircle" />
         {participant.isMuted && (
@@ -81,7 +81,7 @@ const SpeakerTile = ({
             <MaterialCommunityIcons name="microphone-off" size={12} color="#FFFFFF" />
           </View>
         )}
-      </View>
+      </AnimatedSpeakerRing>
       <Text style={[styles.speakerName, { color: theme.colors.text }]} numberOfLines={1}>
         {displayName}
       </Text>
@@ -110,12 +110,12 @@ const ListenerAvatar = ({
   );
 };
 
-const ConnectedSpeakerTile = ({ participant, isCurrentUser, theme, oxyServices, AvatarComponent, getCachedFileDownloadUrlSync, useUserById }: {
-  participant: RoomParticipant; isCurrentUser: boolean; theme: AgoraTheme; oxyServices: unknown;
+const ConnectedSpeakerTile = ({ participant, isCurrentUser, isSpeaking, theme, oxyServices, AvatarComponent, getCachedFileDownloadUrlSync, useUserById }: {
+  participant: RoomParticipant; isCurrentUser: boolean; isSpeaking: boolean; theme: AgoraTheme; oxyServices: unknown;
   AvatarComponent: AvatarComponentType; getCachedFileDownloadUrlSync: CachedFileDownloadUrlSyncFn; useUserById: (id: string | undefined) => UserEntity | undefined;
 }) => {
   const userProfile = useUserById(participant.userId);
-  return <SpeakerTile participant={participant} isCurrentUser={isCurrentUser} theme={theme} userProfile={userProfile} oxyServices={oxyServices} AvatarComponent={AvatarComponent} getCachedFileDownloadUrlSync={getCachedFileDownloadUrlSync} />;
+  return <SpeakerTile participant={participant} isCurrentUser={isCurrentUser} isSpeaking={isSpeaking} theme={theme} userProfile={userProfile} oxyServices={oxyServices} AvatarComponent={AvatarComponent} getCachedFileDownloadUrlSync={getCachedFileDownloadUrlSync} />;
 };
 
 const ConnectedListenerAvatar = ({ participant, oxyServices, AvatarComponent, getCachedFileDownloadUrlSync, useUserById }: {
@@ -178,6 +178,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
     isMuted,
     speakerRequests,
     activeStream,
+    isRecording,
     join,
     leave,
     toggleMute,
@@ -188,12 +189,14 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
   } = useRoomConnection({ roomId, enabled: !!roomId });
 
   const isRoomLive = room?.status === 'live';
-  const { isLiveKitConnected, micPermissionDenied } = useRoomAudio({
+  const { isLiveKitConnected, micPermissionDenied, livekitRoom } = useRoomAudio({
     roomId,
     isSpeaker: myRole === 'speaker' || myRole === 'host',
     isMuted,
     isConnected: isConnected && isRoomLive,
   });
+
+  const activeSpeakerIds = useActiveSpeakers(livekitRoom);
 
   useEffect(() => {
     if (isConnected && roomId) {
@@ -257,6 +260,26 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
       toast.error('Failed to start room');
     } finally {
       setStartingRoom(false);
+    }
+  };
+
+  const handleStartRecording = async () => {
+    if (!roomId) return;
+    const success = await agoraService.startRecording(roomId);
+    if (success) {
+      toast.success('Recording started');
+    } else {
+      toast.error('Failed to start recording');
+    }
+  };
+
+  const handleStopRecording = async () => {
+    if (!roomId) return;
+    const success = await agoraService.stopRecording(roomId);
+    if (success) {
+      toast.success('Recording saved');
+    } else {
+      toast.error('Failed to stop recording');
     }
   };
 
@@ -353,6 +376,31 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
       <View style={styles.container}>
         <PanelHeader title="Room Settings" theme={theme} onBack={() => setActivePanel(null)} />
         <View style={styles.settingsContent}>
+          {isRoomLive && (
+            <View style={styles.settingsItem}>
+              <MaterialCommunityIcons
+                name={isRecording ? 'record-circle' : 'record-circle-outline'}
+                size={22}
+                color={isRecording ? '#FF0000' : theme.colors.text}
+              />
+              <View style={styles.settingsItemText}>
+                <Text style={[styles.settingsItemTitle, { color: theme.colors.text }]}>Recording</Text>
+                <Text style={[styles.settingsItemDesc, { color: theme.colors.textSecondary }]}>
+                  {isRecording ? 'Currently recording (max 1h)' : 'Record room audio for replay'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={isRecording ? handleStopRecording : handleStartRecording}
+                style={[styles.recordingToggle, {
+                  backgroundColor: isRecording ? '#FF4458' : theme.colors.primary,
+                }]}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>
+                  {isRecording ? 'Stop' : 'Start'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <TouchableOpacity
             style={styles.settingsItem}
             onPress={handleDeleteRoom}
@@ -386,6 +434,12 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
           ) : (
             <View style={[styles.liveBadge, { backgroundColor: theme.colors.textSecondary }]}>
               <Text style={styles.liveText}>SCHEDULED</Text>
+            </View>
+          )}
+          {isRecording && (
+            <View style={[styles.liveBadge, { backgroundColor: '#FF0000' }]}>
+              <View style={styles.livePulse} />
+              <Text style={styles.liveText}>REC</Text>
             </View>
           )}
           <Text style={[styles.listenerCount, { color: theme.colors.textSecondary }]}>
@@ -471,6 +525,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
               key={p.userId}
               participant={p}
               isCurrentUser={p.userId === userId}
+              isSpeaking={activeSpeakerIds.has(p.userId)}
               theme={theme}
               oxyServices={oxyServices}
               AvatarComponent={AvatarComponent}
@@ -674,13 +729,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   speakerTile: { width: '25%', alignItems: 'center', marginBottom: 20 },
-  avatarRing: {
-    borderRadius: 19,
-    padding: 2,
-    borderWidth: 3,
-    borderColor: 'transparent',
-    position: 'relative',
-  },
   muteIndicator: {
     position: 'absolute',
     bottom: 0,
@@ -798,4 +846,9 @@ const styles = StyleSheet.create({
   settingsItemText: { flex: 1 },
   settingsItemTitle: { fontSize: 16, fontWeight: '600' },
   settingsItemDesc: { fontSize: 13, marginTop: 2 },
+  recordingToggle: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
 });
