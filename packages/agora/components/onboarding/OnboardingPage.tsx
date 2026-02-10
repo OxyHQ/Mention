@@ -129,9 +129,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({
 
 const styles = StyleSheet.create({
   page: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: 32,
   },
   contentMeasure: {

@@ -114,7 +114,7 @@ module.exports = function (_config) {
       })(),
       extra: {
         eas: {
-          projectId: '', // Set after `eas init`
+          projectId: 'e89d44d7-74e3-460e-b5c3-5bce6a19fb1d',
         },
         router: {
           origin: false,

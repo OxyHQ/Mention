@@ -64,6 +64,7 @@ const InterestsPage: React.FC<OnboardingPageProps> = ({
     <View style={[styles.page, { width: pageWidth }]}>
       <Animated.View style={[styles.content, containerStyle]}>
         <View
+          style={{ paddingTop: 32 }}
           onLayout={(e) => onContentHeightMeasured?.(index, e.nativeEvent.layout.height)}
         >
           <Text style={[styles.title, { color: theme.colors.text }]}>
@@ -118,12 +119,9 @@ const InterestsPage: React.FC<OnboardingPageProps> = ({
 
 const styles = StyleSheet.create({
   page: {
-    flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 32,
   },
   content: {
-    flex: 1,
     alignItems: 'center',
   },
   title: {

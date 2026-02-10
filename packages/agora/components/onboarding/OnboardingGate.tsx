@@ -123,7 +123,7 @@ const OnboardingGate: React.FC = () => {
       handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
       style={styles.sheet}
     >
-      <BottomSheetView style={{ paddingBottom: 88 }}>
+      <BottomSheetView>
         <OnboardingScreen
           ref={screenRef}
           scrollProgress={scrollProgress}
