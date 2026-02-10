@@ -286,7 +286,6 @@ export function useHouseRooms(houseId: string | undefined) {
 interface CreateHouseInput {
   name: string;
   description?: string;
-  avatar?: string;
   tags?: string[];
   isPublic?: boolean;
 }

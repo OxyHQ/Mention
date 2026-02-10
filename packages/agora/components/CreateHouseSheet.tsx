@@ -7,12 +7,11 @@ import {
   TextInput,
   Image,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { toast } from 'sonner-native';
-import { useAuth } from '@oxyhq/services';
+import { useAgoraConfig } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateHouse } from '@/hooks/useRoomsQuery';
@@ -43,7 +42,7 @@ interface CreateHouseSheetProps {
 export function CreateHouseSheet({ onClose, onHouseCreated }: CreateHouseSheetProps) {
   const theme = useTheme();
   const createHouse = useCreateHouse();
-  const { oxyServices } = useAuth();
+  const { agoraService } = useAgoraConfig();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -51,8 +50,7 @@ export function CreateHouseSheet({ onClose, onHouseCreated }: CreateHouseSheetPr
   const [isPublic, setIsPublic] = useState(true);
 
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
-  const [imageFileId, setImageFileId] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageAsset, setImageAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
 
   const isValid = name.trim().length > 0;
   const loading = createHouse.isPending;
@@ -76,38 +74,7 @@ export function CreateHouseSheet({ onClose, onHouseCreated }: CreateHouseSheetPr
 
       const asset = result.assets[0];
       setImagePreviewUri(asset.uri);
-      setUploadingImage(true);
-
-      try {
-        let file: File | Blob;
-
-        if (Platform.OS === 'web') {
-          const response = await fetch(asset.uri);
-          const blob = await response.blob();
-          file = new File([blob], 'house-avatar.jpg', { type: asset.mimeType || 'image/jpeg' });
-        } else {
-          const response = await fetch(asset.uri);
-          file = await response.blob();
-        }
-
-        const uploadResponse = await oxyServices!.uploadRawFile(file, 'public');
-
-        const fileId = uploadResponse?.file?.key || uploadResponse?.file?.id || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.data?.id;
-
-        if (fileId) {
-          setImageFileId(fileId);
-        } else {
-          console.error('Upload response missing file ID:', JSON.stringify(uploadResponse, null, 2));
-          toast.error('Failed to upload image');
-          setImagePreviewUri(null);
-        }
-      } catch (err) {
-        console.error('Image upload error:', err);
-        toast.error('Failed to upload image');
-        setImagePreviewUri(null);
-      } finally {
-        setUploadingImage(false);
-      }
+      setImageAsset(asset);
     } catch (err) {
       console.error('Image picker error:', err);
       toast.error('Could not open image picker');
@@ -121,18 +88,35 @@ export function CreateHouseSheet({ onClose, onHouseCreated }: CreateHouseSheetPr
       const house = await createHouse.mutateAsync({
         name: name.trim(),
         description: description.trim() || undefined,
-        avatar: imageFileId || undefined,
         tags: selectedTags.length > 0 ? selectedTags : undefined,
         isPublic,
       });
 
-      if (house) {
-        toast.success('House created!');
-        onClose();
-        onHouseCreated?.();
-      } else {
+      if (!house) {
         toast.error('Failed to create house');
+        return;
       }
+
+      // Upload avatar after house creation
+      if (imageAsset) {
+        const formData = new FormData();
+        if (Platform.OS === 'web') {
+          const response = await fetch(imageAsset.uri);
+          const blob = await response.blob();
+          formData.append('file', new File([blob], 'avatar.jpg', { type: imageAsset.mimeType || 'image/jpeg' }));
+        } else {
+          formData.append('file', {
+            uri: imageAsset.uri,
+            name: 'avatar.jpg',
+            type: imageAsset.mimeType || 'image/jpeg',
+          } as any);
+        }
+        await agoraService.uploadHouseAvatar(house._id, formData);
+      }
+
+      toast.success('House created!');
+      onClose();
+      onHouseCreated?.();
     } catch (error) {
       console.error('Error creating house:', error);
       toast.error('Failed to create house');
@@ -158,17 +142,11 @@ export function CreateHouseSheet({ onClose, onHouseCreated }: CreateHouseSheetPr
             style={[styles.avatarPicker, { backgroundColor: theme.colors.backgroundSecondary }]}
             onPress={handlePickImage}
             activeOpacity={0.7}
-            disabled={uploadingImage}
           >
             {imagePreviewUri ? (
               <Image source={{ uri: imagePreviewUri }} style={styles.avatarImage} />
             ) : (
               <MaterialCommunityIcons name="camera-plus" size={28} color={theme.colors.textSecondary} />
-            )}
-            {uploadingImage && (
-              <View style={styles.avatarOverlay}>
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              </View>
             )}
           </TouchableOpacity>
           <Text style={[styles.avatarHint, { color: theme.colors.textTertiary }]}>
@@ -332,13 +310,6 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-  },
-  avatarOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
     borderRadius: 40,
   },
   avatarHint: { fontSize: 12, marginTop: 6 },

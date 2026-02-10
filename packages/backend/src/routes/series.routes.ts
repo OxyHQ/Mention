@@ -1,9 +1,14 @@
 import { Router, Response } from 'express';
+import multer from 'multer';
 import Series, { RecurrenceType } from '../models/Series';
 import Room, { RoomStatus, RoomType, OwnerType, SpeakerPermission } from '../models/Room';
 import House, { HouseMemberRole } from '../models/House';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
+import { processImage } from '../utils/imageProcessor';
+import { uploadObject, deleteObject, getAgoraSeriesCoverKey } from '../utils/spaces';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -412,6 +417,51 @@ router.post('/:id/generate-episode', async (req: AuthRequest, res: Response) => 
       message: 'Error generating episode',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Series cover upload
+// ---------------------------------------------------------------------------
+
+/**
+ * Upload series cover image
+ * POST /api/series/:id/cover
+ */
+router.post('/:id/cover', upload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!req.file) return res.status(400).json({ message: 'No file provided' });
+
+    const series = await Series.findById(id);
+    if (!series) return res.status(404).json({ message: 'Series not found' });
+
+    let hasPermission = series.createdBy === userId;
+    if (!hasPermission && series.houseId) {
+      const house = await House.findById(series.houseId);
+      if (house && house.hasRole(userId, HouseMemberRole.ADMIN)) hasPermission = true;
+    }
+    if (!hasPermission) return res.status(403).json({ message: 'You do not have permission to update this series' });
+
+    const { buffer, contentType } = await processImage(req.file.buffer, 'cover');
+    const objectKey = getAgoraSeriesCoverKey(id);
+
+    if (series.coverImage?.startsWith('https://cloud.mention.earth/')) {
+      const oldKey = series.coverImage.replace('https://cloud.mention.earth/', '');
+      deleteObject(oldKey).catch(() => {});
+    }
+
+    const cdnUrl = await uploadObject(objectKey, buffer, contentType, 'public-read');
+    series.coverImage = cdnUrl;
+    await series.save();
+
+    res.json({ coverImage: cdnUrl });
+  } catch (error) {
+    logger.error('Error uploading series cover:', { seriesId: req.params.id, error });
+    res.status(500).json({ message: 'Error uploading cover', error: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 

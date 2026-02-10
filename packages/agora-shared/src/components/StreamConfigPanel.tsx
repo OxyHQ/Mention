@@ -11,7 +11,6 @@ import {
   ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useAuth } from '@oxyhq/services';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useAgoraConfig } from '../context/AgoraConfigContext';
@@ -31,7 +30,6 @@ type StreamMode = 'url' | 'rtmp';
 export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialStreamKey, onClose, onStreamStarted }: StreamConfigPanelProps) {
   const { useTheme, agoraService, toast, onRoomChanged } = useAgoraConfig();
   const theme = useTheme();
-  const { oxyServices } = useAuth();
 
   const hasExistingKey = !!(initialStreamKey);
   const [mode, setMode] = useState<StreamMode>(hasExistingKey ? 'rtmp' : 'url');
@@ -45,7 +43,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [imageFileId, setImageFileId] = useState<string | null>(null);
+  const [imageCdnUrl, setImageCdnUrl] = useState<string | null>(null);
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -55,7 +53,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
     setStreamKey(null);
     setTitle('');
     setDescription('');
-    setImageFileId(null);
+    setImageCdnUrl(null);
     setImagePreviewUri(null);
     setMode('url');
   };
@@ -76,25 +74,23 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
       setUploadingImage(true);
 
       try {
-        let file: File | Blob;
-
+        const formData = new FormData();
         if (Platform.OS === 'web') {
           const response = await fetch(asset.uri);
           const blob = await response.blob();
-          file = new File([blob], 'stream-cover.jpg', { type: asset.mimeType || 'image/jpeg' });
+          formData.append('file', new File([blob], 'stream-cover.jpg', { type: asset.mimeType || 'image/jpeg' }));
         } else {
-          const response = await fetch(asset.uri);
-          file = await response.blob();
+          formData.append('file', {
+            uri: asset.uri,
+            name: 'stream-cover.jpg',
+            type: asset.mimeType || 'image/jpeg',
+          } as any);
         }
 
-        const uploadResponse = await oxyServices!.uploadRawFile(file, 'public');
-
-        const fileId = uploadResponse?.file?.key || uploadResponse?.file?.id || uploadResponse?.id || uploadResponse?.fileId || uploadResponse?.data?.id;
-
-        if (fileId) {
-          setImageFileId(fileId);
+        const cdnUrl = await agoraService.uploadRoomImage(roomId, formData);
+        if (cdnUrl) {
+          setImageCdnUrl(cdnUrl);
         } else {
-          console.error('Upload response missing file ID:', JSON.stringify(uploadResponse, null, 2));
           toast.error('Failed to upload image');
           setImagePreviewUri(null);
         }
@@ -134,7 +130,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
       const result = await agoraService.startStream(roomId, {
         url: streamUrl.trim(),
         title: title.trim() || undefined,
-        image: imageFileId || undefined,
+        image: imageCdnUrl || undefined,
         description: description.trim() || undefined,
       });
       if (result) {
@@ -162,7 +158,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
       if (!(await ensureRoomLive())) return;
       const result = await agoraService.generateStreamKey(roomId, {
         title: title.trim() || undefined,
-        image: imageFileId || undefined,
+        image: imageCdnUrl || undefined,
         description: description.trim() || undefined,
       });
       if (result?.streamKey) {
@@ -196,7 +192,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialRtmpUrl, initialS
     try {
       const success = await agoraService.updateStreamMetadata(roomId, {
         title: title.trim() || undefined,
-        image: imageFileId || undefined,
+        image: imageCdnUrl || undefined,
         description: description.trim() || undefined,
       });
       if (success) {

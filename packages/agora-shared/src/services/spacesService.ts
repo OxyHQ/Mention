@@ -353,13 +353,59 @@ export function createAgoraService(httpClient: HttpClient) {
 
     // --- Houses ---
 
-    async createHouse(data: { name: string; description?: string; avatar?: string; tags?: string[]; isPublic?: boolean }): Promise<House | null> {
+    async createHouse(data: { name: string; description?: string; tags?: string[]; isPublic?: boolean }): Promise<House | null> {
       try {
         const res = await httpClient.post("/houses", data);
         const raw = res.data.house || res.data.data || res.data || null;
         return raw ? validateHouse(raw) : null;
       } catch (error) {
         console.warn("Failed to create house", error);
+        return null;
+      }
+    },
+
+    // --- Media uploads ---
+
+    async uploadHouseAvatar(houseId: string, formData: FormData): Promise<string | null> {
+      if (!houseId) return null;
+      try {
+        const res = await httpClient.post(`/houses/${houseId}/avatar`, formData);
+        return res.data.avatar || null;
+      } catch (error) {
+        console.warn("Failed to upload house avatar", error);
+        return null;
+      }
+    },
+
+    async uploadHouseCover(houseId: string, formData: FormData): Promise<string | null> {
+      if (!houseId) return null;
+      try {
+        const res = await httpClient.post(`/houses/${houseId}/cover`, formData);
+        return res.data.coverImage || null;
+      } catch (error) {
+        console.warn("Failed to upload house cover", error);
+        return null;
+      }
+    },
+
+    async uploadRoomImage(roomId: string, formData: FormData): Promise<string | null> {
+      if (!roomId) return null;
+      try {
+        const res = await httpClient.post(`/rooms/${roomId}/image`, formData);
+        return res.data.streamImage || null;
+      } catch (error) {
+        console.warn("Failed to upload room image", error);
+        return null;
+      }
+    },
+
+    async uploadSeriesCover(seriesId: string, formData: FormData): Promise<string | null> {
+      if (!seriesId) return null;
+      try {
+        const res = await httpClient.post(`/series/${seriesId}/cover`, formData);
+        return res.data.coverImage || null;
+      } catch (error) {
+        console.warn("Failed to upload series cover", error);
         return null;
       }
     },

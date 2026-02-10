@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import multer from 'multer';
 import Room, { RoomStatus, RoomType, OwnerType, BroadcastKind, SpeakerPermission } from '../models/Room';
 import House, { HouseMemberRole } from '../models/House';
 import { AuthRequest } from '../types/auth';
@@ -15,7 +16,10 @@ import {
   stopRoomRecording,
 } from '../utils/livekit';
 import Recording, { RecordingStatus, RecordingAccess } from '../models/Recording';
-import { getRecordingObjectKey } from '../utils/spaces';
+import { getRecordingObjectKey, uploadObject, deleteObject, getAgoraRoomImageKey } from '../utils/spaces';
+import { processImage } from '../utils/imageProcessor';
+
+const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -1560,6 +1564,45 @@ router.get('/:id/recordings', async (req: AuthRequest, res: Response) => {
       message: 'Error fetching recordings',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Room image upload
+// ---------------------------------------------------------------------------
+
+/**
+ * Upload room/stream image
+ * POST /api/rooms/:id/image
+ */
+router.post('/:id/image', uploadMiddleware.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!req.file) return res.status(400).json({ message: 'No file provided' });
+
+    const room = await Room.findById(id);
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+    if (room.host !== userId) return res.status(403).json({ message: 'Only the host can upload a room image' });
+
+    const { buffer, contentType } = await processImage(req.file.buffer, 'roomImage');
+    const objectKey = getAgoraRoomImageKey(id);
+
+    if (room.streamImage?.startsWith('https://cloud.mention.earth/')) {
+      const oldKey = room.streamImage.replace('https://cloud.mention.earth/', '');
+      deleteObject(oldKey).catch(() => {});
+    }
+
+    const cdnUrl = await uploadObject(objectKey, buffer, contentType, 'public-read');
+    room.streamImage = cdnUrl;
+    await room.save();
+
+    res.json({ streamImage: cdnUrl });
+  } catch (error) {
+    logger.error('Error uploading room image:', { roomId: req.params.id, error });
+    res.status(500).json({ message: 'Error uploading image', error: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 

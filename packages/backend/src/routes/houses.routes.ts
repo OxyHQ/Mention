@@ -1,9 +1,14 @@
 import { Router, Response } from 'express';
+import multer from 'multer';
 import House, { HouseMemberRole, IHouseMember } from '../models/House';
 import Room, { RoomStatus } from '../models/Room';
 import Series from '../models/Series';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
+import { processImage } from '../utils/imageProcessor';
+import { uploadObject, deleteObject, getAgoraHouseAvatarKey, getAgoraHouseCoverKey, getCdnUrl } from '../utils/spaces';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -531,6 +536,85 @@ router.get('/:id/series', async (req: AuthRequest, res: Response) => {
       message: 'Error fetching house series',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Media upload endpoints
+// ---------------------------------------------------------------------------
+
+/**
+ * Upload house avatar
+ * POST /api/houses/:id/avatar
+ */
+router.post('/:id/avatar', upload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!req.file) return res.status(400).json({ message: 'No file provided' });
+
+    const house = await House.findById(id);
+    if (!house) return res.status(404).json({ message: 'House not found' });
+    if (!house.hasRole(userId, HouseMemberRole.ADMIN)) {
+      return res.status(403).json({ message: 'Only admins or owner can update the house' });
+    }
+
+    const { buffer, contentType } = await processImage(req.file.buffer, 'avatar');
+    const objectKey = getAgoraHouseAvatarKey(id);
+
+    // Delete old object if it was on our CDN
+    if (house.avatar?.startsWith('https://cloud.mention.earth/')) {
+      const oldKey = house.avatar.replace('https://cloud.mention.earth/', '');
+      deleteObject(oldKey).catch(() => {});
+    }
+
+    const cdnUrl = await uploadObject(objectKey, buffer, contentType, 'public-read');
+    house.avatar = cdnUrl;
+    await house.save();
+
+    res.json({ avatar: cdnUrl });
+  } catch (error) {
+    logger.error('Error uploading house avatar:', { houseId: req.params.id, error });
+    res.status(500).json({ message: 'Error uploading avatar', error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+/**
+ * Upload house cover image
+ * POST /api/houses/:id/cover
+ */
+router.post('/:id/cover', upload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!req.file) return res.status(400).json({ message: 'No file provided' });
+
+    const house = await House.findById(id);
+    if (!house) return res.status(404).json({ message: 'House not found' });
+    if (!house.hasRole(userId, HouseMemberRole.ADMIN)) {
+      return res.status(403).json({ message: 'Only admins or owner can update the house' });
+    }
+
+    const { buffer, contentType } = await processImage(req.file.buffer, 'cover');
+    const objectKey = getAgoraHouseCoverKey(id);
+
+    if (house.coverImage?.startsWith('https://cloud.mention.earth/')) {
+      const oldKey = house.coverImage.replace('https://cloud.mention.earth/', '');
+      deleteObject(oldKey).catch(() => {});
+    }
+
+    const cdnUrl = await uploadObject(objectKey, buffer, contentType, 'public-read');
+    house.coverImage = cdnUrl;
+    await house.save();
+
+    res.json({ coverImage: cdnUrl });
+  } catch (error) {
+    logger.error('Error uploading house cover:', { houseId: req.params.id, error });
+    res.status(500).json({ message: 'Error uploading cover', error: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 

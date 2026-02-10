@@ -94,11 +94,31 @@ export async function uploadObject(
 }
 
 // ---------------------------------------------------------------------------
+// Agora media key helpers
+// ---------------------------------------------------------------------------
+
+export function getAgoraHouseAvatarKey(houseId: string): string {
+  return `agora/houses/${houseId}/avatar.webp`;
+}
+
+export function getAgoraHouseCoverKey(houseId: string): string {
+  return `agora/houses/${houseId}/cover.webp`;
+}
+
+export function getAgoraRoomImageKey(roomId: string): string {
+  return `agora/rooms/${roomId}/image.webp`;
+}
+
+export function getAgoraSeriesCoverKey(seriesId: string): string {
+  return `agora/series/${seriesId}/cover.webp`;
+}
+
+// ---------------------------------------------------------------------------
 // Recording-specific helpers
 // ---------------------------------------------------------------------------
 
 export function getRecordingObjectKey(roomId: string, recordingId: string): string {
-  return `recordings/${roomId}/${recordingId}.ogg`;
+  return `agora/recordings/${roomId}/${recordingId}.ogg`;
 }
 
 export async function getRecordingPresignedUrl(

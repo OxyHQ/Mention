@@ -87,7 +87,7 @@ export interface HttpRequestConfig {
 
 export interface HttpClient {
   get: (url: string, config?: HttpRequestConfig) => Promise<HttpResponse>;
-  post: (url: string, data?: Record<string, unknown>, config?: HttpRequestConfig) => Promise<HttpResponse>;
+  post: (url: string, data?: Record<string, unknown> | FormData, config?: HttpRequestConfig) => Promise<HttpResponse>;
   patch: (url: string, data?: Record<string, unknown>, config?: HttpRequestConfig) => Promise<HttpResponse>;
   delete: (url: string, config?: HttpRequestConfig) => Promise<HttpResponse>;
 }
