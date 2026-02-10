@@ -21,4 +21,5 @@ export interface OnboardingPageProps {
   scrollProgress: SharedValue<number>;
   pageWidth: number;
   reduceMotion: boolean;
+  onContentHeightMeasured?: (index: number, height: number) => void;
 }

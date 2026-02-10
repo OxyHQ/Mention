@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
-import { StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BottomSheet, {
   BottomSheetView,
@@ -12,10 +12,11 @@ import { STORAGE_KEY_ONBOARDING } from './constants';
 import OnboardingScreen from './OnboardingScreen';
 import type { OnboardingProgress } from './types';
 
+const MAX_CONTENT_HEIGHT = Dimensions.get('window').height * 0.92;
+
 /**
- * Presents the onboarding flow as a dynamically-sized bottom sheet.
- * Auto-presents when onboarding hasn't been completed or skipped.
- * Dismissing via swipe-down is treated as skip.
+ * Presents the onboarding flow as a bottom sheet whose height adapts
+ * per step via enableDynamicSizing — content drives the sheet height.
  */
 const OnboardingGate: React.FC = () => {
   const theme = useTheme();
@@ -23,7 +24,6 @@ const OnboardingGate: React.FC = () => {
   const [ready, setReady] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
-  // Check storage to decide whether to show onboarding
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -79,6 +79,7 @@ const OnboardingGate: React.FC = () => {
     <BottomSheet
       ref={sheetRef}
       enableDynamicSizing
+      maxDynamicContentSize={MAX_CONTENT_HEIGHT}
       enablePanDownToClose
       enableContentPanningGesture={false}
       onChange={handleSheetChange}
@@ -102,7 +103,6 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     marginHorizontal: 'auto',
   },
-  content: {},
 });
 
 export default memo(OnboardingGate);

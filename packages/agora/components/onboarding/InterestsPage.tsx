@@ -4,7 +4,6 @@ import Animated, {
   useAnimatedStyle,
   interpolate,
   Extrapolation,
-  type SharedValue,
 } from 'react-native-reanimated';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
@@ -18,6 +17,7 @@ const InterestsPage: React.FC<OnboardingPageProps> = ({
   scrollProgress,
   pageWidth,
   reduceMotion,
+  onContentHeightMeasured,
 }) => {
   const theme = useTheme();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -63,49 +63,53 @@ const InterestsPage: React.FC<OnboardingPageProps> = ({
   return (
     <View style={[styles.page, { width: pageWidth }]}>
       <Animated.View style={[styles.content, containerStyle]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          {step.title}
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          {step.subtitle}
-        </Text>
+        <View
+          onLayout={(e) => onContentHeightMeasured?.(index, e.nativeEvent.layout.height)}
+        >
+          <Text style={[styles.title, { color: theme.colors.text }]}>
+            {step.title}
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            {step.subtitle}
+          </Text>
 
-        <View style={styles.chipsContainer}>
-          {INTEREST_TOPICS.map((topic) => {
-            const isSelected = selected.has(topic.label);
-            return (
-              <Pressable
-                key={topic.label}
-                onPress={() => toggleTopic(topic.label)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: isSelected
-                      ? theme.colors.primary
-                      : theme.colors.backgroundSecondary,
-                    borderColor: isSelected
-                      ? theme.colors.primary
-                      : theme.colors.border,
-                  },
-                ]}
-              >
-                <Text style={styles.chipEmoji}>{topic.emoji}</Text>
-                <Text
+          <View style={styles.chipsContainer}>
+            {INTEREST_TOPICS.map((topic) => {
+              const isSelected = selected.has(topic.label);
+              return (
+                <Pressable
+                  key={topic.label}
+                  onPress={() => toggleTopic(topic.label)}
                   style={[
-                    styles.chipLabel,
-                    { color: isSelected ? '#FFFFFF' : theme.colors.text },
+                    styles.chip,
+                    {
+                      backgroundColor: isSelected
+                        ? `${theme.colors.primary}1A`
+                        : `${theme.colors.card}CC`,
+                      borderColor: isSelected
+                        ? theme.colors.primary
+                        : theme.colors.border,
+                    },
                   ]}
                 >
-                  {topic.label}
-                </Text>
-                <MaterialCommunityIcons
-                  name={isSelected ? 'check' : 'plus'}
-                  size={12}
-                  color={isSelected ? '#FFFFFF' : theme.colors.textSecondary}
-                />
-              </Pressable>
-            );
-          })}
+                  <Text style={styles.chipEmoji}>{topic.emoji}</Text>
+                  <Text
+                    style={[
+                      styles.chipLabel,
+                      { color: isSelected ? theme.colors.primary : theme.colors.text },
+                    ]}
+                  >
+                    {topic.label}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name={isSelected ? 'check' : 'plus'}
+                    size={12}
+                    color={isSelected ? theme.colors.primary : theme.colors.textSecondary}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </Animated.View>
     </View>

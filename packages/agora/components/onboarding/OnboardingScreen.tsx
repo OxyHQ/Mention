@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, memo } from 'react';
+import React, { useCallback, useRef, useState, useEffect, memo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedRef,
   useAnimatedStyle,
+  useAnimatedReaction,
   interpolate,
   Extrapolation,
   scrollTo,
@@ -26,6 +27,8 @@ import InterestsPage from './InterestsPage';
 import OnboardingButtons from './OnboardingButtons';
 import { useOnboardingProgress } from './useOnboardingProgress';
 import { ONBOARDING_STEPS } from './constants';
+
+const DEFAULT_PAGER_HEIGHT = 350;
 
 interface OnboardingScreenProps {
   onComplete: () => void;
@@ -46,6 +49,28 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
 
   const [reduceMotion, setReduceMotion] = useState(false);
 
+  // --- Pager height management ---
+  const measuredHeights = useRef<Record<number, number>>({});
+  const currentStepRef = useRef(0);
+  const [pagerHeight, setPagerHeight] = useState(DEFAULT_PAGER_HEIGHT);
+
+  const handleContentHeightMeasured = useCallback((index: number, height: number) => {
+    measuredHeights.current[index] = height;
+    // Update pager height if this is the currently visible step
+    if (index === currentStepRef.current) {
+      setPagerHeight(height);
+    }
+  }, []);
+
+  const updatePagerForStep = useCallback((step: number) => {
+    currentStepRef.current = step;
+    const measured = measuredHeights.current[step];
+    if (measured) {
+      setPagerHeight(measured);
+    }
+  }, []);
+
+  // --- Accessibility ---
   useEffect(() => {
     let mounted = true;
 
@@ -89,6 +114,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
       const targetX = progress.currentStep * pageWidth;
       scrollTo(scrollRef, targetX, 0, false);
       scrollProgress.value = progress.currentStep;
+      updatePagerForStep(progress.currentStep);
     }
   }, [loaded, pageWidth]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -99,14 +125,19 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
         scrollProgress.value = event.contentOffset.x / pw;
       }
     },
-    onMomentumEnd: (event) => {
-      const pw = pageWidthValue.value;
-      if (pw > 0) {
-        const page = Math.round(event.contentOffset.x / pw);
-        runOnJS(updateStep)(page);
+  });
+
+  // Detect step changes at swipe midpoint for smooth height transitions
+  useAnimatedReaction(
+    () => Math.round(scrollProgress.value),
+    (current, previous) => {
+      if (previous !== null && current !== previous) {
+        runOnJS(updateStep)(current);
+        runOnJS(updatePagerForStep)(current);
       }
     },
-  });
+    [updateStep, updatePagerForStep],
+  );
 
   const animateToPage = useCallback(
     (page: number) => {
@@ -119,17 +150,21 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
 
   const handleNext = useCallback(() => {
     const current = Math.round(scrollProgress.value);
-    if (current + 1 < ONBOARDING_STEPS.length) {
-      animateToPage(current + 1);
+    const next = current + 1;
+    if (next < ONBOARDING_STEPS.length) {
+      animateToPage(next);
+      updatePagerForStep(next);
     }
-  }, [scrollProgress, animateToPage]);
+  }, [scrollProgress, animateToPage, updatePagerForStep]);
 
   const handleBack = useCallback(() => {
     const current = Math.round(scrollProgress.value);
-    if (current > 0) {
-      animateToPage(current - 1);
+    const prev = current - 1;
+    if (prev >= 0) {
+      animateToPage(prev);
+      updatePagerForStep(prev);
     }
-  }, [scrollProgress, animateToPage]);
+  }, [scrollProgress, animateToPage, updatePagerForStep]);
 
   const handleSkip = useCallback(() => {
     markSkipped();
@@ -142,20 +177,6 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
   }, [markCompleted, onComplete]);
 
   const lastIndex = ONBOARDING_STEPS.length - 1;
-
-  // Per-step pager heights for dynamic bottom sheet sizing
-  const STEP_PAGER_HEIGHTS = ONBOARDING_STEPS.map((s) =>
-    s.type === 'interests' ? 440 : 360,
-  );
-
-  const pagerHeightStyle = useAnimatedStyle(() => {
-    const page = Math.max(0, scrollProgress.value);
-    const floor = Math.min(Math.floor(page), STEP_PAGER_HEIGHTS.length - 1);
-    const ceil = Math.min(Math.ceil(page), STEP_PAGER_HEIGHTS.length - 1);
-    const t = page - Math.floor(page);
-    const h = STEP_PAGER_HEIGHTS[floor] + (STEP_PAGER_HEIGHTS[ceil] - STEP_PAGER_HEIGHTS[floor]) * t;
-    return { height: h };
-  });
 
   const skipStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
@@ -174,7 +195,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
       onLayout={handleLayout}
     >
       <Animated.View
-        style={[styles.skipContainer, { top: Math.max(insets.top, 12) }, skipStyle]}
+        style={[styles.skipContainer, skipStyle]}
         pointerEvents="box-none"
       >
         <Pressable onPress={handleSkip} hitSlop={12}>
@@ -183,7 +204,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
       </Animated.View>
 
       {pageWidth > 0 && (
-        <Animated.View style={[styles.pagerWrapper, pagerHeightStyle]}>
+        <View style={{ height: pagerHeight, overflow: 'hidden' }}>
           <Animated.ScrollView
             ref={scrollRef}
             horizontal
@@ -206,11 +227,12 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
                   scrollProgress={scrollProgress}
                   pageWidth={pageWidth}
                   reduceMotion={reduceMotion}
+                  onContentHeightMeasured={handleContentHeightMeasured}
                 />
               );
             })}
           </Animated.ScrollView>
-        </Animated.View>
+        </View>
       )}
 
       <View style={[styles.controlsArea, { paddingBottom: Math.max(insets.bottom, 24) }]}>
@@ -231,16 +253,13 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
 const styles = StyleSheet.create({
   container: {},
   skipContainer: {
-    position: 'absolute',
-    right: 24,
-    zIndex: 10,
+    alignSelf: 'flex-end',
+    paddingRight: 24,
+    paddingTop: 8,
   },
   skipText: {
     fontSize: 13,
     fontWeight: '500',
-  },
-  pagerWrapper: {
-    overflow: 'hidden',
   },
   pagerArea: {
     flex: 1,
@@ -248,7 +267,6 @@ const styles = StyleSheet.create({
   controlsArea: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    gap: 24,
   },
   buttonsWrapper: {
     width: '100%',

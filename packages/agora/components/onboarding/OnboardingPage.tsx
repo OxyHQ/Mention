@@ -19,6 +19,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({
   scrollProgress,
   pageWidth,
   reduceMotion,
+  onContentHeightMeasured,
 }) => {
   const theme = useTheme();
 
@@ -99,24 +100,29 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({
 
   return (
     <View style={[styles.page, { width: pageWidth }]}>
-      <Animated.View style={[styles.lottieContainer, lottieContainerStyle]}>
-        <LottieView
-          source={step.lottieSource}
-          autoPlay
-          loop
-          style={styles.lottie}
-          webStyle={{ width: LOTTIE_SIZE, height: LOTTIE_SIZE }}
-        />
-      </Animated.View>
+      <View
+        style={styles.contentMeasure}
+        onLayout={(e) => onContentHeightMeasured?.(index, e.nativeEvent.layout.height)}
+      >
+        <Animated.View style={[styles.lottieContainer, lottieContainerStyle]}>
+          <LottieView
+            source={step.lottieSource}
+            autoPlay
+            loop
+            style={styles.lottie}
+            webStyle={{ width: LOTTIE_SIZE, height: LOTTIE_SIZE }}
+          />
+        </Animated.View>
 
-      <Animated.View style={[styles.textContainer, textStyle]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          {step.title}
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          {step.subtitle}
-        </Text>
-      </Animated.View>
+        <Animated.View style={[styles.textContainer, textStyle]}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>
+            {step.title}
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            {step.subtitle}
+          </Text>
+        </Animated.View>
+      </View>
     </View>
   );
 };
@@ -127,7 +133,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
-    paddingTop: 24,
+  },
+  contentMeasure: {
+    alignItems: 'center',
   },
   lottieContainer: {
     width: LOTTIE_SIZE,
