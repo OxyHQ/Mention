@@ -5,8 +5,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useLiveRoom } from '@/context/LiveSpaceContext';
 
 /**
- * Deep link redirect: when navigating to /spaces/live/[id],
- * open the live room bottom sheet and go back to the spaces list.
+ * Deep link redirect: when navigating to /agora/live/[id],
+ * open the live room bottom sheet and go back to the agora list.
  */
 export default function LiveRoomRedirect() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -15,7 +15,7 @@ export default function LiveRoomRedirect() {
   useEffect(() => {
     if (id) {
       joinLiveRoom(id);
-      router.replace('/spaces');
+      router.replace('/agora');
     }
   }, [id, joinLiveRoom]);
 

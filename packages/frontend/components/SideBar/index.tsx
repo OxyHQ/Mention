@@ -101,7 +101,7 @@ export function SideBar() {
                 title: t("Agora"),
                 icon: <Agora color={theme.colors.text} />,
                 iconActive: <AgoraActive color={theme.colors.primary} />,
-                route: '/spaces',
+                route: '/agora',
             },
             {
                 title: t("Insights"),

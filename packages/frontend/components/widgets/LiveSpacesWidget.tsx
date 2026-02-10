@@ -133,7 +133,7 @@ export function LiveRoomsWidget() {
   useRoomUsers(hostIds);
 
   const handleShowMore = useCallback(() => {
-    router.push('/spaces' as any);
+    router.push('/agora' as any);
   }, [router]);
 
   if (!isAuthenticated) return null;
