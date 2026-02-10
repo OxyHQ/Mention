@@ -35,6 +35,7 @@ export default function SignInScreen() {
       <BlurView
         intensity={theme.isDark ? 60 : 40}
         tint={theme.isDark ? 'dark' : 'light'}
+        experimentalBlurMethod="dimezisBlurView"
         style={StyleSheet.absoluteFill}
       />
 

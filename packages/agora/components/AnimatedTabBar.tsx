@@ -162,6 +162,7 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
       <BlurView
         intensity={80}
         tint={theme.isDark ? 'dark' : 'light'}
+        experimentalBlurMethod="dimezisBlurView"
         style={{
           flex: 1,
           flexDirection: 'row',

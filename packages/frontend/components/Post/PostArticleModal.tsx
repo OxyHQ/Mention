@@ -238,6 +238,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
         <AnimatedBlurView
           intensity={80}
           tint={blurTint}
+          experimentalBlurMethod="dimezisBlurView"
           style={[StyleSheet.absoluteFillObject, backdropAnimatedStyle]}
         >
           <Animated.View

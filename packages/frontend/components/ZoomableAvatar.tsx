@@ -398,6 +398,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                   <AnimatedBlurView
                     intensity={80}
                     tint={theme.isDark ? 'dark' : 'light'}
+                    experimentalBlurMethod="dimezisBlurView"
                     style={[StyleSheet.absoluteFillObject, blurAnimatedStyle]}
                   >
                     <Animated.View
@@ -467,6 +468,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                   <AnimatedBlurView
                     intensity={80}
                     tint={theme.isDark ? 'dark' : 'light'}
+                    experimentalBlurMethod="dimezisBlurView"
                     style={[StyleSheet.absoluteFillObject, blurAnimatedStyle]}
                   >
                     <Animated.View

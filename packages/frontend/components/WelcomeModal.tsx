@@ -202,6 +202,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
         <AnimatedBlurView
           intensity={80}
           tint={blurTint}
+          experimentalBlurMethod="dimezisBlurView"
           style={[StyleSheet.absoluteFillObject, backdropAnimatedStyle]}
         >
           <Animated.View

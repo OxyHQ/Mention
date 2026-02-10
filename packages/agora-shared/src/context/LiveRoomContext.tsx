@@ -172,6 +172,7 @@ export function LiveRoomProvider({ children }: { children: React.ReactNode }) {
             <BlurView
               intensity={80}
               tint={theme.isDark ? 'dark' : 'light'}
+              experimentalBlurMethod="dimezisBlurView"
               style={{ flex: 1 }}
             >
               <LiveRoomSheet

@@ -250,6 +250,7 @@ export const BottomBar = () => {
                 <BlurView
                     intensity={80}
                     tint={effectiveTheme.isDark ? 'dark' : 'light'}
+                    experimentalBlurMethod="dimezisBlurView"
                     style={{
                         flex: 1,
                         flexDirection: 'row',
