@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useEffect, memo } from 'react';
+import React, { useCallback, useRef, useState, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -17,30 +17,35 @@ import Animated, {
   Extrapolation,
   scrollTo,
   runOnJS,
+  type SharedValue,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
 
 import { useTheme } from '@/hooks/useTheme';
 import OnboardingPage from './OnboardingPage';
 import InterestsPage from './InterestsPage';
-import OnboardingButtons from './OnboardingButtons';
 import { useOnboardingProgress } from './useOnboardingProgress';
 import { ONBOARDING_STEPS } from './constants';
 
 const DEFAULT_PAGER_HEIGHT = 350;
 
 interface OnboardingScreenProps {
+  scrollProgress: SharedValue<number>;
   onComplete: () => void;
 }
 
-const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
+export interface OnboardingScreenHandle {
+  next: () => void;
+  back: () => void;
+  done: () => void;
+}
+
+const OnboardingScreen = forwardRef<OnboardingScreenHandle, OnboardingScreenProps>(
+  ({ scrollProgress, onComplete }, ref) => {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { isAuthenticated } = useAuth();
 
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
-  const scrollProgress = useSharedValue(0);
   const pageWidthValue = useSharedValue(0);
   const [pageWidth, setPageWidth] = useState(0);
 
@@ -49,26 +54,38 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
 
   const [reduceMotion, setReduceMotion] = useState(false);
 
-  // --- Pager height management ---
+  // --- Pager height management (reanimated v4 continuous interpolation) ---
   const measuredHeights = useRef<Record<number, number>>({});
   const currentStepRef = useRef(0);
   const [pagerHeight, setPagerHeight] = useState(DEFAULT_PAGER_HEIGHT);
 
-  const handleContentHeightMeasured = useCallback((index: number, height: number) => {
-    measuredHeights.current[index] = height;
-    // Update pager height if this is the currently visible step
-    if (index === currentStepRef.current) {
-      setPagerHeight(height);
+  // Shared value storing per-page heights for worklet-driven interpolation
+  const pageHeightsShared = useSharedValue<number[]>(
+    new Array(ONBOARDING_STEPS.length).fill(DEFAULT_PAGER_HEIGHT),
+  );
+
+  // Throttled setter — avoids excessive re-renders during swipes
+  const lastSetHeightRef = useRef(DEFAULT_PAGER_HEIGHT);
+  const setInterpolatedHeight = useCallback((h: number) => {
+    const rounded = Math.round(h);
+    if (Math.abs(rounded - lastSetHeightRef.current) >= 2) {
+      lastSetHeightRef.current = rounded;
+      setPagerHeight(rounded);
     }
   }, []);
 
-  const updatePagerForStep = useCallback((step: number) => {
-    currentStepRef.current = step;
-    const measured = measuredHeights.current[step];
-    if (measured) {
-      setPagerHeight(measured);
+  const handleContentHeightMeasured = useCallback((index: number, height: number) => {
+    measuredHeights.current[index] = height;
+    // Sync to shared value so worklets can interpolate
+    const updated = [...pageHeightsShared.value];
+    updated[index] = height;
+    pageHeightsShared.value = updated;
+    // Set initial height for current step
+    if (index === currentStepRef.current) {
+      lastSetHeightRef.current = height;
+      setPagerHeight(height);
     }
-  }, []);
+  }, [pageHeightsShared]);
 
   // --- Accessibility ---
   useEffect(() => {
@@ -114,7 +131,12 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
       const targetX = progress.currentStep * pageWidth;
       scrollTo(scrollRef, targetX, 0, false);
       scrollProgress.value = progress.currentStep;
-      updatePagerForStep(progress.currentStep);
+      currentStepRef.current = progress.currentStep;
+      const h = measuredHeights.current[progress.currentStep];
+      if (h) {
+        lastSetHeightRef.current = h;
+        setPagerHeight(h);
+      }
     }
   }, [loaded, pageWidth]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -127,16 +149,33 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
     },
   });
 
-  // Detect step changes at swipe midpoint for smooth height transitions
+  // Continuous height interpolation — smoothly tracks scroll progress
+  useAnimatedReaction(
+    () => {
+      const heights = pageHeightsShared.value;
+      const prog = scrollProgress.value;
+      const maxIdx = heights.length - 1;
+      if (maxIdx < 0) return DEFAULT_PAGER_HEIGHT;
+      const clamped = Math.max(0, Math.min(prog, maxIdx));
+      const floor = Math.floor(clamped);
+      const ceil = Math.min(floor + 1, maxIdx);
+      const frac = clamped - floor;
+      return heights[floor] + (heights[ceil] - heights[floor]) * frac;
+    },
+    (h) => {
+      runOnJS(setInterpolatedHeight)(h);
+    },
+  );
+
+  // Detect step changes at swipe midpoint for persistence
   useAnimatedReaction(
     () => Math.round(scrollProgress.value),
     (current, previous) => {
       if (previous !== null && current !== previous) {
         runOnJS(updateStep)(current);
-        runOnJS(updatePagerForStep)(current);
       }
     },
-    [updateStep, updatePagerForStep],
+    [updateStep],
   );
 
   const animateToPage = useCallback(
@@ -153,18 +192,16 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
     const next = current + 1;
     if (next < ONBOARDING_STEPS.length) {
       animateToPage(next);
-      updatePagerForStep(next);
     }
-  }, [scrollProgress, animateToPage, updatePagerForStep]);
+  }, [scrollProgress, animateToPage]);
 
   const handleBack = useCallback(() => {
     const current = Math.round(scrollProgress.value);
     const prev = current - 1;
     if (prev >= 0) {
       animateToPage(prev);
-      updatePagerForStep(prev);
     }
-  }, [scrollProgress, animateToPage, updatePagerForStep]);
+  }, [scrollProgress, animateToPage]);
 
   const handleSkip = useCallback(() => {
     markSkipped();
@@ -175,6 +212,12 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
     markCompleted();
     onComplete();
   }, [markCompleted, onComplete]);
+
+  useImperativeHandle(ref, () => ({
+    next: handleNext,
+    back: handleBack,
+    done: handleDone,
+  }), [handleNext, handleBack, handleDone]);
 
   const lastIndex = ONBOARDING_STEPS.length - 1;
 
@@ -234,21 +277,9 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
           </Animated.ScrollView>
         </View>
       )}
-
-      <View style={[styles.controlsArea, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-        <View style={styles.buttonsWrapper}>
-          <OnboardingButtons
-            totalSteps={ONBOARDING_STEPS.length}
-            scrollProgress={scrollProgress}
-            onNext={handleNext}
-            onBack={handleBack}
-            onDone={handleDone}
-          />
-        </View>
-      </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {},
@@ -264,13 +295,8 @@ const styles = StyleSheet.create({
   pagerArea: {
     flex: 1,
   },
-  controlsArea: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
-  buttonsWrapper: {
-    width: '100%',
-  },
 });
+
+OnboardingScreen.displayName = 'OnboardingScreen';
 
 export default memo(OnboardingScreen);

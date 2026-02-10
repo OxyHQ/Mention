@@ -265,7 +265,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
 
   const effectiveStream: StreamInfo | null = activeStream
     ?? (room?.streamTitle || room?.activeStreamUrl
-      ? { title: room.streamTitle, image: room.streamImage, description: room.streamDescription }
+      ? { title: room.streamTitle ?? undefined, image: room.streamImage ?? undefined, description: room.streamDescription ?? undefined }
       : null);
 
   const [streamImageUrl, setStreamImageUrl] = useState<string | null>(null);

@@ -1,15 +1,20 @@
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
-import { Dimensions, StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSharedValue } from 'react-native-reanimated';
 import BottomSheet, {
   BottomSheetView,
   BottomSheetBackdrop,
+  BottomSheetFooter,
 } from '@gorhom/bottom-sheet';
-import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import type { BottomSheetBackdropProps, BottomSheetFooterProps } from '@gorhom/bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/useTheme';
-import { STORAGE_KEY_ONBOARDING } from './constants';
+import { ONBOARDING_STEPS, STORAGE_KEY_ONBOARDING } from './constants';
 import OnboardingScreen from './OnboardingScreen';
+import type { OnboardingScreenHandle } from './OnboardingScreen';
+import OnboardingButtons from './OnboardingButtons';
 import type { OnboardingProgress } from './types';
 
 const MAX_CONTENT_HEIGHT = Dimensions.get('window').height * 0.92;
@@ -20,7 +25,10 @@ const MAX_CONTENT_HEIGHT = Dimensions.get('window').height * 0.92;
  */
 const OnboardingGate: React.FC = () => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheet>(null);
+  const screenRef = useRef<OnboardingScreenHandle>(null);
+  const scrollProgress = useSharedValue(0);
   const [ready, setReady] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -73,6 +81,32 @@ const OnboardingGate: React.FC = () => {
     [],
   );
 
+  const renderFooter = useCallback(
+    (props: BottomSheetFooterProps) => (
+      <BottomSheetFooter {...props} bottomInset={0}>
+        <View
+          style={[
+            styles.footer,
+            {
+              borderTopColor: theme.colors.border,
+              backgroundColor: theme.colors.background,
+              paddingBottom: Math.max(insets.bottom, 14),
+            },
+          ]}
+        >
+          <OnboardingButtons
+            totalSteps={ONBOARDING_STEPS.length}
+            scrollProgress={scrollProgress}
+            onNext={() => screenRef.current?.next()}
+            onBack={() => screenRef.current?.back()}
+            onDone={() => screenRef.current?.done()}
+          />
+        </View>
+      </BottomSheetFooter>
+    ),
+    [scrollProgress, theme, insets.bottom],
+  );
+
   if (!ready || dismissed) return null;
 
   return (
@@ -84,12 +118,17 @@ const OnboardingGate: React.FC = () => {
       enableContentPanningGesture={false}
       onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
+      footerComponent={renderFooter}
       backgroundStyle={[styles.background, { backgroundColor: theme.colors.background }]}
       handleIndicatorStyle={{ backgroundColor: theme.colors.textTertiary }}
       style={styles.sheet}
     >
-      <BottomSheetView>
-        <OnboardingScreen onComplete={handleComplete} />
+      <BottomSheetView style={{ paddingBottom: 88 }}>
+        <OnboardingScreen
+          ref={screenRef}
+          scrollProgress={scrollProgress}
+          onComplete={handleComplete}
+        />
       </BottomSheetView>
     </BottomSheet>
   );
@@ -102,6 +141,11 @@ const styles = StyleSheet.create({
   sheet: {
     maxWidth: 600,
     marginHorizontal: 'auto',
+  },
+  footer: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    borderTopWidth: 0.5,
   },
 });
 
