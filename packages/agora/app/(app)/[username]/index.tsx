@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
   houseAvatar: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 11,
     marginBottom: 4,
   },
   houseAvatarFallback: {

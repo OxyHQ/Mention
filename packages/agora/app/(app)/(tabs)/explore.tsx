@@ -145,16 +145,12 @@ export default function ExploreScreen() {
       </View>
 
       {/* Type Filter Chips */}
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={TYPE_FILTERS}
-        keyExtractor={(item) => item.label}
-        contentContainerStyle={styles.filterChips}
-        renderItem={({ item }) => {
+      <View style={styles.filterChips}>
+        {TYPE_FILTERS.map((item) => {
           const selected = selectedType === item.value;
           return (
             <TouchableOpacity
+              key={item.label}
               style={[
                 styles.filterChip,
                 {
@@ -176,8 +172,8 @@ export default function ExploreScreen() {
               </Text>
             </TouchableOpacity>
           );
-        }}
-      />
+        })}
+      </View>
 
       <ScrollView
         style={{ flex: 1 }}
@@ -332,6 +328,8 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15 },
   filterChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     paddingHorizontal: 16,
     paddingBottom: 12,
@@ -403,7 +401,7 @@ const houseStyles = StyleSheet.create({
   avatar: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 10,
     marginBottom: 2,
   },
   avatarFallback: {

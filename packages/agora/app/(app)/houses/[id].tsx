@@ -13,20 +13,54 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
-import { RoomCard, useLiveRoom } from '@mention/agora-shared';
+import { RoomCard, useLiveRoom, useRoomUsers, getDisplayName, getAvatarUrl } from '@mention/agora-shared';
 import type { HouseMember } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useHouse, useHouseRooms } from '@/hooks/useRoomsQuery';
 import { EmptyState } from '@/components/EmptyState';
 import Avatar from '@/components/Avatar';
-import { getCachedFileDownloadUrl } from '@/utils/imageUrlCache';
+import { useUserById, useUsersStore } from '@/stores/usersStore';
+import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Owner',
   admin: 'Admin',
   host: 'Host',
 };
+
+function HostRow({ member, theme, onPress }: { member: HouseMember; theme: ReturnType<typeof useTheme>; onPress: () => void }) {
+  const { oxyServices } = useAuth();
+  const userProfile = useUserById(member.userId);
+  const avatarUri = getAvatarUrl(userProfile, oxyServices, getCachedFileDownloadUrlSync);
+  const displayName = getDisplayName(userProfile, member.userId);
+
+  return (
+    <TouchableOpacity key={member.userId} style={styles.hostRow} activeOpacity={0.7} onPress={onPress}>
+      <Avatar size={40} source={avatarUri} />
+      <View style={styles.hostInfo}>
+        <Text style={[styles.hostName, { color: theme.colors.text }]} numberOfLines={1}>
+          {displayName}
+        </Text>
+        <Text style={[styles.hostRole, { color: theme.colors.primary }]}>
+          {ROLE_LABELS[member.role] || member.role}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function MemberItem({ member, onPress }: { member: HouseMember; onPress: () => void }) {
+  const { oxyServices } = useAuth();
+  const userProfile = useUserById(member.userId);
+  const avatarUri = getAvatarUrl(userProfile, oxyServices, getCachedFileDownloadUrlSync);
+
+  return (
+    <TouchableOpacity key={member.userId} style={styles.memberItem} activeOpacity={0.7} onPress={onPress}>
+      <Avatar size={48} source={avatarUri} />
+    </TouchableOpacity>
+  );
+}
 
 export default function HouseScreen() {
   const theme = useTheme();
@@ -50,19 +84,31 @@ export default function HouseScreen() {
   const liveRooms = rooms.filter((r) => r.status === 'live');
   const scheduledRooms = rooms.filter((r) => r.status === 'scheduled');
 
-  const { hosts, members } = useMemo(() => {
-    if (!house) return { hosts: [], members: [] };
+  const { hosts, members, allMemberIds } = useMemo(() => {
+    if (!house) return { hosts: [], members: [], allMemberIds: [] };
     const h: HouseMember[] = [];
     const m: HouseMember[] = [];
+    const ids: string[] = [];
     for (const member of house.members) {
+      ids.push(member.userId);
       if (member.role === 'owner' || member.role === 'admin' || member.role === 'host') {
         h.push(member);
       } else {
         m.push(member);
       }
     }
-    return { hosts: h, members: m };
+    return { hosts: h, members: m, allMemberIds: ids };
   }, [house]);
+
+  useRoomUsers(allMemberIds);
+
+  const navigateToProfile = (userId: string) => {
+    const userProfile = useUsersStore.getState().getCachedById(userId);
+    const username = userProfile?.username || userProfile?.handle;
+    if (username) {
+      router.push({ pathname: '/(app)/[username]', params: { username: '@' + username } });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -205,17 +251,12 @@ export default function HouseScreen() {
             </View>
             <View style={styles.hostList}>
               {hosts.map((m) => (
-                <View key={m.userId} style={styles.hostRow}>
-                  <Avatar size={40} />
-                  <View style={styles.hostInfo}>
-                    <Text style={[styles.hostName, { color: theme.colors.text }]} numberOfLines={1}>
-                      {m.userId}
-                    </Text>
-                    <Text style={[styles.hostRole, { color: theme.colors.primary }]}>
-                      {ROLE_LABELS[m.role] || m.role}
-                    </Text>
-                  </View>
-                </View>
+                <HostRow
+                  key={m.userId}
+                  member={m}
+                  theme={theme}
+                  onPress={() => navigateToProfile(m.userId)}
+                />
               ))}
             </View>
           </View>
@@ -232,9 +273,11 @@ export default function HouseScreen() {
             </View>
             <View style={styles.memberGrid}>
               {members.map((m) => (
-                <View key={m.userId} style={styles.memberItem}>
-                  <Avatar size={48} />
-                </View>
+                <MemberItem
+                  key={m.userId}
+                  member={m}
+                  onPress={() => navigateToProfile(m.userId)}
+                />
               ))}
             </View>
           </View>
@@ -268,7 +311,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 80,
     height: 80,
-    borderRadius: 40,
+    borderRadius: 18,
   },
   avatarFallback: {
     alignItems: 'center',
@@ -315,20 +358,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 18, fontWeight: '700' },
   sectionCount: { fontSize: 14, fontWeight: '500' },
-  liveIndicator: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FF4458',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-  },
   roomsList: { paddingHorizontal: 16 },
   hostList: {
     paddingHorizontal: 16,
