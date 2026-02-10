@@ -356,6 +356,38 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * Get top hosts by total listeners across recordings
+ * GET /api/rooms/top-hosts
+ * Query params: limit (default 10, max 20)
+ */
+router.get('/top-hosts', async (req: AuthRequest, res: Response) => {
+  try {
+    const { limit = '10' } = req.query;
+    const limitNum = Math.min(Math.max(parseInt(limit as string, 10) || 10, 1), 20);
+
+    const hosts = await Recording.aggregate([
+      { $match: { status: RecordingStatus.READY } },
+      { $group: {
+          _id: '$host',
+          roomCount: { $sum: 1 },
+          totalListeners: { $sum: { $size: '$participantIds' } },
+      }},
+      { $sort: { totalListeners: -1 } },
+      { $limit: limitNum },
+      { $project: { _id: 0, userId: '$_id', roomCount: 1, totalListeners: 1 } },
+    ]);
+
+    res.json({ hosts });
+  } catch (error) {
+    logger.error('Error fetching top hosts:', { userId: req.user?.id, error });
+    res.status(500).json({
+      message: 'Error fetching top hosts',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * Get room details
  * GET /api/rooms/:id
  */

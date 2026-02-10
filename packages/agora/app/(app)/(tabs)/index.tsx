@@ -15,25 +15,64 @@ import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop, BottomShe
 import type { BottomSheetFooterProps, BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import {
   RoomCard,
+  RecordingCard,
   CreateRoomSheet,
   useLiveRoom,
+  useRoomUsers,
+  getDisplayName,
+  getAvatarUrl,
   type Room,
   type House,
   type CreateRoomSheetRef,
   type CreateRoomFormState,
 } from '@mention/agora-shared';
+import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { useRooms, useMyHouses, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
+import Avatar from '@/components/Avatar';
+import { useUserById, useUsersStore } from '@/stores/usersStore';
+import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import {
+  useRooms,
+  useMyHouses,
+  useRoomsQueryInvalidation,
+  usePopularRecordings,
+  useRecentRecordings,
+  useTopHosts,
+  recordingQueryKeys,
+} from '@/hooks/useRoomsQuery';
+
+function TopSpeakerItem({ userId, roomCount, onPress }: { userId: string; roomCount: number; onPress: () => void }) {
+  const theme = useTheme();
+  const { oxyServices } = useAuth();
+  const userProfile = useUserById(userId);
+  const avatarUri = getAvatarUrl(userProfile, oxyServices, getCachedFileDownloadUrlSync);
+  const displayName = getDisplayName(userProfile, userId);
+
+  return (
+    <TouchableOpacity style={speakerStyles.item} activeOpacity={0.7} onPress={onPress}>
+      <Avatar size={52} source={avatarUri} />
+      <Text style={[speakerStyles.name, { color: theme.colors.text }]} numberOfLines={1}>
+        {displayName}
+      </Text>
+      <Text style={[speakerStyles.count, { color: theme.colors.textSecondary }]}>
+        {roomCount} {roomCount === 1 ? 'room' : 'rooms'}
+      </Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { joinLiveRoom } = useLiveRoom();
   const { user } = useAuth();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: myHouses = [] } = useMyHouses(user?.id);
   const modalRef = useRef<BottomSheetModal>(null);
   const createSheetRef = useRef<CreateRoomSheetRef>(null);
@@ -47,9 +86,27 @@ export default function HomeScreen() {
 
   const { data: liveRooms = [], isRefetching: liveRefetching } = useRooms('live');
   const { data: scheduledRooms = [], isRefetching: scheduledRefetching } = useRooms('scheduled');
+  const { data: popularRecordings = [], isRefetching: popularRefetching } = usePopularRecordings(10);
+  const { data: recentRecordings = [], isRefetching: recentRefetching } = useRecentRecordings(10);
+  const { data: topHosts = [], isRefetching: hostsRefetching } = useTopHosts();
   const { invalidateRoomLists } = useRoomsQueryInvalidation();
-  const refreshing = liveRefetching || scheduledRefetching;
-  const onRefresh = () => { invalidateRoomLists(); };
+  const refreshing = liveRefetching || scheduledRefetching || popularRefetching || recentRefetching || hostsRefetching;
+  const onRefresh = () => {
+    invalidateRoomLists();
+    queryClient.invalidateQueries({ queryKey: recordingQueryKeys.all });
+    queryClient.invalidateQueries({ queryKey: recordingQueryKeys.topHosts() });
+  };
+
+  const topHostIds = useMemo(() => topHosts.map((h) => h.userId), [topHosts]);
+  useRoomUsers(topHostIds);
+
+  const navigateToProfile = (userId: string) => {
+    const userProfile = useUsersStore.getState().getCachedById(userId);
+    const username = userProfile?.username || userProfile?.handle;
+    if (username) {
+      router.push({ pathname: '/(app)/(tabs)/[username]', params: { username: '@' + username } });
+    }
+  };
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [formState, setFormState] = useState<CreateRoomFormState>({
@@ -181,6 +238,32 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* Top Speakers */}
+        {topHosts.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderPadded}>
+              <MaterialCommunityIcons name="microphone" size={18} color={theme.colors.textSecondary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                Top Speakers
+              </Text>
+            </View>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={topHosts}
+              keyExtractor={(item) => item.userId}
+              contentContainerStyle={{ gap: 16, paddingHorizontal: 16 }}
+              renderItem={({ item }) => (
+                <TopSpeakerItem
+                  userId={item.userId}
+                  roomCount={item.roomCount}
+                  onPress={() => navigateToProfile(item.userId)}
+                />
+              )}
+            />
+          </View>
+        )}
+
         {/* All Live Rooms (full cards) */}
         {liveRooms.length > 0 && (
           <View style={styles.section}>
@@ -221,6 +304,50 @@ export default function HomeScreen() {
                 />
               ))}
             </View>
+          </View>
+        )}
+
+        {/* Popular Replays */}
+        {popularRecordings.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderPadded}>
+              <MaterialCommunityIcons name="trophy" size={18} color={theme.colors.textSecondary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                Popular Replays
+              </Text>
+            </View>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={popularRecordings}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
+              renderItem={({ item }) => (
+                <RecordingCard recording={item} onPress={() => {}} />
+              )}
+            />
+          </View>
+        )}
+
+        {/* Recent Replays */}
+        {recentRecordings.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderPadded}>
+              <MaterialCommunityIcons name="history" size={18} color={theme.colors.textSecondary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                Recent Replays
+              </Text>
+            </View>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={recentRecordings}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
+              renderItem={({ item }) => (
+                <RecordingCard recording={item} onPress={() => {}} />
+              )}
+            />
           </View>
         )}
 
@@ -357,4 +484,22 @@ const sheetStyles = StyleSheet.create({
     gap: 6,
   },
   secondaryButtonText: { fontSize: 15, fontWeight: '600' },
+});
+
+const speakerStyles = StyleSheet.create({
+  item: {
+    alignItems: 'center',
+    width: 70,
+  },
+  name: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  count: {
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 2,
+  },
 });

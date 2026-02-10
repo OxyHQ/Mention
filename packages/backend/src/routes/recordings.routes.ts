@@ -7,6 +7,49 @@ import { getRecordingPresignedUrl, deleteRecordingFromSpaces } from '../utils/sp
 const router = Router();
 
 /**
+ * List public recordings
+ * GET /api/recordings
+ * Query params: sortBy ('popular' | 'recent'), limit (default 10, max 50)
+ */
+router.get('/', async (req: AuthRequest, res: Response) => {
+  try {
+    const { sortBy = 'recent', limit = '10' } = req.query;
+    const limitNum = Math.min(Math.max(parseInt(limit as string, 10) || 10, 1), 50);
+
+    const VALID_SORT = ['popular', 'recent'] as const;
+    const sort = VALID_SORT.includes(sortBy as any) ? (sortBy as string) : 'recent';
+
+    let recordings;
+
+    if (sort === 'popular') {
+      recordings = await Recording.aggregate([
+        { $match: { status: RecordingStatus.READY, access: RecordingAccess.PUBLIC } },
+        { $addFields: { listenerCount: { $size: '$participantIds' } } },
+        { $sort: { listenerCount: -1, createdAt: -1 } },
+        { $limit: limitNum },
+        { $project: { listenerCount: 0 } },
+      ]);
+    } else {
+      recordings = await Recording.find({
+        status: RecordingStatus.READY,
+        access: RecordingAccess.PUBLIC,
+      })
+        .sort({ createdAt: -1 })
+        .limit(limitNum)
+        .lean();
+    }
+
+    res.json({ recordings });
+  } catch (error) {
+    logger.error('Error listing recordings:', { userId: req.user?.id, error });
+    res.status(500).json({
+      message: 'Error listing recordings',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * Get a single recording with presigned playback URL
  * GET /api/recordings/:recordingId
  */

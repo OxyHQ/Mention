@@ -326,6 +326,31 @@ export function createAgoraService(httpClient: HttpClient) {
       }
     },
 
+    async getRecordings(sortBy?: string, limit?: number): Promise<Recording[]> {
+      try {
+        const params: Record<string, string> = {};
+        if (sortBy) params.sortBy = sortBy;
+        if (limit) params.limit = String(limit);
+        const res = await httpClient.get("/recordings", { params });
+        const raw = res.data.recordings || res.data.data || res.data || [];
+        return validateRecordings(Array.isArray(raw) ? raw : []);
+      } catch (error) {
+        console.warn("Failed to fetch recordings", error);
+        return [];
+      }
+    },
+
+    async getTopHosts(): Promise<{ userId: string; roomCount: number; totalListeners: number }[]> {
+      try {
+        const res = await httpClient.get("/rooms/top-hosts");
+        const raw = res.data.hosts || res.data.data || res.data || [];
+        return Array.isArray(raw) ? raw : [];
+      } catch (error) {
+        console.warn("Failed to fetch top hosts", error);
+        return [];
+      }
+    },
+
     // --- Houses ---
 
     async createHouse(data: { name: string; description?: string; avatar?: string; tags?: string[]; isPublic?: boolean }): Promise<House | null> {

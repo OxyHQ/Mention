@@ -84,6 +84,7 @@ export { StreamConfigPanel } from './components/StreamConfigPanel';
 export { InsightsPanel } from './components/InsightsPanel';
 export { CreateRoomSheet, type CreateRoomSheetRef, type CreateRoomFormState } from './components/CreateRoomSheet';
 export { RecordingsPanel } from './components/RecordingsPanel';
+export { RecordingCard } from './components/RecordingCard';
 
 // Assets
 export { Agora, AgoraActive } from './assets/icons/spaces-icon';

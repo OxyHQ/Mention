@@ -4,6 +4,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '@oxyhq/services';
 
 import { useAgoraConfig } from '../context/AgoraConfigContext';
+import { AnimatedPulse } from './AnimatedPulse';
 import { useRoomUsers, getAvatarUrl } from '../hooks/useRoomUsers';
 
 // --- Utility helpers ---
@@ -153,7 +154,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <View style={styles.compactBadgeRow}>
               {isLive && (
                 <View style={[styles.liveBadge, { backgroundColor: '#FF4458' }]}>
-                  <View style={styles.livePulse} />
+                  <AnimatedPulse size={6} />
                   <Text style={styles.liveText}>LIVE</Text>
                 </View>
               )}
@@ -226,7 +227,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           <View style={styles.badgeRow}>
             {isLive && (
               <View style={[styles.liveBadge, { backgroundColor: '#FF4458' }]}>
-                <View style={styles.livePulse} />
+                <AnimatedPulse size={6} />
                 <Text style={styles.liveText}>LIVE</Text>
               </View>
             )}
@@ -376,12 +377,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 4,
     gap: 4,
-  },
-  livePulse: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
   },
   liveText: {
     fontSize: 10,

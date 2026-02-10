@@ -17,6 +17,7 @@ import { StreamConfigPanel } from './StreamConfigPanel';
 import { InsightsPanel } from './InsightsPanel';
 import { PanelHeader } from './PanelHeader';
 import { AnimatedSpeakerRing } from './AnimatedSpeakerRing';
+import { AnimatedPulse } from './AnimatedPulse';
 import { useRoomConnection } from '../hooks/useRoomConnection';
 import { useRoomAudio } from '../hooks/useRoomAudio';
 import { useActiveSpeakers } from '../hooks/useActiveSpeakers';
@@ -336,6 +337,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
         participantCount={participants.length}
         isMuted={isMuted}
         canSpeak={canSpeak}
+        activeSpeakerCount={activeSpeakerIds.size}
         onExpand={onExpand}
         onToggleMute={toggleMute}
         onLeave={handleLeave}
@@ -428,7 +430,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
         <View style={styles.headerCenter}>
           {isRoomLive ? (
             <View style={[styles.liveBadge, { backgroundColor: '#FF4458' }]}>
-              <View style={styles.livePulse} />
+              <AnimatedPulse />
               <Text style={styles.liveText}>LIVE</Text>
             </View>
           ) : (
@@ -438,7 +440,7 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
           )}
           {isRecording && (
             <View style={[styles.liveBadge, { backgroundColor: '#FF0000' }]}>
-              <View style={styles.livePulse} />
+              <AnimatedPulse />
               <Text style={styles.liveText}>REC</Text>
             </View>
           )}
@@ -696,7 +698,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 5,
   },
-  livePulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFFFFF' },
   liveText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
   listenerCount: { fontSize: 14, fontWeight: '500' },
   endButton: {

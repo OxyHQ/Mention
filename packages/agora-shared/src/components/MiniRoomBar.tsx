@@ -1,6 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+  cancelAnimation,
+} from 'react-native-reanimated';
 
 import { useAgoraConfig } from '../context/AgoraConfigContext';
 
@@ -9,6 +18,7 @@ interface MiniRoomBarProps {
   participantCount: number;
   isMuted: boolean;
   canSpeak: boolean;
+  activeSpeakerCount?: number;
   onExpand: () => void;
   onToggleMute: () => void;
   onLeave: () => void;
@@ -21,6 +31,7 @@ export function MiniRoomBar({
   participantCount,
   isMuted,
   canSpeak,
+  activeSpeakerCount = 0,
   onExpand,
   onToggleMute,
   onLeave,
@@ -28,22 +39,48 @@ export function MiniRoomBar({
   const { useTheme } = useAgoraConfig();
   const theme = useTheme();
 
+  const pulseScale = useSharedValue(1);
+
+  useEffect(() => {
+    if (activeSpeakerCount > 0) {
+      pulseScale.value = withRepeat(
+        withSequence(
+          withTiming(1.15, { duration: 500, easing: Easing.out(Easing.ease) }),
+          withTiming(1, { duration: 500, easing: Easing.in(Easing.ease) }),
+        ),
+        -1,
+        false,
+      );
+    } else {
+      cancelAnimation(pulseScale);
+      pulseScale.value = withTiming(1, { duration: 200 });
+    }
+  }, [activeSpeakerCount, pulseScale]);
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
+
+  const subtitleText = activeSpeakerCount > 0
+    ? `${activeSpeakerCount} speaking`
+    : `${participantCount} listening`;
+
   return (
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={onExpand}
       style={styles.container}
     >
-      <View style={styles.liveIndicator}>
+      <Animated.View style={[styles.liveIndicator, indicatorStyle]}>
         <View style={styles.liveDot} />
-      </View>
+      </Animated.View>
 
       <View style={styles.info}>
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
           {title || 'Room'}
         </Text>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          {participantCount} listening
+          {subtitleText}
         </Text>
       </View>
 

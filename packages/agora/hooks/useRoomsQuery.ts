@@ -13,7 +13,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useAgoraConfig } from '@mention/agora-shared';
-import type { Room, House, UserEntity } from '@mention/agora-shared';
+import type { Room, Recording, House, UserEntity } from '@mention/agora-shared';
 import type { OxyServices } from '@oxyhq/core';
 
 // ---------------------------------------------------------------------------
@@ -69,6 +69,12 @@ export const roomQueryKeys = {
   userRooms: (userId: string) => [...roomQueryKeys.all, 'user', userId] as const,
   followers: (userId: string) => ['followers', userId] as const,
   following: (userId: string) => ['following', userId] as const,
+} as const;
+
+export const recordingQueryKeys = {
+  all: ['recordings'] as const,
+  list: (sortBy: string) => [...recordingQueryKeys.all, 'list', sortBy] as const,
+  topHosts: () => ['top-hosts'] as const,
 } as const;
 
 export const houseQueryKeys = {
@@ -380,5 +386,45 @@ export function useArchiveRoom() {
       invalidateRoomLists();
       if (userId) invalidateUserRooms(userId);
     },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Domain hooks -- Recordings
+// ---------------------------------------------------------------------------
+
+interface TopHost {
+  userId: string;
+  roomCount: number;
+  totalListeners: number;
+}
+
+/** Fetch popular recordings (sorted by participant count). */
+export function usePopularRecordings(limit = 10) {
+  const { agoraService } = useAgoraConfig();
+
+  return useOptimizedQuery<Recording[]>({
+    queryKey: recordingQueryKeys.list('popular'),
+    queryFn: () => agoraService.getRecordings('popular', limit),
+  });
+}
+
+/** Fetch recent recordings (sorted by creation date). */
+export function useRecentRecordings(limit = 10) {
+  const { agoraService } = useAgoraConfig();
+
+  return useOptimizedQuery<Recording[]>({
+    queryKey: recordingQueryKeys.list('recent'),
+    queryFn: () => agoraService.getRecordings('recent', limit),
+  });
+}
+
+/** Fetch top hosts aggregated from recordings. */
+export function useTopHosts() {
+  const { agoraService } = useAgoraConfig();
+
+  return useOptimizedQuery<TopHost[]>({
+    queryKey: recordingQueryKeys.topHosts(),
+    queryFn: () => agoraService.getTopHosts(),
   });
 }

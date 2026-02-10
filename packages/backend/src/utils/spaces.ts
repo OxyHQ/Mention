@@ -1,12 +1,13 @@
-import { S3Client, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { logger } from './logger';
 
 const DO_SPACES_KEY = process.env.DO_SPACES_KEY || '';
 const DO_SPACES_SECRET = process.env.DO_SPACES_SECRET || '';
-const DO_SPACES_REGION = process.env.DO_SPACES_REGION || 'nyc3';
-const DO_SPACES_BUCKET = process.env.DO_SPACES_BUCKET || 'mention-recordings';
+const DO_SPACES_REGION = process.env.DO_SPACES_REGION || 'ams3';
+const DO_SPACES_BUCKET = process.env.DO_SPACES_BUCKET || 'mention-bucket';
 const DO_SPACES_ENDPOINT = process.env.DO_SPACES_ENDPOINT || `https://${DO_SPACES_REGION}.digitaloceanspaces.com`;
+const DO_SPACES_CDN_ENDPOINT = process.env.DO_SPACES_CDN_ENDPOINT || `https://${DO_SPACES_BUCKET}.${DO_SPACES_REGION}.cdn.digitaloceanspaces.com`;
 
 let s3Client: S3Client | null = null;
 
@@ -29,17 +30,15 @@ export function getBucket(): string {
   return DO_SPACES_BUCKET;
 }
 
-/**
- * Generate the S3 object key for a recording file.
- */
-export function getRecordingObjectKey(roomId: string, recordingId: string): string {
-  return `recordings/${roomId}/${recordingId}.ogg`;
+export function getCdnUrl(objectKey: string): string {
+  return `${DO_SPACES_CDN_ENDPOINT}/${objectKey}`;
 }
 
-/**
- * Generate a presigned URL for downloading/streaming a recording.
- */
-export async function getRecordingPresignedUrl(
+// ---------------------------------------------------------------------------
+// Generic S3 operations
+// ---------------------------------------------------------------------------
+
+export async function getPresignedUrl(
   objectKey: string,
   expiresInSeconds: number = 3600
 ): Promise<string> {
@@ -50,25 +49,69 @@ export async function getRecordingPresignedUrl(
   return getSignedUrl(getS3Client(), command, { expiresIn: expiresInSeconds });
 }
 
-/**
- * Delete a recording file from Spaces.
- */
-export async function deleteRecordingFromSpaces(objectKey: string): Promise<void> {
+export async function getPresignedUploadUrl(
+  objectKey: string,
+  contentType: string,
+  expiresInSeconds: number = 3600
+): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: DO_SPACES_BUCKET,
+    Key: objectKey,
+    ContentType: contentType,
+    ACL: 'private',
+  });
+  return getSignedUrl(getS3Client(), command, { expiresIn: expiresInSeconds });
+}
+
+export async function deleteObject(objectKey: string): Promise<void> {
   try {
     await getS3Client().send(new DeleteObjectCommand({
       Bucket: DO_SPACES_BUCKET,
       Key: objectKey,
     }));
-    logger.info(`Deleted recording from Spaces: ${objectKey}`);
+    logger.info(`Deleted from Spaces: ${objectKey}`);
   } catch (error) {
-    logger.error(`Failed to delete recording from Spaces: ${objectKey}`, error);
+    logger.error(`Failed to delete from Spaces: ${objectKey}`, error);
     throw error;
   }
 }
 
-/**
- * Build the S3 upload config for LiveKit Egress.
- */
+export async function uploadObject(
+  objectKey: string,
+  body: Buffer | Uint8Array | string,
+  contentType: string,
+  acl: 'private' | 'public-read' = 'private'
+): Promise<string> {
+  await getS3Client().send(new PutObjectCommand({
+    Bucket: DO_SPACES_BUCKET,
+    Key: objectKey,
+    Body: body,
+    ContentType: contentType,
+    ACL: acl,
+  }));
+  logger.info(`Uploaded to Spaces: ${objectKey}`);
+  return acl === 'public-read' ? getCdnUrl(objectKey) : objectKey;
+}
+
+// ---------------------------------------------------------------------------
+// Recording-specific helpers
+// ---------------------------------------------------------------------------
+
+export function getRecordingObjectKey(roomId: string, recordingId: string): string {
+  return `recordings/${roomId}/${recordingId}.ogg`;
+}
+
+export async function getRecordingPresignedUrl(
+  objectKey: string,
+  expiresInSeconds: number = 3600
+): Promise<string> {
+  return getPresignedUrl(objectKey, expiresInSeconds);
+}
+
+export async function deleteRecordingFromSpaces(objectKey: string): Promise<void> {
+  return deleteObject(objectKey);
+}
+
 export function getS3UploadConfig(objectKey: string) {
   return {
     accessKey: DO_SPACES_KEY,
