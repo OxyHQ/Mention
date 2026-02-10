@@ -201,7 +201,6 @@ export default function HouseScreen() {
         {hosts.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons name="account-star" size={18} color={theme.colors.textSecondary} />
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Hosts</Text>
             </View>
             <View style={styles.hostList}>
@@ -226,7 +225,6 @@ export default function HouseScreen() {
         {members.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons name="account-multiple" size={18} color={theme.colors.textSecondary} />
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Members</Text>
               <Text style={[styles.sectionCount, { color: theme.colors.textSecondary }]}>
                 {members.length}
