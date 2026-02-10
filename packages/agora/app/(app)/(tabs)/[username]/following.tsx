@@ -6,7 +6,7 @@ import { useAuth } from '@oxyhq/services';
 import type { UserEntity } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useFollowingList } from '@/hooks/useRoomsQuery';
+import { useFollowingList, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
 import Avatar from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 
