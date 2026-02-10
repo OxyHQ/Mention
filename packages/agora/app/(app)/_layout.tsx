@@ -47,6 +47,7 @@ const MainLayout: React.FC<MainLayoutProps> = memo(({ isScreenNotMobile }) => {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="spaces/[id]" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="houses/[id]" />
             <Stack.Screen name="settings/index" />
             <Stack.Screen name="[username]" />
           </Stack>

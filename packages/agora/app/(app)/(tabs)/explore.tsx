@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,21 @@ import {
   TouchableOpacity,
   FlatList,
   Platform,
+  Image,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { RoomCard, useLiveRoom, type Room, type House } from '@mention/agora-shared';
+import { useAuth } from '@oxyhq/services';
 
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
 import { CreateHouseSheet } from '@/components/CreateHouseSheet';
 import { useRooms, usePublicHouses, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
+import { getCachedFileDownloadUrl } from '@/utils/imageUrlCache';
 
 const TYPE_FILTERS = [
   { value: null, label: 'All', icon: null },
@@ -28,18 +32,32 @@ const TYPE_FILTERS = [
   { value: 'broadcast', label: 'Broadcast', icon: 'broadcast' as const },
 ] as const;
 
-function HouseCard({ house }: { house: House }) {
+function HouseCard({ house, onPress }: { house: House; onPress?: () => void }) {
   const theme = useTheme();
+  const { oxyServices } = useAuth();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (house.avatar && oxyServices) {
+      getCachedFileDownloadUrl(oxyServices, house.avatar).then(setAvatarUrl);
+    }
+  }, [house.avatar, oxyServices]);
+
   return (
     <TouchableOpacity
       style={[houseStyles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
       activeOpacity={0.7}
+      onPress={onPress}
     >
-      <View style={[houseStyles.avatar, { backgroundColor: theme.colors.primary + '25' }]}>
-        <Text style={[houseStyles.avatarText, { color: theme.colors.primary }]}>
-          {house.name.charAt(0).toUpperCase()}
-        </Text>
-      </View>
+      {avatarUrl ? (
+        <Image source={{ uri: avatarUrl }} style={houseStyles.avatar} />
+      ) : (
+        <View style={[houseStyles.avatar, houseStyles.avatarFallback, { backgroundColor: theme.colors.primary + '25' }]}>
+          <Text style={[houseStyles.avatarText, { color: theme.colors.primary }]}>
+            {house.name.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+      )}
       <Text style={[houseStyles.name, { color: theme.colors.text }]} numberOfLines={1}>
         {house.name}
       </Text>
@@ -58,6 +76,7 @@ function HouseCard({ house }: { house: House }) {
 export default function ExploreScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { joinLiveRoom } = useLiveRoom();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,7 +203,12 @@ export default function ExploreScreen() {
                 data={publicHouses}
                 keyExtractor={(item) => item._id}
                 contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
-                renderItem={({ item }) => <HouseCard house={item} />}
+                renderItem={({ item }) => (
+                  <HouseCard
+                    house={item}
+                    onPress={() => router.push({ pathname: '/(app)/houses/[id]', params: { id: item._id } })}
+                  />
+                )}
               />
             ) : (
               <TouchableOpacity
@@ -380,9 +404,11 @@ const houseStyles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+    marginBottom: 2,
+  },
+  avatarFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
   },
   avatarText: {
     fontSize: 20,

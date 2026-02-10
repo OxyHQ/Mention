@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, Image } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,12 +13,41 @@ import { useUserRooms, useUserHouses, useRoomsQueryInvalidation, useDeleteRoom, 
 import Avatar from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { ProfileTabBar } from '@/components/ProfileTabBar';
+import { getCachedFileDownloadUrl } from '@/utils/imageUrlCache';
 
 const TABS = [
   { id: 'rooms', label: 'Rooms' },
   { id: 'live', label: 'Live' },
   { id: 'scheduled', label: 'Scheduled' },
 ];
+
+function HouseItem({ house, theme, onPress }: { house: House; theme: ReturnType<typeof useTheme>; onPress: () => void }) {
+  const { oxyServices } = useAuth();
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (house.avatar && oxyServices) {
+      getCachedFileDownloadUrl(oxyServices, house.avatar).then(setAvatarUrl);
+    }
+  }, [house.avatar, oxyServices]);
+
+  return (
+    <TouchableOpacity style={styles.houseItem} activeOpacity={0.7} onPress={onPress}>
+      {avatarUrl ? (
+        <Image source={{ uri: avatarUrl }} style={styles.houseAvatar} />
+      ) : (
+        <View style={[styles.houseAvatar, styles.houseAvatarFallback, { backgroundColor: theme.colors.primary + '20' }]}>
+          <Text style={[styles.houseAvatarText, { color: theme.colors.primary }]}>
+            {house.name.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+      )}
+      <Text style={[styles.houseItemName, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+        {house.name}
+      </Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function ProfileScreen() {
   const theme = useTheme();
@@ -223,19 +252,12 @@ export default function ProfileScreen() {
               contentContainerStyle={styles.housesList}
             >
               {userHouses.map((house) => (
-                <View key={house._id} style={styles.houseItem}>
-                  <View style={[styles.houseAvatar, { backgroundColor: theme.colors.primary + '20' }]}>
-                    <Text style={[styles.houseAvatarText, { color: theme.colors.primary }]}>
-                      {house.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[styles.houseItemName, { color: theme.colors.textSecondary }]}
-                    numberOfLines={1}
-                  >
-                    {house.name}
-                  </Text>
-                </View>
+                <HouseItem
+                  key={house._id}
+                  house={house}
+                  theme={theme}
+                  onPress={() => router.push({ pathname: '/(app)/houses/[id]', params: { id: house._id } })}
+                />
               ))}
             </ScrollView>
           </View>
@@ -386,9 +408,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
+    marginBottom: 4,
+  },
+  houseAvatarFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
   },
   houseAvatarText: {
     fontSize: 20,

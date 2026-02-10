@@ -242,7 +242,21 @@ export function createAgoraService(httpClient: HttpClient) {
       }
     },
 
-    async createHouse(data: { name: string; description?: string; tags?: string[]; isPublic?: boolean }): Promise<House | null> {
+    async getHouseRooms(houseId: string, status?: string): Promise<Room[]> {
+      if (!houseId) return [];
+      try {
+        const params: Record<string, string> = {};
+        if (status) params.status = status;
+        const res = await httpClient.get(`/houses/${houseId}/rooms`, { params });
+        const raw = res.data.rooms || res.data.data || res.data || [];
+        return validateRooms(Array.isArray(raw) ? raw : []);
+      } catch (error) {
+        console.warn("Failed to fetch house rooms", error);
+        return [];
+      }
+    },
+
+    async createHouse(data: { name: string; description?: string; avatar?: string; tags?: string[]; isPublic?: boolean }): Promise<House | null> {
       try {
         const res = await httpClient.post("/houses", data);
         const raw = res.data.house || res.data.data || res.data || null;

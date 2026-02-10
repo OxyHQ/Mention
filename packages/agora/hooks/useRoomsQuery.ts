@@ -78,6 +78,7 @@ export const houseQueryKeys = {
   myHouses: (userId: string) => [...houseQueryKeys.lists(), 'mine', userId] as const,
   userHouses: (userId: string) => [...houseQueryKeys.lists(), 'user', userId] as const,
   detail: (id: string) => [...houseQueryKeys.all, 'detail', id] as const,
+  rooms: (houseId: string) => [...houseQueryKeys.all, 'rooms', houseId] as const,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -254,9 +255,32 @@ export function useUserHouses(userId: string | undefined) {
   });
 }
 
+/** Fetch a single house by id. Disabled when id is falsy. */
+export function useHouse(id: string | undefined) {
+  const { agoraService } = useAgoraConfig();
+
+  return useOptimizedQuery<House | null>({
+    queryKey: houseQueryKeys.detail(id!),
+    queryFn: () => agoraService.getHouse(id!),
+    enabled: !!id,
+  });
+}
+
+/** Fetch rooms belonging to a house. */
+export function useHouseRooms(houseId: string | undefined) {
+  const { agoraService } = useAgoraConfig();
+
+  return useOptimizedQuery<Room[]>({
+    queryKey: houseQueryKeys.rooms(houseId!),
+    queryFn: () => agoraService.getHouseRooms(houseId!),
+    enabled: !!houseId,
+  });
+}
+
 interface CreateHouseInput {
   name: string;
   description?: string;
+  avatar?: string;
   tags?: string[];
   isPublic?: boolean;
 }
