@@ -962,7 +962,7 @@ const ComposeScreen = () => {
                                 wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
                               >
                                 <SpaceCard
-                                  space={{
+                                  room={{
                                     _id: space.spaceId,
                                     title: space.title,
                                     status: space.status || 'scheduled',
