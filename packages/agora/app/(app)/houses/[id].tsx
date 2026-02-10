@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,11 +14,19 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@oxyhq/services';
 import { RoomCard, useLiveRoom } from '@mention/agora-shared';
+import type { HouseMember } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useHouse, useHouseRooms } from '@/hooks/useRoomsQuery';
 import { EmptyState } from '@/components/EmptyState';
+import Avatar from '@/components/Avatar';
 import { getCachedFileDownloadUrl } from '@/utils/imageUrlCache';
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: 'Owner',
+  admin: 'Admin',
+  host: 'Host',
+};
 
 export default function HouseScreen() {
   const theme = useTheme();
@@ -41,6 +49,20 @@ export default function HouseScreen() {
 
   const liveRooms = rooms.filter((r) => r.status === 'live');
   const scheduledRooms = rooms.filter((r) => r.status === 'scheduled');
+
+  const { hosts, members } = useMemo(() => {
+    if (!house) return { hosts: [], members: [] };
+    const h: HouseMember[] = [];
+    const m: HouseMember[] = [];
+    for (const member of house.members) {
+      if (member.role === 'owner' || member.role === 'admin' || member.role === 'host') {
+        h.push(member);
+      } else {
+        m.push(member);
+      }
+    }
+    return { hosts: h, members: m };
+  }, [house]);
 
   if (isLoading) {
     return (
@@ -128,7 +150,7 @@ export default function HouseScreen() {
           )}
         </View>
 
-        {/* Live Rooms */}
+        {/* Rooms */}
         {liveRooms.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -148,7 +170,6 @@ export default function HouseScreen() {
           </View>
         )}
 
-        {/* Scheduled Rooms */}
         {scheduledRooms.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -172,13 +193,62 @@ export default function HouseScreen() {
           </View>
         )}
 
-        {/* Empty state */}
         {liveRooms.length === 0 && scheduledRooms.length === 0 && (
           <EmptyState
             animation={require('@/assets/lottie/onair.json')}
             title="No rooms yet"
             subtitle="Rooms in this house will appear here"
           />
+        )}
+
+        {/* Hosts & Co-hosts */}
+        {hosts.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="account-star" size={18} color={theme.colors.textSecondary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Hosts</Text>
+            </View>
+            <View style={styles.memberList}>
+              {hosts.map((m) => (
+                <View key={m.userId} style={styles.memberRow}>
+                  <Avatar size={40} />
+                  <View style={styles.memberInfo}>
+                    <Text style={[styles.memberName, { color: theme.colors.text }]} numberOfLines={1}>
+                      {m.userId}
+                    </Text>
+                    <Text style={[styles.memberRole, { color: theme.colors.primary }]}>
+                      {ROLE_LABELS[m.role] || m.role}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Members */}
+        {members.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="account-multiple" size={18} color={theme.colors.textSecondary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Members</Text>
+              <Text style={[styles.sectionCount, { color: theme.colors.textSecondary }]}>
+                {members.length}
+              </Text>
+            </View>
+            <View style={styles.memberList}>
+              {members.map((m) => (
+                <View key={m.userId} style={styles.memberRow}>
+                  <Avatar size={40} />
+                  <View style={styles.memberInfo}>
+                    <Text style={[styles.memberName, { color: theme.colors.text }]} numberOfLines={1}>
+                      {m.userId}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
         )}
       </ScrollView>
     </View>
@@ -246,7 +316,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   tagText: { fontSize: 12, fontWeight: '500' },
-  section: { marginTop: 16 },
+  section: { marginTop: 24 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -271,6 +341,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   roomsList: { paddingHorizontal: 16 },
+  memberList: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  memberRole: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
   errorText: { fontSize: 16, marginBottom: 12 },
   backLink: { fontSize: 15, fontWeight: '600' },
 });
