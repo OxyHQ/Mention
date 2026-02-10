@@ -154,9 +154,6 @@ export default function HouseScreen() {
         {liveRooms.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <View style={styles.liveIndicator}>
-                <View style={styles.liveDot} />
-              </View>
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Live Now</Text>
               <Text style={[styles.sectionCount, { color: theme.colors.textSecondary }]}>
                 {liveRooms.length}
@@ -173,7 +170,6 @@ export default function HouseScreen() {
         {scheduledRooms.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons name="calendar" size={18} color={theme.colors.textSecondary} />
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Upcoming</Text>
               <Text style={[styles.sectionCount, { color: theme.colors.textSecondary }]}>
                 {scheduledRooms.length}
@@ -208,15 +204,15 @@ export default function HouseScreen() {
               <MaterialCommunityIcons name="account-star" size={18} color={theme.colors.textSecondary} />
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Hosts</Text>
             </View>
-            <View style={styles.memberList}>
+            <View style={styles.hostList}>
               {hosts.map((m) => (
-                <View key={m.userId} style={styles.memberRow}>
+                <View key={m.userId} style={styles.hostRow}>
                   <Avatar size={40} />
-                  <View style={styles.memberInfo}>
-                    <Text style={[styles.memberName, { color: theme.colors.text }]} numberOfLines={1}>
+                  <View style={styles.hostInfo}>
+                    <Text style={[styles.hostName, { color: theme.colors.text }]} numberOfLines={1}>
                       {m.userId}
                     </Text>
-                    <Text style={[styles.memberRole, { color: theme.colors.primary }]}>
+                    <Text style={[styles.hostRole, { color: theme.colors.primary }]}>
                       {ROLE_LABELS[m.role] || m.role}
                     </Text>
                   </View>
@@ -236,15 +232,10 @@ export default function HouseScreen() {
                 {members.length}
               </Text>
             </View>
-            <View style={styles.memberList}>
+            <View style={styles.memberGrid}>
               {members.map((m) => (
-                <View key={m.userId} style={styles.memberRow}>
-                  <Avatar size={40} />
-                  <View style={styles.memberInfo}>
-                    <Text style={[styles.memberName, { color: theme.colors.text }]} numberOfLines={1}>
-                      {m.userId}
-                    </Text>
-                  </View>
+                <View key={m.userId} style={styles.memberItem}>
+                  <Avatar size={48} />
                 </View>
               ))}
             </View>
@@ -341,26 +332,41 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   roomsList: { paddingHorizontal: 16 },
-  memberList: {
+  hostList: {
     paddingHorizontal: 16,
     gap: 12,
   },
-  memberRow: {
+  hostRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  memberInfo: {
+  hostInfo: {
     flex: 1,
   },
-  memberName: {
+  hostName: {
     fontSize: 14,
     fontWeight: '600',
   },
-  memberRole: {
+  hostRole: {
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
+  },
+  memberGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  memberItem: {
+    alignItems: 'center',
+    width: 56,
+  },
+  memberLabel: {
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 4,
   },
   errorText: { fontSize: 16, marginBottom: 12 },
   backLink: { fontSize: 15, fontWeight: '600' },
