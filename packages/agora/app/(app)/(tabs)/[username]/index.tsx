@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, Image } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -77,6 +77,12 @@ export default function ProfileScreen() {
   const { invalidateUserRooms } = useRoomsQueryInvalidation();
   const refreshing = isRefetching;
   const onRefresh = () => { invalidateUserRooms(userId); };
+
+  const housesById = useMemo(() => {
+    const map: Record<string, House> = {};
+    for (const h of userHouses) map[h._id] = h;
+    return map;
+  }, [userHouses]);
 
   const deleteRoom = useDeleteRoom();
   const archiveRoom = useArchiveRoom();
@@ -270,30 +276,13 @@ export default function ProfileScreen() {
         {currentRooms.length > 0 ? (
           <View style={styles.roomsContainer}>
             {currentRooms.map((room) => (
-              <View key={room._id} style={{ position: 'relative' }}>
-                <RoomCard
-                  room={room}
-                  onPress={() => handleJoinRoom(room)}
-                />
-                {isOwnProfile && (
-                  <TouchableOpacity
-                    onPress={() => handleRoomActions(room)}
-                    style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      backgroundColor: theme.colors.backgroundSecondary,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <MaterialCommunityIcons name="dots-vertical" size={18} color={theme.colors.textSecondary} />
-                  </TouchableOpacity>
-                )}
-              </View>
+              <RoomCard
+                key={room._id}
+                room={room}
+                onPress={() => handleJoinRoom(room)}
+                onMenuPress={isOwnProfile ? () => handleRoomActions(room) : undefined}
+                house={room.houseId && housesById[room.houseId] ? { name: housesById[room.houseId].name } : undefined}
+              />
             ))}
           </View>
         ) : (

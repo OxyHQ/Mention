@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,7 +6,7 @@ import { useAuth } from '@oxyhq/services';
 import type { UserEntity } from '@mention/agora-shared';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useFollowersList } from '@/hooks/useRoomsQuery';
+import { useFollowersList, useRoomsQueryInvalidation } from '@/hooks/useRoomsQuery';
 import Avatar from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 
@@ -21,7 +21,9 @@ export default function FollowersScreen() {
   const isOwnProfile = cleanUsername === user?.username;
 
   const userId = isOwnProfile ? (user?.id ?? '') : cleanUsername;
-  const { data: followers = [], isLoading: loading } = useFollowersList(oxyServices, userId);
+  const { data: followers = [], isLoading: loading, isRefetching } = useFollowersList(oxyServices, userId);
+  const { invalidateFollowers } = useRoomsQueryInvalidation();
+  const onRefresh = () => invalidateFollowers(userId);
 
   const renderItem = ({ item }: { item: UserEntity }) => {
     const rawName = item?.name;
@@ -73,6 +75,9 @@ export default function FollowersScreen() {
           data={followers}
           renderItem={renderItem}
           keyExtractor={(item: UserEntity) => item.id || item.username || ''}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+          }
           ListEmptyComponent={
             <EmptyState
               animation={require('@/assets/lottie/looking.json')}

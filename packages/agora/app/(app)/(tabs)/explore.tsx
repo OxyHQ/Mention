@@ -85,6 +85,11 @@ export default function ExploreScreen() {
   const { data: liveRooms = [], isRefetching: liveRefetching } = useRooms('live', selectedType || undefined);
   const { data: scheduledRooms = [], isRefetching: scheduledRefetching } = useRooms('scheduled', selectedType || undefined);
   const { data: publicHouses = [] } = usePublicHouses();
+  const housesById = useMemo(() => {
+    const map: Record<string, House> = {};
+    for (const h of publicHouses) map[h._id] = h;
+    return map;
+  }, [publicHouses]);
   const { invalidateRoomLists } = useRoomsQueryInvalidation();
   const refreshing = liveRefetching || scheduledRefetching;
   const onRefresh = () => { invalidateRoomLists(); };
@@ -242,6 +247,7 @@ export default function ExploreScreen() {
                   key={room._id}
                   room={room}
                   onPress={() => joinLiveRoom(room._id)}
+                  house={room.houseId && housesById[room.houseId] ? { name: housesById[room.houseId].name } : undefined}
                 />
               ))}
             </View>
@@ -268,6 +274,7 @@ export default function ExploreScreen() {
                   onPress={() => {
                     if (room.status === 'live') joinLiveRoom(room._id);
                   }}
+                  house={room.houseId && housesById[room.houseId] ? { name: housesById[room.houseId].name } : undefined}
                 />
               ))}
             </View>

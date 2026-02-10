@@ -18,6 +18,7 @@ import {
   CreateRoomSheet,
   useLiveRoom,
   type Room,
+  type House,
   type CreateRoomSheetRef,
   type CreateRoomFormState,
 } from '@mention/agora-shared';
@@ -37,6 +38,12 @@ export default function HomeScreen() {
   const modalRef = useRef<BottomSheetModal>(null);
   const createSheetRef = useRef<CreateRoomSheetRef>(null);
   const snapPoints = useMemo(() => ['85%'], []);
+
+  const housesById = useMemo(() => {
+    const map: Record<string, House> = {};
+    for (const h of myHouses) map[h._id] = h;
+    return map;
+  }, [myHouses]);
 
   const { data: liveRooms = [], isRefetching: liveRefetching } = useRooms('live');
   const { data: scheduledRooms = [], isRefetching: scheduledRefetching } = useRooms('scheduled');
@@ -166,6 +173,7 @@ export default function HomeScreen() {
                     room={item}
                     variant="compact"
                     onPress={() => handleJoinRoom(item)}
+                    house={item.houseId && housesById[item.houseId] ? { name: housesById[item.houseId].name } : undefined}
                   />
                 )}
               />
@@ -187,6 +195,7 @@ export default function HomeScreen() {
                   key={room._id}
                   room={room}
                   onPress={() => handleJoinRoom(room)}
+                  house={room.houseId && housesById[room.houseId] ? { name: housesById[room.houseId].name } : undefined}
                 />
               ))}
             </View>
@@ -208,6 +217,7 @@ export default function HomeScreen() {
                   key={room._id}
                   room={room}
                   onPress={() => handleJoinRoom(room)}
+                  house={room.houseId && housesById[room.houseId] ? { name: housesById[room.houseId].name } : undefined}
                 />
               ))}
             </View>

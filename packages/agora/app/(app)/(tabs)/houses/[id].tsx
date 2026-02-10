@@ -208,7 +208,12 @@ export default function HouseScreen() {
             </View>
             <View style={styles.roomsList}>
               {liveRooms.map((room) => (
-                <RoomCard key={room._id} room={room} onPress={() => joinLiveRoom(room._id)} />
+                <RoomCard
+                  key={room._id}
+                  room={room}
+                  onPress={() => joinLiveRoom(room._id)}
+                  house={{ name: house.name, avatarUrl: avatarUrl || undefined }}
+                />
               ))}
             </View>
           </View>
@@ -230,6 +235,7 @@ export default function HouseScreen() {
                   onPress={() => {
                     if (room.status === 'live') joinLiveRoom(room._id);
                   }}
+                  house={{ name: house.name, avatarUrl: avatarUrl || undefined }}
                 />
               ))}
             </View>
