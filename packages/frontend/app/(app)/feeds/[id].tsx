@@ -10,6 +10,7 @@ import { customFeedsService } from '@/services/customFeedsService';
 import { listsService } from '@/services/listsService';
 import Feed from '@/components/Feed/Feed';
 import { Ionicons } from '@expo/vector-icons';
+import { CreateIcon } from '@/assets/icons/create-icon';
 import Avatar from '@/components/Avatar';
 import { getData, storeData } from '@/utils/storage';
 import { ThemedText } from '@/components/ThemedText';
@@ -185,7 +186,7 @@ export default function CustomFeedTimelineScreen() {
             onPress={() => router.push('/compose')}
             activeOpacity={0.8}
           >
-            <Ionicons name="create-outline" size={24} color={theme.colors.card} />
+            <CreateIcon size={22} color={theme.colors.card} />
           </TouchableOpacity>
 
           {/* Details Modal */}
@@ -315,13 +316,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 24,
     right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
-    boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.25)',
+    elevation: 3,
+    boxShadow: '0px 2px 6px 0px rgba(0, 0, 0, 0.12)',
   },
   modalOverlay: {
     flex: 1,

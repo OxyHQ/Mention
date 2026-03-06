@@ -18,6 +18,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming, interpolate } f
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
+import { CreateIcon } from '@/assets/icons/create-icon';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 
@@ -340,7 +341,7 @@ const HomeScreen: React.FC = () => {
                     {isAuthenticated && (
                         <FAB
                             onPress={() => router.push('/compose')}
-                            icon="create-outline"
+                            customIcon={<CreateIcon size={22} color="#fff" />}
                             animatedTranslateY={fabTranslateY}
                             animatedOpacity={fabOpacity}
                         />

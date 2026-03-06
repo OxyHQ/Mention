@@ -190,12 +190,12 @@ const ButtonComponent: React.FC<ButtonProps> = ({
         styles.height = sizeConfig.minHeight;
         break;
       case 'floating':
-        styles.width = 56;
-        styles.height = 56;
-        styles.borderRadius = 28;
+        styles.width = 48;
+        styles.height = 48;
+        styles.borderRadius = 24;
         styles.backgroundColor = theme.colors.primary;
-        styles.boxShadow = '0px 4px 8px 0px rgba(0, 0, 0, 0.3)';
-        styles.elevation = 8;
+        styles.boxShadow = '0px 2px 6px 0px rgba(0, 0, 0, 0.12)';
+        styles.elevation = 3;
         break;
       case 'ghost':
         styles.backgroundColor = 'transparent';
