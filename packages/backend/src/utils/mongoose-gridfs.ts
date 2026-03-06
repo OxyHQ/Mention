@@ -17,12 +17,24 @@ const initGridFS = () => {
 };
 
 // Configure multer for file uploads
+const ALLOWED_UPLOAD_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'video/mp4', 'video/quicktime', 'video/webm',
+  'audio/mpeg', 'audio/wav', 'audio/ogg',
+];
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
     files: 5 // Maximum 5 files per upload
+  },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_UPLOAD_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type ${file.mimetype} not allowed`));
+    }
   }
 }).array('files', 5);
 

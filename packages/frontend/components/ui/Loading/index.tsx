@@ -94,7 +94,7 @@ const SIZE_CONFIG = {
     text: FONT_SIZES.base,
   },
   large: {
-    spinner: 32,
+    spinner: 44,
     text: FONT_SIZES.md,
   },
 } as const;

@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "earth.mention.agora",
+      "sha256_cert_fingerprints": [
+        "ED:99:2B:20:9E:F3:05:06:E3:BC:AF:56:2E:1A:43:29:56:39:5B:5D:15:CD:64:88:46:4C:6E:6B:D2:1C:0E:85"
+      ]
+    }
+  }
+]

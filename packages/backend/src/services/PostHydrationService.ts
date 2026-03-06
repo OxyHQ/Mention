@@ -689,6 +689,7 @@ export class PostHydrationService {
       sources: Array.isArray(baseContent.sources) ? baseContent.sources : undefined,
       location: baseContent.location,
       event: baseContent.event,
+      room: baseContent.room ?? baseContent.space,
       attachments: Array.isArray(baseContent.attachments) ? baseContent.attachments : undefined,
     };
   }
@@ -752,6 +753,17 @@ export class PostHydrationService {
         date: content.event.date,
         location: content.event.location,
         description: content.event.description,
+      };
+    }
+
+    const roomData = content.room ?? content.space;
+    if (roomData) {
+      attachments.room = {
+        roomId: roomData.roomId ?? roomData.spaceId,
+        title: roomData.title,
+        status: roomData.status,
+        topic: roomData.topic,
+        host: roomData.host,
       };
     }
 

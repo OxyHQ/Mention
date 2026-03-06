@@ -12,7 +12,7 @@ export const DEFAULT_LANGUAGE = 'en-US';
 export const SUPPORTED_LANGUAGES = ['en-US', 'es-ES', 'it-IT'] as const;
 
 export const INITIALIZATION_TIMEOUT = {
-  AUTH: 2000, // Reduced from 5000ms to 2000ms for faster startup
+  AUTH: 1000, // Fast timeout for cached token check
   SPLASH_FADE_DELAY: 400,
 } as const;
 

@@ -6,7 +6,7 @@ import { logger } from './logger';
 export interface CreateNotificationData {
   recipientId: string;
   actorId: string;
-  type: 'like' | 'reply' | 'mention' | 'follow' | 'repost' | 'quote' | 'welcome' | 'post';
+  type: 'like' | 'reply' | 'mention' | 'follow' | 'repost' | 'quote' | 'welcome' | 'post' | 'poke';
   entityId: string;
   entityType: 'post' | 'reply' | 'profile';
 }

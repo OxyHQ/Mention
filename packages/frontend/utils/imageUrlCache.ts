@@ -139,7 +139,11 @@ export async function getCachedFileDownloadUrl(
   }
 
   // Fallback to sync method
-  const url = oxyServices?.getFileDownloadUrl?.(fileId, variant, expiresIn) || fileId;
+  const url = oxyServices?.getFileDownloadUrl?.(fileId, variant, expiresIn);
+  if (!url || !url.startsWith('http')) {
+    // Don't cache invalid URLs — return raw fileId so next render retries
+    return fileId;
+  }
   const ttl = expiresIn ? expiresIn * 1000 : undefined;
   imageUrlCache.set(fileId, url, variant, ttl);
   return url;
@@ -162,7 +166,11 @@ export function getCachedFileDownloadUrlSync(
   }
 
   // Generate URL using sync method
-  const url = oxyServices?.getFileDownloadUrl?.(fileId, variant, expiresIn) || fileId;
+  const url = oxyServices?.getFileDownloadUrl?.(fileId, variant, expiresIn);
+  if (!url || !url.startsWith('http')) {
+    // Don't cache invalid URLs — return raw fileId so next render retries
+    return fileId;
+  }
   const ttl = expiresIn ? expiresIn * 1000 : undefined;
   imageUrlCache.set(fileId, url, variant, ttl);
   return url;

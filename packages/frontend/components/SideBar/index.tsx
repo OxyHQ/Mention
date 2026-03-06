@@ -30,6 +30,7 @@ import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-ico
 import { useTheme } from "@/hooks/useTheme";
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
+import { Agora, AgoraActive } from '@mention/agora-shared';
 
 const IconComponent = Ionicons as any;
 
@@ -38,10 +39,10 @@ const WindowHeight = Dimensions.get('window').height;
 export function SideBar() {
     const { t } = useTranslation();
     const router = useRouter();
-    const { isAuthenticated: _isAuthenticated, user, showBottomSheet, logout, oxyServices } = useAuth();
+    const { isAuthenticated: _isAuthenticated, user, signIn, logout, oxyServices } = useAuth();
     const theme = useTheme();
 
-    const avatarUri = user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar as string, 'thumb') : undefined;
+    const avatarUri = user?.avatar;
 
     const handleSignOut = async () => {
         const confirmed = await confirmDialog({
@@ -95,6 +96,12 @@ export function SideBar() {
                 icon: <Chat color={theme.colors.text} />,
                 iconActive: <ChatActive color={theme.colors.primary} />,
                 route: '/chat',
+            },
+            {
+                title: t("Agora"),
+                icon: <Agora color={theme.colors.text} />,
+                iconActive: <AgoraActive color={theme.colors.primary} />,
+                route: '/agora',
             },
             {
                 title: t("Insights"),
@@ -270,7 +277,7 @@ export function SideBar() {
                                 text={t('Sign In')}
                                 isExpanded={isExpanded}
                                 onHoverExpand={handleHoverIn}
-                                onPress={() => showBottomSheet?.('SignIn')}
+                                onPress={() => signIn().catch(() => {})}
                             />
                         )}
                     </View>
@@ -319,7 +326,6 @@ const styles = StyleSheet.create({
     heroTagline: {
         fontSize: 20,
         fontWeight: 'bold',
-        fontFamily: 'Phudu',
         flexWrap: 'wrap',
         textAlign: 'left',
         maxWidth: 200,
@@ -341,7 +347,6 @@ const styles = StyleSheet.create({
     signUpButtonText: {
         fontSize: 13,
         fontWeight: "bold",
-        fontFamily: "Phudu",
     },
     signInButton: {
         justifyContent: "center",
@@ -353,7 +358,6 @@ const styles = StyleSheet.create({
     signInButtonText: {
         fontSize: 13,
         fontWeight: "bold",
-        fontFamily: "Phudu",
     },
     navigationSection: {
         flex: 1,
@@ -365,6 +369,7 @@ const styles = StyleSheet.create({
         paddingRight: 0,
     },
     addPropertyButton: {
+        flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 100,
@@ -383,7 +388,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         textAlign: 'center',
         margin: 0,
-        fontFamily: 'Phudu',
     },
     footer: {
         flexDirection: 'column',

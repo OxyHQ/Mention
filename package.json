@@ -10,16 +10,19 @@
     "dev": "npm run dev --workspaces",
     "dev:frontend": "npm run dev --workspace=@mention/frontend",
     "dev:backend": "npm run dev --workspace=@mention/backend",
+    "dev:agora": "npm run dev --workspace=@mention/agora",
     "build": "npm run build --workspaces",
     "build:shared-types": "npm run build --workspace=@mention/shared-types",
     "build:frontend": "npm run build --workspace=@mention/frontend",
     "build:backend": "npm run build --workspace=@mention/backend",
+    "build:agora": "npm run build --workspace=@mention/agora",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces",
     "clean": "npm run clean --workspaces && rm -rf node_modules",
     "install:all": "npm install && npm install --workspaces",
     "start:frontend": "npm run start --workspace=@mention/frontend",
     "start:backend": "npm run start --workspace=@mention/backend",
+    "start:agora": "npm run start --workspace=@mention/agora",
     "postinstall": "npm run build:shared-types"
   },
   "devDependencies": {
@@ -33,11 +36,17 @@
   },
   "dependencies": {
     "@lottiefiles/dotlottie-react": "^0.17.10",
-    "@oxyhq/services": "6.2.0",
-    "@oxyhq/core": "1.5.0",
+    "@oxyhq/services": "6.3.1",
+    "@oxyhq/core": "1.6.1",
     "@react-native/js-polyfills": "^0.81.1",
     "react-native-css-interop": "^0.2.0",
     "react-native-worklets": "0.5.1",
     "react-native-worklets-core": "^1.6.2"
+  },
+  "overrides": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo-secure-store": "15.0.8",
+    "expo-file-system": "19.0.21",
+    "react-native-svg": "15.12.1"
   }
 }

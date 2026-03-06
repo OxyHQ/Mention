@@ -26,6 +26,8 @@ import {
   GestureDetector,
 } from 'react-native-gesture-handler';
 import { useTheme } from '@/hooks/useTheme';
+import { oxyServices } from '@/lib/oxyServices';
+import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { Portal } from '@/components/Portal';
 import { Z_INDEX } from '@/lib/constants';
@@ -85,17 +87,29 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   const originX = useSharedValue(0);
   const originY = useSharedValue(0);
 
-  // Memoize imageSource to prevent unnecessary re-renders and image reloads
-  const imageSource = useMemo(() => {
-    if (source && !errored) {
-      return typeof source === 'string' ? { uri: source } : source;
+  // Resolve source: handles file IDs, HTTP URLs, and ImageSourcePropType objects
+  // Uses the app-level oxyServices singleton (same instance as OxyProvider) — no hook needed
+  const resolvedSource = useMemo(() => {
+    if (!source || errored) return undefined;
+    if (typeof source !== 'string') return source;
+    if (source.startsWith('http')) return source;
+    try {
+      return getCachedFileDownloadUrlSync(oxyServices, source, 'thumb');
+    } catch {
+      return undefined;
     }
-    return DEFAULT_AVATAR_SOURCE;
   }, [source, errored]);
 
-  // Get original image dimensions when source changes
+  const imageSource = useMemo(() => {
+    if (resolvedSource) {
+      return typeof resolvedSource === 'string' ? { uri: resolvedSource } : resolvedSource;
+    }
+    return DEFAULT_AVATAR_SOURCE;
+  }, [resolvedSource]);
+
+  // Get original image dimensions when resolved source changes
   React.useEffect(() => {
-    if (!source || errored) {
+    if (!resolvedSource || errored) {
       setOriginalImageSize(null);
       return;
     }
@@ -103,11 +117,11 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     const getImageSize = async () => {
       try {
         let imageUri: string | undefined;
-        
-        if (typeof source === 'string') {
-          imageUri = source;
-        } else if (source && typeof source === 'object' && 'uri' in source && source.uri) {
-          imageUri = source.uri;
+
+        if (typeof resolvedSource === 'string') {
+          imageUri = resolvedSource;
+        } else if (resolvedSource && typeof resolvedSource === 'object' && 'uri' in resolvedSource && resolvedSource.uri) {
+          imageUri = resolvedSource.uri;
         }
         
         if (imageUri && (imageUri.startsWith('http') || imageUri.startsWith('https'))) {
@@ -133,7 +147,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     };
 
     getImageSize();
-  }, [source, errored]);
+  }, [resolvedSource, errored]);
 
   const handlePress = useCallback(() => {
     if (!isZoomed && avatarWrapperRef.current) {
@@ -384,6 +398,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                   <AnimatedBlurView
                     intensity={80}
                     tint={theme.isDark ? 'dark' : 'light'}
+                    experimentalBlurMethod="dimezisBlurView"
                     style={[StyleSheet.absoluteFillObject, blurAnimatedStyle]}
                   >
                     <Animated.View
@@ -453,6 +468,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
                   <AnimatedBlurView
                     intensity={80}
                     tint={theme.isDark ? 'dark' : 'light'}
+                    experimentalBlurMethod="dimezisBlurView"
                     style={[StyleSheet.absoluteFillObject, blurAnimatedStyle]}
                   >
                     <Animated.View

@@ -25,6 +25,7 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { LogoIcon } from '@/assets/logo';
 import { Portal } from '@/components/Portal';
 import { Z_INDEX } from '@/lib/constants';
+import { FONT_FAMILIES } from '@/styles/typography';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText, TSpan } from 'react-native-svg';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
@@ -58,7 +59,7 @@ const GradientText: React.FC<{
   fontSize: number;
   fontWeight?: string;
   fontFamily?: string;
-}> = ({ lines, style, fontSize, fontWeight = '600', fontFamily = 'Inter-SemiBold' }) => {
+}> = ({ lines, style, fontSize, fontWeight = '600', fontFamily = FONT_FAMILIES.primary }) => {
   const gradientId = useId();
   const lineHeight = fontSize * 1.25; // Slightly reduced gap between lines
   const totalHeight = lines.length * lineHeight;
@@ -109,7 +110,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, showBottomSheet } = useAuth();
+  const { isAuthenticated, signIn } = useAuth();
   const router = useRouter();
 
   // Animation values
@@ -144,8 +145,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
   const handleCreateAccount = useCallback(() => {
     stableOnClose();
-    showBottomSheet?.('OxyAuth');
-  }, [stableOnClose, showBottomSheet]);
+    signIn().catch(() => {});
+  }, [stableOnClose, signIn]);
 
   const handleExploreApp = useCallback(() => {
     stableOnClose();
@@ -154,8 +155,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
   const handleSignIn = useCallback(() => {
     stableOnClose();
-    showBottomSheet?.('OxyAuth');
-  }, [stableOnClose, showBottomSheet]);
+    signIn().catch(() => {});
+  }, [stableOnClose, signIn]);
 
   // Animated styles
   const backdropAnimatedStyle = useAnimatedStyle(() => ({
@@ -201,6 +202,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
         <AnimatedBlurView
           intensity={80}
           tint={blurTint}
+          experimentalBlurMethod="dimezisBlurView"
           style={[StyleSheet.absoluteFillObject, backdropAnimatedStyle]}
         >
           <Animated.View
@@ -259,7 +261,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
                 ]}
                 fontSize={32}
                 fontWeight="600"
-                fontFamily="Inter-SemiBold"
+                fontFamily={FONT_FAMILIES.primary}
               />
             </View>
 
@@ -394,7 +396,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: FONT_FAMILIES.primary,
   },
   exploreLink: {
     alignItems: 'center',
@@ -403,7 +405,7 @@ const styles = StyleSheet.create({
   exploreLinkText: {
     fontSize: 14,
     fontWeight: '500',
-    fontFamily: 'Inter-Medium',
+    fontFamily: FONT_FAMILIES.primary,
   },
   signInContainer: {
     flexDirection: 'row',
@@ -413,12 +415,12 @@ const styles = StyleSheet.create({
   },
   signInPrompt: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
+    fontFamily: FONT_FAMILIES.primary,
   },
   signInLink: {
     fontSize: 14,
     fontWeight: '500',
-    fontFamily: 'Inter-Medium',
+    fontFamily: FONT_FAMILIES.primary,
   },
 });
 

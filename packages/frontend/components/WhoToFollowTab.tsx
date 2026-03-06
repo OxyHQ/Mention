@@ -130,9 +130,7 @@ export function WhoToFollowTab() {
       ? `${item.name.first} ${item.name.last || ''}`.trim()
       : item.username || 'Unknown User';
 
-    const avatarUri = item?.avatar
-      ? oxyServices.getFileDownloadUrl(item.avatar as string, 'thumb')
-      : undefined;
+    const avatarUri = item?.avatar;
     const username = item.username || item.id;
 
     return (

@@ -274,6 +274,8 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     article: raw?.content?.article,
     sources: raw?.content?.sources,
     location: raw?.content?.location,
+    event: raw?.content?.event,
+    room: raw?.content?.room ?? raw?.content?.space,
   };
 
   const user = raw?.user ?? {};
@@ -1050,40 +1052,51 @@ export const usePostsStore = create<FeedState>()(
           }
 
           const newPost: FeedItem = {
-            id: rawPost.id,
-            user: rawPost.user,
-            content: rawPost.content || { text: '' },
-            date: new Date().toISOString(),
-            engagement: { replies: 0, reposts: 0, likes: 0 },
-            media: rawPost.content?.images || [],
-            type: rawPost.type,
-            visibility: rawPost.visibility,
-            hashtags: rawPost.hashtags || [],
-            mentions: rawPost.mentions || [],
-            status: rawPost.status,
-            scheduledFor: rawPost.scheduledFor || null,
+            ...transformToUIItem(rawPost),
+            engagement: { replies: 0, reposts: 0, likes: 0, saves: null, views: null, impressions: null },
             isLocalNew: true
           };
 
           set(state => {
             const postId = normalizeId(newPost);
-            
+
             // Use deduplicateItems to ensure no duplicates in any feed
             // Merge new post with existing items, then deduplicate entire array
             const postsFeedItems = deduplicateItems([newPost, ...state.feeds.posts.items], 'createPost:posts');
             const mixedFeedItems = deduplicateItems([newPost, ...state.feeds.mixed.items], 'createPost:mixed');
             const forYouFeedItems = deduplicateItems([newPost, ...(state.feeds.for_you?.items || [])], 'createPost:for_you');
-            
+            const followingFeedItems = deduplicateItems([newPost, ...(state.feeds.following?.items || [])], 'createPost:following');
+
             // Log if post was already present (would be filtered by deduplicateItems)
-            const wasDuplicate = 
+            const wasDuplicate =
               state.feeds.posts.items.some(item => normalizeId(item) === postId) ||
               state.feeds.mixed.items.some(item => normalizeId(item) === postId) ||
-              (state.feeds.for_you?.items || []).some(item => normalizeId(item) === postId);
-            
+              (state.feeds.for_you?.items || []).some(item => normalizeId(item) === postId) ||
+              (state.feeds.following?.items || []).some(item => normalizeId(item) === postId);
+
             if (wasDuplicate) {
               console.log(`[Store] createPost: Post ${postId} already exists in feeds, deduplicated`);
             }
-            
+
+            // Update user's own profile feed if it has been previously loaded
+            const userId = newPost.user?.id;
+            let nextUserFeeds = state.userFeeds;
+            if (userId && state.userFeeds[userId]?.posts) {
+              const userPostsFeed = state.userFeeds[userId].posts;
+              const updatedItems = deduplicateItems([newPost, ...userPostsFeed.items], 'createPost:userFeed');
+              nextUserFeeds = {
+                ...state.userFeeds,
+                [userId]: {
+                  ...state.userFeeds[userId],
+                  posts: {
+                    ...userPostsFeed,
+                    items: updatedItems,
+                    totalCount: updatedItems.length
+                  }
+                }
+              };
+            }
+
             return {
               feeds: {
                 ...state.feeds,
@@ -1101,8 +1114,14 @@ export const usePostsStore = create<FeedState>()(
                   ...state.feeds.for_you,
                   items: forYouFeedItems,
                   totalCount: forYouFeedItems.length
+                },
+                following: {
+                  ...state.feeds.following,
+                  items: followingFeedItems,
+                  totalCount: followingFeedItems.length
                 }
               },
+              userFeeds: nextUserFeeds,
               postsById: { ...state.postsById, [newPost.id]: newPost },
               isLoading: false,
               lastRefresh: Date.now()
@@ -1129,19 +1148,9 @@ export const usePostsStore = create<FeedState>()(
         
         if (response.success && response.posts) {
           const newPosts: FeedItem[] = response.posts.map((post: any) => ({
-            id: post.id,
-            user: post.user,
-            content: post.content || { text: '' },
-            date: new Date().toISOString(),
-            engagement: { replies: 0, reposts: 0, likes: 0 },
-            media: post.content?.images || [],
-            type: post.type,
-            visibility: post.visibility,
-            hashtags: post.hashtags || [],
-            mentions: post.mentions || [],
-            parentPostId: post.parentPostId,
-            threadId: post.threadId,
-            isLocalNew: true
+            ...transformToUIItem(post),
+            engagement: { replies: 0, reposts: 0, likes: 0, saves: null, views: null, impressions: null },
+            isLocalNew: true,
           }));
 
           set(state => {
@@ -1150,18 +1159,39 @@ export const usePostsStore = create<FeedState>()(
             const postsFeedItems = deduplicateItems([...newPosts, ...state.feeds.posts.items], 'createThread:posts');
             const mixedFeedItems = deduplicateItems([...newPosts, ...state.feeds.mixed.items], 'createThread:mixed');
             const forYouFeedItems = deduplicateItems([...newPosts, ...(state.feeds.for_you?.items || [])], 'createThread:for_you');
-            
+            const followingFeedItems = deduplicateItems([...newPosts, ...(state.feeds.following?.items || [])], 'createThread:following');
+
             // Log if any posts were duplicates
             const duplicateCount = newPosts.length - (
               postsFeedItems.length - state.feeds.posts.items.length +
               mixedFeedItems.length - state.feeds.mixed.items.length +
-              forYouFeedItems.length - (state.feeds.for_you?.items.length || 0)
-            ) / 3;
-            
+              forYouFeedItems.length - (state.feeds.for_you?.items.length || 0) +
+              followingFeedItems.length - (state.feeds.following?.items.length || 0)
+            ) / 4;
+
             if (duplicateCount > 0) {
               console.log(`[Store] createThread: ${duplicateCount} posts were duplicates, deduplicated`);
             }
-            
+
+            // Update user's own profile feed if it has been previously loaded
+            const userId = newPosts[0]?.user?.id;
+            let nextUserFeeds = state.userFeeds;
+            if (userId && state.userFeeds[userId]?.posts) {
+              const userPostsFeed = state.userFeeds[userId].posts;
+              const updatedItems = deduplicateItems([...newPosts, ...userPostsFeed.items], 'createThread:userFeed');
+              nextUserFeeds = {
+                ...state.userFeeds,
+                [userId]: {
+                  ...state.userFeeds[userId],
+                  posts: {
+                    ...userPostsFeed,
+                    items: updatedItems,
+                    totalCount: updatedItems.length
+                  }
+                }
+              };
+            }
+
             return {
               feeds: {
                 ...state.feeds,
@@ -1179,8 +1209,14 @@ export const usePostsStore = create<FeedState>()(
                   ...state.feeds.for_you,
                   items: forYouFeedItems,
                   totalCount: forYouFeedItems.length
+                },
+                following: {
+                  ...state.feeds.following,
+                  items: followingFeedItems,
+                  totalCount: followingFeedItems.length
                 }
               },
+              userFeeds: nextUserFeeds,
               postsById: newPosts.reduce((acc, p) => ({ ...acc, [p.id]: p }), state.postsById),
               isLoading: false,
               lastRefresh: Date.now()

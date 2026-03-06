@@ -15,12 +15,14 @@ import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
+import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { Toaster } from '@/lib/sonner';
 import i18n from '@/lib/i18n';
+import { agoraConfig } from '@/lib/agoraConfig';
 import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
 
 interface AppProvidersProps {
@@ -49,15 +51,17 @@ export const AppProviders = memo(function AppProviders({
             oxyServices={oxyServices}
             initialScreen="SignIn"
             autoPresent={false}
-            storageKeyPrefix="oxy_example"
+            storageKeyPrefix="mention"
             theme={colorScheme ?? undefined}
           >
             <I18nextProvider i18n={i18n}>
               <BottomSheetModalProvider>
                 <BottomSheetProvider>
-                  <MenuProvider>
-                    <ErrorBoundary>
-                      <LayoutScrollProvider>
+                  <AgoraProvider config={agoraConfig}>
+                  <LiveRoomProvider>
+                    <MenuProvider>
+                      <ErrorBoundary>
+                        <LayoutScrollProvider>
                         <HomeRefreshProvider>
                           {children}
                           <StatusBar style="auto" />
@@ -67,9 +71,11 @@ export const AppProviders = memo(function AppProviders({
                             offset={15}
                           />
                         </HomeRefreshProvider>
-                      </LayoutScrollProvider>
-                    </ErrorBoundary>
-                  </MenuProvider>
+                        </LayoutScrollProvider>
+                      </ErrorBoundary>
+                    </MenuProvider>
+                  </LiveRoomProvider>
+                  </AgoraProvider>
                 </BottomSheetProvider>
               </BottomSheetModalProvider>
             </I18nextProvider>
@@ -79,4 +85,3 @@ export const AppProviders = memo(function AppProviders({
     </SafeAreaProvider>
   );
 });
-

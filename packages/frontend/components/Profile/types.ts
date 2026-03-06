@@ -140,6 +140,7 @@ export interface ProfileSkeletonProps {
 // Profile content (main info section) props
 export interface ProfileContentProps {
   profileData: ProfileData;
+  avatarUri?: string;
   isOwnProfile: boolean;
   isPrivate: boolean;
   currentUsername?: string;

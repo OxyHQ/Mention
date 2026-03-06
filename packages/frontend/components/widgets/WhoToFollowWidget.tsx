@@ -165,11 +165,7 @@ const FollowRowComponent = React.memo(({ profileData }: { profileData: ProfileDa
     return profileData.username || "Unknown User";
   }, [profileData.name, profileData.username]);
 
-  const avatarUri = useMemo(() => {
-    return profileData.avatar
-      ? oxyServices.getFileDownloadUrl(profileData.avatar, "thumb")
-      : undefined;
-  }, [profileData.avatar, oxyServices]);
+  const avatarUri = profileData.avatar;
 
   const username = profileData.username || profileData.id;
 

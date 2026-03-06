@@ -6,7 +6,7 @@ const logger = createScopedLogger('NotificationCreationService');
 export interface CreateNotificationRequest {
   recipientId: string;
   actorId: string;
-  type: 'like' | 'reply' | 'mention' | 'follow' | 'repost' | 'quote' | 'welcome';
+  type: 'like' | 'reply' | 'mention' | 'follow' | 'repost' | 'quote' | 'welcome' | 'poke';
   entityId: string;
   entityType: 'post' | 'reply' | 'profile';
 }

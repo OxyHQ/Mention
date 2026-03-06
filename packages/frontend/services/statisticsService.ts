@@ -159,5 +159,4 @@ class StatisticsService {
 }
 
 export const statisticsService = new StatisticsService();
-export default statisticsService;
 

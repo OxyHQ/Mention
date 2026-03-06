@@ -51,6 +51,7 @@ import testRoutes from "./src/routes/test";
 import profileSettingsRoutes from './src/routes/profileSettings';
 import profileDesignRoutes from './src/routes/profileDesign';
 import subscriptionsRoutes from './src/routes/subscriptions';
+import pokesRoutes from './src/routes/pokes';
 import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
 import imagesRoutes from './src/routes/images';
@@ -59,17 +60,25 @@ import followsRoutes from './src/routes/follows';
 import muteRoutes from './src/routes/mute.routes';
 import reportsRoutes from './src/routes/reports.routes';
 import trendingRoutes from './src/routes/trending.routes';
-import spacesRoutes from './src/routes/spaces.routes';
+import roomsRoutes from './src/routes/rooms.routes';
+import recordingsRoutes from './src/routes/recordings.routes';
+import housesRoutes from './src/routes/houses.routes';
+import seriesRoutes from './src/routes/series.routes';
+import adminRoutes from './src/routes/admin';
 
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
 
+import helmet from 'helmet';
+
 const app = express();
 
-// Enable trust proxy for proper IP handling (required for rate limiting with IPv6)
-// This ensures req.ip is properly set when behind a proxy/load balancer
-app.set('trust proxy', true);
+// Security headers
+app.use(helmet());
+
+// Trust only one level of proxy (load balancer) for proper IP handling
+app.set('trust proxy', 1);
 
 export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
 
@@ -89,8 +98,12 @@ app.use(compression({
   threshold: 1024, // Only compress responses > 1KB
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Global rate limiting — must be applied early
+app.use(rateLimiter);
+app.use(bruteForceProtection);
 
 // Middleware to parse nested query parameters (e.g., filters[authors]=user1,user2)
 app.use((req, res, next) => {
@@ -127,15 +140,19 @@ app.use(async (req, res, next) => {
 // CORS and security headers
 const ALLOWED_ORIGINS: string[] = [
   process.env.FRONTEND_URL || "https://mention.earth",
-  ...(process.env.NODE_ENV !== 'production' ? [
-    "http://localhost:8081",
-    "http://localhost:8082",
-  ] : []),
+  "https://agora.mention.earth",
 ];
+
+const isAllowedOrigin = (origin: string): boolean => {
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  // Allow any localhost origin for development
+  if (origin.startsWith("http://localhost:")) return true;
+  return false;
+};
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+  if (origin && isAllowedOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else if (process.env.FRONTEND_URL) {
     res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
@@ -174,23 +191,32 @@ const broadcastPresence = (io: SocketIOServer, userId: string, online: boolean) 
   const presenceData = { userId, online, timestamp: new Date().toISOString() };
   // Emit to users subscribed to this user's presence
   io.to(`presence:${userId}`).emit('user:presence', presenceData);
-  // Also emit globally for profile pages etc.
-  io.emit('user:presence', presenceData);
+  // Targeted emit only — no global broadcast
 };
 
 // Periodic cleanup of stale online user entries (every 5 minutes)
+// Validates that tracked socket IDs are still actually connected to the server
 setInterval(() => {
-  const staleThreshold = Date.now() - 5 * 60 * 1000;
-  let cleanedCount = 0;
+  let cleanedUsers = 0;
+  let cleanedSockets = 0;
   for (const [userId, sockets] of onlineUsers.entries()) {
-    // Remove entries with empty socket sets
+    // Remove socket IDs that are no longer connected
+    for (const socketId of sockets) {
+      const activeSocket = io.sockets.sockets.get(socketId);
+      if (!activeSocket || !activeSocket.connected) {
+        sockets.delete(socketId);
+        cleanedSockets++;
+      }
+    }
+    // Remove user entry if no valid sockets remain
     if (sockets.size === 0) {
       onlineUsers.delete(userId);
-      cleanedCount++;
+      broadcastPresence(io, userId, false);
+      cleanedUsers++;
     }
   }
-  if (cleanedCount > 0) {
-    logger.debug(`Cleaned ${cleanedCount} stale entries from onlineUsers map`);
+  if (cleanedUsers > 0 || cleanedSockets > 0) {
+    logger.debug(`Presence cleanup: removed ${cleanedSockets} stale sockets, ${cleanedUsers} users now offline`);
   }
 }, 5 * 60 * 1000);
 
@@ -229,7 +255,13 @@ const io = new SocketIOServer(server, {
   maxHttpBufferSize: SOCKET_CONFIG.MAX_BUFFER_SIZE,
   connectTimeout: SOCKET_CONFIG.CONNECT_TIMEOUT,
   cors: {
-    origin: ALLOWED_ORIGINS,
+    origin: (origin, callback) => {
+      if (!origin || isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With", "Accept", "Accept-Version", "Content-Length", "Content-MD5", "Date", "X-Api-Version"]
@@ -304,13 +336,13 @@ const configureNamespaceErrorHandling = (namespace: Namespace) => {
 const notificationsNamespace = io.of("/notifications");
 const postsNamespace = io.of("/posts");
 
-// Import and initialize spaces socket namespace
-import { initializeSpaceSocket } from './src/sockets/spaceSocket';
-const spacesNamespace = initializeSpaceSocket(io);
+// Import and initialize rooms socket namespace (replaces spaces)
+import { initializeRoomSocket } from './src/sockets/roomSocket';
+const roomsNamespace = initializeRoomSocket(io);
 
 // --- Socket Auth Middleware ---
 // Authenticate socket connections using JWT token or userId from handshake
-[notificationsNamespace, postsNamespace, spacesNamespace, io].forEach((namespaceOrServer: any) => {
+[notificationsNamespace, postsNamespace, roomsNamespace, io].forEach((namespaceOrServer: any) => {
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
     namespaceOrServer.use(async (socket: AuthenticatedSocket, next: (err?: any) => void) => {
       try {
@@ -337,15 +369,12 @@ const spacesNamespace = initializeSpaceSocket(io);
           }
         }
 
-        // Fallback: accept userId from client handshake (for backward compatibility)
-        const userId = auth?.userId || auth?.id || auth?.user?.id;
-        if (userId && typeof userId === "string") {
-          socket.user = { id: userId };
-        }
+        // No valid token — reject unauthenticated connections
+        logger.debug('Socket connection rejected: no valid authentication token');
+        return next(new Error('Authentication required'));
       } catch (_) {
-        // ignore – will be handled by connection handlers if user missing
+        return next(new Error('Authentication failed'));
       }
-      return next();
     });
   }
 });
@@ -470,7 +499,7 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
 [
   notificationsNamespace,
   postsNamespace,
-  spacesNamespace
+  roomsNamespace,
 ].forEach((namespace) => {
   configureNamespaceErrorHandling(namespace);
 });
@@ -638,7 +667,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 });
 
 // Enhanced error handling for namespaces
-[notificationsNamespace, postsNamespace, spacesNamespace].forEach(
+[notificationsNamespace, postsNamespace, roomsNamespace].forEach(
   (namespace: Namespace) => {
     namespace.on("connection_error", (error: Error) => {
       logger.error(`Namespace ${namespace.name} connection error`, error);
@@ -709,7 +738,7 @@ publicApiRouter.use("/hashtags", hashtagsRoutes);
 publicApiRouter.use("/feed", optionalAuth, feedRoutes);
 
 // Public profile endpoints
-// GET /api/profile/design/:userId - public profile design data (no auth required)
+// GET /profile/design/:userId - public profile design data (no auth required)
 publicApiRouter.use("/profile/design", profileDesignRoutes);
 publicApiRouter.use("/articles", articlesRoutes);
 publicApiRouter.use("/images", imagesRoutes); // Image optimization (public, rate-limited)
@@ -735,16 +764,13 @@ authenticatedApiRouter.use("/gifs", gifsRoutes);
 authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/reports", reportsRoutes);
-authenticatedApiRouter.use("/spaces", spacesRoutes);
+authenticatedApiRouter.use("/rooms", roomsRoutes);
+authenticatedApiRouter.use("/recordings", recordingsRoutes);
+authenticatedApiRouter.use("/houses", housesRoutes);
+authenticatedApiRouter.use("/series", seriesRoutes);
+authenticatedApiRouter.use("/pokes", pokesRoutes);
+authenticatedApiRouter.use("/admin", adminRoutes);
 // You can add more protected routers here as needed
-
-// Mount public and authenticated API routers
-app.use("/api", publicApiRouter);
-app.use("/api", oxy.auth(), authenticatedApiRouter);
-
-// Performance monitoring middleware
-import { performanceMiddleware } from "./src/middleware/performance";
-app.use(performanceMiddleware);
 
 // --- Root API Welcome Route ---
 app.get("", async (req, res) => {
@@ -753,59 +779,49 @@ app.get("", async (req, res) => {
     res.json({ message: "Welcome to the API", posts: postsCount });
   } catch (error) {
     logger.error("Error fetching stats for root route", error);
-    res.status(500).json({ message: "Error fetching stats", error });
+    res.status(500).json({ message: "Error fetching stats" });
   }
 });
 
 // --- Health Check Endpoint ---
+// Minimal health check for load balancers — no internal details exposed
 app.get("/health", async (req, res) => {
   try {
-    const { isDatabaseConnected, getDatabaseStats } = require("./src/utils/database");
-    const { isRedisConnected, getRedisStats } = require("./src/utils/redis");
-    const { getPerformanceStats } = require("./src/middleware/performance");
+    const { isDatabaseConnected } = require("./src/utils/database");
+    const { isRedisConnected } = require("./src/utils/redis");
 
     const [dbConnected, redisConnected] = await Promise.all([
       isDatabaseConnected(),
       isRedisConnected(),
     ]);
 
-    const dbStats = getDatabaseStats();
-    const redisStats = getRedisStats();
-    const perfStats = getPerformanceStats();
-
-    const health = {
-      status: dbConnected && redisConnected ? "healthy" : "degraded",
+    const status = dbConnected && redisConnected ? "healthy" : "degraded";
+    const statusCode = status === "healthy" ? 200 : 503;
+    res.status(statusCode).json({
+      status,
       timestamp: new Date().toISOString(),
-      services: {
-        database: {
-          connected: dbConnected,
-          ...dbStats,
-        },
-        redis: {
-          connected: redisConnected,
-          ...redisStats,
-        },
-      },
-      performance: perfStats,
-      memory: {
-        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
-        rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
-      },
-      uptime: Math.round(process.uptime()),
-    };
-
-    const statusCode = health.status === "healthy" ? 200 : 503;
-    res.status(statusCode).json(health);
+    });
   } catch (error) {
     logger.error("Health check failed:", error);
     res.status(503).json({
       status: "unhealthy",
-      error: error instanceof Error ? error.message : "Unknown error",
       timestamp: new Date().toISOString(),
     });
   }
 });
+
+// Mount public and authenticated API routers
+app.use("/", publicApiRouter);
+app.use("/", oxy.auth(), authenticatedApiRouter);
+
+// Performance monitoring middleware
+import { performanceMiddleware } from "./src/middleware/performance";
+app.use(performanceMiddleware);
+
+// Global error handler — must be the LAST middleware registered.
+// Catches unhandled errors from route handlers and prevents raw error leakage.
+import { globalErrorHandler } from "./src/utils/error";
+app.use(globalErrorHandler);
 
 // --- MongoDB Connection ---
 const db = mongoose.connection;
@@ -852,6 +868,15 @@ db.once("open", () => {
   } catch (error) {
     logger.warn("Failed to initialize trending service", error);
   }
+
+  // Initialize Recording Cleanup Service
+  try {
+    const { recordingCleanupService } = require("./src/services/RecordingCleanupService");
+    recordingCleanupService.start();
+    logger.info("Recording cleanup service started");
+  } catch (error) {
+    logger.warn("Failed to start recording cleanup service", error);
+  }
 });
 
 // --- Server Listen ---
@@ -872,7 +897,7 @@ const bootServer = async () => {
 
   // Start server after all async setup is complete
   server.listen(PORT, '0.0.0.0', () => {
-    logger.info(`Server running on port ${PORT}`);
+    logger.info(`Server running at http://localhost:${PORT}`);
     if (!isDatabaseConnected()) {
       logger.warn("Server started without database connection - some features may be unavailable");
     }
@@ -883,5 +908,5 @@ if (require.main === module) {
   void bootServer();
 }
 
-export { io, notificationsNamespace };
+export { io, notificationsNamespace, roomsNamespace };
 export default server;

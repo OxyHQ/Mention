@@ -178,7 +178,7 @@ const RepostScreen: React.FC = () => {
                 <View style={styles.repostSection}>
                     <View style={styles.userInfo}>
                         <Avatar
-                            source={user?.avatar ? oxyServices.getFileDownloadUrl(String(user.avatar), 'thumb') : undefined}
+                            source={user?.avatar}
                             size={48}
                             style={{ marginRight: 12 }}
                         />

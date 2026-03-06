@@ -23,6 +23,9 @@ const MAX_SOURCE_TITLE_LENGTH = config.posts.maxSourceTitleLength;
 const MAX_ARTICLE_TITLE_LENGTH = config.posts.maxArticleTitleLength;
 const MAX_ARTICLE_EXCERPT_LENGTH = config.posts.maxArticleExcerptLength;
 const DEFAULT_POLL_DURATION_DAYS = config.posts.defaultPollDurationDays;
+const MAX_POLL_DURATION_DAYS = config.posts.maxPollDurationDays;
+const MAX_HASHTAG_LENGTH = config.posts.maxHashtagLength;
+const MAX_HASHTAGS_PER_POST = config.posts.maxHashtagsPerPost;
 const MAX_EVENT_NAME_LENGTH = config.posts.maxEventNameLength;
 const MAX_EVENT_LOCATION_LENGTH = config.posts.maxEventLocationLength;
 const MAX_EVENT_DESCRIPTION_LENGTH = config.posts.maxEventDescriptionLength;
@@ -33,14 +36,23 @@ const MAX_NEARBY_POSTS = config.posts.maxNearbyPosts;
 const MAX_AREA_POSTS = config.posts.maxAreaPosts;
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 const DEFAULT_REPOSTS_LIMIT = 50;
+const MAX_TEXT_LENGTH = config.posts.maxTextLength;
 
-const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
-  if (!Array.isArray(arr)) return [];
+/**
+ * Sanitize and validate sources array.
+ * Returns { sources, error } — error is set if the array exceeds the max size.
+ */
+const sanitizeSources = (arr: unknown): { sources: Array<{ url: string; title?: string }>; error?: string } => {
+  if (!Array.isArray(arr)) return { sources: [] };
+
+  if (arr.length > MAX_SOURCES) {
+    return { sources: [], error: `Too many sources: maximum is ${MAX_SOURCES}, received ${arr.length}` };
+  }
 
   const normalized = arr
-    .map((item: any) => {
+    .map((item: unknown) => {
       if (!item) return null;
-      const rawUrl = typeof item === 'string' ? item : item.url;
+      const rawUrl = typeof item === 'string' ? item : (item as Record<string, unknown>).url;
       if (!rawUrl || typeof rawUrl !== 'string') return null;
 
       const urlTrimmed = rawUrl.trim();
@@ -49,7 +61,8 @@ const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
       try {
         const parsed = new URL(urlTrimmed);
         const normalizedUrl = parsed.toString();
-        const title = typeof item?.title === 'string' ? item.title.trim().slice(0, MAX_SOURCE_TITLE_LENGTH) : undefined;
+        const titleRaw = (item as Record<string, unknown>)?.title;
+        const title = typeof titleRaw === 'string' ? titleRaw.trim().slice(0, MAX_SOURCE_TITLE_LENGTH) : undefined;
         return title ? { url: normalizedUrl, title } : { url: normalizedUrl };
       } catch {
         return null;
@@ -57,7 +70,7 @@ const sanitizeSources = (arr: any): Array<{ url: string; title?: string }> => {
     })
     .filter(Boolean) as Array<{ url: string; title?: string }>;
 
-  return normalized.slice(0, MAX_SOURCES);
+  return { sources: normalized };
 };
 
 const sanitizeArticle = (input: any): { title?: string; body?: string } | undefined => {
@@ -66,6 +79,45 @@ const sanitizeArticle = (input: any): { title?: string; body?: string } | undefi
   const body = typeof input.body === 'string' ? input.body.trim() : undefined;
   if (!title && !body) return undefined;
   return { ...(title ? { title } : {}), ...(body ? { body } : {}) };
+};
+
+const sanitizeEventData = (eventData: any): { eventId?: string; name?: string; date?: string; location?: string; description?: string } | null => {
+  if (!eventData || typeof eventData !== 'object') return null;
+
+  const sanitized = {
+    eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
+    name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
+    date: typeof eventData.date === 'string'
+      ? eventData.date.trim()
+      : (eventData.date instanceof Date ? eventData.date.toISOString() : undefined),
+    location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
+    description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
+  };
+
+  if (!sanitized.name || !sanitized.date) return null;
+
+  try {
+    const dateObj = new Date(sanitized.date);
+    if (isNaN(dateObj.getTime())) return null;
+  } catch {
+    return null;
+  }
+
+  return sanitized;
+};
+
+const sanitizeRoomData = (roomData: any): { roomId: string; title: string; status?: string; topic?: string; host?: string } | null => {
+  if (!roomData || typeof roomData !== 'object') return null;
+  const id = roomData.roomId ?? roomData.spaceId;
+  if (typeof id !== 'string' || typeof roomData.title !== 'string') return null;
+
+  return {
+    roomId: id.trim(),
+    title: roomData.title.trim().slice(0, 200),
+    ...(typeof roomData.status === 'string' && ['scheduled', 'live', 'ended'].includes(roomData.status) ? { status: roomData.status } : {}),
+    ...(typeof roomData.topic === 'string' ? { topic: roomData.topic.trim().slice(0, 100) } : {}),
+    ...(typeof roomData.host === 'string' ? { host: roomData.host.trim() } : {}),
+  };
 };
 
 type RawAttachmentInput =
@@ -133,7 +185,7 @@ const normalizeMediaItems = (arr: any): NormalizedMediaItem[] => {
   return normalized;
 };
 
-const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'location', 'sources'];
+const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'space', 'location', 'sources'];
 
 const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
   if (!entry) return null;
@@ -187,6 +239,7 @@ interface AttachmentBuildOptions {
   includePoll?: boolean;
   includeArticle?: boolean;
   includeEvent?: boolean;
+  includeRoom?: boolean;
   includeLocation?: boolean;
   includeSources?: boolean;
 }
@@ -197,6 +250,7 @@ const buildOrderedAttachments = ({
   includePoll = false,
   includeArticle = false,
   includeEvent = false,
+  includeRoom = false,
   includeLocation = false,
   includeSources = false
 }: AttachmentBuildOptions): PostAttachmentDescriptor[] | undefined => {
@@ -249,6 +303,10 @@ const buildOrderedAttachments = ({
       case 'event':
         if (includeEvent) addNonMedia('event');
         break;
+      case 'room':
+      case 'space': // backward compat for old posts
+        if (includeRoom) addNonMedia('room');
+        break;
       case 'location':
         if (includeLocation) addNonMedia('location');
         break;
@@ -273,6 +331,7 @@ const buildOrderedAttachments = ({
   if (includePoll) addNonMedia('poll');
   if (includeArticle) addNonMedia('article');
   if (includeEvent) addNonMedia('event');
+  if (includeRoom) addNonMedia('room');
   if (includeSources) addNonMedia('sources');
   if (includeLocation) addNonMedia('location');
 
@@ -303,6 +362,24 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const poll = content?.poll;
     const contentLocationData = content?.location || contentLocation;
 
+
+    // Validate text length
+    if (text && typeof text === 'string' && text.length > MAX_TEXT_LENGTH) {
+      return res.status(400).json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
+    }
+
+    // Validate hashtags
+    if (Array.isArray(hashtags)) {
+      if (hashtags.length > MAX_HASHTAGS_PER_POST) {
+        return res.status(400).json({ message: `Too many hashtags: maximum is ${MAX_HASHTAGS_PER_POST}` });
+      }
+      const invalidTag = hashtags.find((tag: unknown) =>
+        typeof tag !== 'string' || tag.length > MAX_HASHTAG_LENGTH
+      );
+      if (invalidTag !== undefined) {
+        return res.status(400).json({ message: `Invalid hashtag: each must be a string of at most ${MAX_HASHTAG_LENGTH} characters` });
+      }
+    }
 
     // Extract and merge hashtags from text with user-provided ones
     const uniqueTags = mergeHashtags(text || '', hashtags);
@@ -393,7 +470,21 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     // Create poll separately if provided and add pollId to content
     let pollId = null;
     if (poll) {
-      
+      // Validate poll endTime is in the future and within max duration
+      if (poll.endTime) {
+        const endTimeMs = new Date(poll.endTime).getTime();
+        if (isNaN(endTimeMs)) {
+          return res.status(400).json({ message: 'Invalid poll end time' });
+        }
+        if (endTimeMs <= Date.now()) {
+          return res.status(400).json({ message: 'Poll end time must be in the future' });
+        }
+        const maxEndTimeMs = Date.now() + MAX_POLL_DURATION_DAYS * 24 * 60 * 60 * 1000;
+        if (endTimeMs > maxEndTimeMs) {
+          return res.status(400).json({ message: `Poll duration cannot exceed ${MAX_POLL_DURATION_DAYS} days` });
+        }
+      }
+
       try {
         const pollDoc = new Poll({
           question: poll.question,
@@ -411,7 +502,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         
       } catch (pollError) {
         logger.error('Failed to create poll', pollError);
-        return res.status(400).json({ message: 'Failed to create poll', error: pollError });
+        return res.status(400).json({ message: 'Failed to create poll' });
       }
     }
 
@@ -420,7 +511,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.location = processedContentLocation;
     }
 
-    const sources = sanitizeSources(content?.sources || req.body.sources);
+    const { sources, error: sourcesError } = sanitizeSources(content?.sources || req.body.sources);
+    if (sourcesError) {
+      return res.status(400).json({ message: sourcesError });
+    }
     if (sources.length) {
       postContent.sources = sources;
     }
@@ -442,37 +536,16 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     // Handle event data
     const eventData = content?.event || req.body.event;
-    logger.debug('Event data received:', JSON.stringify(eventData, null, 2));
-    if (eventData && typeof eventData === 'object') {
-      const sanitizedEvent = {
-        eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
-        name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, MAX_EVENT_NAME_LENGTH) : undefined,
-        date: typeof eventData.date === 'string' ? eventData.date.trim() : (eventData.date instanceof Date ? eventData.date.toISOString() : undefined),
-        location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, MAX_EVENT_LOCATION_LENGTH) : undefined,
-        description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : undefined,
-      };
-      
-      logger.debug('Sanitized event:', JSON.stringify(sanitizedEvent, null, 2));
-      
-      // Validate required fields
-      if (sanitizedEvent.name && sanitizedEvent.date) {
-        // Validate date is a valid ISO string
-        try {
-          const dateObj = new Date(sanitizedEvent.date);
-          if (!isNaN(dateObj.getTime())) {
-            postContent.event = sanitizedEvent;
-            logger.debug('Event added to postContent:', JSON.stringify(postContent.event, null, 2));
-          } else {
-            logger.warn('Invalid event date (NaN):', sanitizedEvent.date);
-          }
-        } catch (e) {
-          logger.warn('Invalid event date format:', sanitizedEvent.date, e);
-        }
-      } else {
-        logger.warn('Event missing required fields - name:', sanitizedEvent.name, 'date:', sanitizedEvent.date);
-      }
-    } else {
-      logger.debug('No event data found in request');
+    const sanitizedEvent = sanitizeEventData(eventData);
+    if (sanitizedEvent) {
+      postContent.event = sanitizedEvent;
+    }
+
+    // Handle room data (backward compat: also reads from space field)
+    const roomData = content?.room || content?.space || req.body.room || req.body.space;
+    const sanitizedRoom = sanitizeRoomData(roomData);
+    if (sanitizedRoom) {
+      postContent.room = sanitizedRoom;
     }
 
     const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
@@ -482,6 +555,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       includePoll: Boolean(postContent.pollId),
       includeArticle: Boolean(postContent.article),
       includeEvent: Boolean(postContent.event),
+      includeRoom: Boolean(postContent.room),
       includeLocation: Boolean(postContent.location),
       includeSources: Boolean(postContent.sources && postContent.sources.length)
     });
@@ -692,7 +766,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         const io = (global as any).io;
         if (io) {
           io.emit('feed:updated', {
-            type: 'for-you',
+            type: 'for_you',
             post: transformedPost,
             timestamp: new Date().toISOString()
           });
@@ -712,7 +786,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     res.status(201).json({ success: true, post: transformedPost });
   } catch (error) {
     logger.error('Error creating post', error);
-    res.status(500).json({ message: 'Error creating post', error });
+    res.status(500).json({ message: 'Error creating post' });
   }
 };
 
@@ -784,7 +858,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         postContent.location = processedContentLocation;
       }
 
-      const sources = sanitizeSources(content?.sources);
+      const { sources } = sanitizeSources(content?.sources);
       if (sources.length) {
         postContent.sources = sources;
       }
@@ -807,27 +881,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       }
 
       // Handle event data
-      const eventData = content?.event;
-      if (eventData && typeof eventData === 'object') {
-        const sanitizedEvent = {
-          eventId: typeof eventData.eventId === 'string' ? eventData.eventId.trim() : undefined,
-          name: typeof eventData.name === 'string' ? eventData.name.trim().slice(0, 200) : undefined,
-          date: typeof eventData.date === 'string' ? eventData.date.trim() : undefined,
-          location: typeof eventData.location === 'string' ? eventData.location.trim().slice(0, 200) : undefined,
-          description: typeof eventData.description === 'string' ? eventData.description.trim().slice(0, 500) : undefined,
-        };
-        
-        // Validate required fields
-        if (sanitizedEvent.name && sanitizedEvent.date) {
-          try {
-            const dateObj = new Date(sanitizedEvent.date);
-            if (!isNaN(dateObj.getTime())) {
-              postContent.event = sanitizedEvent;
-            }
-          } catch (e) {
-            logger.warn('Invalid event date format in thread:', sanitizedEvent.date);
-          }
-        }
+      const threadSanitizedEvent = sanitizeEventData(content?.event);
+      if (threadSanitizedEvent) {
+        postContent.event = threadSanitizedEvent;
+      }
+
+      // Handle room data (backward compat: also reads from space field)
+      const threadSanitizedRoom = sanitizeRoomData(content?.room || content?.space);
+      if (threadSanitizedRoom) {
+        postContent.room = threadSanitizedRoom;
       }
 
       // Handle poll creation
@@ -859,6 +921,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         includePoll: Boolean(postContent.pollId),
         includeArticle: Boolean(postContent.article),
         includeEvent: Boolean(postContent.event),
+        includeRoom: Boolean(postContent.room),
         includeLocation: Boolean(postContent.location),
         includeSources: Boolean(postContent.sources && postContent.sources.length)
       });
@@ -954,7 +1017,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // Emit the first post (main post) to feeds
         const mainPost = createdPosts[0];
         io.emit('feed:updated', {
-          type: 'for-you',
+          type: 'for_you',
           post: mainPost,
           timestamp: new Date().toISOString()
         });
@@ -972,7 +1035,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     res.status(201).json({ success: true, posts: createdPosts });
   } catch (error) {
     logger.error('Error creating thread', error);
-    res.status(500).json({ message: 'Error creating thread', error });
+    res.status(500).json({ message: 'Error creating thread' });
   }
 };
 
@@ -1003,7 +1066,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching posts', error);
-    res.status(500).json({ message: 'Error fetching posts', error });
+    res.status(500).json({ message: 'Error fetching posts' });
   }
 };
 
@@ -1032,7 +1095,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
     res.json(hydratedPost);
   } catch (error) {
     logger.error('Error fetching post', error);
-    res.status(500).json({ message: 'Error fetching post', error });
+    res.status(500).json({ message: 'Error fetching post' });
   }
 };
 
@@ -1093,7 +1156,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
 
     if (sources !== undefined) {
-      const sanitized = sanitizeSources(sources);
+      const { sources: sanitized, error: sourcesErr } = sanitizeSources(sources);
+      if (sourcesErr) {
+        return res.status(400).json({ message: sourcesErr });
+      }
       if (sanitized.length) {
         post.content.sources = sanitized;
       } else {
@@ -1145,6 +1211,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       media: Array.isArray(post.content.media) ? post.content.media : [],
       includePoll: Boolean((post.content as any)?.pollId),
       includeArticle: Boolean(post.content.article),
+      includeEvent: Boolean((post.content as any)?.event),
+      includeRoom: Boolean((post.content as any)?.room || (post.content as any)?.space),
       includeLocation: Boolean(post.content.location),
       includeSources: Boolean(post.content.sources && post.content.sources.length)
     });
@@ -1177,7 +1245,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     res.json(transformedPost);
   } catch (error) {
     logger.error('Error updating post', error);
-    res.status(500).json({ message: 'Error updating post', error });
+    res.status(500).json({ message: 'Error updating post' });
   }
 };
 
@@ -1237,7 +1305,7 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error updating post settings', error);
-    res.status(500).json({ message: 'Error updating post settings', error });
+    res.status(500).json({ message: 'Error updating post settings' });
   }
 };
 
@@ -1254,19 +1322,38 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
+    const postId = post._id.toString();
+
+    // Cascading cleanup — best-effort, don't fail the request
     try {
-      const articleId = (post as any)?.content?.article?.articleId;
-      if (articleId) {
-        await (ArticleModel as any).deleteOne({ _id: articleId } as any).exec();
-      }
-    } catch (articleError) {
-      logger.error('Failed to delete article content with post', articleError);
+      await Promise.allSettled([
+        // Delete associated article
+        (post as any)?.content?.article?.articleId
+          ? (ArticleModel as any).deleteOne({ _id: (post as any).content.article.articleId }).exec()
+          : Promise.resolve(),
+        // Delete associated poll
+        (post as any)?.metadata?.pollId
+          ? Poll.deleteOne({ _id: (post as any).metadata.pollId }).exec()
+          : Promise.resolve(),
+        // Delete likes for this post
+        Like.deleteMany({ postId }).exec(),
+        // Delete bookmarks for this post
+        Bookmark.deleteMany({ postId }).exec(),
+        // Delete post subscriptions
+        PostSubscription.deleteMany({ postId }).exec(),
+        // Delete notifications referencing this post
+        mongoose.model('Notification').deleteMany({ entityId: postId, entityType: 'post' }).exec(),
+        // Delete replies (child posts)
+        Post.deleteMany({ parentPostId: postId }).exec(),
+      ]);
+    } catch (cleanupError) {
+      logger.error('Error during cascading post cleanup', cleanupError);
     }
 
     res.json({ message: 'Post deleted successfully' });
   } catch (error) {
     logger.error('Error deleting post', error);
-    res.status(500).json({ message: 'Error deleting post', error });
+    res.status(500).json({ message: 'Error deleting post' });
   }
 };
 
@@ -1354,7 +1441,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error liking post', error);
-    res.status(500).json({ message: 'Error liking post', error });
+    res.status(500).json({ message: 'Error liking post' });
   }
 };
 
@@ -1408,7 +1495,7 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error unliking post', error);
-    res.status(500).json({ message: 'Error unliking post', error });
+    res.status(500).json({ message: 'Error unliking post' });
   }
 };
 
@@ -1468,7 +1555,7 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Post saved successfully' });
   } catch (error) {
     logger.error('Error saving post', error);
-    res.status(500).json({ message: 'Error saving post', error });
+    res.status(500).json({ message: 'Error saving post' });
   }
 };
 
@@ -1506,7 +1593,7 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
     res.json({ message: 'Post unsaved successfully' });
   } catch (error) {
     logger.error('Error unsaving post', error);
-    res.status(500).json({ message: 'Error unsaving post', error });
+    res.status(500).json({ message: 'Error unsaving post' });
   }
 };
 
@@ -1562,7 +1649,7 @@ export const repostPost = async (req: AuthRequest, res: Response) => {
     res.status(201).json(repost);
   } catch (error) {
     logger.error('Error creating repost', error);
-    res.status(500).json({ message: 'Error creating repost', error });
+    res.status(500).json({ message: 'Error creating repost' });
   }
 };
 
@@ -1608,7 +1695,7 @@ export const quotePost = async (req: AuthRequest, res: Response) => {
     res.status(201).json(quotePost);
   } catch (error) {
     logger.error('Error creating quote post', error);
-    res.status(500).json({ message: 'Error creating quote post', error });
+    res.status(500).json({ message: 'Error creating quote post' });
   }
 };
 
@@ -1672,7 +1759,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching saved posts', error);
-    res.status(500).json({ message: 'Error fetching saved posts', error });
+    res.status(500).json({ message: 'Error fetching saved posts' });
   }
 };
 
@@ -1707,7 +1794,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching posts by hashtag', error);
-    res.status(500).json({ message: 'Error fetching posts by hashtag', error });
+    res.status(500).json({ message: 'Error fetching posts by hashtag' });
   }
 };
 
@@ -1730,7 +1817,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
     res.json(drafts);
   } catch (error) {
     logger.error('Error fetching drafts', error);
-    res.status(500).json({ message: 'Error fetching drafts', error });
+    res.status(500).json({ message: 'Error fetching drafts' });
   }
 };
 
@@ -1753,7 +1840,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
     res.json(scheduledPosts);
   } catch (error) {
     logger.error('Error fetching scheduled posts', error);
-    res.status(500).json({ message: 'Error fetching scheduled posts', error });
+    res.status(500).json({ message: 'Error fetching scheduled posts' });
   }
 }; 
 
@@ -1812,7 +1899,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching nearby posts', error);
-    res.status(500).json({ message: 'Error fetching nearby posts', error });
+    res.status(500).json({ message: 'Error fetching nearby posts' });
   }
 };
 
@@ -1872,7 +1959,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching posts in area', error);
-    res.status(500).json({ message: 'Error fetching posts in area', error });
+    res.status(500).json({ message: 'Error fetching posts in area' });
   }
 };
 
@@ -1937,7 +2024,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching post likes', error);
-    res.status(500).json({ message: 'Error fetching post likes', error });
+    res.status(500).json({ message: 'Error fetching post likes' });
   }
 };
 
@@ -2002,7 +2089,7 @@ export const getPostReposts = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching post reposts', error);
-    res.status(500).json({ message: 'Error fetching post reposts', error });
+    res.status(500).json({ message: 'Error fetching post reposts' });
   }
 };
 
@@ -2097,7 +2184,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
     });
   } catch (error) {
     logger.error('Error fetching nearby posts (both locations)', error);
-    res.status(500).json({ message: 'Error fetching nearby posts (both locations)', error });
+    res.status(500).json({ message: 'Error fetching nearby posts (both locations)' });
   }
 };
 
@@ -2150,6 +2237,6 @@ export const getLocationStats = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     logger.error('Error fetching location stats', error);
-    res.status(500).json({ message: 'Error fetching location stats', error });
+    res.status(500).json({ message: 'Error fetching location stats' });
   }
 };

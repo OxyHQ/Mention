@@ -109,6 +109,7 @@
   "notification.follow": "{{actorName}} ha iniziato a seguirti",
   "notification.repost": "{{actorName}} ha ripubblicato il tuo post",
   "notification.quote": "{{actorName}} ha citato il tuo post",
+  "notification.poke": "{{actorName}} ti ha fatto un poke",
   "notification.like_reply": "{{actorName}} ha messo mi piace alla tua risposta",
   "notification.reply_reply": "{{actorName}} ha risposto alla tua risposta",
   "notification.mention_reply": "{{actorName}} ti ha menzionato in una risposta",

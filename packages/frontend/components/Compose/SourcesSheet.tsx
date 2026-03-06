@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   urlInput: {
-    fontFamily: 'System',
+    fontFamily: 'Inter-Regular',
   },
   errorText: {
     fontSize: 11,

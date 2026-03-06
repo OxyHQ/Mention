@@ -23,10 +23,16 @@
       "path": "./packages/shared-types"
     },
     {
+      "path": "./packages/agora-shared"
+    },
+    {
       "path": "./packages/backend"
     },
     {
       "path": "./packages/frontend"
+    },
+    {
+      "path": "./packages/agora"
     }
   ],
   "exclude": [

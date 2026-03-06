@@ -137,7 +137,7 @@ class PollsController {
 
       res.json({
         success: true,
-        data: poll
+        data: this.sanitizePollResponse(poll)
       });
     } catch (error) {
       logger.error('[Polls] Error fetching poll:', error);
@@ -190,30 +190,83 @@ class PollsController {
         });
       }
 
-      // Check if user has already voted in this poll
-      const hasVoted = poll.options.some(opt => 
-        opt.votes.some(vote => vote.toString() === userId)
+      // Use atomic findOneAndUpdate to prevent race conditions (double-vote)
+      if (!poll.isMultipleChoice) {
+        // Atomically check no vote exists and add vote in one operation
+        const updated = await Poll.findOneAndUpdate(
+          {
+            _id: id,
+            'options._id': optionId,
+            'options.votes': { $ne: userId } // Only if user hasn't voted on ANY option
+          },
+          {
+            $push: { 'options.$.votes': userId }
+          },
+          { new: true }
+        );
+
+        if (!updated) {
+          // Check if user already voted (vs option not found)
+          const hasVoted = poll.options.some(opt =>
+            opt.votes.some(vote => vote.toString() === userId)
+          );
+          if (hasVoted) {
+            return res.status(400).json({
+              error: 'Invalid request',
+              message: 'You have already voted in this poll'
+            });
+          }
+          return res.status(404).json({
+            error: 'Not found',
+            message: 'Option not found'
+          });
+        }
+
+        return res.json({ success: true, data: this.sanitizePollResponse(updated) });
+      }
+
+      // Multiple choice: atomically add vote to specific option if not already voted on it
+      const updated = await Poll.findOneAndUpdate(
+        {
+          _id: id,
+          'options._id': optionId,
+          'options': { $not: { $elemMatch: { _id: optionId, votes: userId } } }
+        },
+        {
+          $push: { 'options.$.votes': userId }
+        },
+        { new: true }
       );
 
-      if (hasVoted && !poll.isMultipleChoice) {
+      if (!updated) {
         return res.status(400).json({
           error: 'Invalid request',
-          message: 'You have already voted in this poll'
+          message: 'You have already voted for this option'
         });
       }
 
-      // Add vote
-      option.votes.push(userId);
-      await poll.save();
-
       res.json({
         success: true,
-        data: poll
+        data: this.sanitizePollResponse(updated)
       });
     } catch (error) {
       logger.error('[Polls] Error voting in poll:', error);
       next(createError(500, 'Error voting in poll'));
     }
+  }
+
+  /**
+   * Sanitize poll response — strip voter IDs from anonymous polls
+   */
+  private sanitizePollResponse(poll: IPoll) {
+    const pollObj = poll.toObject ? poll.toObject() : { ...poll };
+    if (pollObj.isAnonymous && pollObj.options) {
+      pollObj.options = pollObj.options.map((opt: any) => ({
+        ...opt,
+        votes: opt.votes ? opt.votes.length : 0, // Replace voter IDs with count
+      }));
+    }
+    return pollObj;
   }
 
   async getResults(req: Request, res: Response, next: NextFunction) {

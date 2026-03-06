@@ -27,38 +27,27 @@ export function RightBar() {
 
 function RightBarFooter() {
     const footerLinks = [
-        { label: 'About', url: '#' },
-        { label: 'Privacy', url: '#' },
-        { label: 'Terms', url: '#' },
-        { label: 'Cookies', url: '#' },
+        { label: 'About', url: 'https://oxy.so/mention' },
+        { label: 'Privacy', url: 'https://oxy.so/company/transparency/policies/privacy' },
+        { label: 'Terms', url: 'https://oxy.so/company/transparency/policies/terms-of-service' },
+        { label: 'Cookies', url: 'https://oxy.so/company/transparency/policies/cookies' },
+        { label: 'Oxy', url: 'https://oxy.so/' },
     ];
-
-    const handleLinkPress = (url: string) => {
-        if (url !== '#') {
-            Linking.openURL(url);
-        }
-    };
 
     return (
         <View style={styles.footer}>
             <View style={styles.footerLinks}>
-                {footerLinks.map((link, index) => (
-                    <React.Fragment key={link.label}>
-                        <Text
-                            style={styles.footerLink}
-                            onPress={() => handleLinkPress(link.url)}
-                        >
-                            {link.label}
-                        </Text>
-                        {index < footerLinks.length - 1 && (
-                            <Text style={styles.footerSeparator}>·</Text>
-                        )}
-                    </React.Fragment>
+                {footerLinks.map((link) => (
+                    <Text
+                        key={link.label}
+                        style={styles.footerLink}
+                        onPress={() => Linking.openURL(link.url)}
+                    >
+                        {link.label}
+                    </Text>
                 ))}
             </View>
-            <Text style={styles.footerBrand}>
-                Made with ❤️ in the 🌎 by Oxy.
-            </Text>
+            <Text style={styles.footerBrand}>Made with ❤️ in the 🌎 by Oxy.</Text>
         </View>
     );
 }
@@ -78,34 +67,27 @@ const styles = StyleSheet.create({
         }),
     },
     footer: {
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        gap: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 4,
     },
     footerLinks: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 8,
-        alignItems: 'center',
     },
     footerLink: {
-        fontSize: 13,
+        fontSize: 12.5,
         color: colors.text.secondary,
+        paddingRight: 12,
+        paddingBottom: 4,
         ...Platform.select({
             web: {
                 cursor: 'pointer' as any,
-                textDecoration: 'none' as any,
             },
         }),
     },
-    footerSeparator: {
-        fontSize: 13,
-        color: colors.text.secondary,
-        marginHorizontal: 4,
-    },
     footerBrand: {
-        fontSize: 13,
+        fontSize: 12.5,
         color: colors.text.secondary,
-        marginTop: 4,
+        paddingTop: 2,
     },
 });

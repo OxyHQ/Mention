@@ -10,6 +10,7 @@ import { GifIcon } from '@/assets/icons/gif-icon';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
+import { Ionicons } from '@expo/vector-icons';
 
 interface ComposeToolbarProps {
     onMediaPress?: () => void;
@@ -21,6 +22,7 @@ interface ComposeToolbarProps {
     onSourcesPress?: () => void;
     onArticlePress?: () => void;
     onEventPress?: () => void;
+    onRoomPress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
@@ -28,6 +30,7 @@ interface ComposeToolbarProps {
     hasSources?: boolean;
     hasArticle?: boolean;
     hasEvent?: boolean;
+    hasRoom?: boolean;
     hasSchedule?: boolean;
     scheduleEnabled?: boolean;
     hasSourceErrors?: boolean;
@@ -44,6 +47,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     onSourcesPress,
     onArticlePress,
     onEventPress,
+    onRoomPress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
@@ -51,6 +55,7 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
     hasSources = false,
     hasArticle = false,
     hasEvent = false,
+    hasRoom = false,
     hasSchedule = false,
     scheduleEnabled = true,
     hasSourceErrors = false,
@@ -159,6 +164,20 @@ const ComposeToolbar: React.FC<ComposeToolbarProps> = ({
                     <CalendarIcon
                         size={20}
                         color={disabled ? theme.colors.textTertiary : (hasEvent ? theme.colors.primary : theme.colors.textSecondary)}
+                    />
+                </TouchableOpacity>
+            )}
+
+            {onRoomPress && (
+                <TouchableOpacity
+                    onPress={onRoomPress}
+                    disabled={disabled}
+                    style={styles.button}
+                >
+                    <Ionicons
+                        name="radio-outline"
+                        size={20}
+                        color={disabled ? theme.colors.textTertiary : (hasRoom ? theme.colors.primary : theme.colors.textSecondary)}
                     />
                 </TouchableOpacity>
             )}

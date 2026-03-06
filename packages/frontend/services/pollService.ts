@@ -34,5 +34,3 @@ export const pollService = {
     return { success: true, data: response.data?.data ?? response.data };
   },
 };
-
-export default pollService;

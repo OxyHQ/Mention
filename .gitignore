@@ -116,4 +116,10 @@ packages/apk-builder/outputs/*.json
 packages/apk-builder/outputs/*.aab
 *.keystore
 *.jks
-keystore.base64.txt 
+keystore.base64.txt
+
+# Infrastructure secrets
+infrastructure/livekit/.env
+
+# Firebase credentials
+google-services.json

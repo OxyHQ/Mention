@@ -15,7 +15,7 @@ export const useAnalyticsStore = create<AnalyticsState>((set) => ({
   fetchAnalytics: async (userID: string, period: string) => {
     set({ loading: true, error: null });
     try {
-      const response = await api.get(`analytics?userID=${userID}&period=${period}`);
+      const response = await api.get('analytics', { userID, period });
       set({ data: response.data, loading: false });
     } catch (error: any) {
       set({ error: error?.message || 'Failed to fetch analytics', loading: false });
