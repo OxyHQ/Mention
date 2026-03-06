@@ -1,12 +1,14 @@
 import React, { memo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Feed } from '@/components/Feed/index';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
+import { FeedCard } from '@/components/FeedCard';
 import { feedService } from '@/services/feedService';
+import { customFeedsService } from '@/services/customFeedsService';
 import type { FeedType } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
 
@@ -61,6 +63,16 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
+  // Feeds tab
+  if (tab === 'feeds') {
+    return (
+      <ProfileFeeds
+        profileId={profileId}
+        isOwnProfile={isOwnProfile}
+      />
+    );
+  }
+
   // Media grid
   if (tab === 'media') {
     return (
@@ -103,6 +115,73 @@ export const ProfileTabs = memo(function ProfileTabs({
   );
 });
 
+function ProfileFeeds({ profileId, isOwnProfile }: { profileId?: string; isOwnProfile: boolean }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [feeds, setFeeds] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!profileId) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const params = isOwnProfile
+          ? { mine: true }
+          : { userId: profileId };
+        const res = await customFeedsService.list(params);
+        if (!cancelled) setFeeds(res.items || []);
+      } catch (e) {
+        console.warn('Failed to load profile feeds', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [profileId, isOwnProfile]);
+
+  if (loading) {
+    return (
+      <View style={styles.feedsLoading}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (feeds.length === 0) {
+    return (
+      <View style={styles.feedsEmpty}>
+        <Ionicons name="layers-outline" size={48} color={theme.colors.textSecondary} />
+        <Text style={[styles.feedsEmptyText, { color: theme.colors.textSecondary }]}>
+          {t('profile.feeds.empty', { defaultValue: 'No feeds yet' })}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.feedsList}>
+      {feeds.map((feed) => (
+        <FeedCard
+          key={feed.id || feed._id}
+          feed={{
+            id: String(feed.id || feed._id),
+            displayName: feed.title || 'Untitled',
+            description: feed.description,
+            memberCount: feed.memberCount ?? (feed.memberOxyUserIds || []).length,
+            topicCount: feed.topicCount ?? (feed.keywords || []).length,
+            memberAvatars: feed.memberAvatars || [],
+            creator: feed.owner,
+            likeCount: feed.likeCount,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   privateContainer: {
     padding: 32,
@@ -125,5 +204,25 @@ const styles = StyleSheet.create({
   },
   feedContent: {
     paddingBottom: 100,
+  },
+  feedsLoading: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedsEmpty: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
+    gap: 12,
+  },
+  feedsEmptyText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  feedsList: {
+    padding: 16,
+    gap: 12,
   },
 });

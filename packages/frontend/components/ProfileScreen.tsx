@@ -152,6 +152,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
             t('profile.tabs.videos'),
             t('profile.tabs.likes'),
             t('profile.tabs.reposts'),
+            t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
         ],
         [t]
     );

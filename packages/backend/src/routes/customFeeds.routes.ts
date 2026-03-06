@@ -56,11 +56,20 @@ router.get('/', async (req: any, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { mine, publicOnly, search } = req.query as any;
+    const { mine, publicOnly, search, userId: queryUserId } = req.query as any;
     const q: any = {};
-    if (mine === 'true') q.ownerOxyUserId = userId;
-    if (publicOnly === 'true') q.isPublic = true;
-    if (!mine && !publicOnly) {
+
+    if (queryUserId) {
+      // Fetch feeds by a specific user — public only unless it's the current user
+      q.ownerOxyUserId = queryUserId;
+      if (queryUserId !== userId) {
+        q.isPublic = true;
+      }
+    } else if (mine === 'true') {
+      q.ownerOxyUserId = userId;
+    } else if (publicOnly === 'true') {
+      q.isPublic = true;
+    } else {
       // default: mine + public
       q.$or = [{ ownerOxyUserId: userId }, { isPublic: true }];
     }
@@ -147,15 +156,44 @@ router.get('/', async (req: any, res) => {
       );
     }
     
-    // Normalize _id to id for frontend consistency and add like data and owner info
+    // Fetch member avatars (first 3 per feed) for card display
+    const allMemberIds = new Set<string>();
+    items.forEach((item: any) => {
+      (item.memberOxyUserIds || []).slice(0, 3).forEach((id: string) => allMemberIds.add(id));
+    });
+    const memberAvatarsMap = new Map<string, string | undefined>();
+    if (allMemberIds.size > 0) {
+      await Promise.all(
+        Array.from(allMemberIds).map(async (memberId) => {
+          try {
+            const userData = await oxyClient.getUserById(memberId);
+            const avatar = typeof userData?.avatar === 'string'
+              ? userData.avatar
+              : (userData?.avatar as any)?.url || userData?.profileImage || undefined;
+            memberAvatarsMap.set(memberId, avatar);
+          } catch {
+            memberAvatarsMap.set(memberId, undefined);
+          }
+        })
+      );
+    }
+
+    // Normalize _id to id for frontend consistency and add like data, owner info, and member avatars
     const normalizedItems = items.map((item: any) => {
       const feedId = item._id ? String(item._id) : item.id;
+      const memberAvatars = (item.memberOxyUserIds || [])
+        .slice(0, 3)
+        .map((id: string) => memberAvatarsMap.get(id))
+        .filter(Boolean);
       return {
         ...item,
         id: feedId,
         likeCount: likeCountsMap.get(feedId) || 0,
         isLiked: userId ? likedFeedsSet.has(feedId) : false,
         owner: item.ownerOxyUserId ? ownersMap.get(item.ownerOxyUserId) : undefined,
+        memberAvatars,
+        memberCount: (item.memberOxyUserIds || []).length,
+        topicCount: (item.keywords || []).length,
       };
     });
     res.json({ items: normalizedItems, total: normalizedItems.length });

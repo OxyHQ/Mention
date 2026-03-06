@@ -5,16 +5,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
 
-/**
- * FeedCard Component
- * 
- * A card component for displaying feed/algorithm generators in lists.
- * Reused from social-app and simplified for Mention's needs.
- */
-
 export interface FeedCardData {
     id: string;
-    uri: string;
+    uri?: string;
     displayName: string;
     description?: string;
     avatar?: string | null;
@@ -25,6 +18,9 @@ export interface FeedCardData {
     };
     likeCount?: number;
     subscriberCount?: number;
+    memberCount?: number;
+    topicCount?: number;
+    memberAvatars?: string[];
 }
 
 interface FeedCardProps {
@@ -34,94 +30,101 @@ interface FeedCardProps {
     style?: ViewStyle;
 }
 
-/**
- * Main FeedCard component
- */
-export function FeedCard({
-    feed,
-    onPress,
-    headerRight,
-    style,
-}: FeedCardProps) {
+const AVATAR_SIZE = 28;
+const AVATAR_OVERLAP = 8;
+
+function AvatarStack({ avatars }: { avatars: string[] }) {
+    if (!avatars.length) return null;
+    const displayed = avatars.slice(0, 3);
+    const stackWidth = AVATAR_SIZE + (displayed.length - 1) * (AVATAR_SIZE - AVATAR_OVERLAP);
+
+    return (
+        <View style={[styles.avatarStack, { width: stackWidth, height: AVATAR_SIZE }]}>
+            {displayed.map((uri, i) => (
+                <View
+                    key={i}
+                    style={[
+                        styles.avatarWrapper,
+                        { left: i * (AVATAR_SIZE - AVATAR_OVERLAP), zIndex: displayed.length - i },
+                    ]}
+                >
+                    <Avatar source={uri} size={AVATAR_SIZE} />
+                </View>
+            ))}
+        </View>
+    );
+}
+
+export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
     const router = useRouter();
     const theme = useTheme();
 
     const handlePress = () => {
         if (onPress) {
             onPress();
+        } else if (feed.id) {
+            router.push(`/feeds/${feed.id}` as any);
         }
     };
+
+    const subtitleParts: string[] = [];
+    if (feed.topicCount && feed.topicCount > 0) {
+        subtitleParts.push(`${feed.topicCount} ${feed.topicCount === 1 ? 'topic' : 'topics'}`);
+    }
+    if (feed.memberCount && feed.memberCount > 0) {
+        subtitleParts.push(`${feed.memberCount} ${feed.memberCount === 1 ? 'profile' : 'profiles'}`);
+    }
+    const subtitle = subtitleParts.join(' \u00B7 ');
 
     return (
         <TouchableOpacity
             onPress={handlePress}
             activeOpacity={0.7}
             style={[
-                styles.outer,
-                {
-                    backgroundColor: theme.colors.card,
-                    borderColor: theme.colors.border,
-                },
+                styles.card,
+                { backgroundColor: theme.colors.backgroundSecondary },
                 style,
-            ]}>
-            <View style={styles.header}>
-                <Avatar
-                    source={feed.avatar || undefined}
-                    size={40}
-                />
-                <View style={styles.titleContainer}>
-                    <ThemedText
-                        style={styles.title}
-                        numberOfLines={1}>
+            ]}
+        >
+            <View style={styles.cardBody}>
+                <View style={styles.cardInfo}>
+                    <ThemedText style={styles.title} numberOfLines={1}>
                         {feed.displayName}
                     </ThemedText>
-                    {feed.creator && (
+                    {subtitle ? (
                         <ThemedText
-                            style={[
-                                styles.byline,
-                                { color: theme.colors.textSecondary },
-                            ]}
-                            numberOfLines={1}>
+                            style={[styles.subtitle, { color: theme.colors.textSecondary }]}
+                            numberOfLines={1}
+                        >
+                            {subtitle}
+                        </ThemedText>
+                    ) : feed.creator ? (
+                        <ThemedText
+                            style={[styles.subtitle, { color: theme.colors.textSecondary }]}
+                            numberOfLines={1}
+                        >
                             Feed by @{feed.creator.username}
                         </ThemedText>
-                    )}
+                    ) : null}
+                    {feed.description ? (
+                        <ThemedText
+                            style={[styles.description, { color: theme.colors.textSecondary }]}
+                            numberOfLines={2}
+                        >
+                            {feed.description}
+                        </ThemedText>
+                    ) : null}
                 </View>
-                {headerRight && (
-                    <View style={styles.headerRight}>
-                        {headerRight}
-                    </View>
-                )}
+                {feed.memberAvatars && feed.memberAvatars.length > 0 ? (
+                    <AvatarStack avatars={feed.memberAvatars} />
+                ) : headerRight ? (
+                    <View>{headerRight}</View>
+                ) : null}
             </View>
-            {feed.description && (
-                <View style={styles.description}>
-                    <ThemedText
-                        style={[
-                            styles.descriptionText,
-                            { color: theme.colors.textSecondary },
-                        ]}
-                        numberOfLines={3}>
-                        {feed.description}
-                    </ThemedText>
-                </View>
-            )}
-            {feed.likeCount !== undefined && feed.likeCount > 0 && (
-                <View style={styles.likes}>
-                    <ThemedText
-                        style={[
-                            styles.likesText,
-                            { color: theme.colors.textSecondary },
-                        ]}>
-                        Liked by {feed.likeCount} {feed.likeCount === 1 ? 'user' : 'users'}
-                    </ThemedText>
-                </View>
-            )}
         </TouchableOpacity>
     );
 }
 
-/**
- * Outer container
- */
 export function FeedCardOuter({
     children,
     style,
@@ -132,9 +135,6 @@ export function FeedCardOuter({
     return <View style={[styles.outerContainer, style]}>{children}</View>;
 }
 
-/**
- * Header section
- */
 export function FeedCardHeader({
     children,
     style,
@@ -150,47 +150,46 @@ const styles = StyleSheet.create({
         width: '100%',
         gap: 12,
     },
-    outer: {
+    card: {
         width: '100%',
         padding: 16,
-        borderRadius: 12,
-        borderWidth: StyleSheet.hairlineWidth,
-        gap: 12,
+        borderRadius: 16,
+    },
+    cardBody: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+    },
+    cardInfo: {
+        flex: 1,
+        gap: 2,
+    },
+    title: {
+        fontSize: 16,
+        fontWeight: '700',
+        lineHeight: 22,
+    },
+    subtitle: {
+        fontSize: 14,
+        lineHeight: 18,
+    },
+    description: {
+        fontSize: 14,
+        lineHeight: 20,
+        marginTop: 2,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
     },
-    titleContainer: {
-        flex: 1,
-        gap: 4,
+    avatarStack: {
+        position: 'relative',
     },
-    title: {
-        fontSize: 16,
-        fontWeight: '600',
-        lineHeight: 20,
-    },
-    byline: {
-        fontSize: 14,
-        lineHeight: 18,
-    },
-    description: {
-        marginTop: 4,
-    },
-    descriptionText: {
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    likes: {
-        marginTop: 4,
-    },
-    likesText: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    headerRight: {
-        alignItems: 'flex-end',
+    avatarWrapper: {
+        position: 'absolute',
+        top: 0,
+        borderRadius: AVATAR_SIZE / 2,
+        overflow: 'hidden',
     },
 });
-

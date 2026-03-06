@@ -9,12 +9,13 @@ const UsernameLayout = () => {
     
     // Determine tab from the current pathname
     // pathname will be like '/@username' or '/@username/media'
-    const getTabFromPathname = (): 'posts' | 'replies' | 'media' | 'videos' | 'likes' | 'reposts' => {
+    const getTabFromPathname = (): 'posts' | 'replies' | 'media' | 'videos' | 'likes' | 'reposts' | 'feeds' => {
         if (pathname?.endsWith('/media')) return 'media';
         if (pathname?.endsWith('/videos')) return 'videos';
         if (pathname?.endsWith('/replies')) return 'replies';
         if (pathname?.endsWith('/likes')) return 'likes';
         if (pathname?.endsWith('/reposts')) return 'reposts';
+        if (pathname?.endsWith('/feeds')) return 'feeds';
         return 'posts'; // Default to posts
     };
 

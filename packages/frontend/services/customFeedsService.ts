@@ -1,7 +1,7 @@
 import { authenticatedClient } from '@/utils/api';
 
 class CustomFeedsService {
-  async list(params?: { mine?: boolean; publicOnly?: boolean; search?: string }): Promise<{ items: any[]; total: number }> {
+  async list(params?: { mine?: boolean; publicOnly?: boolean; search?: string; userId?: string }): Promise<{ items: any[]; total: number }> {
     const res = await authenticatedClient.get('/feeds', { params });
     return res.data;
     }
