@@ -5,7 +5,6 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import Feed from '@/components/Feed/Feed';
 import { useAuth } from '@oxyhq/services';
@@ -18,6 +17,7 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, interpolate } from 'react-native-reanimated';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
+import { Bell } from '@/assets/icons/bell-icon';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 
@@ -306,7 +306,7 @@ const HomeScreen: React.FC = () => {
                                         key="notifications"
                                         onPress={() => router.push('/notifications')}
                                     >
-                                        <Ionicons name="notifications-outline" size={20} color={theme.colors.text} />
+                                        <Bell size={20} color={theme.colors.text} />
                                     </IconButton>
                                 ]
                             }}

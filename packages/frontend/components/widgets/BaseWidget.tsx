@@ -37,30 +37,32 @@ export function BaseWidget({ title, icon, children, noPadding = false }: BaseWid
 
 const styles = StyleSheet.create({
     widgetContainer: {
-        borderRadius: 15,
+        borderRadius: 16,
         overflow: 'hidden',
         pointerEvents: 'auto',
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
     },
     widgetHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingBottom: 12,
-        borderBottomWidth: 0.5,
-        margin: 15,
-        marginBottom: 6,
+        paddingBottom: 10,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        marginHorizontal: 12,
+        marginTop: 12,
+        marginBottom: 0,
     },
     widgetTitle: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: 'bold',
     },
     widgetContent: {
-        padding: 15,
+        paddingHorizontal: 12,
         paddingTop: 0,
+        paddingBottom: 8,
     },
     noPadding: {
-        padding: 0,
-        paddingBottom: 10,
+        paddingHorizontal: 0,
+        paddingBottom: 6,
     },
 });

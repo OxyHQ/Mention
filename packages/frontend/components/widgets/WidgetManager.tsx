@@ -116,9 +116,9 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
 const styles = StyleSheet.create({
     container: {
         flexDirection: 'column',
-        gap: 15,
+        gap: 12,
     },
     widgetWrapper: {
-        marginBottom: 0, // No margin since we're using gap
+        marginBottom: 0,
     },
 });
