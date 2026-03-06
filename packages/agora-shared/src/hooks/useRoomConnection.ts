@@ -32,7 +32,7 @@ export function useRoomConnection({
   roomId,
   enabled = true,
 }: UseRoomConnectionOptions): UseRoomConnectionReturn {
-  const { user, isAuthenticated, oxyServices } = useAuth();
+  const { user, isAuthenticated, isReady, oxyServices } = useAuth();
   const { roomSocketService, introSound } = useAgoraConfig();
   const userId = user?.id;
 
@@ -50,12 +50,13 @@ export function useRoomConnection({
   const myRole = myParticipant?.role ?? null;
 
   useEffect(() => {
-    if (!enabled || !isAuthenticated || !userId) return;
+    if (!enabled || !isAuthenticated || !isReady || !userId) return;
     const token = oxyServices?.getAccessToken() ?? undefined;
+    if (!token) return;
     roomSocketService.connect(userId, token);
     const interval = setInterval(() => { setIsConnected(roomSocketService.isConnected); }, 500);
     return () => { clearInterval(interval); };
-  }, [enabled, isAuthenticated, userId, roomSocketService, oxyServices]);
+  }, [enabled, isAuthenticated, isReady, userId, roomSocketService, oxyServices]);
 
   useEffect(() => {
     if (!enabled) return;
