@@ -6,13 +6,11 @@ const monorepoRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// Explicitly set projectRoot
 config.projectRoot = projectRoot;
 
-// Watch the frontend package and shared agora package
+// Include monorepo root so Metro can resolve hoisted dependencies in root node_modules/
 config.watchFolders = [
-  projectRoot,
-  path.resolve(monorepoRoot, 'packages/agora-shared'),
+  monorepoRoot,
 ];
 
 // Helper to create block patterns
@@ -24,49 +22,40 @@ const blockPath = (dir) => {
 config.resolver = {
   ...config.resolver,
   blockList: [
-    // Block specific packages we don't need
     blockPath(path.join(monorepoRoot, 'packages/backend')),
     blockPath(path.join(monorepoRoot, 'packages/shared-types/src')),
     blockPath(path.join(monorepoRoot, 'docs')),
-    // Block ALL generated/cache directories - these cause infinite loops
     /\.expo\/.*/,
     /\.expo-shared\/.*/,
     /\.metro\/.*/,
     /\.cache\/.*/,
     /node_modules\/\.cache\/.*/,
     /\.tsbuildinfo$/,
-    // Block .expo/types specifically to avoid infinite loops with typedRoutes
     /.*\.expo\/types\/.*/,
-    // Block test files
     /__tests__\/.*/,
     /\.test\.(js|ts|tsx|jsx)$/,
     /\.spec\.(js|ts|tsx|jsx)$/,
-    // Block documentation files
     /\.md$/,
     /README/,
-    // Block source maps in production (they can be large)
     /\.map$/,
   ],
   extraNodeModules: {
     '@mention/shared-types': path.join(monorepoRoot, 'packages/shared-types'),
     '@mention/agora-shared': path.join(monorepoRoot, 'packages/agora-shared'),
   },
-  // Resolve from frontend node_modules first, then root (for workspaces)
+  // Resolve from frontend node_modules first, then monorepo root (for hoisted deps)
   nodeModulesPaths: [
     path.join(projectRoot, 'node_modules'),
     path.join(monorepoRoot, 'node_modules'),
   ],
-  // Disable symlink following to prevent circular dependencies
-  unstable_enableSymlinks: false,
-  // Enable tree shaking by using source extensions
+  // Enable symlinks for npm workspace resolution
+  unstable_enableSymlinks: true,
   sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
   assetExts: config.resolver.assetExts.filter((ext) => ext !== 'svg'),
 };
 
-// Optimize transformer for better tree shaking
 config.transformer = {
   ...config.transformer,
-  // Enable minification in production
   minifierConfig: {
     ...config.transformer?.minifierConfig,
     keep_classnames: false,
@@ -85,15 +74,14 @@ config.transformer = {
     },
     toplevel: false,
     compress: {
-      // Optimize compression
       arguments: true,
       dead_code: true,
-      drop_console: false, // Keep console in development
+      drop_console: false,
       drop_debugger: true,
       ecma: 2020,
       evaluate: true,
       inline: 1,
-      passes: 3, // Multiple passes for better optimization
+      passes: 3,
       reduce_funcs: true,
       reduce_vars: true,
       unsafe: false,
@@ -105,4 +93,3 @@ config.transformer = {
 };
 
 module.exports = config;
-
