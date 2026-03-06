@@ -56,27 +56,27 @@ export const AppProviders = memo(function AppProviders({
           >
             <I18nextProvider i18n={i18n}>
               <BottomSheetModalProvider>
-                <BottomSheetProvider>
-                  <AgoraProvider config={agoraConfig}>
+                <AgoraProvider config={agoraConfig}>
                   <LiveRoomProvider>
-                    <MenuProvider>
-                      <ErrorBoundary>
-                        <LayoutScrollProvider>
-                        <HomeRefreshProvider>
-                          {children}
-                          <StatusBar style="auto" />
-                          <Toaster
-                            position="bottom-center"
-                            swipeToDismissDirection="left"
-                            offset={15}
-                          />
-                        </HomeRefreshProvider>
-                        </LayoutScrollProvider>
-                      </ErrorBoundary>
-                    </MenuProvider>
+                    <BottomSheetProvider>
+                      <MenuProvider>
+                        <ErrorBoundary>
+                          <LayoutScrollProvider>
+                            <HomeRefreshProvider>
+                              {children}
+                              <StatusBar style="auto" />
+                              <Toaster
+                                position="bottom-center"
+                                swipeToDismissDirection="left"
+                                offset={15}
+                              />
+                            </HomeRefreshProvider>
+                          </LayoutScrollProvider>
+                        </ErrorBoundary>
+                      </MenuProvider>
+                    </BottomSheetProvider>
                   </LiveRoomProvider>
-                  </AgoraProvider>
-                </BottomSheetProvider>
+                </AgoraProvider>
               </BottomSheetModalProvider>
             </I18nextProvider>
           </OxyProvider>
