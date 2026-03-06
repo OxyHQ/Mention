@@ -50,6 +50,9 @@ config.resolver = {
   extraNodeModules: {
     '@mention/shared-types': path.join(monorepoRoot, 'packages/shared-types'),
     '@mention/agora-shared': path.join(monorepoRoot, 'packages/agora-shared'),
+    // NativeWind's babel plugin rewrites JSX imports to react-native-css-interop/jsx-runtime.
+    // In monorepo deployments, it may be hoisted to root — ensure Metro can find it.
+    'react-native-css-interop': path.join(monorepoRoot, 'node_modules/react-native-css-interop'),
   },
   // Resolve from frontend node_modules first, then root (for workspaces)
   nodeModulesPaths: [
