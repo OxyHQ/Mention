@@ -11,18 +11,17 @@ let socket: Socket | null = null;
  * Hook for real-time notification updates via WebSocket
  */
 export const useRealtimeNotifications = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, oxyServices } = useAuth();
   const queryClient = useQueryClient();
 
   const connectSocket = useCallback(() => {
     if (!isAuthenticated || !user?.id || socket?.connected) return;
 
     try {
+      const token = oxyServices?.getAccessToken() ?? undefined;
       // Connect to backend notifications namespace
       socket = io(`${API_URL_SOCKET}/notifications`, {
-        auth: {
-          userId: user.id,
-        },
+        auth: token ? { token, userId: user.id } : { userId: user.id },
         transports: ['websocket', 'polling'],
         path: '/socket.io',
       });
