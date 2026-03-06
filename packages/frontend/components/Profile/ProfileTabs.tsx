@@ -88,17 +88,9 @@ export const ProfileTabs = memo(function ProfileTabs({
     <View>
       {/* Pinned post - only show on posts tab */}
       {tab === 'posts' && pinnedPost && (
-        <View>
-          <View style={[styles.pinnedLabel, { borderBottomColor: theme.colors.border }]}>
-            <Ionicons name="pin" size={14} color={theme.colors.textSecondary} />
-            <Text style={[styles.pinnedLabelText, { color: theme.colors.textSecondary }]}>
-              {t('profile.pinnedPost', { defaultValue: 'Pinned' })}
-            </Text>
-          </View>
-          <React.Suspense fallback={null}>
-            <PinnedPostItem post={pinnedPost} />
-          </React.Suspense>
-        </View>
+        <React.Suspense fallback={null}>
+          <PinnedPostItem post={pinnedPost} showPinned />
+        </React.Suspense>
       )}
       <Feed
         type={tab as FeedType}
@@ -133,17 +125,5 @@ const styles = StyleSheet.create({
   },
   feedContent: {
     paddingBottom: 100,
-  },
-  pinnedLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  pinnedLabelText: {
-    fontSize: 13,
-    fontWeight: '600',
   },
 });

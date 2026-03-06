@@ -40,6 +40,7 @@ type PostEntity = HydratedPost & {
 interface PostItemProps {
     post: PostEntity;
     isNested?: boolean;
+    showPinned?: boolean;
     style?: object;
     onReply?: () => void;
     nestingDepth?: number;
@@ -48,6 +49,7 @@ interface PostItemProps {
 const PostItem: React.FC<PostItemProps> = ({
     post,
     isNested = false,
+    showPinned = false,
     style,
     onReply,
     nestingDepth = 0,
@@ -357,6 +359,16 @@ const PostItem: React.FC<PostItemProps> = ({
                 accessibilityRole={isPostDetail ? undefined : 'button'}
                 {...(isPostDetail ? {} : { onPress: goToPost })}
             >
+                {showPinned && (
+                    <View style={[styles.pinnedIndicator, { paddingLeft: HPAD }]}>
+                        <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
+                            <Ionicons name="pin" size={14} color={theme.colors.textSecondary} />
+                        </View>
+                        <Text style={[styles.pinnedText, { color: theme.colors.textSecondary }]}>
+                            {t('post.pinned', { defaultValue: 'Pinned' })}
+                        </Text>
+                    </View>
+                )}
                 <PostHeader
                     user={{
                         name: viewPost.user.name || viewPost.user.displayName || '',
@@ -539,6 +551,15 @@ const styles = StyleSheet.create({
     postContainer: {
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: 'rgba(0,0,0,0.08)',
+    },
+    pinnedIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 2,
+    },
+    pinnedText: {
+        fontSize: 13,
+        fontWeight: '600',
     },
     nestedPostContainer: {
         borderWidth: StyleSheet.hairlineWidth,
