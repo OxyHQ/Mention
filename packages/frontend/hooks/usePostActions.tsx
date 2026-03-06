@@ -14,7 +14,7 @@ import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { TrashIcon } from '@/assets/icons/trash-icon';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { LinkIcon } from '@/assets/icons/link-icon';
-import { UnpinIcon } from '@/assets/icons/pin-icon';
+import { PinIcon, UnpinIcon } from '@/assets/icons/pin-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
@@ -159,15 +159,17 @@ export function usePostActions({
             }
         }
 
-        if (isOwner && isPinned) {
+        if (isOwner) {
             saveActionGroup.push({
-                icon: <UnpinIcon size={20} color={theme.colors.textSecondary} />,
-                text: "Unpin",
+                icon: isPinned
+                    ? <UnpinIcon size={20} color={theme.colors.textSecondary} />
+                    : <PinIcon size={20} color={theme.colors.textSecondary} />,
+                text: isPinned ? "Unpin from profile" : "Pin to your profile",
                 onPress: async () => {
                     try {
-                        await feedService.updatePostSettings(postId, { isPinned: false });
+                        await feedService.updatePostSettings(postId, { isPinned: !isPinned });
                     } catch (e) {
-                        Alert.alert('Error', 'Failed to unpin post');
+                        Alert.alert('Error', isPinned ? 'Failed to unpin post' : 'Failed to pin post');
                     }
                     bottomSheet.openBottomSheet(false);
                 }
