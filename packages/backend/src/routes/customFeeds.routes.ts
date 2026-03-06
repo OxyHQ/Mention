@@ -257,6 +257,29 @@ router.get('/:id', validateObjectId('id'), async (req: any, res) => {
       }
     }
     
+    // Resolve member profiles (cap at 50 for payload size)
+    const memberIds = (feed.memberOxyUserIds || []).slice(0, 50);
+    const members: { id: string; username: string; displayName: string; avatar?: string }[] = [];
+    if (memberIds.length > 0) {
+      await Promise.all(
+        memberIds.map(async (memberId: string) => {
+          try {
+            const userData = await oxyClient.getUserById(memberId);
+            members.push({
+              id: userData?.id || memberId,
+              username: userData?.username || userData?.handle || memberId,
+              displayName: userData?.name?.full || userData?.displayName || userData?.username || memberId,
+              avatar: resolveAvatar(userData),
+            });
+          } catch {
+            members.push({ id: memberId, username: memberId, displayName: memberId, avatar: undefined });
+          }
+        })
+      );
+    }
+
+    const memberAvatars = members.slice(0, 4).map(m => m.avatar).filter(Boolean);
+
     // Normalize _id to id for frontend consistency
     const normalizedFeed = {
       ...feed,
@@ -264,6 +287,10 @@ router.get('/:id', validateObjectId('id'), async (req: any, res) => {
       likeCount,
       isLiked,
       owner,
+      members,
+      memberAvatars,
+      memberCount: (feed.memberOxyUserIds || []).length,
+      topicCount: (feed.keywords || []).length,
     };
     res.json(normalizedFeed);
   } catch (error) {
