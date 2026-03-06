@@ -75,12 +75,14 @@ export class UserPreferenceService {
       const weight = this.LEARNING_WEIGHTS[interactionType] || 0;
 
       // Update author preference
-      this.updateAuthorPreference(
-        userBehavior,
-        post.oxyUserId,
-        interactionType,
-        weight
-      );
+      if (post.oxyUserId) {
+        this.updateAuthorPreference(
+          userBehavior,
+          post.oxyUserId,
+          interactionType,
+          weight
+        );
+      }
 
       // Update topic preferences
       if (post.hashtags && post.hashtags.length > 0) {

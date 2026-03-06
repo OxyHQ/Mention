@@ -33,7 +33,7 @@ async function testUserBehavior() {
 
     // Test: Create/update UserBehavior by recording an interaction
     console.log(`\n🔄 Testing recordInteraction...`);
-    await userPreferenceService.recordInteraction(testUserId, samplePost._id.toString(), 'like');
+    await userPreferenceService.recordInteraction(testUserId!, samplePost._id.toString(), 'like');
     console.log(`✅ recordInteraction completed`);
 
     // Check if UserBehavior was created

@@ -35,7 +35,7 @@ export function validateQuery<T extends z.ZodType>(schema: T) {
       sendError(res, ErrorCodes.VALIDATION_ERROR, message, 400);
       return;
     }
-    req.query = result.data;
+    req.query = result.data as typeof req.query;
     next();
   };
 }
