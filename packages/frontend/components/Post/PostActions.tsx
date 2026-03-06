@@ -1,14 +1,14 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { colors } from '../../styles/colors';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
 import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
-import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
-import AnimatedNumber from '../common/AnimatedNumber';
 import { useTheme } from '@/hooks/useTheme';
+import { formatCompactNumber } from '@/utils/formatNumber';
+
+const ICON_SIZE = 20;
 
 interface Engagement {
   replies: number | null;
@@ -32,159 +32,102 @@ interface Props {
   onRepostsPress?: () => void;
   onInsightsPress?: () => void;
   postId?: string;
-  hideLikeCounts?: boolean;
-  hideShareCounts?: boolean;
-  hideReplyCounts?: boolean;
-  hideSaveCounts?: boolean;
 }
 
 const PostActions: React.FC<Props> = ({
   engagement,
   isLiked,
   isReposted,
-  isSaved,
   onReply,
   onRepost,
   onLike,
-  onSave,
   onShare,
   onLikesPress,
   onRepostsPress,
   onInsightsPress,
-  postId,
-  hideLikeCounts = false,
-  hideShareCounts = false,
-  hideReplyCounts = false,
-  hideSaveCounts = false,
 }) => {
   const theme = useTheme();
 
-  const handleLikesPress = () => {
-    if (onLikesPress && engagement?.likes > 0) {
-      onLikesPress();
-    } else {
-      onLike();
-    }
-  };
+  const replies = engagement?.replies ?? 0;
+  const likes = engagement?.likes ?? 0;
+  const reposts = engagement?.reposts ?? 0;
 
-  const handleRepostsPress = () => {
-    if (onRepostsPress && engagement?.reposts > 0) {
-      onRepostsPress();
-    } else {
-      onRepost();
-    }
-  };
-
-  const formatViewCount = (count: number): string => {
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return String(count);
-  };
+  // Build summary parts like Threads: "X replies · Y likes"
+  const summaryParts: string[] = [];
+  if (replies > 0) summaryParts.push(`${formatCompactNumber(replies)} ${replies === 1 ? 'reply' : 'replies'}`);
+  if (likes > 0) summaryParts.push(`${formatCompactNumber(likes)} ${likes === 1 ? 'like' : 'likes'}`);
 
   return (
-    <View style={styles.postEngagement}>
-      {/* Heart (like) */}
-      <View style={styles.engagementButton}>
+    <View>
+      {/* Icon row — Threads style: icon-only, left-aligned */}
+      <View style={styles.iconRow}>
         <TouchableOpacity
+          style={styles.iconButton}
           onPress={onLike}
           accessibilityRole="button"
           accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
-          accessibilityHint="Double tap to toggle like"
         >
           {isLiked ? (
-            <HeartIconActive size={18} color={theme.colors.error} />
+            <HeartIconActive size={ICON_SIZE} color={theme.colors.error} />
           ) : (
-            <HeartIcon size={18} color={theme.colors.textSecondary} />
+            <HeartIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
           )}
         </TouchableOpacity>
-        {!hideLikeCounts && engagement?.likes !== null && (
-          <TouchableOpacity onPress={handleLikesPress} style={styles.countButton}>
-            <AnimatedNumber
-              value={engagement?.likes ?? 0}
-              style={[styles.engagementText, { color: theme.colors.textSecondary }, isLiked && { color: theme.colors.error }]}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      {/* Reply (comment) */}
-      <TouchableOpacity
-        style={styles.engagementButton}
-        onPress={onReply}
-        accessibilityRole="button"
-        accessibilityLabel="Reply"
-        accessibilityHint="Double tap to reply to this post"
-      >
-        <CommentIcon size={18} color={theme.colors.textSecondary} />
-        {!hideReplyCounts && engagement?.replies !== null && (
-          <AnimatedNumber
-            value={engagement?.replies ?? 0}
-            style={[styles.engagementText, { color: theme.colors.textSecondary }]}
-          />
-        )}
-      </TouchableOpacity>
-
-      {/* Repost */}
-      <View style={styles.engagementButton}>
         <TouchableOpacity
+          style={styles.iconButton}
+          onPress={onReply}
+          accessibilityRole="button"
+          accessibilityLabel="Reply"
+        >
+          <CommentIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.iconButton}
           onPress={onRepost}
           accessibilityRole="button"
           accessibilityLabel={isReposted ? 'Undo repost' : 'Repost'}
-          accessibilityHint="Double tap to toggle repost"
         >
           {isReposted ? (
-            <RepostIconActive size={18} color={theme.colors.success} />
+            <RepostIconActive size={ICON_SIZE} color={theme.colors.success} />
           ) : (
-            <RepostIcon size={18} color={theme.colors.textSecondary} />
+            <RepostIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
           )}
         </TouchableOpacity>
-        {!hideShareCounts && engagement?.reposts !== null && (
-          <TouchableOpacity onPress={handleRepostsPress} style={styles.countButton}>
-            <AnimatedNumber
-              value={engagement?.reposts ?? 0}
-              style={[styles.engagementText, { color: theme.colors.textSecondary }, isReposted && { color: theme.colors.success }]}
-            />
+
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={onShare}
+          accessibilityRole="button"
+          accessibilityLabel="Share"
+        >
+          <ShareIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+
+        {onInsightsPress && (
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={onInsightsPress}
+            accessibilityRole="button"
+            accessibilityLabel="Insights"
+          >
+            <AnalyticsIcon size={ICON_SIZE} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Share */}
-      <TouchableOpacity
-        style={styles.engagementButton}
-        onPress={onShare}
-        accessibilityRole="button"
-        accessibilityLabel="Share"
-        accessibilityHint="Double tap to share this post"
-      >
-        <ShareIcon size={18} color={theme.colors.textSecondary} />
-      </TouchableOpacity>
-
-      {/* Save */}
-      {!hideSaveCounts && (
+      {/* Engagement summary — Threads style: "X replies · Y likes" */}
+      {summaryParts.length > 0 && (
         <TouchableOpacity
-          style={styles.engagementButton}
-          onPress={onSave}
-          accessibilityRole="button"
-          accessibilityLabel={isSaved ? 'Unsave' : 'Save'}
-          accessibilityHint="Double tap to toggle save"
+          style={styles.summaryRow}
+          onPress={likes > 0 ? (onLikesPress ?? undefined) : undefined}
+          activeOpacity={0.6}
+          disabled={!onLikesPress && !onRepostsPress}
         >
-          {isSaved ? (
-            <BookmarkActive size={18} color={theme.colors.primary} />
-          ) : (
-            <Bookmark size={18} color={theme.colors.textSecondary} />
-          )}
-        </TouchableOpacity>
-      )}
-
-      {/* Insights */}
-      {onInsightsPress && (
-        <TouchableOpacity style={styles.engagementButton} onPress={onInsightsPress}>
-          <AnalyticsIcon size={18} color={theme.colors.textSecondary} />
-          {engagement?.views != null && engagement.views > 0 && (
-            <Text style={[styles.engagementText, { color: theme.colors.textSecondary }]}>
-              {formatViewCount(engagement.views)}
-            </Text>
-          )}
+          <Text style={[styles.summaryText, { color: theme.colors.textSecondary }]}>
+            {summaryParts.join(' · ')}
+          </Text>
         </TouchableOpacity>
       )}
     </View>
@@ -194,23 +137,18 @@ const PostActions: React.FC<Props> = ({
 export default PostActions;
 
 const styles = StyleSheet.create({
-  postEngagement: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  engagementButton: {
+  iconRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 18,
   },
-  countButton: {
-    marginLeft: 4,
+  iconButton: {
+    padding: 2,
   },
-  engagementText: {
+  summaryRow: {
+    marginTop: 6,
+  },
+  summaryText: {
     fontSize: 13,
-    marginLeft: 4,
-  },
-  activeEngagementText: {
-  },
-  activeLikeText: {
   },
 });

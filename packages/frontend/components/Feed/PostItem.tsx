@@ -308,11 +308,6 @@ const PostItem: React.FC<PostItemProps> = ({
         impressions: null,
     };
 
-    const hideLikeCounts = engagement.likes === null;
-    const hideShareCounts = engagement.reposts === null;
-    const hideReplyCounts = engagement.replies === null;
-    const hideSaveCounts = engagement.saves === null;
-
     const SPACING = 12; // Unified spacing for consistent padding/gaps
     const HPAD = SPACING;
     const VPAD = SPACING;
@@ -535,10 +530,6 @@ const PostItem: React.FC<PostItemProps> = ({
                                 );
                                 bottomSheet.openBottomSheet(true);
                             } : undefined}
-                            hideLikeCounts={hideLikeCounts}
-                            hideShareCounts={hideShareCounts}
-                            hideReplyCounts={hideReplyCounts}
-                            hideSaveCounts={hideSaveCounts}
                         />
                     </View>
                 )}
