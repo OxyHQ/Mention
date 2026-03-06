@@ -1,4 +1,4 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Feed } from '@/components/Feed/index';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
-import { FeedCard } from '@/components/FeedCard';
+import { FeedCard, type FeedCardData } from '@/components/FeedCard';
 import { feedService } from '@/services/feedService';
 import { customFeedsService } from '@/services/customFeedsService';
 import type { FeedType } from '@mention/shared-types';
@@ -115,17 +115,37 @@ export const ProfileTabs = memo(function ProfileTabs({
   );
 });
 
-function ProfileFeeds({ profileId, isOwnProfile }: { profileId?: string; isOwnProfile: boolean }) {
+interface ProfileFeedItem {
+  id?: string;
+  _id?: string;
+  title?: string;
+  description?: string;
+  memberCount?: number;
+  topicCount?: number;
+  memberOxyUserIds?: string[];
+  keywords?: string[];
+  memberAvatars?: string[];
+  owner?: { username: string; displayName?: string; avatar?: string };
+  likeCount?: number;
+}
+
+const ProfileFeeds = memo(function ProfileFeeds({
+  profileId,
+  isOwnProfile,
+}: {
+  profileId?: string;
+  isOwnProfile: boolean;
+}) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [feeds, setFeeds] = useState<any[]>([]);
+  const [feeds, setFeeds] = useState<ProfileFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!profileId) return;
     let cancelled = false;
 
-    (async () => {
+    const fetchFeeds = async () => {
       try {
         const params = isOwnProfile
           ? { mine: true }
@@ -137,7 +157,8 @@ function ProfileFeeds({ profileId, isOwnProfile }: { profileId?: string; isOwnPr
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
+    fetchFeeds();
 
     return () => { cancelled = true; };
   }, [profileId, isOwnProfile]);
@@ -180,7 +201,7 @@ function ProfileFeeds({ profileId, isOwnProfile }: { profileId?: string; isOwnPr
       ))}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   privateContainer: {

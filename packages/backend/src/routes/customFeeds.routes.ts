@@ -14,6 +14,12 @@ interface AuthRequest extends Request {
 
 const router = Router();
 
+function resolveAvatar(userData: any): string | undefined {
+  if (!userData) return undefined;
+  if (typeof userData.avatar === 'string') return userData.avatar;
+  return (userData.avatar as any)?.url || userData.profileImage || undefined;
+}
+
 // Create a new custom feed
 router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) => {
   try {
@@ -138,9 +144,7 @@ router.get('/', async (req: any, res) => {
               username: ownerData?.username || ownerData?.handle || ownerId,
               handle: ownerData?.username || ownerData?.handle || ownerId,
               displayName: ownerData?.name?.full || ownerData?.displayName || ownerData?.username || ownerId,
-              avatar: typeof ownerData?.avatar === 'string' 
-                ? ownerData.avatar 
-                : (ownerData?.avatar as any)?.url || ownerData?.profileImage || undefined,
+              avatar: resolveAvatar(ownerData),
             });
           } catch (error) {
             logger.warn(`[CustomFeeds] Failed to fetch owner ${ownerId}:`, error);
@@ -165,12 +169,15 @@ router.get('/', async (req: any, res) => {
     if (allMemberIds.size > 0) {
       await Promise.all(
         Array.from(allMemberIds).map(async (memberId) => {
+          // Reuse already-fetched owner data to avoid redundant API calls
+          const cached = ownersMap.get(memberId);
+          if (cached) {
+            memberAvatarsMap.set(memberId, cached.avatar);
+            return;
+          }
           try {
             const userData = await oxyClient.getUserById(memberId);
-            const avatar = typeof userData?.avatar === 'string'
-              ? userData.avatar
-              : (userData?.avatar as any)?.url || userData?.profileImage || undefined;
-            memberAvatarsMap.set(memberId, avatar);
+            memberAvatarsMap.set(memberId, resolveAvatar(userData));
           } catch {
             memberAvatarsMap.set(memberId, undefined);
           }
@@ -235,9 +242,7 @@ router.get('/:id', validateObjectId('id'), async (req: any, res) => {
           username: ownerData?.username || ownerData?.handle || feed.ownerOxyUserId,
           handle: ownerData?.username || ownerData?.handle || feed.ownerOxyUserId,
           displayName: ownerData?.name?.full || ownerData?.displayName || ownerData?.username || feed.ownerOxyUserId,
-          avatar: typeof ownerData?.avatar === 'string' 
-            ? ownerData.avatar 
-            : (ownerData?.avatar as any)?.url || ownerData?.profileImage || undefined,
+          avatar: resolveAvatar(ownerData),
         };
       } catch (error) {
         logger.warn('[CustomFeeds] Failed to fetch owner info:', error);

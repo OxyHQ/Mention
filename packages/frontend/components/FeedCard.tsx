@@ -1,13 +1,12 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
 
 export interface FeedCardData {
     id: string;
-    uri?: string;
     displayName: string;
     description?: string;
     avatar?: string | null;
@@ -17,7 +16,6 @@ export interface FeedCardData {
         avatar?: string;
     };
     likeCount?: number;
-    subscriberCount?: number;
     memberCount?: number;
     topicCount?: number;
     memberAvatars?: string[];
@@ -33,7 +31,7 @@ interface FeedCardProps {
 const AVATAR_SIZE = 28;
 const AVATAR_OVERLAP = 8;
 
-function AvatarStack({ avatars }: { avatars: string[] }) {
+const AvatarStack = React.memo(function AvatarStack({ avatars }: { avatars: string[] }) {
     if (!avatars.length) return null;
     const displayed = avatars.slice(0, 3);
     const stackWidth = AVATAR_SIZE + (displayed.length - 1) * (AVATAR_SIZE - AVATAR_OVERLAP);
@@ -42,7 +40,7 @@ function AvatarStack({ avatars }: { avatars: string[] }) {
         <View style={[styles.avatarStack, { width: stackWidth, height: AVATAR_SIZE }]}>
             {displayed.map((uri, i) => (
                 <View
-                    key={i}
+                    key={uri}
                     style={[
                         styles.avatarWrapper,
                         { left: i * (AVATAR_SIZE - AVATAR_OVERLAP), zIndex: displayed.length - i },
@@ -53,28 +51,29 @@ function AvatarStack({ avatars }: { avatars: string[] }) {
             ))}
         </View>
     );
-}
+});
 
 export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
-    const router = useRouter();
     const theme = useTheme();
 
-    const handlePress = () => {
+    const handlePress = useCallback(() => {
         if (onPress) {
             onPress();
         } else if (feed.id) {
             router.push(`/feeds/${feed.id}` as any);
         }
-    };
+    }, [onPress, feed.id]);
 
-    const subtitleParts: string[] = [];
-    if (feed.topicCount && feed.topicCount > 0) {
-        subtitleParts.push(`${feed.topicCount} ${feed.topicCount === 1 ? 'topic' : 'topics'}`);
-    }
-    if (feed.memberCount && feed.memberCount > 0) {
-        subtitleParts.push(`${feed.memberCount} ${feed.memberCount === 1 ? 'profile' : 'profiles'}`);
-    }
-    const subtitle = subtitleParts.join(' \u00B7 ');
+    const subtitle = useMemo(() => {
+        const parts: string[] = [];
+        if (feed.topicCount && feed.topicCount > 0) {
+            parts.push(`${feed.topicCount} ${feed.topicCount === 1 ? 'topic' : 'topics'}`);
+        }
+        if (feed.memberCount && feed.memberCount > 0) {
+            parts.push(`${feed.memberCount} ${feed.memberCount === 1 ? 'profile' : 'profiles'}`);
+        }
+        return parts.join(' \u00B7 ');
+    }, [feed.topicCount, feed.memberCount]);
 
     return (
         <TouchableOpacity
@@ -125,31 +124,7 @@ export function FeedCard({ feed, onPress, headerRight, style }: FeedCardProps) {
     );
 }
 
-export function FeedCardOuter({
-    children,
-    style,
-}: {
-    children: React.ReactNode;
-    style?: ViewStyle;
-}) {
-    return <View style={[styles.outerContainer, style]}>{children}</View>;
-}
-
-export function FeedCardHeader({
-    children,
-    style,
-}: {
-    children: React.ReactNode;
-    style?: ViewStyle;
-}) {
-    return <View style={[styles.header, style]}>{children}</View>;
-}
-
 const styles = StyleSheet.create({
-    outerContainer: {
-        width: '100%',
-        gap: 12,
-    },
     card: {
         width: '100%',
         padding: 16,
@@ -177,11 +152,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         lineHeight: 20,
         marginTop: 2,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
     },
     avatarStack: {
         position: 'relative',

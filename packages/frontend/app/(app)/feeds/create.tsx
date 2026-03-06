@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -49,7 +49,13 @@ const CreateFeedScreen: React.FC = () => {
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
   const [listsLoaded, setListsLoaded] = useState(false);
 
-  const searchTimer = useRef<number | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, []);
 
   const doSearch = useCallback(
     (q: string) => {
@@ -59,7 +65,7 @@ const CreateFeedScreen: React.FC = () => {
         setResults([]);
         return;
       }
-      searchTimer.current = window.setTimeout(async () => {
+      searchTimer.current = setTimeout(async () => {
         try {
           const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
           setResults(res as any);
@@ -118,6 +124,22 @@ const CreateFeedScreen: React.FC = () => {
     includeMedia,
     selectedListIds,
   ]);
+
+  const handleLoadLists = useCallback(async () => {
+    if (listsLoaded) {
+      setMyLists([]);
+      setListsLoaded(false);
+      return;
+    }
+    try {
+      const res = await listsService.list({ mine: true });
+      setMyLists(res.items || []);
+      setListsLoaded(true);
+    } catch (e) {
+      console.warn('load my lists failed', e);
+      toast.error('Failed to load lists');
+    }
+  }, [listsLoaded]);
 
   const canCreate = title.trim().length > 0;
 
@@ -267,14 +289,11 @@ const CreateFeedScreen: React.FC = () => {
                       @{u.username}
                     </Text>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => addMember(u)}
-                    style={[styles.addBtn, { borderColor: theme.colors.border }]}
-                  >
+                  <View style={[styles.addBtn, { borderColor: theme.colors.border }]}>
                     <Text style={[styles.addBtnText, { color: theme.colors.text }]}>
                       {t('feeds.create.add', { defaultValue: 'Add' })}
                     </Text>
-                  </TouchableOpacity>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -366,21 +385,7 @@ const CreateFeedScreen: React.FC = () => {
 
             {/* Import from lists */}
             <TouchableOpacity
-              onPress={async () => {
-                if (listsLoaded) {
-                  setMyLists([]);
-                  setListsLoaded(false);
-                  return;
-                }
-                try {
-                  const res = await listsService.list({ mine: true });
-                  setMyLists(res.items || []);
-                  setListsLoaded(true);
-                } catch (e) {
-                  console.warn('load my lists failed', e);
-                  toast.error('Failed to load lists');
-                }
-              }}
+              onPress={handleLoadLists}
               style={styles.toggleRow}
               activeOpacity={0.7}
             >
