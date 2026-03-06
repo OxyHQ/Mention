@@ -3,8 +3,18 @@ import { PostType, PostVisibility, PostContent, PostStats, PostMetadata } from '
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned';
 
+export interface PostFederationData {
+  activityId?: string;   // AP activity URI
+  inReplyTo?: string;    // AP URI of parent post
+  url?: string;          // canonical web URL on remote instance
+  sensitive?: boolean;   // content warning flag
+  spoilerText?: string;  // content warning text
+}
+
 export interface IPost extends Document {
-  oxyUserId: string; // Links to Oxy user
+  oxyUserId?: string; // Links to Oxy user (null for federated posts)
+  federatedActorId?: mongoose.Types.ObjectId; // Ref to FederatedActor (null for local posts)
+  federation?: PostFederationData; // AP metadata (only for federated posts)
   type: PostType;
   content: PostContent;
   visibility: PostVisibility;
@@ -257,8 +267,18 @@ const PostMetadataSchema = new Schema({
   pollId: { type: String }
 });
 
+const FederationSchema = new Schema({
+  activityId: { type: String },
+  inReplyTo: { type: String },
+  url: { type: String },
+  sensitive: { type: Boolean, default: false },
+  spoilerText: { type: String },
+}, { _id: false });
+
 const PostSchema = new Schema<IPost>({
-  oxyUserId: { type: String, required: true, index: true },
+  oxyUserId: { type: String, required: false, index: true },
+  federatedActorId: { type: Schema.Types.ObjectId, ref: 'FederatedActor', default: null, index: { sparse: true } },
+  federation: { type: FederationSchema, default: undefined },
   type: { type: String, enum: Object.values(PostType), default: PostType.TEXT, index: true },
   content: { type: PostContentSchema, required: true },
   visibility: { type: String, enum: Object.values(PostVisibility), default: PostVisibility.PUBLIC, index: true },
@@ -418,6 +438,16 @@ PostSchema.index(
 PostSchema.index(
   { oxyUserId: 1, visibility: 1, parentPostId: 1, repostOf: 1, createdAt: -1 },
   { name: 'following_feed_idx' }
+);
+
+// Federation indexes (sparse — zero overhead for local posts)
+PostSchema.index(
+  { 'federation.activityId': 1 },
+  { unique: true, sparse: true, name: 'federation_activity_id_idx' }
+);
+PostSchema.index(
+  { federatedActorId: 1, createdAt: -1 },
+  { sparse: true, name: 'federated_actor_feed_idx' }
 );
 
 export const Post = mongoose.model<IPost>('Post', PostSchema);

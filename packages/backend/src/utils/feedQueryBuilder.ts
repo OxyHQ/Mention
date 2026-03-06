@@ -269,13 +269,24 @@ export class FeedQueryBuilder {
    */
   static buildFollowingQuery(
     followingIds: string[],
-    cursor?: string
+    cursor?: string,
+    federatedActorIds?: any[],
   ): Record<string, unknown> {
+    const orConditions: Record<string, unknown>[] = [];
+    if (followingIds.length > 0) {
+      orConditions.push({ oxyUserId: { $in: followingIds } });
+    }
+    if (federatedActorIds && federatedActorIds.length > 0) {
+      orConditions.push({ federatedActorId: { $in: federatedActorIds } });
+    }
+
     const query: Record<string, unknown> = {
-      oxyUserId: { $in: followingIds },
+      ...(orConditions.length === 1
+        ? orConditions[0]
+        : { $or: orConditions }),
       visibility: PostVisibility.PUBLIC,
       parentPostId: null,
-      repostOf: null
+      repostOf: null,
     };
 
     const cursorId = parseFeedCursor(cursor);

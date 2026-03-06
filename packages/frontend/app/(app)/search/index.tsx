@@ -17,6 +17,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTheme } from "@/hooks/useTheme";
 import { searchService, SEARCH_OPERATORS } from "@/services/searchService";
+import { federationService } from "@/services/federationService";
 import { Loading } from "@/components/ui/Loading";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
@@ -142,10 +143,30 @@ export default function SearchIndex() {
                 let newResults: LocalSearchResults;
 
                 if (activeTab === "all") {
-                    const allResults = await searchService.searchAll(searchQuery);
+                    // Run regular search and fediverse lookup in parallel
+                    const [allResults, fedResults] = await Promise.all([
+                        searchService.searchAll(searchQuery),
+                        federationService.isFediverseHandle(searchQuery)
+                            ? federationService.searchActors(searchQuery)
+                            : Promise.resolve([]),
+                    ]);
+
+                    // Convert federated actors to user-like objects for display
+                    const fedUsers = fedResults.map((actor: any) => ({
+                        id: actor.actorUri,
+                        username: actor.handle,
+                        name: actor.displayName,
+                        avatar: actor.avatarUrl,
+                        bio: actor.bio?.replace(/<[^>]*>/g, ''),
+                        verified: false,
+                        isFederated: true,
+                        instance: actor.instance,
+                        actorUri: actor.actorUri,
+                    }));
+
                     newResults = {
                         posts: allResults.posts || [],
-                        users: allResults.users || [],
+                        users: [...fedUsers, ...(allResults.users || [])],
                         feeds: allResults.feeds || [],
                         hashtags: allResults.hashtags || [],
                         lists: allResults.lists || [],
@@ -241,16 +262,32 @@ export default function SearchIndex() {
             description: user.bio,
         };
 
+        const handlePress = () => {
+            if (user.isFederated && user.actorUri) {
+                router.push(`/fedi/${encodeURIComponent(user.actorUri)}`);
+            } else {
+                router.push(`/@${username}`);
+            }
+        };
+
         return (
             <View key={user.id || user.username} style={styles.itemWrapper}>
                 <ProfileCard
                     profile={profileData}
-                    onPress={() => router.push(`/@${username}`)}
+                    onPress={handlePress}
                     style={styles.profileCardStyle}
                 />
+                {user.isFederated && user.instance ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 16, marginTop: -8, marginBottom: 8 }}>
+                        <Ionicons name="globe-outline" size={12} color={theme.colors.textSecondary} />
+                        <Text style={{ fontSize: 12, color: theme.colors.textSecondary }}>
+                            {user.instance}
+                        </Text>
+                    </View>
+                ) : null}
             </View>
         );
-    }, []);
+    }, [theme]);
 
     const renderFeedItem = useCallback((feed: any) => {
         const feedData: FeedCardData = {

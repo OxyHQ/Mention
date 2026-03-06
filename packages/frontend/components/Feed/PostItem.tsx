@@ -168,6 +168,10 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [router, viewPostId, isPostDetail]);
 
     const goToUser = useCallback(() => {
+        if (viewPost.user?.isFederated && viewPost.user?.actorUri) {
+            router.push(`/fedi/${encodeURIComponent(viewPost.user.actorUri)}`);
+            return;
+        }
         const handle = viewPost.user?.handle;
         if (handle) {
             router.push(`/@${handle}`);
@@ -177,7 +181,7 @@ const PostItem: React.FC<PostItemProps> = ({
         if (id) {
             router.push(`/${id}`);
         }
-    }, [router, viewPost.user?.handle, viewPost.user?.id]);
+    }, [router, viewPost.user?.handle, viewPost.user?.id, viewPost.user?.isFederated, viewPost.user?.actorUri]);
 
     const handleLike = usePostLike(viewPostId, isLiked);
     const handleSave = usePostSave(viewPostId, isSaved);
@@ -371,6 +375,8 @@ const PostItem: React.FC<PostItemProps> = ({
                         name: viewPost.user.name || viewPost.user.displayName || '',
                         handle: viewPost.user.handle || '',
                         verified: viewPost.user.isVerified,
+                        isFederated: viewPost.user.isFederated,
+                        instance: viewPost.user.instance,
                     }}
                     date={metadata.createdAt}
                     showRepost={Boolean(viewPost.repost) && !isNested}

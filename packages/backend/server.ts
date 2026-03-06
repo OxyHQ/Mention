@@ -66,6 +66,12 @@ import housesRoutes from './src/routes/houses.routes';
 import seriesRoutes from './src/routes/series.routes';
 import adminRoutes from './src/routes/admin';
 
+// Federation (ActivityPub)
+import webfingerRoutes from './src/routes/webfinger.routes';
+import federationRoutes from './src/routes/federation.routes';
+import federationApiRoutes from './src/routes/federation.api.routes';
+import mediaProxyRoutes from './src/routes/mediaProxy.routes';
+
 // Middleware
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
@@ -741,7 +747,7 @@ authenticatedApiRouter.use("/houses", housesRoutes);
 authenticatedApiRouter.use("/series", seriesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
 authenticatedApiRouter.use("/admin", adminRoutes);
-// You can add more protected routers here as needed
+authenticatedApiRouter.use("/federation", federationApiRoutes);
 
 // --- Root API Welcome Route ---
 app.get("", async (req, res) => {
@@ -780,6 +786,11 @@ app.get("/health", async (req, res) => {
     });
   }
 });
+
+// --- Federation routes (ActivityPub protocol — must be public, before auth) ---
+app.use('/.well-known', webfingerRoutes);
+app.use('/ap', federationRoutes);
+app.use('/media', mediaProxyRoutes);
 
 // Mount public and authenticated API routers
 app.use("/", publicApiRouter);
@@ -847,6 +858,15 @@ db.once("open", () => {
     logger.info("Recording cleanup service started");
   } catch (error) {
     logger.warn("Failed to start recording cleanup service", error);
+  }
+
+  // Initialize Federation Job Scheduler
+  try {
+    const { federationJobScheduler } = require("./src/services/FederationJobScheduler");
+    federationJobScheduler.start();
+    logger.info("Federation job scheduler started");
+  } catch (error) {
+    logger.warn("Failed to start federation job scheduler", error);
   }
 });
 

@@ -916,12 +916,31 @@ class FeedController {
       // Only include people the user follows, NOT the user's own posts
       const followingIds = [...new Set(extractFollowingIds(followingRes))];
 
-      if (followingIds.length === 0) {
+      // Get federated following (remote actors the user follows)
+      let federatedActorIds: any[] = [];
+      try {
+        const FederatedFollow = require('../models/FederatedFollow').default;
+        const FederatedActor = require('../models/FederatedActor').default;
+        const fedFollows = await FederatedFollow.find({
+          localUserId: currentUserId,
+          direction: 'outbound',
+          status: 'accepted',
+        }).select('remoteActorUri').lean();
+        if (fedFollows.length > 0) {
+          const actorUris = fedFollows.map((f: any) => f.remoteActorUri);
+          const actors = await FederatedActor.find({ uri: { $in: actorUris } }).select('_id').lean();
+          federatedActorIds = actors.map((a: any) => a._id);
+        }
+      } catch {
+        // Federation models may not exist yet — continue without federated follows
+      }
+
+      if (followingIds.length === 0 && federatedActorIds.length === 0) {
         return res.json(FeedResponseBuilder.buildEmptyResponse());
       }
 
       // Use FeedQueryBuilder for consistent query building
-      const query = FeedQueryBuilder.buildFollowingQuery(followingIds, cursor);
+      const query = FeedQueryBuilder.buildFollowingQuery(followingIds, cursor, federatedActorIds);
 
       let posts = await Post.find(query)
         .select(this.FEED_FIELDS)

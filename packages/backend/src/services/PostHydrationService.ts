@@ -387,52 +387,90 @@ export class PostHydrationService {
   }
 
   private async buildUserMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostActorSummary>> {
-    const userIds = Array.from(new Set(nodes.map(({ post }) => post?.oxyUserId).filter(Boolean))).map((id) =>
-      String(id),
-    );
-
     const userMap = new Map<string, PostActorSummary>();
-    if (userIds.length === 0) {
-      return userMap;
+
+    // Separate local users from federated actors
+    const localUserIds = new Set<string>();
+    const federatedActorIds = new Set<string>();
+
+    for (const { post } of nodes) {
+      if ((post as any)?.federatedActorId) {
+        federatedActorIds.add(String((post as any).federatedActorId));
+      } else if (post?.oxyUserId) {
+        localUserIds.add(String(post.oxyUserId));
+      }
     }
 
-    await Promise.all(
-      userIds.map(async (userId) => {
-        try {
-          const userData: any = await oxyClient.getUserById(userId);
-          const username: string = String(userData?.username || userData?.handle || userId);
-          const displayName: string = String(userData?.name?.full || userData?.displayName || username || userId);
-          const avatarValue: string | undefined = typeof userData?.avatar === 'string'
-            ? userData.avatar
-            : (userData?.avatar as any)?.url || userData?.profileImage || undefined;
-          
-          userMap.set(userId, {
-            id: String(userData?.id || userId),
-            handle: username,
-            displayName: displayName,
-            name: displayName,
-            avatarUrl: avatarValue,
-            avatar: avatarValue,
-            badges: Array.isArray(userData.badges)
-              ? userData.badges.map((badge: any) => (typeof badge === 'string' ? badge : badge?.name)).filter(Boolean)
-              : undefined,
-            isVerified: Boolean(userData.verified || userData.isVerified),
-          });
-        } catch (error) {
-          logger.warn(`[PostHydration] Failed to load user ${userId}:`, error);
-          userMap.set(userId, {
-            id: userId,
-            handle: userId,
-            displayName: 'User',
-            name: 'User',
-            avatarUrl: undefined,
-            avatar: undefined,
+    // Batch-fetch federated actors from local DB (not Oxy)
+    if (federatedActorIds.size > 0) {
+      try {
+        const FederatedActor = require('../models/FederatedActor').default;
+        const actors = await FederatedActor.find({
+          _id: { $in: [...federatedActorIds] },
+        }).lean();
+        for (const actor of actors) {
+          const actorIdStr = String(actor._id);
+          userMap.set(actorIdStr, {
+            id: actorIdStr,
+            handle: actor.username,
+            displayName: actor.displayName || actor.username,
+            name: actor.displayName || actor.username,
+            avatarUrl: actor.avatarUrl,
+            avatar: actor.avatarUrl,
             badges: undefined,
             isVerified: false,
+            isFederated: true,
+            instance: actor.domain,
+            actorUri: actor.uri,
+            profileUrl: actor.uri,
           });
         }
-      }),
-    );
+      } catch {
+        // Federation models may not exist yet
+      }
+    }
+
+    // Fetch local Oxy users (existing logic)
+    const userIds = [...localUserIds];
+    if (userIds.length > 0) {
+      await Promise.all(
+        userIds.map(async (userId) => {
+          try {
+            const userData: any = await oxyClient.getUserById(userId);
+            const username: string = String(userData?.username || userData?.handle || userId);
+            const displayName: string = String(userData?.name?.full || userData?.displayName || username || userId);
+            const avatarValue: string | undefined = typeof userData?.avatar === 'string'
+              ? userData.avatar
+              : (userData?.avatar as any)?.url || userData?.profileImage || undefined;
+
+            userMap.set(userId, {
+              id: String(userData?.id || userId),
+              handle: username,
+              displayName: displayName,
+              name: displayName,
+              avatarUrl: avatarValue,
+              avatar: avatarValue,
+              badges: Array.isArray(userData.badges)
+                ? userData.badges.map((badge: any) => (typeof badge === 'string' ? badge : badge?.name)).filter(Boolean)
+                : undefined,
+              isVerified: Boolean(userData.verified || userData.isVerified),
+            });
+          } catch (error) {
+            logger.warn(`[PostHydration] Failed to load user ${userId}:`, error);
+            userMap.set(userId, {
+              id: userId,
+              handle: userId,
+              displayName: 'User',
+              name: 'User',
+              avatarUrl: undefined,
+              avatar: undefined,
+              badges: undefined,
+              isVerified: false,
+            });
+          }
+        }),
+      );
+    }
 
     return userMap;
   }
@@ -648,20 +686,29 @@ export class PostHydrationService {
     const postId = this.resolveId(post);
     if (!postId) return null;
 
-    const authorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
+    // Resolve author ID: use oxyUserId for local posts, federatedActorId for federated posts
+    const authorId = post?.oxyUserId
+      ? String(post.oxyUserId)
+      : (post as any)?.federatedActorId
+        ? String((post as any).federatedActorId)
+        : undefined;
     if (!authorId) return null;
 
-    if (viewerContext.restrictedIds.has(authorId) && viewerContext.viewerId !== authorId) {
-      return null;
-    }
+    // Privacy checks only apply to local users (federated posts are public by definition)
+    const isFederatedPost = !!(post as any)?.federatedActorId;
+    if (!isFederatedPost) {
+      if (viewerContext.restrictedIds.has(authorId) && viewerContext.viewerId !== authorId) {
+        return null;
+      }
 
-    // Filter posts from private/followers_only profiles
-    // Own posts are always visible; public profiles pass through
-    if (viewerContext.privateProfileIds.has(authorId) && viewerContext.viewerId !== authorId) {
-      // If not authenticated, hide private profiles
-      if (!viewerContext.viewerId) return null;
-      // If viewer doesn't follow the author, hide the post
-      if (!viewerContext.follows.has(authorId)) return null;
+      // Filter posts from private/followers_only profiles
+      // Own posts are always visible; public profiles pass through
+      if (viewerContext.privateProfileIds.has(authorId) && viewerContext.viewerId !== authorId) {
+        // If not authenticated, hide private profiles
+        if (!viewerContext.viewerId) return null;
+        // If viewer doesn't follow the author, hide the post
+        if (!viewerContext.follows.has(authorId)) return null;
+      }
     }
 
     const user = userMap.get(authorId) ?? {

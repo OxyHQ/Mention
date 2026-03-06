@@ -205,6 +205,10 @@ export interface PostActorSummary {
   avatar?: string;
   badges?: string[];
   isVerified?: boolean;
+  isFederated?: boolean;
+  instance?: string;
+  actorUri?: string;
+  profileUrl?: string;
 }
 
 export interface PostViewerState {

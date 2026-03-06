@@ -51,3 +51,6 @@ export {
 
 // Custom feeds (user-created timelines)
 export * from './customFeed';
+
+// Federation types (ActivityPub/Mastodon)
+export * from './federation';
