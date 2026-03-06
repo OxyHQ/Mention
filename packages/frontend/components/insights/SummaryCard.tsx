@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { Platform } from 'react-native';
 import MiniChart from '@/components/MiniChart';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
@@ -24,9 +23,8 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 }) => {
     const theme = useTheme();
 
-
     return (
-        <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <View style={styles.container}>
             <View style={styles.row}>
                 {items.map((item, index) => (
                     <React.Fragment key={index}>
@@ -58,11 +56,8 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-    card: {
-        borderRadius: 15,
-        padding: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
+    container: {
+        paddingVertical: 12,
     },
     row: {
         flexDirection: 'row',
@@ -75,11 +70,11 @@ const styles = StyleSheet.create({
     },
     divider: {
         width: 0.5,
-        height: 32,
+        height: 28,
     },
     value: {
         fontSize: 20,
-        fontWeight: '900',
+        fontWeight: '800',
         marginBottom: 2,
     },
     label: {
@@ -92,4 +87,3 @@ const styles = StyleSheet.create({
 });
 
 export default SummaryCard;
-

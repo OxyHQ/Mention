@@ -17,43 +17,35 @@ const HeroCard: React.FC<HeroCardProps> = ({
     const defaultSubtitleColor = subtitleColor || theme.colors.textSecondary;
 
     return (
-        <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <View style={styles.content}>
-                <Text style={[styles.value, { color: theme.colors.text }]}>
-                    {value}
+        <View style={styles.container}>
+            <Text style={[styles.value, { color: theme.colors.text }]}>
+                {value}
+            </Text>
+            {subtitle && (
+                <Text style={[styles.subtitle, { color: defaultSubtitleColor }]}>
+                    {subtitle}
                 </Text>
-                {subtitle && (
-                    <Text style={[styles.subtitle, { color: defaultSubtitleColor }]}>
-                        {subtitle}
-                    </Text>
-                )}
-            </View>
+            )}
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    card: {
-        borderRadius: 15,
-        padding: 16,
-        marginBottom: 16,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    content: {
+    container: {
         alignItems: 'center',
+        paddingVertical: 16,
+        marginBottom: 8,
     },
     value: {
         fontSize: 36,
-        fontWeight: '900',
+        fontWeight: '800',
         letterSpacing: -0.5,
     },
     subtitle: {
         fontSize: 13,
-        marginTop: 6,
+        marginTop: 4,
         fontWeight: '500',
     },
 });
 
 export default HeroCard;
-
