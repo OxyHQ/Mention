@@ -368,10 +368,13 @@ const NotificationsScreen: React.FC = () => {
                                         key="mark-all"
                                         onPress={handleMarkAllAsRead}
                                         disabled={markAllAsReadMutation.isPending}
+                                        accessibilityLabel={t('notification.mark_all_read')}
                                     >
-                                        <ThemedText style={[styles.markAllText, { color: theme.colors.primary }]}>
-                                            {t('notification.mark_all_read')}
-                                        </ThemedText>
+                                        <Ionicons
+                                            name="checkmark-done-outline"
+                                            size={22}
+                                            color={theme.colors.primary}
+                                        />
                                     </IconButton>
                                 ) : null,
                             ].filter(Boolean),
@@ -444,14 +447,6 @@ const styles = StyleSheet.create({
     retryText: {
         fontSize: 16,
         fontWeight: '600',
-    },
-    markAllButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-    },
-    markAllText: {
-        fontSize: 14,
-        fontWeight: '500',
     },
 });
 
