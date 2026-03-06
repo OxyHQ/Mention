@@ -7,6 +7,7 @@ import { colors } from '../styles/colors';
 import { useTranslation } from 'react-i18next';
 import { useNotificationTransformer, RawNotification } from '../utils/notificationTransformer';
 import { useAuth } from '@oxyhq/services';
+import Avatar from './Avatar';
 import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost } from '../types/validation';
@@ -55,6 +56,10 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     }, [notification.actorId, transformedNotification.actorName]);
 
     const [actorName, setActorName] = useState<string>(initialName);
+    const [actorAvatar, setActorAvatar] = useState<string | undefined>(() => {
+        const populated = (notification as any)?.actorId_populated;
+        return populated?.avatar;
+    });
 
     useEffect(() => {
         let cancelled = false;
@@ -67,6 +72,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             if (cachedUser?.name || cachedUser?.username) {
                 const displayName = (cachedUser as any)?.name?.full || (cachedUser as any)?.name || cachedUser.username || String(id);
                 setActorName(String(displayName));
+                setActorAvatar((cachedUser as any)?.avatar);
                 actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: (cachedUser as any)?.avatar });
                 return;
             }
@@ -90,6 +96,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 if (!cancelled && displayName) {
                     actorCacheRef.current!.set(String(id), { name: String(displayName), avatar: profile?.avatar });
                     setActorName(String(displayName));
+                    setActorAvatar(profile?.avatar);
                 }
             } catch {
                 // Fallback: keep id or existing
@@ -241,12 +248,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             onPress={handlePress}
             onLongPress={handleLongPress}
         >
-            <View style={[styles.iconContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                <Ionicons
-                    name={getNotificationIcon(notification.type) as any}
-                    size={20}
-                    color={getNotificationColor(notification.type)}
-                />
+            <View style={styles.avatarContainer}>
+                <Avatar source={actorAvatar} size={40} />
+                <View style={[styles.actionBadge, { backgroundColor: getNotificationColor(notification.type), borderColor: theme.colors.background }]}>
+                    <Ionicons name={getNotificationIcon(notification.type) as any} size={12} color="#fff" />
+                </View>
             </View>
 
             <View style={styles.contentContainer}>
@@ -331,8 +337,11 @@ const PostNotificationItem: React.FC<{
                 { borderBottomColor: theme.colors.border },
                 !notification.read && [styles.unreadContainer, { backgroundColor: `${theme.colors.primary}08` }]
             ]}>
-                <View style={[styles.iconContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                    <Ionicons name="create" size={20} color={theme.colors.primary} />
+                <View style={styles.avatarContainer}>
+                    <Avatar size={40} />
+                    <View style={[styles.actionBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.background }]}>
+                        <Ionicons name="create" size={12} color="#fff" />
+                    </View>
                 </View>
                 <View style={styles.contentContainer}>
                     <ThemedText style={[styles.message, { color: theme.colors.textSecondary }]}>Loading post...</ThemedText>
@@ -351,8 +360,11 @@ const PostNotificationItem: React.FC<{
                 ]}
                 onPress={handleNotificationPress}
             >
-                <View style={[styles.iconContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-                    <Ionicons name="create" size={20} color={theme.colors.primary} />
+                <View style={styles.avatarContainer}>
+                    <Avatar size={40} />
+                    <View style={[styles.actionBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.background }]}>
+                        <Ionicons name="create" size={12} color="#fff" />
+                    </View>
                 </View>
                 <View style={styles.contentContainer}>
                     <ThemedText style={[
@@ -402,13 +414,20 @@ const styles = StyleSheet.create({
     },
     unreadContainer: {
     },
-    iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+    avatarContainer: {
+        position: 'relative',
+        marginRight: 12,
+    },
+    actionBadge: {
+        position: 'absolute',
+        bottom: -2,
+        right: -2,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        borderWidth: 2,
     },
     contentContainer: {
         flex: 1,

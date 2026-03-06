@@ -1,9 +1,10 @@
 import React, { useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedText } from './ThemedText';
+import Avatar from './Avatar';
 import { colors } from '../styles/colors';
 import { useTheme } from '@/hooks/useTheme';
 import type { GroupedNotification } from '@/utils/groupNotifications';
@@ -132,48 +133,42 @@ export const GroupedNotificationItem: React.FC<GroupedNotificationItemProps> = (
       ]}
       onPress={handlePress}
     >
-      {/* Icon */}
-      <View style={[styles.iconContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-        <Ionicons
-          name={getNotificationIcon(group.type) as any}
-          size={20}
-          color={getNotificationColor(group.type)}
-        />
+      {/* Avatar + action badge */}
+      <View style={styles.avatarContainer}>
+        <Avatar source={group.actors[0]?.avatar} size={40} />
+        <View style={[styles.actionBadge, { backgroundColor: getNotificationColor(group.type), borderColor: theme.colors.background }]}>
+          <Ionicons name={getNotificationIcon(group.type) as any} size={12} color="#fff" />
+        </View>
       </View>
 
       <View style={styles.contentContainer}>
-        {/* Stacked avatars */}
-        <View style={styles.avatarRow}>
-          {group.actors.map((actor, index) => (
-            <View
-              key={actor.id}
-              style={[
-                styles.avatarWrapper,
-                { marginLeft: index > 0 ? -8 : 0, zIndex: group.actors.length - index },
-              ]}
-            >
-              {actor.avatar ? (
-                <Image
-                  source={{ uri: actor.avatar }}
-                  style={[styles.avatar, { borderColor: theme.colors.background }]}
-                />
-              ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.background }]}>
-                  <Ionicons name="person" size={12} color={theme.colors.textTertiary} />
+        {/* Stacked avatars row (when multiple actors) */}
+        {group.actors.length > 1 && (
+          <View style={styles.avatarRow}>
+            {group.actors.map((actor, index) => (
+              <View
+                key={actor.id}
+                style={[
+                  styles.avatarWrapper,
+                  { marginLeft: index > 0 ? -8 : 0, zIndex: group.actors.length - index },
+                ]}
+              >
+                <View style={[styles.avatarBorder, { borderColor: theme.colors.background }]}>
+                  <Avatar source={actor.avatar} size={24} />
                 </View>
-              )}
-            </View>
-          ))}
-          {group.totalActors > group.actors.length && (
-            <View style={[styles.avatarWrapper, { marginLeft: -8, zIndex: 0 }]}>
-              <View style={[styles.avatarPlaceholder, styles.moreAvatarBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.background }]}>
-                <ThemedText style={styles.moreAvatarText}>
-                  +{group.totalActors - group.actors.length}
-                </ThemedText>
               </View>
-            </View>
-          )}
-        </View>
+            ))}
+            {group.totalActors > group.actors.length && (
+              <View style={[styles.avatarWrapper, { marginLeft: -8, zIndex: 0 }]}>
+                <View style={[styles.moreAvatarBadge, { backgroundColor: theme.colors.primary, borderColor: theme.colors.background }]}>
+                  <ThemedText style={styles.moreAvatarText}>
+                    +{group.totalActors - group.actors.length}
+                  </ThemedText>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Group text */}
         <ThemedText
@@ -208,13 +203,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   unreadContainer: {},
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  actionBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    borderWidth: 2,
   },
   contentContainer: {
     flex: 1,
@@ -225,21 +227,15 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   avatarWrapper: {},
-  avatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  avatarBorder: {
     borderWidth: 2,
-  },
-  avatarPlaceholder: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 14,
   },
   moreAvatarBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
