@@ -5,10 +5,13 @@ import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
 import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
+import Avatar from '@/components/Avatar';
 import { useTheme } from '@/hooks/useTheme';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
 const ICON_SIZE = 20;
+const MINI_AVATAR = 16;
+const AVATAR_OVERLAP = -4;
 
 interface Engagement {
   replies: number | null;
@@ -16,6 +19,7 @@ interface Engagement {
   likes: number | null;
   saves?: number | null;
   views?: number | null;
+  recentReplierAvatars?: string[];
 }
 
 interface Props {
@@ -50,7 +54,7 @@ const PostActions: React.FC<Props> = ({
 
   const replies = engagement?.replies ?? 0;
   const likes = engagement?.likes ?? 0;
-  const reposts = engagement?.reposts ?? 0;
+  const replierAvatars = engagement?.recentReplierAvatars ?? [];
 
   // Build summary parts like Threads: "X replies · Y likes"
   const summaryParts: string[] = [];
@@ -117,7 +121,7 @@ const PostActions: React.FC<Props> = ({
         )}
       </View>
 
-      {/* Engagement summary — Threads style: "X replies · Y likes" */}
+      {/* Engagement summary — Threads style: avatar bubbles + "X replies · Y likes" */}
       {summaryParts.length > 0 && (
         <TouchableOpacity
           style={styles.summaryRow}
@@ -125,6 +129,22 @@ const PostActions: React.FC<Props> = ({
           activeOpacity={0.6}
           disabled={!onLikesPress && !onRepostsPress}
         >
+          {replierAvatars.length > 0 && (
+            <View style={styles.avatarStack}>
+              {replierAvatars.slice(0, 3).map((avatarId, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.miniAvatarWrap,
+                    i > 0 && { marginLeft: AVATAR_OVERLAP },
+                    { zIndex: 3 - i, borderColor: theme.colors.background },
+                  ]}
+                >
+                  <Avatar source={avatarId} size={MINI_AVATAR} />
+                </View>
+              ))}
+            </View>
+          )}
           <Text style={[styles.summaryText, { color: theme.colors.textSecondary }]}>
             {summaryParts.join(' · ')}
           </Text>
@@ -146,7 +166,19 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   summaryRow: {
-    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 6,
+  },
+  avatarStack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  miniAvatarWrap: {
+    borderWidth: 1.5,
+    borderRadius: MINI_AVATAR / 2 + 1.5,
+    overflow: 'hidden',
   },
   summaryText: {
     fontSize: 13,

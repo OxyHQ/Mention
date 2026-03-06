@@ -509,6 +509,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                 likes: engagement.likes ?? 0,
                                 saves: engagement.saves ?? null,
                                 views: engagement.views ?? null,
+                                recentReplierAvatars: engagement.recentReplierAvatars,
                             }}
                             isLiked={isLiked}
                             isReposted={isReposted}

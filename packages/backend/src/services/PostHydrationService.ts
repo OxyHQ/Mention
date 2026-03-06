@@ -81,6 +81,8 @@ export class PostHydrationService {
       ? await this.buildLinkPreviewMap(postsForHydration)
       : new Map<string, PostLinkPreview>();
 
+    const recentReplierMap = await this.buildRecentReplierAvatarsMap(postIds, userMap);
+
     const summaryMap = new Map<string, HydratedPostSummary>();
 
     for (const { post } of postsForHydration) {
@@ -92,6 +94,7 @@ export class PostHydrationService {
         mentionCache,
         linkPreviewMap,
         authorPrivacyMap,
+        recentReplierMap,
       });
 
       if (summary) {
@@ -548,6 +551,88 @@ export class PostHydrationService {
     return privacyMap;
   }
 
+  private async buildRecentReplierAvatarsMap(
+    postIds: string[],
+    userMap: Map<string, PostActorSummary>,
+  ): Promise<Map<string, string[]>> {
+    const replierMap = new Map<string, string[]>();
+    if (postIds.length === 0) return replierMap;
+
+    try {
+      const mongoose = require('mongoose');
+      const objectIds = postIds.map((id) => {
+        try { return new mongoose.Types.ObjectId(id); } catch { return id; }
+      });
+
+      // Find up to 3 recent unique repliers per post
+      const recentReplies = await Post.aggregate([
+        { $match: { parentPostId: { $in: objectIds } } },
+        { $sort: { createdAt: -1 } },
+        { $group: {
+          _id: '$parentPostId',
+          replierIds: { $addToSet: '$oxyUserId' },
+        }},
+        { $project: {
+          _id: 1,
+          replierIds: { $slice: ['$replierIds', 3] },
+        }},
+      ]);
+
+      // Collect all replier IDs we need to look up
+      const allReplierIds = new Set<string>();
+      for (const entry of recentReplies) {
+        for (const id of entry.replierIds) {
+          const sid = String(id);
+          if (!userMap.has(sid)) allReplierIds.add(sid);
+        }
+      }
+
+      // Fetch missing replier profiles individually (same pattern as buildUserMap)
+      if (allReplierIds.size > 0) {
+        await Promise.all(
+          Array.from(allReplierIds).map(async (userId) => {
+            try {
+              const userData: any = await oxyClient.getUserById(userId);
+              const avatarValue = typeof userData?.avatar === 'string'
+                ? userData.avatar
+                : (userData?.avatar as any)?.url || userData?.profileImage || undefined;
+              userMap.set(userId, {
+                id: String(userData?.id || userId),
+                handle: String(userData?.username || userData?.handle || userId),
+                displayName: String(userData?.name?.full || userData?.displayName || userId),
+                name: String(userData?.name?.full || userData?.displayName || userId),
+                avatar: avatarValue,
+                avatarUrl: avatarValue,
+                badges: undefined,
+                isVerified: Boolean(userData?.verified || userData?.isVerified),
+              });
+            } catch {
+              // Non-critical: skip this replier's avatar
+            }
+          }),
+        );
+      }
+
+      for (const entry of recentReplies) {
+        const parentId = String(entry._id);
+        const avatars: string[] = [];
+        for (const replierId of entry.replierIds) {
+          const user = userMap.get(String(replierId));
+          if (user?.avatar) {
+            avatars.push(user.avatar);
+          }
+        }
+        if (avatars.length > 0) {
+          replierMap.set(parentId, avatars);
+        }
+      }
+    } catch (error) {
+      logger.warn('[PostHydration] Failed to load recent replier avatars:', error);
+    }
+
+    return replierMap;
+  }
+
   private async buildPostSummary(params: {
     post: any;
     viewerContext: ViewerContext;
@@ -556,8 +641,9 @@ export class PostHydrationService {
     mentionCache: Map<string, PostActorSummary>;
     linkPreviewMap: Map<string, PostLinkPreview>;
     authorPrivacyMap: Map<string, typeof DEFAULT_PRIVACY>;
+    recentReplierMap?: Map<string, string[]>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -595,7 +681,8 @@ export class PostHydrationService {
     const viewerState = this.buildViewerState(postId, authorId, viewerContext);
     const permissions = await this.buildPermissions(post, authorId, viewerContext);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
-    const engagement = this.buildEngagement(post, authorPrivacy);
+    const replierAvatars = recentReplierMap?.get(postId);
+    const engagement = this.buildEngagement(post, authorPrivacy, replierAvatars);
 
     // Only include essential metadata for feed performance
     const includeFullMetadata = (params.viewerContext as any).includeFullMetadata !== false;
@@ -825,6 +912,7 @@ export class PostHydrationService {
   private buildEngagement(
     post: any,
     authorPrivacy: typeof DEFAULT_PRIVACY,
+    recentReplierAvatars?: string[],
   ): PostEngagementSummary {
     const stats = post?.stats || {};
     const metadata = post?.metadata || {};
@@ -843,6 +931,7 @@ export class PostHydrationService {
       saves: authorPrivacy.hideSaveCounts ? null : savesCount ?? null,
       views: viewsCount > 0 ? viewsCount : null,
       impressions: null,
+      recentReplierAvatars: recentReplierAvatars?.length ? recentReplierAvatars : undefined,
     };
   }
 

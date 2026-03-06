@@ -229,6 +229,7 @@ export interface PostEngagementSummary {
   saves?: number | null;
   views?: number | null;
   impressions?: number | null;
+  recentReplierAvatars?: string[];
 }
 
 export interface PostAttachmentBundle {
