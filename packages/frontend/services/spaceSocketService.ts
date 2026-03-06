@@ -44,11 +44,18 @@ export class RoomSocketService {
   connect(userId: string, token?: string): void {
     if (this.socket?.connected) return;
 
+    // Clean up any existing disconnected/failed socket before creating a new one
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
     const baseUrl = API_URL_SOCKET || 'ws://localhost:3000';
 
     this.socket = io(`${baseUrl}/rooms`, {
       transports: ['websocket', 'polling'],
-      auth: token ? { token, userId } : { userId },
+      auth: { token, userId },
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 10,
