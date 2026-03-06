@@ -22,25 +22,20 @@ router.post('/emit-follow', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'followingId is required' });
     }
 
-    // Emit socket event
+    // Emit socket event to specific user rooms only (no global broadcast)
     const io = (global as any).io;
     if (io) {
-      io.emit('user:followed', {
+      const eventData = {
         followerId: userId,
         followingId,
         followerCount,
         followingCount,
         timestamp: new Date().toISOString(),
-      });
+      };
 
-      // Also emit to specific user rooms for targeted updates
-      io.to(`user:${followingId}`).emit('user:followed', {
-        followerId: userId,
-        followingId,
-        followerCount,
-        followingCount,
-        timestamp: new Date().toISOString(),
-      });
+      // Emit to both the follower and the followed user's rooms
+      io.to(`user:${followingId}`).emit('user:followed', eventData);
+      io.to(`user:${userId}`).emit('user:followed', eventData);
 
       logger.debug(`Emitted user:followed event - ${userId} followed ${followingId}`);
     }
@@ -69,25 +64,20 @@ router.post('/emit-unfollow', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'followingId is required' });
     }
 
-    // Emit socket event
+    // Emit socket event to specific user rooms only (no global broadcast)
     const io = (global as any).io;
     if (io) {
-      io.emit('user:unfollowed', {
+      const eventData = {
         followerId: userId,
         followingId,
         followerCount,
         followingCount,
         timestamp: new Date().toISOString(),
-      });
+      };
 
-      // Also emit to specific user rooms for targeted updates
-      io.to(`user:${followingId}`).emit('user:unfollowed', {
-        followerId: userId,
-        followingId,
-        followerCount,
-        followingCount,
-        timestamp: new Date().toISOString(),
-      });
+      // Emit to both the unfollower and the unfollowed user's rooms
+      io.to(`user:${followingId}`).emit('user:unfollowed', eventData);
+      io.to(`user:${userId}`).emit('user:unfollowed', eventData);
 
       logger.debug(`Emitted user:unfollowed event - ${userId} unfollowed ${followingId}`);
     }

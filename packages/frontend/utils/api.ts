@@ -17,6 +17,34 @@ authenticatedClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 responses — attempt token refresh, then retry once
+authenticatedClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        // AuthManager handles token refresh via the session
+        const auth = (oxyServices as any).authManager || (oxyServices as any).auth;
+        if (auth && typeof auth.refreshToken === 'function') {
+          const refreshed = await auth.refreshToken();
+          if (refreshed) {
+            const newToken = oxyServices.getClient().getAccessToken();
+            if (newToken) {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              return authenticatedClient(originalRequest);
+            }
+          }
+        }
+      } catch (refreshError) {
+        // Token refresh failed — let the error propagate
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Public API client (no authentication)
 const publicClient = axios.create({
   baseURL: API_URL,

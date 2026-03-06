@@ -56,6 +56,7 @@ export const config = {
     defaultLikesLimit: 50,
     maxHashtagLength: 100,
     maxHashtagsPerPost: 30,
+    maxTextLength: 25000, // Maximum post text length (characters)
   },
   search: {
     maxDateRangeDays: 365,

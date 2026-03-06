@@ -70,11 +70,15 @@ import adminRoutes from './src/routes/admin';
 import { rateLimiter, bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
 
+import helmet from 'helmet';
+
 const app = express();
 
-// Enable trust proxy for proper IP handling (required for rate limiting with IPv6)
-// This ensures req.ip is properly set when behind a proxy/load balancer
-app.set('trust proxy', true);
+// Security headers
+app.use(helmet());
+
+// Trust only one level of proxy (load balancer) for proper IP handling
+app.set('trust proxy', 1);
 
 export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
 
@@ -94,8 +98,12 @@ app.use(compression({
   threshold: 1024, // Only compress responses > 1KB
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Global rate limiting — must be applied early
+app.use(rateLimiter);
+app.use(bruteForceProtection);
 
 // Middleware to parse nested query parameters (e.g., filters[authors]=user1,user2)
 app.use((req, res, next) => {
@@ -183,8 +191,7 @@ const broadcastPresence = (io: SocketIOServer, userId: string, online: boolean) 
   const presenceData = { userId, online, timestamp: new Date().toISOString() };
   // Emit to users subscribed to this user's presence
   io.to(`presence:${userId}`).emit('user:presence', presenceData);
-  // Also emit globally for profile pages etc.
-  io.emit('user:presence', presenceData);
+  // Targeted emit only — no global broadcast
 };
 
 // Periodic cleanup of stale online user entries (every 5 minutes)
@@ -362,15 +369,12 @@ const roomsNamespace = initializeRoomSocket(io);
           }
         }
 
-        // Fallback: accept userId from client handshake (for backward compatibility)
-        const userId = auth?.userId || auth?.id || auth?.user?.id;
-        if (userId && typeof userId === "string") {
-          socket.user = { id: userId };
-        }
+        // No valid token — reject unauthenticated connections
+        logger.debug('Socket connection rejected: no valid authentication token');
+        return next(new Error('Authentication required'));
       } catch (_) {
-        // ignore – will be handled by connection handlers if user missing
+        return next(new Error('Authentication failed'));
       }
-      return next();
     });
   }
 });
@@ -780,50 +784,27 @@ app.get("", async (req, res) => {
 });
 
 // --- Health Check Endpoint ---
+// Minimal health check for load balancers — no internal details exposed
 app.get("/health", async (req, res) => {
   try {
-    const { isDatabaseConnected, getDatabaseStats } = require("./src/utils/database");
-    const { isRedisConnected, getRedisStats } = require("./src/utils/redis");
-    const { getPerformanceStats } = require("./src/middleware/performance");
+    const { isDatabaseConnected } = require("./src/utils/database");
+    const { isRedisConnected } = require("./src/utils/redis");
 
     const [dbConnected, redisConnected] = await Promise.all([
       isDatabaseConnected(),
       isRedisConnected(),
     ]);
 
-    const dbStats = getDatabaseStats();
-    const redisStats = getRedisStats();
-    const perfStats = getPerformanceStats();
-
-    const health = {
-      status: dbConnected && redisConnected ? "healthy" : "degraded",
+    const status = dbConnected && redisConnected ? "healthy" : "degraded";
+    const statusCode = status === "healthy" ? 200 : 503;
+    res.status(statusCode).json({
+      status,
       timestamp: new Date().toISOString(),
-      services: {
-        database: {
-          connected: dbConnected,
-          ...dbStats,
-        },
-        redis: {
-          connected: redisConnected,
-          ...redisStats,
-        },
-      },
-      performance: perfStats,
-      memory: {
-        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
-        rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
-      },
-      uptime: Math.round(process.uptime()),
-    };
-
-    const statusCode = health.status === "healthy" ? 200 : 503;
-    res.status(statusCode).json(health);
+    });
   } catch (error) {
     logger.error("Health check failed:", error);
     res.status(503).json({
       status: "unhealthy",
-      error: error instanceof Error ? error.message : "Unknown error",
       timestamp: new Date().toISOString(),
     });
   }

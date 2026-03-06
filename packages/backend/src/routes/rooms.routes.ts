@@ -19,7 +19,18 @@ import Recording, { RecordingStatus, RecordingAccess } from '../models/Recording
 import { getRecordingObjectKey, uploadObject, deleteObject, getAgoraRoomImageKey } from '../utils/spaces';
 import { processImage } from '../utils/imageProcessor';
 
-const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const uploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type ${file.mimetype} not allowed. Allowed: ${ALLOWED_IMAGE_TYPES.join(', ')}`));
+    }
+  }
+});
 
 const router = Router();
 

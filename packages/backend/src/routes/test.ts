@@ -6,12 +6,12 @@ const router = express.Router();
 
 router.get("/", async (req: AuthRequest, res: Response) => {
     try {
-        res.json({ message: "Test route", user: req.user, userId: req.user?.id });
+        res.json({ message: "Test route", authenticated: !!req.user, userId: req.user?.id });
     } catch (error) {
         logger.error('Test error:', { userId: req.user?.id, error });
-        res.status(500).json({ 
-            message: "Error performing test", 
-            error: error instanceof Error ? error.message : "Unknown error" 
+        res.status(500).json({
+            message: "Error performing test",
+            error: error instanceof Error ? error.message : "Unknown error"
         });
     }
 });

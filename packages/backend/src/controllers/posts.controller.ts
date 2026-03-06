@@ -36,6 +36,7 @@ const MAX_NEARBY_POSTS = config.posts.maxNearbyPosts;
 const MAX_AREA_POSTS = config.posts.maxAreaPosts;
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 const DEFAULT_REPOSTS_LIMIT = 50;
+const MAX_TEXT_LENGTH = config.posts.maxTextLength;
 
 /**
  * Sanitize and validate sources array.
@@ -361,6 +362,11 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const poll = content?.poll;
     const contentLocationData = content?.location || contentLocation;
 
+
+    // Validate text length
+    if (text && typeof text === 'string' && text.length > MAX_TEXT_LENGTH) {
+      return res.status(400).json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
+    }
 
     // Validate hashtags
     if (Array.isArray(hashtags)) {
@@ -1316,13 +1322,32 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
+    const postId = post._id.toString();
+
+    // Cascading cleanup — best-effort, don't fail the request
     try {
-      const articleId = (post as any)?.content?.article?.articleId;
-      if (articleId) {
-        await (ArticleModel as any).deleteOne({ _id: articleId } as any).exec();
-      }
-    } catch (articleError) {
-      logger.error('Failed to delete article content with post', articleError);
+      await Promise.allSettled([
+        // Delete associated article
+        (post as any)?.content?.article?.articleId
+          ? (ArticleModel as any).deleteOne({ _id: (post as any).content.article.articleId }).exec()
+          : Promise.resolve(),
+        // Delete associated poll
+        (post as any)?.metadata?.pollId
+          ? Poll.deleteOne({ _id: (post as any).metadata.pollId }).exec()
+          : Promise.resolve(),
+        // Delete likes for this post
+        Like.deleteMany({ postId }).exec(),
+        // Delete bookmarks for this post
+        Bookmark.deleteMany({ postId }).exec(),
+        // Delete post subscriptions
+        PostSubscription.deleteMany({ postId }).exec(),
+        // Delete notifications referencing this post
+        mongoose.model('Notification').deleteMany({ entityId: postId, entityType: 'post' }).exec(),
+        // Delete replies (child posts)
+        Post.deleteMany({ parentPostId: postId }).exec(),
+      ]);
+    } catch (cleanupError) {
+      logger.error('Error during cascading post cleanup', cleanupError);
     }
 
     res.json({ message: 'Post deleted successfully' });

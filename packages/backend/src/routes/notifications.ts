@@ -293,9 +293,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Create a notification
-router.post("/", async (req: Request, res: Response) => {
+// Create a notification (requires authentication)
+router.post("/", async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const notification = new Notification(req.body);
     await notification.save();
     await emitNotification(req, notification);

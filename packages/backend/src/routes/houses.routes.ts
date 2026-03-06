@@ -8,7 +8,18 @@ import { logger } from '../utils/logger';
 import { processImage } from '../utils/imageProcessor';
 import { uploadObject, deleteObject, getAgoraHouseAvatarKey, getAgoraHouseCoverKey, getCdnUrl } from '../utils/spaces';
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type ${file.mimetype} not allowed. Allowed: ${ALLOWED_IMAGE_TYPES.join(', ')}`));
+    }
+  }
+});
 
 const router = Router();
 
