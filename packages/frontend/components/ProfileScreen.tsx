@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useContext } from 'react';
 import {
     Animated,
     ImageBackground,
@@ -8,15 +8,22 @@ import {
     View,
     Share,
     Platform,
+    Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useFollow } from '@oxyhq/services';
 import * as OxyServicesNS from '@oxyhq/services';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { usePostsStore } from '@/stores/postsStore';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { muteService } from '@/services/muteService';
+import { reportService } from '@/services/reportService';
+import ReportModal from '@/components/report/ReportModal';
+import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
 import type { FeedType } from '@mention/shared-types';
 
 // Icons
@@ -75,6 +82,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const theme = useTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
+    const bottomSheet = useContext(BottomSheetContext);
 
     // Component references
     const FollowButtonComponent = (OxyServicesNS as { FollowButton?: FollowButtonComponent })
@@ -199,6 +207,104 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         }
     }, [profileData, displayName, t]);
 
+    // More options menu (block, mute, report)
+    const handleMoreOptions = useCallback(() => {
+        if (!profileData || isOwnProfile) return;
+
+        const displayUsername = profileData.username;
+
+        const handleMute = async () => {
+            bottomSheet.openBottomSheet(false);
+            const success = await muteService.muteUser(profileData.id);
+            if (success) {
+                Alert.alert(t('common.success', { defaultValue: 'Success' }), t('profile.muted', { username: displayUsername, defaultValue: `@${displayUsername} has been muted` }));
+            } else {
+                Alert.alert(t('common.error', { defaultValue: 'Error' }), t('profile.muteFailed', { defaultValue: 'Failed to mute user' }));
+            }
+        };
+
+        const handleBlock = () => {
+            bottomSheet.setBottomSheetContent(
+                <ConfirmBottomSheet
+                    title={t('profile.blockUser', { defaultValue: `Block @${displayUsername}` })}
+                    message={t('profile.blockConfirm', { username: displayUsername, defaultValue: `They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.` })}
+                    confirmText={t('profile.block', { defaultValue: 'Block' })}
+                    cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
+                    destructive={true}
+                    onConfirm={async () => {
+                        try {
+                            await oxyServices.blockUser(profileData.id);
+                            bottomSheet.openBottomSheet(false);
+                            Alert.alert(t('common.success', { defaultValue: 'Success' }), t('profile.blocked', { username: displayUsername, defaultValue: `@${displayUsername} has been blocked` }));
+                        } catch {
+                            bottomSheet.openBottomSheet(false);
+                            Alert.alert(t('common.error', { defaultValue: 'Error' }), t('profile.blockFailed', { defaultValue: 'Failed to block user' }));
+                        }
+                    }}
+                    onCancel={() => bottomSheet.openBottomSheet(false)}
+                />
+            );
+            bottomSheet.openBottomSheet(true);
+        };
+
+        const handleReport = () => {
+            bottomSheet.setBottomSheetContent(
+                <ReportModal
+                    visible={true}
+                    onClose={() => bottomSheet.openBottomSheet(false)}
+                    onSubmit={async (categories, details) => {
+                        const success = await reportService.reportUser(profileData.id, categories, details);
+                        if (success) {
+                            Alert.alert(t('report.submitted', { defaultValue: 'Report Submitted' }), t('report.thankYou', { defaultValue: 'Thank you for helping keep our community safe.' }));
+                        } else {
+                            Alert.alert(t('common.error', { defaultValue: 'Error' }), t('report.failed', { defaultValue: 'Failed to submit report.' }));
+                        }
+                    }}
+                />
+            );
+            bottomSheet.openBottomSheet(true);
+        };
+
+        const MenuContent = () => (
+            <View style={styles.menuContainer}>
+                <IconButton variant="icon" onPress={handleMute} style={styles.menuItem}>
+                    <View style={styles.menuItemRow}>
+                        <Ionicons name="volume-mute-outline" size={22} color={theme.colors.text} />
+                        <Text style={[styles.menuItemText, { color: theme.colors.text }]}>
+                            {t('profile.muteUser', { username: displayUsername, defaultValue: `Mute @${displayUsername}` })}
+                        </Text>
+                    </View>
+                </IconButton>
+                <IconButton variant="icon" onPress={handleBlock} style={styles.menuItem}>
+                    <View style={styles.menuItemRow}>
+                        <Ionicons name="ban-outline" size={22} color={theme.colors.error} />
+                        <Text style={[styles.menuItemText, { color: theme.colors.error }]}>
+                            {t('profile.blockUser', { username: displayUsername, defaultValue: `Block @${displayUsername}` })}
+                        </Text>
+                    </View>
+                </IconButton>
+                <IconButton variant="icon" onPress={handleReport} style={styles.menuItem}>
+                    <View style={styles.menuItemRow}>
+                        <Ionicons name="flag-outline" size={22} color={theme.colors.error} />
+                        <Text style={[styles.menuItemText, { color: theme.colors.error }]}>
+                            {t('profile.reportUser', { defaultValue: 'Report' })}
+                        </Text>
+                    </View>
+                </IconButton>
+            </View>
+        );
+
+        bottomSheet.setBottomSheetContent(<MenuContent />);
+        bottomSheet.openBottomSheet(true);
+    }, [profileData, isOwnProfile, theme, t, bottomSheet, oxyServices]);
+
+    // DM button handler
+    const handleDM = useCallback(() => {
+        if (!profileData?.id) return;
+        // Navigate to DM conversation with this user
+        router.push(`/kaana?userId=${profileData.id}&username=${profileData.username}` as any);
+    }, [profileData?.id, profileData?.username]);
+
     // Animations
     const headerBackgroundOpacity = useMemo(
         () =>
@@ -208,6 +314,17 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                 extrapolate: 'clamp',
             }),
         [scrollY]
+    );
+
+    // Header name overlay opacity - shows when scrolled past profile content
+    const headerNameOpacity = useMemo(
+        () =>
+            scrollY.interpolate({
+                inputRange: [profileContentHeight - 20, profileContentHeight + 20],
+                outputRange: [0, 1],
+                extrapolate: 'clamp',
+            }),
+        [scrollY, profileContentHeight]
     );
 
     // SEO data
@@ -279,21 +396,29 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     )}
                                 </IconButton>
                             )}
-                            <IconButton variant="icon">
-                                <Search size={20} color={theme.colors.text} />
-                            </IconButton>
+                            {!isOwnProfile && (
+                                <IconButton variant="icon" onPress={handleDM}>
+                                    <Ionicons name="mail-outline" size={20} color={theme.colors.text} />
+                                </IconButton>
+                            )}
                             <IconButton variant="icon" onPress={handleShare}>
                                 <ShareIcon size={20} color={theme.colors.text} />
                             </IconButton>
+                            {!isOwnProfile && (
+                                <IconButton variant="icon" onPress={handleMoreOptions}>
+                                    <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
+                                </IconButton>
+                            )}
                         </View>
 
-                        {/* Header name overlay (hidden by default) */}
-                        <View
+                        {/* Header name overlay (animated on scroll) */}
+                        <Animated.View
                             style={[
                                 styles.headerNameOverlay,
                                 themedStyles.headerNameOverlay,
-                                styles.headerNameOverlayHidden,
+                                { opacity: headerNameOpacity },
                             ]}
+                            pointerEvents="none"
                         >
                             <UserName
                                 name={displayName}
@@ -307,7 +432,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     defaultValue: `${profileData?.postsCount ?? 0} posts`,
                                 })}
                             </Text>
-                        </View>
+                        </Animated.View>
 
                         {/* Banner */}
                         {!minimalistMode &&
@@ -433,10 +558,6 @@ const styles = StyleSheet.create({
         left: LAYOUT.DEFAULT_PADDING,
         alignItems: 'flex-start',
     },
-    headerNameOverlayHidden: {
-        opacity: 0,
-        backgroundColor: 'transparent',
-    },
     headerTitle: {
         fontSize: 18,
         fontWeight: 'bold',
@@ -460,6 +581,24 @@ const styles = StyleSheet.create({
     },
     scrollView: {
         zIndex: 3,
+    },
+    menuContainer: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+    },
+    menuItem: {
+        width: '100%',
+        paddingVertical: 14,
+    },
+    menuItemRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        width: '100%',
+    },
+    menuItemText: {
+        fontSize: 16,
+        fontWeight: '500',
     },
 });
 

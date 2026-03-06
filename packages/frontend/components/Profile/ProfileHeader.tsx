@@ -64,6 +64,8 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
             <TouchableOpacity
               style={[styles.followButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
               onPress={() => showBottomSheet?.('EditProfile')}
+              accessibilityRole="button"
+              accessibilityLabel={t('profile.editProfile')}
             >
               <Text style={[styles.followButtonText, { color: theme.colors.text }]}>{t('profile.editProfile')}</Text>
             </TouchableOpacity>
@@ -73,6 +75,8 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
                 { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
               ]}
               onPress={() => router.push('/insights')}
+              accessibilityRole="button"
+              accessibilityLabel="Analytics"
             >
               <AnalyticsIcon size={20} color={theme.colors.text} />
             </TouchableOpacity>
@@ -82,6 +86,8 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
                 { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
               ]}
               onPress={() => router.push('/settings')}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
             >
               <Gear size={20} color={theme.colors.text} />
             </TouchableOpacity>
@@ -98,6 +104,8 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
               ]}
               onPress={togglePoke}
               disabled={pokeLoading}
+              accessibilityRole="button"
+              accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
             >
               <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
             </TouchableOpacity>
@@ -206,6 +214,8 @@ export const ProfileActions = memo(function ProfileActions({
           ]}
           onPress={togglePoke}
           disabled={pokeLoading}
+          accessibilityRole="button"
+          accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
         >
           <Ionicons name={poked ? 'hand-left' : 'hand-left-outline'} size={20} color={poked ? '#fff' : theme.colors.text} />
         </TouchableOpacity>
@@ -219,6 +229,8 @@ export const ProfileActions = memo(function ProfileActions({
       <TouchableOpacity
         style={[styles.followButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
         onPress={() => showBottomSheet?.('EditProfile')}
+        accessibilityRole="button"
+        accessibilityLabel={t('profile.editProfile')}
       >
         <Text style={[styles.followButtonText, { color: theme.colors.text }]}>{t('profile.editProfile')}</Text>
       </TouchableOpacity>
@@ -228,6 +240,8 @@ export const ProfileActions = memo(function ProfileActions({
           { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
         ]}
         onPress={() => router.push('/insights')}
+        accessibilityRole="button"
+        accessibilityLabel="Analytics"
       >
         <AnalyticsIcon size={20} color={theme.colors.text} />
       </TouchableOpacity>
@@ -237,6 +251,8 @@ export const ProfileActions = memo(function ProfileActions({
           { backgroundColor: theme.colors.background, borderColor: theme.colors.border },
         ]}
         onPress={() => router.push('/settings')}
+        accessibilityRole="button"
+        accessibilityLabel="Settings"
       >
         <Gear size={20} color={theme.colors.text} />
       </TouchableOpacity>

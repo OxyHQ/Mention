@@ -161,6 +161,11 @@ export class FeedQueryBuilder {
         : { $lte: dateTo };
     }
     
+    // Parent post filter (for fetching replies to a specific post)
+    if (filters.parentPostId) {
+      query.parentPostId = String(filters.parentPostId);
+    }
+
     // Keywords filter
     if (filters.keywords) {
       const kws = Array.isArray(filters.keywords)

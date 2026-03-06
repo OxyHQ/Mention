@@ -348,7 +348,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
 
   return (
     <>
-      <Pressable onPress={handlePress} disabled={isZoomed}>
+      <Pressable onPress={handlePress} disabled={isZoomed} accessibilityLabel="Profile avatar" accessibilityRole="image">
         <View
           ref={avatarWrapperRef}
           collapsable={false}

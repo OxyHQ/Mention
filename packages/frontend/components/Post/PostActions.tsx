@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
@@ -15,6 +16,7 @@ interface Engagement {
   reposts: number | null;
   likes: number | null;
   saves?: number | null;
+  views?: number | null;
 }
 
 interface Props {
@@ -76,11 +78,32 @@ const PostActions: React.FC<Props> = ({
     }
   };
 
+  const formatViewCount = (count: number): string => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return String(count);
+  };
+
   return (
     <View style={styles.postEngagement}>
+      {/* Views */}
+      {engagement?.views != null && engagement.views > 0 && (
+        <View style={styles.engagementButton}>
+          <Ionicons name="eye-outline" size={16} color={theme.colors.textSecondary} />
+          <Text style={[styles.engagementText, styles.viewCountText, { color: theme.colors.textSecondary }]}>
+            {formatViewCount(engagement.views)}
+          </Text>
+        </View>
+      )}
+
       {/* Heart (like) */}
       <View style={styles.engagementButton}>
-        <TouchableOpacity onPress={onLike}>
+        <TouchableOpacity
+          onPress={onLike}
+          accessibilityRole="button"
+          accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
+          accessibilityHint="Double tap to toggle like"
+        >
           {isLiked ? (
             <HeartIconActive size={18} color={theme.colors.error} />
           ) : (
@@ -98,7 +121,13 @@ const PostActions: React.FC<Props> = ({
       </View>
 
       {/* Reply (comment) */}
-      <TouchableOpacity style={styles.engagementButton} onPress={onReply}>
+      <TouchableOpacity
+        style={styles.engagementButton}
+        onPress={onReply}
+        accessibilityRole="button"
+        accessibilityLabel="Reply"
+        accessibilityHint="Double tap to reply to this post"
+      >
         <CommentIcon size={18} color={theme.colors.textSecondary} />
         {!hideReplyCounts && engagement?.replies !== null && (
           <AnimatedNumber
@@ -110,7 +139,12 @@ const PostActions: React.FC<Props> = ({
 
       {/* Repost */}
       <View style={styles.engagementButton}>
-        <TouchableOpacity onPress={onRepost}>
+        <TouchableOpacity
+          onPress={onRepost}
+          accessibilityRole="button"
+          accessibilityLabel={isReposted ? 'Undo repost' : 'Repost'}
+          accessibilityHint="Double tap to toggle repost"
+        >
           {isReposted ? (
             <RepostIconActive size={18} color={theme.colors.success} />
           ) : (
@@ -128,13 +162,25 @@ const PostActions: React.FC<Props> = ({
       </View>
 
       {/* Share */}
-      <TouchableOpacity style={styles.engagementButton} onPress={onShare}>
+      <TouchableOpacity
+        style={styles.engagementButton}
+        onPress={onShare}
+        accessibilityRole="button"
+        accessibilityLabel="Share"
+        accessibilityHint="Double tap to share this post"
+      >
         <ShareIcon size={18} color={theme.colors.textSecondary} />
       </TouchableOpacity>
 
       {/* Save */}
       {!hideSaveCounts && (
-        <TouchableOpacity style={styles.engagementButton} onPress={onSave}>
+        <TouchableOpacity
+          style={styles.engagementButton}
+          onPress={onSave}
+          accessibilityRole="button"
+          accessibilityLabel={isSaved ? 'Unsave' : 'Save'}
+          accessibilityHint="Double tap to toggle save"
+        >
           {isSaved ? (
             <BookmarkActive size={18} color={theme.colors.primary} />
           ) : (
@@ -171,6 +217,9 @@ const styles = StyleSheet.create({
   engagementText: {
     fontSize: 13,
     marginLeft: 4,
+  },
+  viewCountText: {
+    fontSize: 12,
   },
   activeEngagementText: {
   },

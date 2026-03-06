@@ -170,24 +170,32 @@ export const BottomBar = () => {
     const tabs = [
         {
             onPress: handleHomePress,
+            label: 'Home',
+            isActive: pathname === '/',
             icon: pathname === '/'
                 ? <HomeActive size={ICON_SIZE} color={effectiveTheme.colors.primary} />
                 : <Home size={ICON_SIZE} color={effectiveTheme.colors.textSecondary} />,
         },
         {
             onPress: () => handlePress('/videos'),
+            label: 'Videos',
+            isActive: pathname === '/videos',
             icon: pathname === '/videos'
                 ? <VideoActive size={ICON_SIZE} color={effectiveTheme.colors.primary} />
                 : <Video size={ICON_SIZE} color={effectiveTheme.colors.textSecondary} />,
         },
         {
             onPress: () => handlePress('/compose'),
+            label: 'Compose',
+            isActive: pathname === '/compose',
             icon: pathname === '/compose'
                 ? <ComposeIIconActive size={ICON_SIZE} color={effectiveTheme.colors.primary} />
                 : <ComposeIcon size={ICON_SIZE} color={effectiveTheme.colors.textSecondary} />,
         },
         {
             onPress: () => handlePress('/notifications'),
+            label: 'Notifications',
+            isActive: pathname === '/notifications',
             icon: pathname === '/notifications'
                 ? <BellActive size={ICON_SIZE} color={effectiveTheme.colors.primary} />
                 : <Bell size={ICON_SIZE} color={effectiveTheme.colors.textSecondary} />,
@@ -204,6 +212,8 @@ export const BottomBar = () => {
                 Vibration.vibrate(50);
                 showBottomSheet?.('AccountCenter');
             },
+            label: 'Profile',
+            isActive: pathname.startsWith('/@'),
             icon: <Avatar size={ICON_SIZE + 4} source={user?.avatar} />,
         },
     ];
@@ -217,6 +227,9 @@ export const BottomBar = () => {
                     onPress={tab.onPress}
                     onLongPress={tab.onLongPress}
                     style={tabStyle}
+                    accessibilityRole="tab"
+                    accessibilityLabel={tab.label}
+                    accessibilityState={{ selected: tab.isActive }}
                 >
                     {tab.icon}
                 </Pressable>

@@ -38,6 +38,7 @@ export interface UserAppearance {
     displayName?: string;
     coverImage?: string;
   };
+  followsYou?: boolean;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
   };

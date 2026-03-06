@@ -16,6 +16,7 @@ import { logger } from '../utils/logger';
 // Extended FeedRequest with frontend-specific filter properties
 interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
   filters?: FeedFilters;
+  sort?: string;
 }
 
 // Helper function to make unauthenticated requests using publicClient
@@ -50,7 +51,7 @@ function getCacheKey(request: ExtendedFeedRequest): string {
   const filterKey = filters
     ? Object.keys(filters).sort().map((k) => `${k}=${(filters as any)[k] ?? ''}`).join('&')
     : '';
-  return `${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${filterKey}`;
+  return `${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${request.sort || ''}|${filterKey}`;
 }
 
 // Clean up expired cache entries periodically
@@ -86,9 +87,15 @@ class FeedService {
       if (request.cursor) params.cursor = request.cursor;
       if (request.limit) params.limit = request.limit;
       if (request.userId) params.userId = request.userId;
+      if (request.sort) params.sort = request.sort;
       if (request.filters) {
         Object.entries(request.filters).forEach(([key, value]) => {
           if (value !== undefined) {
+            // Extract sort from filters as a top-level param (not a filter)
+            if (key === 'sort') {
+              params.sort = value;
+              return;
+            }
             // Special handling for array-based filters
             if (key === 'authors' && Array.isArray(value)) {
               params[`filters[${key}]`] = (value as any[]).join(',');
@@ -232,6 +239,18 @@ class FeedService {
   }
 
   /**
+   * Get pinned post for a user profile
+   */
+  async getPinnedPost(userId: string): Promise<any | null> {
+    try {
+      const response = await publicClient.get(`/feed/user/${userId}/pinned`);
+      return response.data?.item || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Create a new post
    */
   async createPost(request: CreatePostRequest): Promise<{ success: boolean; post: unknown }> {
@@ -248,7 +267,10 @@ class FeedService {
       parentPostId: request.parentPostId,
       threadId: request.threadId,
       ...(request.status && { status: request.status }),
-      ...(request.scheduledFor && { scheduledFor: request.scheduledFor })
+      ...(request.scheduledFor && { scheduledFor: request.scheduledFor }),
+      ...((request as any).metadata && { metadata: (request as any).metadata }),
+      ...((request as any).replyPermission && { replyPermission: (request as any).replyPermission }),
+      ...((request as any).reviewReplies !== undefined && { reviewReplies: (request as any).reviewReplies }),
     };
 
     const response = await authenticatedClient.post('/posts', backendRequest);
@@ -360,6 +382,14 @@ class FeedService {
 
     const response = await authenticatedClient.get('/posts/saved', { params });
     return { success: true, data: response.data };
+  }
+
+  /**
+   * Edit an existing post (within 30-minute edit window)
+   */
+  async editPost(postId: string, data: { content: { text: string; media?: any[] }; hashtags?: string[]; mentions?: string[] }): Promise<any> {
+    const response = await authenticatedClient.put(`/posts/${postId}`, data);
+    return response.data;
   }
 
   /**

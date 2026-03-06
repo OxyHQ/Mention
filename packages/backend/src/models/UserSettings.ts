@@ -32,6 +32,17 @@ export interface InterestsSettings {
   tags?: string[]; // Array of interest tags
 }
 
+export interface NotificationPreferences {
+  pushEnabled: boolean;
+  emailEnabled: boolean;
+  likes: boolean;
+  reposts: boolean;
+  follows: boolean;
+  mentions: boolean;
+  replies: boolean;
+  quotes: boolean;
+}
+
 export interface FeedSettings {
   diversity: {
     enabled: boolean;
@@ -57,6 +68,7 @@ export interface IUserSettings extends Document {
   profileCustomization?: ProfileCustomization;
   interests?: InterestsSettings;
   feedSettings?: FeedSettings;
+  notificationPreferences?: NotificationPreferences;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -91,6 +103,17 @@ const InterestsSchema = new Schema<InterestsSettings>({
   tags: [{ type: String }],
 }, { _id: false });
 
+const NotificationPreferencesSchema = new Schema<NotificationPreferences>({
+  pushEnabled: { type: Boolean, default: true },
+  emailEnabled: { type: Boolean, default: false },
+  likes: { type: Boolean, default: true },
+  reposts: { type: Boolean, default: true },
+  follows: { type: Boolean, default: true },
+  mentions: { type: Boolean, default: true },
+  replies: { type: Boolean, default: true },
+  quotes: { type: Boolean, default: true },
+}, { _id: false });
+
 const FeedSettingsSchema = new Schema<FeedSettings>({
   diversity: {
     enabled: { type: Boolean, default: true },
@@ -116,6 +139,7 @@ const UserSettingsSchema = new Schema<IUserSettings>({
   profileCustomization: { type: ProfileCustomizationSchema },
   interests: { type: InterestsSchema },
   feedSettings: { type: FeedSettingsSchema },
+  notificationPreferences: { type: NotificationPreferencesSchema },
 }, { timestamps: true, versionKey: false });
 
 export const UserSettings = mongoose.model<IUserSettings>('UserSettings', UserSettingsSchema);

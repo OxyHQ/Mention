@@ -13,13 +13,14 @@ import {
   Modal,
 } from 'react-native';
 import { Loading } from '@/components/ui/Loading';
+import { Ionicons } from '@expo/vector-icons';
 import { logger } from '@/utils/logger';
 import { useAuth } from '@oxyhq/services';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import PostHeader from '@/components/Post/PostHeader';
@@ -30,6 +31,7 @@ import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { usePostsStore } from '@/stores/postsStore';
+import { feedService } from '@/services/feedService';
 import { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@/hooks/useTheme';
 import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
@@ -125,6 +127,9 @@ const ComposeScreen = () => {
   const { user, showBottomSheet, oxyServices } = useAuth();
   const { createPost, createThread } = usePostsStore();
   const { t } = useTranslation();
+  const { editPostId } = useLocalSearchParams<{ editPostId?: string }>();
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   // Use custom hooks for state management
   const mediaManager = useMediaManager();
@@ -231,6 +236,7 @@ const ComposeScreen = () => {
   const [replyPermission, setReplyPermission] = useState<ReplyPermission>('anyone');
   const [reviewReplies, setReviewReplies] = useState(false);
   const [showModeToggle, setShowModeToggle] = useState(false);
+  const [isSensitive, setIsSensitive] = useState(false);
 
   const scheduleEnabled = postingMode === 'thread' && threadItems.length === 0;
 
@@ -379,6 +385,38 @@ const ComposeScreen = () => {
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
 
+  // Load existing post data when in edit mode
+  useEffect(() => {
+    if (!editPostId) return;
+    let cancelled = false;
+    setEditLoading(true);
+    setIsEditMode(true);
+    (async () => {
+      try {
+        const post = await feedService.getPostById(editPostId);
+        if (cancelled) return;
+        // Pre-populate compose fields from existing post
+        const postText = post?.content?.text || post?.text || '';
+        setPostContent(postText);
+        if (post?.content?.media && post.content.media.length > 0) {
+          setMediaIds(post.content.media.map((m: any) => ({
+            id: m.id || m,
+            type: m.type || 'image',
+          })));
+        }
+        if (post?.mentions && post.mentions.length > 0) {
+          setMentions(post.mentions.map((m: any) => (typeof m === 'string' ? { id: m, display: m } : m)));
+        }
+      } catch (e) {
+        logger.error('[Compose] Failed to load post for editing', e);
+        toast.error(t('Failed to load post for editing'));
+      } finally {
+        if (!cancelled) setEditLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editPostId]);
+
   // Keep this in sync with PostItem constants
   const HPAD = 16;
   const AVATAR_SIZE = 40;
@@ -430,6 +468,7 @@ const ComposeScreen = () => {
         replyPermission,
         reviewReplies,
         scheduledAt: scheduledAtRef.current,
+        isSensitive,
       });
       allPosts.push(mainPost);
 
@@ -441,8 +480,19 @@ const ComposeScreen = () => {
         }
       });
 
-      // Send to backend based on whether we have multiple posts or just one
-      if (allPosts.length === 1) {
+      // Send to backend
+      if (isEditMode && editPostId) {
+        // Edit mode: update existing post
+        const editData = {
+          content: {
+            text: postContent,
+            media: mediaIds.map(m => ({ id: m.id, type: m.type })),
+          },
+          hashtags: mainPost.hashtags || [],
+          mentions: mainPost.mentions || [],
+        };
+        await feedService.editPost(editPostId, editData);
+      } else if (allPosts.length === 1) {
         await createPost(allPosts[0] as any);
       } else {
         await createThread({
@@ -457,9 +507,11 @@ const ComposeScreen = () => {
         setCurrentDraftId(null);
       }
 
-      const successMessage = wasScheduled && scheduledAtValue
-        ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
-        : t('Post published successfully');
+      const successMessage = isEditMode
+        ? t('Post updated successfully')
+        : wasScheduled && scheduledAtValue
+          ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
+          : t('Post published successfully');
       toast.success(successMessage);
 
       clearSchedule({ silent: true });
@@ -695,7 +747,7 @@ const ComposeScreen = () => {
               >
                 <BackArrowIcon size={20} color={theme.colors.text} />
               </IconButton>
-              <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>{t('New post')}</Text>
+              <Text style={[styles.headerTitle, { color: theme.colors.text }, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : t('New post')}</Text>
               <View style={styles.headerIcons}>
                 <IconButton variant="icon"
                   style={styles.iconBtn}
@@ -766,6 +818,13 @@ const ComposeScreen = () => {
                 </IconButton>
               </View>
             </View>
+
+            {/* Editing indicator */}
+            {isEditMode && (
+              <View style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.colors.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}>
+                <Text style={{ color: theme.colors.primary, fontSize: 13, fontWeight: '600' }}>{editLoading ? t('Loading post...') : t('Editing post - changes must be saved within 30 minutes of creation')}</Text>
+              </View>
+            )}
 
             {/* Mode Toggle Section */}
             {showModeToggle && (
@@ -1425,6 +1484,23 @@ const ComposeScreen = () => {
               <TouchableOpacity onPress={openReplySettings} activeOpacity={0.7}>
                 <Text style={styles.bottomText}>{getReplyPermissionText()}</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setIsSensitive(!isSensitive)}
+                activeOpacity={0.7}
+                style={styles.sensitiveToggle}
+              >
+                <Ionicons
+                  name={isSensitive ? 'warning' : 'warning-outline'}
+                  size={16}
+                  color={isSensitive ? theme.colors.error : theme.colors.textSecondary}
+                />
+                <Text style={[
+                  styles.bottomText,
+                  isSensitive && { color: theme.colors.error },
+                ]}>
+                  {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
+                </Text>
+              </TouchableOpacity>
             </View>
           </ThemedView>
         </KeyboardAvoidingView>
@@ -1442,7 +1518,7 @@ const ComposeScreen = () => {
           {isPosting ? (
             <Loading variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
-            <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{t('Post')}</Text>
+            <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{isEditMode ? t('Save') : t('Post')}</Text>
           )}
         </TouchableOpacity>
 
@@ -1612,6 +1688,12 @@ const styles = StyleSheet.create({
     color: colors.COLOR_BLACK_LIGHT_4,
     fontSize: 16,
     flex: 1,
+  },
+  sensitiveToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 8,
   },
   floatingPostButton: {
     position: 'absolute',

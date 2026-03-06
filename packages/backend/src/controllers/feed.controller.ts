@@ -268,15 +268,19 @@ class FeedController {
     const startTime = Date.now();
     try {
       // Input validation and sanitization - Enterprise-grade
-      const { type = 'mixed', cursor } = req.query as { type?: FeedType; cursor?: string };
-      
+      const { type = 'mixed', cursor, sort } = req.query as { type?: FeedType; cursor?: string; sort?: string };
+
       // Validate feed type (prevent injection and invalid types)
       const validFeedTypes: FeedType[] = ['mixed', 'posts', 'media', 'replies', 'reposts', 'saved', 'for_you', 'following', 'explore'];
       const feedType: FeedType = validFeedTypes.includes(type as FeedType) ? (type as FeedType) : 'mixed';
-      
+
+      // Validate sort parameter
+      const validSorts = ['recent', 'best'];
+      const feedSort = validSorts.includes(sort as string) ? sort as string : undefined;
+
       // Parse and validate limit parameter using utility
       const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
-      
+
       // Parse filters using utility
       const feedFilters = parseFeedFilters(req.query);
       const currentUserId = req.user?.id;
@@ -524,6 +528,43 @@ class FeedController {
             logger.debug(`[Saved Feed] Sample post mentions`, samplePost?.mentions);
             logger.debug(`[Saved Feed] Sample post content.text`, samplePost?.content?.text?.substring(0, 100));
           }
+        } else if (feedSort === 'best' && feedType === 'replies') {
+          // Sort replies by engagement (likes + reposts) for "best" sort
+          posts = await Post.aggregate([
+            { $match: query },
+            {
+              $project: {
+                _id: 1,
+                oxyUserId: 1,
+                createdAt: 1,
+                visibility: 1,
+                type: 1,
+                parentPostId: 1,
+                repostOf: 1,
+                quoteOf: 1,
+                threadId: 1,
+                content: 1,
+                stats: 1,
+                metadata: 1,
+                hashtags: 1,
+                mentions: 1,
+                language: 1
+              }
+            },
+            {
+              $addFields: {
+                engagementScore: {
+                  $add: [
+                    { $ifNull: ['$stats.likesCount', 0] },
+                    { $multiply: [{ $ifNull: ['$stats.repostsCount', 0] }, 2] },
+                    { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
+                  ]
+                }
+              }
+            },
+            { $sort: { engagementScore: -1, createdAt: -1 } },
+            { $limit: limit + 1 }
+          ]).option({ maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
         } else {
           posts = await Post.find(query)
             .select(this.FEED_FIELDS)
@@ -532,7 +573,7 @@ class FeedController {
             .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
             .lean();
         }
-        
+
         // Validate result size
         validateResultSize(posts, limit + 1);
       }
@@ -1866,6 +1907,13 @@ class FeedController {
 
   async getRepliesFeed(req: AuthRequest, res: Response) {
     req.query.type = 'replies';
+    // If parentId is in route params, pass it as a filter for server-side filtering
+    if (req.params.parentId) {
+      if (!req.query.filters || typeof req.query.filters !== 'object') {
+        req.query.filters = {} as any;
+      }
+      (req.query as any)['filters[parentPostId]'] = req.params.parentId;
+    }
     return this.getFeed(req, res);
   }
 
@@ -1894,6 +1942,55 @@ class FeedController {
     } catch (error) {
       logger.error('Error fetching feed item', error);
       res.status(500).json({ error: 'Failed to fetch feed item' });
+    }
+  }
+
+  /**
+   * Get pinned post for a user
+   */
+  async getPinnedPost(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.params.userId as string;
+      const currentUserId = req.user?.id;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+      }
+
+      // Check privacy
+      const userSettings = await UserSettings.findOne({ oxyUserId: userId }).lean();
+      const profileVisibility = userSettings?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
+      const isOwnProfile = currentUserId === userId;
+
+      if (!isOwnProfile && requiresAccessCheck(profileVisibility)) {
+        if (!currentUserId) {
+          return res.json({ item: null });
+        }
+        const hasAccess = await checkFollowAccess(currentUserId, userId);
+        if (!hasAccess) {
+          return res.json({ item: null });
+        }
+      }
+
+      const pinnedPost = await Post.findOne({
+        oxyUserId: userId,
+        'metadata.isPinned': true,
+        visibility: PostVisibility.PUBLIC,
+      }).sort({ updatedAt: -1 }).lean();
+
+      if (!pinnedPost) {
+        return res.json({ item: null });
+      }
+
+      const [hydrated] = await postHydrationService.hydratePosts([pinnedPost], {
+        viewerId: currentUserId,
+        maxDepth: 1,
+        includeLinkMetadata: true,
+      });
+      return res.json({ item: hydrated || null });
+    } catch (error) {
+      logger.error('Error fetching pinned post', error);
+      res.status(500).json({ error: 'Failed to fetch pinned post' });
     }
   }
 }

@@ -60,6 +60,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const bottomSheet = useContext(BottomSheetContext);
     const { joinLiveRoom } = useLiveRoom();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
+    const [sensitiveRevealed, setSensitiveRevealed] = useState(false);
 
     const postId = (post as any)?.id;
     const storePost = usePostsStore((state) => (postId ? state.postsById[postId] : null));
@@ -77,6 +78,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const content: PostContent = viewPost.content ?? {};
     const attachmentsBundle: PostAttachmentBundle = viewPost.attachments ?? {};
     const linkPreview = viewPost.linkPreview ?? null;
+    const isSensitiveContent = metadata.isSensitive === true;
 
     const isOwner = viewerState.isOwner ?? false;
     const isLiked = viewerState.isLiked ?? false;
@@ -328,6 +330,16 @@ const PostItem: React.FC<PostItemProps> = ({
         }
         : undefined;
 
+    const postAuthor = viewPost.user?.name || viewPost.user?.displayName || viewPost.user?.handle || '';
+    const postTextSummary = content.text
+        ? content.text.length > 80
+            ? content.text.substring(0, 80) + '...'
+            : content.text
+        : '';
+    const postAccessibilityLabel = postTextSummary
+        ? `${postAuthor}: ${postTextSummary}`
+        : `Post by ${postAuthor}`;
+
     return (
         <>
             <Container
@@ -341,6 +353,8 @@ const PostItem: React.FC<PostItemProps> = ({
                     isNested && [styles.nestedPostContainer, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }],
                     style,
                 ]}
+                accessibilityLabel={postAccessibilityLabel}
+                accessibilityRole={isPostDetail ? undefined : 'button'}
                 {...(isPostDetail ? {} : { onPress: goToPost })}
             >
                 <PostHeader
@@ -391,69 +405,90 @@ const PostItem: React.FC<PostItemProps> = ({
                 )}
 
                 {shouldRenderMediaBlock && (
-                    <PostAttachmentsRow
-                        media={Array.isArray(mediaItems) ? mediaItems : []}
-                        attachments={attachmentDescriptors}
-                        nestedPost={nestedPost ?? null}
-                        leftOffset={AVATAR_OFFSET}
-                        pollData={pollData}
-                        pollId={pollId ? String(pollId) : undefined}
-                        nestingDepth={nestingDepth}
-                        postId={viewPostId}
-                        article={
-                            articleContent
-                                ? {
-                                    title: articleContent.title,
-                                    body: articleContent.body ?? articleContent.excerpt,
-                                    articleId: articleContent.articleId,
+                    <View style={{ position: 'relative' }}>
+                        {isSensitiveContent && !sensitiveRevealed && (
+                            <TouchableOpacity
+                                style={styles.sensitiveOverlay}
+                                onPress={() => setSensitiveRevealed(true)}
+                                activeOpacity={0.8}
+                            >
+                                <View style={styles.sensitiveOverlayContent}>
+                                    <Ionicons name="eye-off" size={24} color="#fff" />
+                                    <Text style={styles.sensitiveOverlayTitle}>
+                                        {t('post.sensitiveContent', { defaultValue: 'Sensitive content' })}
+                                    </Text>
+                                    <Text style={styles.sensitiveOverlaySubtitle}>
+                                        {t('post.sensitiveContentTap', { defaultValue: 'Tap to reveal' })}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        )}
+                        <View style={isSensitiveContent && !sensitiveRevealed ? { opacity: 0.05 } : undefined}>
+                            <PostAttachmentsRow
+                                media={Array.isArray(mediaItems) ? mediaItems : []}
+                                attachments={attachmentDescriptors}
+                                nestedPost={nestedPost ?? null}
+                                leftOffset={AVATAR_OFFSET}
+                                pollData={pollData}
+                                pollId={pollId ? String(pollId) : undefined}
+                                nestingDepth={nestingDepth}
+                                postId={viewPostId}
+                                article={
+                                    articleContent
+                                        ? {
+                                            title: articleContent.title,
+                                            body: articleContent.body ?? articleContent.excerpt,
+                                            articleId: articleContent.articleId,
+                                        }
+                                        : null
                                 }
-                                : null
-                        }
-                        onArticlePress={hasArticle ? openArticleSheet : undefined}
-                        event={
-                            eventContent
-                                ? {
-                                    eventId: eventContent.eventId,
-                                    name: eventContent.name,
-                                    date: eventContent.date,
-                                    location: eventContent.location,
-                                    description: eventContent.description,
+                                onArticlePress={hasArticle ? openArticleSheet : undefined}
+                                event={
+                                    eventContent
+                                        ? {
+                                            eventId: eventContent.eventId,
+                                            name: eventContent.name,
+                                            date: eventContent.date,
+                                            location: eventContent.location,
+                                            description: eventContent.description,
+                                        }
+                                        : null
                                 }
-                                : null
-                        }
-                        room={
-                            roomContent
-                                ? {
-                                    roomId: roomContent.roomId || roomContent.spaceId,
-                                    title: roomContent.title,
-                                    status: roomContent.status,
-                                    topic: roomContent.topic,
-                                    host: roomContent.host,
+                                room={
+                                    roomContent
+                                        ? {
+                                            roomId: roomContent.roomId || roomContent.spaceId,
+                                            title: roomContent.title,
+                                            status: roomContent.status,
+                                            topic: roomContent.topic,
+                                            host: roomContent.host,
+                                        }
+                                        : null
                                 }
-                                : null
-                        }
-                        onRoomPress={
-                            (roomContent?.roomId || roomContent?.spaceId)
-                                ? () => joinLiveRoom(roomContent.roomId || roomContent.spaceId)
-                                : undefined
-                        }
-                        location={location}
-                        sources={sourcesList}
-                        onSourcesPress={hasSources ? openSourcesSheet : undefined}
-                        text={content.text}
-                        linkMetadata={
-                            linkPreview
-                                ? {
-                                    url: linkPreview.url,
-                                    title: linkPreview.title,
-                                    description: linkPreview.description,
-                                    image: linkPreview.image,
-                                    siteName: linkPreview.siteName,
+                                onRoomPress={
+                                    (roomContent?.roomId || roomContent?.spaceId)
+                                        ? () => joinLiveRoom(roomContent.roomId || roomContent.spaceId)
+                                        : undefined
                                 }
-                                : null
-                        }
-                        style={{ marginTop: SECTION_GAP }}
-                    />
+                                location={location}
+                                sources={sourcesList}
+                                onSourcesPress={hasSources ? openSourcesSheet : undefined}
+                                text={content.text}
+                                linkMetadata={
+                                    linkPreview
+                                        ? {
+                                            url: linkPreview.url,
+                                            title: linkPreview.title,
+                                            description: linkPreview.description,
+                                            image: linkPreview.image,
+                                            siteName: linkPreview.siteName,
+                                        }
+                                        : null
+                                }
+                                style={{ marginTop: SECTION_GAP }}
+                            />
+                        </View>
+                    </View>
                 )}
 
                 {!isNested && (
@@ -464,6 +499,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                 reposts: engagement.reposts ?? 0,
                                 likes: engagement.likes ?? 0,
                                 saves: engagement.saves ?? null,
+                                views: engagement.views ?? null,
                             }}
                             isLiked={isLiked}
                             isReposted={isReposted}
@@ -545,6 +581,33 @@ const styles = StyleSheet.create({
     sourcesChipText: {
         fontSize: 13,
         fontWeight: '600',
+    },
+    sensitiveOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 10,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: 120,
+    },
+    sensitiveOverlayContent: {
+        alignItems: 'center',
+        gap: 4,
+    },
+    sensitiveOverlayTitle: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+        marginTop: 4,
+    },
+    sensitiveOverlaySubtitle: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 13,
     },
 });
 

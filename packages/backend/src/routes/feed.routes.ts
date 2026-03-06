@@ -26,6 +26,8 @@ router.get('/replies', feedController.getRepliesFeed.bind(feedController));
 
 // User profile feed routes
 router.get('/user/:userId', feedController.getUserProfileFeed.bind(feedController));
+// Pinned post for a user profile
+router.get('/user/:userId/pinned', feedController.getPinnedPost.bind(feedController));
 // Single feed item with full transformation
 router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 

@@ -26,6 +26,7 @@ interface BuildMainPostParams {
   replyPermission: string;
   reviewReplies: boolean;
   scheduledAt: Date | null;
+  isSensitive?: boolean;
 }
 
 interface ThreadItem {
@@ -61,6 +62,7 @@ export const buildMainPost = (params: BuildMainPostParams) => {
     replyPermission,
     reviewReplies,
     scheduledAt,
+    isSensitive,
   } = params;
 
   const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
@@ -125,6 +127,7 @@ export const buildMainPost = (params: BuildMainPostParams) => {
     hashtags: [],
     replyPermission: replyPermission,
     reviewReplies: reviewReplies,
+    ...(isSensitive ? { metadata: { isSensitive: true } } : {}),
     ...(wasScheduled && scheduledAt ? {
       status: 'scheduled' as const,
       scheduledFor: scheduledAt.toISOString()

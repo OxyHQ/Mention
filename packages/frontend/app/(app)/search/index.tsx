@@ -16,7 +16,7 @@ import { Header } from "@/components/Header";
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useTheme } from "@/hooks/useTheme";
-import { searchService } from "@/services/searchService";
+import { searchService, SEARCH_OPERATORS } from "@/services/searchService";
 import { Loading } from "@/components/ui/Loading";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
@@ -65,6 +65,15 @@ export default function SearchIndex() {
     const MAX_CACHE_SIZE = 50;
     const searchInputRef = useRef<TextInput>(null);
 
+    // Search history state
+    const [searchHistory, setSearchHistory] = useState<string[]>([]);
+    const [isFocused, setIsFocused] = useState(true); // autoFocus starts focused
+
+    // Load search history on mount
+    useEffect(() => {
+        searchService.getSearchHistory().then(setSearchHistory);
+    }, []);
+
     useEffect(() => {
         resultsCacheRef.current = resultsCache;
     }, [resultsCache]);
@@ -99,6 +108,9 @@ export default function SearchIndex() {
                 setResults(EMPTY_RESULTS);
                 return;
             }
+
+            // Save to search history when search is performed
+            searchService.addToSearchHistory(searchQuery).then(setSearchHistory);
 
             const cacheKey = `${activeTab}-${searchQuery}`;
             if (resultsCacheRef.current[cacheKey]) {
@@ -188,6 +200,21 @@ export default function SearchIndex() {
     const clearSearch = useCallback(() => {
         setQuery("");
         searchInputRef.current?.focus();
+    }, []);
+
+    // --- Search history handlers ---
+    const handleHistoryItemPress = useCallback((item: string) => {
+        setQuery(item);
+    }, []);
+
+    const handleRemoveHistoryItem = useCallback(async (item: string) => {
+        const updated = await searchService.removeFromSearchHistory(item);
+        setSearchHistory(updated);
+    }, []);
+
+    const handleClearAllHistory = useCallback(async () => {
+        await searchService.clearSearchHistory();
+        setSearchHistory([]);
     }, []);
 
     const renderUserItem = useCallback((user: any) => {
@@ -345,6 +372,11 @@ export default function SearchIndex() {
         );
     };
 
+    // Whether to show the idle state (no query, focused)
+    const showIdleState = !loading && !query.trim();
+    const showSearchHistory = showIdleState && isFocused && searchHistory.length > 0;
+    const showOperatorHints = showIdleState && isFocused;
+
     return (
         <>
             <SEO
@@ -382,6 +414,8 @@ export default function SearchIndex() {
                             placeholderTextColor={theme.colors.textSecondary}
                             value={query}
                             onChangeText={setQuery}
+                            onFocus={() => setIsFocused(true)}
+                            onBlur={() => setIsFocused(false)}
                             autoFocus
                             returnKeyType="search"
                         />
@@ -405,7 +439,7 @@ export default function SearchIndex() {
 
                     <ScrollView
                         style={styles.resultsContainer}
-                        contentContainerStyle={!loading && !currentTabHasResults ? styles.resultsContentEmpty : undefined}
+                        contentContainerStyle={showIdleState && !showSearchHistory ? styles.resultsContentEmpty : undefined}
                         keyboardShouldPersistTaps="handled"
                         keyboardDismissMode="on-drag"
                     >
@@ -426,33 +460,104 @@ export default function SearchIndex() {
                             />
                         )}
 
-                        {!loading && !query.trim() && (
-                            <EmptyState
-                                title={t("search.startSearching", "Search Mention")}
-                                subtitle={t("search.startDescription", "Find people, posts, hashtags, and more")}
-                                icon={{
-                                    name: 'search-outline',
-                                    size: 48,
-                                }}
-                            />
+                        {/* Idle state: search history + operator hints */}
+                        {showIdleState && (
+                            <View style={styles.idleContainer}>
+                                {/* Recent searches */}
+                                {showSearchHistory && (
+                                    <View style={styles.historySection}>
+                                        <View style={styles.historyHeader}>
+                                            <Text style={[styles.historySectionTitle, { color: theme.colors.text }]}>
+                                                {t("search.recentSearches", "Recent searches")}
+                                            </Text>
+                                            <TouchableOpacity onPress={handleClearAllHistory}>
+                                                <Text style={[styles.historyClearAll, { color: theme.colors.primary }]}>
+                                                    {t("common.clearAll", "Clear all")}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                        {searchHistory.map((item) => (
+                                            <TouchableOpacity
+                                                key={item}
+                                                style={styles.historyItem}
+                                                onPress={() => handleHistoryItemPress(item)}
+                                            >
+                                                <View style={styles.historyItemLeft}>
+                                                    <Ionicons name="time-outline" size={18} color={theme.colors.textSecondary} />
+                                                    <Text style={[styles.historyItemText, { color: theme.colors.text }]} numberOfLines={1}>
+                                                        {item}
+                                                    </Text>
+                                                </View>
+                                                <TouchableOpacity
+                                                    onPress={() => handleRemoveHistoryItem(item)}
+                                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                >
+                                                    <Ionicons name="close" size={16} color={theme.colors.textTertiary} />
+                                                </TouchableOpacity>
+                                            </TouchableOpacity>
+                                        ))}
+                                        <Divider />
+                                    </View>
+                                )}
+
+                                {/* Search operator hints */}
+                                {showOperatorHints && (
+                                    <View style={styles.operatorHintsSection}>
+                                        <Text style={[styles.operatorHintsTitle, { color: theme.colors.textSecondary }]}>
+                                            {t("search.operatorHints", "Search operators")}
+                                        </Text>
+                                        {SEARCH_OPERATORS.map((op) => (
+                                            <TouchableOpacity
+                                                key={op.operator}
+                                                style={styles.operatorHintRow}
+                                                onPress={() => {
+                                                    const prefix = op.operator.split(':')[0] + ':';
+                                                    setQuery(prefix);
+                                                    searchInputRef.current?.focus();
+                                                }}
+                                            >
+                                                <Text style={[styles.operatorCode, { color: theme.colors.primary, backgroundColor: theme.colors.backgroundSecondary }]}>
+                                                    {op.operator}
+                                                </Text>
+                                                <Text style={[styles.operatorDesc, { color: theme.colors.textSecondary }]}>
+                                                    {t(`search.operator.${op.operator.split(':')[0]}`, op.description)}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+
+                                {/* Fallback empty state when no history */}
+                                {!showSearchHistory && !showOperatorHints && (
+                                    <EmptyState
+                                        title={t("search.startSearching", "Search Mention")}
+                                        subtitle={t("search.startDescription", "Find people, posts, hashtags, and more")}
+                                        icon={{
+                                            name: 'search-outline',
+                                            size: 48,
+                                        }}
+                                    />
+                                )}
+                            </View>
                         )}
 
                         {!loading && currentTabHasResults && (
                             <>
-                                {(activeTab === "all" || activeTab === "posts") &&
-                                    renderSection(
-                                        t("search.sections.posts", "Posts"),
-                                        results.posts,
-                                        (post: any) => <PostItem key={post.id} post={post} />,
-                                        activeTab === "all",
-                                    )
-                                }
-
+                                {/* Users/People section appears ABOVE posts in "all" tab */}
                                 {(activeTab === "all" || activeTab === "users") &&
                                     renderSection(
                                         t("search.sections.users", "People"),
                                         results.users,
                                         renderUserItem,
+                                        activeTab === "all",
+                                    )
+                                }
+
+                                {(activeTab === "all" || activeTab === "posts") &&
+                                    renderSection(
+                                        t("search.sections.posts", "Posts"),
+                                        results.posts,
+                                        (post: any) => <PostItem key={post.id} post={post} />,
                                         activeTab === "all",
                                     )
                                 }
@@ -589,5 +694,77 @@ const styles = StyleSheet.create({
     hashtagCount: {
         fontSize: FONT_SIZES.sm,
         marginTop: 2,
+    },
+    // Idle state styles
+    idleContainer: {
+        flex: 1,
+        paddingTop: SPACING.sm,
+    },
+    // Search history styles
+    historySection: {
+        marginBottom: SPACING.md,
+    },
+    historyHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingHorizontal: SPACING.base,
+        paddingVertical: SPACING.sm,
+    },
+    historySectionTitle: {
+        fontSize: FONT_SIZES.lg,
+        fontWeight: "700",
+    },
+    historyClearAll: {
+        fontSize: FONT_SIZES.sm,
+        fontWeight: "600",
+    },
+    historyItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: SPACING.base,
+        paddingVertical: SPACING.md,
+    },
+    historyItemLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: SPACING.md,
+        flex: 1,
+    },
+    historyItemText: {
+        fontSize: FONT_SIZES.base,
+        flex: 1,
+    },
+    // Operator hints styles
+    operatorHintsSection: {
+        paddingHorizontal: SPACING.base,
+        paddingTop: SPACING.md,
+    },
+    operatorHintsTitle: {
+        fontSize: FONT_SIZES.sm,
+        fontWeight: "600",
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+        marginBottom: SPACING.md,
+    },
+    operatorHintRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: SPACING.md,
+        paddingVertical: SPACING.sm,
+    },
+    operatorCode: {
+        fontSize: FONT_SIZES.sm,
+        fontWeight: "600",
+        fontFamily: undefined, // platform monospace fallback
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: 2,
+        borderRadius: 4,
+        overflow: "hidden",
+    },
+    operatorDesc: {
+        fontSize: FONT_SIZES.sm,
+        flex: 1,
     },
 });

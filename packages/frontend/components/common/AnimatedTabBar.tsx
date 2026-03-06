@@ -125,6 +125,9 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
                         key={tab.id}
                         style={styles.tab}
                         onPress={() => onTabPress(tab.id)}
+                        accessibilityRole="tab"
+                        accessibilityLabel={tab.label}
+                        accessibilityState={{ selected: activeTabId === tab.id }}
                         onLayout={(event) => {
                             const { x, width } = event.nativeEvent.layout;
                             // Initialize layout info if not exists

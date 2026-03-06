@@ -20,6 +20,7 @@ export interface ProfileData {
   verified?: boolean;
   avatar?: string;
   postsCount?: number;
+  followsYou?: boolean;
   design: ProfileDesign;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
@@ -133,6 +134,7 @@ export function useProfileData(username?: string): {
       id: oxyProfile.id || '',
       username: oxyProfile.username || '',
       postsCount: appearance?.postsCount,
+      followsYou: appearance?.followsYou,
       design,
       privacy,
     };

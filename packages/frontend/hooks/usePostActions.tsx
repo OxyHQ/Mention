@@ -20,6 +20,7 @@ import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { MuteIcon } from '@/assets/icons/mute-icon';
 import { ReportIcon } from '@/assets/icons/report-icon';
+import { Ionicons } from '@expo/vector-icons';
 import PostInsightsSheet from '@/components/Post/PostInsightsSheet';
 import ReplySettingsSheet from '@/components/Compose/ReplySettingsSheet';
 import ReportModal from '@/components/report/ReportModal';
@@ -139,6 +140,23 @@ export function usePostActions({
                 text: "Unsave",
                 onPress: async () => { await onSave(); bottomSheet.openBottomSheet(false); }
             });
+        }
+
+        // Edit action - only for owner, within 30-minute window
+        if (isOwner) {
+            const createdAtRaw = viewPost?.metadata?.createdAt || viewPost?.createdAt;
+            const createdAtMs = createdAtRaw ? new Date(createdAtRaw).getTime() : 0;
+            const withinEditWindow = createdAtMs > 0 && (Date.now() - createdAtMs) < 30 * 60 * 1000;
+            if (withinEditWindow) {
+                saveActionGroup.push({
+                    icon: <Ionicons name="create-outline" size={20} color={theme.colors.textSecondary} />,
+                    text: "Edit",
+                    onPress: () => {
+                        bottomSheet.openBottomSheet(false);
+                        router.push(`/compose?editPostId=${postId}`);
+                    }
+                });
+            }
         }
 
         if (isOwner && isPinned) {

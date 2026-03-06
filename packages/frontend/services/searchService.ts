@@ -1,6 +1,7 @@
 import { authenticatedClient } from "@/utils/api";
 import { oxyServices } from "@/lib/oxyServices";
 import { feedService } from "./feedService";
+import { Storage } from "@/utils/storage";
 
 export interface SearchResults {
   posts?: any[];
@@ -24,8 +25,24 @@ export interface SearchFilters {
   limit?: number;
 }
 
+const SEARCH_HISTORY_KEY = 'mention_search_history';
+const MAX_SEARCH_HISTORY = 10;
+
+/**
+ * Search operator definitions for display in the UI hint.
+ */
+export const SEARCH_OPERATORS = [
+  { operator: 'from:username', description: 'Posts by a specific user' },
+  { operator: 'since:YYYY-MM-DD', description: 'Posts after a date' },
+  { operator: 'until:YYYY-MM-DD', description: 'Posts before a date' },
+  { operator: 'has:media', description: 'Posts with media' },
+  { operator: 'has:links', description: 'Posts with links' },
+  { operator: 'min_likes:N', description: 'Minimum likes' },
+  { operator: 'min_reposts:N', description: 'Minimum reposts' },
+] as const;
+
 class SearchService {
-  // Search posts
+  // Search posts - query is passed raw to backend which parses operators
   async searchPosts(query: string): Promise<any[]> {
     try {
       const res = await authenticatedClient.get("/search", {
@@ -49,7 +66,7 @@ class SearchService {
       return [];
     } catch (error) {
       console.warn("Failed searching users", error);
-      
+
       // Fallback: try to get exact username match
       try {
         const exactMatch = await oxyServices.getProfileByUsername(query);
@@ -102,10 +119,10 @@ class SearchService {
   // Search saved posts
   async searchSaved(query: string): Promise<any[]> {
     try {
-      const response = await feedService.getSavedPosts({ 
-        page: 1, 
+      const response = await feedService.getSavedPosts({
+        page: 1,
         limit: 20,
-        search: query 
+        search: query
       });
       return response.data.posts || [];
     } catch (error) {
@@ -114,7 +131,7 @@ class SearchService {
     }
   }
 
-  // Search all
+  // Search all - shows users above posts in "all" tab
   async searchAll(query: string): Promise<SearchResults> {
     try {
       const [posts, users, feeds, lists, hashtags, saved] = await Promise.all([
@@ -150,6 +167,39 @@ class SearchService {
       console.warn("Failed advanced search", error);
       return { posts: [], hasMore: false };
     }
+  }
+
+  // --- Search history ---
+
+  async getSearchHistory(): Promise<string[]> {
+    const history = await Storage.get<string[]>(SEARCH_HISTORY_KEY);
+    return history || [];
+  }
+
+  async addToSearchHistory(query: string): Promise<string[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return this.getSearchHistory();
+
+    let history = await this.getSearchHistory();
+    // Remove duplicate if exists
+    history = history.filter(item => item !== trimmed);
+    // Add to front
+    history.unshift(trimmed);
+    // Keep only last N
+    history = history.slice(0, MAX_SEARCH_HISTORY);
+    await Storage.set(SEARCH_HISTORY_KEY, history);
+    return history;
+  }
+
+  async removeFromSearchHistory(query: string): Promise<string[]> {
+    let history = await this.getSearchHistory();
+    history = history.filter(item => item !== query);
+    await Storage.set(SEARCH_HISTORY_KEY, history);
+    return history;
+  }
+
+  async clearSearchHistory(): Promise<void> {
+    await Storage.remove(SEARCH_HISTORY_KEY);
   }
 }
 

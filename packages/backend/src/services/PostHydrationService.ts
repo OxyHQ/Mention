@@ -642,6 +642,8 @@ export class PostHydrationService {
       viewerState,
       permissions,
       metadata,
+      // Include parentPostId for thread hierarchy in replies
+      ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
     };
   }
 
@@ -832,12 +834,14 @@ export class PostHydrationService {
     const repliesCount = typeof stats.commentsCount === 'number' ? stats.commentsCount : 0;
     const savesCount = Array.isArray(metadata.savedBy) ? metadata.savedBy.length : undefined;
 
+    const viewsCount = typeof stats.viewsCount === 'number' ? stats.viewsCount : 0;
+
     return {
       likes: authorPrivacy.hideLikeCounts ? null : likesCount,
       reposts: authorPrivacy.hideShareCounts ? null : repostsCount,
       replies: authorPrivacy.hideReplyCounts ? null : repliesCount,
       saves: authorPrivacy.hideSaveCounts ? null : savesCount ?? null,
-      views: null,
+      views: viewsCount > 0 ? viewsCount : null,
       impressions: null,
     };
   }

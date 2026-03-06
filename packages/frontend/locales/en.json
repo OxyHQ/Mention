@@ -673,6 +673,42 @@
             "createButton": "Create List"
         }
     },
+    "search": {
+        "title": "Search",
+        "placeholder": "Search...",
+        "posts": "posts",
+        "noResults": "No results found",
+        "tryDifferent": "Try searching for something else",
+        "startSearching": "Search Mention",
+        "startDescription": "Find people, posts, hashtags, and more",
+        "recentSearches": "Recent searches",
+        "operatorHints": "Search operators",
+        "operator": {
+            "from": "Posts by a specific user",
+            "since": "Posts after a date",
+            "until": "Posts before a date",
+            "has": "Posts with media or links",
+            "min_likes": "Minimum likes",
+            "min_reposts": "Minimum reposts"
+        },
+        "tabs": {
+            "all": "All",
+            "posts": "Posts",
+            "users": "Users",
+            "feeds": "Feeds",
+            "hashtags": "Hashtags",
+            "lists": "Lists",
+            "saved": "Saved"
+        },
+        "sections": {
+            "posts": "Posts",
+            "users": "People",
+            "feeds": "Feeds",
+            "hashtags": "Hashtags",
+            "lists": "Lists",
+            "saved": "Saved"
+        }
+    },
     "feeds": {
         "title": "Feeds",
         "pinned": "Pinned",

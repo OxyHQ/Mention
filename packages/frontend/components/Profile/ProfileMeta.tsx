@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -49,20 +49,29 @@ export const ProfileMeta = memo(function ProfileMeta({
         </View>
       )}
 
-      {hasLinks && (
-        <View style={styles.metaItem}>
-          <View style={styles.linkIconWrapper}>
-            <Ionicons
-              name="link-outline"
-              size={16}
-              color={theme.colors.textSecondary}
-            />
-          </View>
-          <Text style={[styles.metaText, styles.linkText, { color: theme.colors.primary }]}>
-            {links[0]}
-          </Text>
-        </View>
-      )}
+      {hasLinks && links!.map((link, index) => {
+        const href = link.startsWith('http') ? link : `https://${link}`;
+        const displayText = link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+        return (
+          <TouchableOpacity
+            key={index}
+            style={styles.metaItem}
+            onPress={() => Linking.openURL(href)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.linkIconWrapper}>
+              <Ionicons
+                name="link-outline"
+                size={16}
+                color={theme.colors.textSecondary}
+              />
+            </View>
+            <Text style={[styles.metaText, styles.linkText, { color: theme.colors.primary }]}>
+              {displayText}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
 
       {hasJoinDate && (
         <TouchableOpacity

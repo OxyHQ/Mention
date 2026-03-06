@@ -3,7 +3,6 @@ import {
     View,
     Text,
     StyleSheet,
-    Alert,
     TouchableOpacity,
     KeyboardAvoidingView,
     Platform,
@@ -15,14 +14,15 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import { colors } from '@/styles/colors';
 import Avatar from '@/components/Avatar';
 import PostItem from '@/components/Feed/PostItem';
-import Feed from '@/components/Feed/Feed';
+import ThreadedReplies from '@/components/Feed/ThreadedReplies';
 import PostAttachmentsRow from '@/components/Post/PostAttachmentsRow';
 import { usePostsStore } from '@/stores/postsStore';
 import { FeedType } from '@mention/shared-types';
 import { UIPost, Reply, FeedRepost as Repost } from '@mention/shared-types';
+import { useFeedState } from '@/hooks/useFeedState';
+import { Loading as LoadingIcon } from '@/assets/icons/loading-icon';
 import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -69,6 +69,7 @@ const PostDetailScreen: React.FC = () => {
     const [isGettingLocation, setIsGettingLocation] = useState(false);
     const textInputRef = useRef<TextInput>(null);
     const [repliesReloadKey, setRepliesReloadKey] = useState(0);
+    const [replySort, setReplySort] = useState<'best' | 'recent'>('best');
 
     // Register scrollable with LayoutScrollContext
     useEffect(() => {
@@ -94,16 +95,22 @@ const PostDetailScreen: React.FC = () => {
     const hasContent = content.trim().length > 0 || mediaIds.length > 0 || (pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0));
     const canReply = hasContent && !isOverLimit && !isSubmitting;
 
-    // Memoize filters to prevent Feed re-renders on every keystroke
+    // Memoize filters for replies feed
     const feedFilters = useMemo(() => ({
         postId: String(id),
-        parentPostId: String(id)
-    }), [id]);
+        parentPostId: String(id),
+        sort: replySort
+    }), [id, replySort]);
 
-    // Memoize contentContainerStyle to prevent Feed re-renders
-    const feedContentStyle = useMemo(() => ({
-        paddingBottom: 16
-    }), []);
+    // Use feed state hook for threaded replies
+    const repliesFeed = useFeedState({
+        type: 'replies' as FeedType,
+        filters: feedFilters,
+        useScoped: true,
+        reloadKey: repliesReloadKey,
+        isAuthenticated: !!user,
+        currentUserId: user?.id,
+    });
 
     // Memoize callbacks to prevent child re-renders
     const handleFocusInput = useCallback(() => {
@@ -517,18 +524,56 @@ const PostDetailScreen: React.FC = () => {
                         />
                     </View>
                     <View style={styles.repliesSection}>
-                        <Text style={[styles.repliesTitle, { color: theme.colors.text }]}>Replies</Text>
-                        <Feed
-                            type={'replies' as any}
-                            hideHeader={true}
-                            style={styles.repliesFeed}
-                            contentContainerStyle={feedContentStyle}
-                            filters={feedFilters}
-                            reloadKey={repliesReloadKey}
-                            recycleItems={true}
-                            maintainVisibleContentPosition={true}
-                            scrollEnabled={false}
-                        />
+                        <View style={styles.repliesHeader}>
+                            <Text style={[styles.repliesTitle, { color: theme.colors.text }]}>Replies</Text>
+                            <View style={styles.sortToggle}>
+                                <TouchableOpacity
+                                    onPress={() => setReplySort('best')}
+                                    style={[
+                                        styles.sortOption,
+                                        replySort === 'best' && [styles.sortOptionActive, { borderBottomColor: theme.colors.primary }]
+                                    ]}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={[
+                                        styles.sortOptionText,
+                                        { color: replySort === 'best' ? theme.colors.text : theme.colors.textSecondary },
+                                        replySort === 'best' && styles.sortOptionTextActive
+                                    ]}>Best</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => setReplySort('recent')}
+                                    style={[
+                                        styles.sortOption,
+                                        replySort === 'recent' && [styles.sortOptionActive, { borderBottomColor: theme.colors.primary }]
+                                    ]}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={[
+                                        styles.sortOptionText,
+                                        { color: replySort === 'recent' ? theme.colors.text : theme.colors.textSecondary },
+                                        replySort === 'recent' && styles.sortOptionTextActive
+                                    ]}>Recent</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        {repliesFeed.isLoading && repliesFeed.items.length === 0 ? (
+                            <View style={styles.repliesLoading}>
+                                <LoadingIcon size={32} color={theme.colors.primary} />
+                            </View>
+                        ) : repliesFeed.items.length === 0 ? (
+                            <View style={styles.repliesEmpty}>
+                                <Text style={[styles.repliesEmptyText, { color: theme.colors.textSecondary }]}>
+                                    No replies yet. Be the first to reply!
+                                </Text>
+                            </View>
+                        ) : (
+                            <ThreadedReplies
+                                replies={repliesFeed.items}
+                                postId={String(id)}
+                                onReply={handleFocusInput}
+                            />
+                        )}
                     </View>
                 </ScrollView>
 
@@ -718,12 +763,52 @@ const styles = StyleSheet.create({
     repliesSection: {
         minHeight: 200,
     },
+    repliesHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 8,
+    },
     repliesTitle: {
         fontSize: 18,
         fontWeight: '600',
-        marginBottom: 12,
+    },
+    sortToggle: {
+        flexDirection: 'row',
+        gap: 4,
+    },
+    sortOption: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
+    sortOptionActive: {
+        borderBottomWidth: 2,
+    },
+    sortOptionText: {
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    sortOptionTextActive: {
+        fontWeight: '600',
+    },
+    repliesLoading: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 32,
+    },
+    repliesEmpty: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 32,
         paddingHorizontal: 16,
-        paddingTop: 16,
+    },
+    repliesEmptyText: {
+        fontSize: 15,
+        textAlign: 'center',
     },
     repliesFeed: {
         minHeight: 200,

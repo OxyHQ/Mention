@@ -1,7 +1,9 @@
 import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from 'react-i18next';
 import UserName from '@/components/UserName';
+import LinkifiedText from '@/components/common/LinkifiedText';
 import {
   ProfileHeaderDefault,
   ProfileHeaderMinimalist,
@@ -33,6 +35,7 @@ export const ProfileContent = memo(function ProfileContent({
   onLayout,
 }: ProfileContentProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const design = profileData.design;
   const minimalistMode = design?.minimalistMode ?? false;
 
@@ -106,15 +109,26 @@ export const ProfileContent = memo(function ProfileContent({
             variant="default"
             style={userNameStyle}
           />
-          {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}
+          <View style={styles.badgeRow}>
+            {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}
+            {!isOwnProfile && profileData.followsYou && (
+              <View style={[styles.followsYouBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <Text style={[styles.followsYouText, { color: theme.colors.textSecondary }]}>
+                  {t('profile.followsYou', { defaultValue: 'Follows you' })}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       )}
 
       {/* Bio */}
       {!minimalistMode && profileData.bio && (
-        <Text style={[styles.profileBio, { color: theme.colors.text }]}>
-          {profileData.bio}
-        </Text>
+        <LinkifiedText
+          text={profileData.bio}
+          style={[styles.profileBio, { color: theme.colors.text }]}
+          linkStyle={{ color: theme.colors.primary }}
+        />
       )}
 
       {/* Meta info (location, links, join date) */}
@@ -169,6 +183,21 @@ const styles = StyleSheet.create({
   profileHandle: {
     fontSize: 15,
     marginBottom: 12,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  followsYouBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  followsYouText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   profileBio: {
     fontSize: 15,

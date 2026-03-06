@@ -272,13 +272,56 @@ export default function SettingsScreen() {
 
     const handleExportData = async () => {
         const confirmed = await confirmDialog({
-            title: t('settings.data.exportData'),
-            message: t('settings.data.exportDataMessage'),
-            okText: t('common.export'),
+            title: t('settings.data.exportData', 'Export Your Data'),
+            message: t('settings.data.exportDataMessage', 'This will collect all your posts, likes, bookmarks, and settings into a JSON export.'),
+            okText: t('common.export', 'Export'),
             cancelText: t('common.cancel'),
         });
         if (!confirmed) return;
-        await alertDialog({ title: t('common.success'), message: t('settings.data.exportDataSuccess') });
+
+        try {
+            await authenticatedClient.post('/profile/export');
+            await alertDialog({
+                title: t('common.success'),
+                message: t('settings.data.exportDataSuccess', 'Your data export has been prepared successfully.'),
+            });
+        } catch (error) {
+            console.error('Error exporting data:', error);
+            await alertDialog({
+                title: t('common.error'),
+                message: t('settings.data.exportDataError', 'Failed to export data. Please try again later.'),
+            });
+        }
+    };
+
+    const handleDeactivateAccount = async () => {
+        const confirmed = await confirmDialog({
+            title: t('settings.account.deactivate', 'Deactivate Account'),
+            message: t('settings.account.deactivateMessage', 'This will temporarily hide your account. You can reactivate it by signing in again.'),
+            okText: t('settings.account.deactivateConfirm', 'Deactivate'),
+            cancelText: t('common.cancel'),
+            destructive: true,
+        });
+        if (!confirmed) return;
+        await alertDialog({
+            title: t('settings.account.contactSupport', 'Contact Support'),
+            message: t('settings.account.contactSupportMessage', 'To deactivate your account, please contact support at support@mention.earth'),
+        });
+    };
+
+    const handleDeleteAccount = async () => {
+        const confirmed = await confirmDialog({
+            title: t('settings.account.delete', 'Delete Account'),
+            message: t('settings.account.deleteMessage', 'This action is permanent and cannot be undone. All your data will be deleted.'),
+            okText: t('settings.account.deleteConfirm', 'Delete Account'),
+            cancelText: t('common.cancel'),
+            destructive: true,
+        });
+        if (!confirmed) return;
+        await alertDialog({
+            title: t('settings.account.contactSupport', 'Contact Support'),
+            message: t('settings.account.contactSupportMessage', 'To delete your account, please contact support at support@mention.earth'),
+        });
     };
 
     return (
@@ -724,7 +767,10 @@ export default function SettingsScreen() {
 
                         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
-                        <View style={styles.settingItem}>
+                        <TouchableOpacity
+                            style={styles.settingItem}
+                            onPress={() => router.push('/settings/notifications')}
+                        >
                             <View style={styles.settingInfo}>
                                 <View style={styles.settingIcon}>
                                     <IconComponent
@@ -740,11 +786,8 @@ export default function SettingsScreen() {
                                     </Text>
                                 </View>
                             </View>
-                            <Toggle
-                                value={notifications}
-                                onValueChange={onToggleNotifications}
-                            />
-                        </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
 
                         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
@@ -848,6 +891,84 @@ export default function SettingsScreen() {
                                     </Text>
                                     <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
                                         {t("settings.data.resetPersonalizationDesc")}
+                                    </Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Your Data */}
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+                        {t("settings.yourData", "Your Data")}
+                    </Text>
+                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.firstSettingItem, styles.lastSettingItem]}
+                            onPress={handleExportData}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="download-outline" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {t("settings.data.requestExport", "Request Data Export")}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t("settings.data.requestExportDesc", "Download a copy of your posts, likes, and bookmarks")}
+                                    </Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Account */}
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+                        {t("settings.account.title", "Account")}
+                    </Text>
+                    <View style={[styles.settingsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.firstSettingItem]}
+                            onPress={handleDeactivateAccount}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="eye-off-outline" size={20} color={theme.colors.textSecondary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                                        {t("settings.account.deactivate", "Deactivate Account")}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t("settings.account.deactivateDesc", "Temporarily hide your account")}
+                                    </Text>
+                                </View>
+                            </View>
+                            <IconComponent name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                        <TouchableOpacity
+                            style={[styles.settingItem, styles.lastSettingItem]}
+                            onPress={handleDeleteAccount}
+                        >
+                            <View style={styles.settingInfo}>
+                                <View style={styles.settingIcon}>
+                                    <IconComponent name="trash-outline" size={20} color={theme.colors.error} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
+                                        {t("settings.account.delete", "Delete Account")}
+                                    </Text>
+                                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                                        {t("settings.account.deleteDesc", "Permanently delete your account and all data")}
                                     </Text>
                                 </View>
                             </View>

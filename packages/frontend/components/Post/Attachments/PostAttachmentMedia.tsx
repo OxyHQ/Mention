@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Image, View, Pressable, StyleSheet, ViewStyle, Platform } from 'react-native';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { Image, View, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { LazyImage } from '@/components/ui/LazyImage';
+import VideoPlayer from '@/components/common/VideoPlayer';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)
@@ -30,63 +30,22 @@ const PostAttachmentVideo: React.FC<{
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
 }> = ({ src, borderColor, backgroundColor, postId, onPress, hasSingleMedia, hasMultipleMedia }) => {
-  const player = useVideoPlayer(src, (player) => {
-    if (player) {
-      player.loop = true;
-      player.muted = true;
-    }
-  });
-
-  useEffect(() => {
-    if (player) {
-      const playVideo = async () => {
-        try {
-          await player.play();
-        } catch (error) {
-          // Autoplay may be blocked - silently handle
-        }
-      };
-      playVideo();
-    }
-    return () => {
-      if (player) {
-        try {
-          player.pause();
-        } catch (error) {
-          // Silently handle pause errors
-        }
-      }
-    };
-  }, [player]);
-
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        { opacity: pressed ? 0.9 : 1 },
-        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' }
-      ]}
-    >
-      <View style={[
-        styles.itemContainer,
-        webGrabCursorStyle,
-        { borderColor, backgroundColor },
-        hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' },
-        hasSingleMedia && { maxHeight: undefined, height: undefined }
-      ]}>
-        <VideoView
-          player={player}
-          style={[
-            hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia,
-            { pointerEvents: 'none' },
-          ]}
-          contentFit="contain"
-          nativeControls={false}
-          allowsFullscreen={false}
-          allowsPictureInPicture={false}
-        />
-      </View>
-    </Pressable>
+    <View style={[
+      styles.itemContainer,
+      webGrabCursorStyle,
+      { borderColor, backgroundColor },
+      hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' },
+      hasSingleMedia && { maxHeight: undefined, height: undefined }
+    ]}>
+      <VideoPlayer
+        src={src}
+        style={hasSingleMedia ? styles.videoPreserveAspect : styles.videoMultipleMedia}
+        contentFit="contain"
+        autoPlay={true}
+        loop={true}
+      />
+    </View>
   );
 };
 

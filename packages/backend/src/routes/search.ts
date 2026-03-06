@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { feedController } from '../controllers/feed.controller';
 import { AuthRequest } from '../types/auth';
 import { config } from '../config';
+import { oxy as oxyClient } from '../../server';
 
 const router = express.Router();
 
@@ -12,6 +13,81 @@ const router = express.Router();
 const escapeRegex = (str: string): string => {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
+
+/**
+ * Parse search operators from query string.
+ * Supported operators:
+ *   from:username    - filter posts by author username
+ *   since:YYYY-MM-DD - posts after date
+ *   until:YYYY-MM-DD - posts before date
+ *   has:media        - posts with media attachments
+ *   has:links        - posts with links
+ *   min_likes:N      - minimum likes count
+ *   min_reposts:N    - minimum reposts count
+ *
+ * Returns the remaining text query and the extracted operators.
+ */
+interface ParsedOperators {
+  textQuery: string;
+  from?: string;
+  since?: string;
+  until?: string;
+  hasMedia?: boolean;
+  hasLinks?: boolean;
+  minLikes?: number;
+  minReposts?: number;
+}
+
+function parseSearchOperators(raw: string): ParsedOperators {
+  const result: ParsedOperators = { textQuery: '' };
+
+  // Match operator:value patterns (value can be quoted or unquoted)
+  const operatorRegex = /\b(from|since|until|has|min_likes|min_reposts):("[^"]*"|[^\s]+)/gi;
+  let remaining = raw;
+
+  let match: RegExpExecArray | null;
+  while ((match = operatorRegex.exec(raw)) !== null) {
+    const key = match[1].toLowerCase();
+    // Strip surrounding quotes if present
+    const value = match[2].replace(/^"|"$/g, '');
+
+    switch (key) {
+      case 'from':
+        result.from = value.replace(/^@/, ''); // strip leading @
+        break;
+      case 'since':
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          result.since = value;
+        }
+        break;
+      case 'until':
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          result.until = value;
+        }
+        break;
+      case 'has':
+        if (value === 'media') result.hasMedia = true;
+        if (value === 'links') result.hasLinks = true;
+        break;
+      case 'min_likes': {
+        const n = parseInt(value, 10);
+        if (!isNaN(n) && n >= 0) result.minLikes = n;
+        break;
+      }
+      case 'min_reposts': {
+        const n = parseInt(value, 10);
+        if (!isNaN(n) && n >= 0) result.minReposts = n;
+        break;
+      }
+    }
+
+    // Remove the matched operator from the remaining text
+    remaining = remaining.replace(match[0], '');
+  }
+
+  result.textQuery = remaining.replace(/\s+/g, ' ').trim();
+  return result;
+}
 
 router.get("/", async (req: AuthRequest, res: Response) => {
   try {
@@ -34,33 +110,60 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const results: any = { posts: [] };
 
     if (type === "all" || type === "posts") {
+      // Parse search operators from query string
+      const rawQuery = (typeof query === 'string') ? query.trim() : '';
+      const operators = parseSearchOperators(rawQuery);
+
       // Build query with filters
       const filter: any = {};
 
       // Text search with escaped regex (prevent ReDoS)
-      if (query && typeof query === 'string') {
-        const escapedQuery = escapeRegex(query.trim());
+      if (operators.textQuery) {
+        const escapedQuery = escapeRegex(operators.textQuery);
         filter.$or = [
           { 'content.text': { $regex: escapedQuery, $options: 'i' } },
           { hashtags: { $regex: escapedQuery, $options: 'i' } }
         ];
       }
 
-      // Date range filter with validation
-      if (dateFrom || dateTo) {
+      // --- Operator-based filters ---
+
+      // from:username - resolve username to oxyUserId
+      if (operators.from) {
+        try {
+          const profile = await oxyClient.getProfileByUsername(operators.from);
+          if (profile && (profile as any)._id) {
+            filter.oxyUserId = String((profile as any)._id);
+          } else {
+            // Username not found - return empty results
+            res.json({ posts: [], hasMore: false });
+            return;
+          }
+        } catch {
+          // Username not found - return empty results
+          res.json({ posts: [], hasMore: false });
+          return;
+        }
+      }
+
+      // since: / until: operators
+      const effectiveDateFrom = operators.since || (typeof dateFrom === 'string' ? dateFrom : undefined);
+      const effectiveDateTo = operators.until || (typeof dateTo === 'string' ? dateTo : undefined);
+
+      if (effectiveDateFrom || effectiveDateTo) {
         filter.createdAt = {};
         let fromDate: Date | undefined;
         let toDate: Date | undefined;
 
-        if (dateFrom && typeof dateFrom === 'string') {
-          fromDate = new Date(dateFrom);
+        if (effectiveDateFrom) {
+          fromDate = new Date(effectiveDateFrom);
           if (isNaN(fromDate.getTime())) {
             return res.status(400).json({ message: 'Invalid dateFrom format' });
           }
           filter.createdAt.$gte = fromDate;
         }
-        if (dateTo && typeof dateTo === 'string') {
-          toDate = new Date(dateTo);
+        if (effectiveDateTo) {
+          toDate = new Date(effectiveDateTo);
           if (isNaN(toDate.getTime())) {
             return res.status(400).json({ message: 'Invalid dateTo format' });
           }
@@ -86,32 +189,40 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         }
       }
 
-      // Author filter
-      if (author && typeof author === 'string') {
+      // Author filter (from query param - kept for backward compat)
+      if (!operators.from && author && typeof author === 'string') {
         const authorIds = author.split(',').map(id => id.trim()).filter(Boolean);
         if (authorIds.length > 0) {
           filter.oxyUserId = { $in: authorIds };
         }
       }
 
-      // Engagement filters
-      if (minLikes && typeof minLikes === 'string') {
-        const likesNum = parseInt(minLikes, 10);
-        if (!isNaN(likesNum) && likesNum >= 0) {
-          filter['stats.likesCount'] = { $gte: likesNum };
-        }
+      // Engagement filters - operators take precedence over query params
+      const effectiveMinLikes = operators.minLikes ?? (typeof minLikes === 'string' ? parseInt(minLikes, 10) : undefined);
+      if (effectiveMinLikes !== undefined && !isNaN(effectiveMinLikes) && effectiveMinLikes >= 0) {
+        filter['stats.likesCount'] = { $gte: effectiveMinLikes };
       }
 
-      if (minReposts && typeof minReposts === 'string') {
-        const repostsNum = parseInt(minReposts, 10);
-        if (!isNaN(repostsNum) && repostsNum >= 0) {
-          filter['stats.repostsCount'] = { $gte: repostsNum };
-        }
+      const effectiveMinReposts = operators.minReposts ?? (typeof minReposts === 'string' ? parseInt(minReposts, 10) : undefined);
+      if (effectiveMinReposts !== undefined && !isNaN(effectiveMinReposts) && effectiveMinReposts >= 0) {
+        filter['stats.repostsCount'] = { $gte: effectiveMinReposts };
       }
 
-      // Media filters
-      if (hasMedia === 'true') {
-        filter['content.media'] = { $exists: true, $ne: null };
+      // Media filters - operators take precedence
+      if (operators.hasMedia || hasMedia === 'true') {
+        filter['content.media.0'] = { $exists: true };
+      }
+
+      // has:links operator - match URLs in post text
+      if (operators.hasLinks) {
+        const linkCondition = { 'content.text': { $regex: 'https?://', $options: 'i' } };
+        if (filter.$or) {
+          // Combine with existing text search using $and
+          filter.$and = filter.$and || [];
+          filter.$and.push(linkCondition);
+        } else {
+          filter['content.text'] = { $regex: 'https?://', $options: 'i' };
+        }
       }
 
       if (mediaType && typeof mediaType === 'string') {
@@ -141,18 +252,18 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         .lean();
 
       // Check if there are more results
-      const hasMore = posts.length > limitNum;
-      const postsToReturn = hasMore ? posts.slice(0, limitNum) : posts;
+      const hasMoreResults = posts.length > limitNum;
+      const postsToReturn = hasMoreResults ? posts.slice(0, limitNum) : posts;
 
       // Calculate next cursor
-      const nextCursor = hasMore && postsToReturn.length > 0
+      const nextCursor = hasMoreResults && postsToReturn.length > 0
         ? postsToReturn[postsToReturn.length - 1]._id.toString()
         : undefined;
 
       // Transform posts with user profiles
       const transformedPosts = await (feedController as any).transformPostsWithProfiles(postsToReturn, currentUserId);
       results.posts = transformedPosts;
-      results.hasMore = hasMore;
+      results.hasMore = hasMoreResults;
       results.nextCursor = nextCursor;
     }
 

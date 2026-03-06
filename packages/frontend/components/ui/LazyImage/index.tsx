@@ -36,6 +36,8 @@ export interface LazyImageProps extends Omit<ImageProps, 'source' | 'style'> {
   aspectRatio?: number;
   /** Priority: 'high' loads immediately, 'low' waits for viewport */
   priority?: 'high' | 'low' | 'auto';
+  /** Accessibility label for the image */
+  accessibilityLabel?: string;
 }
 
 /**
@@ -54,6 +56,7 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
   blurHash,
   aspectRatio,
   priority = 'auto',
+  accessibilityLabel = 'Image',
   ...imageProps
 }) => {
   const theme = useTheme();
@@ -266,6 +269,8 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
         source={shouldLoad ? effectiveSource : (typeof effectiveSource === 'number' ? effectiveSource : { uri: '' })}
         onLoad={handleLoad}
         onError={handleError}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="image"
         style={flattenStyleArray([
           progressive && effectiveLowResSource && shouldLoadHighRes ? { opacity: isLoading ? 0 : 1 } : {},
           style,

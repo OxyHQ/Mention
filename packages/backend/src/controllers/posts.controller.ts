@@ -587,6 +587,13 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     const isScheduled = postStatus === 'scheduled';
 
+    // Build metadata from request
+    const incomingMetadata = req.body.metadata || {};
+    const postMetadata: any = {};
+    if (incomingMetadata.isSensitive === true) {
+      postMetadata.isSensitive = true;
+    }
+
     const post = new Post({
       oxyUserId: userId,
       content: postContent,
@@ -602,6 +609,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       reviewReplies: reviewReplies || false,
       status: postStatus,
       scheduledFor: scheduledForDate || undefined,
+      metadata: postMetadata,
       stats: {
         likesCount: 0,
         repostsCount: 0,
@@ -1112,8 +1120,30 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const { text, media, hashtags, mentions, contentLocation, postLocation, sources } = req.body;
-    
+    // Enforce 30-minute edit window
+    const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+    const createdAt = new Date(post.createdAt).getTime();
+    if (Date.now() - createdAt > EDIT_WINDOW_MS) {
+      return res.status(403).json({ message: 'Edit window has expired. Posts can only be edited within 30 minutes of creation.' });
+    }
+
+    // Support both flat body fields and nested content object from frontend
+    const contentObj = req.body.content;
+    const text = contentObj?.text ?? req.body.text;
+    const media = contentObj?.media ?? req.body.media;
+    const { hashtags, mentions, contentLocation, postLocation, sources } = req.body;
+
+    // Save old text to edit history before modifying
+    if (text !== undefined && post.content.text !== text) {
+      if (!post.editHistory) {
+        post.editHistory = [];
+      }
+      if (post.content.text) {
+        post.editHistory.push(post.content.text);
+      }
+      post.isEdited = true;
+    }
+
     if (text !== undefined) {
       post.content.text = text;
       // Re-extract hashtags when text changes
@@ -1124,7 +1154,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       post.content.media = normalizedMedia;
       post.markModified('content.media');
     }
-    
+
     // Handle content location updates (user's shared location)
     if (contentLocation !== undefined) {
       if (contentLocation === null) {
@@ -1229,9 +1259,19 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     await post.save();
 
-    // Transform the response to match frontend expectations
+    // Hydrate the updated post for consistent frontend response shape
+    try {
+      const hydrated = await postHydrationService.hydratePosts([post.toObject()], { viewerId: userId });
+      if (hydrated.length > 0) {
+        return res.json(hydrated[0]);
+      }
+    } catch (hydrateError) {
+      logger.warn('Failed to hydrate edited post, falling back to raw transform', hydrateError);
+    }
+
+    // Fallback: transform the response to match frontend expectations
     const transformedPost = post.toObject() as any;
-    
+
     // For now, use placeholder user data since we don't have a User model
     transformedPost.user = {
         id: transformedPost.oxyUserId,
@@ -1711,8 +1751,14 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     const searchQuery = req.query.search as string;
 
-    // Get saved post IDs for the user
-    const savedPosts = await Bookmark.find({ userId })
+    const folderFilter = req.query.folder as string | undefined;
+
+    // Get saved post IDs for the user, optionally filtered by folder
+    const bookmarkQuery: any = { userId };
+    if (folderFilter) {
+      bookmarkQuery.folder = folderFilter;
+    }
+    const savedPosts = await Bookmark.find(bookmarkQuery)
       .sort({ createdAt: -1 })
       .lean();
 
@@ -1760,6 +1806,50 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     logger.error('Error fetching saved posts', error);
     res.status(500).json({ message: 'Error fetching saved posts' });
+  }
+};
+
+// Get bookmark folders for current user
+export const getBookmarkFolders = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const folders = await Bookmark.distinct('folder', { userId, folder: { $ne: null } });
+    res.json({ folders });
+  } catch (error) {
+    logger.error('Error fetching bookmark folders', error);
+    res.status(500).json({ message: 'Error fetching bookmark folders' });
+  }
+};
+
+// Move a bookmark to a folder
+export const moveBookmarkToFolder = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const bookmarkId = req.params.id;
+    const { folder } = req.body;
+
+    const bookmark = await Bookmark.findOneAndUpdate(
+      { _id: bookmarkId, userId },
+      { $set: { folder: folder || null } },
+      { new: true }
+    );
+
+    if (!bookmark) {
+      return res.status(404).json({ message: 'Bookmark not found' });
+    }
+
+    res.json({ bookmark });
+  } catch (error) {
+    logger.error('Error moving bookmark to folder', error);
+    res.status(500).json({ message: 'Error moving bookmark to folder' });
   }
 };
 

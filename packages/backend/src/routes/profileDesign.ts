@@ -19,6 +19,7 @@ const router = Router();
 interface PublicProfileDesignResponse {
   oxyUserId: string;
   postsCount?: number;
+  followsYou?: boolean;
   appearance?: {
     primaryColor?: string;
   };
@@ -92,6 +93,16 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     });
     
     response.postsCount = postsCount;
+
+    // Check if profile user follows the viewer (for "Follows you" badge)
+    if (currentUserId && currentUserId !== userId) {
+      try {
+        const followsViewer = await checkFollowAccess(userId, currentUserId);
+        response.followsYou = followsViewer;
+      } catch {
+        response.followsYou = false;
+      }
+    }
 
     // Include privacy info in response
     if (doc?.privacy?.profileVisibility) {

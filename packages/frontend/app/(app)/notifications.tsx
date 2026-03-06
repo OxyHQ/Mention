@@ -21,6 +21,8 @@ import { useTranslation } from 'react-i18next';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { validateNotifications, TRawNotification } from '@/types/validation';
 import { useTheme } from '@/hooks/useTheme';
+import { groupNotifications, GroupedNotification } from '@/utils/groupNotifications';
+import { GroupedNotificationItem } from '@/components/GroupedNotificationItem';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { Header } from '@/components/Header';
@@ -177,25 +179,28 @@ const NotificationsScreen: React.FC = () => {
         }
     }, [notificationsData, activeTab]);
 
-    // Ensure unique items by a stable key to prevent overlapping keys in LegendList
-    const getItemKey = useCallback((item: any) => {
-        return String(
-            item?._id || item?.id || item?.notificationId || `${item?.entityId || ''}:${item?.type || ''}:${item?.createdAt || ''}`
-        );
+    // Group similar notifications (like, repost, follow, quote) together
+    const groupedNotifications = useMemo(() => {
+        return groupNotifications(filteredNotifications);
+    }, [filteredNotifications]);
+
+    // Ensure unique items by a stable key to prevent overlapping keys in FlashList
+    const getItemKey = useCallback((item: GroupedNotification) => {
+        return item.key;
     }, []);
 
     const listItems = useMemo(() => {
         const seen = new Set<string>();
-        const out: any[] = [];
-        for (const it of filteredNotifications) {
-            const k = getItemKey(it);
+        const out: GroupedNotification[] = [];
+        for (const it of groupedNotifications) {
+            const k = it.key;
             if (!seen.has(k)) {
                 seen.add(k);
                 out.push(it);
             }
         }
         return out;
-    }, [filteredNotifications, getItemKey]);
+    }, [groupedNotifications]);
 
     // Register scrollable with LayoutScrollContext
     const clearScrollableRegistration = useCallback(() => {
@@ -243,12 +248,19 @@ const NotificationsScreen: React.FC = () => {
         return { layoutscroll: 'true' };
     }, []);
 
-    const renderNotification = ({ item }: { item: any }) => (
+    const renderNotification = ({ item }: { item: GroupedNotification }) => (
         <ErrorBoundary>
-            <NotificationItem
-                notification={item}
-                onMarkAsRead={handleMarkAsRead}
-            />
+            {item.isGroup ? (
+                <GroupedNotificationItem
+                    group={item}
+                    onMarkAsRead={handleMarkAsRead}
+                />
+            ) : (
+                <NotificationItem
+                    notification={item.leadNotification}
+                    onMarkAsRead={handleMarkAsRead}
+                />
+            )}
         </ErrorBoundary>
     );
 

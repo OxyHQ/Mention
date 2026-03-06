@@ -15,6 +15,8 @@ import {
   quotePost,
   getPostsByHashtag,
   getSavedPosts,
+  getBookmarkFolders,
+  moveBookmarkToFolder,
   getDrafts,
   getScheduledPosts,
   getNearbyPosts,
@@ -41,6 +43,8 @@ router.post('/thread', createThread);
 router.get('/drafts', getDrafts);
 router.get('/scheduled', getScheduledPosts);
 router.get('/saved', getSavedPosts);
+router.get('/bookmarks/folders', getBookmarkFolders);
+router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
 
 // Routes with specific paths (must be before parameterized routes)
 router.get('/:id/likes', getPostLikes);

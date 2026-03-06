@@ -285,6 +285,7 @@ export interface HydratedPostSummary {
   viewerState: PostViewerState;
   permissions: PostPermissions;
   metadata: PostMetadataState;
+  parentPostId?: string;
 }
 
 export interface HydratedRepostContext {

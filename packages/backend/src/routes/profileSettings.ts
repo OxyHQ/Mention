@@ -1,6 +1,9 @@
 import { Router, Response } from 'express';
 import UserSettings from '../models/UserSettings';
 import UserBehavior from '../models/UserBehavior';
+import Post from '../models/Post';
+import Bookmark from '../models/Bookmark';
+import Like from '../models/Like';
 // Block and Restrict routes removed - frontend should use Oxy services directly
 import { AuthRequest, requireAuth } from '../middleware/auth';
 import { ensureUserSettings } from '../utils/userSettings';
@@ -61,7 +64,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const { appearance, profileHeaderImage, privacy, profileCustomization, interests, feedSettings } = req.body || {};
+    const { appearance, profileHeaderImage, privacy, profileCustomization, interests, feedSettings, notificationPreferences } = req.body || {};
 
     const update: Record<string, any> = {};
     
@@ -189,6 +192,25 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       }
     }
 
+    if (notificationPreferences) {
+      const boolFields = [
+        'pushEnabled',
+        'emailEnabled',
+        'likes',
+        'reposts',
+        'follows',
+        'mentions',
+        'replies',
+        'quotes',
+      ] as const;
+
+      boolFields.forEach(field => {
+        if (typeof notificationPreferences[field] === 'boolean') {
+          update[`notificationPreferences.${field}`] = notificationPreferences[field];
+        }
+      });
+    }
+
     const doc = await UserSettings.findOneAndUpdate(
       { oxyUserId },
       { $set: update },
@@ -220,6 +242,38 @@ router.delete('/settings/behavior', async (req: AuthRequest, res: Response) => {
   } catch (err) {
     logger.error('[ProfileSettings] Error resetting user behavior:', { userId: req.user?.id, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to reset personalization data');
+  }
+});
+
+/**
+ * POST /api/profile/export
+ * Export user data as JSON
+ */
+router.post('/export', async (req: AuthRequest, res: Response) => {
+  try {
+    const oxyUserId = getAuthenticatedUserId(req);
+
+    // Collect user's data in parallel
+    const [posts, bookmarks, likes, settings] = await Promise.all([
+      Post.find({ oxyUserId }).sort({ createdAt: -1 }).lean(),
+      Bookmark.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean(),
+      Like.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean(),
+      UserSettings.findOne({ oxyUserId }).lean(),
+    ]);
+
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      userId: oxyUserId,
+      posts,
+      bookmarks,
+      likes,
+      settings,
+    };
+
+    return sendSuccessResponse(res, 200, exportData, 'Data export completed successfully');
+  } catch (err) {
+    logger.error('[ProfileSettings] Error exporting user data:', { userId: req.user?.id, error: err });
+    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to export user data');
   }
 });
 
