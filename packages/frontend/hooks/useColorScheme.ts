@@ -9,5 +9,6 @@ export function useColorScheme(): 'light' | 'dark' {
 	const pref = mySettings?.appearance?.themeMode ?? 'system';
 
 	if (pref === 'light' || pref === 'dark') return pref;
+	// 'system' and 'adaptive' both follow the OS color scheme
 	return (rnScheme ?? 'light');
 }

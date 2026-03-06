@@ -6,7 +6,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
@@ -29,15 +29,17 @@ const COLOR_CHOICES = [
   { color: '#14B8A6', name: 'Mint' },
 ];
 
-type ThemeMode = 'system' | 'light' | 'dark';
+type ThemeMode = 'system' | 'light' | 'dark' | 'adaptive';
 
 interface ThemeOption {
   id: ThemeMode;
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
+  iconSet?: 'ionicons' | 'material-community';
   description: string;
   bgColor: string;
   fgColor: string;
+  accentColor?: string;
 }
 
 const THEME_OPTIONS: ThemeOption[] = [
@@ -64,6 +66,16 @@ const THEME_OPTIONS: ThemeOption[] = [
     description: 'Match device',
     bgColor: '#6366F1',
     fgColor: '#FFFFFF',
+  },
+  {
+    id: 'adaptive',
+    label: 'Adaptive',
+    icon: 'palette-outline',
+    iconSet: 'material-community',
+    description: 'Material You',
+    bgColor: '#E8DEF8',
+    fgColor: '#1D1B20',
+    accentColor: '#6750A4',
   },
 ];
 
@@ -203,11 +215,26 @@ export default function AppearanceSettingsScreen() {
                 >
                   {/* Theme preview */}
                   <View style={[styles.themePreview, { backgroundColor: option.bgColor }]}>
-                    <View style={styles.themePreviewContent}>
-                      <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '60%', opacity: 0.8 }]} />
-                      <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '80%', opacity: 0.4 }]} />
-                      <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '45%', opacity: 0.25 }]} />
-                    </View>
+                    {option.id === 'adaptive' ? (
+                      <View style={styles.themePreviewContent}>
+                        <View style={styles.adaptivePreviewRow}>
+                          <View style={[styles.adaptivePreviewDot, { backgroundColor: '#6750A4' }]} />
+                          <View style={[styles.previewLine, { backgroundColor: '#6750A4', width: '40%', opacity: 0.8 }]} />
+                        </View>
+                        <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '70%', opacity: 0.3 }]} />
+                        <View style={styles.adaptivePreviewRow}>
+                          <View style={[styles.adaptivePreviewChip, { backgroundColor: '#D0BCFF' }]} />
+                          <View style={[styles.adaptivePreviewChip, { backgroundColor: '#CCC2DC' }]} />
+                          <View style={[styles.adaptivePreviewChip, { backgroundColor: '#EFB8C8' }]} />
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.themePreviewContent}>
+                        <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '60%', opacity: 0.8 }]} />
+                        <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '80%', opacity: 0.4 }]} />
+                        <View style={[styles.previewLine, { backgroundColor: option.fgColor, width: '45%', opacity: 0.25 }]} />
+                      </View>
+                    )}
                     {option.id === 'system' && (
                       <View style={styles.systemSplit}>
                         <View style={[styles.systemHalf, { backgroundColor: '#FFFFFF' }]}>
@@ -220,11 +247,19 @@ export default function AppearanceSettingsScreen() {
                   {/* Label area */}
                   <View style={styles.themeCardInfo}>
                     <View style={styles.themeCardLabelRow}>
-                      <Ionicons
-                        name={option.icon}
-                        size={16}
-                        color={isActive ? activePrimaryColor : theme.colors.textSecondary}
-                      />
+                      {option.iconSet === 'material-community' ? (
+                        <MaterialCommunityIcons
+                          name={option.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+                          size={16}
+                          color={isActive ? activePrimaryColor : theme.colors.textSecondary}
+                        />
+                      ) : (
+                        <Ionicons
+                          name={option.icon as keyof typeof Ionicons.glyphMap}
+                          size={16}
+                          color={isActive ? activePrimaryColor : theme.colors.textSecondary}
+                        />
+                      )}
                       <Text style={[
                         styles.themeCardLabel,
                         { color: isActive ? activePrimaryColor : theme.colors.text },
@@ -255,13 +290,19 @@ export default function AppearanceSettingsScreen() {
         <Divider />
 
         {/* Color Section */}
-        <View style={styles.sectionContainer}>
+        <View style={[styles.sectionContainer, themeMode === 'adaptive' && styles.sectionDisabled]}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
             {t('settings.accentColor', 'Accent color')}
           </Text>
-          <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
-            {t('settings.accentColorDescription', 'Pick your favorite color. It will be used for links, buttons, and highlights throughout the app.')}
-          </Text>
+          {themeMode === 'adaptive' ? (
+            <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+              {t('settings.accentColorAdaptiveNote', 'Colors are set by your device when using adaptive theme.')}
+            </Text>
+          ) : (
+            <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
+              {t('settings.accentColorDescription', 'Pick your favorite color. It will be used for links, buttons, and highlights throughout the app.')}
+            </Text>
+          )}
 
           {/* Color preview bar */}
           <View style={[styles.colorPreviewBar, { backgroundColor: activePrimaryColor }]}>
@@ -392,6 +433,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.base,
     paddingVertical: SPACING.lg,
   },
+  sectionDisabled: {
+    opacity: 0.4,
+    pointerEvents: 'none' as const,
+  },
   sectionTitle: {
     fontSize: FONT_SIZES.xl,
     fontWeight: '700',
@@ -431,6 +476,21 @@ const styles = StyleSheet.create({
   previewLine: {
     height: 8,
     borderRadius: 4,
+  },
+  adaptivePreviewRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+  },
+  adaptivePreviewDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  adaptivePreviewChip: {
+    height: 10,
+    width: 32,
+    borderRadius: 5,
   },
   previewLineTiny: {
     height: 6,

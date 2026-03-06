@@ -151,6 +151,7 @@ return {
                       ],
                     },
                   ],
+                "expo-image",
                 'react-native-compressor',
                 [
                     '@bitdrift/react-native',

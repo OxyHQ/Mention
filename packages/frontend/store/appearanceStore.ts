@@ -20,7 +20,7 @@ function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
   return value as T;
 }
 
-export type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
 
 export interface AppearanceSettings {
   themeMode: ThemeMode;

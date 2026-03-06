@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
 
 export interface AppearanceSettings {
   themeMode: ThemeMode;
@@ -74,7 +74,7 @@ export interface IUserSettings extends Document {
 }
 
 const AppearanceSchema = new Schema<AppearanceSettings>({
-  themeMode: { type: String, enum: ['light', 'dark', 'system'], default: 'system' },
+  themeMode: { type: String, enum: ['light', 'dark', 'system', 'adaptive'], default: 'system' },
   primaryColor: { type: String, default: undefined },
 }, { _id: false });
 

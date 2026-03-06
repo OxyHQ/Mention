@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useAppearanceStore } from "@/store/appearanceStore";
 import { colors as baseColors } from "@/styles/colors";
+import { getAdaptiveColors } from "@/styles/adaptiveColors";
 
 /**
  * Centralized theme system that provides consistent theming across the app
@@ -16,35 +17,35 @@ export interface ThemeColors {
   background: string;
   backgroundSecondary: string;
   backgroundTertiary: string;
-  
+
   // Text colors
   text: string;
   textSecondary: string;
   textTertiary: string;
-  
+
   // Border colors
   border: string;
   borderLight: string;
-  
+
   // Primary brand colors
   primary: string;
   primaryLight: string;
   primaryDark: string;
-  
+
   // Secondary/Oxy brand color
   secondary: string;
-  
+
   // Interactive colors
   tint: string;
   icon: string;
   iconActive: string;
-  
+
   // Status colors
   success: string;
   error: string;
   warning: string;
   info: string;
-  
+
   // Component-specific
   card: string;
   shadow: string;
@@ -69,15 +70,21 @@ export function useTheme(): Theme {
   const colorScheme = useColorScheme();
   // Use selector to only subscribe to mySettings.appearance, not the entire store
   const mySettings = useAppearanceStore((state) => state.mySettings);
-  
+
   // Get user's custom primary color (if set) or use default
   // This comes from Oxy user settings via the appearance store
   const customPrimaryColor = mySettings?.appearance?.primaryColor || baseColors.primaryColor;
-  
+  const isAdaptive = mySettings?.appearance?.themeMode === 'adaptive';
+
   const isDark = colorScheme === "dark";
   const isLight = colorScheme === "light";
-  
+
   const colors = useMemo<ThemeColors>(() => {
+    if (isAdaptive) {
+      const adaptive = getAdaptiveColors();
+      if (adaptive) return adaptive;
+    }
+
     if (isDark) {
       return {
         // Dark mode colors
@@ -145,7 +152,7 @@ export function useTheme(): Theme {
         overlay: "rgba(0, 0, 0, 0.5)",
       };
     }
-  }, [isDark, customPrimaryColor]);
+  }, [isDark, customPrimaryColor, isAdaptive]);
   
   return {
     mode: colorScheme,
