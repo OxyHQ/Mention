@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, Platform } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Share, ScrollView, Platform } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Header } from '@/components/Header';
@@ -28,7 +28,7 @@ interface MemberProfile {
   avatar?: string;
 }
 
-const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string }>;
+const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{ userId: string }> | undefined;
 
 const TABS = [
   { id: 'recent', label: 'Recent' },
@@ -36,28 +36,178 @@ const TABS = [
   { id: 'topics', label: 'Topics' },
 ];
 
+const AVATAR_GRID_SIZE = 38;
+const AVATAR_GRID_GAP = 3;
+
 // 2x2 avatar grid matching Threads design
 const AvatarGrid = React.memo(function AvatarGrid({ avatars }: { avatars: string[] }) {
   if (!avatars.length) return null;
   const displayed = avatars.slice(0, 4);
-  const size = 38;
-  const gap = 3;
-
   return (
-    <View style={{ width: size * 2 + gap, height: size * 2 + gap }}>
+    <View style={styles.avatarGrid}>
       {displayed.map((uri, i) => (
         <View
           key={`${uri}-${i}`}
           style={{
             position: 'absolute',
-            top: i < 2 ? 0 : size + gap,
-            left: i % 2 === 0 ? 0 : size + gap,
+            top: i < 2 ? 0 : AVATAR_GRID_SIZE + AVATAR_GRID_GAP,
+            left: i % 2 === 0 ? 0 : AVATAR_GRID_SIZE + AVATAR_GRID_GAP,
           }}
         >
-          <Avatar source={uri} size={size} />
+          <Avatar source={uri} size={AVATAR_GRID_SIZE} />
         </View>
       ))}
     </View>
+  );
+});
+
+// Hero section — extracted as a stable component to avoid re-creation
+const FeedHero = React.memo(function FeedHero({
+  feed,
+  memberAvatars,
+  memberCount,
+  topicCount,
+  likeCount,
+  isLiked,
+  isTogglingLike,
+  onShare,
+  onToggleLike,
+}: {
+  feed: any;
+  memberAvatars: string[];
+  memberCount: number;
+  topicCount: number;
+  likeCount: number;
+  isLiked: boolean;
+  isTogglingLike: boolean;
+  onShare: () => void;
+  onToggleLike: () => void;
+}) {
+  const theme = useTheme();
+
+  const subtitleParts = useMemo(() => {
+    const parts: string[] = [];
+    if (topicCount > 0) parts.push(`${topicCount} ${topicCount === 1 ? 'topic' : 'topics'}`);
+    if (memberCount > 0) parts.push(`${memberCount} ${memberCount === 1 ? 'profile' : 'profiles'}`);
+    return parts.join(' \u00B7 ');
+  }, [topicCount, memberCount]);
+
+  const metaLine = useMemo(() => {
+    const parts: string[] = [];
+    if (feed.owner) parts.push(`Feed by ${feed.owner.displayName || feed.owner.username}`);
+    if (likeCount > 0) parts.push(`Pinned by ${formatCompactNumber(likeCount)}`);
+    return parts.join(' \u00B7 ');
+  }, [feed.owner, likeCount]);
+
+  return (
+    <View style={styles.hero}>
+      <View style={styles.titleRow}>
+        <View style={styles.titleInfo}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{feed.title}</Text>
+          {subtitleParts ? (
+            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+              {subtitleParts}
+            </Text>
+          ) : null}
+        </View>
+        {memberAvatars.length > 0 && <AvatarGrid avatars={memberAvatars} />}
+      </View>
+
+      {feed.description ? (
+        <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+          {feed.description}
+        </Text>
+      ) : null}
+
+      {metaLine ? (
+        <Text style={[styles.meta, { color: theme.colors.textSecondary }]}>{metaLine}</Text>
+      ) : null}
+
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[styles.actionBtn, { borderColor: theme.colors.border }]}
+          onPress={onShare}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.actionBtnText, { color: theme.colors.text }]}>Share feed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionBtn, { borderColor: theme.colors.border }]}
+          onPress={onToggleLike}
+          disabled={isTogglingLike}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.actionBtnText, { color: theme.colors.text }]}>
+            {isLiked ? 'Pinned' : 'Pin feed'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
+// Profiles tab — member list with follow buttons
+const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: MemberProfile[] }) {
+  const theme = useTheme();
+
+  if (members.length === 0) {
+    return (
+      <View style={styles.emptyTab}>
+        <Ionicons name="people-outline" size={40} color={theme.colors.textSecondary} />
+        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No profiles yet</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.profilesList}>
+      {members.map((m) => (
+        <TouchableOpacity
+          key={m.id}
+          style={styles.profileRow}
+          onPress={() => router.push(`/@${m.username}` as any)}
+          activeOpacity={0.7}
+        >
+          <Avatar source={m.avatar} size={44} />
+          <View style={styles.profileInfo}>
+            <Text style={[styles.profileUsername, { color: theme.colors.text }]} numberOfLines={1}>
+              {m.username}
+            </Text>
+            <Text style={[styles.profileName, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+              {m.displayName}
+            </Text>
+          </View>
+          {FollowButton && <FollowButton userId={m.id} />}
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
+});
+
+// Topics tab — keyword list
+const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string[] }) {
+  const theme = useTheme();
+
+  if (keywords.length === 0) {
+    return (
+      <View style={styles.emptyTab}>
+        <Ionicons name="pricetag-outline" size={40} color={theme.colors.textSecondary} />
+        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No topics yet</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.topicsList}>
+      {keywords.map((keyword) => (
+        <View key={keyword} style={[styles.topicRow, { borderBottomColor: theme.colors.border }]}>
+          <View style={[styles.topicIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <Ionicons name="pricetag" size={18} color={theme.colors.textSecondary} />
+          </View>
+          <Text style={[styles.topicText, { color: theme.colors.text }]}>{keyword}</Text>
+        </View>
+      ))}
+    </ScrollView>
   );
 });
 
@@ -67,7 +217,7 @@ export default function CustomFeedTimelineScreen() {
   const [feed, setFeed] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [authorsCsv, setAuthorsCsv] = useState<string>('');
+  const [authorsCsv, setAuthorsCsv] = useState('');
   const [pinned, setPinned] = useState<string[]>([]);
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -93,33 +243,40 @@ export default function CustomFeedTimelineScreen() {
   }, [id, pinned]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const f = await customFeedsService.get(String(id));
+        if (cancelled) return;
         setFeed(f);
         setLikeCount(f.likeCount || 0);
         setIsLiked(f.isLiked || false);
+
         // Expand authors from members + lists
-        let authors = new Set<string>(f.memberOxyUserIds || []);
-        if (f.sourceListIds && f.sourceListIds.length) {
-          for (const lid of f.sourceListIds) {
-            try {
-              const l = await listsService.get(String(lid));
-              (l.memberOxyUserIds || []).forEach((uid: string) => authors.add(uid));
-            } catch { }
-          }
+        const authors = new Set<string>(f.memberOxyUserIds || []);
+        if (f.sourceListIds?.length) {
+          await Promise.all(
+            f.sourceListIds.map(async (lid: string) => {
+              try {
+                const l = await listsService.get(String(lid));
+                (l.memberOxyUserIds || []).forEach((uid: string) => authors.add(uid));
+              } catch { }
+            })
+          );
         }
+        // Exclude owner unless explicitly added as member
         const ownerId = f.ownerOxyUserId;
         if (ownerId && !f.memberOxyUserIds?.includes(ownerId)) {
           authors.delete(ownerId);
         }
-        setAuthorsCsv(Array.from(authors).join(','));
+        if (!cancelled) setAuthorsCsv(Array.from(authors).join(','));
       } catch {
-        setError('Failed to load feed');
+        if (!cancelled) setError('Failed to load feed');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => { cancelled = true; };
   }, [id]);
 
   const isPinned = pinned.includes(`custom:${id}`);
@@ -163,67 +320,54 @@ export default function CustomFeedTimelineScreen() {
     } catch { }
   }, [feed, id]);
 
+  const handleTabPress = useCallback((tabId: string) => {
+    setActiveTab(tabId as FeedTab);
+  }, []);
+
   const members: MemberProfile[] = feed?.members || [];
   const keywords: string[] = feed?.keywords || [];
   const memberAvatars: string[] = feed?.memberAvatars || [];
   const memberCount = feed?.memberCount ?? (feed?.memberOxyUserIds || []).length;
   const topicCount = feed?.topicCount ?? keywords.length;
 
-  const heroSection = feed ? (
-    <View style={styles.hero}>
-      {/* Title row with avatar grid */}
-      <View style={styles.titleRow}>
-        <View style={styles.titleInfo}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>{feed.title}</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            {topicCount > 0 && `${topicCount} ${topicCount === 1 ? 'topic' : 'topics'}`}
-            {topicCount > 0 && memberCount > 0 && ' \u00B7 '}
-            {memberCount > 0 && `${memberCount} ${memberCount === 1 ? 'profile' : 'profiles'}`}
-          </Text>
-        </View>
-        {memberAvatars.length > 0 && <AvatarGrid avatars={memberAvatars} />}
+  const feedFilters = useMemo(() => ({
+    authors: authorsCsv,
+    keywords: keywords.join(','),
+    includeReplies: feed?.includeReplies,
+    includeReposts: feed?.includeReposts,
+    includeMedia: feed?.includeMedia,
+    language: feed?.language,
+    excludeOwner: true,
+  }), [authorsCsv, keywords, feed?.includeReplies, feed?.includeReposts, feed?.includeMedia, feed?.language]);
+
+  const tabBar = useMemo(() => (
+    <AnimatedTabBar
+      tabs={TABS}
+      activeTabId={activeTab}
+      onTabPress={handleTabPress}
+      instanceId={`feed-detail-${id}`}
+    />
+  ), [activeTab, handleTabPress, id]);
+
+  const listHeader = useMemo(() => {
+    if (!feed) return null;
+    return (
+      <View>
+        <FeedHero
+          feed={feed}
+          memberAvatars={memberAvatars}
+          memberCount={memberCount}
+          topicCount={topicCount}
+          likeCount={likeCount}
+          isLiked={isLiked}
+          isTogglingLike={isTogglingLike}
+          onShare={onShare}
+          onToggleLike={onToggleLike}
+        />
+        {tabBar}
       </View>
-
-      {/* Description */}
-      {feed.description ? (
-        <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-          {feed.description}
-        </Text>
-      ) : null}
-
-      {/* Meta line */}
-      <Text style={[styles.meta, { color: theme.colors.textSecondary }]}>
-        {feed.owner && `Feed by ${feed.owner.displayName || feed.owner.username}`}
-        {likeCount > 0 && (
-          <>
-            {feed.owner ? ' \u00B7 ' : ''}
-            Pinned by {formatCompactNumber(likeCount)}
-          </>
-        )}
-      </Text>
-
-      {/* Action buttons */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.actionBtn, { borderColor: theme.colors.border }]}
-          onPress={onShare}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.actionBtnText, { color: theme.colors.text }]}>Share feed</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionBtn, { borderColor: theme.colors.border }]}
-          onPress={onToggleLike}
-          disabled={isTogglingLike}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.actionBtnText, { color: theme.colors.text }]}>
-            {isLiked ? 'Pinned' : 'Pin feed'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  ) : null;
+    );
+  }, [feed, memberAvatars, memberCount, topicCount, likeCount, isLiked, isTogglingLike, onShare, onToggleLike, tabBar]);
 
   return (
     <ThemedView style={styles.container}>
@@ -243,7 +387,7 @@ export default function CustomFeedTimelineScreen() {
             <IconButton variant="icon" key="share" onPress={onShare}>
               <Ionicons name="share-outline" size={22} color={theme.colors.text} />
             </IconButton>,
-            <IconButton variant="icon" key="more" onPress={onToggleLike}>
+            <IconButton variant="icon" key="like" onPress={onToggleLike}>
               <Ionicons
                 name={isLiked ? 'heart' : 'heart-outline'}
                 size={22}
@@ -264,138 +408,40 @@ export default function CustomFeedTimelineScreen() {
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textSecondary }}>Loading...</Text>
         </View>
+      ) : activeTab === 'recent' ? (
+        <Feed type="mixed" filters={feedFilters} listHeaderComponent={listHeader} />
       ) : (
-        <>
-          {/* Hero + Tabs + Content */}
-          {activeTab === 'recent' ? (
-            <Feed
-              type="mixed"
-              filters={{
-                authors: authorsCsv,
-                keywords: keywords.join(','),
-                includeReplies: feed?.includeReplies,
-                includeReposts: feed?.includeReposts,
-                includeMedia: feed?.includeMedia,
-                language: feed?.language,
-                excludeOwner: true,
-              }}
-              listHeaderComponent={
-                <View>
-                  {heroSection}
-                  <AnimatedTabBar
-                    tabs={TABS}
-                    activeTabId={activeTab}
-                    onTabPress={(tabId) => setActiveTab(tabId as FeedTab)}
-                    instanceId={`feed-detail-${id}`}
-                  />
-                </View>
-              }
-            />
-          ) : (
-            <View style={styles.container}>
-              {/* For non-Recent tabs, render hero + tabs in a scroll-less header, then tab content */}
-              {heroSection}
-              <AnimatedTabBar
-                tabs={TABS}
-                activeTabId={activeTab}
-                onTabPress={(tabId) => setActiveTab(tabId as FeedTab)}
-                instanceId={`feed-detail-${id}`}
-              />
-              {activeTab === 'profiles' && (
-                <ProfilesTab members={members} theme={theme} />
-              )}
-              {activeTab === 'topics' && (
-                <TopicsTab keywords={keywords} theme={theme} />
-              )}
-            </View>
-          )}
+        <ScrollView stickyHeaderIndices={[1]}>
+          <FeedHero
+            feed={feed}
+            memberAvatars={memberAvatars}
+            memberCount={memberCount}
+            topicCount={topicCount}
+            likeCount={likeCount}
+            isLiked={isLiked}
+            isTogglingLike={isTogglingLike}
+            onShare={onShare}
+            onToggleLike={onToggleLike}
+          />
+          {tabBar}
+          {activeTab === 'profiles' && <ProfilesTab members={members} />}
+          {activeTab === 'topics' && <TopicsTab keywords={keywords} />}
+        </ScrollView>
+      )}
 
-          {/* FAB */}
-          <TouchableOpacity
-            style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-            onPress={() => router.push('/compose')}
-            activeOpacity={0.8}
-          >
-            <CreateIcon size={22} color={theme.colors.card} />
-          </TouchableOpacity>
-        </>
+      {/* FAB */}
+      {!loading && !error && (
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+          onPress={() => router.push('/compose')}
+          activeOpacity={0.8}
+        >
+          <CreateIcon size={22} color={theme.colors.card} />
+        </TouchableOpacity>
       )}
     </ThemedView>
   );
 }
-
-// Profiles tab — member list with follow buttons
-const ProfilesTab = React.memo(function ProfilesTab({
-  members,
-  theme,
-}: {
-  members: MemberProfile[];
-  theme: any;
-}) {
-  if (members.length === 0) {
-    return (
-      <View style={styles.emptyTab}>
-        <Ionicons name="people-outline" size={40} color={theme.colors.textSecondary} />
-        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No profiles yet</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.profilesList}>
-      {members.map((m) => (
-        <TouchableOpacity
-          key={m.id}
-          style={styles.profileRow}
-          onPress={() => router.push(`/@${m.username}` as any)}
-          activeOpacity={0.7}
-        >
-          <Avatar source={m.avatar} size={44} />
-          <View style={styles.profileInfo}>
-            <Text style={[styles.profileUsername, { color: theme.colors.text }]} numberOfLines={1}>
-              {m.username}
-            </Text>
-            <Text style={[styles.profileName, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-              {m.displayName}
-            </Text>
-          </View>
-          {FollowButton && <FollowButton userId={m.id} />}
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-});
-
-// Topics tab — keyword list
-const TopicsTab = React.memo(function TopicsTab({
-  keywords,
-  theme,
-}: {
-  keywords: string[];
-  theme: any;
-}) {
-  if (keywords.length === 0) {
-    return (
-      <View style={styles.emptyTab}>
-        <Ionicons name="pricetag-outline" size={40} color={theme.colors.textSecondary} />
-        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No topics yet</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.topicsList}>
-      {keywords.map((keyword) => (
-        <View key={keyword} style={[styles.topicRow, { borderBottomColor: theme.colors.border }]}>
-          <View style={[styles.topicIcon, { backgroundColor: theme.colors.backgroundSecondary }]}>
-            <Ionicons name="pricetag" size={18} color={theme.colors.textSecondary} />
-          </View>
-          <Text style={[styles.topicText, { color: theme.colors.text }]}>{keyword}</Text>
-        </View>
-      ))}
-    </View>
-  );
-});
 
 const styles = StyleSheet.create({
   container: {
@@ -405,6 +451,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Avatar grid
+  avatarGrid: {
+    width: AVATAR_GRID_SIZE * 2 + AVATAR_GRID_GAP,
+    height: AVATAR_GRID_SIZE * 2 + AVATAR_GRID_GAP,
   },
   // Hero section
   hero: {
@@ -438,7 +489,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
   },
-  // Action buttons
   actionRow: {
     flexDirection: 'row',
     gap: 10,

@@ -20,6 +20,33 @@ function resolveAvatar(userData: any): string | undefined {
   return (userData.avatar as any)?.url || userData.profileImage || undefined;
 }
 
+interface UserProfile {
+  id: string;
+  username: string;
+  handle: string;
+  displayName: string;
+  avatar?: string;
+}
+
+function buildUserProfile(userData: any, fallbackId: string): UserProfile {
+  return {
+    id: userData?.id || fallbackId,
+    username: userData?.username || userData?.handle || fallbackId,
+    handle: userData?.username || userData?.handle || fallbackId,
+    displayName: userData?.name?.full || userData?.displayName || userData?.username || fallbackId,
+    avatar: resolveAvatar(userData),
+  };
+}
+
+async function resolveUserProfile(oxyUserId: string): Promise<UserProfile> {
+  try {
+    const userData = await oxyClient.getUserById(oxyUserId);
+    return buildUserProfile(userData, oxyUserId);
+  } catch {
+    return buildUserProfile(null, oxyUserId);
+  }
+}
+
 // Create a new custom feed
 router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) => {
   try {
@@ -132,30 +159,12 @@ router.get('/', async (req: any, res) => {
     
     // Get unique owner IDs and fetch owner information
     const ownerIds = [...new Set(items.map((item: any) => item.ownerOxyUserId).filter(Boolean))];
-    const ownersMap = new Map<string, any>();
-    
+    const ownersMap = new Map<string, UserProfile>();
+
     if (ownerIds.length > 0) {
       await Promise.all(
         ownerIds.map(async (ownerId) => {
-          try {
-            const ownerData = await oxyClient.getUserById(ownerId);
-            ownersMap.set(ownerId, {
-              id: ownerData?.id || ownerId,
-              username: ownerData?.username || ownerData?.handle || ownerId,
-              handle: ownerData?.username || ownerData?.handle || ownerId,
-              displayName: ownerData?.name?.full || ownerData?.displayName || ownerData?.username || ownerId,
-              avatar: resolveAvatar(ownerData),
-            });
-          } catch (error) {
-            logger.warn(`[CustomFeeds] Failed to fetch owner ${ownerId}:`, error);
-            ownersMap.set(ownerId, {
-              id: ownerId,
-              username: ownerId,
-              handle: ownerId,
-              displayName: ownerId,
-              avatar: undefined,
-            });
-          }
+          ownersMap.set(ownerId, await resolveUserProfile(ownerId));
         })
       );
     }
@@ -232,51 +241,15 @@ router.get('/:id', validateObjectId('id'), async (req: any, res) => {
       isLiked = !!userLike;
     }
     
-    // Fetch owner information from Oxy
-    let owner = null;
-    if (feed.ownerOxyUserId) {
-      try {
-        const ownerData = await oxyClient.getUserById(feed.ownerOxyUserId);
-        owner = {
-          id: ownerData?.id || feed.ownerOxyUserId,
-          username: ownerData?.username || ownerData?.handle || feed.ownerOxyUserId,
-          handle: ownerData?.username || ownerData?.handle || feed.ownerOxyUserId,
-          displayName: ownerData?.name?.full || ownerData?.displayName || ownerData?.username || feed.ownerOxyUserId,
-          avatar: resolveAvatar(ownerData),
-        };
-      } catch (error) {
-        logger.warn('[CustomFeeds] Failed to fetch owner info:', error);
-        // Fallback to just the ID if fetch fails
-        owner = {
-          id: feed.ownerOxyUserId,
-          username: feed.ownerOxyUserId,
-          handle: feed.ownerOxyUserId,
-          displayName: feed.ownerOxyUserId,
-          avatar: undefined,
-        };
-      }
-    }
-    
-    // Resolve member profiles (cap at 50 for payload size)
+    // Fetch owner and member profiles in parallel
+    const owner = feed.ownerOxyUserId
+      ? await resolveUserProfile(feed.ownerOxyUserId)
+      : null;
+
     const memberIds = (feed.memberOxyUserIds || []).slice(0, 50);
-    const members: { id: string; username: string; displayName: string; avatar?: string }[] = [];
-    if (memberIds.length > 0) {
-      await Promise.all(
-        memberIds.map(async (memberId: string) => {
-          try {
-            const userData = await oxyClient.getUserById(memberId);
-            members.push({
-              id: userData?.id || memberId,
-              username: userData?.username || userData?.handle || memberId,
-              displayName: userData?.name?.full || userData?.displayName || userData?.username || memberId,
-              avatar: resolveAvatar(userData),
-            });
-          } catch {
-            members.push({ id: memberId, username: memberId, displayName: memberId, avatar: undefined });
-          }
-        })
-      );
-    }
+    const members = memberIds.length > 0
+      ? await Promise.all(memberIds.map((mid: string) => resolveUserProfile(mid)))
+      : [];
 
     const memberAvatars = members.slice(0, 4).map(m => m.avatar).filter(Boolean);
 
