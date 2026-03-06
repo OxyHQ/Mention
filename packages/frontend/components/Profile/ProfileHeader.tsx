@@ -63,7 +63,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.followButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-              onPress={() => showBottomSheet?.('EditProfile')}
+              onPress={() => showBottomSheet?.('AccountSettings')}
               accessibilityRole="button"
               accessibilityLabel={t('profile.editProfile')}
             >
@@ -228,7 +228,7 @@ export const ProfileActions = memo(function ProfileActions({
     <View style={styles.actionButtons}>
       <TouchableOpacity
         style={[styles.followButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-        onPress={() => showBottomSheet?.('EditProfile')}
+        onPress={() => showBottomSheet?.('AccountSettings')}
         accessibilityRole="button"
         accessibilityLabel={t('profile.editProfile')}
       >

@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback, useState, useEffect, useContext } from 'react';
 import {
     Animated,
+    Image,
     ImageBackground,
     StatusBar,
     StyleSheet,
@@ -420,18 +421,28 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             ]}
                             pointerEvents="none"
                         >
-                            <UserName
-                                name={displayName}
-                                verified={profileData?.verified}
-                                style={{ name: { ...styles.headerTitle, color: theme.colors.text } }}
-                                unifiedColors={true}
-                            />
-                            <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
-                                {t('profile.postsCount', {
-                                    count: profileData?.postsCount ?? 0,
-                                    defaultValue: `${profileData?.postsCount ?? 0} posts`,
-                                })}
-                            </Text>
+                            {avatarUri ? (
+                                <Image
+                                    source={{ uri: avatarUri }}
+                                    style={styles.headerAvatar}
+                                />
+                            ) : (
+                                <View style={[styles.headerAvatar, { backgroundColor: theme.colors.backgroundSecondary }]} />
+                            )}
+                            <View>
+                                <UserName
+                                    name={displayName}
+                                    verified={profileData?.verified}
+                                    style={{ name: { ...styles.headerTitle, color: theme.colors.text } }}
+                                    unifiedColors={true}
+                                />
+                                <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
+                                    {t('profile.postsCount', {
+                                        count: profileData?.postsCount ?? 0,
+                                        defaultValue: `${profileData?.postsCount ?? 0} posts`,
+                                    })}
+                                </Text>
+                            </View>
                         </Animated.View>
 
                         {/* Banner */}
@@ -556,7 +567,14 @@ const styles = StyleSheet.create({
         zIndex: 10,
         position: 'absolute',
         left: LAYOUT.DEFAULT_PADDING,
-        alignItems: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    headerAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
     },
     headerTitle: {
         fontSize: 18,
