@@ -115,9 +115,16 @@ class SocketService {
     try {
       if (userId) this.currentUserId = userId;
       // Connect to the backend socket server
+      // Clean up any existing disconnected/failed socket before creating a new one
+      if (this.socket) {
+        this.removeSocketEventListeners();
+        this.socket.disconnect();
+        this.socket = null;
+      }
+
       this.socket = io(API_URL_SOCKET || process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000', {
         transports: ['websocket', 'polling'],
-        auth: token ? { token, userId } : (userId ? { userId } : undefined),
+        auth: { token, userId },
         autoConnect: true,
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,

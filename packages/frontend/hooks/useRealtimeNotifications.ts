@@ -11,17 +11,26 @@ let socket: Socket | null = null;
  * Hook for real-time notification updates via WebSocket
  */
 export const useRealtimeNotifications = () => {
-  const { user, isAuthenticated, oxyServices } = useAuth();
+  const { user, isAuthenticated, isReady, oxyServices } = useAuth();
   const queryClient = useQueryClient();
 
   const connectSocket = useCallback(() => {
-    if (!isAuthenticated || !user?.id || socket?.connected) return;
+    if (!isAuthenticated || !isReady || !user?.id || socket?.connected) return;
+
+    const token = oxyServices?.getAccessToken() ?? undefined;
+    if (!token) return;
 
     try {
-      const token = oxyServices?.getAccessToken() ?? undefined;
+      // Clean up any existing disconnected/failed socket
+      if (socket) {
+        socket.removeAllListeners();
+        socket.disconnect();
+        socket = null;
+      }
+
       // Connect to backend notifications namespace
       socket = io(`${API_URL_SOCKET}/notifications`, {
-        auth: token ? { token, userId: user.id } : { userId: user.id },
+        auth: { token, userId: user.id },
         transports: ['websocket', 'polling'],
         path: '/socket.io',
       });
@@ -74,7 +83,7 @@ export const useRealtimeNotifications = () => {
     } catch (error) {
       console.error('Failed to connect to notifications socket:', error);
     }
-  }, [isAuthenticated, user?.id, queryClient]);
+  }, [isAuthenticated, isReady, user?.id, oxyServices, queryClient]);
 
   const disconnectSocket = useCallback(() => {
     if (socket) {
@@ -84,7 +93,7 @@ export const useRealtimeNotifications = () => {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && user?.id) {
+    if (isAuthenticated && isReady && user?.id) {
       connectSocket();
     } else {
       disconnectSocket();
