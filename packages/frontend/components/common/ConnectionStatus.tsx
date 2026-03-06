@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -43,7 +43,7 @@ const ConnectionStatus: React.FC = () => {
   useEffect(() => {
     Animated.spring(slideAnim, {
       toValue: isVisible ? 0 : -60,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
       tension: 80,
       friction: 12,
     }).start();

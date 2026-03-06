@@ -87,6 +87,7 @@ export const useRealtimeNotifications = () => {
 
   const disconnectSocket = useCallback(() => {
     if (socket) {
+      socket.removeAllListeners();
       socket.disconnect();
       socket = null;
     }
