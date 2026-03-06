@@ -68,7 +68,8 @@ const CreateFeedScreen: React.FC = () => {
       searchTimer.current = setTimeout(async () => {
         try {
           const res = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
-          setResults(res as any);
+          const data = (res as any)?.data ?? res;
+          setResults(Array.isArray(data) ? data : []);
         } catch (e) {
           console.warn('searchProfiles failed', e);
         }
