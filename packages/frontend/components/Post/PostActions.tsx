@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../styles/colors';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { RepostIcon, RepostIconActive } from '@/assets/icons/repost-icon';
@@ -33,7 +32,6 @@ interface Props {
   onRepostsPress?: () => void;
   onInsightsPress?: () => void;
   postId?: string;
-  showInsights?: boolean;
   hideLikeCounts?: boolean;
   hideShareCounts?: boolean;
   hideReplyCounts?: boolean;
@@ -54,7 +52,6 @@ const PostActions: React.FC<Props> = ({
   onRepostsPress,
   onInsightsPress,
   postId,
-  showInsights = false,
   hideLikeCounts = false,
   hideShareCounts = false,
   hideReplyCounts = false,
@@ -86,16 +83,6 @@ const PostActions: React.FC<Props> = ({
 
   return (
     <View style={styles.postEngagement}>
-      {/* Views */}
-      {engagement?.views != null && engagement.views > 0 && (
-        <View style={styles.engagementButton}>
-          <Ionicons name="eye-outline" size={16} color={theme.colors.textSecondary} />
-          <Text style={[styles.engagementText, styles.viewCountText, { color: theme.colors.textSecondary }]}>
-            {formatViewCount(engagement.views)}
-          </Text>
-        </View>
-      )}
-
       {/* Heart (like) */}
       <View style={styles.engagementButton}>
         <TouchableOpacity
@@ -189,10 +176,15 @@ const PostActions: React.FC<Props> = ({
         </TouchableOpacity>
       )}
 
-      {/* Insights (only for post owners) */}
-      {showInsights && onInsightsPress && (
+      {/* Insights */}
+      {onInsightsPress && (
         <TouchableOpacity style={styles.engagementButton} onPress={onInsightsPress}>
           <AnalyticsIcon size={18} color={theme.colors.textSecondary} />
+          {engagement?.views != null && engagement.views > 0 && (
+            <Text style={[styles.engagementText, { color: theme.colors.textSecondary }]}>
+              {formatViewCount(engagement.views)}
+            </Text>
+          )}
         </TouchableOpacity>
       )}
     </View>
@@ -205,7 +197,6 @@ const styles = StyleSheet.create({
   postEngagement: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    maxWidth: 300,
   },
   engagementButton: {
     flexDirection: 'row',
@@ -217,9 +208,6 @@ const styles = StyleSheet.create({
   engagementText: {
     fontSize: 13,
     marginLeft: 4,
-  },
-  viewCountText: {
-    fontSize: 12,
   },
   activeEngagementText: {
   },

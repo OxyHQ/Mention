@@ -18,6 +18,7 @@ import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 // Lazy load modals/sheets - only loaded when user opens them
 const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
+const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
 import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useLiveRoom } from '@/context/LiveRoomContext';
@@ -31,6 +32,7 @@ import { usePostSave } from '@/hooks/usePostSave';
 import { usePostRepost } from '@/hooks/usePostRepost';
 import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
+import { PinIcon } from '@/assets/icons/pin-icon';
 
 type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
@@ -362,7 +364,7 @@ const PostItem: React.FC<PostItemProps> = ({
                 {showPinned && (
                     <View style={[styles.pinnedIndicator, { paddingLeft: HPAD }]}>
                         <View style={{ width: AVATAR_SIZE + AVATAR_GAP, alignItems: 'flex-end', paddingRight: AVATAR_GAP }}>
-                            <Ionicons name="pin" size={14} color={theme.colors.textSecondary} />
+                            <PinIcon size={14} color={theme.colors.textSecondary} />
                         </View>
                         <Text style={[styles.pinnedText, { color: theme.colors.textSecondary }]}>
                             {t('post.pinned', { defaultValue: 'Pinned' })}
@@ -522,7 +524,17 @@ const PostItem: React.FC<PostItemProps> = ({
                             onSave={handleSave}
                             onShare={handleShare}
                             postId={viewPostId}
-                            showInsights={isOwner}
+                            onInsightsPress={isOwner ? () => {
+                                bottomSheet.setBottomSheetContent(
+                                    <Suspense fallback={null}>
+                                        <PostInsightsSheet
+                                            postId={viewPostId || null}
+                                            onClose={() => bottomSheet.openBottomSheet(false)}
+                                        />
+                                    </Suspense>
+                                );
+                                bottomSheet.openBottomSheet(true);
+                            } : undefined}
                             hideLikeCounts={hideLikeCounts}
                             hideShareCounts={hideShareCounts}
                             hideReplyCounts={hideReplyCounts}

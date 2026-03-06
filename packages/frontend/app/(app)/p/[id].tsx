@@ -526,12 +526,12 @@ const PostDetailScreen: React.FC = () => {
                     <View style={styles.repliesSection}>
                         <View style={styles.repliesHeader}>
                             <Text style={[styles.repliesTitle, { color: theme.colors.text }]}>Replies</Text>
-                            <View style={styles.sortToggle}>
+                            <View style={[styles.sortToggle, { backgroundColor: theme.colors.backgroundSecondary }]}>
                                 <TouchableOpacity
                                     onPress={() => setReplySort('best')}
                                     style={[
                                         styles.sortOption,
-                                        replySort === 'best' && [styles.sortOptionActive, { borderBottomColor: theme.colors.primary }]
+                                        replySort === 'best' && [styles.sortOptionActive, { backgroundColor: theme.colors.background }]
                                     ]}
                                     activeOpacity={0.7}
                                 >
@@ -545,7 +545,7 @@ const PostDetailScreen: React.FC = () => {
                                     onPress={() => setReplySort('recent')}
                                     style={[
                                         styles.sortOption,
-                                        replySort === 'recent' && [styles.sortOptionActive, { borderBottomColor: theme.colors.primary }]
+                                        replySort === 'recent' && [styles.sortOptionActive, { backgroundColor: theme.colors.background }]
                                     ]}
                                     activeOpacity={0.7}
                                 >
@@ -777,19 +777,23 @@ const styles = StyleSheet.create({
     },
     sortToggle: {
         flexDirection: 'row',
-        gap: 4,
+        borderRadius: 8,
+        padding: 2,
     },
     sortOption: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
+        paddingHorizontal: 14,
+        paddingVertical: 5,
+        borderRadius: 6,
     },
     sortOptionActive: {
-        borderBottomWidth: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 1,
     },
     sortOptionText: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '500',
     },
     sortOptionTextActive: {

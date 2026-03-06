@@ -1,7 +1,6 @@
 import React, { useMemo, useCallback, useState, useEffect, useContext } from 'react';
 import {
     Animated,
-    Image,
     ImageBackground,
     StatusBar,
     StyleSheet,
@@ -33,6 +32,7 @@ import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 
 // Components
+import Avatar from './Avatar';
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
@@ -421,14 +421,10 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                             ]}
                             pointerEvents="none"
                         >
-                            {avatarUri ? (
-                                <Image
-                                    source={{ uri: avatarUri }}
-                                    style={styles.headerAvatar}
-                                />
-                            ) : (
-                                <View style={[styles.headerAvatar, { backgroundColor: theme.colors.backgroundSecondary }]} />
-                            )}
+                            <Avatar
+                                source={avatarUri}
+                                size={32}
+                            />
                             <View>
                                 <UserName
                                     name={displayName}
