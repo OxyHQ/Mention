@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
@@ -17,14 +18,14 @@ import { router } from 'expo-router';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
-import { FeedCard, type FeedCardData } from '@/components/FeedCard';
+import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
 
 import { getData, storeData } from '@/utils/storage';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useTheme } from '@/hooks/useTheme';
 import { Search } from '@/assets/icons/search-icon';
+import { formatCompactNumber } from '@/utils/formatNumber';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
@@ -46,125 +47,87 @@ interface FeedItem {
   isLiked?: boolean;
 }
 
-const MyFeedsRow = ({
+// Simple row for quick-access feeds
+const QuickFeedRow = ({
   icon,
+  iconColor,
   label,
   onPress,
-  chevron = false,
 }: {
-  icon: React.ReactNode;
+  icon: string;
+  iconColor: string;
   label: string;
   onPress?: () => void;
-  chevron?: boolean;
 }) => {
   const theme = useTheme();
   return (
     <TouchableOpacity
-      style={[styles.myFeedRow, { borderBottomColor: theme.colors.border }]}
+      style={[styles.quickRow, { borderBottomColor: theme.colors.border }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[styles.myFeedIcon, { backgroundColor: theme.colors.primary }]}>
-        {icon}
-      </View>
-      <ThemedText type="defaultSemiBold" style={styles.myFeedLabel}>
-        {label}
-      </ThemedText>
-      {chevron && (
-        <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-      )}
+      <Ionicons name={icon as any} size={20} color={iconColor} />
+      <Text style={[styles.quickRowLabel, { color: theme.colors.text }]}>{label}</Text>
+      <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
     </TouchableOpacity>
   );
 };
 
-const FeedCardWithPin = ({
+// Compact feed card row
+const FeedRow = ({
   item,
   pinned,
   onTogglePin,
+  t,
 }: {
   item: FeedItem;
   pinned: boolean;
   onTogglePin: (id: string) => void;
+  t: (key: string) => string;
 }) => {
   const theme = useTheme();
-  const feedData: FeedCardData = {
-    id: String(item._id || item.id),
-    uri: item.uri || `custom:${item._id || item.id}`,
-    displayName: item.title || 'Untitled Feed',
-    description: item.description,
-    avatar: item.avatar,
-    creator: item.owner
-      ? {
-          username: item.owner.username || item.owner.handle || '',
-          displayName: item.owner.displayName,
-          avatar: item.owner.avatar,
-        }
-      : undefined,
-    subscriberCount: (item.memberOxyUserIds || []).length,
-    likeCount: item.likeCount || 0,
-  };
-
   const feedId = `custom:${item._id || item.id}`;
+  const memberCount = (item.memberOxyUserIds || []).length;
 
   return (
-    <View style={[styles.feedCardWrapper]}>
-      <FeedCard
-        feed={feedData}
-        onPress={() => router.push(`/feeds/${item._id || item.id}`)}
-        headerRight={
-          <TouchableOpacity
-            onPress={() => onTogglePin(feedId)}
-            style={[
-              styles.pinBtn,
-              {
-                backgroundColor: theme.colors.primary,
-              },
-            ]}
-          >
-             <Ionicons
-               name={pinned ? 'checkmark' : 'pin'}
-               size={14}
-               color={theme.colors.card}
-             />
-            <ThemedText
-              style={[
-                styles.pinBtnText,
-                { color: theme.colors.card },
-              ]}
-            >
-              {pinned ? t('feeds.pinned') : t('feeds.pinFeed')}
-            </ThemedText>
-          </TouchableOpacity>
-        }
-      />
-    </View>
-  );
-};
-
-const SectionHeader = ({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle?: string;
-}) => {
-  const theme = useTheme();
-  return (
-    <View style={styles.sectionHeaderRow}>
-      <View style={[styles.sectionHeaderIcon, { backgroundColor: theme.colors.primary }]}>
-        {icon}
+    <TouchableOpacity
+      style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}
+      onPress={() => router.push(`/feeds/${item._id || item.id}`)}
+      activeOpacity={0.7}
+    >
+      <Avatar source={item.avatar || undefined} size={36} />
+      <View style={styles.feedRowMeta}>
+        <Text style={[styles.feedRowTitle, { color: theme.colors.text }]} numberOfLines={1}>
+          {item.title || 'Untitled Feed'}
+        </Text>
+        <Text style={[styles.feedRowSub, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          {item.owner ? `@${item.owner.username || item.owner.handle}` : ''}
+          {memberCount > 0 ? ` · ${formatCompactNumber(memberCount)} members` : ''}
+          {(item.likeCount || 0) > 0 ? ` · ${formatCompactNumber(item.likeCount!)} likes` : ''}
+        </Text>
+        {item.description ? (
+          <Text style={[styles.feedRowDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
       </View>
-      <View style={{ flex: 1 }}>
-        <ThemedText type="subtitle">{title}</ThemedText>
-        {subtitle && (
-          <ThemedText style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>
-            {subtitle}
-          </ThemedText>
-        )}
-      </View>
-    </View>
+      <TouchableOpacity
+        onPress={() => onTogglePin(feedId)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={[
+          styles.pinBtn,
+          pinned
+            ? { backgroundColor: theme.colors.backgroundSecondary }
+            : { backgroundColor: theme.colors.primary },
+        ]}
+      >
+        <Ionicons
+          name={pinned ? 'checkmark' : 'add'}
+          size={14}
+          color={pinned ? theme.colors.text : '#fff'}
+        />
+      </TouchableOpacity>
+    </TouchableOpacity>
   );
 };
 
@@ -219,16 +182,16 @@ const FeedsScreen: React.FC = () => {
     });
   }, []);
 
-  const pinnedObjects = useMemo(() => {
-    const customPinned = myFeeds.filter((f) =>
-      pinned.includes(`custom:${f._id || f.id}`)
+  const filteredPublic = useMemo(() => {
+    if (!searchQuery.trim()) return publicFeeds;
+    const q = searchQuery.toLowerCase();
+    return publicFeeds.filter(
+      (f) =>
+        f.title?.toLowerCase().includes(q) ||
+        f.description?.toLowerCase().includes(q) ||
+        f.owner?.username?.toLowerCase().includes(q)
     );
-    return customPinned.map((f) => ({
-      id: `custom:${f._id || f.id}`,
-      title: f.title,
-      emoji: '🧩',
-    }));
-  }, [pinned, myFeeds]);
+  }, [publicFeeds, searchQuery]);
 
   return (
     <>
@@ -239,10 +202,11 @@ const FeedsScreen: React.FC = () => {
             title: t('Feeds'),
             rightComponents: [
               <IconButton variant="icon" key="settings" onPress={() => router.push('/settings/feeds')}>
-                <Ionicons name="settings-outline" size={24} color={theme.colors.text} />
+                <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
               </IconButton>,
             ],
           }}
+          hideBottomBorder
         />
 
         <ScrollView
@@ -250,70 +214,34 @@ const FeedsScreen: React.FC = () => {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
           }
-          contentContainerStyle={{ paddingBottom: 80 }}
+          contentContainerStyle={styles.scrollContent}
         >
-          {/* My Feeds Section */}
-          <SectionHeader
-            icon={<Ionicons name="sparkles" size={18} color={theme.colors.card} />}
-            title={t('feeds.myFeeds.title')}
-            subtitle={t('feeds.myFeeds.subtitle')}
-          />
+          {/* Quick access feeds */}
+          <QuickFeedRow icon="swap-vertical" iconColor={theme.colors.primary} label={t('feeds.following')} onPress={() => router.push('/')} />
+          <QuickFeedRow icon="people" iconColor={theme.colors.primary} label={t('feeds.mutuals')} onPress={() => router.push('/')} />
+          <QuickFeedRow icon="compass" iconColor="#10B981" label={t('feeds.discover')} onPress={() => router.push('/')} />
+          <QuickFeedRow icon="heart" iconColor="#FF3040" label={t('feeds.popularWithFriends')} onPress={() => router.push('/')} />
 
-          <View
-            style={[
-              styles.myFeedsBox,
-              { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
-            ]}
-          >
-            <MyFeedsRow
-              icon={<Ionicons name="swap-vertical" size={18} color={theme.colors.card} />}
-              label={t('feeds.following')}
-              onPress={() => router.push('/')}
-            />
-            <MyFeedsRow
-              icon={<Ionicons name="people" size={18} color={theme.colors.card} />}
-              label={t('feeds.mutuals')}
-              onPress={() => router.push('/')}
-              chevron
-            />
-            <MyFeedsRow
-              icon={<Ionicons name="compass" size={18} color={theme.colors.card} />}
-              label={t('feeds.discover')}
-              onPress={() => router.push('/')}
-              chevron
-            />
-            <MyFeedsRow
-              icon={<Ionicons name="heart" size={18} color={theme.colors.card} />}
-              label={t('feeds.popularWithFriends')}
-              onPress={() => router.push('/')}
-              chevron
-            />
-            {pinnedObjects.map((f) => (
-              <MyFeedsRow
-                key={f.id}
-                icon={<ThemedText style={{fontSize: 14}}>{f.emoji}</ThemedText>}
+          {/* Pinned custom feeds in quick list */}
+          {myFeeds
+            .filter((f) => pinned.includes(`custom:${f._id || f.id}`))
+            .map((f) => (
+              <QuickFeedRow
+                key={f._id || f.id}
+                icon="pin"
+                iconColor={theme.colors.primary}
                 label={f.title || 'Untitled'}
-                onPress={() => {
-                  const id = f.id.startsWith('custom:')
-                    ? f.id.split(':')[1]
-                    : undefined;
-                  if (id) router.push(`/feeds/${id}`);
-                }}
-                chevron
+                onPress={() => router.push(`/feeds/${f._id || f.id}`)}
               />
             ))}
-          </View>
 
-          {/* Discover New Feeds */}
-          <View style={styles.spacer} />
-          <SectionHeader
-            icon={<Ionicons name="search" size={18} color={theme.colors.card} />}
-            title={t('feeds.discoverNew.title')}
-            subtitle={t('feeds.discoverNew.subtitle')}
-          />
+          {/* Discover feeds */}
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            {t('feeds.discoverNew.title')}
+          </Text>
 
-          <View style={[styles.searchContainer, { backgroundColor: theme.colors.backgroundSecondary }]}>
-            <Search size={20} color={theme.colors.textSecondary} />
+          <View style={[styles.searchBar, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <Search size={18} color={theme.colors.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: theme.colors.text }]}
               placeholder={t('feeds.searchPlaceholder')}
@@ -321,44 +249,46 @@ const FeedsScreen: React.FC = () => {
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
-          </View>
-
-          <View style={styles.listContainer}>
-            {loading && !refreshing && publicFeeds.length === 0 ? (
-              <Loading size="large" style={{ flex: undefined, marginTop: 20 }} />
-            ) : (
-              publicFeeds.map((item) => (
-                <FeedCardWithPin
-                  key={String(item._id || item.id)}
-                  item={item}
-                  pinned={pinned.includes(`custom:${item._id || item.id}`)}
-                  onTogglePin={onTogglePin}
-                />
-              ))
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
             )}
           </View>
 
-          {/* Your Created Feeds */}
+          {loading && !refreshing && publicFeeds.length === 0 ? (
+            <Loading size="large" style={{ flex: undefined, marginTop: 24 }} />
+          ) : (
+            filteredPublic.map((item) => (
+              <FeedRow
+                key={String(item._id || item.id)}
+                item={item}
+                pinned={pinned.includes(`custom:${item._id || item.id}`)}
+                onTogglePin={onTogglePin}
+                t={t}
+              />
+            ))
+          )}
+
+          {/* Your feeds */}
           {myFeeds.length > 0 && (
             <>
-              <View style={styles.spacer} />
-              <SectionHeader
-                icon={<Ionicons name="person-circle" size={18} color={theme.colors.card} />}
-                title={t('feeds.yourFeeds.title')}
-                subtitle={t('feeds.yourFeeds.subtitle')}
-              />
-              <View style={styles.listContainer}>
-                {myFeeds.map((f) => (
-                  <FeedCardWithPin
-                    key={String(f._id || f.id)}
-                    item={f}
-                    pinned={pinned.includes(`custom:${f._id || f.id}`)}
-                    onTogglePin={onTogglePin}
-                  />
-                ))}
-              </View>
+              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced, { color: theme.colors.text }]}>
+                {t('feeds.yourFeeds.title')}
+              </Text>
+              {myFeeds.map((f) => (
+                <FeedRow
+                  key={String(f._id || f.id)}
+                  item={f}
+                  pinned={pinned.includes(`custom:${f._id || f.id}`)}
+                  onTogglePin={onTogglePin}
+                  t={t}
+                />
+              ))}
             </>
           )}
+
+          <View style={{ height: 80 }} />
         </ScrollView>
 
         {/* FAB */}
@@ -367,7 +297,7 @@ const FeedsScreen: React.FC = () => {
           onPress={() => router.push('/feeds/create')}
           activeOpacity={0.8}
         >
-          <Ionicons name="pencil" size={24} color={theme.colors.card} />
+          <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
       </SafeAreaView>
     </>
@@ -375,96 +305,96 @@ const FeedsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  sectionHeaderRow: {
+  scrollContent: {
+    paddingHorizontal: 16,
+  },
+  // Quick access rows
+  quickRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 12,
-  },
-  sectionHeaderIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  sectionSub: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  myFeedsBox: {
-    marginHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  myFeedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 14,
   },
-  myFeedIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  myFeedLabel: {
+  quickRowLabel: {
     flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
   },
-  searchContainer: {
+  // Section
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 24,
+    marginBottom: 4,
+  },
+  sectionTitleSpaced: {
+    marginTop: 28,
+  },
+  // Search
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginVertical: 8,
     paddingHorizontal: 12,
-    height: 40,
-    borderRadius: 8,
+    height: 38,
+    borderRadius: 10,
+    marginTop: 8,
+    marginBottom: 4,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 16,
+    fontSize: 15,
+    ...Platform.select({
+      web: { outlineStyle: 'none' as any },
+    }),
   },
-  listContainer: {
-    paddingHorizontal: 16,
-    marginTop: 8,
-  },
-  feedCardWrapper: {
-    marginBottom: 16,
-  },
-  pinBtn: {
+  // Feed rows
+  feedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
   },
-  pinBtnText: {
-    marginLeft: 6,
-    fontSize: 12,
+  feedRowMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  feedRowTitle: {
+    fontSize: 15,
     fontWeight: '600',
   },
-  spacer: {
-    height: 8,
+  feedRowSub: {
+    fontSize: 13,
   },
+  feedRowDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  pinBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // FAB
   fab: {
     position: 'absolute',
     bottom: 24,
     right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,
-    boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.25)',
+    ...Platform.select({
+      web: { boxShadow: '0 2px 8px rgba(0,0,0,0.15)' },
+      default: {},
+    }),
   },
 });
 
