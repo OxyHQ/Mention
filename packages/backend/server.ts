@@ -341,41 +341,12 @@ import { initializeRoomSocket } from './src/sockets/roomSocket';
 const roomsNamespace = initializeRoomSocket(io);
 
 // --- Socket Auth Middleware ---
-// Authenticate socket connections using JWT token or userId from handshake
+// Use oxy.authSocket() which validates tokens via jwtDecode + Oxy API session validation.
+// This matches how oxy.auth() works for HTTP — no local JWT_SECRET needed.
+const oxySocketAuth = oxy.authSocket();
 [notificationsNamespace, postsNamespace, roomsNamespace, io].forEach((namespaceOrServer: any) => {
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
-    namespaceOrServer.use(async (socket: AuthenticatedSocket, next: (err?: any) => void) => {
-      try {
-        const auth = socket.handshake?.auth as any;
-        const token = auth?.token;
-
-        // Try JWT verification first if token is provided
-        if (token && typeof token === 'string') {
-          try {
-            const jwt = require('jsonwebtoken');
-            const jwtSecret = process.env.JWT_SECRET || process.env.OXY_JWT_SECRET;
-            if (!jwtSecret) {
-              logger.warn('JWT_SECRET not configured - rejecting token authentication');
-              return next();
-            }
-            const decoded = jwt.verify(token, jwtSecret);
-            const userId = decoded?.userId || decoded?.id || decoded?.sub;
-            if (userId && typeof userId === 'string') {
-              socket.user = { id: userId };
-              return next();
-            }
-          } catch (jwtError) {
-            logger.debug('Socket JWT verification failed, falling back to userId auth');
-          }
-        }
-
-        // No valid token — reject unauthenticated connections
-        logger.debug('Socket connection rejected: no valid authentication token');
-        return next(new Error('Authentication required'));
-      } catch (_) {
-        return next(new Error('Authentication failed'));
-      }
-    });
+    namespaceOrServer.use(oxySocketAuth);
   }
 });
 
