@@ -5,6 +5,7 @@ export interface IStarterPack extends Document {
   name: string;
   description?: string;
   memberOxyUserIds: string[];
+  usedByOxyUserIds: string[];
   useCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -15,6 +16,7 @@ const StarterPackSchema = new Schema<IStarterPack>({
   name: { type: String, required: true },
   description: { type: String },
   memberOxyUserIds: { type: [String], default: [] },
+  usedByOxyUserIds: { type: [String], default: [] },
   useCount: { type: Number, default: 0 },
 }, { timestamps: true });
 

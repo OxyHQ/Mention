@@ -10,7 +10,8 @@ import { colors } from '@/styles/colors';
 import { FONT_FAMILIES } from '@/styles/typography';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useTheme } from '@/hooks/useTheme';
-import { useAuth, useFollow } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services';
+import { Ionicons } from '@expo/vector-icons';
 import Avatar from '@/components/Avatar';
 import SEO from '@/components/SEO';
 
@@ -42,24 +43,24 @@ export default function StarterPackDetailScreen() {
         const p = await starterPacksService.get(String(id));
         setPack(p);
 
-        // Hydrate member profiles
+        // Hydrate member profiles in parallel
         if (p.memberOxyUserIds?.length) {
-          const profiles: MemberProfile[] = [];
-          for (const uid of p.memberOxyUserIds) {
-            try {
-              const profile = await oxyServices.getUserById(uid);
-              if (profile) {
-                profiles.push({
-                  id: uid,
-                  username: (profile as any).username || (profile as any).name?.full || uid,
-                  displayName: (profile as any).name?.full || (profile as any).displayName,
-                  avatar: (profile as any).avatar,
-                });
-              }
-            } catch {
-              profiles.push({ id: uid, username: uid });
-            }
-          }
+          const profiles = await Promise.all(
+            p.memberOxyUserIds.map(async (uid: string): Promise<MemberProfile> => {
+              try {
+                const profile = await oxyServices.getUserById(uid);
+                if (profile) {
+                  return {
+                    id: uid,
+                    username: (profile as any).username || (profile as any).name?.full || uid,
+                    displayName: (profile as any).name?.full || (profile as any).displayName,
+                    avatar: (profile as any).avatar,
+                  };
+                }
+              } catch { /* ignore */ }
+              return { id: uid, username: uid };
+            })
+          );
           setMembers(profiles);
         }
       } catch {
@@ -144,7 +145,7 @@ export default function StarterPackDetailScreen() {
             {/* Pack info */}
             <View style={styles.packInfo}>
               <View style={[styles.iconBubble, { backgroundColor: theme.colors.primary + '20' }]}>
-                <Text style={{ fontSize: 32 }}>🚀</Text>
+                <Ionicons name="rocket-outline" size={32} color={theme.colors.primary} />
               </View>
               <ThemedText style={styles.packName}>{pack.name}</ThemedText>
               {pack.description && (

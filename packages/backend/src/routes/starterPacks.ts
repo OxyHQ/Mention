@@ -147,18 +147,26 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Use starter pack (increment count, return member IDs for client-side following)
+// Use starter pack (increment count once per user, return member IDs for client-side following)
 router.post('/:id/use', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const pack = await StarterPack.findByIdAndUpdate(
-      req.params.id,
-      { $inc: { useCount: 1 } },
+    // Atomically add user to usedByOxyUserIds and increment count only if not already used
+    const pack = await StarterPack.findOneAndUpdate(
+      { _id: req.params.id, usedByOxyUserIds: { $ne: userId } },
+      { $inc: { useCount: 1 }, $addToSet: { usedByOxyUserIds: userId } },
       { new: true }
     ).lean();
-    if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
+
+    if (!pack) {
+      // Either not found or already used — check which
+      const existing = await StarterPack.findById(req.params.id).lean();
+      if (!existing) return res.status(404).json({ error: 'Starter pack not found' });
+      // Already used — return data without re-incrementing
+      return res.json({ memberOxyUserIds: existing.memberOxyUserIds, useCount: existing.useCount, alreadyUsed: true });
+    }
 
     res.json({ memberOxyUserIds: pack.memberOxyUserIds, useCount: pack.useCount });
   } catch (error) {

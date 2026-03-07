@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
-import Avatar from './Avatar';
 
 export interface StarterPackCardData {
   id: string;
@@ -38,7 +38,7 @@ export function StarterPackCard({ pack, onPress }: StarterPackCardProps) {
       ]}>
       <View style={styles.header}>
         <View style={[styles.iconBubble, { backgroundColor: theme.colors.primary + '20' }]}>
-          <ThemedText style={{ fontSize: 20 }}>🚀</ThemedText>
+          <Ionicons name="rocket-outline" size={22} color={theme.colors.primary} />
         </View>
         <View style={styles.titleContainer}>
           <ThemedText style={styles.title} numberOfLines={1}>
