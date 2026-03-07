@@ -231,7 +231,7 @@ router.get('/images/:cacheKey', async (req: AuthRequest, res: Response) => {
     }
 
     // Images are now stored in S3 and served via CDN — redirect to CDN URL
-    const { getCdnUrl } = await import('../utils/spaces');
+    const { getCdnUrl } = require('../utils/spaces.js');
     const cdnUrl = getCdnUrl(`link-previews/${cacheKey}`);
     return res.redirect(301, cdnUrl);
   } catch (error: any) {

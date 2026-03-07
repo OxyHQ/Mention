@@ -98,7 +98,7 @@ router.get('/optimize', imageOptimizeRateLimiter, async (req: AuthRequest, res: 
     }
 
     // Images are now stored in S3 and served via CDN — redirect to CDN URL
-    const { getCdnUrl } = await import('../utils/spaces');
+    const { getCdnUrl } = require('../utils/spaces.js');
     const cdnUrl = getCdnUrl(`link-previews/${result.cacheKey}`);
     return res.redirect(301, cdnUrl);
   } catch (error) {
