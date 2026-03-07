@@ -39,6 +39,11 @@ Welcome to the Mention project documentation.
 - **[Compose Refactoring](./COMPOSE_REFACTORING.md)**
   Architecture overview, components guide, and documentation for the compose screen modular architecture.
 
+### Federation
+
+- **[Federation (ActivityPub)](../packages/backend/README.md#federation-activitypub--fediverse)**
+  ActivityPub/Fediverse federation setup, endpoints, environment variables, and deployment requirements.
+
 ### Performance & Deployment
 
 - **[Performance Optimizations](./PERFORMANCE_OPTIMIZATIONS.md)**

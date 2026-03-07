@@ -341,6 +341,62 @@ docker run -p 3000:3000 -e MONGODB_URI=your_mongodb_uri mention-api
 vercel --prod
 ```
 
+## Federation (ActivityPub / Fediverse)
+
+Mention supports ActivityPub federation, allowing users to interact with Mastodon and other fediverse platforms.
+
+### How It Works
+
+Mention acts as an ActivityPub server. Each Mention user gets a fediverse identity at `@username@mention.earth`. Users on Mastodon or other instances can follow Mention users and vice versa.
+
+### Architecture
+
+- **Domain**: `mention.earth` (configured via `FEDERATION_DOMAIN` env var)
+- **Protocol endpoints** are public (no auth required — served to other ActivityPub servers):
+  - `GET /.well-known/webfinger?resource=acct:user@mention.earth` — Profile discovery
+  - `GET /ap/users/:username` — Actor profile (returns ActivityPub Person object)
+  - `POST /ap/users/:username/inbox` — Receive activities from remote instances
+  - `POST /ap/inbox` — Shared inbox for all users
+  - `GET /ap/users/:username/outbox` — Public posts as ActivityPub activities
+  - `GET /ap/users/:username/followers` — Followers collection
+  - `GET /ap/users/:username/following` — Following collection
+
+- **API endpoints** (auth required — used by the Mention frontend):
+  - `GET /federation/search?q=user@instance` — Search fediverse handles
+  - `GET /federation/lookup?handle=@user@instance` — Resolve a single handle
+  - `POST /federation/follow` — Follow a remote actor
+  - `POST /federation/unfollow` — Unfollow a remote actor
+  - `GET /federation/following` — List federated accounts you follow
+  - `GET /federation/followers` — List remote followers
+
+### Deployment Requirements
+
+The `/.well-known/` and `/ap/` paths on the federation domain (`mention.earth`) **must** route to this backend service, not the static frontend. On DigitalOcean App Platform, this is handled via ingress rules with path-based routing.
+
+### Environment Variables
+
+```env
+FEDERATION_DOMAIN=mention.earth          # Domain for actor URLs (default: mention.earth)
+FEDERATION_ENABLED=true                  # Set to "false" to disable (default: true)
+FEDERATION_BLOCKED_DOMAINS=bad.example   # Comma-separated blocked domains
+FEDERATION_DELIVERY_RETRIES=5            # Max retry attempts for outgoing activities
+FEDERATION_MAX_CONTENT_LENGTH=50000      # Max content size for incoming activities
+```
+
+### Key Files
+
+- `src/routes/webfinger.routes.ts` — WebFinger endpoint
+- `src/routes/federation.routes.ts` — ActivityPub protocol endpoints
+- `src/routes/federation.api.routes.ts` — Frontend-facing API endpoints
+- `src/services/FederationService.ts` — Core federation logic
+- `src/services/FederationJobScheduler.ts` — Background jobs (actor refresh, delivery retry)
+- `src/utils/federation/constants.ts` — Configuration and URL builders
+- `src/utils/federation/crypto.ts` — HTTP signature signing/verification
+- `src/models/FederatedActor.ts` — Cached remote actor profiles
+- `src/models/FederatedFollow.ts` — Follow relationships
+- `src/models/ActorKeyPair.ts` — RSA keypairs for local users
+- `src/models/FederationDeliveryQueue.ts` — Outgoing activity retry queue
+
 ## Push Notifications (FCM)
 
 Set these env vars in `packages/backend/.env`:

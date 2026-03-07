@@ -52,7 +52,7 @@ class FederationService {
       );
       return link?.href || null;
     } catch (err) {
-      logger.debug(`WebFinger resolution failed for ${acct}:`, err);
+      logger.warn(`WebFinger resolution failed for ${acct}:`, err);
       return null;
     }
   }
@@ -108,7 +108,7 @@ class FederationService {
       ).lean();
       return fedActor as unknown as IFederatedActor | null;
     } catch (err) {
-      logger.debug(`Failed to fetch remote actor ${actorUri}:`, err);
+      logger.warn(`Failed to fetch remote actor ${actorUri}:`, err);
       return null;
     }
   }

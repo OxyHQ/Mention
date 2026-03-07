@@ -11,7 +11,8 @@ class FederationService {
         params: { q: query },
       });
       return res.data?.actors || [];
-    } catch {
+    } catch (err) {
+      console.warn('Federation search failed:', err);
       return [];
     }
   }
