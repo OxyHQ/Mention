@@ -2,13 +2,9 @@
 import 'react-native-reanimated';
 
 // Register LiveKit WebRTC globals (must be called before any LiveKit usage)
-// Uses require() to avoid duplicate Platform import with line below
-if (require('react-native').Platform.OS !== 'web') {
-  try {
-    const { registerGlobals } = require('@livekit/react-native');
-    registerGlobals();
-  } catch {}
-}
+// Platform-split: livekit.native.ts imports @livekit/react-native, livekit.web.ts is a no-op
+import { initLiveKit } from '@/lib/livekit';
+initLiveKit();
 
 import NetInfo from '@react-native-community/netinfo';
 import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query';
