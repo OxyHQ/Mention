@@ -5,6 +5,7 @@ import { colors } from '../../styles/colors';
 import PostAvatar from './PostAvatar';
 import UserName from '../UserName';
 import { useTheme } from '@/hooks/useTheme';
+import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 
 // Spacing tokens for consistent layout
 const HPAD = 8;         // horizontal padding
@@ -92,7 +93,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             />
             {user.handle ? <Text style={[styles.postHandle, { color: theme.colors.textSecondary }]}>@{user.handle}</Text> : null}
             {user.isFederated ? (
-              <Ionicons name="globe-outline" size={13} color={theme.colors.textTertiary} />
+              <FediverseIcon size={13} color={theme.colors.textTertiary} />
             ) : null}
             {!!timeLabel && <Text style={[styles.postDate, { color: theme.colors.textSecondary }]}>· {timeLabel}</Text>}
             {(repostLabel || showRepost) && (

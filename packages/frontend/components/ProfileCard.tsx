@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
+import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 
 /**
  * ProfileCard Component
@@ -91,7 +91,7 @@ export function ProfileCard({
               @{profile.username}
             </ThemedText>
             {profile.isFederated && (
-              <Ionicons name="globe-outline" size={13} color={theme.colors.textSecondary} />
+              <FediverseIcon size={13} color={theme.colors.textSecondary} />
             )}
           </View>
         </View>

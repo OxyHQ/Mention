@@ -20,6 +20,7 @@ import Avatar from '@/components/Avatar';
 import UserName from '@/components/UserName';
 import { IconButton } from '@/components/ui/Button';
 import { ShareIcon } from '@/assets/icons/share-icon';
+import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { ProfileSkeleton } from '@/components/Profile';
 import SEO from '@/components/SEO';
 import type { FederatedActorProfile } from '@mention/shared-types';
@@ -135,7 +136,7 @@ const FederatedProfileScreen: React.FC<FederatedProfileScreenProps> = ({ handle 
         return (
             <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
                 <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
-                <Ionicons name="globe-outline" size={48} color={theme.colors.textSecondary} />
+                <FediverseIcon size={48} color={theme.colors.textSecondary} />
                 <Text style={{ color: theme.colors.textSecondary, marginTop: 12, fontSize: 16 }}>
                     Actor not found
                 </Text>
@@ -200,7 +201,7 @@ const FederatedProfileScreen: React.FC<FederatedProfileScreenProps> = ({ handle 
                     <Text style={[styles.handleText, { color: theme.colors.textSecondary }]}>
                         @{username}
                     </Text>
-                    <Ionicons name="globe-outline" size={14} color={theme.colors.textSecondary} />
+                    <FediverseIcon size={14} color={theme.colors.textSecondary} />
                     <Text style={[styles.instanceText, { color: theme.colors.textTertiary }]}>
                         {instance}
                     </Text>
