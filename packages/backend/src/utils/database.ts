@@ -67,7 +67,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
         minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE || '10'), // Minimum number of connections to maintain (increased from 5)
         maxIdleTimeMS: 60000, // Close connections after 60 seconds of inactivity (increased from 30s for better connection reuse)
         // Read preference for read replicas (if configured)
-        readPreference: process.env.MONGODB_READ_PREFERENCE as any || 'primary',
+        readPreference: process.env.MONGODB_READ_PREFERENCE as any || 'secondaryPreferred',
         // Write concern for data durability
         w: 'majority',
         wtimeoutMS: 5000, // Fixed: use wtimeoutMS instead of deprecated wtimeout

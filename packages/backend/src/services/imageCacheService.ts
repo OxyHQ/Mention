@@ -3,14 +3,15 @@ import * as http from 'http';
 import { URL } from 'url';
 import { logger } from '../utils/logger';
 import { validateUrlSecurity } from '../utils/urlSecurity';
-import mongoose from 'mongoose';
-import { GridFSBucket } from 'mongodb';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { getS3Client, getBucket, getCdnUrl } from '../utils/spaces';
+import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
 /**
- * Service to cache and optimize images from external URLs
- * Downloads, resizes, compresses, and stores images
+ * Service to cache and optimize images from external URLs.
+ * Downloads, resizes, compresses, and stores images in S3 (DigitalOcean Spaces)
+ * under the link-previews/ prefix.
  */
 
 // Image processing configuration (defaults for link previews)
@@ -21,31 +22,25 @@ const PNG_QUALITY = Number(process.env.LINK_PREVIEW_PNG_QUALITY ?? 80);
 const WEBP_QUALITY = Number(process.env.LINK_PREVIEW_WEBP_QUALITY ?? 80);
 const MAX_FILE_SIZE = Number(process.env.LINK_PREVIEW_MAX_FILE_SIZE ?? 500 * 1024);
 
+// S3 key prefix for all link preview images
+const LINK_PREVIEW_PREFIX = 'link-previews';
+
 export interface ImageProcessingOptions {
   maxWidth?: number;
   maxHeight?: number;
   quality?: number;
 }
 
-let bucket: GridFSBucket | null = null;
-
-const initGridFS = (): GridFSBucket | null => {
-  if (!bucket && mongoose.connection.db) {
-    try {
-      bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-        bucketName: 'link_images'
-      });
-    } catch (error) {
-      logger.error('[ImageCacheService] Failed to initialize GridFS bucket:', error);
-      return null;
-    }
-  }
-  return bucket;
-};
-
 class ImageCacheService {
   private readonly TIMEOUT_MS = 10000; // 10 seconds for image downloads
   private readonly USER_AGENT = 'MentionBot/1.0 (+https://mention.earth)';
+
+  /**
+   * Build the S3 object key for a given cache key
+   */
+  private getObjectKey(cacheKey: string): string {
+    return `${LINK_PREVIEW_PREFIX}/${cacheKey}`;
+  }
 
   /**
    * Normalize and resolve image URL to absolute URL
@@ -54,7 +49,7 @@ class ImageCacheService {
     if (!url || typeof url !== 'string') return url;
     const trimmed = url.trim();
     if (!trimmed) return url;
-    
+
     // Already absolute
     if (/^https?:\/\//i.test(trimmed)) {
       try {
@@ -71,7 +66,7 @@ class ImageCacheService {
         return trimmed;
       }
     }
-    
+
     return trimmed;
   }
 
@@ -84,28 +79,30 @@ class ImageCacheService {
   }
 
   /**
-   * Check if image is already cached
+   * Check if image is already cached in S3
+   * Returns the CDN URL if cached, null otherwise
    */
   async getCachedImage(url: string): Promise<string | null> {
     try {
-      const bucket = initGridFS();
-      if (!bucket) {
-        logger.debug('[ImageCacheService] GridFS not initialized, cannot check cache');
+      const cacheKey = this.generateCacheKey(url);
+      const objectKey = this.getObjectKey(cacheKey);
+
+      await getS3Client().send(new HeadObjectCommand({
+        Bucket: getBucket(),
+        Key: objectKey,
+      }));
+
+      // Object exists — return CDN URL
+      return getCdnUrl(objectKey);
+    } catch (error: any) {
+      // 404 / NoSuchKey means not cached yet
+      if (error?.name === 'NotFound' || error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) {
         return null;
       }
-
-      const normalizedUrl = this.normalizeImageUrl(url);
-      const cacheKey = this.generateCacheKey(normalizedUrl);
-      
-      // Use more efficient query - only check existence, don't fetch all data
-      const file = await bucket.find({ filename: cacheKey }, { limit: 1, projection: { _id: 1 } }).next();
-      if (file) {
-        return `/links/images/${cacheKey}`;
-      }
-      
-      return null;
-    } catch (error) {
-      logger.error('[ImageCacheService] Error checking cache:', { url, error: error instanceof Error ? error.message : String(error) });
+      logger.error('[ImageCacheService] Error checking S3 cache:', {
+        url,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
   }
@@ -156,7 +153,7 @@ class ImageCacheService {
         res.on('data', (chunk: Buffer) => {
           chunks.push(chunk);
           totalSize += chunk.length;
-          
+
           // Prevent memory issues
           if (totalSize > 10 * 1024 * 1024) { // 10MB limit
             res.destroy();
@@ -269,43 +266,35 @@ class ImageCacheService {
   }
 
   /**
-   * Store image in GridFS
+   * Store image in S3 under link-previews/ prefix.
+   * Object is public-read so it can be served via the CDN.
    */
-  private async storeImage(buffer: Buffer, cacheKey: string, contentType: string): Promise<void> {
-    const bucket = initGridFS();
-    if (!bucket) {
-      throw new Error('GridFS not initialized');
-    }
+  private async storeImage(buffer: Buffer, cacheKey: string, contentType: string): Promise<string> {
+    const objectKey = this.getObjectKey(cacheKey);
 
-    return new Promise((resolve, reject) => {
-      const uploadStream = bucket.openUploadStream(cacheKey, {
-        contentType: contentType || 'image/jpeg',
-        metadata: {
-          cachedAt: new Date(),
-        }
-      });
+    await getS3Client().send(new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: objectKey,
+      Body: buffer,
+      ContentType: contentType || 'image/jpeg',
+      ACL: 'public-read',
+      Metadata: {
+        cachedAt: new Date().toISOString(),
+      },
+    }));
 
-      const { Readable } = require('stream');
-      const readableStream = Readable.from(buffer);
-      
-      readableStream
-        .pipe(uploadStream)
-        .on('error', (error: Error) => {
-          logger.error('[ImageCacheService] Failed to store image in GridFS:', { cacheKey, error: error.message });
-          reject(error);
-        })
-        .on('finish', resolve);
-    });
+    logger.debug('[ImageCacheService] Stored image in S3:', { objectKey });
+    return getCdnUrl(objectKey);
   }
 
   /**
-   * Cache image from URL
-   * Returns the cached image URL or null if caching failed
+   * Cache image from URL.
+   * Returns the CDN URL of the cached image, or null if caching failed.
    */
   async cacheImage(imageUrl: string): Promise<string | null> {
     try {
       const normalizedUrl = this.normalizeImageUrl(imageUrl);
-      
+
       // Check if already cached
       const cached = await this.getCachedImage(normalizedUrl);
       if (cached) {
@@ -329,12 +318,11 @@ class ImageCacheService {
       const finalBuffer = processedResult?.buffer ?? imageBuffer;
       const contentType = processedResult?.contentType ?? this.detectContentType(imageBuffer);
 
-      // Store in GridFS
       const cacheKey = this.generateCacheKey(normalizedUrl);
-      await this.storeImage(finalBuffer, cacheKey, contentType);
+      const cdnUrl = await this.storeImage(finalBuffer, cacheKey, contentType);
 
       logger.debug('[ImageCacheService] Image cached successfully:', { url: normalizedUrl, cacheKey });
-      return `/links/images/${cacheKey}`;
+      return cdnUrl;
     } catch (error) {
       logger.error('[ImageCacheService] Error caching image:', {
         url: imageUrl,
@@ -351,12 +339,12 @@ class ImageCacheService {
   private detectContentType(buffer: Buffer): string {
     // Check for SVG (text-based)
     const bufferStart = buffer.toString('utf8', 0, Math.min(100, buffer.length));
-    if (bufferStart.trim().startsWith('<?xml') || 
-        bufferStart.trim().startsWith('<svg') || 
+    if (bufferStart.trim().startsWith('<?xml') ||
+        bufferStart.trim().startsWith('<svg') ||
         bufferStart.trim().startsWith('<!DOCTYPE svg')) {
       return 'image/svg+xml';
     }
-    
+
     // Check raster image formats
     if (buffer[0] === 0xFF && buffer[1] === 0xD8) return 'image/jpeg';
     if (buffer[0] === 0x89 && buffer[1] === 0x50) return 'image/png';
@@ -366,30 +354,31 @@ class ImageCacheService {
   }
 
   /**
-   * Get image stream from cache
+   * Get image stream from cache.
+   * With S3 storage, images are served directly via CDN — this method is kept
+   * for backward compatibility but returns null (callers should use the CDN URL).
    */
   async getImageStream(cacheKey: string): Promise<{ stream: NodeJS.ReadableStream; contentType: string } | null> {
     try {
-      const bucket = initGridFS();
-      if (!bucket) {
-        logger.debug('[ImageCacheService] GridFS not initialized, cannot get image stream');
+      const objectKey = this.getObjectKey(cacheKey);
+      const response = await getS3Client().send(new GetObjectCommand({
+        Bucket: getBucket(),
+        Key: objectKey,
+      }));
+
+      if (!response.Body) {
         return null;
       }
 
-      // Use more efficient query - only fetch what we need
-      const file = await bucket.find({ filename: cacheKey }, { limit: 1, projection: { contentType: 1 } }).next();
-      if (!file) {
+      const contentType = response.ContentType || 'image/jpeg';
+      // AWS SDK v3 Body is a readable stream
+      const stream = response.Body as NodeJS.ReadableStream;
+      return { stream, contentType };
+    } catch (error: any) {
+      if (error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) {
         return null;
       }
-
-      const downloadStream = bucket.openDownloadStreamByName(cacheKey);
-
-      return {
-        stream: downloadStream,
-        contentType: file.contentType || 'image/jpeg',
-      };
-    } catch (error) {
-      logger.error('[ImageCacheService] Error getting image stream:', {
+      logger.error('[ImageCacheService] Error getting image stream from S3:', {
         cacheKey,
         error: error instanceof Error ? error.message : String(error)
       });
@@ -402,27 +391,22 @@ class ImageCacheService {
    */
   async deleteImage(cacheKey: string): Promise<boolean> {
     try {
-      const bucket = initGridFS();
-      if (!bucket) return false;
-
-      const files = await bucket.find({ filename: cacheKey }).toArray();
-      if (files.length === 0) return false;
-
-      // Delete all files with this cache key (should be just one)
-      for (const file of files) {
-        await bucket.delete(file._id);
-      }
-
+      const objectKey = this.getObjectKey(cacheKey);
+      await getS3Client().send(new DeleteObjectCommand({
+        Bucket: getBucket(),
+        Key: objectKey,
+      }));
+      logger.debug('[ImageCacheService] Deleted image from S3:', { objectKey });
       return true;
     } catch (error) {
-      logger.error('[ImageCacheService] Error deleting image:', error);
+      logger.error('[ImageCacheService] Error deleting image from S3:', error);
       return false;
     }
   }
 
   /**
-   * Cache an optimized variant of an image with custom dimensions
-   * Returns the cache key for the optimized image, or null on failure
+   * Cache an optimized variant of an image with custom dimensions.
+   * Returns the cache key and content type, or null on failure.
    */
   async cacheOptimizedImage(imageUrl: string, options: ImageProcessingOptions): Promise<{ cacheKey: string; contentType: string } | null> {
     try {
@@ -430,13 +414,20 @@ class ImageCacheService {
       const { maxWidth, maxHeight, quality } = options;
       const sizeKey = `${maxWidth ?? 0}x${maxHeight ?? 0}q${quality ?? 80}`;
       const cacheKey = crypto.createHash('sha256').update(`${normalizedUrl}:${sizeKey}`).digest('hex');
+      const objectKey = this.getObjectKey(cacheKey);
 
-      // Check if already cached
-      const gridBucket = initGridFS();
-      if (gridBucket) {
-        const file = await gridBucket.find({ filename: cacheKey }, { limit: 1, projection: { _id: 1, contentType: 1 } }).next();
-        if (file) {
-          return { cacheKey, contentType: file.contentType || 'image/webp' };
+      // Check if already cached in S3
+      try {
+        const head = await getS3Client().send(new HeadObjectCommand({
+          Bucket: getBucket(),
+          Key: objectKey,
+        }));
+        const contentType = head.ContentType || 'image/webp';
+        return { cacheKey, contentType };
+      } catch (headError: any) {
+        // Not cached yet — continue to download and store
+        if (!(headError?.name === 'NotFound' || headError?.name === 'NoSuchKey' || headError?.$metadata?.httpStatusCode === 404)) {
+          throw headError;
         }
       }
 
@@ -457,10 +448,9 @@ class ImageCacheService {
       const finalBuffer = processedResult?.buffer ?? imageBuffer;
       const contentType = processedResult?.contentType ?? this.detectContentType(imageBuffer);
 
-      // Store in GridFS
       await this.storeImage(finalBuffer, cacheKey, contentType);
 
-      logger.debug('[ImageCacheService] Optimized image cached:', { url: normalizedUrl, cacheKey, sizeKey });
+      logger.debug('[ImageCacheService] Optimized image cached in S3:', { url: normalizedUrl, cacheKey, sizeKey });
       return { cacheKey, contentType };
     } catch (error) {
       logger.error('[ImageCacheService] Error caching optimized image:', {
@@ -472,30 +462,13 @@ class ImageCacheService {
   }
 
   /**
-   * Clear all cached images
+   * Clear all cached images (not supported in bulk for S3 — returns 0)
+   * In production, use S3 lifecycle rules or the AWS console for bulk deletion.
    */
   async clearAllImages(): Promise<number> {
-    try {
-      const bucket = initGridFS();
-      if (!bucket) return 0;
-
-      // Get all files in the bucket
-      const files = await bucket.find({}).toArray();
-      const count = files.length;
-
-      // Delete all files
-      for (const file of files) {
-        await bucket.delete(file._id);
-      }
-
-      logger.info('[ImageCacheService] Cleared all images:', { count });
-      return count;
-    } catch (error) {
-      logger.error('[ImageCacheService] Error clearing all images:', error);
-      return 0;
-    }
+    logger.warn('[ImageCacheService] clearAllImages() is not supported for S3 storage. Use S3 lifecycle rules instead.');
+    return 0;
   }
 }
 
 export const imageCacheService = new ImageCacheService();
-

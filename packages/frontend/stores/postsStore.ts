@@ -97,6 +97,7 @@ interface FeedState {
   clearError: () => void;
   clearFeed: (type: FeedType) => void;
   clearUserFeed: (userId: string, type: FeedType) => void;
+  prunePostsCache: () => void;
 }
 
 // Default feed state
@@ -360,6 +361,8 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   return base;
 };
 
+const MAX_POSTS_CACHE_SIZE = 2000;
+
 // Request tracking for debouncing and race condition prevention
 const pendingRequests = new Map<string, { timestamp: number; abortController?: AbortController }>();
 
@@ -509,12 +512,14 @@ export const usePostsStore = create<FeedState>()(
             lastRefresh: Date.now()
           });
         });
+
+        get().prunePostsCache();
       } catch (error) {
         // Don't handle aborted requests as errors
         if (abortController.signal.aborted) {
           return;
         }
-        
+
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch feed';
         
         set(state => ({
@@ -1909,6 +1914,8 @@ export const usePostsStore = create<FeedState>()(
           postsById: newCache
         };
       });
+
+      get().prunePostsCache();
     },
 
     // Utility actions
@@ -1933,7 +1940,43 @@ export const usePostsStore = create<FeedState>()(
           }
         }
       }));
-    }
+    },
+
+    prunePostsCache: () => {
+      const state = get();
+      const postIds = Object.keys(state.postsById);
+      if (postIds.length <= MAX_POSTS_CACHE_SIZE) return;
+
+      // Collect all post IDs referenced by active feeds
+      const referencedIds = new Set<string>();
+      Object.values(state.feeds).forEach(feed => {
+        feed.items.forEach(item => {
+          const id = normalizeId(item);
+          if (id) referencedIds.add(id);
+          if (item.original?.id) referencedIds.add(String(item.original.id));
+          if (item.quoted?.id) referencedIds.add(String(item.quoted.id));
+        });
+      });
+      Object.values(state.userFeeds).forEach(userFeedMap => {
+        Object.values(userFeedMap).forEach(feed => {
+          feed.items.forEach(item => {
+            const id = normalizeId(item);
+            if (id) referencedIds.add(id);
+          });
+        });
+      });
+
+      // Remove unreferenced posts (oldest first by Object.keys insertion order)
+      const unreferenced = postIds.filter(id => !referencedIds.has(id));
+      if (unreferenced.length === 0) return;
+
+      const toRemove = unreferenced.slice(0, postIds.length - MAX_POSTS_CACHE_SIZE);
+      if (toRemove.length === 0) return;
+
+      const newPostsById = { ...state.postsById };
+      toRemove.forEach(id => delete newPostsById[id]);
+      set({ postsById: newPostsById });
+    },
   }))
 );
 

@@ -22,7 +22,7 @@ export const config = {
     pingInterval: 20000,
     upgradeTimeout: 30000,
     connectTimeout: 45000,
-    maxBufferSize: 1e8,
+    maxBufferSize: 1e6, // 1MB - prevents DoS via oversized socket payloads
     compressionThreshold: 1024,
   },
   db: {

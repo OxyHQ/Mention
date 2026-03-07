@@ -64,6 +64,9 @@ setInterval(() => {
   }
 }, 60000); // Clean up every minute
 
+// In-flight request deduplication
+const inFlightRequests = new Map<string, Promise<FeedResponse>>();
+
 class FeedService {
   /**
    * Get feed data from backend using Oxy authenticated client
@@ -79,142 +82,158 @@ class FeedService {
           return cached.data;
         }
       }
-      
-      const params: any = {
-        type: request.type // Always include type in params
-      };
-      
-      if (request.cursor) params.cursor = request.cursor;
-      if (request.limit) params.limit = request.limit;
-      if (request.userId) params.userId = request.userId;
-      if (request.sort) params.sort = request.sort;
-      if (request.filters) {
-        Object.entries(request.filters).forEach(([key, value]) => {
-          if (value !== undefined) {
-            // Extract sort from filters as a top-level param (not a filter)
-            if (key === 'sort') {
-              params.sort = value;
-              return;
-            }
-            // Special handling for array-based filters
-            if (key === 'authors' && Array.isArray(value)) {
-              params[`filters[${key}]`] = (value as any[]).join(',');
-            } else {
-              params[`filters[${key}]`] = value as any;
-            }
-          }
-        });
+
+      // Deduplicate in-flight requests
+      const dedupeKey = getCacheKey(request);
+      const inFlight = inFlightRequests.get(dedupeKey);
+      if (inFlight) {
+        return inFlight;
       }
 
-      // Map feed types to backend endpoints
-      let endpoint = '/feed/feed'; // default endpoint
-    
-    try {
-      
-      // Handle custom feed type - use dedicated timeline endpoint (backend-driven)
-      if (request.type === 'custom' && request.filters?.customFeedId) {
-        const feedId = request.filters.customFeedId;
-        const timelineParams: any = {};
-        if (request.cursor) timelineParams.cursor = request.cursor;
-        if (request.limit) timelineParams.limit = request.limit;
-        
+      const fetchPromise = (async () => {
+        const params: any = {
+          type: request.type // Always include type in params
+        };
+
+        if (request.cursor) params.cursor = request.cursor;
+        if (request.limit) params.limit = request.limit;
+        if (request.userId) params.userId = request.userId;
+        if (request.sort) params.sort = request.sort;
+        if (request.filters) {
+          Object.entries(request.filters).forEach(([key, value]) => {
+            if (value !== undefined) {
+              // Extract sort from filters as a top-level param (not a filter)
+              if (key === 'sort') {
+                params.sort = value;
+                return;
+              }
+              // Special handling for array-based filters
+              if (key === 'authors' && Array.isArray(value)) {
+                params[`filters[${key}]`] = (value as any[]).join(',');
+              } else {
+                params[`filters[${key}]`] = value as any;
+              }
+            }
+          });
+        }
+
+        // Map feed types to backend endpoints
+        let endpoint = '/feed/feed'; // default endpoint
+
         try {
-          const response = await authenticatedClient.get(`/feeds/${feedId}/timeline`, { 
-            params: timelineParams,
-            signal: options?.signal,
-          });
-          // Backend returns posts directly in FeedResponse format
-          return response.data;
-        } catch (authError: any) {
-          // Custom feeds require authentication, so re-throw auth errors
-          throw authError;
-        }
-      }
-      
-      switch (request.type) {
-        case 'for_you':
-          endpoint = '/feed/for-you';
-          break;
-        case 'following':
-          endpoint = '/feed/following';
-          break;
-        case 'media':
-          endpoint = '/feed/media';
-          break;
-        case 'replies':
-          endpoint = '/feed/replies';
-          break;
-        case 'reposts':
-          endpoint = '/feed/reposts';
-          break;
-        case 'posts':
-          endpoint = '/feed/posts';
-          break;
-        case 'saved':
-          endpoint = '/feed/feed'; // Use main feed endpoint with type='saved'
-          // type is already set in params above
-          break;
-        case 'explore':
-          endpoint = '/feed/explore';
-          break;
-        case 'mixed':
-        default:
-          endpoint = '/feed/feed';
-          break;
-      }
 
-      try {
-        const response = await authenticatedClient.get(endpoint, { 
-          params,
-          signal: options?.signal,
-        });
-        
-        const feedResponse = response.data;
-        
-        // Cache response with appropriate TTL based on request type
-        if (feedResponse) {
-          const cacheKey = getCacheKey(request);
-          const ttl = request.cursor ? CACHE_TTL_PAGINATION_MS : CACHE_TTL_MS;
-          feedCache.set(cacheKey, {
-            data: feedResponse,
-            timestamp: Date.now(),
-            expiresAt: Date.now() + ttl
-          });
-        }
-        
-        return feedResponse;
-      } catch (authError: any) {
-        const status = authError?.response?.status;
-        const isAuthError = status === 401 || status === 403;
-        const isNetworkError = !authError?.response && authError?.message?.includes('Network');
-        
-        if (isAuthError || isNetworkError) {
-          try {
-            return await makePublicRequest(endpoint, params);
-          } catch (publicError: any) {
-            throw isAuthError ? authError : publicError;
+          // Handle custom feed type - use dedicated timeline endpoint (backend-driven)
+          if (request.type === 'custom' && request.filters?.customFeedId) {
+            const feedId = request.filters.customFeedId;
+            const timelineParams: any = {};
+            if (request.cursor) timelineParams.cursor = request.cursor;
+            if (request.limit) timelineParams.limit = request.limit;
+
+            try {
+              const response = await authenticatedClient.get(`/feeds/${feedId}/timeline`, {
+                params: timelineParams,
+                signal: options?.signal,
+              });
+              // Backend returns posts directly in FeedResponse format
+              return response.data;
+            } catch (authError: any) {
+              // Custom feeds require authentication, so re-throw auth errors
+              throw authError;
+            }
           }
+
+          switch (request.type) {
+            case 'for_you':
+              endpoint = '/feed/for-you';
+              break;
+            case 'following':
+              endpoint = '/feed/following';
+              break;
+            case 'media':
+              endpoint = '/feed/media';
+              break;
+            case 'replies':
+              endpoint = '/feed/replies';
+              break;
+            case 'reposts':
+              endpoint = '/feed/reposts';
+              break;
+            case 'posts':
+              endpoint = '/feed/posts';
+              break;
+            case 'saved':
+              endpoint = '/feed/feed'; // Use main feed endpoint with type='saved'
+              // type is already set in params above
+              break;
+            case 'explore':
+              endpoint = '/feed/explore';
+              break;
+            case 'mixed':
+            default:
+              endpoint = '/feed/feed';
+              break;
+          }
+
+          try {
+            const response = await authenticatedClient.get(endpoint, {
+              params,
+              signal: options?.signal,
+            });
+
+            const feedResponse = response.data;
+
+            // Cache response with appropriate TTL based on request type
+            if (feedResponse) {
+              const cacheKey = getCacheKey(request);
+              const ttl = request.cursor ? CACHE_TTL_PAGINATION_MS : CACHE_TTL_MS;
+              feedCache.set(cacheKey, {
+                data: feedResponse,
+                timestamp: Date.now(),
+                expiresAt: Date.now() + ttl
+              });
+            }
+
+            return feedResponse;
+          } catch (authError: any) {
+            const status = authError?.response?.status;
+            const isAuthError = status === 401 || status === 403;
+            const isNetworkError = !authError?.response && authError?.message?.includes('Network');
+
+            if (isAuthError || isNetworkError) {
+              try {
+                return await makePublicRequest(endpoint, params);
+              } catch (publicError: any) {
+                throw isAuthError ? authError : publicError;
+              }
+            }
+            throw authError;
+          }
+        } catch (error: any) {
+          logger.error('Error fetching feed', {
+            message: error?.message,
+            status: error?.response?.status,
+            statusText: error?.response?.statusText,
+            data: error?.response?.data,
+            endpoint,
+            params,
+            stack: error?.stack
+          });
+
+          // Re-throw with more context
+          const errorMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Failed to fetch feed';
+          const errorToThrow = new Error(errorMessage);
+          (errorToThrow as any).status = error?.response?.status;
+          (errorToThrow as any).originalError = error;
+          throw errorToThrow;
         }
-        throw authError;
+      })();
+
+      inFlightRequests.set(dedupeKey, fetchPromise);
+      try {
+        return await fetchPromise;
+      } finally {
+        inFlightRequests.delete(dedupeKey);
       }
-    } catch (error: any) {
-      logger.error('Error fetching feed', {
-        message: error?.message,
-        status: error?.response?.status,
-        statusText: error?.response?.statusText,
-        data: error?.response?.data,
-        endpoint,
-        params,
-        stack: error?.stack
-      });
-      
-      // Re-throw with more context
-      const errorMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Failed to fetch feed';
-      const errorToThrow = new Error(errorMessage);
-      (errorToThrow as any).status = error?.response?.status;
-      (errorToThrow as any).originalError = error;
-      throw errorToThrow;
-    }
   }
 
   /**

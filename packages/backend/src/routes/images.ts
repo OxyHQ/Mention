@@ -97,40 +97,10 @@ router.get('/optimize', imageOptimizeRateLimiter, async (req: AuthRequest, res: 
       });
     }
 
-    // Serve the cached image directly
-    const imageData = await imageCacheService.getImageStream(result.cacheKey);
-    if (!imageData) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve optimized image',
-      });
-    }
-
-    // Set CORS headers
-    const origin = req.headers.origin;
-    const ALLOWED_ORIGINS = [
-      process.env.FRONTEND_URL || 'https://mention.earth',
-      'http://localhost:8081',
-      'http://localhost:8082',
-      'http://192.168.86.44:8081',
-    ];
-
-    if (origin && ALLOWED_ORIGINS.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-    // Set cache headers
-    res.setHeader('Content-Type', imageData.contentType);
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-
-    // Stream the image
-    imageData.stream.pipe(res);
+    // Images are now stored in S3 and served via CDN — redirect to CDN URL
+    const { getCdnUrl } = await import('../utils/spaces');
+    const cdnUrl = getCdnUrl(`link-previews/${result.cacheKey}`);
+    return res.redirect(301, cdnUrl);
   } catch (error) {
     logger.error('[Images] Error optimizing image:', { url: req.query.url, error });
     res.status(500).json({

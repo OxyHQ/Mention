@@ -230,41 +230,10 @@ router.get('/images/:cacheKey', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const imageData = await imageCacheService.getImageStream(cacheKey);
-    
-    if (!imageData) {
-      return res.status(404).json({
-        success: false,
-        message: 'Image not found in cache',
-      });
-    }
-
-    // Set CORS headers to allow image loading from frontend (match server.ts config)
-    const origin = req.headers.origin;
-    const ALLOWED_ORIGINS = [
-      process.env.FRONTEND_URL || 'https://mention.earth',
-      'http://localhost:8081',
-      'http://localhost:8082',
-      'http://192.168.86.44:8081',
-    ];
-    
-    if (origin && ALLOWED_ORIGINS.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length');
-
-    // Set appropriate headers
-    res.setHeader('Content-Type', imageData.contentType);
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // Cache for 1 year
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); // Allow cross-origin access
-
-    // Stream the image
-    imageData.stream.pipe(res);
+    // Images are now stored in S3 and served via CDN — redirect to CDN URL
+    const { getCdnUrl } = await import('../utils/spaces');
+    const cdnUrl = getCdnUrl(`link-previews/${cacheKey}`);
+    return res.redirect(301, cdnUrl);
   } catch (error: any) {
     logger.error('[Links] Error serving cached image:', { cacheKey: req.params.cacheKey, error });
     res.status(500).json({

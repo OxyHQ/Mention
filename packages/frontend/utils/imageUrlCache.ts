@@ -8,6 +8,7 @@
 interface CachedUrl {
   url: string;
   expiresAt: number;
+  lastAccessedAt: number;
 }
 
 class ImageUrlCache {
@@ -27,11 +28,10 @@ class ImageUrlCache {
    */
   private evictIfNeeded(): void {
     if (this.cache.size <= this.maxSize) return;
-    
-    // Sort by expiration time and remove oldest entries
+
     const entries = Array.from(this.cache.entries())
-      .sort((a, b) => a[1].expiresAt - b[1].expiresAt);
-    
+      .sort((a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt);
+
     const toRemove = entries.slice(0, this.cache.size - this.maxSize);
     toRemove.forEach(([key]) => this.cache.delete(key));
   }
@@ -53,6 +53,8 @@ class ImageUrlCache {
       return null;
     }
 
+    // Update access time for LRU tracking
+    cached.lastAccessedAt = Date.now();
     return cached.url;
   }
 
@@ -63,7 +65,7 @@ class ImageUrlCache {
     const key = this.getCacheKey(fileId, variant);
     const expiresAt = Date.now() + (ttl || this.defaultTTL);
     
-    this.cache.set(key, { url, expiresAt });
+    this.cache.set(key, { url, expiresAt, lastAccessedAt: Date.now() });
     this.evictIfNeeded();
   }
 

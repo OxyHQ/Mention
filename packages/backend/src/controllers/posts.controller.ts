@@ -655,56 +655,62 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         logger.error('Failed to create mention notifications', e);
       }
 
-      // Reply notification if replying to an existing post
+      // Batch-fetch posts needed for reply, quote, and repost notifications
       try {
         const replyParentId = parentPostId || in_reply_to_status_id || null;
-        if (replyParentId) {
-          const parent = await Post.findById(replyParentId).lean();
-          const recipientId = parent?.oxyUserId?.toString?.() || (parent as any)?.oxyUserId || null;
-          if (recipientId && recipientId !== userId) {
-            await createNotification({
-              recipientId,
-              actorId: userId,
-              type: 'reply',
-              entityId: String(post._id),
-              entityType: 'reply'
-            });
-          }
-        }
-      } catch (e) {
-        logger.error('Failed to create reply notification', e);
-      }
+        const idsToFetch = [replyParentId, quoted_post_id, repost_of].filter(Boolean) as string[];
 
-      // Quote and Repost notifications if created via this endpoint
-      try {
-        if (quoted_post_id) {
-          const original = await Post.findById(quoted_post_id).lean();
-          const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
-          if (recipientId && recipientId !== userId && original) {
-            await createNotification({
-              recipientId,
-              actorId: userId,
-              type: 'quote',
-              entityId: String(original._id),
-              entityType: 'post'
-            });
+        if (idsToFetch.length > 0) {
+          const posts = await Post.find({ _id: { $in: idsToFetch } }).select('oxyUserId').lean();
+          const postsMap = new Map(posts.map(p => [String(p._id), p]));
+
+          // Reply notification
+          if (replyParentId) {
+            const parent = postsMap.get(String(replyParentId));
+            const recipientId = parent?.oxyUserId?.toString?.() || (parent as any)?.oxyUserId || null;
+            if (recipientId && recipientId !== userId) {
+              await createNotification({
+                recipientId,
+                actorId: userId,
+                type: 'reply',
+                entityId: String(post._id),
+                entityType: 'reply'
+              });
+            }
           }
-        }
-        if (repost_of) {
-          const original = await Post.findById(repost_of).lean();
-          const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
-          if (recipientId && recipientId !== userId && original) {
-            await createNotification({
-              recipientId,
-              actorId: userId,
-              type: 'repost',
-              entityId: String(original._id),
-              entityType: 'post'
-            });
+
+          // Quote notification
+          if (quoted_post_id) {
+            const original = postsMap.get(String(quoted_post_id));
+            const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
+            if (recipientId && recipientId !== userId && original) {
+              await createNotification({
+                recipientId,
+                actorId: userId,
+                type: 'quote',
+                entityId: String(original._id),
+                entityType: 'post'
+              });
+            }
+          }
+
+          // Repost notification
+          if (repost_of) {
+            const original = postsMap.get(String(repost_of));
+            const recipientId = original?.oxyUserId?.toString?.() || (original as any)?.oxyUserId || null;
+            if (recipientId && recipientId !== userId && original) {
+              await createNotification({
+                recipientId,
+                actorId: userId,
+                type: 'repost',
+                entityId: String(original._id),
+                entityType: 'post'
+              });
+            }
           }
         }
       } catch (e) {
-        logger.error('Failed to create quote/repost notification', e);
+        logger.error('Failed to create reply/quote/repost notifications', e);
       }
 
       // Notify subscribers of a new post (only for top-level posts, not replies)
