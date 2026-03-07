@@ -14,8 +14,7 @@ import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { colors } from '../styles/colors';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { useTheme } from '@/hooks/useTheme';
-import { oxyServices } from '@/lib/oxyServices';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { useImageUrl } from '@/hooks/useImageUrl';
 import Svg, { Defs, ClipPath, Path, Image as SvgImage } from 'react-native-svg';
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
@@ -67,19 +66,16 @@ const Avatar: React.FC<AvatarProps> = ({
   // Unique clip ID per instance (stable across re-renders)
   const clipId = React.useMemo(() => `sqc${_clipIdCounter++}`, []);
 
-  // Resolve source: handles file IDs, HTTP URLs, and ImageSourcePropType objects
-  // Uses the app-level oxyServices singleton (same instance as OxyProvider) — no hook needed
+  // Resolve file ID to URL asynchronously (instant on cache hit, async on miss)
+  const fileIdSource = typeof source === 'string' && !source.startsWith('http') ? source : undefined;
+  const resolvedUrl = useImageUrl(errored ? undefined : fileIdSource, 'thumb');
+
   const resolvedSource = React.useMemo(() => {
     if (!source || errored) return undefined;
     if (typeof source !== 'string') return source;
     if (source.startsWith('http')) return source;
-    try {
-      return getCachedFileDownloadUrlSync(oxyServices, source, 'thumb');
-    } catch (e) {
-      if (__DEV__) console.warn('[Avatar] Failed to resolve source:', source, e);
-      return undefined;
-    }
-  }, [source, errored]);
+    return resolvedUrl;
+  }, [source, errored, resolvedUrl]);
 
   // Memoize imageSource for Image component
   const imageSource = React.useMemo(() => {

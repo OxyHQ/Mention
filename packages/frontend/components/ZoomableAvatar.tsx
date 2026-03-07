@@ -26,8 +26,7 @@ import {
   GestureDetector,
 } from 'react-native-gesture-handler';
 import { useTheme } from '@/hooks/useTheme';
-import { oxyServices } from '@/lib/oxyServices';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { useImageUrl } from '@/hooks/useImageUrl';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { Portal } from '@/components/Portal';
 import { Z_INDEX } from '@/lib/constants';
@@ -87,18 +86,16 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   const originX = useSharedValue(0);
   const originY = useSharedValue(0);
 
-  // Resolve source: handles file IDs, HTTP URLs, and ImageSourcePropType objects
-  // Uses the app-level oxyServices singleton (same instance as OxyProvider) — no hook needed
+  // Resolve file ID to URL asynchronously (instant on cache hit, async on miss)
+  const fileIdSource = typeof source === 'string' && !source.startsWith('http') ? source : undefined;
+  const resolvedUrl = useImageUrl(errored ? undefined : fileIdSource, 'thumb');
+
   const resolvedSource = useMemo(() => {
     if (!source || errored) return undefined;
     if (typeof source !== 'string') return source;
     if (source.startsWith('http')) return source;
-    try {
-      return getCachedFileDownloadUrlSync(oxyServices, source, 'thumb');
-    } catch {
-      return undefined;
-    }
-  }, [source, errored]);
+    return resolvedUrl;
+  }, [source, errored, resolvedUrl]);
 
   const imageSource = useMemo(() => {
     if (resolvedSource) {

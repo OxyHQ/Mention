@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Build shared types
+        run: npm run build --workspace=@mention/shared-types
+      - name: Lint frontend
+        run: npm run lint --workspace=@mention/frontend
+      - name: Build backend
+        run: npm run build --workspace=@mention/backend
+      - name: Build frontend
+        run: npm run build --workspace=@mention/frontend

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { feedController } from '../controllers/feed.controller';
 import { feedRateLimiter, feedIPRateLimiter, feedThrottle } from '../middleware/security';
+import { cachePublicShort, cachePublicProfile, cachePrivateNoStore } from '../middleware/cacheControl';
 
 const router = Router();
 
@@ -14,8 +15,8 @@ router.use(feedThrottle);
 
 // Public routes (accessible without authentication)
 router.get('/feed', feedController.getFeed.bind(feedController));
-router.get('/for-you', feedController.getForYouFeed.bind(feedController));
-router.get('/explore', feedController.getExploreFeed.bind(feedController));
+router.get('/for-you', cachePrivateNoStore, feedController.getForYouFeed.bind(feedController));
+router.get('/explore', cachePublicShort, feedController.getExploreFeed.bind(feedController));
 router.get('/media', feedController.getMediaFeed.bind(feedController));
 router.get('/quotes', feedController.getQuotesFeed.bind(feedController));
 router.get('/reposts', feedController.getRepostsFeed.bind(feedController));
@@ -25,7 +26,7 @@ router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedControll
 router.get('/replies', feedController.getRepliesFeed.bind(feedController));
 
 // User profile feed routes
-router.get('/user/:userId', feedController.getUserProfileFeed.bind(feedController));
+router.get('/user/:userId', cachePublicProfile, feedController.getUserProfileFeed.bind(feedController));
 // Pinned post for a user profile
 router.get('/user/:userId/pinned', feedController.getPinnedPost.bind(feedController));
 // Single feed item with full transformation
@@ -34,7 +35,7 @@ router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 // Protected routes (require authentication)
 // Note: These routes should be on the authenticated router in server.ts
 // Keeping them here for organization, but they'll be protected by oxy.auth() middleware
-router.get('/following', feedController.getFollowingFeed.bind(feedController)); // Requires auth
+router.get('/following', cachePrivateNoStore, feedController.getFollowingFeed.bind(feedController)); // Requires auth
 router.post('/reply', feedController.createReply.bind(feedController));
 router.post('/repost', feedController.createRepost.bind(feedController));
 router.delete('/:postId/repost', feedController.unrepostItem.bind(feedController));

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { trendingService } from '../services/TrendingService';
 import { TimeWindow } from '../models/Trending';
 import { logger } from '../utils/logger';
+import { cachePublicMedium } from '../middleware/cacheControl';
 
 const router = Router();
 
@@ -10,7 +11,7 @@ const router = Router();
  * GET /api/trending
  * PUBLIC ROUTE - No authentication required
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
   try {
     const { timeWindow = '24h', limit = '20' } = req.query;
 

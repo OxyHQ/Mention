@@ -1,4 +1,5 @@
 import { API_URL_SOCKET } from '@/config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FeedType } from '@mention/shared-types';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
@@ -64,7 +65,8 @@ class SocketService {
   private consecutiveHealthFailures: number = 0;
   private readonly MAX_HEALTH_FAILURES = 3; // Require 3 consecutive failures before disconnecting
   private healthCheckDisconnect: boolean = false; // Track if disconnect was triggered by health check
-  
+  private isHealthCheckPaused: boolean = false;
+
   // Subscription to flush queued feed updates when loading completes
   private feedLoadingUnsubscribe: (() => void) | null = null;
   // Queue for engagement updates to batch rapid changes
@@ -72,6 +74,9 @@ class SocketService {
   private engagementUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly ENGAGEMENT_UPDATE_DEBOUNCE_MS = 200; // Batch engagement updates every 200ms
   private readonly MAX_ENGAGEMENT_BATCH_SIZE = 100; // Maximum engagement updates per post
+  private engagementPersistTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly ENGAGEMENT_PERSIST_KEY = 'mention-engagement-queue';
+  private readonly ENGAGEMENT_PERSIST_DEBOUNCE_MS = 500;
 
   constructor() {
     this.setupEventListeners();
@@ -108,6 +113,12 @@ class SocketService {
    * Connect to the backend socket server
    */
   connect(userId?: string, token?: string): void {
+    // If switching users, fully tear down existing session
+    if (userId && this.currentUserId && userId !== this.currentUserId) {
+      logger.info('User changed, resetting socket session');
+      this.disconnect();
+    }
+
     if (this.socket?.connected) {
       return;
     }
@@ -211,6 +222,10 @@ class SocketService {
       this.processEngagementQueue();
       this.engagementUpdateTimer = null;
     }
+    if (this.engagementPersistTimer) {
+      clearTimeout(this.engagementPersistTimer);
+      this.engagementPersistTimer = null;
+    }
     // Clean up feed loading watcher
     if (this.feedLoadingUnsubscribe) {
       this.feedLoadingUnsubscribe();
@@ -305,6 +320,7 @@ class SocketService {
       this.lastPongTime = Date.now();
       this.consecutiveHealthFailures = 0;
       this.startHealthMonitoring();
+      this.loadPersistedEngagementQueue();
 
       // Join feed rooms for real-time updates
       if (this.currentUserId && this.socket) {
@@ -407,14 +423,14 @@ class SocketService {
     // Handle app state changes (React Native)
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
+        this.resumeHealthCheck();
         // App came to foreground - reconnect if needed
         if (!this.isConnected && this.socket && !this.socket.connected) {
           logger.info('App resumed, reconnecting...');
           this.socket.connect();
         }
       } else if (nextAppState === 'background' || nextAppState === 'inactive') {
-        // App went to background - optionally disconnect
-        // this.disconnect();
+        this.pauseHealthCheck();
       }
     };
 
@@ -467,7 +483,7 @@ class SocketService {
     this.consecutiveHealthFailures = 0;
 
     this.connectionHealthCheckInterval = setInterval(() => {
-      if (!this.socket?.connected) {
+      if (!this.socket?.connected || this.isHealthCheckPaused) {
         return;
       }
 
@@ -498,6 +514,17 @@ class SocketService {
       clearInterval(this.connectionHealthCheckInterval);
       this.connectionHealthCheckInterval = null;
     }
+  }
+
+  private pauseHealthCheck(): void {
+    this.isHealthCheckPaused = true;
+    this.consecutiveHealthFailures = 0;
+  }
+
+  private resumeHealthCheck(): void {
+    this.isHealthCheckPaused = false;
+    this.lastPongTime = Date.now();
+    this.consecutiveHealthFailures = 0;
   }
 
   /**
@@ -660,8 +687,42 @@ class SocketService {
     this.engagementUpdateTimer = setTimeout(() => {
       this.processEngagementQueue();
     }, this.ENGAGEMENT_UPDATE_DEBOUNCE_MS);
+
+    this.persistEngagementQueue();
   }
-  
+
+  private persistEngagementQueue(): void {
+    if (this.engagementPersistTimer) clearTimeout(this.engagementPersistTimer);
+    this.engagementPersistTimer = setTimeout(async () => {
+      try {
+        const serializable: Record<string, EngagementUpdate[]> = {};
+        for (const [key, value] of this.engagementUpdateQueue) {
+          serializable[key] = value;
+        }
+        await AsyncStorage.setItem(this.ENGAGEMENT_PERSIST_KEY, JSON.stringify(serializable));
+      } catch (e) {
+        logger.debug('Failed to persist engagement queue:', e);
+      }
+    }, this.ENGAGEMENT_PERSIST_DEBOUNCE_MS);
+  }
+
+  private async loadPersistedEngagementQueue(): Promise<void> {
+    try {
+      const raw = await AsyncStorage.getItem(this.ENGAGEMENT_PERSIST_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, EngagementUpdate[]>;
+      for (const [postId, updates] of Object.entries(parsed)) {
+        if (Array.isArray(updates) && updates.length > 0) {
+          this.engagementUpdateQueue.set(postId, updates);
+        }
+      }
+      this.processEngagementQueue();
+      await AsyncStorage.removeItem(this.ENGAGEMENT_PERSIST_KEY);
+    } catch (e) {
+      logger.debug('Failed to load persisted engagement queue:', e);
+    }
+  }
+
   /**
    * Process queued engagement updates in batches
    */
@@ -855,6 +916,7 @@ class SocketService {
 
     // Clear timer
     this.engagementUpdateTimer = null;
+    AsyncStorage.removeItem(this.ENGAGEMENT_PERSIST_KEY).catch(() => {});
   }
 
   /**

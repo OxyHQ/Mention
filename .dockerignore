@@ -1,0 +1,9 @@
+node_modules
+dist
+.expo
+.git
+.github
+*.md
+infrastructure/
+packages/frontend/
+packages/agora/

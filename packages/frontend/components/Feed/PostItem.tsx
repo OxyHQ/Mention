@@ -25,7 +25,7 @@ import { useLiveRoom } from '@/context/LiveRoomContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { useImageUrl } from '@/hooks/useImageUrl';
 import { useImagePreload } from '@/hooks/useImagePreload';
 import { usePostLike } from '@/hooks/usePostLike';
 import { usePostSave } from '@/hooks/usePostSave';
@@ -131,17 +131,15 @@ const PostItem: React.FC<PostItemProps> = ({
         ? content.attachments
         : undefined;
 
+    const rawAvatar = viewPost.user?.avatarUrl || (viewPost.user as any)?.avatar;
+    const avatarFileId = typeof rawAvatar === 'string' && !rawAvatar.startsWith('http') ? rawAvatar : undefined;
+    const resolvedAvatarUrl = useImageUrl(avatarFileId, 'thumb', oxyServices);
+
     const avatarUri = useMemo(() => {
-        const avatar = viewPost.user?.avatarUrl || (viewPost.user as any)?.avatar;
-        if (!avatar) return undefined;
-        if (typeof avatar === 'string' && avatar.startsWith('http')) return avatar;
-        if (!oxyServices) return avatar;
-        try {
-            return getCachedFileDownloadUrlSync(oxyServices, String(avatar), 'thumb');
-        } catch {
-            return avatar;
-        }
-    }, [viewPost.user?.avatarUrl, (viewPost.user as any)?.avatar, oxyServices]);
+        if (!rawAvatar) return undefined;
+        if (typeof rawAvatar === 'string' && rawAvatar.startsWith('http')) return rawAvatar;
+        return resolvedAvatarUrl ?? rawAvatar;
+    }, [rawAvatar, resolvedAvatarUrl]);
 
     // Preload images for better perceived performance
     const imageUrls = useMemo(() => {

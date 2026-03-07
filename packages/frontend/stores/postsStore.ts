@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { subscribeWithSelector } from 'zustand/middleware';
+import { subscribeWithSelector, persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   FeedRequest,
   CreateReplyRequest,
@@ -373,7 +374,8 @@ const inFlightEngagements = new Map<string, 'like' | 'unlike' | 'repost' | 'unre
 const getEngagementKey = (postId: string, action: string) => `${postId}:${action.replace('un', '')}`;
 
 export const usePostsStore = create<FeedState>()(
-  subscribeWithSelector((set, get) => ({
+  persist(
+    subscribeWithSelector((set, get) => ({
     feeds: createDefaultFeedsState(),
     userFeeds: {},
     postsById: {},
@@ -1977,7 +1979,29 @@ export const usePostsStore = create<FeedState>()(
       toRemove.forEach(id => delete newPostsById[id]);
       set({ postsById: newPostsById });
     },
-  }))
+  })),
+  {
+    name: 'mention-feed-store',
+    version: 1,
+    storage: createJSONStorage(() => AsyncStorage),
+    partialize: (state) => ({
+      postsById: state.postsById,
+      feeds: Object.fromEntries(
+        Object.entries(state.feeds).map(([key, feed]) => [
+          key,
+          {
+            items: feed.items,
+            hasMore: feed.hasMore,
+            nextCursor: feed.nextCursor,
+            totalCount: feed.totalCount,
+            lastUpdated: 0,
+            isLoading: false,
+            error: null,
+          },
+        ])
+      ) as FeedState['feeds'],
+    }),
+  })
 );
 
 // Selectors for better performance - return stable references when data hasn't meaningfully changed

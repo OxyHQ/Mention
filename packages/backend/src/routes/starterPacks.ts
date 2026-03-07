@@ -5,6 +5,10 @@ const router = express.Router();
 
 const MAX_MEMBERS = 150;
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 interface AuthRequest extends Request { user?: { id: string } }
 
 // Create starter pack
@@ -44,9 +48,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       q.ownerOxyUserId = userId;
     }
     if (search) {
+      const escaped = escapeRegex(String(search));
       q.$or = [
-        { name: { $regex: String(search), $options: 'i' } },
-        { description: { $regex: String(search), $options: 'i' } },
+        { name: { $regex: escaped, $options: 'i' } },
+        { description: { $regex: escaped, $options: 'i' } },
       ];
     }
 
