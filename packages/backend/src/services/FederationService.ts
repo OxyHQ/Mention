@@ -16,6 +16,7 @@ import {
   isBlockedDomain,
 } from '../utils/federation/constants';
 import { PostVisibility } from '@mention/shared-types';
+import { htmlToPlainText } from '../utils/federation/htmlToPlainText';
 
 class FederationService {
   // ============================================================
@@ -167,17 +168,19 @@ class FederationService {
   }
 
   /**
-   * Fetch posts from a remote actor's outbox (first page).
-   * Returns HydratedPost-compatible objects with media, hashtags, sensitive flags, etc.
+   * Fetch a remote actor's outbox and store posts in the DB.
+   * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
-  async fetchOutboxPosts(outboxUrl: string, actorInfo?: IFederatedActor, limit = 20): Promise<any[]> {
+  async syncOutboxPosts(actor: IFederatedActor, limit = 20): Promise<number> {
+    if (!actor.outboxUrl) return 0;
+
     try {
       // Fetch the outbox collection
-      const res = await fetch(outboxUrl, {
+      const res = await fetch(actor.outboxUrl, {
         headers: { Accept: AP_CONTENT_TYPE, 'User-Agent': USER_AGENT },
         signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) return [];
+      if (!res.ok) return 0;
 
       const collection = await res.json() as Record<string, any>;
 
@@ -199,30 +202,13 @@ class FederationService {
         }
       }
 
-      // Build actor summary for post display
-      const actorSummary = actorInfo ? {
-        id: String(actorInfo._id),
-        handle: actorInfo.username,
-        displayName: actorInfo.displayName || actorInfo.username,
-        name: actorInfo.displayName || actorInfo.username,
-        avatarUrl: actorInfo.avatarUrl,
-        avatar: actorInfo.avatarUrl,
-        isVerified: false,
-        isFederated: true,
-        instance: actorInfo.domain,
-        actorUri: actorInfo.uri,
-        profileUrl: actorInfo.uri,
-      } : undefined;
-
-      // Filter to Create(Note) activities and build HydratedPost-compatible objects
-      const posts: any[] = [];
+      let synced = 0;
       for (const item of items) {
-        if (posts.length >= limit) break;
+        if (synced >= limit) break;
 
         const activity = typeof item === 'string' ? null : item;
         if (!activity) continue;
 
-        // Handle both wrapped (Create) and unwrapped (Note) items
         const note = activity.type === 'Create' ? activity.object :
           (activity.type === 'Note' || activity.type === 'Article') ? activity : null;
         if (!note || typeof note !== 'object') continue;
@@ -231,80 +217,105 @@ class FederationService {
         // Skip replies (only show root posts on profile)
         if (note.inReplyTo) continue;
 
+        const activityId = note.id || activity.id;
+        if (!activityId) continue;
+
+        // Dedup
+        const exists = await Post.exists({ 'federation.activityId': activityId });
+        if (exists) { synced++; continue; }
+
         const rawContent = note.content || '';
-        const content = sanitizeHtml(rawContent, {
-          allowedTags: ['p', 'br', 'a', 'span', 'em', 'strong', 'b', 'i'],
-          allowedAttributes: { a: ['href', 'rel'] },
-        });
+        if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) continue;
 
-        // Extract media attachments
-        const media: any[] = [];
-        if (Array.isArray(note.attachment)) {
-          for (const att of note.attachment) {
-            if (!att?.url) continue;
-            const mediaType = att.mediaType || '';
-            if (mediaType.startsWith('image/')) {
-              media.push({ id: att.url, type: 'image', url: att.url, blurhash: att.blurhash, description: att.name || att.summary });
-            } else if (mediaType.startsWith('video/')) {
-              media.push({ id: att.url, type: 'video', url: att.url, description: att.name || att.summary });
-            }
-          }
-        }
+        const text = htmlToPlainText(rawContent);
+        const { media, attachments } = this.extractApMedia(note);
+        const hashtags = this.extractApHashtags(note);
 
-        // Extract hashtags from tags
-        const hashtags: string[] = [];
-        if (Array.isArray(note.tag)) {
-          for (const tag of note.tag) {
-            if (tag?.type === 'Hashtag' && tag.name) {
-              hashtags.push(tag.name.replace(/^#/, ''));
-            }
-          }
-        }
+        const published = note.published || activity.published;
 
-        // Engagement counts from AP collections
-        const likesCount = typeof note.likes === 'object' ? (note.likes?.totalItems ?? 0) : 0;
-        const sharesCount = typeof note.shares === 'object' ? (note.shares?.totalItems ?? 0) : 0;
-        const repliesCount = typeof note.replies === 'object' ? (note.replies?.totalItems ?? 0) : 0;
-
-        const postId = note.id || activity.id;
-        const published = note.published || activity.published || new Date().toISOString();
-
-        posts.push({
-          id: postId,
-          _id: postId,
-          content: { text: content, media: media.length > 0 ? media : undefined },
-          attachments: { media: media.length > 0 ? media : undefined },
-          user: actorSummary,
-          engagement: {
-            likes: likesCount,
-            reposts: sharesCount,
-            replies: repliesCount,
-          },
-          viewerState: { isOwner: false, isLiked: false, isReposted: false, isSaved: false },
-          permissions: { canReply: false, canDelete: false, canPin: false, canViewSources: false },
-          metadata: {
-            visibility: 'public',
-            isSensitive: note.sensitive === true,
-            hashtags,
-            createdAt: published,
-            updatedAt: note.updated || published,
-          },
+        await Post.create({
+          oxyUserId: null,
+          federatedActorId: actor._id,
           federation: {
-            activityId: activity.id || note.id,
+            activityId,
+            inReplyTo: note.inReplyTo || undefined,
             url: note.url || note.id,
-            sensitive: note.sensitive === true,
+            sensitive: note.sensitive || false,
             spoilerText: note.summary || undefined,
           },
-          createdAt: published,
-          _isFederatedOutbox: true,
+          type: media.length > 0 ? (media.some((m: any) => m.type === 'video') ? 'video' : 'image') : 'text',
+          content: {
+            text,
+            media: media.length > 0 ? media : undefined,
+            attachments: attachments.length > 0 ? attachments : undefined,
+          },
+          visibility: this.mapApVisibility(note.to, note.cc),
+          hashtags,
+          status: 'published',
+          stats: {
+            likesCount: typeof note.likes === 'object' ? (note.likes?.totalItems ?? 0) : 0,
+            repostsCount: typeof note.shares === 'object' ? (note.shares?.totalItems ?? 0) : 0,
+            commentsCount: typeof note.replies === 'object' ? (note.replies?.totalItems ?? 0) : 0,
+            viewsCount: 0,
+            sharesCount: 0,
+          },
+          metadata: {
+            isSensitive: note.sensitive === true,
+          },
+          ...(published ? { createdAt: new Date(published), updatedAt: new Date(note.updated || published) } : {}),
         });
+
+        synced++;
       }
 
-      return posts;
+      logger.debug(`Synced ${synced} outbox posts for ${actor.acct}`);
+      return synced;
     } catch (err) {
-      logger.warn(`Failed to fetch outbox posts from ${outboxUrl}:`, err);
-      return [];
+      logger.warn(`Failed to sync outbox posts from ${actor.outboxUrl}:`, err);
+      return 0;
     }
+  }
+
+  /**
+   * Extract media attachments from an AP Note object.
+   * Returns proxied media items and attachment descriptors for the Post model.
+   */
+  private extractApMedia(note: Record<string, any>): { media: any[]; attachments: any[] } {
+    const media: any[] = [];
+    const attachments: any[] = [];
+
+    if (!Array.isArray(note.attachment)) return { media, attachments };
+
+    for (const att of note.attachment) {
+      if (!att?.url) continue;
+      const mimeType = att.mediaType || '';
+      const proxyUrl = `https://api.${FEDERATION_DOMAIN}/media/proxy?url=${encodeURIComponent(att.url)}`;
+
+      if (mimeType.startsWith('image/')) {
+        media.push({ id: proxyUrl, type: 'image' });
+        attachments.push({ type: 'media', id: proxyUrl, mediaType: 'image' });
+      } else if (mimeType.startsWith('video/')) {
+        media.push({ id: proxyUrl, type: 'video' });
+        attachments.push({ type: 'media', id: proxyUrl, mediaType: 'video' });
+      }
+    }
+
+    return { media, attachments };
+  }
+
+  /**
+   * Extract hashtags from an AP Note's tag array.
+   */
+  private extractApHashtags(note: Record<string, any>): string[] {
+    const hashtags: string[] = [];
+    if (!Array.isArray(note.tag)) return hashtags;
+
+    for (const tag of note.tag) {
+      if (tag?.type === 'Hashtag' && tag.name) {
+        hashtags.push(tag.name.replace(/^#/, ''));
+      }
+    }
+    return hashtags;
   }
 
   /**
@@ -715,11 +726,8 @@ class FederationService {
       return;
     }
 
-    // Sanitize HTML content — strip all tags except safe ones
-    const content = sanitizeHtml(rawContent, {
-      allowedTags: ['p', 'br', 'a', 'span', 'em', 'strong', 'b', 'i'],
-      allowedAttributes: { a: ['href', 'rel'] },
-    });
+    // Convert HTML to plain text
+    const text = htmlToPlainText(rawContent);
 
     // Dedup by activityId
     const existingPost = await Post.exists({ 'federation.activityId': object.id });
@@ -728,15 +736,8 @@ class FederationService {
     const actor = await this.getOrFetchActor(actorUri);
     if (!actor) return;
 
-    // Extract hashtags from tags
-    const hashtags: string[] = [];
-    if (Array.isArray(object.tag)) {
-      for (const tag of object.tag) {
-        if (tag.type === 'Hashtag' && tag.name) {
-          hashtags.push(tag.name.replace(/^#/, ''));
-        }
-      }
-    }
+    const hashtags = this.extractApHashtags(object);
+    const { media, attachments } = this.extractApMedia(object);
 
     await Post.create({
       oxyUserId: null,
@@ -748,15 +749,19 @@ class FederationService {
         sensitive: object.sensitive || false,
         spoilerText: object.summary || undefined,
       },
-      type: 'text',
+      type: media.length > 0 ? (media.some((m: any) => m.type === 'video') ? 'video' : 'image') : 'text',
       content: {
-        text: content,
+        text,
+        media: media.length > 0 ? media : undefined,
+        attachments: attachments.length > 0 ? attachments : undefined,
       },
       visibility: this.mapApVisibility(object.to, object.cc),
       hashtags,
       status: 'published',
       stats: { likesCount: 0, repostsCount: 0, commentsCount: 0, viewsCount: 0, sharesCount: 0 },
-      metadata: {},
+      metadata: {
+        isSensitive: object.sensitive === true,
+      },
     });
 
     logger.debug(`Stored federated post from ${actorUri}: ${object.id}`);
