@@ -202,9 +202,10 @@ class FederationService {
         }
       }
 
-      let synced = 0;
+      // Parse all candidate notes and collect activity IDs for bulk dedup
+      const candidates: { note: any; activity: any; activityId: string }[] = [];
       for (const item of items) {
-        if (synced >= limit) break;
+        if (candidates.length >= limit) break;
 
         const activity = typeof item === 'string' ? null : item;
         if (!activity) continue;
@@ -213,16 +214,28 @@ class FederationService {
           (activity.type === 'Note' || activity.type === 'Article') ? activity : null;
         if (!note || typeof note !== 'object') continue;
         if (note.type !== 'Note' && note.type !== 'Article') continue;
-
-        // Skip replies (only show root posts on profile)
         if (note.inReplyTo) continue;
 
         const activityId = note.id || activity.id;
         if (!activityId) continue;
 
-        // Dedup
-        const exists = await Post.exists({ 'federation.activityId': activityId });
-        if (exists) { synced++; continue; }
+        candidates.push({ note, activity, activityId });
+      }
+
+      if (candidates.length === 0) return 0;
+
+      // Bulk dedup: single query instead of N queries
+      const allActivityIds = candidates.map(c => c.activityId);
+      const existingPosts = await Post.find(
+        { 'federation.activityId': { $in: allActivityIds } },
+        { 'federation.activityId': 1 },
+      ).lean();
+      const existingIds = new Set(existingPosts.map(p => (p as any).federation?.activityId));
+
+      // Build documents for batch insert
+      const newDocs: any[] = [];
+      for (const { note, activity, activityId } of candidates) {
+        if (existingIds.has(activityId)) continue;
 
         const rawContent = note.content || '';
         if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) continue;
@@ -230,10 +243,9 @@ class FederationService {
         const text = htmlToPlainText(rawContent);
         const { media, attachments } = this.extractApMedia(note);
         const hashtags = this.extractApHashtags(note);
-
         const published = note.published || activity.published;
 
-        await Post.create({
+        newDocs.push({
           oxyUserId: null,
           federatedActorId: actor._id,
           federation: {
@@ -262,13 +274,22 @@ class FederationService {
           metadata: {
             isSensitive: note.sensitive === true,
           },
-          ...(published ? { createdAt: new Date(published), updatedAt: new Date(note.updated || published) } : {}),
+          ...(published ? { createdAt: new Date(published), updatedAt: new Date(published) } : {}),
         });
-
-        synced++;
       }
 
-      logger.debug(`Synced ${synced} outbox posts for ${actor.acct}`);
+      // Batch insert (ordered: false to continue on duplicate key errors)
+      if (newDocs.length > 0) {
+        await Post.insertMany(newDocs, { ordered: false }).catch((err: any) => {
+          // E11000 duplicate key errors are expected from race conditions — ignore them
+          if (err?.code !== 11000 && !err?.writeErrors?.every((e: any) => e.err?.code === 11000)) {
+            throw err;
+          }
+        });
+      }
+
+      const synced = existingIds.size + newDocs.length;
+      logger.debug(`Synced ${newDocs.length} new outbox posts for ${actor.acct} (${existingIds.size} already existed)`);
       return synced;
     } catch (err) {
       logger.warn(`Failed to sync outbox posts from ${actor.outboxUrl}:`, err);
@@ -861,8 +882,8 @@ class FederationService {
       return { publicKeyPem: cached.publicKeyPem, actorUri: cached.uri };
     }
 
-    // Fetch the actor to get the public key
-    const actor = await this.fetchRemoteActor(actorUri);
+    // Fetch the actor to get the public key (uses 24h cache)
+    const actor = await this.getOrFetchActor(actorUri);
     if (!actor?.publicKeyPem) return null;
 
     return { publicKeyPem: actor.publicKeyPem, actorUri: actor.uri };

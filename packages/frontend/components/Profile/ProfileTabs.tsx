@@ -1,16 +1,14 @@
-import React, { memo, useState, useEffect, useCallback } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import { Feed } from '@/components/Feed/index';
-import PostItem from '@/components/Feed/PostItem';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
 import { FeedCard, type FeedCardData } from '@/components/FeedCard';
 import { feedService } from '@/services/feedService';
 import { customFeedsService } from '@/services/customFeedsService';
-import { federationService } from '@/services/federationService';
 import type { FeedType } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
 
@@ -18,7 +16,8 @@ const PinnedPostItem = React.lazy(() => import('@/components/Feed/PostItem'));
 
 /**
  * Profile tab content switcher
- * Renders appropriate content based on selected tab
+ * Renders appropriate content based on selected tab.
+ * Both native and federated profiles use the same Feed component.
  */
 export const ProfileTabs = memo(function ProfileTabs({
   tab,
@@ -47,11 +46,6 @@ export const ProfileTabs = memo(function ProfileTabs({
     return () => { cancelled = true; };
   }, [profileId, isPrivate, isOwnProfile, isFederated]);
 
-  // Federated posts
-  if (isFederated && actorUri) {
-    return <FederatedPosts actorUri={actorUri} />;
-  }
-
   // Show private message for restricted profiles
   if (isPrivate && !isOwnProfile) {
     return (
@@ -72,8 +66,8 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Feeds tab
-  if (tab === 'feeds') {
+  // Feeds tab (local profiles only)
+  if (tab === 'feeds' && !isFederated) {
     return (
       <ProfileFeeds
         profileId={profileId}
@@ -82,8 +76,8 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Media grid
-  if (tab === 'media') {
+  // Media grid (local profiles only)
+  if (tab === 'media' && !isFederated) {
     return (
       <MediaGrid
         userId={profileId}
@@ -93,8 +87,8 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Videos grid
-  if (tab === 'videos') {
+  // Videos grid (local profiles only)
+  if (tab === 'videos' && !isFederated) {
     return (
       <VideosGrid
         userId={profileId}
@@ -104,73 +98,22 @@ export const ProfileTabs = memo(function ProfileTabs({
     );
   }
 
-  // Feed for posts, replies, likes, reposts
+  // Unified feed for posts, replies, likes, reposts — works for both native and federated
   return (
     <View>
-      {/* Pinned post - only show on posts tab */}
-      {tab === 'posts' && pinnedPost && (
+      {/* Pinned post - only show on posts tab for local profiles */}
+      {!isFederated && tab === 'posts' && pinnedPost && (
         <React.Suspense fallback={null}>
           <PinnedPostItem post={pinnedPost} showPinned />
         </React.Suspense>
       )}
       <Feed
-        type={tab as FeedType}
+        type={(isFederated ? 'posts' : tab) as FeedType}
         userId={profileId}
         hideHeader={true}
         scrollEnabled={false}
         contentContainerStyle={styles.feedContent}
       />
-    </View>
-  );
-});
-
-/**
- * Federated posts component - fetches posts from a remote ActivityPub actor
- */
-const FederatedPosts = memo(function FederatedPosts({ actorUri }: { actorUri: string }) {
-  const theme = useTheme();
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-
-    federationService.getActorPosts(actorUri).then((data) => {
-      if (!cancelled) {
-        setPosts(data.posts);
-        setLoading(false);
-      }
-    }).catch(() => {
-      if (!cancelled) setLoading(false);
-    });
-
-    return () => { cancelled = true; };
-  }, [actorUri]);
-
-  if (loading) {
-    return (
-      <View style={styles.feedsLoading}>
-        <ActivityIndicator size="small" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
-  if (posts.length === 0) {
-    return (
-      <View style={styles.feedsEmpty}>
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 15 }}>
-          No posts available
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View>
-      {posts.map((post) => (
-        <PostItem key={post._id || post.id} post={post} />
-      ))}
     </View>
   );
 });

@@ -1,15 +1,33 @@
 import { authenticatedClient } from '@/utils/api';
 import type { FederatedActorProfile, FederationFollowResponse, FederationUnfollowResponse } from '@mention/shared-types';
 
+const MAX_RETRIES = 2;
+const BASE_DELAY = 1000;
+
+async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, BASE_DELAY * Math.pow(2, attempt)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 class FederationService {
   /**
    * Search/resolve a fediverse handle (e.g., "@user@mastodon.social").
    */
   async searchActors(query: string): Promise<FederatedActorProfile[]> {
     try {
-      const res = await authenticatedClient.get('/federation/search', {
-        params: { q: query },
-      });
+      const res = await withRetry(() =>
+        authenticatedClient.get('/federation/search', { params: { q: query } })
+      );
       return res.data?.actors || [];
     } catch (err) {
       console.warn('Federation search failed:', err);
@@ -22,9 +40,9 @@ class FederationService {
    */
   async lookupActor(handle: string): Promise<FederatedActorProfile | null> {
     try {
-      const res = await authenticatedClient.get('/federation/lookup', {
-        params: { handle },
-      });
+      const res = await withRetry(() =>
+        authenticatedClient.get('/federation/lookup', { params: { handle } })
+      );
       return res.data?.actor || null;
     } catch {
       return null;
@@ -52,7 +70,9 @@ class FederationService {
    */
   async getFollowing(): Promise<FederatedActorProfile[]> {
     try {
-      const res = await authenticatedClient.get('/federation/following');
+      const res = await withRetry(() =>
+        authenticatedClient.get('/federation/following')
+      );
       return res.data?.following || [];
     } catch {
       return [];
@@ -64,7 +84,9 @@ class FederationService {
    */
   async getFollowers(): Promise<FederatedActorProfile[]> {
     try {
-      const res = await authenticatedClient.get('/federation/followers');
+      const res = await withRetry(() =>
+        authenticatedClient.get('/federation/followers')
+      );
       return res.data?.followers || [];
     } catch {
       return [];
@@ -76,9 +98,9 @@ class FederationService {
    */
   async getActorProfile(actorUri: string): Promise<FederatedActorProfile | null> {
     try {
-      const res = await authenticatedClient.get('/federation/actor', {
-        params: { uri: actorUri },
-      });
+      const res = await withRetry(() =>
+        authenticatedClient.get('/federation/actor', { params: { uri: actorUri } })
+      );
       return res.data?.actor || null;
     } catch {
       return null;
@@ -92,11 +114,14 @@ class FederationService {
     posts: any[];
     hasMore: boolean;
     nextCursor?: string;
+    syncing?: boolean;
   }> {
     try {
       const params: Record<string, string> = { uri: actorUri };
       if (cursor) params.cursor = cursor;
-      const res = await authenticatedClient.get('/federation/actor/posts', { params });
+      const res = await withRetry(() =>
+        authenticatedClient.get('/federation/actor/posts', { params })
+      );
       return res.data || { posts: [], hasMore: false };
     } catch {
       return { posts: [], hasMore: false };

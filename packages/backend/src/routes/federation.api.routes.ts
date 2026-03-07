@@ -8,8 +8,12 @@ import FederatedFollow from '../models/FederatedFollow';
 import { Post } from '../models/Post';
 import { FEDERATION_ENABLED, FEDERATION_DOMAIN } from '../utils/federation/constants';
 import { postHydrationService } from '../services/PostHydrationService';
+import { apiRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
+
+// Rate-limit all federation API routes (200 req/min per user or IP)
+router.use(apiRateLimiter);
 
 // --- Zod schemas ---
 
@@ -48,6 +52,7 @@ function toActorResponse(
   followState?: { isFollowing: boolean; isFollowPending: boolean },
 ) {
   return {
+    id: String(actor._id),
     actorUri: actor.uri,
     handle: actor.username,
     instance: actor.domain,
@@ -339,14 +344,13 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
       .limit(limit + 1)
       .lean();
 
-    // If no local posts and no cursor (first page), sync from remote outbox
+    // If no local posts and no cursor (first page), trigger async sync
     if (posts.length === 0 && !parsed.data.cursor && actor.outboxUrl) {
-      await federationService.syncOutboxPosts(actor as unknown as IFederatedActor, limit);
-      // Re-query after sync
-      posts = await Post.find(query)
-        .sort({ createdAt: -1 })
-        .limit(limit + 1)
-        .lean();
+      // Fire-and-forget: sync in background, return syncing flag to client
+      federationService.syncOutboxPosts(actor as unknown as IFederatedActor, limit).catch((err) => {
+        logger.warn('Background outbox sync failed:', err);
+      });
+      return res.json({ posts: [], hasMore: false, syncing: true });
     }
 
     const hasMore = posts.length > limit;
@@ -360,7 +364,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
       includeLinkMetadata: false,
     });
 
-    return res.json({ posts: hydrated, hasMore, nextCursor });
+    return res.json({ posts: hydrated, hasMore, nextCursor, syncing: false });
   } catch (err) {
     logger.error('Federation actor posts error:', err);
     return res.status(500).json({ error: 'Failed to fetch posts' });

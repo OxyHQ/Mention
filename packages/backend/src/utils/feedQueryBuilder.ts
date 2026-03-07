@@ -351,10 +351,13 @@ export class FeedQueryBuilder {
   static buildUserProfileQuery(
     userId: string,
     type: FeedType = 'posts',
-    cursor?: string
+    cursor?: string,
+    federatedActorId?: string
   ): Record<string, unknown> {
     const query: Record<string, unknown> = {
-      oxyUserId: userId,
+      ...(federatedActorId
+        ? { federatedActorId }
+        : { oxyUserId: userId }),
       visibility: PostVisibility.PUBLIC
     };
 

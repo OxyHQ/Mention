@@ -59,7 +59,8 @@ export class PostHydrationService {
 
     const initialPosts = rawPosts
       .map((post) => (typeof post?.toObject === 'function' ? post.toObject() : post))
-      .filter((post) => post && post.oxyUserId && !viewerContext.blockedIds.has(String(post.oxyUserId)));
+      .filter((post) => post && (post.oxyUserId || (post as any).federatedActorId)
+        && (!post.oxyUserId || !viewerContext.blockedIds.has(String(post.oxyUserId))));
 
     if (initialPosts.length === 0) {
       return [];

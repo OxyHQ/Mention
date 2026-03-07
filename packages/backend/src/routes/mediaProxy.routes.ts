@@ -56,7 +56,7 @@ router.get('/proxy', async (req: Request, res: Response) => {
 
     // Stream the response
     res.set('Content-Type', contentType);
-    res.set('Cache-Control', 'public, max-age=86400'); // 24h cache
+    res.set('Cache-Control', 'public, max-age=2592000, immutable'); // 30 days — AP media URLs are immutable
     res.set('X-Content-Type-Options', 'nosniff');
 
     if (contentLength > 0) {

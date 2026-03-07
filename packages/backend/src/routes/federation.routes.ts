@@ -18,8 +18,22 @@ import {
   sharedInboxUrl,
   resolveOxyUser,
 } from '../utils/federation/constants';
+import rateLimit from 'express-rate-limit';
+import { RedisStore } from '../middleware/rateLimitStore';
 
 const router = Router();
+
+// Rate-limit AP protocol endpoints (30 req/min per IP — prevent abuse as DDoS vector)
+const apRateLimiter = rateLimit({
+  store: new RedisStore({ prefix: 'rate-limit:ap:', windowMs: 60 * 1000 }),
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too Many Requests' },
+  keyGenerator: (req) => req.ip || req.socket.remoteAddress || 'unknown',
+});
+router.use(apRateLimiter);
 
 /**
  * Content negotiation: check if request wants ActivityPub JSON-LD.

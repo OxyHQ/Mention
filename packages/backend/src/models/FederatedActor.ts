@@ -79,6 +79,8 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
 });
 
 FederatedActorSchema.index({ domain: 1, username: 1 }, { unique: true });
+FederatedActorSchema.index({ lastFetchedAt: 1 }); // For refreshStaleActors() job queries
+FederatedActorSchema.index({ publicKeyId: 1 }, { sparse: true }); // For HTTP signature verification lookups
 
 export const FederatedActor = mongoose.model<IFederatedActor>('FederatedActor', FederatedActorSchema);
 export default FederatedActor;

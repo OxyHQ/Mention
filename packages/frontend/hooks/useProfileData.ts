@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@oxyhq/services';
 import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
@@ -71,22 +71,46 @@ function isFederatedUsername(username: string): boolean {
  * Hook for federated profile data.
  * Fetches from federation service and maps to ProfileData.
  */
+// Simple in-memory cache for federated profiles (stale-while-revalidate)
+const federatedProfileCache = new Map<string, { actor: any; fetchedAt: number }>();
+const FEDERATED_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 function useFederatedProfileData(handle: string): {
   data: ProfileData | null;
   loading: boolean;
 } {
-  const [actor, setActor] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = handle ? federatedProfileCache.get(handle) : undefined;
+  const [actor, setActor] = useState<any>(cached?.actor || null);
+  const [loading, setLoading] = useState(!cached?.actor);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
     if (!handle) return;
     let cancelled = false;
-    setLoading(true);
+
+    const cachedEntry = federatedProfileCache.get(handle);
+    const isStale = !cachedEntry || Date.now() - cachedEntry.fetchedAt > FEDERATED_CACHE_TTL;
+
+    // Show cached data immediately (stale-while-revalidate)
+    if (cachedEntry?.actor && !fetchedRef.current) {
+      setActor(cachedEntry.actor);
+      setLoading(false);
+    }
+
+    if (!isStale) return;
+
+    if (!cachedEntry?.actor) setLoading(true);
 
     (async () => {
       try {
         const result = await federationService.lookupActor(handle);
-        if (!cancelled) setActor(result);
+        if (!cancelled) {
+          setActor(result);
+          if (result) {
+            federatedProfileCache.set(handle, { actor: result, fetchedAt: Date.now() });
+          }
+          fetchedRef.current = true;
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -102,7 +126,7 @@ function useFederatedProfileData(handle: string): {
     const instance = handle.split('@')[1];
 
     return {
-      id: actor.actorUri || handle,
+      id: actor.id || actor.actorUri || handle,
       username: handle,
       bio: actor.bio?.replace(/<[^>]*>/g, '') || undefined,
       verified: false,

@@ -120,6 +120,11 @@ export async function getCachedFileDownloadUrl(
   variant?: string,
   expiresIn?: number
 ): Promise<string> {
+  // Federated media: proxy URLs are already complete HTTP URLs — return directly
+  if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
+    return fileId;
+  }
+
   // Check cache first
   const cached = imageUrlCache.get(fileId, variant);
   if (cached) {
@@ -159,6 +164,11 @@ export function getCachedFileDownloadUrlSync(
   variant?: string,
   expiresIn?: number
 ): string {
+  // Federated media: proxy URLs are already complete HTTP URLs — return directly
+  if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
+    return fileId;
+  }
+
   // Check cache first
   const cached = imageUrlCache.get(fileId, variant);
   if (cached) {

@@ -1174,7 +1174,7 @@ class FeedController {
         cursor?: string;
         type?: FeedType
       };
-      
+
       // Validate and sanitize limit parameter using utility
       const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
       const currentUserId = req.user?.id;
@@ -1183,11 +1183,34 @@ class FeedController {
         return res.status(400).json({ error: 'User ID is required' });
       }
 
+      // Check if this is a federated actor (MongoDB ObjectId format)
+      let federatedActorId: string | undefined;
+      if (mongoose.Types.ObjectId.isValid(userId)) {
+        const FederatedActor = require('../models/FederatedActor').default;
+        const actor = await FederatedActor.findById(userId).select('_id outboxUrl acct').lean();
+        if (actor) {
+          federatedActorId = String(actor._id);
+
+          // Trigger outbox sync if no posts exist yet (fire-and-forget)
+          if (!cursor) {
+            const postCount = await Post.countDocuments({ federatedActorId: actor._id });
+            if (postCount === 0 && actor.outboxUrl) {
+              const { federationService } = require('../services/FederationService');
+              federationService.syncOutboxPosts(actor, limit).catch((err: any) => {
+                logger.warn(`Background outbox sync failed for ${actor.acct}:`, err);
+              });
+              return res.json(FeedResponseBuilder.buildEmptyResponse());
+            }
+          }
+        }
+      }
+
       // CRITICAL: Check profile privacy settings FIRST, before any database queries
       // This prevents fetching posts that will be filtered out
-      const userSettings = await UserSettings.findOne({ oxyUserId: userId }).lean();
+      // (federated profiles are always public — skip privacy check)
+      const userSettings = federatedActorId ? null : await UserSettings.findOne({ oxyUserId: userId }).lean();
       const profileVisibility = userSettings?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
-      const isOwnProfile = currentUserId === userId;
+      const isOwnProfile = !federatedActorId && currentUserId === userId;
       
       // If profile is private or followers_only, check access BEFORE fetching posts
       if (!isOwnProfile && requiresAccessCheck(profileVisibility)) {
@@ -1258,7 +1281,7 @@ class FeedController {
       }
 
       // Use FeedQueryBuilder for consistent query building
-      const query = FeedQueryBuilder.buildUserProfileQuery(userId, type, cursor);
+      const query = FeedQueryBuilder.buildUserProfileQuery(userId, type, cursor, federatedActorId);
 
       const posts = await Post.find(query)
         .select(this.FEED_FIELDS)
