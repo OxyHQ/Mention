@@ -2,6 +2,7 @@ import React, { useMemo, useCallback, useState, useEffect, useContext } from 're
 import {
     Animated,
     ImageBackground,
+    Linking,
     StatusBar,
     StyleSheet,
     Text,
@@ -89,12 +90,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const FollowButtonComponent = (OxyServicesNS as { FollowButton?: FollowButtonComponent })
         .FollowButton as FollowButtonComponent;
 
-    // Parse username from URL
+    // Parse username from URL — strip leading @ but keep user@instance for federated
     let { username: urlUsername } = useLocalSearchParams<{ username: string }>();
     if (urlUsername?.startsWith('@')) {
         urlUsername = urlUsername.slice(1);
     }
     const username = urlUsername || '';
+    const isFederated = username.includes('@');
 
     // Active tab index
     const activeTab = useMemo(() => tabToIndex(tab), [tab]);
@@ -111,15 +113,17 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         currentTab: tab,
     });
 
-    // Follow data
-    const stableUserId = profileData?.id || '';
-    const { followerCount = 0, followingCount = 0 } = useFollow(stableUserId);
+    // Follow data — skip useFollow for federated profiles (uses data from profileData)
+    const stableUserId = isFederated ? '' : (profileData?.id || '');
+    const { followerCount: localFollowerCount = 0, followingCount: localFollowingCount = 0 } = useFollow(stableUserId);
+    const followerCount = isFederated ? (profileData?.followersCount ?? 0) : localFollowerCount;
+    const followingCount = isFederated ? (profileData?.followingCount ?? 0) : localFollowingCount;
 
-    // Subscription handling
+    // Subscription handling — disabled for federated profiles
     const { subscribed, loading: subLoading, toggle: toggleSubscription } = useSubscription(
-        profileData?.id,
+        isFederated ? undefined : profileData?.id,
         currentUser?.id,
-        currentUser?.id === profileData?.id
+        isFederated || currentUser?.id === profileData?.id
     );
 
     // Computed values
@@ -128,33 +132,36 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const avatarUri = design?.avatar;
     const bannerUri =
         design?.coverPhotoEnabled && design?.coverImage
-            ? oxyServices.getFileDownloadUrl(design.coverImage, 'full')
+            ? (isFederated ? design.coverImage : oxyServices.getFileDownloadUrl(design.coverImage, 'full'))
             : undefined;
     const minimalistMode = design?.minimalistMode ?? false;
 
     // Memoized checks
     const isOwnProfile = useMemo(() => {
+        if (isFederated) return false;
         if (!currentUser?.id || !profileData?.id) return false;
         return currentUser.id === profileData.id;
-    }, [currentUser?.id, profileData?.id]);
+    }, [currentUser?.id, profileData?.id, isFederated]);
 
     const isPrivate = useMemo(
         () => isProfilePrivate(profileData, profileData?.privacy),
         [profileData]
     );
 
-    // Tabs
+    // Tabs — federated profiles only show Posts
     const tabs = useMemo(
-        () => [
-            t('profile.tabs.posts'),
-            t('profile.tabs.replies'),
-            t('profile.tabs.media'),
-            t('profile.tabs.videos'),
-            t('profile.tabs.likes'),
-            t('profile.tabs.reposts'),
-            t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
-        ],
-        [t]
+        () => isFederated
+            ? [t('profile.tabs.posts')]
+            : [
+                t('profile.tabs.posts'),
+                t('profile.tabs.replies'),
+                t('profile.tabs.media'),
+                t('profile.tabs.videos'),
+                t('profile.tabs.likes'),
+                t('profile.tabs.reposts'),
+                t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
+            ],
+        [t, isFederated]
     );
 
     // Clear cached feed data for private profiles
@@ -171,11 +178,13 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
     const onTabPress = useCallback(
         (index: number) => {
             if (!username) return;
+            // Federated profiles only have 1 tab
+            if (isFederated) return;
             const tabName = TAB_NAMES[index];
             const path = index === 0 ? `/@${username}` : `/@${username}/${tabName}`;
             router.push(path as any);
         },
-        [username]
+        [username, isFederated]
     );
 
     const handlePostsPress = useCallback(() => {
@@ -307,6 +316,11 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
         router.push(`/kaana?userId=${profileData.id}&username=${profileData.username}` as any);
     }, [profileData?.id, profileData?.username]);
 
+    // Open on remote instance (federated only)
+    const handleOpenOnInstance = useCallback(() => {
+        if (profileData?.actorUri) Linking.openURL(profileData.actorUri);
+    }, [profileData?.actorUri]);
+
     // Animations
     const headerBackgroundOpacity = useMemo(
         () =>
@@ -389,7 +403,7 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                     <>
                         {/* Header actions */}
                         <View style={[styles.headerActions, themedStyles.headerActions]}>
-                            {!isOwnProfile && (
+                            {!isOwnProfile && !isFederated && (
                                 <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
                                     {subscribed ? (
                                         <BellActive size={20} color={theme.colors.primary} />
@@ -398,15 +412,20 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                     )}
                                 </IconButton>
                             )}
-                            {!isOwnProfile && (
+                            {!isOwnProfile && !isFederated && (
                                 <IconButton variant="icon" onPress={handleDM}>
                                     <Ionicons name="mail-outline" size={20} color={theme.colors.text} />
+                                </IconButton>
+                            )}
+                            {isFederated && (
+                                <IconButton variant="icon" onPress={handleOpenOnInstance}>
+                                    <Ionicons name="open-outline" size={20} color={theme.colors.text} />
                                 </IconButton>
                             )}
                             <IconButton variant="icon" onPress={handleShare}>
                                 <ShareIcon size={20} color={theme.colors.text} />
                             </IconButton>
-                            {!isOwnProfile && (
+                            {!isOwnProfile && !isFederated && (
                                 <IconButton variant="icon" onPress={handleMoreOptions}>
                                     <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text} />
                                 </IconButton>
@@ -531,6 +550,8 @@ const MentionProfile: React.FC<ProfileScreenProps> = ({ tab = 'posts' }) => {
                                 profileId={profileData?.id}
                                 isPrivate={isPrivate}
                                 isOwnProfile={isOwnProfile}
+                                isFederated={isFederated}
+                                actorUri={profileData?.actorUri}
                             />
                         </Animated.ScrollView>
 

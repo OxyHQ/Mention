@@ -13,6 +13,7 @@ import { ProfileStats } from './ProfileStats';
 import { ProfileMeta } from './ProfileMeta';
 import { ProfileCommunities } from './ProfileCommunities';
 import { PrivateBadge } from './PrivateBadge';
+import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
 
@@ -104,13 +105,21 @@ export const ProfileContent = memo(function ProfileContent({
         <View>
           <UserName
             name={design?.displayName}
-            handle={profileData.username}
+            handle={profileData.isFederated ? profileData.username.split('@')[0] : profileData.username}
             verified={profileData.verified}
             variant="default"
             style={userNameStyle}
           />
           <View style={styles.badgeRow}>
             {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}
+            {profileData.isFederated && profileData.instance && (
+              <View style={[styles.fediverseBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                <FediverseIcon size={12} color={theme.colors.textSecondary} />
+                <Text style={[styles.fediverseText, { color: theme.colors.textSecondary }]}>
+                  {profileData.instance}
+                </Text>
+              </View>
+            )}
             {!isOwnProfile && profileData.followsYou && (
               <View style={[styles.followsYouBadge, { backgroundColor: theme.colors.backgroundSecondary }]}>
                 <Text style={[styles.followsYouText, { color: theme.colors.textSecondary }]}>
@@ -189,6 +198,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
+  },
+  fediverseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  fediverseText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   followsYouBadge: {
     paddingHorizontal: 6,

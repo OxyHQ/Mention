@@ -1,8 +1,9 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@oxyhq/services';
 import { useUsersStore, useUserByUsername } from '@/stores/usersStore';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { usePrivacySettings } from './usePrivacySettings';
+import { federationService } from '@/services/federationService';
 
 export interface ProfileDesign {
   displayName: string;
@@ -59,32 +60,119 @@ function computeDesign(
 }
 
 /**
+ * Check if a username is a federated handle (contains @ after stripping leading @).
+ * e.g. "user@mastodon.social" → true, "localuser" → false
+ */
+function isFederatedUsername(username: string): boolean {
+  return username.includes('@');
+}
+
+/**
+ * Hook for federated profile data.
+ * Fetches from federation service and maps to ProfileData.
+ */
+function useFederatedProfileData(handle: string): {
+  data: ProfileData | null;
+  loading: boolean;
+} {
+  const [actor, setActor] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!handle) return;
+    let cancelled = false;
+    setLoading(true);
+
+    (async () => {
+      try {
+        const result = await federationService.lookupActor(handle);
+        if (!cancelled) setActor(result);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [handle]);
+
+  const profileData = useMemo((): ProfileData | null => {
+    if (!actor) return null;
+
+    const username = handle.split('@')[0];
+    const instance = handle.split('@')[1];
+
+    return {
+      id: actor.actorUri || handle,
+      username: handle,
+      bio: actor.bio?.replace(/<[^>]*>/g, '') || undefined,
+      verified: false,
+      postsCount: actor.postsCount ?? 0,
+      isFederated: true,
+      actorUri: actor.actorUri,
+      instance,
+      isFollowing: actor.isFollowing,
+      isFollowPending: actor.isFollowPending,
+      followersCount: actor.followersCount ?? 0,
+      followingCount: actor.followingCount ?? 0,
+      design: {
+        displayName: actor.displayName || username,
+        avatar: actor.avatarUrl || undefined,
+        coverImage: actor.bannerUrl || undefined,
+        coverPhotoEnabled: !!actor.bannerUrl,
+        minimalistMode: false,
+      },
+    };
+  }, [actor, handle]);
+
+  return { data: profileData, loading };
+}
+
+/**
  * Unified hook for profile data that combines:
  * - Oxy profile data (from usersStore)
  * - Appearance/customization settings (from appearanceStore)
  * - Privacy settings
- * 
+ * - Federation data (for federated handles)
+ *
  * Uses proper Zustand selectors to avoid unnecessary re-renders
  */
 export function useProfileData(username?: string): {
   data: ProfileData | null;
   loading: boolean;
 } {
+  const isFederated = Boolean(username && isFederatedUsername(username));
+
+  // Federated path
+  const fedResult = useFederatedProfileData(isFederated ? username! : '');
+
+  // Local path
+  const localResult = useLocalProfileData(isFederated ? undefined : username);
+
+  return isFederated ? fedResult : localResult;
+}
+
+/**
+ * Hook for local (non-federated) profile data.
+ */
+function useLocalProfileData(username?: string): {
+  data: ProfileData | null;
+  loading: boolean;
+} {
   const { oxyServices } = useAuth();
-  
+
   // Use existing hooks for store access
   const ensureByUsername = useUsersStore((state) => state.ensureByUsername);
   const loadForUser = useAppearanceStore((state) => state.loadForUser);
-  
+
   // Get user from store using existing hook
   const oxyProfile = useUserByUsername(username);
-  
+
   // Subscribe to appearance settings for this user
   const appearance = useAppearanceStore((state) => {
     const id = oxyProfile?.id;
     return id ? state.byUserId[id] : undefined;
   });
-  
+
   // Load privacy settings
   const privacySettings = usePrivacySettings(oxyProfile?.id);
 

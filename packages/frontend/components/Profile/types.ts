@@ -125,6 +125,8 @@ export interface ProfileTabsProps {
   profileId?: string;
   isPrivate: boolean;
   isOwnProfile: boolean;
+  isFederated?: boolean;
+  actorUri?: string;
 }
 
 // Private badge props
