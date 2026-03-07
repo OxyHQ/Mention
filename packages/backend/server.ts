@@ -52,6 +52,7 @@ import profileSettingsRoutes from './src/routes/profileSettings';
 import profileDesignRoutes from './src/routes/profileDesign';
 import subscriptionsRoutes from './src/routes/subscriptions';
 import pokesRoutes from './src/routes/pokes';
+import starterPacksRoutes from './src/routes/starterPacks';
 import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
 import imagesRoutes from './src/routes/images';
@@ -748,6 +749,7 @@ authenticatedApiRouter.use("/recordings", recordingsRoutes);
 authenticatedApiRouter.use("/houses", housesRoutes);
 authenticatedApiRouter.use("/series", seriesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
+authenticatedApiRouter.use("/starter-packs", starterPacksRoutes);
 authenticatedApiRouter.use("/admin", adminRoutes);
 authenticatedApiRouter.use("/federation", federationApiRoutes);
 
@@ -787,6 +789,14 @@ app.get("/health", async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
+});
+
+// --- Metrics Endpoint ---
+// Exposes Prometheus-format metrics for monitoring systems
+import { metrics } from './src/utils/metrics';
+app.get('/metrics', (req, res) => {
+  res.set('Content-Type', 'text/plain');
+  res.send(metrics.getPrometheusFormat());
 });
 
 // --- Federation routes (ActivityPub protocol — must be public, before auth) ---
