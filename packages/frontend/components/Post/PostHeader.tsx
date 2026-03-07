@@ -91,8 +91,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               onPress={onPressUser}
             />
             {user.handle ? <Text style={[styles.postHandle, { color: theme.colors.textSecondary }]}>@{user.handle}</Text> : null}
-            {user.isFederated && user.instance ? (
-              <Text style={[styles.postHandle, { color: theme.colors.textTertiary }]}>@{user.instance}</Text>
+            {user.isFederated ? (
+              <Ionicons name="globe-outline" size={13} color={theme.colors.textTertiary} />
             ) : null}
             {!!timeLabel && <Text style={[styles.postDate, { color: theme.colors.textSecondary }]}>· {timeLabel}</Text>}
             {(repostLabel || showRepost) && (

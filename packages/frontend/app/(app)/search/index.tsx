@@ -263,8 +263,8 @@ export default function SearchIndex() {
         };
 
         const handlePress = () => {
-            if (user.isFederated && user.actorUri) {
-                router.push(`/fedi/${encodeURIComponent(user.actorUri)}`);
+            if (user.isFederated && user.instance) {
+                router.push(`/@${username}@${user.instance}`);
             } else {
                 router.push(`/@${username}`);
             }

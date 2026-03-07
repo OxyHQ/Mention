@@ -168,8 +168,8 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [router, viewPostId, isPostDetail]);
 
     const goToUser = useCallback(() => {
-        if (viewPost.user?.isFederated && viewPost.user?.actorUri) {
-            router.push(`/fedi/${encodeURIComponent(viewPost.user.actorUri)}`);
+        if (viewPost.user?.isFederated && viewPost.user?.handle && viewPost.user?.instance) {
+            router.push(`/@${viewPost.user.handle}@${viewPost.user.instance}`);
             return;
         }
         const handle = viewPost.user?.handle;
@@ -181,7 +181,7 @@ const PostItem: React.FC<PostItemProps> = ({
         if (id) {
             router.push(`/${id}`);
         }
-    }, [router, viewPost.user?.handle, viewPost.user?.id, viewPost.user?.isFederated, viewPost.user?.actorUri]);
+    }, [router, viewPost.user?.handle, viewPost.user?.id, viewPost.user?.isFederated, viewPost.user?.instance]);
 
     const handleLike = usePostLike(viewPostId, isLiked);
     const handleSave = usePostSave(viewPostId, isSaved);

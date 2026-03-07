@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { ThemedText } from './ThemedText';
 import Avatar from './Avatar';
@@ -21,6 +22,8 @@ export interface ProfileCardData {
   description?: string;
   followerCount?: number;
   followingCount?: number;
+  isFederated?: boolean;
+  instance?: string;
 }
 
 interface ProfileCardProps {
@@ -45,8 +48,10 @@ export function ProfileCard({
   const handlePress = () => {
     if (onPress) {
       onPress();
+    } else if (profile.isFederated && profile.instance) {
+      router.push(`/@${profile.username}@${profile.instance}`);
     } else {
-      router.push(`/${profile.username}`);
+      router.push(`/@${profile.username}`);
     }
   };
 
@@ -76,14 +81,19 @@ export function ProfileCard({
             numberOfLines={1}>
             {displayName}
           </ThemedText>
-          <ThemedText
-            style={[
-              styles.handle,
-              { color: theme.colors.textSecondary },
-            ]}
-            numberOfLines={1}>
-            @{profile.username}
-          </ThemedText>
+          <View style={styles.handleRow}>
+            <ThemedText
+              style={[
+                styles.handle,
+                { color: theme.colors.textSecondary },
+              ]}
+              numberOfLines={1}>
+              @{profile.username}
+            </ThemedText>
+            {profile.isFederated && (
+              <Ionicons name="globe-outline" size={13} color={theme.colors.textSecondary} />
+            )}
+          </View>
         </View>
         {showFollowButton && (
           <View style={styles.followButtonContainer}>
@@ -162,6 +172,11 @@ const styles = StyleSheet.create({
   handle: {
     fontSize: 14,
     lineHeight: 18,
+  },
+  handleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   description: {
     marginTop: 4,
