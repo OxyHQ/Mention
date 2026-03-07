@@ -93,6 +93,53 @@ export class FeedQueryBuilder {
   }
   
   /**
+   * Apply label filtering to exclude posts that match the caller's hidden label subscriptions.
+   * Returns sets of post IDs grouped by the action that should be taken on them.
+   */
+  static async applyLabelFiltering(
+    query: Record<string, unknown>,
+    hiddenLabelFilters: Array<{ labelerId: string; labelSlug: string }>
+  ): Promise<{ hiddenPostIds: string[]; warnPostIds: string[]; blurPostIds: string[] }> {
+    const empty = { hiddenPostIds: [], warnPostIds: [], blurPostIds: [] };
+    if (!hiddenLabelFilters || hiddenLabelFilters.length === 0) return empty;
+
+    const { ContentLabel } = require('../models/ContentLabel');
+
+    // Build $or conditions for each (labelerId, labelSlug) pair
+    const orConditions = hiddenLabelFilters
+      .filter(f => mongoose.Types.ObjectId.isValid(f.labelerId))
+      .map(f => ({
+        labelerId: new mongoose.Types.ObjectId(f.labelerId),
+        labelSlug: f.labelSlug,
+      }));
+
+    if (orConditions.length === 0) return empty;
+
+    const matchingLabels = await ContentLabel.find({
+      targetType: 'post',
+      $or: orConditions,
+    }).lean();
+
+    const hiddenPostIds = matchingLabels.map((l: any) => String(l.targetId));
+
+    // Apply exclusion directly into the provided query object
+    if (hiddenPostIds.length > 0) {
+      const existing = query._id as any;
+      if (existing && typeof existing === 'object') {
+        // Merge with any existing _id filter using $and
+        if (!Array.isArray(query.$and)) {
+          query.$and = [];
+        }
+        (query.$and as unknown[]).push({ _id: { $nin: hiddenPostIds } });
+      } else {
+        query._id = { $nin: hiddenPostIds };
+      }
+    }
+
+    return { hiddenPostIds, warnPostIds: [], blurPostIds: [] };
+  }
+
+  /**
    * Apply filters to query
    */
   private static applyFilters(
@@ -164,6 +211,24 @@ export class FeedQueryBuilder {
     // Parent post filter (for fetching replies to a specific post)
     if (filters.parentPostId) {
       query.parentPostId = String(filters.parentPostId);
+    }
+
+    // Exclude specific post IDs (e.g. label-filtered posts)
+    if (filters.excludePostIds) {
+      const ids = Array.isArray(filters.excludePostIds)
+        ? (filters.excludePostIds as string[]).filter(id => mongoose.Types.ObjectId.isValid(id))
+        : [];
+      if (ids.length > 0) {
+        const existing = query._id as any;
+        if (existing && typeof existing === 'object') {
+          if (!Array.isArray(query.$and)) {
+            query.$and = [];
+          }
+          (query.$and as unknown[]).push({ _id: { $nin: ids } });
+        } else {
+          query._id = { $nin: ids };
+        }
+      }
     }
 
     // Keywords filter

@@ -1,5 +1,17 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, ScrollView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Share,
+  ScrollView,
+  Platform,
+  TextInput,
+  Modal,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+} from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Header } from '@/components/Header';
@@ -14,12 +26,13 @@ import { CreateIcon } from '@/assets/icons/create-icon';
 import Avatar from '@/components/Avatar';
 import { getData, storeData } from '@/utils/storage';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { toast } from '@/lib/sonner';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import * as OxyServicesNS from '@oxyhq/services';
 
 const PINNED_KEY = 'mention.pinnedFeeds';
 
-type FeedTab = 'recent' | 'profiles' | 'topics';
+type FeedTab = 'recent' | 'profiles' | 'topics' | 'reviews';
 
 interface MemberProfile {
   id: string;
@@ -34,6 +47,7 @@ const TABS = [
   { id: 'recent', label: 'Recent' },
   { id: 'profiles', label: 'Profiles' },
   { id: 'topics', label: 'Topics' },
+  { id: 'reviews', label: 'Reviews' },
 ];
 
 const AVATAR_GRID_SIZE = 38;
@@ -208,6 +222,310 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
         </View>
       ))}
     </ScrollView>
+  );
+});
+
+// Star rating display
+const StarRating = React.memo(function StarRating({
+  rating,
+  size = 16,
+  interactive = false,
+  onRate,
+  color,
+}: {
+  rating: number;
+  size?: number;
+  interactive?: boolean;
+  onRate?: (value: number) => void;
+  color: string;
+}) {
+  return (
+    <View style={reviewStyles.starsRow}>
+      {Array.from({ length: 5 }, (_, i) => {
+        const filled = interactive ? i < rating : i < Math.round(rating);
+        return interactive ? (
+          <TouchableOpacity
+            key={i}
+            onPress={() => onRate && onRate(i + 1)}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          >
+            <Ionicons
+              name={filled ? 'star' : 'star-outline'}
+              size={size}
+              color={color}
+            />
+          </TouchableOpacity>
+        ) : (
+          <Ionicons
+            key={i}
+            name={filled ? 'star' : 'star-outline'}
+            size={size}
+            color={color}
+          />
+        );
+      })}
+    </View>
+  );
+});
+
+// Write-review modal
+const WriteReviewModal = React.memo(function WriteReviewModal({
+  visible,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (rating: number, text: string) => void;
+  submitting: boolean;
+}) {
+  const theme = useTheme();
+  const [rating, setRating] = useState(0);
+  const [text, setText] = useState('');
+
+  const handleSubmit = useCallback(() => {
+    if (rating === 0) return;
+    onSubmit(rating, text);
+  }, [rating, text, onSubmit]);
+
+  const handleClose = useCallback(() => {
+    setRating(0);
+    setText('');
+    onClose();
+  }, [onClose]);
+
+  const canSubmit = rating > 0 && !submitting;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <KeyboardAvoidingView
+        style={reviewStyles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <TouchableOpacity
+          style={reviewStyles.modalBackdrop}
+          activeOpacity={1}
+          onPress={handleClose}
+        />
+        <View style={[reviewStyles.modalSheet, { backgroundColor: theme.colors.card }]}>
+          <View style={[reviewStyles.modalHandle, { backgroundColor: theme.colors.border }]} />
+          <Text style={[reviewStyles.modalTitle, { color: theme.colors.text }]}>Write a Review</Text>
+
+          <View style={reviewStyles.modalRatingRow}>
+            <StarRating
+              rating={rating}
+              size={32}
+              interactive
+              onRate={setRating}
+              color={theme.colors.primary}
+            />
+          </View>
+
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="Share your thoughts about this feed... (optional)"
+            placeholderTextColor={theme.colors.textSecondary}
+            style={[
+              reviewStyles.modalTextInput,
+              {
+                color: theme.colors.text,
+                borderColor: theme.colors.border,
+                backgroundColor: theme.colors.backgroundSecondary,
+              },
+            ]}
+            multiline
+            maxLength={500}
+            textAlignVertical="top"
+          />
+
+          <View style={reviewStyles.modalActions}>
+            <TouchableOpacity
+              style={[reviewStyles.modalCancelBtn, { borderColor: theme.colors.border }]}
+              onPress={handleClose}
+              activeOpacity={0.7}
+            >
+              <Text style={[reviewStyles.modalCancelText, { color: theme.colors.text }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                reviewStyles.modalSubmitBtn,
+                { backgroundColor: canSubmit ? theme.colors.primary : theme.colors.border },
+              ]}
+              onPress={handleSubmit}
+              disabled={!canSubmit}
+              activeOpacity={0.7}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={reviewStyles.modalSubmitText}>Submit</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+});
+
+// Reviews tab
+const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }) {
+  const theme = useTheme();
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const loadReviews = useCallback(
+    async (pageNum: number, replace: boolean) => {
+      if (replace) setLoading(true);
+      else setLoadingMore(true);
+      try {
+        const res = await customFeedsService.getReviews(feedId, { page: pageNum, limit: 20 });
+        const items = res.reviews || [];
+        setReviews((prev) => (replace ? items : [...prev, ...items]));
+        setPage(pageNum);
+        setTotalPages(res.totalPages || 1);
+      } catch {
+        // silently fail — empty state handles it
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [feedId],
+  );
+
+  useEffect(() => {
+    loadReviews(1, true);
+  }, [loadReviews]);
+
+  const handleLoadMore = useCallback(() => {
+    if (loadingMore || loading || page >= totalPages) return;
+    loadReviews(page + 1, false);
+  }, [loadingMore, loading, page, totalPages, loadReviews]);
+
+  const handleSubmitReview = useCallback(
+    async (rating: number, reviewText: string) => {
+      setSubmitting(true);
+      try {
+        await customFeedsService.submitReview(feedId, { rating, reviewText: reviewText.trim() || undefined });
+        setModalVisible(false);
+        toast.success('Review submitted');
+        loadReviews(1, true);
+      } catch {
+        toast.error('Failed to submit review');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [feedId, loadReviews],
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.emptyTab}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={reviewStyles.container}>
+      <TouchableOpacity
+        style={[reviewStyles.writeBtn, { borderColor: theme.colors.border }]}
+        onPress={() => setModalVisible(true)}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="create-outline" size={18} color={theme.colors.text} />
+        <Text style={[reviewStyles.writeBtnText, { color: theme.colors.text }]}>Write a Review</Text>
+      </TouchableOpacity>
+
+      {reviews.length === 0 ? (
+        <View style={styles.emptyTab}>
+          <Ionicons name="star-outline" size={40} color={theme.colors.textSecondary} />
+          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No reviews yet</Text>
+          <Text style={[reviewStyles.emptySubtext, { color: theme.colors.textSecondary }]}>
+            Be the first to leave a review
+          </Text>
+        </View>
+      ) : (
+        reviews.map((review) => {
+          const reviewId = String(review._id || review.id);
+          const reviewerName =
+            review.reviewer?.displayName || review.reviewer?.username || 'Anonymous';
+          const reviewerAvatar = review.reviewer?.avatar;
+          const date = review.createdAt
+            ? new Date(review.createdAt).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })
+            : '';
+
+          return (
+            <View
+              key={reviewId}
+              style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}
+            >
+              <View style={reviewStyles.reviewHeader}>
+                <Avatar source={reviewerAvatar} size={36} label={reviewerName} />
+                <View style={reviewStyles.reviewerInfo}>
+                  <Text
+                    style={[reviewStyles.reviewerName, { color: theme.colors.text }]}
+                    numberOfLines={1}
+                  >
+                    {reviewerName}
+                  </Text>
+                  <View style={reviewStyles.reviewMeta}>
+                    <StarRating rating={review.rating || 0} size={13} color={theme.colors.primary} />
+                    {date ? (
+                      <Text style={[reviewStyles.reviewDate, { color: theme.colors.textSecondary }]}>
+                        {date}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+              {review.reviewText ? (
+                <Text style={[reviewStyles.reviewText, { color: theme.colors.text }]}>
+                  {review.reviewText}
+                </Text>
+              ) : null}
+            </View>
+          );
+        })
+      )}
+
+      {page < totalPages && (
+        <TouchableOpacity
+          style={reviewStyles.loadMoreRow}
+          onPress={handleLoadMore}
+          disabled={loadingMore}
+          activeOpacity={0.7}
+        >
+          {loadingMore ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          ) : (
+            <Text style={[reviewStyles.loadMoreText, { color: theme.colors.primary }]}>
+              Load more reviews
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
+
+      <WriteReviewModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSubmit={handleSubmitReview}
+        submitting={submitting}
+      />
+    </View>
   );
 });
 
@@ -426,6 +744,7 @@ export default function CustomFeedTimelineScreen() {
           {tabBar}
           {activeTab === 'profiles' && <ProfilesTab members={members} />}
           {activeTab === 'topics' && <TopicsTab keywords={keywords} />}
+          {activeTab === 'reviews' && <ReviewsTab feedId={String(id)} />}
         </ScrollView>
       )}
 
@@ -576,5 +895,152 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+});
+
+const reviewStyles = StyleSheet.create({
+  // StarRating
+  starsRow: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  // ReviewsTab container
+  container: {
+    padding: 16,
+    gap: 4,
+  },
+  // Write a review button
+  writeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  writeBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // Review cards
+  reviewCard: {
+    paddingVertical: 16,
+    gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  reviewerInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  reviewerName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  reviewMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reviewDate: {
+    fontSize: 12,
+  },
+  reviewText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  // Load more
+  loadMoreRow: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Empty subtext
+  emptySubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    gap: 16,
+    ...Platform.select({
+      ios: { paddingBottom: 36 },
+      default: { paddingBottom: 24 },
+    }),
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  modalRatingRow: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  modalTextInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 100,
+    fontSize: 15,
+    ...Platform.select({
+      web: { outlineStyle: 'none' as any },
+    }),
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  modalSubmitBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSubmitText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

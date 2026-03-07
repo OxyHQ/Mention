@@ -7,6 +7,17 @@ export interface AppearanceSettings {
   primaryColor?: string;
 }
 
+export interface LabelAction {
+  labelerId: string;
+  labelSlug: string;
+  action: 'hide' | 'warn' | 'blur' | 'show';
+}
+
+export interface LabelPreferences {
+  subscribedLabelers: string[];
+  labelActions: LabelAction[];
+}
+
 export interface PrivacySettings {
   profileVisibility: 'public' | 'private' | 'followers_only';
   showContactInfo?: boolean;
@@ -19,6 +30,7 @@ export interface PrivacySettings {
   hideSaveCounts?: boolean;
   hiddenWords?: string[];
   restrictedUsers?: string[]; // Users who can see limited content
+  labelPreferences?: LabelPreferences;
 }
 
 export interface ProfileCustomization {
@@ -78,6 +90,17 @@ const AppearanceSchema = new Schema<AppearanceSettings>({
   primaryColor: { type: String, default: undefined },
 }, { _id: false });
 
+const LabelActionSchema = new Schema<LabelAction>({
+  labelerId: { type: String, required: true },
+  labelSlug: { type: String, required: true },
+  action: { type: String, enum: ['hide', 'warn', 'blur', 'show'], required: true },
+}, { _id: false });
+
+const LabelPreferencesSchema = new Schema<LabelPreferences>({
+  subscribedLabelers: [{ type: String }],
+  labelActions: { type: [LabelActionSchema], default: [] },
+}, { _id: false });
+
 const PrivacySchema = new Schema<PrivacySettings>({
   profileVisibility: { type: String, enum: ['public', 'private', 'followers_only'], default: 'public' },
   showContactInfo: { type: Boolean, default: true },
@@ -90,6 +113,7 @@ const PrivacySchema = new Schema<PrivacySettings>({
   hideSaveCounts: { type: Boolean, default: false },
   hiddenWords: [{ type: String }],
   restrictedUsers: [{ type: String }],
+  labelPreferences: { type: LabelPreferencesSchema },
 }, { _id: false });
 
 const ProfileCustomizationSchema = new Schema<ProfileCustomization>({

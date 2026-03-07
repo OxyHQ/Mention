@@ -127,6 +127,9 @@ export const schemas = {
     includeReposts: z.boolean().optional().default(true),
     includeMedia: z.boolean().optional().default(true),
     language: z.string().min(2).max(10).regex(/^[a-zA-Z-]+$/, 'Invalid language code').optional(),
+    category: z.enum(['news', 'tech', 'culture', 'finance', 'health', 'sports', 'entertainment', 'other']).optional(),
+    tags: z.array(z.string().min(1).max(50)).max(20, 'Maximum 20 tags allowed').optional().default([]),
+    coverImage: z.string().url('Cover image must be a valid URL').optional(),
   }),
 
   /** Custom feed update request body */
@@ -140,6 +143,15 @@ export const schemas = {
     includeReposts: z.boolean().optional(),
     includeMedia: z.boolean().optional(),
     language: z.string().min(2).max(10).regex(/^[a-zA-Z-]+$/).optional().nullable(),
+    category: z.enum(['news', 'tech', 'culture', 'finance', 'health', 'sports', 'entertainment', 'other']).optional().nullable(),
+    tags: z.array(z.string().min(1).max(50)).max(20).optional(),
+    coverImage: z.string().url('Cover image must be a valid URL').optional().nullable(),
+  }),
+
+  /** Feed review creation/update request body */
+  createFeedReview: z.object({
+    rating: z.number().int().min(1).max(5),
+    reviewText: z.string().max(500).optional(),
   }),
 
   /** Custom feed members management request body */

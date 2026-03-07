@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import CustomFeed from '../models/CustomFeed';
+import FeedReview from '../models/FeedReview';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
@@ -53,7 +54,7 @@ router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) =
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { title, description, isPublic = false, memberOxyUserIds = [], keywords = [], includeReplies = true, includeReposts = true, includeMedia = true, language } = req.body || {};
+    const { title, description, isPublic = false, memberOxyUserIds = [], keywords = [], includeReplies = true, includeReposts = true, includeMedia = true, language, category, tags = [], coverImage } = req.body || {};
     if (!title || typeof title !== 'string') {
       return res.status(400).json({ error: 'Title is required' });
     }
@@ -69,6 +70,9 @@ router.post('/', validateBody(schemas.createCustomFeed), async (req: any, res) =
       includeReposts: !!includeReposts,
       includeMedia: !!includeMedia,
       language: language || undefined,
+      category: category || undefined,
+      tags: Array.isArray(tags) ? tags : [],
+      coverImage: coverImage || undefined,
     });
 
     // Normalize _id to id for frontend consistency
@@ -219,6 +223,122 @@ router.get('/', async (req: any, res) => {
   }
 });
 
+// Marketplace: get feeds by category counts
+router.get('/marketplace/categories', async (req: any, res) => {
+  try {
+    const results = await CustomFeed.aggregate([
+      { $match: { isPublic: true, category: { $exists: true, $ne: null } } },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+    const categories = results.map((r: any) => ({ category: r._id, count: r.count }));
+    res.json({ categories });
+  } catch (error) {
+    logger.error('[CustomFeeds] Marketplace categories error:', { error });
+    res.status(500).json({ error: 'Failed to load categories' });
+  }
+});
+
+// Marketplace: browse public feeds with filtering, search, and sorting
+router.get('/marketplace', async (req: any, res) => {
+  try {
+    const userId = req.user?.id;
+    const { category, search, sortBy = 'trending', page: pageParam = '1', limit: limitParam = '20' } = req.query as any;
+
+    const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
+    const limit = Math.min(Math.max(1, parseInt(String(limitParam), 10) || 20), 100);
+    const skip = (page - 1) * limit;
+
+    const q: any = { isPublic: true };
+
+    if (category && typeof category === 'string') {
+      q.category = category;
+    }
+
+    if (search && typeof search === 'string' && search.trim()) {
+      const searchTerm = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(searchTerm, 'i');
+      q.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { tags: searchRegex },
+        { keywords: searchRegex },
+      ];
+    }
+
+    let sortStage: any;
+    if (sortBy === 'rating') {
+      sortStage = { averageRating: -1, ratingsCount: -1, createdAt: -1 };
+    } else if (sortBy === 'newest') {
+      sortStage = { createdAt: -1 };
+    } else {
+      // trending (default): sort by subscriberCount desc
+      sortStage = { subscriberCount: -1, createdAt: -1 };
+    }
+
+    const [items, total] = await Promise.all([
+      CustomFeed.find(q).sort(sortStage).skip(skip).limit(limit).lean(),
+      CustomFeed.countDocuments(q),
+    ]);
+
+    // Gather like counts and isLiked for current user
+    const feedIds = items.map((item: any) => item._id);
+    const likeCountsMap = new Map<string, number>();
+    const likedFeedsSet = new Set<string>();
+
+    if (feedIds.length > 0) {
+      const likeCounts = await FeedLike.aggregate([
+        { $match: { feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } } },
+        { $group: { _id: '$feedId', count: { $sum: 1 } } },
+      ]);
+      likeCounts.forEach((item: any) => {
+        likeCountsMap.set(String(item._id), item.count);
+      });
+
+      if (userId) {
+        const userLikes = await FeedLike.find({ userId, feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } }).lean();
+        userLikes.forEach((like: any) => {
+          likedFeedsSet.add(String(like.feedId));
+        });
+      }
+    }
+
+    // Resolve owner profiles
+    const ownerIds = [...new Set(items.map((item: any) => item.ownerOxyUserId).filter(Boolean))];
+    const ownersMap = new Map<string, UserProfile>();
+    if (ownerIds.length > 0) {
+      await Promise.all(
+        ownerIds.map(async (ownerId) => {
+          ownersMap.set(ownerId, await resolveUserProfile(ownerId));
+        })
+      );
+    }
+
+    const normalizedItems = items.map((item: any) => {
+      const feedId = String(item._id);
+      return {
+        ...item,
+        id: feedId,
+        likeCount: likeCountsMap.get(feedId) || 0,
+        isLiked: userId ? likedFeedsSet.has(feedId) : false,
+        owner: item.ownerOxyUserId ? ownersMap.get(item.ownerOxyUserId) : undefined,
+        memberCount: (item.memberOxyUserIds || []).length,
+        topicCount: (item.keywords || []).length,
+      };
+    });
+
+    res.json({
+      items: normalizedItems,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    logger.error('[CustomFeeds] Marketplace list error:', { error, query: req.query });
+    res.status(500).json({ error: 'Failed to load marketplace' });
+  }
+});
+
 // Get a feed by id
 router.get('/:id', validateObjectId('id'), async (req: any, res) => {
   try {
@@ -280,7 +400,7 @@ router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
     if (feed.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
-    const { title, description, isPublic, memberOxyUserIds, keywords, includeReplies, includeReposts, includeMedia, language } = req.body || {};
+    const { title, description, isPublic, memberOxyUserIds, keywords, includeReplies, includeReposts, includeMedia, language, category, tags, coverImage } = req.body || {};
     if (title !== undefined) feed.title = String(title);
     if (description !== undefined) feed.description = String(description);
     if (isPublic !== undefined) feed.isPublic = !!isPublic;
@@ -290,6 +410,9 @@ router.put('/:id', validateObjectId('id'), validateBody(schemas.updateCustomFeed
     if (includeReposts !== undefined) feed.includeReposts = !!includeReposts;
     if (includeMedia !== undefined) feed.includeMedia = !!includeMedia;
     if (language !== undefined) feed.language = language;
+    if (category !== undefined) feed.category = category || undefined;
+    if (tags !== undefined && Array.isArray(tags)) feed.tags = tags;
+    if (coverImage !== undefined) feed.coverImage = coverImage || undefined;
     await feed.save();
     // Normalize _id to id for frontend consistency
     const normalizedFeed = {
@@ -540,8 +663,9 @@ router.post('/:id/like', validateObjectId('id'), async (req: any, res) => {
     // Create like record
     await FeedLike.create({ userId, feedId });
 
-    // Get updated like count
+    // Get updated like count and sync subscriberCount on the feed
     const likeCount = await FeedLike.countDocuments({ feedId });
+    await CustomFeed.updateOne({ _id: feedId }, { subscriberCount: likeCount });
 
     res.json({
       success: true,
@@ -578,9 +702,10 @@ router.delete('/:id/like', validateObjectId('id'), async (req: any, res) => {
 
     // Remove like record
     const result = await FeedLike.deleteOne({ userId, feedId });
-    
-    // Get updated like count
+
+    // Get updated like count and sync subscriberCount on the feed
     const likeCount = await FeedLike.countDocuments({ feedId });
+    await CustomFeed.updateOne({ _id: feedId }, { subscriberCount: likeCount });
 
     if (result.deletedCount === 0) {
       return res.json({
@@ -600,6 +725,93 @@ router.delete('/:id/like', validateObjectId('id'), async (req: any, res) => {
   } catch (error) {
     logger.error('[CustomFeeds] Unlike feed error:', { userId: req.user?.id, feedId: req.params.id, error });
     res.status(500).json({ error: 'Failed to unlike feed' });
+  }
+});
+
+// Get reviews for a feed
+router.get('/:id/reviews', validateObjectId('id'), async (req: any, res) => {
+  try {
+    const { page: pageParam = '1', limit: limitParam = '20' } = req.query as any;
+    const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
+    const limit = Math.min(Math.max(1, parseInt(String(limitParam), 10) || 20), 100);
+    const skip = (page - 1) * limit;
+
+    const feedId = new mongoose.Types.ObjectId(req.params.id);
+
+    const [reviews, total] = await Promise.all([
+      FeedReview.find({ feedId }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      FeedReview.countDocuments({ feedId }),
+    ]);
+
+    // Resolve reviewer profiles
+    const reviewerIds = [...new Set(reviews.map((r: any) => r.reviewerId).filter(Boolean))];
+    const reviewersMap = new Map<string, UserProfile>();
+    if (reviewerIds.length > 0) {
+      await Promise.all(
+        reviewerIds.map(async (reviewerId) => {
+          reviewersMap.set(reviewerId, await resolveUserProfile(reviewerId));
+        })
+      );
+    }
+
+    const normalizedReviews = reviews.map((r: any) => ({
+      ...r,
+      id: String(r._id),
+      reviewer: reviewersMap.get(r.reviewerId) || buildUserProfile(null, r.reviewerId),
+    }));
+
+    res.json({
+      reviews: normalizedReviews,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    logger.error('[CustomFeeds] Get reviews error:', { feedId: req.params.id, error });
+    res.status(500).json({ error: 'Failed to get reviews' });
+  }
+});
+
+// Create or update a review for a feed
+router.post('/:id/reviews', validateObjectId('id'), validateBody(schemas.createFeedReview), async (req: any, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const feedId = new mongoose.Types.ObjectId(req.params.id);
+    const feed = await CustomFeed.findById(feedId);
+    if (!feed) return res.status(404).json({ error: 'Feed not found' });
+
+    const { rating, reviewText } = req.body;
+
+    // Upsert: update existing review or insert new one
+    const review = await FeedReview.findOneAndUpdate(
+      { feedId, reviewerId: userId },
+      { rating, reviewText: reviewText || undefined },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    // Recalculate averageRating and ratingsCount from all reviews for this feed
+    const ratingStats = await FeedReview.aggregate([
+      { $match: { feedId } },
+      { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+    ]);
+
+    if (ratingStats.length > 0) {
+      const { avg, count } = ratingStats[0];
+      await CustomFeed.updateOne(
+        { _id: feedId },
+        { averageRating: Math.round(avg * 10) / 10, ratingsCount: count }
+      );
+    }
+
+    res.json({
+      ...review.toObject(),
+      id: String(review._id),
+    });
+  } catch (error) {
+    logger.error('[CustomFeeds] Create/update review error:', { userId: req.user?.id, feedId: req.params.id, error });
+    res.status(500).json({ error: 'Failed to submit review' });
   }
 });
 

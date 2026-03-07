@@ -50,6 +50,26 @@ class CustomFeedsService {
     const res = await authenticatedClient.delete(`/feeds/${id}/like`);
     return res.data;
   }
+
+  async getMarketplace(params?: { category?: string; search?: string; sortBy?: string; page?: number; limit?: number }): Promise<{ items: any[]; total: number }> {
+    const res = await authenticatedClient.get('/feeds/marketplace', { params });
+    return res.data;
+  }
+
+  async getMarketplaceCategories(): Promise<{ categories: Array<{ category: string; count: number }> }> {
+    const res = await authenticatedClient.get('/feeds/marketplace/categories');
+    return res.data;
+  }
+
+  async getReviews(feedId: string, params?: { page?: number; limit?: number }): Promise<{ reviews: any[]; total: number; page: number; totalPages: number }> {
+    const res = await authenticatedClient.get(`/feeds/${feedId}/reviews`, { params });
+    return res.data;
+  }
+
+  async submitReview(feedId: string, data: { rating: number; reviewText?: string }): Promise<any> {
+    const res = await authenticatedClient.post(`/feeds/${feedId}/reviews`, data);
+    return res.data;
+  }
 }
 
 export const customFeedsService = new CustomFeedsService();
