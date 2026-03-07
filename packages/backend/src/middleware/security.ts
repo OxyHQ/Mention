@@ -35,10 +35,10 @@ const rateLimiter = rateLimit({
   message: "Too many requests, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req: Request) => req.path.startsWith('/files/upload')
+  skip: (req: Request) => req.path.startsWith('/files/upload') || req.method === 'OPTIONS'
 });
 
-// Brute force protection middleware (exclude file uploads)
+// Brute force protection middleware (exclude file uploads and preflight)
 const bruteForceProtection: any = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
   delayAfter: (req: Request) => {
@@ -46,7 +46,7 @@ const bruteForceProtection: any = slowDown({
     return authReq.user?.id ? 1000 : 100;
   },
   delayMs: () => 500, // add 500ms delay per request above limit
-  skip: (req: Request) => req.path.startsWith('/files/upload')
+  skip: (req: Request) => req.path.startsWith('/files/upload') || req.method === 'OPTIONS'
 });
 
 /**

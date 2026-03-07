@@ -80,16 +80,51 @@ import helmet from 'helmet';
 
 const app = express();
 
-// Security headers
-app.use(helmet());
-
 // Trust only one level of proxy (load balancer) for proper IP handling
 app.set('trust proxy', 1);
 
 export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
 
-
 // --- Middleware ---
+
+// CORS — must be FIRST so all responses (including 429, 500) have CORS headers
+const ALLOWED_ORIGINS: string[] = [
+  process.env.FRONTEND_URL || "https://mention.earth",
+  "https://agora.mention.earth",
+];
+
+const isAllowedOrigin = (origin: string): boolean => {
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  // Allow any localhost origin for development
+  if (origin.startsWith("http://localhost:")) return true;
+  return false;
+};
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  } else if (process.env.FRONTEND_URL) {
+    res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
+  }
+  // In production, don't set Access-Control-Allow-Origin for unknown origins (no wildcard fallback)
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  next();
+});
+
+// Security headers — crossOriginResourcePolicy set to cross-origin since API serves a different subdomain
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
+
 // Response compression - compress responses > 1KB
 app.use(compression({
   filter: (req, res) => {
@@ -139,39 +174,6 @@ app.use(async (req, res, next) => {
     // Database unavailable - log once but allow request to continue
     // Individual operations will handle database errors gracefully
     logger.debug("MongoDB connection unavailable for request");
-  }
-  next();
-});
-
-// CORS and security headers
-const ALLOWED_ORIGINS: string[] = [
-  process.env.FRONTEND_URL || "https://mention.earth",
-  "https://agora.mention.earth",
-];
-
-const isAllowedOrigin = (origin: string): boolean => {
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
-  // Allow any localhost origin for development
-  if (origin.startsWith("http://localhost:")) return true;
-  return false;
-};
-
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && isAllowedOrigin(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  } else if (process.env.FRONTEND_URL) {
-    res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
-  }
-  // In production, don't set Access-Control-Allow-Origin for unknown origins (no wildcard fallback)
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
-  if (req.method === "OPTIONS") {
-    return res.status(204).end();
   }
   next();
 });
