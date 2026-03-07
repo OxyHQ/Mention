@@ -14,12 +14,13 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { FloatingActionButton as FAB } from '@/components/ui/Button';
 import { Search } from '@/assets/icons/search-icon';
 import { WhoToFollowTab } from '@/components/WhoToFollowTab';
+import { StarterPacksTab } from '@/components/StarterPacksTab';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { TrendingList } from '@/components/trending/TrendingList';
 import { trendingService, TrendingTopic } from '@/services/trendingService';
 
-type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people';
+type ExploreTab = 'all' | 'media' | 'trending' | 'custom' | 'people' | 'starter-packs';
 
 const ExploreScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -76,6 +77,9 @@ const ExploreScreen: React.FC = () => {
 
       case 'people':
         return <WhoToFollowTab />;
+
+      case 'starter-packs':
+        return <StarterPacksTab />;
 
       default:
         return <Feed type="explore" />;
@@ -184,6 +188,7 @@ const ExploreScreen: React.FC = () => {
                 { id: 'trending', label: t('Trending') },
                 { id: 'custom', label: t('Custom') },
                 { id: 'people', label: t('Who to follow') },
+                { id: 'starter-packs', label: t('Starter Packs') },
               ]}
               activeTabId={activeTab}
               onTabPress={(id) => setActiveTab(id as ExploreTab)}
