@@ -73,6 +73,10 @@ export interface ProfileHeaderDefaultProps extends ProfileHeaderBaseProps {
   isOwnProfile: boolean;
   currentUsername?: string;
   profileId?: string;
+  isFederated?: boolean;
+  actorUri?: string;
+  isFollowing?: boolean;
+  isFollowPending?: boolean;
   FollowButtonComponent: FollowButtonComponent;
   showBottomSheet?: (sheet: string) => void;
 }

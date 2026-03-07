@@ -1,5 +1,5 @@
-import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { memo, useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -10,6 +10,7 @@ import { Gear } from '@/assets/icons/gear-icon';
 import { PrivateBadge } from './PrivateBadge';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { usePoke } from './hooks/usePoke';
+import { federationService } from '@/services/federationService';
 import type {
   ProfileHeaderDefaultProps,
   ProfileHeaderMinimalistProps,
@@ -27,13 +28,42 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   isOwnProfile,
   currentUsername,
   profileId,
+  isFederated,
+  actorUri,
+  isFollowing: initialIsFollowing,
+  isFollowPending: initialIsFollowPending,
   theme,
   UserNameComponent,
   FollowButtonComponent,
   showBottomSheet,
 }: ProfileHeaderDefaultProps) {
   const { t } = useTranslation();
-  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile);
+  const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || !!isFederated);
+
+  // Federated follow state — initialized from profileData
+  const [fedFollowing, setFedFollowing] = useState(!!initialIsFollowing);
+  const [fedFollowPending, setFedFollowPending] = useState(!!initialIsFollowPending);
+  const [fedFollowLoading, setFedFollowLoading] = useState(false);
+
+  const handleFederatedFollow = useCallback(async () => {
+    if (!actorUri) return;
+    setFedFollowLoading(true);
+    try {
+      if (fedFollowing || fedFollowPending) {
+        await federationService.unfollow(actorUri);
+        setFedFollowing(false);
+        setFedFollowPending(false);
+      } else {
+        const result = await federationService.follow(actorUri);
+        setFedFollowing(!result.pending);
+        setFedFollowPending(!!result.pending);
+      }
+    } finally {
+      setFedFollowLoading(false);
+    }
+  }, [actorUri, fedFollowing, fedFollowPending]);
+
+  const fedFollowLabel = fedFollowPending ? 'Pending' : fedFollowing ? 'Following' : 'Follow';
 
   return (
     <View style={styles.avatarRow}>
@@ -50,7 +80,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           ]}
           imageStyle={{}}
         />
-        {!isOwnProfile && profileId && (
+        {!isOwnProfile && !isFederated && profileId && (
           <PresenceIndicator
             userId={profileId}
             size="medium"
@@ -90,6 +120,30 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
               accessibilityLabel="Settings"
             >
               <Gear size={20} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+        ) : isFederated && actorUri ? (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[
+                styles.followButton,
+                {
+                  backgroundColor: fedFollowing || fedFollowPending ? theme.colors.background : theme.colors.primary,
+                  borderColor: fedFollowing || fedFollowPending ? theme.colors.border : theme.colors.primary,
+                },
+              ]}
+              onPress={handleFederatedFollow}
+              disabled={fedFollowLoading}
+              accessibilityRole="button"
+              accessibilityLabel={fedFollowLabel}
+            >
+              {fedFollowLoading ? (
+                <ActivityIndicator size="small" color={fedFollowing || fedFollowPending ? theme.colors.text : '#fff'} />
+              ) : (
+                <Text style={[styles.followButtonText, { color: fedFollowing || fedFollowPending ? theme.colors.text : '#fff' }]}>
+                  {fedFollowLabel}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         ) : profileId ? (
