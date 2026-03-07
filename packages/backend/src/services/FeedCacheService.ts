@@ -403,7 +403,7 @@ export class FeedCacheService {
     const userBehavior = await UserBehavior.findOne({ oxyUserId: userId }).lean();
 
     // Get following list
-    const { oxy } = require('../../../server');
+    const { oxy } = require('../../../server.js');
     let followingIds: string[] = [];
     try {
       const followingRes = await oxy.getUserFollowing(userId);
@@ -443,7 +443,7 @@ export class FeedCacheService {
    */
   private async precomputeFollowingFeed(userId: string, limit: number): Promise<any[]> {
     // Get following list
-    const { oxy } = require('../../../server');
+    const { oxy } = require('../../../server.js');
     let followingIds: string[] = [];
     try {
       const followingRes = await oxy.getUserFollowing(userId);

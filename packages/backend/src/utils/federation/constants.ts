@@ -53,7 +53,7 @@ export const USER_AGENT = `Mention/${FEDERATION_DOMAIN} (ActivityPub)`;
  * Returns the user object or null.
  */
 export async function resolveOxyUser(username: string): Promise<any> {
-  const { oxy } = require('../../../server');
+  const { oxy } = require('../../../server.js');
   try {
     return await oxy.getUserByUsername(username);
   } catch {

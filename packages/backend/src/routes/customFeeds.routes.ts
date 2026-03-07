@@ -504,7 +504,7 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: any, res) => {
     let authors: string[] = Array.from(new Set(feed.memberOxyUserIds || []));
     try {
       if (feed.sourceListIds && feed.sourceListIds.length) {
-        const { AccountList } = require('../models/AccountList');
+        const { AccountList } = require('../models/AccountList.js');
         const lists = await AccountList.find({ _id: { $in: feed.sourceListIds } }).lean();
         lists.forEach((l: any) => (l.memberOxyUserIds || []).forEach((id: string) => authors.push(id)));
         authors = Array.from(new Set(authors));

@@ -405,7 +405,7 @@ export class PostHydrationService {
     // Batch-fetch federated actors from local DB (not Oxy)
     if (federatedActorIds.size > 0) {
       try {
-        const FederatedActor = require('../models/FederatedActor').default;
+        const FederatedActor = require('../models/FederatedActor.js').default;
         const actors = await FederatedActor.find({
           _id: { $in: [...federatedActorIds] },
         }).lean();

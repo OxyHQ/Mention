@@ -101,7 +101,7 @@ class FederationJobScheduler {
     for (const delivery of pending) {
       try {
         // Need the sender's username to sign the request
-        const { oxy } = require('../../server');
+        const { oxy } = require('../../server.js');
         const user = await oxy.getUserById(delivery.senderOxyUserId);
         if (!user?.username) {
           await FederationDeliveryQueue.updateOne(

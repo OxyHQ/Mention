@@ -176,7 +176,7 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
   try {
-    const { oxy } = require('../../server');
+    const { oxy } = require('../../server.js');
     const user = await oxy.getUserById(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 
@@ -205,7 +205,7 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
 
   try {
-    const { oxy } = require('../../server');
+    const { oxy } = require('../../server.js');
     const user = await oxy.getUserById(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 

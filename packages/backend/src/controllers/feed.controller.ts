@@ -295,7 +295,7 @@ class FeedController {
       let filters = feedFilters;
       try {
         if (filters && filters.customFeedId) {
-          const { CustomFeed } = require('../models/CustomFeed');
+          const { CustomFeed } = require('../models/CustomFeed.js');
           // Validate ObjectId format to prevent injection
           const feedId = String(filters.customFeedId);
           if (!mongoose.Types.ObjectId.isValid(feedId)) {
@@ -312,7 +312,7 @@ class FeedController {
             let authors: string[] = Array.from(new Set(feed.memberOxyUserIds || []));
             try {
               if (feed.sourceListIds && feed.sourceListIds.length) {
-                const { AccountList } = require('../models/AccountList');
+                const { AccountList } = require('../models/AccountList.js');
                 const lists = await AccountList.find({ _id: { $in: feed.sourceListIds } }).lean();
                 lists.forEach((l: any) => (l.memberOxyUserIds || []).forEach((id: string) => authors.push(id)));
                 authors = Array.from(new Set(authors));
@@ -351,7 +351,7 @@ class FeedController {
       // If a listId or listIds is provided, expand to authors
       try {
         if (filters && (filters.listId || filters.listIds)) {
-          const { AccountList } = require('../models/AccountList');
+          const { AccountList } = require('../models/AccountList.js');
           const ids = String(filters.listIds || filters.listId)
             .split(',')
             .map((s) => s.trim())
@@ -919,8 +919,8 @@ class FeedController {
       // Get federated following (remote actors the user follows)
       let federatedActorIds: any[] = [];
       try {
-        const FederatedFollow = require('../models/FederatedFollow').default;
-        const FederatedActor = require('../models/FederatedActor').default;
+        const FederatedFollow = require('../models/FederatedFollow.js').default;
+        const FederatedActor = require('../models/FederatedActor.js').default;
         const fedFollows = await FederatedFollow.find({
           localUserId: currentUserId,
           direction: 'outbound',
@@ -1186,7 +1186,7 @@ class FeedController {
       // Check if this is a federated actor (MongoDB ObjectId format)
       let federatedActorId: string | undefined;
       if (mongoose.Types.ObjectId.isValid(userId)) {
-        const FederatedActor = require('../models/FederatedActor').default;
+        const FederatedActor = require('../models/FederatedActor.js').default;
         const actor = await FederatedActor.findById(userId).select('_id outboxUrl acct').lean();
         if (actor) {
           federatedActorId = String(actor._id);
@@ -1195,7 +1195,7 @@ class FeedController {
           if (!cursor) {
             const postCount = await Post.countDocuments({ federatedActorId: actor._id });
             if (postCount === 0 && actor.outboxUrl) {
-              const { federationService } = require('../services/FederationService');
+              const { federationService } = require('../services/FederationService.js');
               federationService.syncOutboxPosts(actor, limit).catch((err: any) => {
                 logger.warn(`Background outbox sync failed for ${actor.acct}:`, err);
               });

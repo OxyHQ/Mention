@@ -103,7 +103,7 @@ export class FeedQueryBuilder {
     const empty = { hiddenPostIds: [], warnPostIds: [], blurPostIds: [] };
     if (!hiddenLabelFilters || hiddenLabelFilters.length === 0) return empty;
 
-    const { ContentLabel } = require('../models/ContentLabel');
+    const { ContentLabel } = require('../models/ContentLabel.js');
 
     // Build $or conditions for each (labelerId, labelSlug) pair
     const orConditions = hiddenLabelFilters
