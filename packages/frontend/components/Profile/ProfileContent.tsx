@@ -1,5 +1,6 @@
 import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from 'react-i18next';
 import UserName from '@/components/UserName';
@@ -140,6 +141,27 @@ export const ProfileContent = memo(function ProfileContent({
         />
       )}
 
+      {/* Profile fields (federated profiles) */}
+      {profileData.isFederated && profileData.fields && profileData.fields.length > 0 && (
+        <View style={styles.fieldsContainer}>
+          {profileData.fields.map((field: any, i: number) => (
+            <View key={i} style={[styles.fieldItem, { borderColor: theme.colors.border }]}>
+              <Text style={[styles.fieldName, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                {field.name}
+              </Text>
+              <LinkifiedText
+                text={field.value?.replace(/<[^>]*>/g, '') || ''}
+                style={[styles.fieldValue, { color: theme.colors.text }]}
+                linkStyle={{ color: theme.colors.primary }}
+              />
+              {field.verifiedAt && (
+                <Ionicons name="checkmark-circle" size={14} color="#2ecc71" style={styles.fieldVerified} />
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* Meta info (location, links, join date) */}
       <ProfileMeta
         location={profileData.primaryLocation}
@@ -224,6 +246,29 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     marginBottom: 12,
+  },
+  fieldsContainer: {
+    marginBottom: 12,
+    gap: 1,
+  },
+  fieldItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  fieldName: {
+    fontSize: 13,
+    fontWeight: '600',
+    width: 100,
+    marginRight: 8,
+  },
+  fieldValue: {
+    fontSize: 14,
+    flex: 1,
+  },
+  fieldVerified: {
+    marginLeft: 4,
   },
 });
 

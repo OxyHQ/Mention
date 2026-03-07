@@ -80,6 +80,30 @@ class FederationService {
       const username = actor.preferredUsername || actor.name || 'unknown';
       const acct = `${username}@${domain}`;
 
+      // Fetch collection counts (followers, following, posts) in parallel
+      const [followersCount, followingCount, postsCount] = await Promise.all([
+        this.fetchCollectionCount(actor.followers),
+        this.fetchCollectionCount(actor.following),
+        this.fetchCollectionCount(actor.outbox),
+      ]);
+
+      // Extract profile fields (PropertyValue attachments)
+      const fields: { name: string; value: string; verifiedAt?: Date }[] = [];
+      if (Array.isArray(actor.attachment)) {
+        for (const att of actor.attachment) {
+          if (att?.type === 'PropertyValue' && att.name && att.value) {
+            fields.push({
+              name: att.name,
+              value: sanitizeHtml(att.value, {
+                allowedTags: ['a', 'span'],
+                allowedAttributes: { a: ['href', 'rel'] },
+              }),
+              verifiedAt: att.verifiedAt ? new Date(att.verifiedAt) : undefined,
+            });
+          }
+        }
+      }
+
       const update: Partial<IFederatedActor> = {
         uri: actor.id,
         username,
@@ -98,6 +122,17 @@ class FederationService {
         publicKeyId: actor.publicKey?.id || undefined,
         type: actor.type || 'Person',
         manuallyApprovesFollowers: actor.manuallyApprovesFollowers || false,
+        discoverable: actor.discoverable !== false,
+        memorial: actor.memorial === true,
+        suspended: actor.suspended === true,
+        fields,
+        featuredUrl: actor.featured || undefined,
+        featuredTagsUrl: actor.featuredTags || undefined,
+        alsoKnownAs: Array.isArray(actor.alsoKnownAs) ? actor.alsoKnownAs : undefined,
+        remoteCreatedAt: actor.published ? new Date(actor.published) : undefined,
+        followersCount,
+        followingCount,
+        postsCount,
         lastFetchedAt: new Date(),
       };
 
@@ -110,6 +145,165 @@ class FederationService {
     } catch (err) {
       logger.warn(`Failed to fetch remote actor ${actorUri}:`, err);
       return null;
+    }
+  }
+
+  /**
+   * Fetch the totalItems count from an ActivityPub collection URL.
+   */
+  private async fetchCollectionCount(url?: string): Promise<number> {
+    if (!url) return 0;
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: AP_CONTENT_TYPE, 'User-Agent': USER_AGENT },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return 0;
+      const col = await res.json() as Record<string, any>;
+      return typeof col.totalItems === 'number' ? col.totalItems : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Fetch posts from a remote actor's outbox (first page).
+   * Returns HydratedPost-compatible objects with media, hashtags, sensitive flags, etc.
+   */
+  async fetchOutboxPosts(outboxUrl: string, actorInfo?: IFederatedActor, limit = 20): Promise<any[]> {
+    try {
+      // Fetch the outbox collection
+      const res = await fetch(outboxUrl, {
+        headers: { Accept: AP_CONTENT_TYPE, 'User-Agent': USER_AGENT },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) return [];
+
+      const collection = await res.json() as Record<string, any>;
+
+      // Get the first page of items
+      let items: any[] = [];
+      if (collection.orderedItems) {
+        items = collection.orderedItems;
+      } else if (collection.first) {
+        const firstUrl = typeof collection.first === 'string' ? collection.first : collection.first.id;
+        if (firstUrl) {
+          const pageRes = await fetch(firstUrl, {
+            headers: { Accept: AP_CONTENT_TYPE, 'User-Agent': USER_AGENT },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (pageRes.ok) {
+            const page = await pageRes.json() as Record<string, any>;
+            items = page.orderedItems || [];
+          }
+        }
+      }
+
+      // Build actor summary for post display
+      const actorSummary = actorInfo ? {
+        id: String(actorInfo._id),
+        handle: actorInfo.username,
+        displayName: actorInfo.displayName || actorInfo.username,
+        name: actorInfo.displayName || actorInfo.username,
+        avatarUrl: actorInfo.avatarUrl,
+        avatar: actorInfo.avatarUrl,
+        isVerified: false,
+        isFederated: true,
+        instance: actorInfo.domain,
+        actorUri: actorInfo.uri,
+        profileUrl: actorInfo.uri,
+      } : undefined;
+
+      // Filter to Create(Note) activities and build HydratedPost-compatible objects
+      const posts: any[] = [];
+      for (const item of items) {
+        if (posts.length >= limit) break;
+
+        const activity = typeof item === 'string' ? null : item;
+        if (!activity) continue;
+
+        // Handle both wrapped (Create) and unwrapped (Note) items
+        const note = activity.type === 'Create' ? activity.object :
+          (activity.type === 'Note' || activity.type === 'Article') ? activity : null;
+        if (!note || typeof note !== 'object') continue;
+        if (note.type !== 'Note' && note.type !== 'Article') continue;
+
+        // Skip replies (only show root posts on profile)
+        if (note.inReplyTo) continue;
+
+        const rawContent = note.content || '';
+        const content = sanitizeHtml(rawContent, {
+          allowedTags: ['p', 'br', 'a', 'span', 'em', 'strong', 'b', 'i'],
+          allowedAttributes: { a: ['href', 'rel'] },
+        });
+
+        // Extract media attachments
+        const media: any[] = [];
+        if (Array.isArray(note.attachment)) {
+          for (const att of note.attachment) {
+            if (!att?.url) continue;
+            const mediaType = att.mediaType || '';
+            if (mediaType.startsWith('image/')) {
+              media.push({ id: att.url, type: 'image', url: att.url, blurhash: att.blurhash, description: att.name || att.summary });
+            } else if (mediaType.startsWith('video/')) {
+              media.push({ id: att.url, type: 'video', url: att.url, description: att.name || att.summary });
+            }
+          }
+        }
+
+        // Extract hashtags from tags
+        const hashtags: string[] = [];
+        if (Array.isArray(note.tag)) {
+          for (const tag of note.tag) {
+            if (tag?.type === 'Hashtag' && tag.name) {
+              hashtags.push(tag.name.replace(/^#/, ''));
+            }
+          }
+        }
+
+        // Engagement counts from AP collections
+        const likesCount = typeof note.likes === 'object' ? (note.likes?.totalItems ?? 0) : 0;
+        const sharesCount = typeof note.shares === 'object' ? (note.shares?.totalItems ?? 0) : 0;
+        const repliesCount = typeof note.replies === 'object' ? (note.replies?.totalItems ?? 0) : 0;
+
+        const postId = note.id || activity.id;
+        const published = note.published || activity.published || new Date().toISOString();
+
+        posts.push({
+          id: postId,
+          _id: postId,
+          content: { text: content, media: media.length > 0 ? media : undefined },
+          attachments: { media: media.length > 0 ? media : undefined },
+          user: actorSummary,
+          engagement: {
+            likes: likesCount,
+            reposts: sharesCount,
+            replies: repliesCount,
+          },
+          viewerState: { isOwner: false, isLiked: false, isReposted: false, isSaved: false },
+          permissions: { canReply: false, canDelete: false, canPin: false, canViewSources: false },
+          metadata: {
+            visibility: 'public',
+            isSensitive: note.sensitive === true,
+            hashtags,
+            createdAt: published,
+            updatedAt: note.updated || published,
+          },
+          federation: {
+            activityId: activity.id || note.id,
+            url: note.url || note.id,
+            sensitive: note.sensitive === true,
+            spoilerText: note.summary || undefined,
+          },
+          createdAt: published,
+          _isFederatedOutbox: true,
+        });
+      }
+
+      return posts;
+    } catch (err) {
+      logger.warn(`Failed to fetch outbox posts from ${outboxUrl}:`, err);
+      return [];
     }
   }
 

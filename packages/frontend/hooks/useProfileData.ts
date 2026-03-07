@@ -114,6 +114,11 @@ function useFederatedProfileData(handle: string): {
       isFollowPending: actor.isFollowPending,
       followersCount: actor.followersCount ?? 0,
       followingCount: actor.followingCount ?? 0,
+      fields: actor.fields,
+      createdAt: actor.createdAt,
+      memorial: actor.memorial,
+      suspended: actor.suspended,
+      actorType: actor.type,
       design: {
         displayName: actor.displayName || username,
         avatar: actor.avatarUrl || undefined,

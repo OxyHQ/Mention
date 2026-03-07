@@ -1,5 +1,11 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+export interface FederatedActorField {
+  name: string;
+  value: string;
+  verifiedAt?: Date;
+}
+
 export interface IFederatedActor extends Document {
   uri: string;
   username: string;
@@ -18,6 +24,14 @@ export interface IFederatedActor extends Document {
   publicKeyId?: string;
   type: string;
   manuallyApprovesFollowers: boolean;
+  discoverable: boolean;
+  memorial: boolean;
+  suspended: boolean;
+  fields: FederatedActorField[];
+  featuredUrl?: string;
+  featuredTagsUrl?: string;
+  alsoKnownAs?: string[];
+  remoteCreatedAt?: Date;
   followersCount: number;
   followingCount: number;
   postsCount: number;
@@ -44,6 +58,18 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
   publicKeyId: { type: String },
   type: { type: String, default: 'Person', enum: ['Person', 'Service', 'Application', 'Group', 'Organization'] },
   manuallyApprovesFollowers: { type: Boolean, default: false },
+  discoverable: { type: Boolean, default: true },
+  memorial: { type: Boolean, default: false },
+  suspended: { type: Boolean, default: false },
+  fields: [{
+    name: { type: String },
+    value: { type: String },
+    verifiedAt: { type: Date },
+  }],
+  featuredUrl: { type: String },
+  featuredTagsUrl: { type: String },
+  alsoKnownAs: [{ type: String }],
+  remoteCreatedAt: { type: Date },
   followersCount: { type: Number, default: 0 },
   followingCount: { type: Number, default: 0 },
   postsCount: { type: Number, default: 0 },

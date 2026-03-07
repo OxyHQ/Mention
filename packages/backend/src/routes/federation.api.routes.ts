@@ -55,11 +55,21 @@ function toActorResponse(
     avatarUrl: proxyMediaUrl(actor.avatarUrl),
     bannerUrl: proxyMediaUrl(actor.headerUrl),
     bio: actor.summary,
+    fields: actor.fields?.map((f: any) => ({
+      name: f.name,
+      value: f.value,
+      verifiedAt: f.verifiedAt?.toISOString?.() || f.verifiedAt,
+    })),
     followersCount: actor.followersCount,
     followingCount: actor.followingCount,
     postsCount: actor.postsCount,
     isFollowing: followState?.isFollowing ?? false,
     isFollowPending: followState?.isFollowPending ?? false,
+    discoverable: actor.discoverable,
+    memorial: actor.memorial,
+    suspended: actor.suspended,
+    createdAt: actor.remoteCreatedAt?.toISOString?.() || actor.remoteCreatedAt,
+    type: actor.type,
   };
 }
 
@@ -323,10 +333,16 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
       query.createdAt = { $lt: new Date(parsed.data.cursor) };
     }
 
-    const posts = await Post.find(query)
+    let posts = await Post.find(query)
       .sort({ createdAt: -1 })
       .limit(limit + 1)
       .lean();
+
+    // If no local posts and no cursor (first page), fetch from remote outbox
+    if (posts.length === 0 && !parsed.data.cursor && actor.outboxUrl) {
+      const remotePosts = await federationService.fetchOutboxPosts(actor.outboxUrl, actor as unknown as IFederatedActor, limit);
+      return res.json({ posts: remotePosts, hasMore: false });
+    }
 
     const hasMore = posts.length > limit;
     const sliced = hasMore ? posts.slice(0, limit) : posts;
