@@ -58,7 +58,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
       await mongoose.connect(mongoUri, {
         dbName,
         autoIndex: process.env.NODE_ENV !== 'production', // Disable in production for performance
-        autoCreate: true,
+        autoCreate: process.env.NODE_ENV !== 'production', // Disable in production (incompatible with secondaryPreferred readPreference)
         serverSelectionTimeoutMS: 20000,
         socketTimeoutMS: 45000,
         // Connection pool configuration optimized for millions of users
