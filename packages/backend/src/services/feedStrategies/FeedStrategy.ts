@@ -5,12 +5,14 @@
 
 import { FeedResponse } from '@mention/shared-types';
 import { AuthRequest } from '../../types/auth';
+import { OxyClient } from '../../utils/privacyHelpers';
 
 export interface FeedStrategyContext {
   currentUserId?: string;
   followingIds?: string[];
   userBehavior?: any;
   feedSettings?: any;
+  oxyClient?: OxyClient;
 }
 
 export interface FeedStrategyOptions {

@@ -8,6 +8,7 @@ import FederatedFollow from '../models/FederatedFollow';
 import { Post } from '../models/Post';
 import { FEDERATION_ENABLED, FEDERATION_DOMAIN } from '../utils/federation/constants';
 import { postHydrationService } from '../services/PostHydrationService';
+import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
@@ -360,6 +361,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     // Hydrate posts so they render identically to native posts
     const hydrated = await postHydrationService.hydratePosts(sliced, {
       viewerId: req.user?.id,
+      oxyClient: createScopedOxyClient(req),
       maxDepth: 0,
       includeLinkMetadata: false,
     });

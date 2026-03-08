@@ -4,13 +4,14 @@ import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import { UserSettings } from '../models/UserSettings';
-import { oxy as oxyClient } from '../../server';
+import { oxy as defaultOxyClient } from '../../server';
 import { linkMetadataService } from './linkMetadataService';
-import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds } from '../utils/privacyHelpers';
+import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 
 interface HydrationOptions {
   viewerId?: string;
+  oxyClient?: OxyClient; // Per-request OxyServices instance with user's auth token
   maxDepth?: number;
   includeLinkMetadata?: boolean;
   includeFullArticleBody?: boolean; // For feed, skip full article bodies
@@ -158,13 +159,15 @@ export class PostHydrationService {
       return context;
     }
 
+    const client = options?.oxyClient;
+
     try {
       const [blockedIds, restrictedIds] = await Promise.all([
-        getBlockedUserIds().catch((error) => {
+        getBlockedUserIds(client).catch((error) => {
           logger.warn('[PostHydration] Failed to load blocked users:', error);
           return [] as string[];
         }),
-        getRestrictedUserIds().catch((error) => {
+        getRestrictedUserIds(client).catch((error) => {
           logger.warn('[PostHydration] Failed to load restricted users:', error);
           return [] as string[];
         }),
@@ -191,12 +194,13 @@ export class PostHydrationService {
     }
 
     try {
+      const oxyForFollows = client || defaultOxyClient;
       const [followingResponse, followersResponse] = await Promise.all([
-        oxyClient.getUserFollowing(viewerId).catch((error: any) => {
+        oxyForFollows.getUserFollowing(viewerId).catch((error: any) => {
           logger.warn('[PostHydration] getUserFollowing failed:', error);
           return [];
         }),
-        oxyClient.getUserFollowers(viewerId).catch((error: any) => {
+        oxyForFollows.getUserFollowers(viewerId).catch((error: any) => {
           logger.warn('[PostHydration] getUserFollowers failed:', error);
           return [];
         }),
@@ -437,7 +441,7 @@ export class PostHydrationService {
       await Promise.all(
         userIds.map(async (userId) => {
           try {
-            const userData: any = await oxyClient.getUserById(userId);
+            const userData: any = await defaultOxyClient.getUserById(userId);
             const username: string = String(userData?.username || userData?.handle || userId);
             const displayName: string = String(userData?.name?.full || userData?.displayName || username || userId);
             const avatarValue: string | undefined = typeof userData?.avatar === 'string'
@@ -631,7 +635,7 @@ export class PostHydrationService {
         await Promise.all(
           Array.from(allReplierIds).map(async (userId) => {
             try {
-              const userData: any = await oxyClient.getUserById(userId);
+              const userData: any = await defaultOxyClient.getUserById(userId);
               const avatarValue = typeof userData?.avatar === 'string'
                 ? userData.avatar
                 : (userData?.avatar as any)?.url || userData?.profileImage || undefined;
@@ -1058,7 +1062,7 @@ export class PostHydrationService {
       let mentionUser = mentionCache.get(mentionId);
       if (!mentionUser) {
         try {
-          const userData = await oxyClient.getUserById(mentionId);
+          const userData = await defaultOxyClient.getUserById(mentionId);
           const username = userData.username || mentionId;
           
           // Use proper full name fallback chain: name.full → name.first + name.last → displayName → username

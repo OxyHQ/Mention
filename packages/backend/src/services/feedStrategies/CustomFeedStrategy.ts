@@ -98,6 +98,7 @@ export class CustomFeedStrategy implements IFeedStrategy {
     // Hydrate posts
     const transformedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: currentUserId,
+      oxyClient: context.oxyClient,
       maxDepth: 0,
       includeLinkMetadata: true,
       includeFullArticleBody: false,

@@ -27,7 +27,7 @@ import { userPreferenceService } from '../services/UserPreferenceService';
 import { postHydrationService } from '../services/PostHydrationService';
 import UserBehavior from '../models/UserBehavior';
 import UserSettings from '../models/UserSettings';
-import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
+import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
 import { AuthRequest } from '../types/auth';
 import { logger } from '../utils/logger';
 import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
@@ -46,6 +46,7 @@ import {
 import { metrics } from '../utils/metrics';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
+import { createScopedOxyClient } from '../utils/oxyHelpers';
 
 /**
  * Feed Controller
@@ -128,16 +129,17 @@ class FeedController {
    * @param currentUserId - Current user ID for personalization
    * @returns Array of hydrated posts with user data and engagement stats
    */
-  private async transformPostsWithProfiles(posts: unknown[], currentUserId?: string): Promise<HydratedPost[]> {
+  private async transformPostsWithProfiles(posts: unknown[], currentUserId?: string, oxyClient?: OxyClient): Promise<HydratedPost[]> {
     try {
       if (!posts || posts.length === 0) {
         return [];
       }
-      
+
       // Optimized hydration for feed items: maxDepth 0 (no nested posts) for better performance
       // Feed items don't need nested context - only detail views need depth 1
       const hydrated = await postHydrationService.hydratePosts(posts, {
         viewerId: currentUserId,
+        oxyClient,
         maxDepth: 0, // Reduced from 1 for feed performance - saves ~30-50ms per request
         includeLinkMetadata: true,
         includeFullArticleBody: false, // Don't include article bodies in feed
@@ -591,14 +593,14 @@ class FeedController {
             filteredPosts,
             limit,
             cursor,
-            (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+            (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
             currentUserId
           )
         : await FeedResponseBuilder.buildResponse({
             posts: filteredPosts,
             limit,
             previousCursor: cursor,
-            transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+            transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
             currentUserId
           });
 
@@ -722,7 +724,7 @@ class FeedController {
           posts,
           limit,
           previousCursor: cursor,
-          transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+          transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
           currentUserId
         });
 
@@ -846,7 +848,7 @@ class FeedController {
         posts,
         limit,
         previousCursor: cursor,
-        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
         currentUserId
       });
 
@@ -963,7 +965,7 @@ class FeedController {
         posts,
         limit,
         previousCursor: cursor,
-        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
         currentUserId
       });
 
@@ -1102,7 +1104,7 @@ class FeedController {
         posts: filteredPosts,
         limit,
         previousCursor: cursor,
-        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
         currentUserId
       });
 
@@ -1150,7 +1152,7 @@ class FeedController {
         posts,
         limit,
         previousCursor: cursor,
-        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
         currentUserId
       });
 
@@ -1272,7 +1274,7 @@ class FeedController {
           posts: postsOrdered,
           limit,
           previousCursor: cursor,
-          transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+          transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
           currentUserId,
           validateSize: false // Already validated above
         });
@@ -1298,7 +1300,7 @@ class FeedController {
         posts,
         limit,
         previousCursor: cursor,
-        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId),
+        transformPosts: (postsToTransform, userId) => this.transformPostsWithProfiles(postsToTransform, userId, createScopedOxyClient(req)),
         currentUserId
       });
 
@@ -1978,7 +1980,7 @@ class FeedController {
         return res.status(404).json({ error: 'Post not found' });
       }
 
-      const [transformed] = await this.transformPostsWithProfiles([post], currentUserId);
+      const [transformed] = await this.transformPostsWithProfiles([post], currentUserId, createScopedOxyClient(req));
 
       return res.json(transformed);
     } catch (error) {
@@ -2026,6 +2028,7 @@ class FeedController {
 
       const [hydrated] = await postHydrationService.hydratePosts([pinnedPost], {
         viewerId: currentUserId,
+        oxyClient: createScopedOxyClient(req),
         maxDepth: 1,
         includeLinkMetadata: true,
       });

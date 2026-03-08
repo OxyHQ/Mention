@@ -12,13 +12,21 @@ export const ProfileVisibility = {
 
 export type ProfileVisibilityType = typeof ProfileVisibility[keyof typeof ProfileVisibility];
 
+/** Minimal interface for the OxyServices methods we need */
+export interface OxyClient {
+  getBlockedUsers(): Promise<any[]>;
+  getRestrictedUsers(): Promise<any[]>;
+  getUserFollowing(userId: string): Promise<any>;
+  getUserFollowers(userId: string): Promise<any>;
+}
+
 /**
  * Extract user ID from blocked/restricted user entry
  * Handles different response formats from Oxy API
  */
 export function extractUserIdFromBlockedRestricted(entry: any): string | undefined {
   if (!entry) return undefined;
-  
+
   if (entry?.blockedId) {
     return typeof entry.blockedId === 'string' ? entry.blockedId : entry.blockedId._id;
   }
@@ -70,18 +78,20 @@ async function getUserIdsFromPrivacyList(
 
 /**
  * Get blocked user IDs for the authenticated user from Oxy
- * Note: Oxy service uses authenticated context, so no userId parameter needed
+ * @param client - OxyServices instance (per-request, with auth token set)
  */
-export async function getBlockedUserIds(): Promise<string[]> {
-  return getUserIdsFromPrivacyList(() => oxy.getBlockedUsers(), 'blocked');
+export async function getBlockedUserIds(client?: OxyClient): Promise<string[]> {
+  const c = client || oxy;
+  return getUserIdsFromPrivacyList(() => c.getBlockedUsers(), 'blocked');
 }
 
 /**
  * Get restricted user IDs for the authenticated user from Oxy
- * Note: Oxy service uses authenticated context, so no userId parameter needed
+ * @param client - OxyServices instance (per-request, with auth token set)
  */
-export async function getRestrictedUserIds(): Promise<string[]> {
-  return getUserIdsFromPrivacyList(() => oxy.getRestrictedUsers(), 'restricted');
+export async function getRestrictedUserIds(client?: OxyClient): Promise<string[]> {
+  const c = client || oxy;
+  return getUserIdsFromPrivacyList(() => c.getRestrictedUsers(), 'restricted');
 }
 
 /**
@@ -92,11 +102,11 @@ export function extractFollowingIds(followingRes: any): string[] {
   const followingList = Array.isArray((followingRes as any)?.following)
     ? (followingRes as any).following
     : (Array.isArray(followingRes) ? followingRes : []);
-  
+
   return followingList
-    .map((u: any) => 
-      typeof u === 'string' 
-        ? u 
+    .map((u: any) =>
+      typeof u === 'string'
+        ? u
         : (u?.id || u?._id || u?.userId || u?.user?.id || u?.profile?.id || u?.targetId)
     )
     .filter(Boolean);
@@ -110,7 +120,7 @@ export function extractFollowersIds(followersRes: any): string[] {
   const followersList = Array.isArray((followersRes as any)?.followers)
     ? (followersRes as any).followers
     : (Array.isArray(followersRes) ? followersRes : []);
-  
+
   return followersList
     .map((entry: any) => {
       if (typeof entry === 'string') {
@@ -125,11 +135,13 @@ export function extractFollowersIds(followersRes: any): string[] {
  * Check if a user is following another user
  * @param viewerId - The user checking access
  * @param targetUserId - The user being checked
+ * @param client - Optional per-request OxyServices instance
  * @returns true if viewer follows target, false otherwise
  */
-export async function checkFollowAccess(viewerId: string, targetUserId: string): Promise<boolean> {
+export async function checkFollowAccess(viewerId: string, targetUserId: string, client?: OxyClient): Promise<boolean> {
   try {
-    const followingRes = await oxy.getUserFollowing(viewerId);
+    const c = client || oxy;
+    const followingRes = await c.getUserFollowing(viewerId);
     const followingIds = extractFollowingIds(followingRes);
     return followingIds.includes(targetUserId);
   } catch (error) {
@@ -142,7 +154,6 @@ export async function checkFollowAccess(viewerId: string, targetUserId: string):
  * Check if a profile requires access check (private or followers_only)
  */
 export function requiresAccessCheck(profileVisibility: string | undefined): boolean {
-  return profileVisibility === ProfileVisibility.PRIVATE || 
+  return profileVisibility === ProfileVisibility.PRIVATE ||
          profileVisibility === ProfileVisibility.FOLLOWERS_ONLY;
 }
-

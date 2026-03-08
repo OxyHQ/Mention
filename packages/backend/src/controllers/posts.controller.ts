@@ -16,6 +16,7 @@ import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
+import { createScopedOxyClient } from '../utils/oxyHelpers';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -1068,6 +1069,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: currentUserId,
+      oxyClient: createScopedOxyClient(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -1097,6 +1099,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
 
     const hydrated = await postHydrationService.hydratePosts([post], {
       viewerId: currentUserId,
+      oxyClient: createScopedOxyClient(req),
       maxDepth: 2,
       includeLinkMetadata: true,
     });
@@ -1267,7 +1270,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     // Hydrate the updated post for consistent frontend response shape
     try {
-      const hydrated = await postHydrationService.hydratePosts([post.toObject()], { viewerId: userId });
+      const hydrated = await postHydrationService.hydratePosts([post.toObject()], { viewerId: userId, oxyClient: createScopedOxyClient(req) });
       if (hydrated.length > 0) {
         return res.json(hydrated[0]);
       }
@@ -1799,6 +1802,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -1877,6 +1881,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: req.user?.id,
+      oxyClient: createScopedOxyClient(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -1982,6 +1987,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: req.user?.id,
+      oxyClient: createScopedOxyClient(req),
       maxDepth: 1,
       includeLinkMetadata: false,
     });
@@ -2043,6 +2049,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: req.user?.id,
+      oxyClient: createScopedOxyClient(req),
       maxDepth: 1,
       includeLinkMetadata: false,
     });

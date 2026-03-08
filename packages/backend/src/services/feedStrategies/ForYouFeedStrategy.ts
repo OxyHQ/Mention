@@ -166,6 +166,7 @@ export class ForYouFeedStrategy implements IFeedStrategy {
     // Transform posts
     const transformedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: currentUserId,
+      oxyClient: context.oxyClient,
       maxDepth: 0,
       includeLinkMetadata: true,
       includeFullArticleBody: false,
