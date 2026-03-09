@@ -1044,8 +1044,9 @@ export class PostHydrationService {
       return text;
     }
 
-    let result = text;
-
+    // Normalize mention IDs and collect uncached ones that have placeholders in text
+    const normalizedIds: string[] = [];
+    const uncachedIds: string[] = [];
     for (const mentionIdRaw of mentions) {
       let mentionId: string;
       if (typeof mentionIdRaw === 'string') {
@@ -1056,15 +1057,19 @@ export class PostHydrationService {
       } else {
         mentionId = String(mentionIdRaw || '');
       }
-      
-      if (!mentionId || !result.includes(`[mention:${mentionId}]`)) continue;
+      normalizedIds.push(mentionId);
+      if (mentionId && text.includes(`[mention:${mentionId}]`) && !mentionCache.has(mentionId)) {
+        uncachedIds.push(mentionId);
+      }
+    }
 
-      let mentionUser = mentionCache.get(mentionId);
-      if (!mentionUser) {
+    // Fetch all uncached mentions in parallel instead of sequentially
+    if (uncachedIds.length > 0) {
+      await Promise.all(uncachedIds.map(async (mentionId) => {
         try {
           const userData = await defaultOxyClient.getUserById(mentionId);
           const username = userData.username || mentionId;
-          
+
           // Use proper full name fallback chain: name.full → name.first + name.last → displayName → username
           let fullName: string;
           if (userData.name?.full) {
@@ -1076,12 +1081,12 @@ export class PostHydrationService {
           } else {
             fullName = username;
           }
-          
+
           const avatarValue = typeof userData.avatar === 'string'
             ? userData.avatar
             : (userData.avatar as any)?.url || userData.profileImage || undefined;
-          
-          mentionUser = {
+
+          mentionCache.set(mentionId, {
             id: userData.id || mentionId,
             handle: username,
             displayName: fullName,
@@ -1094,11 +1099,10 @@ export class PostHydrationService {
                   .filter(Boolean)
               : undefined,
             isVerified: Boolean(userData.verified || userData.isVerified),
-          };
-          mentionCache.set(mentionId, mentionUser);
+          });
         } catch (error) {
           logger.warn(`[PostHydration] Failed to resolve mention ${mentionId}:`, error);
-          mentionUser = {
+          mentionCache.set(mentionId, {
             id: mentionId,
             handle: mentionId,
             displayName: 'User',
@@ -1107,14 +1111,21 @@ export class PostHydrationService {
             avatar: undefined,
             badges: undefined,
             isVerified: false,
-          };
-          mentionCache.set(mentionId, mentionUser);
+          });
         }
-      }
+      }));
+    }
 
-      const placeholder = `[mention:${mentionId}]`;
-      const replacement = `[@${mentionUser.displayName}](${mentionUser.handle})`;
-      result = result.split(placeholder).join(replacement);
+    // Replace all placeholders from cache
+    let result = text;
+    for (const mentionId of normalizedIds) {
+      if (!mentionId || !result.includes(`[mention:${mentionId}]`)) continue;
+      const mentionUser = mentionCache.get(mentionId);
+      if (mentionUser) {
+        const placeholder = `[mention:${mentionId}]`;
+        const replacement = `[@${mentionUser.displayName}](${mentionUser.handle})`;
+        result = result.split(placeholder).join(replacement);
+      }
     }
 
     return result;

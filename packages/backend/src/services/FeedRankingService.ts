@@ -119,11 +119,21 @@ export class FeedRankingService {
       recentTopics?: string[];
       feedSettings?: any; // User feed settings
       engagementScoreCache?: Map<string, number>; // Optional pre-calculated engagement scores
+      // Pre-computed Sets for O(1) lookups (created from arrays if not provided)
+      _followingIdsSet?: Set<string>;
+      _recentAuthorsSet?: Set<string>;
+      _recentTopicsSet?: Set<string>;
+      _behaviorSets?: { hiddenAuthors: Set<string>; mutedAuthors: Set<string>; blockedAuthors: Set<string>; hiddenTopics: Set<string> };
     } = {}
   ): Promise<number> {
     // Helper to guard each sub-score against NaN/Infinity
     const safe = (score: number, fallback: number = 1): number =>
       Number.isFinite(score) ? score : fallback;
+
+    // Resolve Sets for O(1) lookups (use pre-computed if available, else create from arrays)
+    const followingIdsSet = context._followingIdsSet ?? new Set(context.followingIds || []);
+    const recentAuthorsSet = context._recentAuthorsSet ?? new Set(context.recentAuthors || []);
+    const recentTopicsSet = context._recentTopicsSet ?? new Set(context.recentTopics || []);
 
     // Base engagement score (use cache if available, otherwise calculate)
     const postId = post._id?.toString() || '';
@@ -145,7 +155,7 @@ export class FeedRankingService {
     const authorScore = safe(await this.calculateAuthorScore(
       post.oxyUserId,
       userId,
-      context.followingIds || [],
+      followingIdsSet,
       context.userBehavior
     ));
 
@@ -167,8 +177,8 @@ export class FeedRankingService {
     // Diversity penalty (apply after all boosts, using user settings if provided)
     const diversityPenalty = safe(this.calculateDiversityPenalty(
       post,
-      context.recentAuthors || [],
-      context.recentTopics || [],
+      recentAuthorsSet,
+      recentTopicsSet,
       context.feedSettings?.diversity
     ));
 
@@ -176,7 +186,8 @@ export class FeedRankingService {
     const negativePenalty = safe(await this.calculateNegativePenalty(
       post,
       userId,
-      context.userBehavior
+      context.userBehavior,
+      context._behaviorSets
     ));
 
     // Combine all scores (each sub-score is already guarded)
@@ -274,15 +285,15 @@ export class FeedRankingService {
   private async calculateAuthorScore(
     authorId: string, // Oxy user ID
     userId: string | undefined, // Oxy user ID
-    followingIds: string[], // Array of Oxy user IDs
+    followingIdsSet: Set<string>, // Set of Oxy user IDs
     userBehavior: any
   ): Promise<number> {
     if (!userId) {
       return 1.0; // No personalization for anonymous users
     }
-    
+
     // Check if following
-    const isFollowing = followingIds.includes(authorId);
+    const isFollowing = followingIdsSet.has(authorId);
     if (isFollowing) {
       return this.WEIGHTS.author.followBoost;
     }
@@ -482,8 +493,8 @@ export class FeedRankingService {
    */
   private calculateDiversityPenalty(
     post: any,
-    recentAuthors: string[],
-    recentTopics: string[],
+    recentAuthorsSet: Set<string>,
+    recentTopicsSet: Set<string>,
     diversitySettings?: any
   ): number {
     // If diversity is disabled, return no penalty
@@ -498,14 +509,14 @@ export class FeedRankingService {
     let penalty = 1.0;
     
     // Penalize if same author appeared recently
-    if (recentAuthors.includes(post.oxyUserId)) {
+    if (recentAuthorsSet.has(post.oxyUserId)) {
       penalty *= sameAuthorPenalty;
     }
     
     // Penalize if same topics appeared recently
     if (post.hashtags && post.hashtags.length > 0) {
       const recentTopicMatches = post.hashtags.filter((tag: string) =>
-        recentTopics.some((rt: string) => rt.toLowerCase() === tag.toLowerCase())
+        recentTopicsSet.has(tag.toLowerCase())
       );
       
       if (recentTopicMatches.length > 0) {
@@ -522,34 +533,43 @@ export class FeedRankingService {
   private async calculateNegativePenalty(
     post: any,
     userId: string | undefined,
-    userBehavior: any
+    userBehavior: any,
+    behaviorSets?: { hiddenAuthors: Set<string>; mutedAuthors: Set<string>; blockedAuthors: Set<string>; hiddenTopics: Set<string> }
   ): Promise<number> {
     if (!userId || !userBehavior) {
       return 1.0;
     }
-    
+
     const authorId = post.oxyUserId;
-    
+
+    // Use pre-computed Sets if available, else create from arrays
+    const sets = behaviorSets ?? {
+      hiddenAuthors: new Set<string>(userBehavior.hiddenAuthors || []),
+      mutedAuthors: new Set<string>(userBehavior.mutedAuthors || []),
+      blockedAuthors: new Set<string>(userBehavior.blockedAuthors || []),
+      hiddenTopics: new Set<string>((userBehavior.hiddenTopics || []).map((t: string) => t.toLowerCase())),
+    };
+
     // Check if author is hidden, muted, or blocked
     if (
-      userBehavior.hiddenAuthors?.includes(authorId) ||
-      userBehavior.mutedAuthors?.includes(authorId) ||
-      userBehavior.blockedAuthors?.includes(authorId)
+      sets.hiddenAuthors.has(authorId) ||
+      sets.mutedAuthors.has(authorId) ||
+      sets.blockedAuthors.has(authorId)
     ) {
       return 0; // Completely hide
     }
-    
+
     // Check if topic is hidden
-    if (post.hashtags && userBehavior.hiddenTopics?.length > 0) {
+    if (post.hashtags && sets.hiddenTopics.size > 0) {
       const hasHiddenTopic = post.hashtags.some((tag: string) =>
-        userBehavior.hiddenTopics.includes(tag.toLowerCase())
+        sets.hiddenTopics.has(tag.toLowerCase())
       );
-      
+
       if (hasHiddenTopic) {
         return 0.5; // Reduce visibility
       }
     }
-    
+
     return 1.0;
   }
 
@@ -601,6 +621,15 @@ export class FeedRankingService {
       }
     }
     
+    // Pre-compute Sets for O(1) lookups in scoring loop
+    const followingIdsSet = new Set(followingIds || []);
+    const behaviorSets = userBehavior ? {
+      hiddenAuthors: new Set<string>(userBehavior.hiddenAuthors || []),
+      mutedAuthors: new Set<string>(userBehavior.mutedAuthors || []),
+      blockedAuthors: new Set<string>(userBehavior.blockedAuthors || []),
+      hiddenTopics: new Set<string>((userBehavior.hiddenTopics || []).map((t: string) => t.toLowerCase())),
+    } : undefined;
+
     // Pre-calculate engagement scores with caching (batch load from cache)
     const engagementScoreCache = new Map<string, number>();
     const engagementScorePromises = posts.map(async (post) => {
@@ -638,8 +667,8 @@ export class FeedRankingService {
     }
     
     // Track recent authors and topics for diversity (build incrementally)
-    const recentAuthors: string[] = [];
-    const recentTopics: string[] = [];
+    const recentAuthorsSet = new Set<string>();
+    const recentTopicsSet = new Set<string>();
     
     // Calculate scores for all posts in parallel (batch processing)
     // Preserve original index to maintain MongoDB's createdAt sort order for tie-breaking
@@ -648,22 +677,21 @@ export class FeedRankingService {
         const score = await this.calculatePostScore(post, userId, {
           followingIds,
           userBehavior,
-          recentAuthors: [...recentAuthors], // Copy current state
-          recentTopics: [...recentTopics], // Copy current state
           feedSettings: context.feedSettings,
-          engagementScoreCache // Pass pre-calculated engagement scores
+          engagementScoreCache,
+          _followingIdsSet: followingIdsSet,
+          _recentAuthorsSet: new Set(recentAuthorsSet),
+          _recentTopicsSet: new Set(recentTopicsSet),
+          _behaviorSets: behaviorSets,
         });
-        
-        // Update recent lists for diversity calculation (for next posts)
-        if (post.oxyUserId && !recentAuthors.includes(post.oxyUserId)) {
-          recentAuthors.push(post.oxyUserId);
+
+        // Update recent sets for diversity calculation (for next posts)
+        if (post.oxyUserId) {
+          recentAuthorsSet.add(post.oxyUserId);
         }
         if (post.hashtags) {
           post.hashtags.forEach((tag: string) => {
-            const normalizedTag = tag.toLowerCase();
-            if (!recentTopics.includes(normalizedTag)) {
-              recentTopics.push(normalizedTag);
-            }
+            recentTopicsSet.add(tag.toLowerCase());
           });
         }
         

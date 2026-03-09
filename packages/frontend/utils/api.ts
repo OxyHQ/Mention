@@ -7,6 +7,7 @@ import { API_URL } from '@/config';
 const authenticatedClient = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
 });
 
 authenticatedClient.interceptors.request.use((config) => {
@@ -49,6 +50,7 @@ authenticatedClient.interceptors.response.use(
 const publicClient = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
 });
 
 // Authenticated API helpers (unwrap axios response)
