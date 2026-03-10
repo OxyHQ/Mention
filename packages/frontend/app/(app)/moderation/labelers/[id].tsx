@@ -18,9 +18,9 @@ import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { labelerService } from '@/services/labelerService';
+import { SEVERITY_COLORS, Severity, LabelActionType } from '@/components/LabelBadge';
 
-type Severity = 'low' | 'medium' | 'high' | 'critical';
-type LabelAction = 'show' | 'warn' | 'blur' | 'hide';
+type LabelAction = LabelActionType;
 
 interface LabelDefinition {
   slug: string;
@@ -45,13 +45,6 @@ interface LabelerDetail {
   };
   userPreferences?: Record<string, LabelAction>;
 }
-
-const SEVERITY_COLORS: Record<Severity, string> = {
-  low: '#6b7280',
-  medium: '#f59e0b',
-  high: '#f97316',
-  critical: '#ef4444',
-};
 
 const ACTION_OPTIONS: { value: LabelAction; label: string }[] = [
   { value: 'show', label: 'Show' },

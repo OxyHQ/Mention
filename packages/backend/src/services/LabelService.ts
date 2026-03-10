@@ -74,23 +74,15 @@ export class LabelService {
     const exists = await Labeler.exists({ _id: new mongoose.Types.ObjectId(labelerId) });
     if (!exists) throw new Error('Labeler not found');
 
-    // Check if already subscribed before the update
-    const existingSettings = await UserSettings.findOne(
-      { oxyUserId: userId },
-      { 'privacy.labelPreferences.subscribedLabelers': 1 }
-    ).lean();
-    const alreadySubscribed = (existingSettings?.privacy?.labelPreferences?.subscribedLabelers ?? [])
-      .includes(labelerId);
-
-    // Add labelerId to user's subscribedLabelers (avoid duplicates)
-    await UserSettings.findOneAndUpdate(
-      { oxyUserId: userId },
+    // Atomically add labelerId — use modifiedCount to avoid TOCTOU race
+    const result = await UserSettings.updateOne(
+      { oxyUserId: userId, 'privacy.labelPreferences.subscribedLabelers': { $ne: labelerId } },
       { $addToSet: { 'privacy.labelPreferences.subscribedLabelers': labelerId } },
       { upsert: true }
     );
 
-    // Only increment if this is a new subscription
-    if (!alreadySubscribed) {
+    // Only increment if the document was actually modified (new subscription)
+    if (result.modifiedCount > 0 || result.upsertedCount > 0) {
       await Labeler.updateOne({ _id: labelerId }, { $inc: { subscriberCount: 1 } });
     }
 
@@ -105,21 +97,18 @@ export class LabelService {
       throw new Error('Invalid labeler id');
     }
 
-    const settings = await UserSettings.findOne({ oxyUserId: userId });
-    const subscribedList: string[] = settings?.privacy?.labelPreferences?.subscribedLabelers ?? [];
-    const wasSubscribed = subscribedList.includes(labelerId);
+    // Atomically pull — use modifiedCount to avoid TOCTOU race
+    const result = await UserSettings.updateOne(
+      { oxyUserId: userId, 'privacy.labelPreferences.subscribedLabelers': labelerId },
+      { $pull: { 'privacy.labelPreferences.subscribedLabelers': labelerId } }
+    );
 
-    if (!wasSubscribed) {
+    if (result.modifiedCount === 0) {
       logger.info('[LabelService] User was not subscribed to labeler', { userId, labelerId });
       return;
     }
 
-    await UserSettings.findOneAndUpdate(
-      { oxyUserId: userId },
-      { $pull: { 'privacy.labelPreferences.subscribedLabelers': labelerId } }
-    );
-
-    await Labeler.findByIdAndUpdate(labelerId, { $inc: { subscriberCount: -1 } });
+    await Labeler.updateOne({ _id: labelerId }, { $inc: { subscriberCount: -1 } });
 
     logger.info('[LabelService] User unsubscribed from labeler', { userId, labelerId });
   }

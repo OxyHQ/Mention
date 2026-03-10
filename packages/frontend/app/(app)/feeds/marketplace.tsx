@@ -22,6 +22,7 @@ import { toast } from '@/lib/sonner';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import StarRating from '@/components/StarRating';
 
 const PAGE_LIMIT = 20;
 
@@ -34,44 +35,6 @@ const SORT_OPTIONS: { id: SortBy; label: string }[] = [
 ];
 
 const ALL_CATEGORY = 'All';
-
-// Star rating display — filled vs outline icons
-const StarRating = React.memo(function StarRating({
-  rating,
-  size = 14,
-  color,
-}: {
-  rating: number;
-  size?: number;
-  color: string;
-}) {
-  const stars = useMemo(() => {
-    return Array.from({ length: 5 }, (_, i) => {
-      const filled = i < Math.round(rating);
-      return { key: i, filled };
-    });
-  }, [rating]);
-
-  return (
-    <View style={starStyles.row}>
-      {stars.map(({ key, filled }) => (
-        <Ionicons
-          key={key}
-          name={filled ? 'star' : 'star-outline'}
-          size={size}
-          color={color}
-        />
-      ))}
-    </View>
-  );
-});
-
-const starStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    gap: 1,
-  },
-});
 
 // Individual feed card
 interface FeedCardProps {

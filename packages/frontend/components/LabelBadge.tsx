@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 
-type Severity = 'low' | 'medium' | 'high' | 'critical';
-type LabelActionType = 'show' | 'warn' | 'blur' | 'hide';
+export type Severity = 'low' | 'medium' | 'high' | 'critical';
+export type LabelActionType = 'show' | 'warn' | 'blur' | 'hide';
 
 export interface LabelBadgeProps {
   labelName: string;
@@ -13,7 +13,7 @@ export interface LabelBadgeProps {
   onShowAnyway?: () => void;
 }
 
-const SEVERITY_COLORS: Record<Severity, string> = {
+export const SEVERITY_COLORS: Record<Severity, string> = {
   low: '#6b7280',
   medium: '#f59e0b',
   high: '#f97316',

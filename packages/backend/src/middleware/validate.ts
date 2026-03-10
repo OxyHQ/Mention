@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import { sendError, ErrorCodes } from '../utils/apiResponse';
+import { FEED_CATEGORIES } from '../models/CustomFeed';
 
 /**
  * Express middleware factory for request body validation using Zod schemas.
@@ -127,7 +128,7 @@ export const schemas = {
     includeReposts: z.boolean().optional().default(true),
     includeMedia: z.boolean().optional().default(true),
     language: z.string().min(2).max(10).regex(/^[a-zA-Z-]+$/, 'Invalid language code').optional(),
-    category: z.enum(['news', 'tech', 'culture', 'finance', 'health', 'sports', 'entertainment', 'other']).optional(),
+    category: z.enum(FEED_CATEGORIES).optional(),
     tags: z.array(z.string().min(1).max(50)).max(20, 'Maximum 20 tags allowed').optional().default([]),
     coverImage: z.string().url('Cover image must be a valid URL').optional(),
   }),
@@ -143,7 +144,7 @@ export const schemas = {
     includeReposts: z.boolean().optional(),
     includeMedia: z.boolean().optional(),
     language: z.string().min(2).max(10).regex(/^[a-zA-Z-]+$/).optional().nullable(),
-    category: z.enum(['news', 'tech', 'culture', 'finance', 'health', 'sports', 'entertainment', 'other']).optional().nullable(),
+    category: z.enum(FEED_CATEGORIES).optional().nullable(),
     tags: z.array(z.string().min(1).max(50)).max(20).optional(),
     coverImage: z.string().url('Cover image must be a valid URL').optional().nullable(),
   }),

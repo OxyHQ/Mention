@@ -282,45 +282,30 @@ router.get('/marketplace', async (req: any, res) => {
       CustomFeed.countDocuments(q),
     ]);
 
-    // Gather like counts and isLiked for current user
+    // Resolve isLiked + owner profiles in parallel (subscriberCount already on feed docs)
     const feedIds = items.map((item: any) => item._id);
-    const likeCountsMap = new Map<string, number>();
     const likedFeedsSet = new Set<string>();
-
-    if (feedIds.length > 0) {
-      const likeCounts = await FeedLike.aggregate([
-        { $match: { feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } } },
-        { $group: { _id: '$feedId', count: { $sum: 1 } } },
-      ]);
-      likeCounts.forEach((item: any) => {
-        likeCountsMap.set(String(item._id), item.count);
-      });
-
-      if (userId) {
-        const userLikes = await FeedLike.find({ userId, feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } }).lean();
-        userLikes.forEach((like: any) => {
-          likedFeedsSet.add(String(like.feedId));
-        });
-      }
-    }
-
-    // Resolve owner profiles
     const ownerIds = [...new Set(items.map((item: any) => item.ownerOxyUserId).filter(Boolean))];
     const ownersMap = new Map<string, UserProfile>();
-    if (ownerIds.length > 0) {
-      await Promise.all(
-        ownerIds.map(async (ownerId) => {
-          ownersMap.set(ownerId, await resolveUserProfile(ownerId));
-        })
-      );
-    }
+
+    await Promise.all([
+      // User's liked feeds
+      userId && feedIds.length > 0
+        ? FeedLike.find({ userId, feedId: { $in: feedIds.map((id: any) => new mongoose.Types.ObjectId(id)) } }).lean()
+            .then((likes: any[]) => likes.forEach((like: any) => likedFeedsSet.add(String(like.feedId))))
+        : Promise.resolve(),
+      // Owner profiles
+      ...ownerIds.map(async (ownerId) => {
+        ownersMap.set(ownerId, await resolveUserProfile(ownerId));
+      }),
+    ]);
 
     const normalizedItems = items.map((item: any) => {
       const feedId = String(item._id);
       return {
         ...item,
         id: feedId,
-        likeCount: likeCountsMap.get(feedId) || 0,
+        likeCount: item.subscriberCount || 0,
         isLiked: userId ? likedFeedsSet.has(feedId) : false,
         owner: item.ownerOxyUserId ? ownersMap.get(item.ownerOxyUserId) : undefined,
         memberCount: (item.memberOxyUserIds || []).length,

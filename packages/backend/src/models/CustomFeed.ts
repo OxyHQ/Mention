@@ -1,5 +1,8 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export const FEED_CATEGORIES = ['news', 'tech', 'culture', 'finance', 'health', 'sports', 'entertainment', 'other'] as const;
+export type FeedCategory = typeof FEED_CATEGORIES[number];
+
 export interface ICustomFeed extends Document {
   ownerOxyUserId: string;
   title: string;
@@ -12,7 +15,7 @@ export interface ICustomFeed extends Document {
   includeReposts?: boolean;
   includeMedia?: boolean;
   language?: string;
-  category?: 'news' | 'tech' | 'culture' | 'finance' | 'health' | 'sports' | 'entertainment' | 'other';
+  category?: FeedCategory;
   tags: string[];
   coverImage?: string;
   subscriberCount: number;
@@ -34,7 +37,7 @@ const CustomFeedSchema = new Schema<ICustomFeed>({
   includeReposts: { type: Boolean, default: true },
   includeMedia: { type: Boolean, default: true },
   language: { type: String },
-  category: { type: String, enum: ['news', 'tech', 'culture', 'finance', 'health', 'sports', 'entertainment', 'other'] },
+  category: { type: String, enum: FEED_CATEGORIES },
   tags: { type: [String], default: [] },
   coverImage: { type: String },
   subscriberCount: { type: Number, default: 0 },

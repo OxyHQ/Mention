@@ -26,6 +26,7 @@ import { CreateIcon } from '@/assets/icons/create-icon';
 import Avatar from '@/components/Avatar';
 import { getData, storeData } from '@/utils/storage';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import StarRating from '@/components/StarRating';
 import { toast } from '@/lib/sonner';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import * as OxyServicesNS from '@oxyhq/services';
@@ -222,49 +223,6 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
         </View>
       ))}
     </ScrollView>
-  );
-});
-
-// Star rating display
-const StarRating = React.memo(function StarRating({
-  rating,
-  size = 16,
-  interactive = false,
-  onRate,
-  color,
-}: {
-  rating: number;
-  size?: number;
-  interactive?: boolean;
-  onRate?: (value: number) => void;
-  color: string;
-}) {
-  return (
-    <View style={reviewStyles.starsRow}>
-      {Array.from({ length: 5 }, (_, i) => {
-        const filled = interactive ? i < rating : i < Math.round(rating);
-        return interactive ? (
-          <TouchableOpacity
-            key={i}
-            onPress={() => onRate && onRate(i + 1)}
-            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-          >
-            <Ionicons
-              name={filled ? 'star' : 'star-outline'}
-              size={size}
-              color={color}
-            />
-          </TouchableOpacity>
-        ) : (
-          <Ionicons
-            key={i}
-            name={filled ? 'star' : 'star-outline'}
-            size={size}
-            color={color}
-          />
-        );
-      })}
-    </View>
   );
 });
 
@@ -899,11 +857,6 @@ const styles = StyleSheet.create({
 });
 
 const reviewStyles = StyleSheet.create({
-  // StarRating
-  starsRow: {
-    flexDirection: 'row',
-    gap: 2,
-  },
   // ReviewsTab container
   container: {
     padding: 16,
