@@ -7,6 +7,13 @@ import { getRedisClient } from '../utils/redis';
 import { withRedisFallback } from '../utils/redisHelpers';
 import { metrics } from '../utils/metrics';
 
+interface BehaviorSets {
+  hiddenAuthors: Set<string>;
+  mutedAuthors: Set<string>;
+  blockedAuthors: Set<string>;
+  hiddenTopics: Set<string>;
+}
+
 /**
  * FeedRankingService - Advanced feed ranking algorithm
  * Similar to Twitter/X and Facebook's feed algorithms
@@ -66,6 +73,16 @@ export class FeedRankingService {
     this.redis = getRedisClient();
   }
 
+  private buildBehaviorSets(userBehavior: any): BehaviorSets | undefined {
+    if (!userBehavior) return undefined;
+    return {
+      hiddenAuthors: new Set<string>(userBehavior.hiddenAuthors || []),
+      mutedAuthors: new Set<string>(userBehavior.mutedAuthors || []),
+      blockedAuthors: new Set<string>(userBehavior.blockedAuthors || []),
+      hiddenTopics: new Set<string>((userBehavior.hiddenTopics || []).map((t: string) => t.toLowerCase())),
+    };
+  }
+
   /**
    * Get cached engagement score or calculate and cache
    */
@@ -119,11 +136,10 @@ export class FeedRankingService {
       recentTopics?: string[];
       feedSettings?: any; // User feed settings
       engagementScoreCache?: Map<string, number>; // Optional pre-calculated engagement scores
-      // Pre-computed Sets for O(1) lookups (created from arrays if not provided)
-      _followingIdsSet?: Set<string>;
-      _recentAuthorsSet?: Set<string>;
-      _recentTopicsSet?: Set<string>;
-      _behaviorSets?: { hiddenAuthors: Set<string>; mutedAuthors: Set<string>; blockedAuthors: Set<string>; hiddenTopics: Set<string> };
+      followingIdsSet?: Set<string>;
+      recentAuthorsSet?: Set<string>;
+      recentTopicsSet?: Set<string>;
+      behaviorSets?: BehaviorSets;
     } = {}
   ): Promise<number> {
     // Helper to guard each sub-score against NaN/Infinity
@@ -131,9 +147,9 @@ export class FeedRankingService {
       Number.isFinite(score) ? score : fallback;
 
     // Resolve Sets for O(1) lookups (use pre-computed if available, else create from arrays)
-    const followingIdsSet = context._followingIdsSet ?? new Set(context.followingIds || []);
-    const recentAuthorsSet = context._recentAuthorsSet ?? new Set(context.recentAuthors || []);
-    const recentTopicsSet = context._recentTopicsSet ?? new Set(context.recentTopics || []);
+    const followingIdsSet = context.followingIdsSet ?? new Set(context.followingIds || []);
+    const recentAuthorsSet = context.recentAuthorsSet ?? new Set(context.recentAuthors || []);
+    const recentTopicsSet = context.recentTopicsSet ?? new Set(context.recentTopics || []);
 
     // Base engagement score (use cache if available, otherwise calculate)
     const postId = post._id?.toString() || '';
@@ -187,7 +203,7 @@ export class FeedRankingService {
       post,
       userId,
       context.userBehavior,
-      context._behaviorSets
+      context.behaviorSets
     ));
 
     // Combine all scores (each sub-score is already guarded)
@@ -534,7 +550,7 @@ export class FeedRankingService {
     post: any,
     userId: string | undefined,
     userBehavior: any,
-    behaviorSets?: { hiddenAuthors: Set<string>; mutedAuthors: Set<string>; blockedAuthors: Set<string>; hiddenTopics: Set<string> }
+    behaviorSets?: BehaviorSets
   ): Promise<number> {
     if (!userId || !userBehavior) {
       return 1.0;
@@ -543,12 +559,7 @@ export class FeedRankingService {
     const authorId = post.oxyUserId;
 
     // Use pre-computed Sets if available, else create from arrays
-    const sets = behaviorSets ?? {
-      hiddenAuthors: new Set<string>(userBehavior.hiddenAuthors || []),
-      mutedAuthors: new Set<string>(userBehavior.mutedAuthors || []),
-      blockedAuthors: new Set<string>(userBehavior.blockedAuthors || []),
-      hiddenTopics: new Set<string>((userBehavior.hiddenTopics || []).map((t: string) => t.toLowerCase())),
-    };
+    const sets = behaviorSets ?? this.buildBehaviorSets(userBehavior)!;
 
     // Check if author is hidden, muted, or blocked
     if (
@@ -623,12 +634,7 @@ export class FeedRankingService {
     
     // Pre-compute Sets for O(1) lookups in scoring loop
     const followingIdsSet = new Set(followingIds || []);
-    const behaviorSets = userBehavior ? {
-      hiddenAuthors: new Set<string>(userBehavior.hiddenAuthors || []),
-      mutedAuthors: new Set<string>(userBehavior.mutedAuthors || []),
-      blockedAuthors: new Set<string>(userBehavior.blockedAuthors || []),
-      hiddenTopics: new Set<string>((userBehavior.hiddenTopics || []).map((t: string) => t.toLowerCase())),
-    } : undefined;
+    const behaviorSets = this.buildBehaviorSets(userBehavior);
 
     // Pre-calculate engagement scores with caching (batch load from cache)
     const engagementScoreCache = new Map<string, number>();
@@ -675,14 +681,11 @@ export class FeedRankingService {
     const postsWithScores = await Promise.all(
       postsToRank.map(async (post, originalIndex) => {
         const score = await this.calculatePostScore(post, userId, {
-          followingIds,
           userBehavior,
           feedSettings: context.feedSettings,
           engagementScoreCache,
-          _followingIdsSet: followingIdsSet,
-          _recentAuthorsSet: new Set(recentAuthorsSet),
-          _recentTopicsSet: new Set(recentTopicsSet),
-          _behaviorSets: behaviorSets,
+          followingIdsSet,
+          behaviorSets,
         });
 
         // Update recent sets for diversity calculation (for next posts)

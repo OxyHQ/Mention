@@ -2,12 +2,14 @@ import { oxyServices } from '@/lib/oxyServices';
 import axios from 'axios';
 import { API_URL } from '@/config';
 
+const API_TIMEOUT_MS = 15_000;
+
 // Authenticated axios client for Mention backend (api.mention.earth)
 // Auth token is read from the shared OxyServices instance on every request
 const authenticatedClient = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
+  timeout: API_TIMEOUT_MS,
 });
 
 authenticatedClient.interceptors.request.use((config) => {
@@ -50,7 +52,7 @@ authenticatedClient.interceptors.response.use(
 const publicClient = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
+  timeout: API_TIMEOUT_MS,
 });
 
 // Authenticated API helpers (unwrap axios response)
