@@ -672,13 +672,9 @@ export class FeedRankingService {
       logger.debug(`Reduced candidate set from ${posts.length} to ${postsToRank.length} posts for full ranking`);
     }
     
-    // Track recent authors and topics for diversity (build incrementally)
-    const recentAuthorsSet = new Set<string>();
-    const recentTopicsSet = new Set<string>();
-    
-    // Calculate scores for all posts in parallel (batch processing)
+    // Calculate base scores for all posts in parallel (without diversity)
     // Preserve original index to maintain MongoDB's createdAt sort order for tie-breaking
-    const postsWithScores = await Promise.all(
+    const postsWithBaseScores = await Promise.all(
       postsToRank.map(async (post, originalIndex) => {
         const score = await this.calculatePostScore(post, userId, {
           userBehavior,
@@ -687,20 +683,35 @@ export class FeedRankingService {
           followingIdsSet,
           behaviorSets,
         });
-
-        // Update recent sets for diversity calculation (for next posts)
-        if (post.oxyUserId) {
-          recentAuthorsSet.add(post.oxyUserId);
-        }
-        if (post.hashtags) {
-          post.hashtags.forEach((tag: string) => {
-            recentTopicsSet.add(tag.toLowerCase());
-          });
-        }
-        
         return { post, score, originalIndex };
       })
     );
+
+    // Apply diversity penalty sequentially — each post's penalty depends on previously seen authors/topics
+    const recentAuthorsSet = new Set<string>();
+    const recentTopicsSet = new Set<string>();
+    const safe = (v: number, fallback: number = 1) => Number.isFinite(v) ? v : fallback;
+
+    const postsWithScores = postsWithBaseScores.map((item) => {
+      const diversityPenalty = safe(this.calculateDiversityPenalty(
+        item.post,
+        recentAuthorsSet,
+        recentTopicsSet,
+        context.feedSettings?.diversity
+      ));
+
+      // Track this post's author/topics for subsequent posts
+      if (item.post.oxyUserId) {
+        recentAuthorsSet.add(item.post.oxyUserId);
+      }
+      if (item.post.hashtags) {
+        item.post.hashtags.forEach((tag: string) => {
+          recentTopicsSet.add(tag.toLowerCase());
+        });
+      }
+
+      return { ...item, score: item.score * diversityPenalty };
+    });
     
     // Sort by score (descending), preserving MongoDB's createdAt order for ties
     // MongoDB already sorted by createdAt: -1, so originalIndex reflects that order
