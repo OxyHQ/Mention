@@ -48,10 +48,11 @@ router.get('/', async (req: any, res) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
-    const labelers = await LabelService.getLabelers(search ? { search } : undefined);
+    const [labelers, settings] = await Promise.all([
+      LabelService.getLabelers(search ? { search } : undefined),
+      UserSettings.findOne({ oxyUserId: userId }, { 'privacy.labelPreferences.subscribedLabelers': 1 }).lean(),
+    ]);
 
-    // Determine which labelers the current user is subscribed to
-    const settings = await UserSettings.findOne({ oxyUserId: userId }).lean();
     const subscribedSet = new Set<string>(
       settings?.privacy?.labelPreferences?.subscribedLabelers ?? []
     );
@@ -148,9 +149,21 @@ router.put('/preferences', validateBody(updatePreferencesSchema), async (req: an
 
     const { labelActions } = req.body;
 
+    // Merge incoming actions per-labeler instead of replacing the entire array.
+    // Build a map keyed by "labelerId:labelSlug" so new entries override old ones
+    // while preserving actions for labelers not included in this request.
+    const settings = await UserSettings.findOne({ oxyUserId: userId }).lean();
+    const existing: Array<{ labelerId: string; labelSlug: string; action: string }> =
+      (settings?.privacy?.labelPreferences?.labelActions as any[]) ?? [];
+
+    const incomingLabelerIds = new Set(labelActions.map((a: any) => a.labelerId));
+    // Keep actions for labelers NOT in the incoming payload
+    const kept = existing.filter((a: any) => !incomingLabelerIds.has(a.labelerId));
+    const merged = [...kept, ...labelActions];
+
     await UserSettings.findOneAndUpdate(
       { oxyUserId: userId },
-      { $set: { 'privacy.labelPreferences.labelActions': labelActions } },
+      { $set: { 'privacy.labelPreferences.labelActions': merged } },
       { upsert: true, new: true }
     );
 
@@ -169,11 +182,13 @@ router.get('/:id', validateObjectId('id'), async (req: any, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const labeler = await LabelService.getLabelerById(req.params.id);
+    const [labeler, settingsDoc] = await Promise.all([
+      LabelService.getLabelerById(req.params.id),
+      UserSettings.findOne({ oxyUserId: userId }, { 'privacy.labelPreferences.subscribedLabelers': 1 }).lean(),
+    ]);
     if (!labeler) return res.status(404).json({ error: 'Labeler not found' });
 
-    const settings = await UserSettings.findOne({ oxyUserId: userId }).lean();
-    const subscribedList: string[] = settings?.privacy?.labelPreferences?.subscribedLabelers ?? [];
+    const subscribedList: string[] = settingsDoc?.privacy?.labelPreferences?.subscribedLabelers ?? [];
     const isSubscribed = subscribedList.includes(req.params.id);
 
     const id = String((labeler as any)._id);

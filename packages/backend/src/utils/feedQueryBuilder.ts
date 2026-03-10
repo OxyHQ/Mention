@@ -6,6 +6,7 @@
 
 import { FeedType, PostType, PostVisibility } from '@mention/shared-types';
 import mongoose from 'mongoose';
+import { ContentLabel } from '../models/ContentLabel';
 import { parseFeedCursor } from './feedUtils';
 
 export interface FeedQueryOptions {
@@ -103,8 +104,6 @@ export class FeedQueryBuilder {
     const empty = { hiddenPostIds: [], warnPostIds: [], blurPostIds: [] };
     if (!hiddenLabelFilters || hiddenLabelFilters.length === 0) return empty;
 
-    const { ContentLabel } = require('../models/ContentLabel.js');
-
     // Build $or conditions for each (labelerId, labelSlug) pair
     const orConditions = hiddenLabelFilters
       .filter(f => mongoose.Types.ObjectId.isValid(f.labelerId))
@@ -118,7 +117,7 @@ export class FeedQueryBuilder {
     const matchingLabels = await ContentLabel.find({
       targetType: 'post',
       $or: orConditions,
-    }).lean();
+    }, { targetId: 1, _id: 0 }).limit(200).lean();
 
     const hiddenPostIds = matchingLabels.map((l: any) => String(l.targetId));
 

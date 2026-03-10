@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { Labeler, ILabeler, ILabelDefinition } from '../models/Labeler';
 import { ContentLabel } from '../models/ContentLabel';
 import UserSettings from '../models/UserSettings';
+import { escapeRegex } from '../utils/textProcessing';
 import { logger } from '../utils/logger';
 
 export interface CreateLabelerData {
@@ -44,15 +45,14 @@ export class LabelService {
     const query: Record<string, unknown> = {};
 
     if (filters?.search && filters.search.trim()) {
-      const escaped = filters.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const searchRegex = new RegExp(escaped, 'i');
+      const searchRegex = new RegExp(escapeRegex(filters.search.trim()), 'i');
       query.$or = [
         { name: searchRegex },
         { description: searchRegex },
       ];
     }
 
-    return Labeler.find(query).sort({ subscriberCount: -1, createdAt: -1 }).lean() as unknown as ILabeler[];
+    return Labeler.find(query).sort({ subscriberCount: -1, createdAt: -1 }).limit(200).lean() as unknown as ILabeler[];
   }
 
   /**
@@ -71,24 +71,27 @@ export class LabelService {
       throw new Error('Invalid labeler id');
     }
 
-    const labeler = await Labeler.findById(labelerId);
-    if (!labeler) throw new Error('Labeler not found');
+    const exists = await Labeler.exists({ _id: new mongoose.Types.ObjectId(labelerId) });
+    if (!exists) throw new Error('Labeler not found');
+
+    // Check if already subscribed before the update
+    const existingSettings = await UserSettings.findOne(
+      { oxyUserId: userId },
+      { 'privacy.labelPreferences.subscribedLabelers': 1 }
+    ).lean();
+    const alreadySubscribed = (existingSettings?.privacy?.labelPreferences?.subscribedLabelers ?? [])
+      .includes(labelerId);
 
     // Add labelerId to user's subscribedLabelers (avoid duplicates)
-    const settings = await UserSettings.findOneAndUpdate(
+    await UserSettings.findOneAndUpdate(
       { oxyUserId: userId },
-      {
-        $addToSet: { 'privacy.labelPreferences.subscribedLabelers': labelerId },
-      },
-      { upsert: true, new: true }
+      { $addToSet: { 'privacy.labelPreferences.subscribedLabelers': labelerId } },
+      { upsert: true }
     );
 
-    // Only increment if the labeler wasn't already in the list before this update
-    // We detect a new subscription by checking if the result contains the id
-    const subscribedList: string[] = settings?.privacy?.labelPreferences?.subscribedLabelers ?? [];
-    const wasAlreadySubscribed = subscribedList.filter(id => id === labelerId).length > 1;
-    if (!wasAlreadySubscribed) {
-      await Labeler.findByIdAndUpdate(labelerId, { $inc: { subscriberCount: 1 } });
+    // Only increment if this is a new subscription
+    if (!alreadySubscribed) {
+      await Labeler.updateOne({ _id: labelerId }, { $inc: { subscriberCount: 1 } });
     }
 
     logger.info('[LabelService] User subscribed to labeler', { userId, labelerId });

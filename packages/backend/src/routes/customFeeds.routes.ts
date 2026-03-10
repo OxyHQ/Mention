@@ -7,6 +7,7 @@ import { feedController } from '../controllers/feed.controller';
 import { validateBody, validateObjectId, schemas } from '../middleware/validate';
 import FeedLike from '../models/FeedLike';
 import { oxy as oxyClient } from '../../server';
+import { escapeRegex } from '../utils/textProcessing';
 import { logger } from '../utils/logger';
 
 interface AuthRequest extends Request {
@@ -113,7 +114,7 @@ router.get('/', async (req: any, res) => {
 
     // Add search functionality
     if (search && typeof search === 'string' && search.trim()) {
-      const searchTerm = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchTerm = escapeRegex(search.trim());
       const searchRegex = new RegExp(searchTerm, 'i');
       const searchCondition = {
         $or: [
@@ -256,7 +257,7 @@ router.get('/marketplace', async (req: any, res) => {
     }
 
     if (search && typeof search === 'string' && search.trim()) {
-      const searchTerm = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchTerm = escapeRegex(search.trim());
       const searchRegex = new RegExp(searchTerm, 'i');
       q.$or = [
         { title: searchRegex },
@@ -267,7 +268,7 @@ router.get('/marketplace', async (req: any, res) => {
     }
 
     let sortStage: any;
-    if (sortBy === 'rating') {
+    if (sortBy === 'rating' || sortBy === 'top_rated') {
       sortStage = { averageRating: -1, ratingsCount: -1, createdAt: -1 };
     } else if (sortBy === 'newest') {
       sortStage = { createdAt: -1 };
@@ -648,44 +649,38 @@ router.post('/:id/like', validateObjectId('id'), async (req: any, res) => {
     const feed = await CustomFeed.findById(feedId);
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
 
-    // Check if already liked
-    const existingLike = await FeedLike.findOne({ userId, feedId });
-    if (existingLike) {
-      const likeCount = await FeedLike.countDocuments({ feedId });
-      return res.json({
-        success: true,
-        liked: true,
-        likeCount,
-        message: 'Feed already liked',
-      });
+    // Try to create like record — unique index prevents duplicates
+    try {
+      await FeedLike.create({ userId, feedId });
+    } catch (err: any) {
+      if (err.code === 11000) {
+        // Already liked — return current subscriberCount
+        const f = await CustomFeed.findById(feedId, { subscriberCount: 1 }).lean();
+        return res.json({
+          success: true,
+          liked: true,
+          likeCount: (f as any)?.subscriberCount ?? 0,
+          message: 'Feed already liked',
+        });
+      }
+      throw err;
     }
 
-    // Create like record
-    await FeedLike.create({ userId, feedId });
-
-    // Get updated like count and sync subscriberCount on the feed
-    const likeCount = await FeedLike.countDocuments({ feedId });
-    await CustomFeed.updateOne({ _id: feedId }, { subscriberCount: likeCount });
+    // Atomically increment subscriberCount
+    const updated = await CustomFeed.findByIdAndUpdate(
+      feedId,
+      { $inc: { subscriberCount: 1 } },
+      { new: true, projection: { subscriberCount: 1 } }
+    );
 
     res.json({
       success: true,
       liked: true,
-      likeCount,
+      likeCount: (updated as any)?.subscriberCount ?? 0,
       message: 'Feed liked successfully',
     });
   } catch (error: any) {
     logger.error('[CustomFeeds] Like feed error:', { userId: req.user?.id, feedId: req.params.id, error });
-    if (error.code === 11000) {
-      // Duplicate key error - already liked
-      const feedId = req.params.id;
-      const likeCount = await FeedLike.countDocuments({ feedId });
-      return res.json({
-        success: true,
-        liked: true,
-        likeCount,
-        message: 'Feed already liked',
-      });
-    }
     res.status(500).json({ error: 'Failed to like feed' });
   }
 });
@@ -703,23 +698,27 @@ router.delete('/:id/like', validateObjectId('id'), async (req: any, res) => {
     // Remove like record
     const result = await FeedLike.deleteOne({ userId, feedId });
 
-    // Get updated like count and sync subscriberCount on the feed
-    const likeCount = await FeedLike.countDocuments({ feedId });
-    await CustomFeed.updateOne({ _id: feedId }, { subscriberCount: likeCount });
-
     if (result.deletedCount === 0) {
+      const f = await CustomFeed.findById(feedId, { subscriberCount: 1 }).lean();
       return res.json({
         success: true,
         liked: false,
-        likeCount,
+        likeCount: (f as any)?.subscriberCount ?? 0,
         message: 'Feed not liked',
       });
     }
 
+    // Atomically decrement subscriberCount
+    const updated = await CustomFeed.findByIdAndUpdate(
+      feedId,
+      { $inc: { subscriberCount: -1 } },
+      { new: true, projection: { subscriberCount: 1 } }
+    );
+
     res.json({
       success: true,
       liked: false,
-      likeCount,
+      likeCount: Math.max(0, (updated as any)?.subscriberCount ?? 0),
       message: 'Feed unliked successfully',
     });
   } catch (error) {

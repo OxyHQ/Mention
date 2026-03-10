@@ -30,10 +30,6 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
   const [subscribedLabelers, setSubscribedLabelers] = useState<SubscribedLabeler[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadSubscribedLabelers();
-  }, []);
-
   const loadSubscribedLabelers = useCallback(async () => {
     try {
       const res = await labelerService.list();
@@ -51,6 +47,10 @@ const LabelPreferencesSection: React.FC<LabelPreferencesSectionProps> = ({
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadSubscribedLabelers();
+  }, [loadSubscribedLabelers]);
 
   const handleManageLabelersPress = useCallback(() => {
     router.push('/moderation/labelers');

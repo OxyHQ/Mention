@@ -97,9 +97,9 @@ const FeedCard = React.memo(function FeedCard({
     onSubscribeToggle(feedId, item.isLiked || false);
   }, [feedId, item.isLiked, onSubscribeToggle]);
 
-  const subscriberCount = item.likeCount || item.subscriberCount || 0;
+  const subscriberCount = item.subscriberCount || 0;
   const averageRating = item.averageRating || 0;
-  const reviewCount = item.reviewCount || 0;
+  const reviewCount = item.ratingsCount || 0;
   const ownerName = item.owner?.displayName || item.owner?.username || '';
   const ownerAvatar = item.owner?.avatar;
 
