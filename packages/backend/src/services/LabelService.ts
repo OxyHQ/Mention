@@ -74,19 +74,17 @@ export class LabelService {
     const exists = await Labeler.exists({ _id: new mongoose.Types.ObjectId(labelerId) });
     if (!exists) throw new Error('Labeler not found');
 
-    // Atomically add labelerId — use modifiedCount to avoid TOCTOU race
+    // $addToSet is idempotent — no $ne guard needed
     const result = await UserSettings.updateOne(
-      { oxyUserId: userId, 'privacy.labelPreferences.subscribedLabelers': { $ne: labelerId } },
+      { oxyUserId: userId },
       { $addToSet: { 'privacy.labelPreferences.subscribedLabelers': labelerId } },
       { upsert: true }
     );
 
-    // Only increment if the document was actually modified (new subscription)
     if (result.modifiedCount > 0 || result.upsertedCount > 0) {
       await Labeler.updateOne({ _id: labelerId }, { $inc: { subscriberCount: 1 } });
+      logger.info('[LabelService] User subscribed to labeler', { userId, labelerId });
     }
-
-    logger.info('[LabelService] User subscribed to labeler', { userId, labelerId });
   }
 
   /**
