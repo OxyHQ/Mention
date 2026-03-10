@@ -1,13 +1,10 @@
 import express, { Request, Response } from 'express';
 import StarterPack from '../models/StarterPack';
+import { escapeRegex } from '../utils/textProcessing';
 
 const router = express.Router();
 
 const MAX_MEMBERS = 150;
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 interface AuthRequest extends Request { user?: { id: string } }
 
