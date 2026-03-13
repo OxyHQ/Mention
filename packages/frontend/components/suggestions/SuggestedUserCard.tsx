@@ -21,7 +21,7 @@ interface SuggestedUserCardProps {
   onDismiss: (id: string) => void;
 }
 
-const CARD_WIDTH = 180;
+const CARD_WIDTH = 150;
 
 const FollowButton = (OxyServicesNS as any).FollowButton as React.ComponentType<{
   userId: string;
@@ -69,10 +69,10 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
         onPress={handleDismiss}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Ionicons name="close" size={16} color={theme.colors.textSecondary} />
+        <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
       </Pressable>
 
-      <Avatar source={user.avatar} size={64} />
+      <Avatar source={user.avatar} size={48} />
 
       <ThemedText style={[styles.name, { color: theme.colors.text }]} numberOfLines={1}>
         {displayName}
@@ -104,11 +104,11 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
 const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingTop: 28,
-    paddingBottom: 14,
-    paddingHorizontal: 12,
+    paddingTop: 20,
+    paddingBottom: 10,
+    paddingHorizontal: 10,
     alignItems: 'center',
     ...Platform.select({ web: { cursor: 'pointer' } }),
   },
@@ -120,19 +120,19 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   name: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    marginTop: 10,
+    marginTop: 8,
     textAlign: 'center',
   },
   bio: {
-    fontSize: 13,
-    lineHeight: 17,
-    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
     textAlign: 'center',
   },
   followButtonContainer: {
-    marginTop: 10,
+    marginTop: 8,
     width: '100%',
     alignItems: 'center',
   },

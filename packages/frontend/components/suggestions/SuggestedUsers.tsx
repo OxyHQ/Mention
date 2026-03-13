@@ -124,19 +124,19 @@ const keyExtractor = (item: SuggestedUserData) => item.id;
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   title: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   separator: {
-    width: 12,
+    width: 8,
   },
 });
